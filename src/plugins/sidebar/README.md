@@ -8,7 +8,7 @@ Claude wrote and the issue it fixes, Issues by priority](../../../docs/media/sid
 
 - **Files:** the folder as a tree, with git's letter on each changed file and a dot on each folder holding changes;
   a new file or folder, renaming, moving to the Trash, copying a path. A click opens the file in a preview tab. With
-  herdr-fold's tab layout, a folder's right click offers Add Workspace: herdr-fold's folder picker opens on it.
+  herdr-fold's tab layout, a folder's right click offers New Workspace: herdr-fold's folder picker opens on it.
 - **Search:** as you type (typing on narrows the hits at once, before the search answers), with match case, whole word
   and regular expression; the hits by file. A hit opens the preview at its line. A folder or file you chose in Files (an
   arrow key or a click on it) is the one searched, named above the field, a file even when git ignores it (a link chosen

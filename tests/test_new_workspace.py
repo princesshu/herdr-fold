@@ -69,8 +69,8 @@ class Screen(unittest.TestCase):
         new_workspace.close_placeholder("w9")                                   # a folder chosen: it is in front
         self.assertEqual([c for c in calls if c[0] == "workspace" and c[1] != "list"], [("workspace", "close", "w9")])
 
-    def test_add_workspace_starts_on_its_folder(self):
-        # the sidebar's Add Workspace: the folder's own row chosen in its parent, the rest as the new button shows it
+    def test_new_workspace_from_the_sidebar_starts_on_its_folder(self):
+        # the sidebar's New Workspace: the folder's own row chosen in its parent, the rest as the new button shows it
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp)
         for name in ("alpha", "beta", "gamma"):

@@ -81,7 +81,7 @@ def clicking(event, chosen, agent, last, now, title, width, top, shown):
 
 
 def start_on(target, first, others):
-    """Where the picker starts: on folder TARGET (the sidebar's Add Workspace), chosen in its parent; else in FIRST."""
+    """Where the picker starts: on folder TARGET (the sidebar's New Workspace), chosen in its parent; else in FIRST."""
     if target and os.path.isdir(target):
         folder, name = os.path.split(target.rstrip(os.sep))
         rows = listing(folder, "", first, others)

@@ -604,9 +604,9 @@ class App(Loop):
         self.job("trash", lambda: self.ops.trash(path), then)
 
     def got_picker(self, there):
-        self.views["files"].can_add_workspace = there
+        self.views["files"].opens_workspace = there
 
-    def do_add_workspace(self, folder):
+    def do_new_workspace(self, folder):
         self.job("workspace", lambda: self.herdr.call(
             "plugin", "pane", "open", "--plugin", "herdr-fold.tab-layout", "--entrypoint", "new-workspace", "--focus",
             "--env", f"HERDR_NEW_WORKSPACE_FOLDER={folder}"))

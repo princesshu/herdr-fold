@@ -1013,8 +1013,8 @@ class FollowsItsFolder(unittest.TestCase):
         restart.assert_called_once_with(["sidebar.py", "/work/new-name"])
 
 
-class AddWorkspace(unittest.TestCase):
-    """Add Workspace on a folder, once herdr-fold's tab layout is there: its folder picker opens on that folder, with
+class NewWorkspace(unittest.TestCase):
+    """New Workspace on a folder, once herdr-fold's tab layout is there: its folder picker opens on that folder, with
     the Claude / Codex toggle, as herdr's new button opens it."""
 
     def setUp(self):
@@ -1048,16 +1048,16 @@ class AddWorkspace(unittest.TestCase):
         self.app.collect()
 
     def test_it_is_offered_once_herdr_folds_tab_layout_is_there(self):
-        self.assertTrue(self.make(["herdr-fold.sidebar", "herdr-fold.tab-layout"]).views["files"].can_add_workspace)
-        self.assertFalse(self.make(["herdr-fold.sidebar"]).views["files"].can_add_workspace)
+        self.assertTrue(self.make(["herdr-fold.sidebar", "herdr-fold.tab-layout"]).views["files"].opens_workspace)
+        self.assertFalse(self.make(["herdr-fold.sidebar"]).views["files"].opens_workspace)
         app = self.make(None)                                   # herdr not answering: nothing offered, no error shown
-        self.assertFalse(app.views["files"].can_add_workspace)
+        self.assertFalse(app.views["files"].opens_workspace)
         self.assertIsNone(app.error)
 
     def test_it_opens_the_folder_picker_on_the_folder(self):
         app = self.make(["herdr-fold.tab-layout"])
         folder = os.path.join(app.root, "src")
-        app.act(Action("add_workspace", (folder,)))
+        app.act(Action("new_workspace", (folder,)))
         self.settle()
         self.assertIn(("plugin", "pane", "open", "--plugin", "herdr-fold.tab-layout", "--entrypoint", "new-workspace",
                        "--focus", "--env", f"HERDR_NEW_WORKSPACE_FOLDER={folder}"), self.calls)

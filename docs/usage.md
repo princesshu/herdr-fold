@@ -23,7 +23,7 @@ tab. In a new folder the agent first asks whether you trust it: answer in the pa
 tab, after a restart too, until Cmd + Shift + O (Restore panels) or the sidebar's ⋯ menu brings it back; a new tab
 always comes with every pane.
 
-A folder in the sidebar's Files view opens a workspace too: right-click it → **Add Workspace**, and the folder picker
+A folder in the sidebar's Files view opens a workspace too: right-click it → **New Workspace**, and the folder picker
 opens on it, with the Claude / Codex toggle.
 
 Rename or move the folder, and the workspace and its main tab take the folder's new name at the next pane you focus
