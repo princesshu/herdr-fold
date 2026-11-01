@@ -15,7 +15,8 @@ from herdrlib import AGENTS, PLUGIN_STATE, agent_pane_ids, free_label, herdr  # 
 from i18n import line, t  # noqa: E402
 from projects import repositories, start  # noqa: E402
 from screen import after, glyphs, icon  # noqa: E402  the sidebar's, on the path herdrlib gives
-from tui import GRAY, INVERT, RESET, button_at, buttons, clicked, getkey, mouse, printable, wait_and_exit  # noqa: E402
+from tui import (FOCUS_LOST, GRAY, INVERT, RESET, button_at, buttons, clicked, getkey, popup, printable,  # noqa: E402
+                 wait_and_exit)
 
 HOME = os.path.expanduser("~")
 BOLD = "\x1b[1m"
@@ -127,6 +128,8 @@ class Picker:
             self.agent = AGENTS[(AGENTS.index(self.agent) + 1) % len(AGENTS)]
         elif key in ("\r", "\n") and row:
             return "open"
+        elif key == FOCUS_LOST:                     # a click outside: closed, as a modal is
+            return "cancel"
         elif key == "\x1b" and self.filt:
             self.filt, self.chosen = "", 0
         elif key in ("\x1b", "\x03"):
@@ -251,7 +254,7 @@ def main():
     placeholder = os.environ.get("HERDR_NEW_WORKSPACE")
     picker = Picker(start(repositories()), os.environ.get("HERDR_NEW_WORKSPACE_FOLDER"))
     opened = set(open_workspaces())
-    mouse(True)
+    popup(True)
     while True:
         height, width = max(3, os.get_terminal_size().lines - 6), shutil.get_terminal_size().columns
         print(screen(picker, opened, height, width), end="", flush=True)

@@ -18,6 +18,8 @@ from i18n import t  # noqa: E402
 _saved_mode = None
 _pending = b""            # a byte read after Esc that does not belong to it
 _mouse = False            # clicks and the wheel reported to the window
+_focus = False            # the focus leaving the window reported to it
+FOCUS_LOST = "\x1b[O"     # the key a terminal sends when the window loses the focus
 MOUSE_REPORT = re.compile(r"\x1b\[<(\d+);(\d+);(\d+)([Mm])")
 GRAY, INVERT, RESET = "\x1b[90m", "\x1b[7m", "\x1b[0m"
 GAP = 2                   # cells between two buttons
@@ -46,6 +48,19 @@ def mouse(on):
         _mouse = on
         if on:
             atexit.register(mouse, False)
+
+
+def popup(on):
+    """The window as a popup: clicks and the wheel reported (mouse()), and the focus leaving it (FOCUS_LOST: a click
+    outside, which herdr gives to the pane there); given back when the window ends."""
+    global _focus
+    mouse(on)
+    if sys.stdout.isatty() and on != _focus:
+        sys.stdout.write("\x1b[?1004h" if on else "\x1b[?1004l")
+        sys.stdout.flush()
+        _focus = on
+        if on:
+            atexit.register(popup, False)
 
 
 def clicked(key):
