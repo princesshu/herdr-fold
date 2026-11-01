@@ -3,6 +3,7 @@
 | Symptom | Fix |
 |---|---|
 | macOS will not open `install.command` or Ghostty | System Settings → Privacy & Security → **Open Anyway**. On macOS 15 and later, right-click → Open no longer helps. |
+| `herdr plugin install princesshu/herdr-fold`: `… is already linked from a local path` | herdr-fold is installed here from its folder (`git clone` or a zip), and herdr keeps one copy of a plugin: update it from that folder (`git pull`, `./install.sh`), or to move to herdr's marketplace, run `./uninstall.sh` first |
 | The installer stops at once: this herdr-fold folder is in the Trash | the terminal was left in a folder that went to the Trash, so its old copy ran: `cd` into the folder you unpacked and run `./install.sh` there |
 | The installer sums a step up in one line, and you want every item | `HERDR_FOLD_VERBOSE=1 ./install.sh` (warnings and errors always get a line of their own) |
 | `nested herdr is disabled` | start Ghostty from the Dock or Applications, not from a herdr pane |
