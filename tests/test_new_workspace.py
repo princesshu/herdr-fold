@@ -1,6 +1,9 @@
 """Tests for new_workspace.py's folder picker screen: the folder as title, a claude │ codex toggle marking the chosen
 agent, the filter only while typing, and one short line for the keys that are not obvious (Tab, →).
 """
+import os
+import shutil
+import tempfile
 import unittest
 
 from support import ANSI, set_attrs
@@ -23,6 +26,18 @@ class Screen(unittest.TestCase):
         self.assertEqual(herdrlib.free_label("/home/dev/projects/app", set(), "/home/dev"), "app")
         self.assertEqual(herdrlib.free_label("/home/dev", set(), "/home/dev"), "home")   # never ~ or the user's name
         self.assertEqual(herdrlib.free_label("/", set(), "/home/dev"), "/")
+
+    def test_add_workspace_starts_on_its_folder(self):
+        # the sidebar's Add Workspace: the folder's own row chosen in its parent, the rest as the new button shows it
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp)
+        for name in ("alpha", "beta", "gamma"):
+            os.makedirs(os.path.join(tmp, name))
+        folder, chosen = new_workspace.start_on(os.path.join(tmp, "beta"), tmp, [])
+        self.assertEqual(folder, tmp)
+        self.assertEqual(new_workspace.listing(folder, "", tmp, [])[chosen], "beta")
+        self.assertEqual(new_workspace.start_on(None, tmp, []), (tmp, 0))                  # the new button
+        self.assertEqual(new_workspace.start_on(os.path.join(tmp, "gone"), tmp, []), (tmp, 0))
 
     def test_the_title_is_the_folder(self):
         self.assertTrue(self.lines()[0].startswith("~/projects"))

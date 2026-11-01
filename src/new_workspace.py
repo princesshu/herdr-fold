@@ -38,6 +38,16 @@ def shown(name):
     return "~" + name[len(HOME):] if os.path.isabs(name) and (name + "/").startswith(HOME + "/") else name
 
 
+def start_on(target, first, others):
+    """Where the picker starts: on folder TARGET (the sidebar's Add Workspace), chosen in its parent; else in FIRST."""
+    if target and os.path.isdir(target):
+        folder, name = os.path.split(target.rstrip(os.sep))
+        rows = listing(folder, "", first, others)
+        if name in rows:
+            return folder, rows.index(name)
+    return first, 0
+
+
 def open_workspaces():
     """folder → workspace, based on the folder of each workspace's agent pane."""
     panes = herdr("pane", "list")["panes"]
@@ -94,10 +104,11 @@ def screen(folder, names, chosen, top, filt, agent, opened, height, width):
 def main():
     placeholder = os.environ.get("HERDR_NEW_WORKSPACE")
     repos = repositories()
-    folder = first = start(repos)
+    first = start(repos)
     others = elsewhere(repos, first)
+    folder, chosen = start_on(os.environ.get("HERDR_NEW_WORKSPACE_FOLDER"), first, others)
     opened = set(open_workspaces())
-    agent, filt, chosen, top = AGENTS[0], "", 0, 0
+    agent, filt, top = AGENTS[0], "", 0
     while True:
         names = listing(folder, filt, first, others)
         height = max(3, os.get_terminal_size().lines - 6)

@@ -72,6 +72,7 @@ class Explorer:
         self.hover, self.canvas, self.top, self.height = None, Canvas(0, 0), 0, 1
         self.pointed = None                               # the header button under the mouse
         self.moved = False                                # whether the chosen row is yours: the first is by itself
+        self.can_add_workspace = False                    # herdr-fold's folder picker there (the app asks herdr once)
 
     @property
     def editing(self):
@@ -373,7 +374,10 @@ class Explorer:
         return Action("trash", (doomed,)) if yes else None
 
     def open_menu(self, node, y, x):
-        choices = MENU if node is not None and node.path is not None else MENU[:2]
+        if node is None or node.path is None:
+            choices = MENU[:2]
+        else:
+            choices = (("Add Workspace",) if node.is_dir and self.can_add_workspace else ()) + MENU
         self.menu = Popup(Menu(choices), node, y, x)
 
     def close_menu(self):
@@ -389,6 +393,8 @@ class Explorer:
             self.rename(node)
         elif choice == "Copy Path":
             return Action("copy_path", (node.path,))
+        elif choice == "Add Workspace":
+            return Action("add_workspace", (node.path,))
         elif choice == "Move to Trash":
             self.ask_trash(node)
         return None

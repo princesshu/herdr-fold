@@ -26,6 +26,7 @@ import preview  # noqa: E402
 import screen  # noqa: E402
 import sidebar  # noqa: E402
 from vt import Focus, Key, Mouse, Resize  # noqa: E402
+from widgets import Action  # noqa: E402
 
 FAKE_HERDR = """#!/bin/sh
 printf '%s\\n' "$*" >> "$HERDR_LOG"
@@ -1012,6 +1013,56 @@ class FollowsItsFolder(unittest.TestCase):
         restart.assert_called_once_with(["sidebar.py", "/work/new-name"])
 
 
+class AddWorkspace(unittest.TestCase):
+    """Add Workspace on a folder, once herdr-fold's tab layout is there: its folder picker opens on that folder, with
+    the Claude / Codex toggle, as herdr's new button opens it."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.root = os.path.join(self.tmp, "project")
+        os.makedirs(os.path.join(self.root, "src"))
+        set_env(self, GIT_CONFIG_GLOBAL=os.devnull)
+        self.calls = []
+
+    def make(self, plugins):
+        test = self
+
+        class Herdr:
+            def call(self, *args):
+                test.calls.append(args)
+                if args[:2] == ("plugin", "list"):
+                    if plugins is None:
+                        raise RuntimeError("no herdr")
+                    return {"plugins": [{"plugin_id": plugin} for plugin in plugins]}
+                return {}
+        self.app = sidebar.App(self.root, FakeTerminal(), Herdr(), os.path.join(self.tmp, "state"))
+        self.app.resume()                                       # what run() does first, the terminal taken
+        self.settle()
+        return self.app
+
+    def settle(self):
+        for thread in threading.enumerate():
+            if thread.name.startswith("sidebar-"):
+                thread.join(5)
+        self.app.collect()
+
+    def test_it_is_offered_once_herdr_folds_tab_layout_is_there(self):
+        self.assertTrue(self.make(["herdr-fold.sidebar", "herdr-fold.tab-layout"]).views["files"].can_add_workspace)
+        self.assertFalse(self.make(["herdr-fold.sidebar"]).views["files"].can_add_workspace)
+        app = self.make(None)                                   # herdr not answering: nothing offered, no error shown
+        self.assertFalse(app.views["files"].can_add_workspace)
+        self.assertIsNone(app.error)
+
+    def test_it_opens_the_folder_picker_on_the_folder(self):
+        app = self.make(["herdr-fold.tab-layout"])
+        folder = os.path.join(app.root, "src")
+        app.act(Action("add_workspace", (folder,)))
+        self.settle()
+        self.assertIn(("plugin", "pane", "open", "--plugin", "herdr-fold.tab-layout", "--entrypoint", "new-workspace",
+                       "--focus", "--env", f"HERDR_NEW_WORKSPACE_FOLDER={folder}"), self.calls)
+
+
 class Advice(unittest.TestCase):
     def test_a_failed_sync_says_what_to_do(self):
         self.assertIn("merge or rebase", sidebar.advice("fatal: Not possible to fast-forward, aborting."))
@@ -1053,11 +1104,12 @@ class Terminal(Repo):
             if os.waitpid(pid, os.WNOHANG) != (0, 0):
                 ended = True
                 break
-            time.sleep(0.1)
+            read(0.1)                               # its output taken meanwhile: a full pty would stop it
         if not ended:
             os.kill(pid, 9)
+        os.close(fd)                        # first: a child killed mid-write waits for the pty to take its output
+        if not ended:
             os.waitpid(pid, 0)
-        os.close(fd)
         return out.decode("utf-8", "replace"), ended
 
     def test_q_and_ctrl_c_give_the_terminal_back(self):
@@ -1077,9 +1129,9 @@ class Terminal(Repo):
             os.execv(sys.executable, [sys.executable, "-B", os.path.join(code, "sidebar.py"), self.root])
         out, ended = bytearray(), 0
 
-        def read(seconds, until, start=0):
+        def read(seconds, until=None, start=0):
             deadline = time.monotonic() + seconds
-            while time.monotonic() < deadline and until not in out[start:]:
+            while time.monotonic() < deadline and (until is None or until not in out[start:]):
                 if select.select([fd], [], [], 0.1)[0]:
                     try:
                         out.extend(os.read(fd, 65536))
@@ -1106,13 +1158,14 @@ class Terminal(Repo):
                 ended, status = os.waitpid(pid, os.WNOHANG)
                 if ended:
                     break
-                time.sleep(0.1)
+                read(0.1)                   # its output taken meanwhile, as a terminal does: a full pty would stop it
             self.assertEqual((ended, os.waitstatus_to_exitcode(status) if ended else None), (pid, 0))
         finally:
             if not ended:
                 os.kill(pid, 9)
+            os.close(fd)                    # first: a child killed mid-write waits for the pty to take its output
+            if not ended:
                 os.waitpid(pid, 0)
-            os.close(fd)
 
     def test_quitting_does_not_wait_for_a_hanging_ai(self):
         subprocess.run(["git", "-C", self.root, "add", "a.txt"], check=True)

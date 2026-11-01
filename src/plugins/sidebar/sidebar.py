@@ -105,6 +105,15 @@ def moved_to(root, known):
     return next((os.path.realpath(place) for place in places if identity(place) == known), None)
 
 
+def picker_there(herdr):
+    """Whether herdr-fold's tab layout is there, with the folder picker of herdr's new button: herdr's plugin list."""
+    try:
+        plugins = herdr.call("plugin", "list", "--json").get("plugins") or []
+    except RuntimeError:
+        return False
+    return any(plugin.get("plugin_id") == "herdr-fold.tab-layout" for plugin in plugins)
+
+
 def seed_file(state_dir, tab):
     """Where a new preview TAB's sidebar finds where the sidebar that opened it was."""
     return os.path.join(state_dir, "seed-" + "".join(ch if ch.isalnum() else "-" for ch in tab) + ".json")
@@ -249,6 +258,8 @@ class App(Loop):
         super().resume()
         self.seeded()
         self.show(self.view)
+        if os.name != "nt":                     # the folder picker is not on Windows; a job only once the terminal is
+            self.job("picker", lambda: picker_there(self.herdr), self.got_picker)    # taken (its wake needs that)
 
     def seeded(self):
         """A new preview tab's sidebar: where the sidebar that opened it was, left for its tab (open_preview())."""
@@ -591,6 +602,14 @@ class App(Loop):
             self.tree.reload([os.path.dirname(path)])
             self.refresh()
         self.job("trash", lambda: self.ops.trash(path), then)
+
+    def got_picker(self, there):
+        self.views["files"].can_add_workspace = there
+
+    def do_add_workspace(self, folder):
+        self.job("workspace", lambda: self.herdr.call(
+            "plugin", "pane", "open", "--plugin", "herdr-fold.tab-layout", "--entrypoint", "new-workspace", "--focus",
+            "--env", f"HERDR_NEW_WORKSPACE_FOLDER={folder}"))
 
     def do_copy_path(self, path):
         if not self.ops.copy_path(path):        # no clipboard program: the terminal's own (OSC 52)

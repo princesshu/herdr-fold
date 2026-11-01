@@ -12,6 +12,11 @@ All notable changes to this project are listed here. The format follows
   (`herdr-fold.sessions-view`), `Files · Search · Git · Issues · AI Conversations` (`herdr-fold.sidebar`) and
   `Tab Layout` (`herdr-fold.tab-layout`); AI Sessions' action is now `AI Sessions: reapply`.
 
+### Added
+
+- The sidebar's Files view: a folder's right click offers Add Workspace, which opens herdr-fold's folder picker on it,
+  as herdr's new button does.
+
 ### Fixed
 
 - A folder renamed or moved: its workspace and main tab take the new name (a name you gave the workspace stays; a

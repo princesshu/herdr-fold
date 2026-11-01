@@ -229,6 +229,19 @@ class View(unittest.TestCase):
         self.draw()
         self.assertFalse(any("Copy Path" in text(self.canvas, y) for y in range(12)))
 
+    def test_a_folders_menu_adds_a_workspace_once_herdr_folds_picker_is_there(self):
+        def menu_of(name):
+            self.view.close_menu()
+            self.draw()
+            self.click(name, button=2)
+            self.draw()
+            return [y for y in range(12) if "Add Workspace" in text(self.canvas, y)]
+        self.assertEqual(menu_of("src"), [])                     # the sidebar on its own: no folder picker
+        self.view.can_add_workspace = True
+        self.assertTrue(menu_of("src"))
+        self.assertEqual(self.click("Add Workspace"), Action("add_workspace", (self.path("src"),)))
+        self.assertEqual(menu_of("README.md"), [])               # a file is no workspace
+
     def test_the_wheel_scrolls_the_list(self):
         for i in range(30):
             with open(self.path(f"file{i:02d}.txt"), "w"):
