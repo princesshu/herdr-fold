@@ -11,7 +11,8 @@ All notable changes to this project are listed here. The format follows
 - The plugins' names, as herdr's marketplace lists them: `Full Setup` (`herdr-fold`), `AI Sessions`
   (`herdr-fold.sessions-view`), `Files · Search · Git · Issues · AI Conversations` (`herdr-fold.sidebar`) and
   `Tab Layout` (`herdr-fold.tab-layout`); AI Sessions' action is now `AI Sessions: reapply`.
-- The folder picker lists the folder's own subfolders only: no repositories from elsewhere at its top.
+- The folder picker is a tree, as the sidebar's Files view: the folder on top in place of the . row, → and ← open and
+  close a folder, ← on the top row goes up one; no repositories from elsewhere at its top.
 
 ### Added
 

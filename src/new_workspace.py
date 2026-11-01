@@ -1,6 +1,8 @@
 """The folder picker for a new workspace, opened by the tab-layout plugin after herdr's "new" button: herdr alone would
 reuse the active workspace's folder. herdr_layout.py builds the chosen folder's workspace (or it jumps to an existing
 one), and the empty one is closed."""
+import collections
+import json
 import os
 import shutil
 import sys
@@ -9,15 +11,19 @@ import time
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from herdr_layout import LayoutError, build  # noqa: E402
-from herdrlib import AGENTS, agent_pane_ids, free_label, herdr  # noqa: E402
+from herdrlib import AGENTS, PLUGIN_STATE, agent_pane_ids, free_label, herdr  # noqa: E402
 from i18n import line, t  # noqa: E402
 from projects import repositories, start  # noqa: E402
+from screen import after, glyphs, icon  # noqa: E402  the sidebar's, on the path herdrlib gives
 from tui import GRAY, INVERT, RESET, button_at, buttons, clicked, getkey, mouse, printable, wait_and_exit  # noqa: E402
 
 HOME = os.path.expanduser("~")
 BOLD = "\x1b[1m"
-FIRST_ROW = 3              # the folders' first row on screen, under the title and the filter
+FIRST_ROW = 3              # the tree's first row on screen, under the title and the filter
 DOUBLE = 0.4               # seconds within which a second click on a row opens it
+NAME_CELLS = 48            # a row's cells before its tags
+
+Row = collections.namedtuple("Row", "path name depth open")
 
 
 def subfolders(path):
@@ -29,11 +35,33 @@ def subfolders(path):
     return sorted(names, key=lambda n: (n.startswith("."), n.lower()))
 
 
-def listing(folder, filt):
-    """The rows of FOLDER: the folder itself (.) and its subfolders; typing keeps those that have it (the folder itself
-    goes)."""
-    rows = [".", *subfolders(folder)]
-    return [row for row in rows if row != "." and filt.lower() in row.lower()] if filt else rows
+def tree(root, opened, filt):
+    """ROOT on top, open, and each open folder's subfolders under it (OPENED: the open ones), as the sidebar's Files
+    view shows a folder; typing keeps the rows whose name has it (ROOT goes)."""
+    rows = [Row(root, "~" if root == HOME else os.path.basename(root.rstrip(os.sep)) or root, 0, True)]
+
+    def under(folder, depth):
+        for name in subfolders(folder):
+            path = os.path.join(folder, name)
+            rows.append(Row(path, name, depth, path in opened))
+            if path in opened:
+                under(path, depth + 1)
+    under(root, 1)
+    return [row for row in rows[1:] if filt.lower() in row.name.lower()] if filt else rows
+
+
+def indent(depth):
+    """What goes before a row's mark: the top one none, the ones under it a step in, deeper ones Files' guide lines."""
+    return "" if not depth else "  " + "│ " * (depth - 1)
+
+
+def icons_on():
+    """Whether the sidebar shows Nerd Font icons (its own setting, as its Files view draws them)."""
+    try:
+        with open(os.path.join(PLUGIN_STATE, "settings.json"), encoding="utf-8") as f:
+            return json.load(f).get("icons", True) is not False
+    except (OSError, ValueError, AttributeError):
+        return True
 
 
 def title_of(folder):
@@ -50,49 +78,115 @@ def picker_buttons(width):
     return buttons([t("common.cancel"), t("picker.open")], width, t("picker.keys"))
 
 
-def hit(column, row, title, width, top, shown):
-    """What a click at COLUMN, ROW (1-based) is on: ("agent", name) in the toggle, ("row", n) on one of the SHOWN folder
-    rows (the first being row TOP of the list), ("button", "cancel" or "open") on the last row, else None."""
-    if row == FIRST_ROW + shown + 1:
-        label = button_at(column, picker_buttons(width)[1])
-        return label and ("button", "open" if label == t("picker.open") else "cancel")
-    if row == 1:
-        x, start = column - 1 - toggle_start(title, width), 0
-        for agent in AGENTS:
-            if start <= x < start + len(agent) + 2:
-                return ("agent", agent)
-            start += len(agent) + 2 + len(" │ ")
+class Picker:
+    """The tree in the picker and what the keys and the mouse do with it, as in the sidebar's Files view: → opens a
+    folder or steps into an open one, ← closes one or steps to its parent, and on the top row goes up a folder."""
+
+    def __init__(self, root, target=None):
+        self.root, self.opened, self.filt, self.agent = root, set(), "", AGENTS[0]
+        self.chosen = self.top = 0
+        self.last = None                          # the click before: its time and row (a second one there opens)
+        if target and os.path.isdir(target):      # the sidebar's New Workspace: on that folder, in its parent
+            self.root = os.path.dirname(target.rstrip(os.sep)) or target
+            self.choose(target)
+
+    def rows(self):
+        return tree(self.root, self.opened, self.filt)
+
+    def choose(self, path):
+        self.chosen = next((n for n, row in enumerate(self.rows()) if row.path == path), 0)
+
+    def chosen_path(self):
+        rows = self.rows()
+        return rows[min(self.chosen, len(rows) - 1)].path if rows else None
+
+    def fit(self, height):
+        """The rows on screen, HEIGHT at most, the chosen one among them."""
+        rows = self.rows()
+        self.chosen = min(self.chosen, max(len(rows) - 1, 0))
+        self.top = min(max(self.top, self.chosen - height + 1), self.chosen)
+        return rows[self.top:self.top + height]
+
+    def press(self, key, height):
+        """KEY's effect; "open", "cancel" or None."""
+        rows = self.rows()
+        row = rows[self.chosen] if self.chosen < len(rows) else None
+        if key == "\x1b[A":
+            self.chosen = max(self.chosen - 1, 0)
+        elif key == "\x1b[B":
+            self.chosen += 1
+        elif key in ("\x1b[5~", "\x1b[6~"):
+            self.chosen = max(self.chosen + (height if key == "\x1b[6~" else -height), 0)
+        elif key == "\x1b[C" and row:
+            self.open_or_enter(rows, row)
+        elif key == "\x1b[D" or (key in ("\x7f", "\x08") and not self.filt):
+            self.close_or_up(rows, row)
+        elif key in ("\x7f", "\x08"):
+            self.filt, self.chosen = self.filt[:-1], 0
+        elif key == "\t":
+            self.agent = AGENTS[(AGENTS.index(self.agent) + 1) % len(AGENTS)]
+        elif key in ("\r", "\n") and row:
+            return "open"
+        elif key == "\x1b" and self.filt:
+            self.filt, self.chosen = "", 0
+        elif key in ("\x1b", "\x03"):
+            return "cancel"
+        elif len(key) == 1 and key.isprintable():
+            self.filt, self.chosen, self.top = self.filt + key, 0, 0
         return None
-    return ("row", top + row - FIRST_ROW) if FIRST_ROW <= row < FIRST_ROW + shown else None
 
+    def open_or_enter(self, rows, row):
+        if not row.open:
+            self.opened.add(row.path)
+        elif self.chosen + 1 < len(rows) and rows[self.chosen + 1].depth > row.depth:
+            self.chosen += 1
 
-def clicking(event, chosen, agent, last, now, title, width, top, shown):
-    """A mouse EVENT (tui.clicked()): a click chooses a folder row, the same one again within DOUBLE seconds opens it
-    (LAST: the time and row of the click before), the toggle chooses the agent, a button opens or cancels, the wheel
-    moves. Returns (chosen, agent, last, "open", "cancel" or None)."""
-    button, column, row, pressed = event
-    if button in (64, 65):
-        return (max(chosen - 1, 0) if button == 64 else chosen + 1), agent, last, None
-    target = hit(column, row, title, width, top, shown) if button == 0 and pressed else None
-    if target is None:
-        return chosen, agent, last, None
-    if target[0] == "agent":
-        return chosen, target[1], None, None
-    if target[0] == "button":
-        return chosen, agent, None, target[1]
-    if last and last[1] == target[1] and now - last[0] <= DOUBLE:
-        return target[1], agent, None, "open"
-    return target[1], agent, (now, target[1]), None
+    def close_or_up(self, rows, row):
+        if row is None:
+            return
+        if row.depth and row.open:
+            self.opened.discard(row.path)
+        elif row.depth:
+            self.chosen = next((n for n in range(self.chosen - 1, -1, -1) if rows[n].depth < row.depth), self.chosen)
+        elif os.path.dirname(self.root) != self.root:    # the top row: up a folder, this one open and chosen
+            below, self.root, self.top = self.root, os.path.dirname(self.root), 0
+            self.opened.add(below)
+            self.choose(below)
 
-
-def start_on(target, first):
-    """Where the picker starts: on folder TARGET (the sidebar's New Workspace), chosen in its parent; else in FIRST."""
-    if target and os.path.isdir(target):
-        folder, name = os.path.split(target.rstrip(os.sep))
-        rows = listing(folder, "")
-        if name in rows:
-            return folder, rows.index(name)
-    return first, 0
+    def click(self, event, now, width, height):
+        """A mouse EVENT (tui.clicked()): a click chooses a row, the same one again within DOUBLE seconds opens it, a
+        click on its mark opens or closes it, the toggle chooses the agent, a button opens or cancels, the wheel moves.
+        "open", "cancel" or None."""
+        button, column, at, pressed = event
+        if button in (64, 65):
+            self.chosen = max(self.chosen - 1, 0) if button == 64 else self.chosen + 1
+            return None
+        if button != 0 or not pressed:
+            return None
+        shown = self.fit(height)
+        if at == 1:
+            x, start = column - 1 - toggle_start(title_of(self.root), width), 0
+            for agent in AGENTS:
+                if start <= x < start + len(agent) + 2:
+                    self.agent = agent
+                start += len(agent) + 2 + len(" │ ")
+            return None
+        if at == FIRST_ROW + len(shown) + 1:
+            label = button_at(column, picker_buttons(width)[1])
+            return label and ("open" if label == t("picker.open") else "cancel")
+        if not FIRST_ROW <= at < FIRST_ROW + len(shown):
+            return None
+        row, self.chosen = shown[at - FIRST_ROW], self.top + at - FIRST_ROW
+        mark = 2 + len(indent(row.depth))
+        if row.depth and mark <= column <= mark + 1:
+            self.opened.symmetric_difference_update({row.path})
+            self.last = None
+        elif self.last and self.last[1] == self.chosen and now - self.last[0] <= DOUBLE:
+            self.last = None
+            return "open"
+        else:
+            self.last = (now, self.chosen)
+        return None
 
 
 def open_workspaces():
@@ -134,79 +228,41 @@ def open_folder(path, agent, placeholder):
     close_placeholder(placeholder)
 
 
-def screen(folder, names, chosen, top, filt, agent, opened, height, width):
+def screen(picker, opened, height, width):
     """The picker: the folder as the title with the agent toggle on its right, what you type to filter by (only then),
-    the folders, and the keys that are not obvious."""
-    toggle = " │ ".join(f"{INVERT} {a} {RESET}" if a == agent else f" {a} " for a in AGENTS)
-    title = title_of(folder)
-    rows = [f"{BOLD}{title}{RESET}" + " " * (toggle_start(title, width) - len(title)) + toggle,
-            f"{filt}▏" if filt else ""]
-    for n in range(top, min(len(names), top + height)):
-        name = names[n]
-        path = folder if name == "." else os.path.join(folder, name)
-        tags = " ".join(tag for tag, on in (("git", is_repo(path)), ("open", path in opened)) if on)
-        color = INVERT if n == chosen else GRAY if name.startswith(".") and name != "." else ""
-        rows.append(f"{color} {printable(name)[:48]:48} {GRAY if n != chosen else ''}{tags:8} {RESET}")
-    rows += ["", picker_buttons(width)[0]]
-    return "\x1b[2J\x1b[H" + "\n".join(rows)
+    the tree, and the keys that are not obvious with Cancel and Open."""
+    rows, icons = picker.fit(height), icons_on()
+    toggle = " │ ".join(f"{INVERT} {a} {RESET}" if a == picker.agent else f" {a} " for a in AGENTS)
+    title = title_of(picker.root)
+    lines = [f"{BOLD}{title}{RESET}" + " " * (toggle_start(title, width) - len(title)) + toggle,
+             f"{picker.filt}▏" if picker.filt else ""]
+    for n, row in enumerate(rows, picker.top):
+        mark = glyphs(icons)["open" if row.open else "closed"] + after(icons)
+        folder = icon(row.name, True, row.open) + after(True) if icons else ""
+        cell = indent(row.depth) + mark + folder + printable(row.name)
+        tags = " ".join(tag for tag, on in (("git", is_repo(row.path)), ("open", row.path in opened)) if on)
+        color = INVERT if n == picker.chosen else GRAY if row.depth and row.name.startswith(".") else ""
+        lines.append(f"{color} {cell[:NAME_CELLS]:{NAME_CELLS}} {GRAY if n != picker.chosen else ''}{tags:8} {RESET}")
+    lines += ["", picker_buttons(width)[0]]
+    return "\x1b[2J\x1b[H" + "\n".join(lines)
 
 
 def main():
     placeholder = os.environ.get("HERDR_NEW_WORKSPACE")
-    first = start(repositories())
-    folder, chosen = start_on(os.environ.get("HERDR_NEW_WORKSPACE_FOLDER"), first)
+    picker = Picker(start(repositories()), os.environ.get("HERDR_NEW_WORKSPACE_FOLDER"))
     opened = set(open_workspaces())
-    agent, filt, top, last = AGENTS[0], "", 0, None
     mouse(True)
     while True:
-        names = listing(folder, filt)
         height, width = max(3, os.get_terminal_size().lines - 6), shutil.get_terminal_size().columns
-        chosen = min(chosen, max(len(names) - 1, 0))
-        top = min(max(top, chosen - height + 1), chosen)
-        print(screen(folder, names, chosen, top, filt, agent, opened, height, width), end="", flush=True)
+        print(screen(picker, opened, height, width), end="", flush=True)
         key = getkey()
         event = clicked(key)
-        if event:
-            shown = max(0, min(len(names), top + height) - top)
-            chosen, agent, last, action = clicking(event, chosen, agent, last, time.monotonic(), title_of(folder),
-                                                   width, top, shown)
-            if action == "open" and names:
-                name = names[chosen]
-                return open_folder(folder if name == "." else os.path.join(folder, name), agent, placeholder)
-            if action == "cancel":
-                close_placeholder(placeholder, back=True)
-                return
-            continue
-        name = names[chosen] if names else None
-        if key == "\x1b[A":
-            chosen = max(chosen - 1, 0)
-        elif key == "\x1b[B":
-            chosen += 1
-        elif key == "\x1b[5~":
-            chosen = max(chosen - height, 0)
-        elif key == "\x1b[6~":
-            chosen += height
-        elif key == "\x1b[C" and name and name != ".":
-            folder, filt, chosen, top = os.path.join(folder, name), "", 0, 0
-        elif key == "\x1b[D" or (key in ("\x7f", "\x08") and not filt):
-            parent = os.path.dirname(folder)
-            if parent != folder:                  # the list lands on the folder it came from
-                came_from, folder, filt, top = os.path.basename(folder), parent, "", 0
-                rows = listing(folder, "")
-                chosen = rows.index(came_from) if came_from in rows else 0
-        elif key in ("\x7f", "\x08"):
-            filt, chosen = filt[:-1], 0
-        elif key == "\t":
-            agent = AGENTS[(AGENTS.index(agent) + 1) % len(AGENTS)]
-        elif key in ("\r", "\n") and name:
-            return open_folder(folder if name == "." else os.path.join(folder, name), agent, placeholder)
-        elif key == "\x1b" and filt:
-            filt, chosen = "", 0
-        elif key in ("\x1b", "\x03"):
+        action = picker.click(event, time.monotonic(), width, height) if event else picker.press(key, height)
+        if action == "open" and picker.chosen_path():
+            return open_folder(picker.chosen_path(), picker.agent, placeholder)
+        if action == "cancel":
             close_placeholder(placeholder, back=True)
             return
-        elif len(key) == 1 and key.isprintable():
-            filt, chosen, top = filt + key, 0, 0
 
 
 if __name__ == "__main__":

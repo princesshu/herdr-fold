@@ -1,5 +1,5 @@
-"""Tests for new_workspace.py's folder picker screen: the folder as title, a claude │ codex toggle marking the chosen
-agent, the filter only while typing, and one short line for the keys that are not obvious (Tab, →).
+"""Tests for new_workspace.py's folder picker: a tree as the sidebar's Files view shows it, under the folder as title
+and a claude │ codex toggle; the filter only while typing; the keys, the mouse, and Cancel and Open.
 """
 import os
 import shutil
@@ -12,57 +12,180 @@ import herdrlib
 import new_workspace
 
 
+class Tree(unittest.TestCase):
+    """The picker as a tree, as the sidebar's Files view: the folder on top, open, its subfolders under it; → opens a
+    folder or steps into an open one, ← closes one or steps to its parent, and on the top row goes up a folder."""
+
+    def setUp(self):
+        self.tmp = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.root = os.path.join(self.tmp, "projects")
+        for rel in ("archives/old", "archives/site", "claude", ".hidden"):
+            os.makedirs(os.path.join(self.root, rel))
+        self.picker = new_workspace.Picker(self.root)
+
+    def path(self, *parts):
+        return os.path.join(self.root, *parts)
+
+    def shown(self):
+        return [(row.name, row.depth, row.open) for row in self.picker.rows()]
+
+    def press(self, *keys):
+        return [self.picker.press(key, 10) for key in keys][-1]
+
+    def test_the_folder_on_top_open_its_subfolders_closed_under_it_hidden_last(self):
+        self.assertEqual(self.shown(), [("projects", 0, True), ("archives", 1, False), ("claude", 1, False),
+                                        (".hidden", 1, False)])
+        self.assertEqual(self.picker.chosen_path(), self.root)                 # Enter opens the folder itself
+
+    def test_right_opens_a_folder_then_steps_into_it(self):
+        self.press("\x1b[B", "\x1b[C")
+        self.assertEqual(self.shown()[1:4], [("archives", 1, True), ("old", 2, False), ("site", 2, False)])
+        self.press("\x1b[C")
+        self.assertEqual(self.picker.chosen_path(), self.path("archives", "old"))
+
+    def test_left_steps_to_the_parent_then_closes_it(self):
+        self.press("\x1b[B", "\x1b[C", "\x1b[C", "\x1b[D")
+        self.assertEqual(self.picker.chosen_path(), self.path("archives"))
+        self.press("\x1b[D")
+        self.assertEqual(self.shown()[1], ("archives", 1, False))
+
+    def test_left_on_the_top_row_goes_up_a_folder_this_one_open_and_chosen(self):
+        self.press("\x1b[D")
+        self.assertEqual(self.picker.root, self.tmp)
+        self.assertEqual(self.picker.chosen_path(), self.root)
+        self.assertIn(("projects", 1, True), self.shown())
+
+    def test_enter_opens_the_chosen_folder_esc_cancels_or_first_clears_what_was_typed(self):
+        self.assertEqual(self.press("\x1b[B", "\r"), "open")
+        self.assertEqual(self.picker.chosen_path(), self.path("archives"))
+        self.press("c", "l")
+        self.assertEqual(self.shown(), [("claude", 1, False)])                  # the rows shown, filtered
+        self.assertIsNone(self.press("\x1b"))
+        self.assertEqual(len(self.shown()), 4)
+        self.assertEqual(self.press("\x1b"), "cancel")
+
+    def test_tab_switches_the_agent(self):
+        self.press("\t")
+        self.assertEqual(self.picker.agent, "codex")
+
+    def test_new_workspace_from_the_sidebar_starts_on_its_folder_in_its_parent(self):
+        picker = new_workspace.Picker(self.tmp, self.path("claude"))
+        self.assertEqual((picker.root, picker.chosen_path()), (self.root, self.path("claude")))
+        self.assertEqual(new_workspace.Picker(self.root, self.path("gone")).chosen_path(), self.root)
+
+
+class Mouse(unittest.TestCase):
+    """A click chooses a row, a second one on it at once opens it, a click on its ▸ opens or closes it; the toggle
+    chooses the agent, the buttons open or cancel, the wheel moves."""
+
+    def setUp(self):
+        self.tmp = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        for rel in ("archives/old", "claude"):
+            os.makedirs(os.path.join(self.tmp, "projects", rel))
+        self.picker = new_workspace.Picker(os.path.join(self.tmp, "projects"))
+        set_attrs(self, new_workspace, icons_on=lambda: False)
+
+    def lines(self):
+        return ANSI.sub("", new_workspace.screen(self.picker, set(), 10, 60)).split("\n")
+
+    def click(self, column, row, now=10.0, button=0, pressed=True):
+        return self.picker.click((button, column, row, pressed), now, 60, 10)
+
+    def row_of(self, name):
+        return next(n for n, line in enumerate(self.lines(), 1) if f" {name}" in line and n > 2)
+
+    def test_a_click_chooses_a_second_one_at_once_opens_it(self):
+        row = self.row_of("claude")
+        self.assertIsNone(self.click(10, row))
+        self.assertTrue(self.picker.chosen_path().endswith("claude"))
+        self.assertEqual(self.click(10, row, 10.3), "open")
+        self.assertIsNone(self.click(10, row, 11.0))                           # too late: chosen again
+
+    def test_a_click_on_the_mark_opens_or_closes_the_folder(self):
+        row = self.row_of("archives")
+        mark = self.lines()[row - 1].index("▸") + 1
+        shows_old = lambda: any(line.rstrip().endswith(" old") for line in self.lines()[2:])  # noqa: E731
+        self.click(mark, row)
+        self.assertTrue(shows_old())
+        self.click(mark, row, 20.0)
+        self.assertFalse(shows_old())
+
+    def test_the_toggle_the_buttons_and_the_wheel(self):
+        lines = self.lines()
+        self.click(lines[0].index("codex") + 1, 1)
+        self.assertEqual(self.picker.agent, "codex")
+        buttons = len(lines)
+        self.assertEqual(self.click(lines[-1].index("Open") + 1, buttons), "open")
+        self.assertEqual(self.click(lines[-1].index("Cancel") + 1, buttons), "cancel")
+        self.click(1, 4, button=65)
+        self.assertEqual(self.picker.chosen, 1)
+        self.click(1, 4, button=64)
+        self.assertEqual(self.picker.chosen, 0)
+        self.assertIsNone(self.click(5, 2))                                    # the filter row: nothing
+
+
 class Screen(unittest.TestCase):
     def setUp(self):
-        set_attrs(self, new_workspace, HOME="/home/dev", is_repo=lambda path: path.endswith("app"))
+        self.tmp = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        for rel in ("app/.git", "notes"):
+            os.makedirs(os.path.join(self.tmp, "projects", rel))
+        set_attrs(self, new_workspace, HOME=self.tmp, icons_on=lambda: False)
+        self.picker = new_workspace.Picker(os.path.join(self.tmp, "projects"))
 
-    def screen(self, filt="", agent="claude", names=(".", "app", "notes")):
-        return new_workspace.screen("/home/dev/projects", list(names), 1, 0, filt, agent, set(), 10, 80)
+    def screen(self, **settings):
+        for name, value in settings.items():
+            setattr(self.picker, name, value)
+        return new_workspace.screen(self.picker, {os.path.join(self.tmp, "projects", "app")}, 10, 80)
 
-    def lines(self, **kwargs):
-        return ANSI.sub("", self.screen(**kwargs)).split("\n")
+    def lines(self, **settings):
+        return ANSI.sub("", self.screen(**settings)).split("\n")
 
     def test_a_workspace_is_named_after_its_folder_and_the_home_folder_home(self):
         self.assertEqual(herdrlib.free_label("/home/dev/projects/app", set(), "/home/dev"), "app")
         self.assertEqual(herdrlib.free_label("/home/dev", set(), "/home/dev"), "home")   # never ~ or the user's name
         self.assertEqual(herdrlib.free_label("/", set(), "/home/dev"), "/")
 
-    def test_cancel_and_open_buttons_end_the_screen_and_take_a_click(self):
-        last = self.lines()[-1]
-        self.assertTrue(last.rstrip().endswith("Cancel    Open"), last)
-        row = new_workspace.FIRST_ROW + 3 + 1                                 # three folders shown, then a blank row
-        column = last.index("Open") + 1
-        self.assertEqual(new_workspace.hit(column, row, "~/projects", 80, 0, 3), ("button", "open"))
-        self.assertEqual(new_workspace.hit(last.index("Cancel") + 1, row, "~/projects", 80, 0, 3), ("button", "cancel"))
-        opened = new_workspace.clicking((0, column, row, True), 1, "claude", None, 10.0, "~/projects", 80, 0, 3)
-        self.assertEqual(opened, (1, "claude", None, "open"))                # the folder chosen, opened
+    def test_the_title_is_the_folder_the_tree_under_it_as_files_shows_it(self):
+        lines = self.lines()
+        self.assertTrue(lines[0].startswith("~/projects"))
+        self.assertEqual([line.rstrip() for line in lines[2:5]],
+                         [" ▾ projects", "   ▸ app" + " " * 42 + "git open", "   ▸ notes"])
 
-    def test_a_click_lands_on_the_toggle_or_a_folder_row(self):
-        # the title row with the toggle at its right end, the filter row, then the folders from the top one shown
-        title, width = "~/projects", 60
-        toggle = 60 - len(" claude │ codex ") + 1                             # its first column, 1-based
-        self.assertEqual(new_workspace.hit(toggle + 2, 1, title, width, 0, 3), ("agent", "claude"))
-        self.assertEqual(new_workspace.hit(toggle + 12, 1, title, width, 0, 3), ("agent", "codex"))
-        self.assertIsNone(new_workspace.hit(3, 1, title, width, 0, 3))         # the title itself
-        self.assertEqual(new_workspace.hit(5, 3, title, width, 0, 3), ("row", 0))
-        self.assertEqual(new_workspace.hit(5, 5, title, width, 4, 3), ("row", 6))
-        self.assertIsNone(new_workspace.hit(5, 6, title, width, 0, 3))         # below the rows shown
-        self.assertIsNone(new_workspace.hit(5, 2, title, width, 0, 3))         # the filter row
+    def test_the_agent_is_a_toggle_with_the_chosen_one_marked(self):
+        first = self.screen().split("\n")[0]
+        self.assertIn(new_workspace.INVERT + " claude " + new_workspace.RESET, first)
+        self.assertNotIn(new_workspace.INVERT + " codex ", first)
+        self.assertIn(new_workspace.INVERT + " codex " + new_workspace.RESET, self.screen(agent="codex").split("\n")[0])
+        self.assertTrue(self.lines()[0].rstrip().endswith("codex"))              # on the right of the title row
 
-    def test_a_click_chooses_a_second_one_opens_and_the_wheel_moves(self):
-        def press(row, now, chosen=0, last=None, button=0, pressed=True):
-            return new_workspace.clicking((button, 5, row, pressed), chosen, "claude", last, now, "~/p", 60, 0, 3)
-        chosen, agent, last, opened = press(4, 10.0)
-        self.assertEqual((chosen, agent, opened), (1, "claude", None))
-        self.assertEqual(press(4, 10.3, chosen, last)[3], "open")              # the same row again, at once: open
-        self.assertEqual(press(4, 11.0, chosen, last)[3], None)                # too late: chosen again
-        self.assertEqual(press(5, 10.3, chosen, last)[:1], (2,))               # another row: chosen
-        self.assertEqual(press(4, 10.0, button=0, pressed=False)[0], 0)        # a release does nothing
-        self.assertEqual(press(4, 10.0, chosen=1, button=65)[0], 2)            # the wheel down
-        self.assertEqual(press(4, 10.0, chosen=1, button=64)[0], 0)            # and up
-        toggle = 60 - len(" claude │ codex ") + 1
-        switched = new_workspace.clicking((0, toggle + 12, 1, True), 0, "claude", None, 10.0, "~/p", 60, 0, 3)
-        self.assertEqual(switched[1], "codex")
+    def test_the_filter_shows_only_while_typing(self):
+        self.assertNotIn("filter", " ".join(self.lines()).lower())
+        self.assertIn("no", self.lines(filt="no")[1])
+
+    def test_one_short_line_for_the_keys_that_are_not_obvious_and_the_buttons(self):
+        keys = self.lines()[-1]
+        self.assertIn("Tab", keys)
+        self.assertIn("←", keys)
+        for obvious in ("Enter", "Esc", "↑", "↓"):
+            self.assertNotIn(obvious, keys)
+        self.assertTrue(keys.rstrip().endswith("Cancel    Open"), keys)
+
+    def test_no_helper_text_and_no_dot_row(self):
+        text = " ".join(self.lines())
+        self.assertNotIn("(this folder)", text)
+        self.assertNotIn(" . ", text)
+        self.assertIn("git", text)                                               # what a folder is: data, kept
+
+    def test_a_folder_name_cannot_send_terminal_codes(self):
+        # a downloaded repository's folder name may hold escape codes (a clipboard write, a title): they show as ?
+        os.makedirs(os.path.join(self.tmp, "projects", "\x1b]52;c;ZWNobyBoaQ==\x07app"))
+        shown = self.screen()
+        self.assertNotIn("\x1b]", shown)
+        self.assertNotIn("\x07", shown)
+        self.assertIn("?]52;c;ZWNobyBoaQ==?app", shown)
 
     def test_esc_goes_back_to_the_workspace_it_was_opened_from(self):
         calls = []
@@ -78,67 +201,6 @@ class Screen(unittest.TestCase):
         calls.clear()
         new_workspace.close_placeholder("w9")                                   # a folder chosen: it is in front
         self.assertEqual([c for c in calls if c[0] == "workspace" and c[1] != "list"], [("workspace", "close", "w9")])
-
-    def test_new_workspace_from_the_sidebar_starts_on_its_folder(self):
-        # the sidebar's New Workspace: the folder's own row chosen in its parent, the rest as the new button shows it
-        tmp = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, tmp)
-        for name in ("alpha", "beta", "gamma"):
-            os.makedirs(os.path.join(tmp, name))
-        folder, chosen = new_workspace.start_on(os.path.join(tmp, "beta"), tmp)
-        self.assertEqual(folder, tmp)
-        self.assertEqual(new_workspace.listing(folder, "")[chosen], "beta")
-        self.assertEqual(new_workspace.start_on(None, tmp), (tmp, 0))                      # the new button
-        self.assertEqual(new_workspace.start_on(os.path.join(tmp, "gone"), tmp), (tmp, 0))
-
-    def test_the_title_is_the_folder(self):
-        self.assertTrue(self.lines()[0].startswith("~/projects"))
-
-    def test_the_agent_is_a_toggle_with_the_chosen_one_marked(self):
-        first = self.screen().split("\n")[0]
-        self.assertIn(new_workspace.INVERT + " claude " + new_workspace.RESET, first)
-        self.assertNotIn(new_workspace.INVERT + " codex ", first)
-        self.assertIn(new_workspace.INVERT + " codex " + new_workspace.RESET, self.screen(agent="codex").split("\n")[0])
-        self.assertTrue(self.lines()[0].rstrip().endswith("codex"))              # on the right of the title row
-
-    def test_the_filter_shows_only_while_typing(self):
-        self.assertNotIn("filter", " ".join(self.lines()).lower())
-        typed = self.lines(filt="no", names=("notes",))
-        self.assertIn("no", typed[1])
-
-    def test_one_short_line_for_the_keys_that_are_not_obvious(self):
-        keys = [line for line in self.lines() if line.strip()][-1]
-        self.assertIn("Tab", keys)
-        self.assertIn("→", keys)
-        for obvious in ("Enter", "Esc", "↑", "↓"):
-            self.assertNotIn(obvious, keys)
-
-    def test_no_helper_text_in_the_list(self):
-        text = " ".join(self.lines())
-        self.assertNotIn("(this folder)", text)
-        self.assertIn("git", text)                                               # what a folder is: data, kept
-
-    def test_a_folder_name_cannot_send_terminal_codes(self):
-        # a downloaded repository's folder name may hold escape codes (a clipboard write, a title): they show as ?
-        evil = "\x1b]52;c;ZWNobyBoaQ==\x07app"
-        shown = new_workspace.screen("/home/dev/pro\x1b]0;x\x07jects", [".", evil], 1, 0, "", "claude", set(), 10, 80)
-        self.assertNotIn("\x1b]", shown)
-        self.assertNotIn("\x07", shown)
-        self.assertIn("?]52;c;ZWNobyBoaQ==?app", shown)
-
-
-class Listing(unittest.TestCase):
-    """The rows of a folder: the folder itself and its subfolders, no repository from elsewhere; typing filters."""
-
-    def setUp(self):
-        set_attrs(self, new_workspace, HOME="/home/dev", subfolders=lambda path: ["app", "notes"])
-
-    def test_a_folder_lists_itself_and_its_own_subfolders_only(self):
-        self.assertEqual(new_workspace.listing("/home/dev/projects", ""), [".", "app", "notes"])
-
-    def test_typing_filters_the_subfolders(self):
-        self.assertEqual(new_workspace.listing("/home/dev/projects", "no"), ["notes"])
-        self.assertEqual(new_workspace.listing("/home/dev/projects", "dev"), [])
 
 
 if __name__ == "__main__":

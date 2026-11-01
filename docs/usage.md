@@ -7,10 +7,11 @@ Every key is in [Keys](keybindings.md); the sidebar's views, one by one, in
 
 One workspace per repo:
 
-1. Click **new** under Spaces in herdr's sidebar (or Ctrl + B, then Shift + N). The folder picker starts in the folder
-   holding most of your git repositories and lists its subfolders; ← goes up for the rest.
-2. Type to filter; ↑ ↓ or the wheel move, a click chooses, → / ← go into a folder and back. Tab, or a click on Claude
-   or Codex at the top right, switches between them.
+1. Click **new** under Spaces in herdr's sidebar (or Ctrl + B, then Shift + N). The folder picker shows the folder
+   holding most of your git repositories as a tree, as the sidebar's Files view does: the folder on top, open.
+2. Type to filter; ↑ ↓ or the wheel move, a click chooses. → opens a folder (or steps into an open one), ← closes it
+   (or steps to its parent), and ← on the top row goes up a folder; a click on a folder's ▸ opens or closes it. Tab, or
+   a click on Claude or Codex at the top right, switches between them.
 3. Enter, **Open** or a double click opens the workspace, or jumps to the one the folder already has. Esc or
    **Cancel** goes back to the workspace you came from.
 
