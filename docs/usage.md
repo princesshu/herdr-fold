@@ -9,8 +9,9 @@ One workspace per repo:
 
 1. Click **new** under Spaces in herdr's sidebar (or Ctrl + B, then Shift + N). The folder picker starts in the folder
    holding most of your git repositories, and lists the ones elsewhere at the top, the most recently changed first.
-2. Type to filter; ↑ ↓ move, → / ← go into a folder and back. Tab switches between Claude and Codex.
-3. Enter opens the workspace, or jumps to the one the folder already has. Esc cancels.
+2. Type to filter; ↑ ↓ or the wheel move, a click chooses, → / ← go into a folder and back. Tab, or a click on Claude
+   or Codex at the top right, switches between them.
+3. Enter or a double click opens the workspace, or jumps to the one the folder already has. Esc cancels.
 
 ![The folder picker over the new workspace: "dri" typed, driftwood chosen, Claude or Codex at its top
 right](media/new-workspace.webp)

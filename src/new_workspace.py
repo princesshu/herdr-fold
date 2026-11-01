@@ -4,6 +4,7 @@ one), and the empty one is closed."""
 import os
 import shutil
 import sys
+import time
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -11,10 +12,12 @@ from herdr_layout import LayoutError, build  # noqa: E402
 from herdrlib import AGENTS, agent_pane_ids, free_label, herdr  # noqa: E402
 from i18n import line, t  # noqa: E402
 from projects import elsewhere, repositories, start  # noqa: E402
-from tui import getkey, printable, wait_and_exit  # noqa: E402
+from tui import clicked, getkey, mouse, printable, wait_and_exit  # noqa: E402
 
 HOME = os.path.expanduser("~")
 BOLD, GRAY, INVERT, RESET = "\x1b[1m", "\x1b[90m", "\x1b[7m", "\x1b[0m"
+FIRST_ROW = 3              # the folders' first row on screen, under the title and the filter
+DOUBLE = 0.4               # seconds within which a second click on a row opens it
 
 
 def subfolders(path):
@@ -36,6 +39,45 @@ def listing(folder, filt, top, others):
 def shown(name):
     """A row's name as it shows: a full path under the home folder as ~/…"""
     return "~" + name[len(HOME):] if os.path.isabs(name) and (name + "/").startswith(HOME + "/") else name
+
+
+def title_of(folder):
+    return printable(folder.replace(HOME, "~", 1))
+
+
+def toggle_start(title, width):
+    """The toggle's first column (0-based) on the title row: at its right end, a cell from the title at least."""
+    return len(title) + max(1, width - len(title) - len(" │ ".join(f" {a} " for a in AGENTS)))
+
+
+def hit(column, row, title, width, top, shown):
+    """What a click at COLUMN, ROW (1-based) is on: ("agent", name) in the toggle, ("row", n) on one of the SHOWN folder
+    rows (the first being row TOP of the list), else None."""
+    if row == 1:
+        x, start = column - 1 - toggle_start(title, width), 0
+        for agent in AGENTS:
+            if start <= x < start + len(agent) + 2:
+                return ("agent", agent)
+            start += len(agent) + 2 + len(" │ ")
+        return None
+    return ("row", top + row - FIRST_ROW) if FIRST_ROW <= row < FIRST_ROW + shown else None
+
+
+def clicking(event, chosen, agent, last, now, title, width, top, shown):
+    """A mouse EVENT (tui.clicked()): a click chooses a folder row, the same one again within DOUBLE seconds opens it
+    (LAST: the time and row of the click before), the toggle chooses the agent, the wheel moves. Returns (chosen, agent,
+    last, whether to open)."""
+    button, column, row, pressed = event
+    if button in (64, 65):
+        return (max(chosen - 1, 0) if button == 64 else chosen + 1), agent, last, False
+    target = hit(column, row, title, width, top, shown) if button == 0 and pressed else None
+    if target is None:
+        return chosen, agent, last, False
+    if target[0] == "agent":
+        return chosen, target[1], None, False
+    if last and last[1] == target[1] and now - last[0] <= DOUBLE:
+        return target[1], agent, None, True
+    return target[1], agent, (now, target[1]), False
 
 
 def start_on(target, first, others):
@@ -87,9 +129,8 @@ def screen(folder, names, chosen, top, filt, agent, opened, height, width):
     """The picker: the folder as the title with the agent toggle on its right, what you type to filter by (only then),
     the folders, and the keys that are not obvious."""
     toggle = " │ ".join(f"{INVERT} {a} {RESET}" if a == agent else f" {a} " for a in AGENTS)
-    toggle_width = len(" │ ".join(f" {a} " for a in AGENTS))
-    title = printable(folder.replace(HOME, "~", 1))
-    rows = [f"{BOLD}{title}{RESET}" + " " * max(1, width - len(title) - toggle_width) + toggle,
+    title = title_of(folder)
+    rows = [f"{BOLD}{title}{RESET}" + " " * (toggle_start(title, width) - len(title)) + toggle,
             f"{filt}▏" if filt else ""]
     for n in range(top, min(len(names), top + height)):
         name = names[n]
@@ -108,15 +149,24 @@ def main():
     others = elsewhere(repos, first)
     folder, chosen = start_on(os.environ.get("HERDR_NEW_WORKSPACE_FOLDER"), first, others)
     opened = set(open_workspaces())
-    agent, filt, top = AGENTS[0], "", 0
+    agent, filt, top, last = AGENTS[0], "", 0, None
+    mouse(True)
     while True:
         names = listing(folder, filt, first, others)
-        height = max(3, os.get_terminal_size().lines - 6)
+        height, width = max(3, os.get_terminal_size().lines - 6), shutil.get_terminal_size().columns
         chosen = min(chosen, max(len(names) - 1, 0))
         top = min(max(top, chosen - height + 1), chosen)
-        print(screen(folder, names, chosen, top, filt, agent, opened, height, shutil.get_terminal_size().columns),
-              end="", flush=True)
+        print(screen(folder, names, chosen, top, filt, agent, opened, height, width), end="", flush=True)
         key = getkey()
+        event = clicked(key)
+        if event:
+            shown = max(0, min(len(names), top + height) - top)
+            chosen, agent, last, opening = clicking(event, chosen, agent, last, time.monotonic(), title_of(folder),
+                                                    width, top, shown)
+            if opening:
+                name = names[chosen]
+                return open_folder(folder if name == "." else os.path.join(folder, name), agent, placeholder)
+            continue
         name = names[chosen] if names else None
         if key == "\x1b[A":
             chosen = max(chosen - 1, 0)

@@ -4,6 +4,7 @@ herdr launches the popup with a minimal PATH, so these helpers also look for pro
 import atexit
 import glob
 import os
+import re
 import select
 import shutil
 import sys
@@ -16,6 +17,8 @@ from i18n import t  # noqa: E402
 
 _saved_mode = None
 _pending = b""            # a byte read after Esc that does not belong to it
+_mouse = False            # clicks and the wheel reported to the window
+MOUSE_REPORT = re.compile(r"\x1b\[<(\d+);(\d+);(\d+)([Mm])")
 
 
 def printable(text):
@@ -29,6 +32,25 @@ def cursor(shown):
     if sys.stdout.isatty():
         sys.stdout.write("\x1b[?25h" if shown else "\x1b[?25l")
         sys.stdout.flush()
+
+
+def mouse(on):
+    """Clicks and the wheel reported as keys (getkey() reads each as one, clicked() tells what it is), where the output
+    is a terminal; given back when the window ends."""
+    global _mouse
+    if sys.stdout.isatty() and on != _mouse:
+        sys.stdout.write("\x1b[?1000h\x1b[?1006h" if on else "\x1b[?1006l\x1b[?1000l")
+        sys.stdout.flush()
+        _mouse = on
+        if on:
+            atexit.register(mouse, False)
+
+
+def clicked(key):
+    """A mouse report among the keys: (button, column, row, pressed), 1-based; None for any other key. Button 0 is the
+    left one, 64 and 65 the wheel up and down."""
+    found = MOUSE_REPORT.fullmatch(key)
+    return (int(found[1]), int(found[2]), int(found[3]), found[4] == "M") if found else None
 
 
 def restore_terminal():

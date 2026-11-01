@@ -27,6 +27,33 @@ class Screen(unittest.TestCase):
         self.assertEqual(herdrlib.free_label("/home/dev", set(), "/home/dev"), "home")   # never ~ or the user's name
         self.assertEqual(herdrlib.free_label("/", set(), "/home/dev"), "/")
 
+    def test_a_click_lands_on_the_toggle_or_a_folder_row(self):
+        # the title row with the toggle at its right end, the filter row, then the folders from the top one shown
+        title, width = "~/projects", 60
+        toggle = 60 - len(" claude │ codex ") + 1                             # its first column, 1-based
+        self.assertEqual(new_workspace.hit(toggle + 2, 1, title, width, 0, 3), ("agent", "claude"))
+        self.assertEqual(new_workspace.hit(toggle + 12, 1, title, width, 0, 3), ("agent", "codex"))
+        self.assertIsNone(new_workspace.hit(3, 1, title, width, 0, 3))         # the title itself
+        self.assertEqual(new_workspace.hit(5, 3, title, width, 0, 3), ("row", 0))
+        self.assertEqual(new_workspace.hit(5, 5, title, width, 4, 3), ("row", 6))
+        self.assertIsNone(new_workspace.hit(5, 6, title, width, 0, 3))         # below the rows shown
+        self.assertIsNone(new_workspace.hit(5, 2, title, width, 0, 3))         # the filter row
+
+    def test_a_click_chooses_a_second_one_opens_and_the_wheel_moves(self):
+        def press(row, now, chosen=0, last=None, button=0, pressed=True):
+            return new_workspace.clicking((button, 5, row, pressed), chosen, "claude", last, now, "~/p", 60, 0, 3)
+        chosen, agent, last, opened = press(4, 10.0)
+        self.assertEqual((chosen, agent, opened), (1, "claude", False))
+        self.assertEqual(press(4, 10.3, chosen, last)[3], True)                # the same row again, at once: open
+        self.assertEqual(press(4, 11.0, chosen, last)[3], False)               # too late: chosen again
+        self.assertEqual(press(5, 10.3, chosen, last)[:1], (2,))               # another row: chosen
+        self.assertEqual(press(4, 10.0, button=0, pressed=False)[0], 0)        # a release does nothing
+        self.assertEqual(press(4, 10.0, chosen=1, button=65)[0], 2)            # the wheel down
+        self.assertEqual(press(4, 10.0, chosen=1, button=64)[0], 0)            # and up
+        toggle = 60 - len(" claude │ codex ") + 1
+        switched = new_workspace.clicking((0, toggle + 12, 1, True), 0, "claude", None, 10.0, "~/p", 60, 0, 3)
+        self.assertEqual(switched[1], "codex")
+
     def test_add_workspace_starts_on_its_folder(self):
         # the sidebar's Add Workspace: the folder's own row chosen in its parent, the rest as the new button shows it
         tmp = tempfile.mkdtemp()
