@@ -69,5 +69,7 @@ def changed(repo):
 
 
 def elsewhere(repos, folder, count=ELSEWHERE):
-    """REPOS not right in FOLDER, the most recently changed first (their .git), at most COUNT."""
-    return sorted((repo for repo in repos if os.path.dirname(repo) != folder), key=changed, reverse=True)[:count]
+    """REPOS outside FOLDER (one in a subfolder is reached through that folder's row), the most recently changed first
+    (their .git), at most COUNT."""
+    inside = folder.rstrip(os.sep) + os.sep
+    return sorted((repo for repo in repos if not (repo + os.sep).startswith(inside)), key=changed, reverse=True)[:count]

@@ -8,10 +8,11 @@ Every key is in [Keys](keybindings.md); the sidebar's views, one by one, in
 One workspace per repo:
 
 1. Click **new** under Spaces in herdr's sidebar (or Ctrl + B, then Shift + N). The folder picker starts in the folder
-   holding most of your git repositories, and lists the ones elsewhere at the top, the most recently changed first.
+   holding most of your git repositories, and lists the ones outside it at the top, the most recently changed first.
 2. Type to filter; ↑ ↓ or the wheel move, a click chooses, → / ← go into a folder and back. Tab, or a click on Claude
    or Codex at the top right, switches between them.
-3. Enter or a double click opens the workspace, or jumps to the one the folder already has. Esc cancels.
+3. Enter or a double click opens the workspace, or jumps to the one the folder already has. Esc cancels, back in
+   the workspace you came from.
 
 ![The folder picker over the new workspace: "dri" typed, driftwood chosen, Claude or Codex at its top
 right](media/new-workspace.webp)

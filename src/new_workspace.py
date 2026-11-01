@@ -101,9 +101,13 @@ def is_repo(path):
     return os.path.exists(os.path.join(path, ".git"))
 
 
-def close_placeholder(ws):
-    """The empty workspace created by the "new" button; the last workspace is never closed."""
+def close_placeholder(ws, back=False):
+    """The empty workspace created by the "new" button; the last workspace is never closed. BACK (Esc): the one in
+    front before it first, as herdr alone would show a neighbour of the closed one."""
     if ws and len(herdr("workspace", "list")["workspaces"]) > 1:
+        came = os.environ.get("HERDR_CAME_FROM")
+        if back and came and came != ws:
+            herdr("workspace", "focus", came, check=False)
         herdr("workspace", "close", ws, check=False)
 
 
@@ -193,7 +197,7 @@ def main():
         elif key == "\x1b" and filt:
             filt, chosen = "", 0
         elif key in ("\x1b", "\x03"):
-            close_placeholder(placeholder)
+            close_placeholder(placeholder, back=True)
             return
         elif len(key) == 1 and key.isprintable():
             filt, chosen, top = filt + key, 0, 0

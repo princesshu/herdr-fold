@@ -219,6 +219,7 @@ class Uninstall(unittest.TestCase):
             os.makedirs(self.path(".config/herdr/plugins/config/" + plugin_id), exist_ok=True)
         self.write(".local/state/herdr/plugins/herdr-fold.tab-layout/spaces.json", '{"w1": {"label": "app"}}\n')
         self.write(".local/state/herdr/plugins/herdr-fold.tab-layout/.spaces.json.x1.tmp", "{")
+        self.write(".local/state/herdr/plugins/herdr-fold.tab-layout/focus.json", '{"now": "w1"}\n')
         self.write(".local/state/herdr/plugins/herdr-fold.sessions-view/names.json", '{"s1": "my work"}\n')
         return [self.path(".config/herdr/plugins/config/" + plugin_id) for plugin_id in ids] + [
             self.path(".local/state/herdr/plugins/herdr-fold.tab-layout")]

@@ -6,7 +6,7 @@ import shutil
 import tempfile
 import unittest
 
-from support import ANSI, set_attrs
+from support import ANSI, set_attrs, set_env
 
 import herdrlib
 import new_workspace
@@ -53,6 +53,21 @@ class Screen(unittest.TestCase):
         toggle = 60 - len(" claude │ codex ") + 1
         switched = new_workspace.clicking((0, toggle + 12, 1, True), 0, "claude", None, 10.0, "~/p", 60, 0, 3)
         self.assertEqual(switched[1], "codex")
+
+    def test_esc_goes_back_to_the_workspace_it_was_opened_from(self):
+        calls = []
+
+        def herdr(*args, **kwargs):
+            calls.append(args)
+            return {"workspaces": [{"workspace_id": "w1"}, {"workspace_id": "w2"}, {"workspace_id": "w9"}]}
+        set_attrs(self, new_workspace, herdr=herdr)
+        set_env(self, HERDR_CAME_FROM="w1")
+        new_workspace.close_placeholder("w9", back=True)
+        self.assertEqual([c for c in calls if c[0] == "workspace" and c[1] != "list"],
+                         [("workspace", "focus", "w1"), ("workspace", "close", "w9")])
+        calls.clear()
+        new_workspace.close_placeholder("w9")                                   # a folder chosen: it is in front
+        self.assertEqual([c for c in calls if c[0] == "workspace" and c[1] != "list"], [("workspace", "close", "w9")])
 
     def test_add_workspace_starts_on_its_folder(self):
         # the sidebar's Add Workspace: the folder's own row chosen in its parent, the rest as the new button shows it

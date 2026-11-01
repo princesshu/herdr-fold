@@ -24,6 +24,10 @@ All notable changes to this project are listed here. The format follows
 - A folder renamed or moved: its workspace and main tab take the new name (a name you gave the workspace stays; a
   folder renamed earlier is known by the Claude conversations kept under its old name), and the sidebar opens on it
   again, where it was. Before, the workspace kept the old name and the sidebar showed an empty list.
+- Esc in the folder picker goes back to the workspace it was opened from; before, herdr showed a neighbour of the
+  closed one.
+- The folder picker's top lists only repositories outside its start folder: one in a subfolder is no longer listed
+  twice.
 
 ## [0.1.0] - 2026-11-01
 

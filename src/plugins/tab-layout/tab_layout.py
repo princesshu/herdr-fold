@@ -17,8 +17,9 @@ from herdrlib import add_column, free_label, herdr, only_shells, space_labels  #
 # the "new" button's workspace while its folder is chosen: herdr names it after the folder it inherits (~, or the
 # active workspace's own name a second time); the picker builds the chosen folder's and closes this one
 PLACEHOLDER = "new"
-# each followed workspace's name, folder and the folder's identity (a renamed folder keeps it), in the state folder
-SPACES = "spaces.json"
+# in the state folder: each followed workspace's name, folder and the folder's identity (a renamed folder keeps it);
+# the workspace in front and the one before it (Esc in the folder picker goes back there)
+SPACES, FOCUS = "spaces.json", "focus.json"
 
 
 def linked_worktree(path):
@@ -109,22 +110,44 @@ def held_conversations(path, home):
     return os.path.isdir(os.path.join(home, ".claude", "projects", re.sub(r"[^A-Za-z0-9]", "-", path)))
 
 
-def rename_spaces():
-    """Each followed workspace whose folder was renamed takes its new name, and so does its main tab (named as it)."""
+def load(name):
     state = os.environ.get("HERDR_PLUGIN_STATE_DIR") or os.path.join(
         os.path.expanduser("~"), ".local", "state", "herdr", "plugins", "herdr-fold.tab-layout")
-    path = os.path.join(state, SPACES)
     try:
-        with open(path, encoding="utf-8") as f:
-            known = json.load(f)
+        with open(os.path.join(state, name), encoding="utf-8") as f:
+            found = json.load(f)
     except (OSError, ValueError):
-        known = {}
+        found = {}
+    return state, found if isinstance(found, dict) else {}
+
+
+def save(state, name, value):
+    os.makedirs(state, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(dir=state, prefix=f".{name}.", suffix=".tmp")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(value, f)
+    os.replace(temporary, os.path.join(state, name))
+
+
+def came_from(placeholder):
+    """The workspace that was in front before PLACEHOLDER, the "new" button's (in front by now, or about to be)."""
+    _, focus = load(FOCUS)
+    return focus.get("before") if focus.get("now") == placeholder else focus.get("now")
+
+
+def on_focus():
+    """The workspace in front kept, with the one before it; each followed workspace whose folder was renamed takes
+    its new name, and so does its main tab (named as it)."""
     workspaces = herdr("workspace", "list", check=False).get("workspaces")
     if not workspaces:                                  # herdr not answering: what is known stays
         return
+    state, focus = load(FOCUS)
+    front = next((w["workspace_id"] for w in workspaces if w.get("focused")), None)
+    if front and focus.get("now") != front:
+        save(state, FOCUS, {"now": front, "before": focus.get("now")})
+    state, known = load(SPACES)
     home = os.path.expanduser("~")
-    renames, now = follow_folders(workspaces, herdr("pane", "list", check=False).get("panes") or [],
-                                  known if isinstance(known, dict) else {}, home,
+    renames, now = follow_folders(workspaces, herdr("pane", "list", check=False).get("panes") or [], known, home,
                                   lambda path: held_conversations(path, home))
     for ws, old, new in renames:
         herdr("workspace", "rename", ws, new, check=False)
@@ -132,16 +155,12 @@ def rename_spaces():
             if tab.get("label") == old:
                 herdr("tab", "rename", tab["tab_id"], new, check=False)
     if now != known:
-        os.makedirs(state, exist_ok=True)
-        fd, temporary = tempfile.mkstemp(dir=state, prefix=f".{SPACES}.", suffix=".tmp")
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(now, f)
-        os.replace(temporary, path)
+        save(state, SPACES, now)
 
 
 def main():
     if os.environ.get("HERDR_PLUGIN_EVENT") == "pane.focused":
-        rename_spaces()
+        on_focus()
         return
     event = json.loads(os.environ.get("HERDR_PLUGIN_EVENT_JSON") or "{}")
     tab = ((event.get("data") or {}).get("tab") or {}).get("tab_id")
@@ -151,8 +170,9 @@ def main():
     time.sleep(0.3)                              # the "new" button brings it to the front after creating it
     if os.name != "nt" and new_workspace(ws):        # no folder picker on Windows (its key handling is Unix-only)
         herdr("workspace", "rename", ws, PLACEHOLDER, check=False)    # a name it keeps does not stop the picker
+        came = came_from(ws)
         herdr("plugin", "pane", "open", "--plugin", "herdr-fold.tab-layout", "--entrypoint", "new-workspace", "--focus",
-              "--env", f"HERDR_NEW_WORKSPACE={ws}")
+              "--env", f"HERDR_NEW_WORKSPACE={ws}", *(["--env", f"HERDR_CAME_FROM={came}"] if came else []))
         return
     time.sleep(1.2)
     panes = [p for p in herdr("pane", "list", "--workspace", ws)["panes"] if p["tab_id"] == tab]

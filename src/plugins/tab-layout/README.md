@@ -24,8 +24,9 @@ A herdr plugin of herdr-fold that keeps the workspace layout:
 - The sidebar plugin's state folder (`~/.local/state/herdr/plugins/herdr-fold.sidebar/`): the remembered column widths
   (`column.json`, `conversations.json`) for a new tab's columns, and `panels.json`, where the tab is noted as having
   them.
-- `spaces.json` in its own state folder (`~/.local/state/herdr/plugins/herdr-fold.tab-layout/`): each workspace named
-  after its folder, with that folder, so a renamed folder is recognized. The uninstaller removes it.
+- Its own state folder (`~/.local/state/herdr/plugins/herdr-fold.tab-layout/`): `spaces.json`, each workspace named
+  after its folder, with that folder, so a renamed folder is recognized; `focus.json`, the workspace in front and the
+  one before it, so Esc in the folder picker goes back there. The uninstaller removes both.
 
 It sends nothing anywhere.
 

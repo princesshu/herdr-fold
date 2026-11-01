@@ -84,6 +84,17 @@ class Projects(unittest.TestCase):
         self.assertEqual(projects.elsewhere(self.found(), crm), [tool, old])
         self.assertEqual(projects.elsewhere(self.found(), crm, count=1), [tool])
 
+    def test_a_repository_inside_the_start_folder_is_not_offered_again_at_the_top(self):
+        # one in a subfolder of the start folder is reached through that subfolder's row
+        self.repo("Documents/app", 1000)
+        self.repo("Documents/site", 1000)
+        nested = self.repo("Documents/archives/old", 3000)
+        tool = self.repo("tool", 2000)
+        documents = os.path.join(self.home, "Documents")
+        self.assertEqual(projects.start(self.found()), documents)
+        self.assertNotIn(nested, projects.elsewhere(self.found(), documents))
+        self.assertEqual(projects.elsewhere(self.found(), documents), [tool])
+
 
 if __name__ == "__main__":
     unittest.main()

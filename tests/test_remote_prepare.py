@@ -188,8 +188,9 @@ class Prepared(Prepare):
         for folder in folders:
             os.makedirs(folder)
         if self.kind == "unix":                     # the workspaces it follows: never made on Windows
-            with open(os.path.join(folders[2], "spaces.json"), "w") as f:
-                f.write('{"w1": {"label": "app"}}\n')
+            for name, text in (("spaces.json", '{"w1": {"label": "app"}}\n'), ("focus.json", '{"now": "w1"}\n')):
+                with open(os.path.join(folders[2], name), "w") as f:
+                    f.write(text)
         out = self.remove()
         self.assertEqual([folder for folder in folders if os.path.exists(folder)], [], out)
 

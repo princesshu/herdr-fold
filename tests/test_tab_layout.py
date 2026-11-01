@@ -9,7 +9,7 @@ import sys
 import tempfile
 import unittest
 
-from support import set_attrs
+from support import set_attrs, set_env
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "plugins", "tab-layout"))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
@@ -50,6 +50,18 @@ class NewTabOnWindows(unittest.TestCase):
         tab_layout.main()
         opened = next(n for n, call in enumerate(self.calls) if call[:3] == ("plugin", "pane", "open"))
         self.assertIn(("workspace", "rename", "w2", "new"), self.calls[:opened])
+
+    def test_the_picker_is_told_the_workspace_it_was_opened_from(self):
+        # Esc goes back there: herdr alone would show a neighbour of the closed one
+        os.name = "posix"
+        state = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, state)
+        with open(os.path.join(state, tab_layout.FOCUS), "w") as f:
+            json.dump({"now": "w2", "before": "w1"}, f)                     # the new one already in front
+        set_env(self, HERDR_PLUGIN_STATE_DIR=state)
+        tab_layout.main()
+        opened = next(call for call in self.calls if call[:3] == ("plugin", "pane", "open"))
+        self.assertIn("HERDR_CAME_FROM=w1", opened)
 
 
 class SpacesFollowTheirFolder(unittest.TestCase):
@@ -172,6 +184,21 @@ class FollowOnFocus(unittest.TestCase):
         tab_layout.main()
         renamed = [call for call in self.calls if call[1] == "rename"]
         self.assertEqual(renamed, [("workspace", "rename", "w1", "new-name"), ("tab", "rename", "w1:t1", "new-name")])
+
+    def test_the_workspace_in_front_and_the_one_before_are_kept(self):
+        focused = ["w1"]
+
+        def herdr(*args, **kwargs):
+            if args[:2] == ("workspace", "list"):
+                return {"workspaces": [{"workspace_id": ws, "label": ws, "focused": ws == focused[0]}
+                                       for ws in ("w1", "w2")]}
+            return {}
+        set_attrs(self, tab_layout, herdr=herdr)
+        for front in ("w1", "w2", "w2"):                                    # the same one again changes nothing
+            focused[0] = front
+            tab_layout.main()
+        with open(os.path.join(self.tmp, "state", tab_layout.FOCUS)) as f:
+            self.assertEqual(json.load(f), {"now": "w2", "before": "w1"})
 
     def test_the_manifest_runs_it_on_a_panes_focus_on_macos_and_linux(self):
         # Windows does not let a folder in use be renamed
