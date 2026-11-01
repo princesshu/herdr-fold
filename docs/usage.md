@@ -11,8 +11,8 @@ One workspace per repo:
    holding most of your git repositories, and lists the ones outside it at the top, the most recently changed first.
 2. Type to filter; ↑ ↓ or the wheel move, a click chooses, → / ← go into a folder and back. Tab, or a click on Claude
    or Codex at the top right, switches between them.
-3. Enter or a double click opens the workspace, or jumps to the one the folder already has. Esc cancels, back in
-   the workspace you came from.
+3. Enter, **Open** or a double click opens the workspace, or jumps to the one the folder already has. Esc or
+   **Cancel** goes back to the workspace you came from.
 
 ![The folder picker over the new workspace: "dri" typed, driftwood chosen, Claude or Codex at its top
 right](media/new-workspace.webp)
@@ -125,8 +125,8 @@ The first push, from either, sets the upstream (`push -u`).
 
 ## Closing tabs
 
-Cmd + W closes the active tab, never the main tab. A tab with a conversation asks first (Enter closes, Esc keeps it);
-the conversation stays in the Conversations column, where Cmd + Shift + R finds it.
+Cmd + W closes the active tab, never the main tab. A tab with a conversation asks first (Enter or **Close** closes,
+Esc or **Cancel** keeps it); the conversation stays in the Conversations column, where Cmd + Shift + R finds it.
 
 ## Copying and searching
 

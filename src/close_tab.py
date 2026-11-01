@@ -1,13 +1,14 @@
 """Close the active tab (Cmd+W). A workspace's main tab never closes, so Claude cannot stop by accident; a tab with a
 Claude/Codex conversation asks first, through this script again (`--confirm`) in the tab-layout plugin's popup."""
 import os
+import shutil
 import sys
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from herdrlib import agents, has_conversation, herdr  # noqa: E402
 from i18n import t  # noqa: E402
-from tui import getkey, printable  # noqa: E402
+from tui import button_at, buttons, clicked, getkey, mouse, printable  # noqa: E402
 
 
 def conversations(tab):
@@ -28,16 +29,22 @@ def close(tab):
 
 def confirm(tab):
     label = (herdr("tab", "get", tab, check=False).get("tab") or {}).get("label") or tab
-    print("\x1b[2J\x1b[H\x1b[1m" + t("close.ask", printable(label)) + "\x1b[22m\n")
-    for agent in conversations(tab):
-        print(f"  {printable(agent.get('terminal_title_stripped') or agent.get('agent'))}")
-    print("\n  " + t("close.stays_saved"), end="", flush=True)
+    lines = ["\x1b[1m" + t("close.ask", printable(label)) + "\x1b[22m", ""]
+    lines += [f"  {printable(agent.get('terminal_title_stripped') or agent.get('agent'))}"
+              for agent in conversations(tab)]
+    lines += ["", "  " + t("close.stays_saved"), ""]
+    row, spans = buttons([t("common.cancel"), t("close.close")], shutil.get_terminal_size().columns)
+    print("\x1b[2J\x1b[H" + "\n".join(lines + [row]), end="", flush=True)
+    mouse(True)
     while True:
         key = getkey()
-        if key in ("\r", "\n"):
+        event = clicked(key)
+        choice = button_at(event[1], spans) if event and event[0] == 0 and event[3] and event[2] == len(lines) + 1 \
+            else None
+        if key in ("\r", "\n") or choice == t("close.close"):
             herdr("tab", "close", tab, check=False)
             return
-        if key in ("\x1b", "q", "\x03"):
+        if key in ("\x1b", "q", "\x03") or choice == t("common.cancel"):
             return
 
 

@@ -6,7 +6,7 @@ import io
 import os
 import unittest
 
-from support import set_attrs, set_env
+from support import ANSI, set_attrs, set_env
 
 import close_tab
 
@@ -58,11 +58,33 @@ class CloseTab(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def confirm(self, key):
+        """KEY pressed (a function of the screen shown so far gives a click)."""
         os.environ["HERDR_CLOSE_TAB"] = "w1:t2"
-        close_tab.getkey = lambda: key
         with contextlib.redirect_stdout(io.StringIO()) as out:
+            set_attrs(self, close_tab, getkey=lambda: key(out.getvalue()) if callable(key) else key)
             close_tab.main(["--confirm"])
         return out.getvalue(), [c for c in self.calls if c[:2] == ("tab", "close")]
+
+    @staticmethod
+    def click_on(label):
+        """A click on the button LABEL (the bottom row: the question names Close too), then Esc."""
+        clicks = []
+
+        def key(shown):
+            if clicks:
+                return "\x1b"
+            lines = ANSI.sub("", shown.split("\x1b[H")[-1]).split("\n")
+            row = max(n for n, line in enumerate(lines, 1) if label in line)
+            clicks.append(row)
+            return f"\x1b[<0;{lines[row - 1].rindex(label) + 1};{row}M"
+        return key
+
+    def test_close_and_cancel_buttons_take_a_click(self):
+        shown, closed = self.confirm(self.click_on("Close"))
+        self.assertTrue(ANSI.sub("", shown).rstrip().endswith("Cancel    Close"), shown[-80:])
+        self.assertEqual(closed, [("tab", "close", "w1:t2")])
+        _, closed = self.confirm(self.click_on("Cancel"))
+        self.assertEqual(closed, [("tab", "close", "w1:t2")])                  # the first one's, no other
 
     def test_enter_closes_and_names_the_conversation(self):
         shown, closed = self.confirm("\r")

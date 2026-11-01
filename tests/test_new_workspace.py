@@ -27,6 +27,16 @@ class Screen(unittest.TestCase):
         self.assertEqual(herdrlib.free_label("/home/dev", set(), "/home/dev"), "home")   # never ~ or the user's name
         self.assertEqual(herdrlib.free_label("/", set(), "/home/dev"), "/")
 
+    def test_cancel_and_open_buttons_end_the_screen_and_take_a_click(self):
+        last = self.lines()[-1]
+        self.assertTrue(last.rstrip().endswith("Cancel    Open"), last)
+        row = new_workspace.FIRST_ROW + 3 + 1                                 # three folders shown, then a blank row
+        column = last.index("Open") + 1
+        self.assertEqual(new_workspace.hit(column, row, "~/projects", 80, 0, 3), ("button", "open"))
+        self.assertEqual(new_workspace.hit(last.index("Cancel") + 1, row, "~/projects", 80, 0, 3), ("button", "cancel"))
+        opened = new_workspace.clicking((0, column, row, True), 1, "claude", None, 10.0, "~/projects", 80, 0, 3)
+        self.assertEqual(opened, (1, "claude", None, "open"))                # the folder chosen, opened
+
     def test_a_click_lands_on_the_toggle_or_a_folder_row(self):
         # the title row with the toggle at its right end, the filter row, then the folders from the top one shown
         title, width = "~/projects", 60
@@ -43,9 +53,9 @@ class Screen(unittest.TestCase):
         def press(row, now, chosen=0, last=None, button=0, pressed=True):
             return new_workspace.clicking((button, 5, row, pressed), chosen, "claude", last, now, "~/p", 60, 0, 3)
         chosen, agent, last, opened = press(4, 10.0)
-        self.assertEqual((chosen, agent, opened), (1, "claude", False))
-        self.assertEqual(press(4, 10.3, chosen, last)[3], True)                # the same row again, at once: open
-        self.assertEqual(press(4, 11.0, chosen, last)[3], False)               # too late: chosen again
+        self.assertEqual((chosen, agent, opened), (1, "claude", None))
+        self.assertEqual(press(4, 10.3, chosen, last)[3], "open")              # the same row again, at once: open
+        self.assertEqual(press(4, 11.0, chosen, last)[3], None)                # too late: chosen again
         self.assertEqual(press(5, 10.3, chosen, last)[:1], (2,))               # another row: chosen
         self.assertEqual(press(4, 10.0, button=0, pressed=False)[0], 0)        # a release does nothing
         self.assertEqual(press(4, 10.0, chosen=1, button=65)[0], 2)            # the wheel down

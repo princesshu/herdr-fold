@@ -2,6 +2,7 @@
 draws its own caret, so none is left after its last line) and comes back when the window ends."""
 import os
 import pty
+import re
 import select
 import subprocess
 import sys
@@ -65,6 +66,18 @@ class Cursor(unittest.TestCase):
         self.assertEqual(tui.clicked("\x1b[<65;3;9m"), (65, 3, 9, False))
         self.assertIsNone(tui.clicked("\x1b[B"))
         self.assertIsNone(tui.clicked("a"))
+
+    def test_the_buttons_sit_at_the_rows_right_end_the_default_one_inverted(self):
+        import tui
+        row, spans = tui.buttons(["Cancel", "Open"], 40, "Tab agent")
+        plain = re.sub(r"\x1b\[[0-9;]*m", "", row)
+        self.assertEqual(len(plain), 40)
+        self.assertTrue(plain.startswith("Tab agent") and plain.endswith(" Cancel    Open "), plain)
+        self.assertIn(tui.INVERT + " Open " + tui.RESET, row)                 # Enter's, the last one
+        self.assertNotIn(tui.INVERT + " Cancel ", row)
+        self.assertEqual(spans, [(25, 32, "Cancel"), (35, 40, "Open")])
+        self.assertEqual([tui.button_at(column, spans) for column in (24, 25, 32, 33, 35, 40)],
+                         [None, "Cancel", "Cancel", None, "Open", "Open"])
 
     def test_nothing_written_where_the_output_is_no_terminal(self):
         typed, keys = os.openpty()                            # the keys come from a terminal, the output goes to a pipe

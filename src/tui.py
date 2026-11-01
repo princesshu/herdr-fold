@@ -19,6 +19,8 @@ _saved_mode = None
 _pending = b""            # a byte read after Esc that does not belong to it
 _mouse = False            # clicks and the wheel reported to the window
 MOUSE_REPORT = re.compile(r"\x1b\[<(\d+);(\d+);(\d+)([Mm])")
+GRAY, INVERT, RESET = "\x1b[90m", "\x1b[7m", "\x1b[0m"
+GAP = 2                   # cells between two buttons
 
 
 def printable(text):
@@ -51,6 +53,23 @@ def clicked(key):
     left one, 64 and 65 the wheel up and down."""
     found = MOUSE_REPORT.fullmatch(key)
     return (int(found[1]), int(found[2]), int(found[3]), found[4] == "M") if found else None
+
+
+def buttons(labels, width, left=""):
+    """A row with LEFT, faint, at its start and the button LABELS at its right end, the last one the default (inverted:
+    Enter presses it); and where each button is, for button_at(): (first column, last column, label), 1-based."""
+    cells = [f" {label} " for label in labels]
+    column = start = max(len(left) + GAP + 1, width - sum(map(len, cells)) - GAP * (len(cells) - 1) + 1)
+    spans = []
+    for label, cell in zip(labels, cells):
+        spans.append((column, column + len(cell) - 1, label))
+        column += len(cell) + GAP
+    shown = [(INVERT + cell + RESET) if n == len(cells) - 1 else cell for n, cell in enumerate(cells)]
+    return f"{GRAY}{left}{RESET}" + " " * (start - 1 - len(left)) + (" " * GAP).join(shown), spans
+
+
+def button_at(column, spans):
+    return next((label for first, last, label in spans if first <= column <= last), None)
 
 
 def restore_terminal():
