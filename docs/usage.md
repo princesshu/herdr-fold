@@ -15,8 +15,8 @@ One workspace per repo:
 3. Enter, **Open** or a double click opens the workspace, or jumps to the one the folder already has. Esc or
    **Cancel** goes back to the workspace you came from.
 
-![The folder picker over the new workspace: "dri" typed, driftwood chosen, Claude or Codex at its top
-right](media/new-workspace.webp)
+![The folder picker over the new workspace: Documents as a tree, driftwood chosen, Claude or Codex at its top
+right, Cancel and Open at the bottom](media/new-workspace.webp)
 
 The workspace's main tab is named after the folder (the home folder's is `home`): the agent on the left, the
 Conversations column, and on the right the sidebar above a terminal. Drag the right column's edge to resize it in every
