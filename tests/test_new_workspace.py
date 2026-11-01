@@ -85,11 +85,11 @@ class Screen(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp)
         for name in ("alpha", "beta", "gamma"):
             os.makedirs(os.path.join(tmp, name))
-        folder, chosen = new_workspace.start_on(os.path.join(tmp, "beta"), tmp, [])
+        folder, chosen = new_workspace.start_on(os.path.join(tmp, "beta"), tmp)
         self.assertEqual(folder, tmp)
-        self.assertEqual(new_workspace.listing(folder, "", tmp, [])[chosen], "beta")
-        self.assertEqual(new_workspace.start_on(None, tmp, []), (tmp, 0))                  # the new button
-        self.assertEqual(new_workspace.start_on(os.path.join(tmp, "gone"), tmp, []), (tmp, 0))
+        self.assertEqual(new_workspace.listing(folder, "")[chosen], "beta")
+        self.assertEqual(new_workspace.start_on(None, tmp), (tmp, 0))                      # the new button
+        self.assertEqual(new_workspace.start_on(os.path.join(tmp, "gone"), tmp), (tmp, 0))
 
     def test_the_title_is_the_folder(self):
         self.assertTrue(self.lines()[0].startswith("~/projects"))
@@ -118,10 +118,6 @@ class Screen(unittest.TestCase):
         self.assertNotIn("(this folder)", text)
         self.assertIn("git", text)                                               # what a folder is: data, kept
 
-    def test_a_repository_elsewhere_shows_under_home_as_tilde(self):
-        shown = self.lines(names=("/home/dev/code/tool", ".", "app"))
-        self.assertTrue(shown[2].strip().startswith("~/code/tool"), shown[2])
-
     def test_a_folder_name_cannot_send_terminal_codes(self):
         # a downloaded repository's folder name may hold escape codes (a clipboard write, a title): they show as ?
         evil = "\x1b]52;c;ZWNobyBoaQ==\x07app"
@@ -130,28 +126,20 @@ class Screen(unittest.TestCase):
         self.assertNotIn("\x07", shown)
         self.assertIn("?]52;c;ZWNobyBoaQ==?app", shown)
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class Listing(unittest.TestCase):
-    """The rows of a folder: in the start folder the repositories found elsewhere come first; typing filters
-    what shows."""
+    """The rows of a folder: the folder itself and its subfolders, no repository from elsewhere; typing filters."""
 
     def setUp(self):
         set_attrs(self, new_workspace, HOME="/home/dev", subfolders=lambda path: ["app", "notes"])
-        self.top, self.others = "/home/dev/projects", ["/home/dev/code/tool"]
 
-    def rows(self, folder, filt=""):
-        return new_workspace.listing(folder, filt, self.top, self.others)
+    def test_a_folder_lists_itself_and_its_own_subfolders_only(self):
+        self.assertEqual(new_workspace.listing("/home/dev/projects", ""), [".", "app", "notes"])
 
-    def test_the_start_folder_lists_the_repositories_elsewhere_first(self):
-        self.assertEqual(self.rows(self.top), ["/home/dev/code/tool", ".", "app", "notes"])
+    def test_typing_filters_the_subfolders(self):
+        self.assertEqual(new_workspace.listing("/home/dev/projects", "no"), ["notes"])
+        self.assertEqual(new_workspace.listing("/home/dev/projects", "dev"), [])
 
-    def test_another_folder_lists_only_its_own(self):
-        self.assertEqual(self.rows("/home/dev/projects/app"), [".", "app", "notes"])
 
-    def test_typing_filters_by_what_shows(self):
-        self.assertEqual(self.rows(self.top, "to"), ["/home/dev/code/tool"])          # ~/code/tool
-        self.assertEqual(self.rows(self.top, "no"), ["notes"])
-        self.assertEqual(self.rows(self.top, "dev"), [])                               # the home folder shows as ~
+if __name__ == "__main__":
+    unittest.main()

@@ -1,5 +1,5 @@
 """Tests for projects.py: the folder picker starts, unasked, at the folder holding the most git repositories under a
-temporary home, with the repositories elsewhere heading its list.
+temporary home.
 """
 import os
 import shutil
@@ -74,26 +74,6 @@ class Projects(unittest.TestCase):
     def test_linux_searches_the_server_folders_too(self):
         self.assertEqual(projects.roots("linux"), [self.home, "/srv", "/opt", "/var/www"])
         self.assertEqual(projects.roots("darwin"), [self.home])
-
-    def test_the_ones_elsewhere_come_the_most_recently_changed_first(self):
-        self.repo("crm/api", 1000)
-        self.repo("crm/web", 3000)
-        tool = self.repo("code/tool", 2000)
-        old = self.repo("misc/old", 500)
-        crm = os.path.join(self.home, "crm")
-        self.assertEqual(projects.elsewhere(self.found(), crm), [tool, old])
-        self.assertEqual(projects.elsewhere(self.found(), crm, count=1), [tool])
-
-    def test_a_repository_inside_the_start_folder_is_not_offered_again_at_the_top(self):
-        # one in a subfolder of the start folder is reached through that subfolder's row
-        self.repo("Documents/app", 1000)
-        self.repo("Documents/site", 1000)
-        nested = self.repo("Documents/archives/old", 3000)
-        tool = self.repo("tool", 2000)
-        documents = os.path.join(self.home, "Documents")
-        self.assertEqual(projects.start(self.found()), documents)
-        self.assertNotIn(nested, projects.elsewhere(self.found(), documents))
-        self.assertEqual(projects.elsewhere(self.found(), documents), [tool])
 
 
 if __name__ == "__main__":

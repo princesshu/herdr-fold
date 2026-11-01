@@ -11,6 +11,7 @@ All notable changes to this project are listed here. The format follows
 - The plugins' names, as herdr's marketplace lists them: `Full Setup` (`herdr-fold`), `AI Sessions`
   (`herdr-fold.sessions-view`), `Files · Search · Git · Issues · AI Conversations` (`herdr-fold.sidebar`) and
   `Tab Layout` (`herdr-fold.tab-layout`); AI Sessions' action is now `AI Sessions: reapply`.
+- The folder picker lists the folder's own subfolders only: no repositories from elsewhere at its top.
 
 ### Added
 
@@ -29,8 +30,6 @@ All notable changes to this project are listed here. The format follows
   again, where it was. Before, the workspace kept the old name and the sidebar showed an empty list.
 - Esc in the folder picker goes back to the workspace it was opened from; before, herdr showed a neighbour of the
   closed one.
-- The folder picker's top lists only repositories outside its start folder: one in a subfolder is no longer listed
-  twice.
 
 ## [0.1.0] - 2026-11-01
 

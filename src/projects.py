@@ -8,7 +8,6 @@ import time
 
 DEPTH = 4                       # folder levels below a root that are searched
 BUDGET = 0.5                    # seconds the search may take: the picker opens right after it
-ELSEWHERE = 8                   # repositories outside the start folder offered at the top
 # Not searched: hidden folders, the ones macOS guards with a question of its own (Desktop, Downloads) or that hold no
 # projects (Library, Applications, the media folders), and the bulky ones inside a project
 SKIP = {"Applications", "Desktop", "Downloads", "Library", "Movies", "Music", "Pictures", "Public", "__pycache__",
@@ -60,16 +59,3 @@ def start(repos):
     documents = os.path.join(os.path.expanduser("~"), "Documents")
     return documents if os.path.isdir(documents) else os.path.expanduser("~")
 
-
-def changed(repo):
-    try:
-        return os.stat(os.path.join(repo, ".git")).st_mtime
-    except OSError:
-        return 0
-
-
-def elsewhere(repos, folder, count=ELSEWHERE):
-    """REPOS outside FOLDER (one in a subfolder is reached through that folder's row), the most recently changed first
-    (their .git), at most COUNT."""
-    inside = folder.rstrip(os.sep) + os.sep
-    return sorted((repo for repo in repos if not (repo + os.sep).startswith(inside)), key=changed, reverse=True)[:count]
