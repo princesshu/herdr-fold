@@ -8,7 +8,7 @@ import sys
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from herdr_layout import LayoutError, build  # noqa: E402
-from herdrlib import AGENTS, agent_pane_ids, herdr, space_name  # noqa: E402
+from herdrlib import AGENTS, agent_pane_ids, free_label, herdr  # noqa: E402
 from i18n import line, t  # noqa: E402
 from projects import elsewhere, repositories, start  # noqa: E402
 from tui import getkey, printable, wait_and_exit  # noqa: E402
@@ -49,13 +49,6 @@ def is_repo(path):
     return os.path.exists(os.path.join(path, ".git"))
 
 
-def free_label(path, taken):
-    base = space_name(path, HOME)
-    candidates = [base, f"{os.path.basename(os.path.dirname(path))}-{base}"]
-    candidates += [f"{base}-{n}" for n in range(2, 100)]
-    return next(c for c in candidates if c not in taken)
-
-
 def close_placeholder(ws):
     """The empty workspace created by the "new" button; the last workspace is never closed."""
     if ws and len(herdr("workspace", "list")["workspaces"]) > 1:
@@ -66,7 +59,7 @@ def open_folder(path, agent, placeholder):
     ws = open_workspaces().get(path)
     if not ws:
         workspaces = herdr("workspace", "list")["workspaces"]
-        label = printable(free_label(path, {w["label"] for w in workspaces if w["workspace_id"] != placeholder}))
+        label = printable(free_label(path, {w["label"] for w in workspaces if w["workspace_id"] != placeholder}, HOME))
         print("\n" + t("picker.setting_up", label, agent))
         try:
             print("\n".join(build(None, agent, path, label)))

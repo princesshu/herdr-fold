@@ -22,6 +22,13 @@ on = "tab.created"
 platforms = ["windows"]
 command = ["python", "tab_layout.py"]
 
+# A pane's focus: a workspace named after its folder takes the folder's new name (Windows does not let a folder in use
+# be renamed)
+[[events]]
+on = "pane.focused"
+platforms = ["macos", "linux"]
+command = ["/usr/bin/python3", "tab_layout.py"]
+
 # herdr startup (after the session is restored): the Conversations, sidebar and agent panes only have an empty shell —
 # restore_panes.py restarts them (it leaves conversations resumed by herdr alone).
 [[startup]]

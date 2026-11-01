@@ -21,6 +21,9 @@ tab. In a new folder the agent first asks whether you trust it: answer in the pa
 tab, after a restart too, until Cmd + Shift + O (Restore panels) or the sidebar's ⋯ menu brings it back; a new tab
 always comes with every pane.
 
+Rename or move the folder while herdr runs, and the workspace and its main tab take the folder's new name at the next
+pane you focus, and the sidebar opens on it again, where it was. A name you gave the workspace yourself stays.
+
 Cmd + ↓ / Cmd + ↑ step through the workspaces, Cmd + → / Cmd + ← through the panes, Cmd + T / Cmd + R through the tabs.
 
 From the command line (the only way on a Windows machine):

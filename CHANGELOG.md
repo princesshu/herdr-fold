@@ -12,6 +12,12 @@ All notable changes to this project are listed here. The format follows
   (`herdr-fold.sessions-view`), `Files · Search · Git · Issues · AI Conversations` (`herdr-fold.sidebar`) and
   `Tab Layout` (`herdr-fold.tab-layout`); AI Sessions' action is now `AI Sessions: reapply`.
 
+### Fixed
+
+- A folder renamed or moved while herdr runs: its workspace and main tab take the new name (a name you gave the
+  workspace stays), and the sidebar opens on it again, where it was. Before, the workspace kept the old name and the
+  sidebar showed an empty list.
+
 ## [0.1.0] - 2026-11-01
 
 First release.

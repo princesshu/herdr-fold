@@ -187,6 +187,9 @@ class Prepared(Prepare):
                    os.path.join(self.profile, ".local", "state", "herdr", "plugins", "herdr-fold.tab-layout")]
         for folder in folders:
             os.makedirs(folder)
+        if self.kind == "unix":                     # the workspaces it follows: never made on Windows
+            with open(os.path.join(folders[2], "spaces.json"), "w") as f:
+                f.write('{"w1": {"label": "app"}}\n')
         out = self.remove()
         self.assertEqual([folder for folder in folders if os.path.exists(folder)], [], out)
 

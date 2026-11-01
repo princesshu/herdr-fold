@@ -952,6 +952,66 @@ class NewVersion(unittest.TestCase):
         call.assert_called_once_with([sys.executable, "-B", script, "/some/folder"])
 
 
+class FollowsItsFolder(unittest.TestCase):
+    """Its folder renamed or moved while it runs: it comes back on the folder's new place, where it was (a renamed
+    folder keeps its identity); a deleted one leaves it as it is."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.root, self.state = os.path.join(self.tmp, "old-name"), os.path.join(self.tmp, "state")
+        os.makedirs(os.path.join(self.root, "src"))
+        with open(os.path.join(self.root, "src", "app.py"), "w") as f:
+            f.write("x = 1\n")
+        set_env(self, GIT_CONFIG_GLOBAL=os.devnull)
+        self.addCleanup(os.environ.pop, loop.RESUME_ENV, None)
+        self.addCleanup(os.chdir, os.getcwd())
+        self.now = 1000.0
+        self.app = sidebar.App(self.root, FakeTerminal(), preview.Herdr("/usr/bin/false"), self.state,
+                               clock=lambda: self.now)
+
+    def later(self):
+        for thread in threading.enumerate():
+            if thread.name.startswith("sidebar-"):
+                thread.join(5)
+        self.app.collect()
+        self.now += 5
+        self.app.tick()
+
+    def test_a_renamed_folder_brings_it_back_on_the_new_name_where_it_was(self):
+        self.app.tree.expanded.add(os.path.join(self.app.root, "src"))
+        new = os.path.join(os.path.realpath(self.tmp), "new-name")
+        os.rename(self.root, new)
+        self.later()
+        self.assertTrue(self.app.quit and self.app.restart)
+        self.assertEqual(self.app.moved, new)
+        with open(os.path.join(self.state, f"resume-{os.environ[loop.RESUME_ENV]}.json"), encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["expanded"], [os.path.join(new, "src")])
+
+    def test_a_folder_moved_away_is_found_through_its_own_working_folder(self):
+        os.chdir(os.path.join(self.root, "src"))           # where sidebar.sh starts it: the pane's folder
+        os.makedirs(os.path.join(self.tmp, "elsewhere"))
+        new = os.path.join(os.path.realpath(self.tmp), "elsewhere", "new-name")
+        os.rename(self.root, new)
+        self.later()
+        self.assertEqual(self.app.moved, new)
+
+    def test_a_deleted_folder_leaves_it_as_it_is(self):
+        os.makedirs(os.path.join(self.tmp, "new-name"))     # made first: it cannot take the deleted one's identity
+        shutil.rmtree(self.root)
+        self.later()
+        self.assertFalse(self.app.quit)
+        self.assertIsNone(self.app.moved)
+
+    def test_it_starts_again_on_the_new_folder(self):
+        app = mock.Mock(moved="/work/new-name")
+        app.run.return_value = True
+        with mock.patch.object(sidebar, "App", return_value=app), mock.patch("keys_unix.UnixTerminal"), \
+                mock.patch.object(sidebar, "restart") as restart:
+            sidebar.main(["sidebar.py", "/work/old-name"])
+        restart.assert_called_once_with(["sidebar.py", "/work/new-name"])
+
+
 class Advice(unittest.TestCase):
     def test_a_failed_sync_says_what_to_do(self):
         self.assertIn("merge or rebase", sidebar.advice("fatal: Not possible to fast-forward, aborting."))

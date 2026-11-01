@@ -5,6 +5,7 @@ import unittest
 
 from support import ANSI, set_attrs
 
+import herdrlib
 import new_workspace
 
 
@@ -19,9 +20,9 @@ class Screen(unittest.TestCase):
         return ANSI.sub("", self.screen(**kwargs)).split("\n")
 
     def test_a_workspace_is_named_after_its_folder_and_the_home_folder_home(self):
-        self.assertEqual(new_workspace.free_label("/home/dev/projects/app", set()), "app")
-        self.assertEqual(new_workspace.free_label("/home/dev", set()), "home")           # never ~ or the user's name
-        self.assertEqual(new_workspace.free_label("/", set()), "/")
+        self.assertEqual(herdrlib.free_label("/home/dev/projects/app", set(), "/home/dev"), "app")
+        self.assertEqual(herdrlib.free_label("/home/dev", set(), "/home/dev"), "home")   # never ~ or the user's name
+        self.assertEqual(herdrlib.free_label("/", set(), "/home/dev"), "/")
 
     def test_the_title_is_the_folder(self):
         self.assertTrue(self.lines()[0].startswith("~/projects"))

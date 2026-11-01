@@ -9,16 +9,20 @@ A herdr plugin of herdr-fold that keeps the workspace layout:
   1.5 seconds.
 - When herdr starts, it restarts the Conversations columns, the sidebars and the still-empty agent panes.
 - It shows the confirmation window when you close a tab that holds a conversation.
+- A workspace named after its folder takes the folder's new name, and so does its main tab, when the folder is renamed
+  or moved while herdr runs (seen at the next pane you focus). A name you gave the workspace yourself stays.
 
 ## What it reads and writes
 
-- herdr, through its command line (`herdr`): the tabs and panes it lays out.
+- herdr, through its command line (`herdr`): the workspaces, tabs and panes it lays out and names.
 - git (`git rev-parse`), to tell a git worktree's folder.
 - herdr-fold's scripts in `~/.config/herdr-fold/` (`herdrlib.py`, `new_workspace.py`, `restore_panes.py`,
   `close_tab.py`, `plugins/sidebar/conversations_pane.py`).
 - The sidebar plugin's state folder (`~/.local/state/herdr/plugins/herdr-fold.sidebar/`): the remembered column widths
   (`column.json`, `conversations.json`) for a new tab's columns, and `panels.json`, where the tab is noted as having
   them.
+- `spaces.json` in its own state folder (`~/.local/state/herdr/plugins/herdr-fold.tab-layout/`): each workspace named
+  after its folder, with that folder, so a renamed folder is recognized. The uninstaller removes it.
 
 It sends nothing anywhere.
 

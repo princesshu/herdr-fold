@@ -21,8 +21,8 @@ remove_marked() {
 }
 
 # drop_plugin_folders ID… — the empty folders herdr keeps of a plugin after `plugin unlink` (its config folder, its
-# state folder once nothing of the plugin's is left in it); nothing of a plugin herdr still lists, nothing at all when
-# herdr cannot say what it has
+# state folder once nothing of the plugin's is left in it, the tab layout's list of followed workspaces gone first);
+# nothing of a plugin herdr still lists, nothing at all when herdr cannot say what it has
 drop_plugin_folders() {
   local listed id
   listed=$(herdr plugin list --json 2>/dev/null | python3 -c '
@@ -33,6 +33,8 @@ except (ValueError, KeyError, TypeError):
     sys.exit(1)') || return 0
   for id in "$@"; do
     grep -qxF "$id" <<< "$listed" && continue
+    [ "$id" = herdr-fold.tab-layout ] && rm -f "$HOME/.local/state/herdr/plugins/$id/spaces.json" \
+      "$HOME/.local/state/herdr/plugins/$id"/.spaces.json.*.tmp
     rmdir "$HOME/.config/herdr/plugins/config/$id" "$HOME/.local/state/herdr/plugins/$id" 2>/dev/null
   done
   return 0

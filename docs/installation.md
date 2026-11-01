@@ -135,6 +135,8 @@ whether it may stop an older herdr running there (answer no, the default).
 - herdr plugins (the sidebar, AI Sessions, the tab layout) and the herdr integrations for Claude and Codex; a
   herdr-sidebar of your own stays, and is named ([The sidebar](sidebar.md)).
 - The theme's colors for the sidebar, in `~/.local/state/herdr/plugins/herdr-fold.sidebar/colors.json`.
+- The workspaces named after their folder, in `~/.local/state/herdr/plugins/herdr-fold.tab-layout/spaces.json`: a
+  renamed folder renames its workspace.
 - `~/.config/ghostty/herdr-fold-icon`: which app icon Ghostty shows (the theme's), written into
   `~/.local/state/herdr-fold/ghostty-icon/`.
 - `~/.local/share/herdr-fold`: only when installed from herdr's marketplace, the package itself: herdr keeps its

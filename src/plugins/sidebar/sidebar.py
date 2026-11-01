@@ -76,6 +76,35 @@ def load_settings(path):
     return {key: data[key] if isinstance(data.get(key), type(value)) else value for key, value in DEFAULTS.items()}
 
 
+def identity(path):
+    try:
+        found = os.stat(path)
+    except OSError:
+        return None
+    return found.st_dev, found.st_ino
+
+
+def moved_to(root, known):
+    """Where folder ROOT went, renamed or moved (KNOWN: its identity, which goes with it): the working folder went with
+    it, or it is beside where it was. None while it is there, and once it is gone."""
+    if known is None or os.path.isdir(root):
+        return None
+    places = []
+    try:
+        here = os.getcwd()
+    except OSError:                                 # the working folder deleted
+        here = None
+    while here:
+        places.append(here)
+        up = os.path.dirname(here)
+        here = None if up == here else up
+    try:
+        places += [entry.path for entry in os.scandir(os.path.dirname(root)) if entry.is_dir(follow_symlinks=False)]
+    except OSError:
+        pass
+    return next((os.path.realpath(place) for place in places if identity(place) == known), None)
+
+
 def seed_file(state_dir, tab):
     """Where a new preview TAB's sidebar finds where the sidebar that opened it was."""
     return os.path.join(state_dir, "seed-" + "".join(ch if ch.isalnum() else "-" for ch in tab) + ".json")
@@ -86,6 +115,7 @@ class App(Loop):
         super().__init__(terminal, herdr, state_dir, clock, code)
         # the real path: git names the repository by it, a symbolic link on the way would hide every git mark
         self.root = os.path.realpath(root)
+        self.identity, self.moved = identity(self.root), None    # a renamed or moved folder keeps its identity
         self.settings = load_settings(os.path.join(state_dir, "settings.json"))
         self.repo = git.top(self.root)                  # None outside a repository; checked again by each status
         self.head = None                                # the latest commit seen: a newer one may close the linked issue
@@ -172,6 +202,11 @@ class App(Loop):
             shown = self.follow(now)                      # a new version first, before this poll starts a job
             if self.quit:
                 return shown
+            self.moved = self.moved or moved_to(self.root, self.identity)
+            if self.moved:                                # on again where the folder went, once nothing is cut short
+                if not self.busy():
+                    self.hand_over()
+                return shown
             changed = self.watcher.poll()
             folders = [path for path in changed if path != "git"]
             if folders:
@@ -196,10 +231,17 @@ class App(Loop):
 
     def left(self):
         find, files = self.views["search"], self.views["files"]
-        return {"view": self.view, "expanded": sorted(self.tree.expanded),
-                "selected": getattr(files.list.selected(), "path", None), "top": files.list.top, "chosen": files.moved,
+        return {"view": self.view, "expanded": sorted(map(self.moved_path, self.tree.expanded)),
+                "selected": self.moved_path(getattr(files.list.selected(), "path", None)), "top": files.list.top,
+                "chosen": files.moved,
                 "message": self.views["git"].field.text, "query": find.field.text, "switches": find.switches,
                 "issues": self.views["issues"].kept()}
+
+    def moved_path(self, path):
+        """PATH in its folder's new place, once the folder moved."""
+        if self.moved and path and (path == self.root or path.startswith(self.root + os.sep)):
+            return self.moved + path[len(self.root):]
+        return path
 
     def resume(self):
         """Come back where the version before this one was, or, in a new preview tab, where the sidebar that opened it
@@ -761,7 +803,7 @@ def main(argv):
             folder = os.path.join(home, "Documents")   # under home every repository would show at once
         app = App(folder, Terminal(), preview.Herdr(), state)
     if app.run():
-        restart(argv)
+        restart([argv[0], app.moved] if getattr(app, "moved", None) else argv)
 
 
 def restart(argv, windows=os.name == "nt"):

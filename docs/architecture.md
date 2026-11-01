@@ -55,7 +55,7 @@ plugins of its own.
 | File | What it is |
 |---|---|
 | `src/plugins/sessions-view/` | AI Sessions: only sessions with a conversation, under their names ([its README](../src/plugins/sessions-view/README.md)) |
-| `src/plugins/tab-layout/` | a new workspace asks for a folder, a new tab gets the columns; runs `restore_panes.py` when herdr starts ([its README](../src/plugins/tab-layout/README.md)) |
+| `src/plugins/tab-layout/` | a new workspace asks for a folder, a new tab gets the columns, a workspace takes its renamed folder's name; runs `restore_panes.py` when herdr starts ([its README](../src/plugins/tab-layout/README.md)) |
 | `src/plugins/sidebar/` | the sidebar plugin: Files, Search, Changes and Issues, the preview pager, the commit message writer `commit_push.py` uses too; the Conversations column (`conversations.py` reads the conversation files, the formatted copy too; `conversation_list.py`, `conversations_app.py`; `conversations_pane.py` its place in every tab, and Cmd+Shift+R); `panels.py` what each tab has had, so a pane closed by hand stays closed, and bringing one back; `richtext.py` puts Markdown on the clipboard formatted, for Copy conversation and the formatted copy; the loop both share (`loop.py`) ([its README](../src/plugins/sidebar/README.md); [The sidebar](sidebar.md)) |
 
 ### Remote machines

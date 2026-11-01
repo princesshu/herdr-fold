@@ -93,6 +93,16 @@ def space_name(path, home=None, sep="/"):
     return path.rstrip(sep).split(sep)[-1] or path
 
 
+def space_labels(path, home=None):
+    """The names a workspace on folder PATH may get, in order: its own, then with its parent folder's, then numbered."""
+    base = space_name(path, home)
+    return [base, f"{os.path.basename(os.path.dirname(path))}-{base}"] + [f"{base}-{n}" for n in range(2, 100)]
+
+
+def free_label(path, taken, home=None):
+    return next(label for label in space_labels(path, home) if label not in taken)
+
+
 def agent_name(label, role):
     """A name herdr accepts for the agent of a pane labeled LABEL: lowercase letters, digits, - and _, at most 32,
     starting with a letter (else ROLE- goes in front)."""
