@@ -1,0 +1,102 @@
+# Ghostty for herdr-fold — the theme can be picked in the installer (preview: ~/.config/herdr-fold/themes/preview.html)
+# --- theme: catppuccin (Catppuccin Mocha) — written by ~/.config/herdr-fold/themes/apply.py ---
+theme = Catppuccin Mocha
+# Darker pane interiors than the theme default ("base" #1e1e2e): the Mocha "crust" shade, so the panes stand apart from
+# the sidebars
+background = #11111b
+# Plain text is a muted gray (Mocha overlay2) — this makes the colored elements look more vivid
+foreground = #9399b2
+# Magenta in program output is purple (mauve); faint secondary text is overlay0
+palette = 5=#cba6f7
+palette = 8=#6c7086
+# --- end of theme ---
+# The non-Mono variant: Nerd Font icons (the sidebar's) stay full size; the "Mono" variant squeezes them into one
+# cell.
+font-family = JetBrainsMono Nerd Font
+font-size = 13
+# Softer, browser-like font rendering (herdr.dev uses JetBrains Mono too). 0–255, higher = bolder.
+font-thicken = true
+font-thicken-strength = 128
+# Room for the rows and around the window: 10% more line height everywhere, an 8-point margin at the window's edge
+adjust-cell-height = 10%
+window-padding-x = 8
+window-padding-y = 8
+
+# The first window starts herdr; new Ghostty tabs get a plain shell. herdr-fold's pbcopy comes first (Cmd+C copies
+# replies formatted); ~/.local/bin, where herdr's own installer puts herdr, comes last so it hides no system program.
+# Ghostty runs the line through a shell, so $HOME expands.
+initial-command = env PATH="$HOME/.config/herdr-fold/bin:/opt/homebrew/bin:/usr/local/bin:$PATH:$HOME/.local/bin" herdr
+# Ghostty quits when the last window closes, so the next launch opens with herdr again.
+quit-after-last-window-closed = true
+# Cmd+Q asks first, as herdr runs in the window: quitting stops nothing (herdr keeps running with the agents, and
+# reopening Ghostty picks up where you left off), the question only keeps a Cmd+Q by mistake from closing the window.
+confirm-close-surface = true
+
+# Ctrl+Option+0 types a zero: the layouts that put zero there would otherwise send the chord as a command
+keybind = ctrl+alt+digit_0=text:0
+# The app icon in the theme's colors, on a Mac: the theme setter draws it and writes where it is into this file;
+# without it, Ghostty's own icon
+config-file = ?herdr-fold-icon
+
+# Cmd keys for herdr. Option is left alone: many keyboard layouts type @ [ ] { } | \ ~ with it.
+# Cmd+1…9 → herdr workspace 1…9, on the tab last used there (Alt+digit; in herdr switch_workspace = "alt+1..9")
+keybind = super+1=esc:1
+keybind = super+2=esc:2
+keybind = super+3=esc:3
+keybind = super+4=esc:4
+keybind = super+5=esc:5
+keybind = super+6=esc:6
+keybind = super+7=esc:7
+keybind = super+8=esc:8
+keybind = super+9=esc:9
+keybind = super+digit_1=esc:1
+keybind = super+digit_2=esc:2
+keybind = super+digit_3=esc:3
+keybind = super+digit_4=esc:4
+keybind = super+digit_5=esc:5
+keybind = super+digit_6=esc:6
+keybind = super+digit_7=esc:7
+keybind = super+digit_8=esc:8
+keybind = super+digit_9=esc:9
+# Cmd+↑ / Cmd+↓ → the previous / next herdr workspace (herdr: Ctrl+B, ↑ / ↓); Cmd+← / Cmd+→ → the previous / next pane
+# of the tab (herdr: Ctrl+B, Shift+Tab / Tab); both wrap around. Start / end of the line while typing: Ctrl+A / Ctrl+E.
+keybind = super+up=text:\x02\x1b[A
+keybind = super+down=text:\x02\x1b[B
+keybind = super+left=text:\x02\x1b[Z
+keybind = super+right=text:\x02\t
+# Cmd+T / Cmd+R → the next / previous tab of the workspace (herdr: Ctrl+B, n / p), wrapping around: the thumb on Cmd,
+# the index finger between the two, R on the left for the previous tab, T on the right for the next, tapped again to
+# step on. Ghostty's own new tab on Cmd+T would open outside herdr.
+keybind = super+t=text:\x02n
+keybind = super+r=text:\x02p
+# Cmd+D / Cmd+E → the next / previous Claude/Codex session of the workspace, one-handed, even while typing (herdr's
+# Ctrl+Alt+Shift+↓ / ↑). A Cmd key, as Ghostty sends it once per press; Ctrl+Tab was doubled or taken by macOS.
+# REMAPPABLE: change the left-hand side of the line, then press Cmd+Shift+,
+keybind = super+d=text:\x1b[1;8B
+keybind = super+e=text:\x1b[1;8A
+# Cmd+B → sidebar on/off (herdr: Ctrl+B, b)
+keybind = super+b=text:\x02b
+# Cmd+Shift+E → the right-hand column (sidebar + terminal) on/off (herdr: Ctrl+B, f)
+keybind = super+shift+e=text:\x02f
+# Cmd+Shift+G → the sidebar's Changes view (herdr: Ctrl+B, u)
+keybind = super+shift+g=text:\x02u
+# Cmd+Shift+I → the sidebar's Issues view, for a repository on GitHub (herdr: Ctrl+B, Shift+I)
+keybind = super+shift+i=text:\x02I
+# Cmd+W → closes the active herdr tab (not the workspace's main tab), NOT the Ghostty window (herdr: Ctrl+B, t)
+keybind = super+w=text:\x02t
+# Cmd+Shift+C → commit + push in one step, with an AI-written message (herdr: Ctrl+B, y)
+keybind = super+shift+c=text:\x02y
+# Cmd+F → search the Claude conversation (herdr: Ctrl+B, a) — instead of Ghostty's own search, which inside herdr
+# would only see the visible screen
+keybind = super+f=text:\x02a
+# Cmd+Shift+H → collapse the Conversations column to a rail, or open it, in every tab at once (herdr: Ctrl+B, Shift+H)
+keybind = super+shift+h=text:\x02H
+# Cmd+Shift+O → restore panels: every pane closed by hand in the tab back (herdr: Ctrl+B, Shift+O)
+keybind = super+shift+o=text:\x02O
+# Cmd+Shift+R → find a conversation in the Conversations column (herdr: Ctrl+B, m)
+keybind = super+shift+r=text:\x02m
+# Cmd+K, Cmd+T → pick a color theme (herdr: Ctrl+B, i). Cmd+K thus starts a key sequence, so
+# Ghostty's default Cmd+K (clear screen) is not available.
+keybind = super+k>super+t=text:\x02i
+# Cmd+C → Ghostty copies only its OWN selection; if there is none, herdr gets it (and copies its selection)
+keybind = performable:super+c=copy_to_clipboard:mixed

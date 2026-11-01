@@ -1,0 +1,109 @@
+id = "herdr-fold.sidebar"
+name = "Files, Git, Issues & AI Conversations (herdr-fold)"
+version = "0.1.0"
+min_herdr_version = "0.9.5"
+description = """\
+  Files, Search, Changes and Issues in a pane, and a Conversations column with the Claude and Codex \
+  conversations of every workspace: previews in a tab, AI-written commit messages. Created by princesshu"""
+platforms = ["macos", "linux", "windows"]
+
+# A pane of the plugin's closed by hand: the first time on this Mac, herdr says once how it comes back (Cmd+Shift+O)
+[[events]]
+on = "pane.closed"
+command = ["/usr/bin/python3", "conversations_pane.py", "--closed"]
+platforms = ["macos"]
+
+# The sidebar itself runs in a plain pane named "sidebar" (python3 sidebar.py [FOLDER]); these actions switch the
+# active tab's sidebar to a view by sending it F9, F10, F11 or F12.
+[[actions]]
+id = "show-files"
+title = "Sidebar: Files"
+command = ["/usr/bin/python3", "actions.py", "show-files"]
+platforms = ["macos", "linux"]
+
+[[actions]]
+id = "show-search"
+title = "Sidebar: Search"
+command = ["/usr/bin/python3", "actions.py", "show-search"]
+platforms = ["macos", "linux"]
+
+[[actions]]
+id = "show-git"
+title = "Sidebar: Changes"
+command = ["/usr/bin/python3", "actions.py", "show-git"]
+platforms = ["macos", "linux"]
+
+[[actions]]
+id = "show-issues"
+title = "Sidebar: Issues"
+command = ["/usr/bin/python3", "actions.py", "show-issues"]
+platforms = ["macos", "linux"]
+
+# Windows: the same with Python (an action id is unique within a plugin, so the Windows ones have their own)
+[[actions]]
+id = "show-files-windows"
+title = "Sidebar: Files"
+command = ["python", "actions.py", "show-files"]
+platforms = ["windows"]
+
+[[actions]]
+id = "show-search-windows"
+title = "Sidebar: Search"
+command = ["python", "actions.py", "show-search"]
+platforms = ["windows"]
+
+[[actions]]
+id = "show-git-windows"
+title = "Sidebar: Changes"
+command = ["python", "actions.py", "show-git"]
+platforms = ["windows"]
+
+[[actions]]
+id = "show-issues-windows"
+title = "Sidebar: Issues"
+command = ["python", "actions.py", "show-issues"]
+platforms = ["windows"]
+
+# The Conversations column (a plain pane named "conversations": python3 sidebar.py --conversations, right before the
+# right column): collapse it to a rail in every tab at once, or open it, the choice kept; a tab whose column was
+# closed by hand gets it back
+[[actions]]
+id = "toggle-conversations"
+title = "Conversations: collapse or open"
+command = ["/usr/bin/python3", "conversations_pane.py", "--toggle"]
+platforms = ["macos", "linux"]
+
+[[actions]]
+id = "toggle-conversations-windows"
+title = "Conversations: collapse or open"
+command = ["python", "conversations_pane.py", "--toggle"]
+platforms = ["windows"]
+
+# Find a conversation: the column of the tab open (brought back where it was closed by hand), its filter empty, the
+# keys going to it
+[[actions]]
+id = "find-conversation"
+title = "Conversations: find"
+command = ["/usr/bin/python3", "conversations_pane.py", "--find"]
+platforms = ["macos", "linux"]
+
+[[actions]]
+id = "find-conversation-windows"
+title = "Conversations: find"
+command = ["python", "conversations_pane.py", "--find"]
+platforms = ["windows"]
+
+# Restore panels: every pane of the plugin's the tab lacks back (in a tab without any, the whole layout: the sidebar
+# above a terminal and the Conversations column beside the agent), and the right column shown; installed on its own,
+# this opens the sidebar
+[[actions]]
+id = "restore-panels"
+title = "Sidebar: restore panels"
+command = ["/usr/bin/python3", "conversations_pane.py", "--restore"]
+platforms = ["macos", "linux"]
+
+[[actions]]
+id = "restore-panels-windows"
+title = "Sidebar: restore panels"
+command = ["python", "conversations_pane.py", "--restore"]
+platforms = ["windows"]

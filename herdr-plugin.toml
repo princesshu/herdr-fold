@@ -1,0 +1,31 @@
+id = "herdr-fold"
+name = "herdr-fold, the whole environment"
+version = "0.1.0"
+min_herdr_version = "0.9.5"
+description = """\
+  The whole herdr-fold environment on an Apple silicon Mac: its installer opens in a herdr tab and sets up Ghostty, \
+  the themes, the sidebar with files, git, GitHub issues and AI conversations, the AI Sessions list, the status line \
+  and remote machines over SSH and Tailscale. Created by princesshu"""
+platforms = ["macos"]
+
+# The installer offered in a tab of its own, once for each copy herdr keeps of the package: on herdr's start and, right
+# after the plugin is installed or updated, on the next pane's focus (lib/offer_install.sh)
+[[startup]]
+command = ["/bin/sh", "-c", "exec /bin/sh \"$HERDR_PLUGIN_ROOT/lib/offer_install.sh\""]
+
+[[events]]
+on = "pane.focused"
+command = ["/bin/sh", "-c", "exec /bin/sh \"$HERDR_PLUGIN_ROOT/lib/offer_install.sh\""]
+
+# The installer itself, with its questions, never skipped: a switch left in herdr's environment that answers them
+# (HERDR_FOLD_YES, HERDR_FOLD_CONFIG) or skips the start (HERDR_FOLD_STARTED) is dropped; any time again:
+# herdr plugin pane open --plugin herdr-fold --entrypoint install
+[[panes]]
+id = "install"
+title = "herdr-fold installer"
+placement = "tab"
+command = [
+  "/bin/bash", "-c",
+  """exec env -u HERDR_FOLD_YES -u HERDR_FOLD_CONFIG -u HERDR_FOLD_STARTED -u HERDR_FOLD_UPDATE \
+  /bin/bash "$HERDR_PLUGIN_ROOT/install.sh\"""",
+]

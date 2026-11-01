@@ -1,0 +1,288 @@
+"""Tests for the sessions plugin's sync_names (fake herdr): a Sessions row shows only the pane name (herdr 0.9.5+) and a
+resumed conversation resends no title, so names come from the conversation's files, skipping pipes and damaged lines.
+"""
+import glob
+import json
+import os
+import shutil
+import sys
+import tempfile
+import unittest
+
+from support import SRC, finished, set_attrs, set_env
+
+sys.path.insert(0, os.path.join(SRC, "plugins", "sessions-view"))
+import sessions  # noqa: E402
+
+
+class SyncNames(unittest.TestCase):
+    def setUp(self):
+        self.state = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.state)
+        self.home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.home)
+        set_env(self, HERDR_PLUGIN_STATE_DIR=self.state, HOME=self.home)
+        self.renames, self.labels, self.tabs, self.tab_renames = [], {}, [], []
+
+        def call(method, params):
+            if method == "pane.list":
+                return {"result": {"panes": [{"pane_id": p, "label": l} for p, l in self.labels.items()]}}
+            if method == "pane.rename":
+                self.renames.append((params["pane_id"], params["label"]))
+            if method == "tab.list":
+                return {"result": {"tabs": self.tabs}}
+            if method == "tab.rename":
+                self.tab_renames.append((params["tab_id"], params["label"]))
+            if method == "notification.show":
+                self.notes.append(params)
+            return {"result": {}}
+        self.notes = []
+        set_attrs(self, sessions, call=call)
+
+    def write(self, rel, lines):
+        path = os.path.join(self.home, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("".join(json.dumps(line) + "\n" for line in lines))
+
+    def agent(self, pane, title, kind="claude", session="s1", tab="w1:t2"):
+        return {"pane_id": pane, "tab_id": tab, "agent": kind, "terminal_title_stripped": title,
+                "agent_session": {"value": session}}
+
+    def tab(self, label, number=2):
+        """The agents' tab, w1:t2, showing LABEL (herdr's number for it while unnamed); number 1 is the main tab."""
+        self.tabs = [{"tab_id": "w1:t2", "label": label, "number": number}]
+
+    def test_unnamed_new_claude_pane_gets_the_agent_name(self):
+        self.labels = {"w1:p1": ""}
+        sessions.sync_names([self.agent("w1:p1", "Claude Code")])
+        self.assertEqual(self.renames, [("w1:p1", "claude")])
+
+    def test_unnamed_codex_pane_gets_codex(self):
+        self.labels = {"w1:p2": ""}
+        sessions.sync_names([self.agent("w1:p2", "", kind="codex", session="s2")])
+        self.assertEqual(self.renames, [("w1:p2", "codex")])
+
+    def test_conversation_title_replaces_the_placeholder(self):
+        self.labels = {"w1:p1": "claude"}
+        sessions.sync_names([self.agent("w1:p1", "Colors of fruits")])
+        self.assertEqual(self.renames, [("w1:p1", "Colors of fruits")])
+
+    def test_manual_name_is_kept(self):
+        self.labels = {"w1:p1": "My own name"}
+        sessions.sync_names([self.agent("w1:p1", "Colors of fruits")])
+        self.assertEqual(self.renames, [])
+
+    def test_a_windows_shell_path_is_not_a_title(self):
+        # a Windows console shows the shell's path as its title
+        self.labels = {"w1:p1": ""}
+        sessions.sync_names([self.agent("w1:p1", "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")])
+        self.assertEqual(self.renames, [("w1:p1", "claude")])
+
+    def test_a_shell_path_named_earlier_goes_back_to_the_agent_name(self):
+        path = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+        with open(os.path.join(self.state, "names.json"), "w", encoding="utf-8") as f:
+            json.dump({"s1": {"name": path, "given": True}}, f)
+        self.labels = {"w1:p1": path}
+        sessions.sync_names([self.agent("w1:p1", path)])
+        self.assertEqual(self.renames, [("w1:p1", "claude")])
+
+    def test_a_shell_path_title_is_no_conversation(self):
+        self.assertFalse(sessions.has_session(self.agent("w1:p1", "/bin/zsh")))
+
+    def save_names(self, names):
+        with open(os.path.join(self.state, "names.json"), "w", encoding="utf-8") as f:
+            json.dump(names, f)
+
+    def test_a_damaged_names_file_is_set_aside_and_said(self):
+        path = sessions.names_path()
+        damaged = '{"s9": {"name": "My own name", "given": false}'           # cut short
+        with open(path, "w") as f:
+            f.write(damaged)
+        self.labels = {"w1:p1": ""}
+        sessions.sync_names([self.agent("w1:p1", "Colors of fruits")])
+        aside = glob.glob(path + ".damaged-*")
+        self.assertEqual(len(aside), 1)
+        with open(aside[0]) as f:
+            self.assertEqual(f.read(), damaged)                               # the names in it are kept
+        with open(path) as f:
+            self.assertEqual(json.load(f), {"s1": {"name": "Colors of fruits", "given": True}})   # naming goes on
+        self.assertEqual(len(self.notes), 1)
+        self.assertIn(os.path.basename(aside[0]), self.notes[0].get("body", ""))
+
+    def test_a_name_saved_meanwhile_by_another_run_survives(self):
+        self.save_names({"s9": {"name": "Kept by the other run", "given": False}})
+        self.labels = {"w1:p1": ""}
+
+        def call(method, params):
+            if method == "pane.list":                     # another plugin run saves a name while this one works
+                with open(sessions.names_path()) as f:
+                    names = json.load(f)
+                names["s8"] = {"name": "Saved meanwhile", "given": False}
+                with open(sessions.names_path(), "w") as f:
+                    json.dump(names, f)
+                return {"result": {"panes": [{"pane_id": p, "label": l} for p, l in self.labels.items()]}}
+            if method == "pane.rename":
+                self.renames.append((params["pane_id"], params["label"]))
+            return {"result": {}}
+        sessions.call = call
+        sessions.sync_names([self.agent("w1:p1", "Colors of fruits")])
+        with open(sessions.names_path()) as f:
+            names = json.load(f)
+        self.assertEqual(names["s8"]["name"], "Saved meanwhile")
+        self.assertEqual(names["s9"]["name"], "Kept by the other run")
+        self.assertEqual(names["s1"]["name"], "Colors of fruits")
+        self.assertEqual([n for n in os.listdir(self.state) if n.startswith(".names.")], [])
+
+    def test_a_new_conversation_in_the_pane_replaces_the_old_title(self):
+        # the pane still carries the title given to its previous conversation (s0); now s1 runs in it (/clear, /resume)
+        self.save_names({"s0": {"name": "Colors of fruits", "given": True}})
+        self.labels = {"w1:p1": "Colors of fruits"}
+        sessions.sync_names([self.agent("w1:p1", "Fix the login", session="s1")])
+        self.assertEqual(self.renames, [("w1:p1", "Fix the login")])
+
+    def test_a_new_conversation_without_a_title_yet_gets_the_agent_name(self):
+        self.save_names({"s0": {"name": "Colors of fruits", "given": True}})
+        self.labels = {"w1:p1": "Colors of fruits"}
+        sessions.sync_names([self.agent("w1:p1", "Claude Code", session="s1")])
+        self.assertEqual(self.renames, [("w1:p1", "claude")])
+
+    def test_a_manual_name_survives_a_new_conversation(self):
+        self.save_names({"s0": {"name": "My own name", "given": False}})
+        self.labels = {"w1:p1": "My own name"}
+        sessions.sync_names([self.agent("w1:p1", "Fix the login", session="s1")])
+        self.assertEqual(self.renames, [])
+
+    def test_a_transcript_without_messages_is_no_conversation(self):
+        self.write(".claude/projects/-x/s1.jsonl", [{"type": "permission-mode"}, {"type": "mode"}, {"type": "system"}])
+        self.assertFalse(sessions.has_session(self.agent("w1:p1", "Claude Code")))
+        self.write(".claude/projects/-x/s1.jsonl", [{"type": "mode"}, {"type": "user"}])
+        self.assertTrue(sessions.has_session(self.agent("w1:p1", "Claude Code")))
+
+    def test_title_of_a_resumed_claude_conversation_comes_from_its_transcript(self):
+        self.write(".claude/projects/-x/s1.jsonl", [{"type": "ai-title", "aiTitle": "First idea"}, {"type": "user"},
+                                                  {"type": "ai-title", "aiTitle": "Colors of fruits"}])
+        self.labels = {"w1:p1": "claude"}
+        sessions.sync_names([self.agent("w1:p1", "")])
+        self.assertEqual(self.renames, [("w1:p1", "Colors of fruits")])
+
+    def test_claude_rename_wins_over_the_generated_title(self):
+        self.write(".claude/projects/-x/s1.jsonl", [{"type": "custom-title", "customTitle": "My task"},
+                                                  {"type": "ai-title", "aiTitle": "Colors of fruits"}])
+        self.labels = {"w1:p1": "claude"}
+        sessions.sync_names([self.agent("w1:p1", "")])
+        self.assertEqual(self.renames, [("w1:p1", "My task")])
+
+    def test_a_pipe_or_a_damaged_line_is_no_title(self):
+        # a pipe named like a transcript would hold the plugin for good; a line nested too deep or not an object ends it
+        project = os.path.join(self.home, ".claude", "projects", "-x")
+        os.makedirs(project)
+        os.mkfifo(os.path.join(project, "s1.jsonl"))
+        self.assertFalse(finished(self, lambda: sessions.has_messages(self.agent("w1:p1", ""))))
+        self.assertEqual(finished(self, lambda: sessions.conversation_title(self.agent("w1:p1", ""))), "")
+        os.remove(os.path.join(project, "s1.jsonl"))
+        with open(os.path.join(project, "s1.jsonl"), "w") as f:
+            f.write("[" * 100_000 + "]" * 100_000 + "\n[1]\n" + json.dumps({"type": "ai-title", "aiTitle": "Fruits"})
+                    + "\n")
+        self.assertEqual(sessions.conversation_title(self.agent("w1:p1", "")), "Fruits")
+
+    def test_a_claude_title_is_read_in_one_pass(self):
+        # a transcript is hundreds of megabytes: its rename and its generated title come from the same reading
+        self.write(".claude/projects/-x/s1.jsonl", [{"type": "ai-title", "aiTitle": "Colors of fruits"}])
+        opened = []
+        real = sessions.open_regular
+        set_attrs(self, sessions, open_regular=lambda *a, **k: opened.append(a[0]) or real(*a, **k))
+        self.assertEqual(sessions.conversation_title(self.agent("w1:p1", "")), "Colors of fruits")
+        self.assertEqual(len(opened), 1)
+
+    def test_codex_thread_name_comes_from_its_index(self):
+        self.write(".codex/session_index.jsonl", [{"id": "s2", "thread_name": "Old name"},
+                                                  {"id": "s9", "thread_name": "x"},
+                                                  {"id": "s2", "thread_name": "Fix the login"}])
+        self.labels = {"w1:p2": "codex"}
+        sessions.sync_names([self.agent("w1:p2", "", kind="codex", session="s2")])
+        self.assertEqual(self.renames, [("w1:p2", "Fix the login")])
+
+    # --- the conversation's tab
+
+    def test_a_conversation_names_the_tab_it_has_to_itself(self):
+        self.labels = {"w1:p1": "claude"}
+        self.tab("2")
+        sessions.sync_names([self.agent("w1:p1", "Colors of fruits")])
+        self.assertEqual(self.tab_renames, [("w1:t2", "Colors of fruits")])
+
+    def test_the_main_tab_keeps_the_workspaces_name(self):
+        self.labels = {"w1:p1": "claude"}
+        self.tab("app", number=1)
+        sessions.sync_names([self.agent("w1:p1", "Colors of fruits")])
+        self.assertEqual(self.tab_renames, [])
+
+    def test_a_tab_two_agents_share_keeps_its_name(self):
+        self.labels = {"w1:p1": "claude", "w1:p3": "claude"}
+        self.tab("2")
+        sessions.sync_names([self.agent("w1:p1", "Colors of fruits"), self.agent("w1:p3", "Claude Code", session="s3")])
+        self.assertEqual(self.tab_renames, [])
+
+    def test_a_conversation_without_a_title_leaves_its_tab_as_it_is(self):
+        self.labels = {"w1:p1": ""}
+        self.tab("2")
+        sessions.sync_names([self.agent("w1:p1", "Claude Code")])
+        self.assertEqual(self.tab_renames, [])
+
+    def test_the_tab_follows_the_title_while_it_shows_it(self):
+        self.save_names({"s1": {"name": "Colors of fruits", "given": True}})
+        self.labels = {"w1:p1": "Colors of fruits"}
+        self.tab("Colors of fruits")
+        sessions.sync_names([self.agent("w1:p1", "Fruit price list")])
+        self.assertEqual(self.tab_renames, [("w1:t2", "Fruit price list")])
+
+    def test_a_tab_named_by_hand_keeps_its_name_when_the_title_changes(self):
+        self.save_names({"s1": {"name": "Colors of fruits", "given": True}})
+        self.labels = {"w1:p1": "Colors of fruits"}
+        self.tab("backend")
+        sessions.sync_names([self.agent("w1:p1", "Fruit price list")])
+        self.assertEqual(self.renames, [("w1:p1", "Fruit price list")])
+        self.assertEqual(self.tab_renames, [])
+
+    def test_a_name_given_in_herdr_goes_on_the_tab_whatever_it_shows(self):
+        self.labels = {"w1:p1": "My own name"}                    # Rename pane, since the last run
+        self.tab("backend")
+        sessions.sync_names([self.agent("w1:p1", "Colors of fruits")])
+        self.assertEqual(self.tab_renames, [("w1:t2", "My own name")])
+        self.tab_renames.clear()
+        self.tab("api")                                           # the tab renamed by hand afterwards: it stays
+        sessions.sync_names([self.agent("w1:p1", "Colors of fruits")])
+        self.assertEqual(self.tab_renames, [])
+
+    def test_after_clear_pane_name_the_tab_takes_the_title_back(self):
+        self.save_names({"s1": {"name": "My own name", "given": False}})
+        self.labels = {"w1:p1": ""}
+        self.tab("My own name")
+        sessions.sync_names([self.agent("w1:p1", "Colors of fruits")])
+        self.assertEqual(self.tab_renames, [("w1:t2", "Colors of fruits")])
+
+    def test_a_long_name_is_cut_on_the_tab(self):
+        self.labels = {"w1:p1": "claude"}
+        self.tab("2")
+        sessions.sync_names([self.agent("w1:p1", "Colors of fruits and vegetables in spring")])
+        self.assertEqual(self.tab_renames, [("w1:t2", "Colors of fruits and ve…")])
+        self.assertEqual(len(self.tab_renames[0][1]), sessions.TAB_NAME)
+
+
+class WindowsPipe(unittest.TestCase):
+    def test_the_pipe_is_named_after_the_socket_path(self):
+        # as herdr's own plugin examples do: \\.\pipe\ + HERDR_SOCKET_PATH
+        self.assertEqual(sessions.pipe_name("C:\\Users\\a\\.config\\herdr\\herdr.sock"),
+                         "\\\\.\\pipe\\C:\\Users\\a\\.config\\herdr\\herdr.sock")
+
+
+class Manifest(unittest.TestCase):
+    def test_windows_can_reapply_the_view(self):
+        with open(os.path.join(os.path.dirname(sessions.__file__), "herdr-plugin.toml"), encoding="utf-8") as f:
+            blocks = f.read().split("[[")
+        self.assertTrue([b for b in blocks if b.startswith("actions]") and 'id = "apply-windows"' in b
+                         and 'platforms = ["windows"]' in b])
+
+
+if __name__ == "__main__":
+    unittest.main()

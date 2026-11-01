@@ -1,0 +1,25 @@
+name: Feature request
+description: An idea for herdr-fold
+labels: [enhancement]
+body:
+  - type: textarea
+    id: want
+    attributes:
+      label: What you want to do
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters to you
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you tried
+  - type: checkboxes
+    id: written
+    attributes:
+      label: Before you send it
+      options:
+        - label: I wrote this myself; no AI tool wrote it, and none is named as its author or co-author.
+          required: true

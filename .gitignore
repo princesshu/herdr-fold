@@ -1,0 +1,61 @@
+# --- operating systems ---------------------------------------------------------------------------------------------
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# --- Python ---------------------------------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- editors --------------------------------------------------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.#*
+
+# --- backups, temporary files, logs ---------------------------------------------------------------------------------
+*.bak
+*.tmp
+*.orig
+*.rej
+*.log
+
+# --- secrets and keys: never in the repository ----------------------------------------------------------------------
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ecdsa*
+id_ed25519*
+
+# --- working files of AI coding tools -------------------------------------------------------------------------------
+.claude/
+.codex/
+.cursor/
+.aider*
+CLAUDE.md
+AGENTS.md
+
+# --- per-machine state: it lives in the user's own config folder, never in the repository ---------------------------
+machines.txt
+statusline.json
+setup-folder
+private-words.txt

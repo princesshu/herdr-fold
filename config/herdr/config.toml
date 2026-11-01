@@ -1,0 +1,144 @@
+onboarding = false
+
+# --- theme: catppuccin — written by ~/.config/herdr-fold/themes/apply.py ---
+[theme]
+name = "catppuccin"
+
+# Catppuccin Mocha shades for the sidebars and the frame (Ghostty paints the pane interiors)
+# The active row mixed from the accent, the navigate-mode highlight from the text color, both 1.6:1 or
+# more against the sidebar; the frames of the panes out of focus faint, so the focused one's stands out
+[theme.custom]
+accent = "#cba6f7"
+panel_bg = "#1e1e2e"
+sidebar_bg = "#181825"
+active_row_bg = "#4a4060"
+selection_bg = "#434657"
+overlay0 = "#4f5164"
+
+# The Sessions rows: the session name (the pane name) in the theme's text color, bold; the state
+# and the agent below it, faint, the agent still legible on the active row; an empty row between two
+# sessions
+[ui.sidebar.agents]
+row_gap = 1
+rows = [
+  ["state_icon", { token = "pane", fg = "#cdd6f4", bold = true }],
+  ["state_text", { token = "agent", fg = "#8f94ae" }],
+]
+# --- end of theme ---
+
+# Next / previous session: Ctrl+B, Shift+↓ / ↑ (Ghostty: Cmd+D / Cmd+E send Ctrl+Alt+Shift+↓ / ↑, even while typing).
+# Workspaces: Alt+1…9, next / previous Ctrl+B, ↓ / ↑ (Ghostty: Cmd+1…9, Cmd+↓ / ↑). In the Spaces list (Ctrl+B, w):
+# W/S or ↑/↓ moves, Enter switches, Esc cancels, 1–9 jumps.
+[keys]
+switch_workspace = "alt+1..9"
+previous_workspace = "prefix+up"
+next_workspace = "prefix+down"
+navigate_workspace_up = ["up", "w"]
+navigate_workspace_down = ["down", "s"]
+previous_agent = ["prefix+shift+up", "ctrl+alt+shift+up"]
+next_agent = ["prefix+shift+down", "ctrl+alt+shift+down"]
+
+# Hide / show the right-hand column (sidebar + terminal)
+# (Ghostty: Cmd+Shift+E → Ctrl+B, f). Hides it by zooming, so programs running in the terminal keep running.
+[[keys.command]]
+key = "prefix+f"
+type = "shell"
+command = "/usr/bin/python3 ~/.config/herdr-fold/toggle_column.py"
+description = "sidebar + terminal column: show / hide (Cmd+Shift+E)"
+
+# The sidebar's Changes view (git: the changes, commit, push) (Ghostty: Cmd+Shift+G → Ctrl+B, u)
+[[keys.command]]
+key = "prefix+u"
+type = "plugin_action"
+command = "herdr-fold.sidebar.show-git"
+description = "sidebar: Changes (Cmd+Shift+G)"
+
+# The sidebar's Issues view, for a repository on GitHub (Ghostty: Cmd+Shift+I → Ctrl+B, Shift+I)
+[[keys.command]]
+key = "prefix+shift+i"
+type = "plugin_action"
+command = "herdr-fold.sidebar.show-issues"
+description = "sidebar: Issues (Cmd+Shift+I)"
+
+# Close the active tab (Ghostty: Cmd+W → Ctrl+B, t) — asks first if the tab has a conversation; never
+# closes the main tab (a workspace's first, named as the workspace)
+[[keys.command]]
+key = "prefix+t"
+type = "shell"
+command = "/usr/bin/python3 ~/.config/herdr-fold/close_tab.py"
+description = "close tab, asks first if it has a conversation; never the main tab (Cmd+W)"
+
+# Commit + push in one step, with an AI-written message (Claude, or Codex if Claude is missing) — in a small window
+# (Ghostty: Cmd+Shift+C → Ctrl+B, y). Works on the repository of the focused pane.
+[[keys.command]]
+key = "prefix+y"
+type = "popup"
+command = "/usr/bin/python3 ~/.config/herdr-fold/commit_push.py"
+description = "commit & push with an AI-written message (Cmd+Shift+C)"
+width = "70%"
+height = "60%"
+
+# Search the Claude conversation (Ghostty: Cmd+F → Ctrl+B, a): opens the transcript view in the focused Claude pane
+# and starts a search in it (Ctrl+O, /) — does nothing in other panes
+[[keys.command]]
+key = "prefix+a"
+type = "shell"
+command = "/usr/bin/python3 ~/.config/herdr-fold/claude_search.py"
+description = "search the Claude conversation (Cmd+F)"
+
+# The Conversations column right before the right column, in every tab: collapse it to a rail everywhere at once, or
+# open it, the choice kept (Ghostty: Cmd+Shift+H → Ctrl+B, Shift+H)
+[[keys.command]]
+key = "prefix+shift+h"
+type = "shell"
+command = "/usr/bin/python3 ~/.config/herdr-fold/plugins/sidebar/conversations_pane.py --toggle"
+description = "Conversations column: collapse or open it everywhere (Cmd+Shift+H)"
+
+# Restore panels: every pane closed by hand in this tab back — the sidebar, the terminal, the Conversations column — and
+# the right column shown (Ghostty: Cmd+Shift+O → Ctrl+B, Shift+O)
+[[keys.command]]
+key = "prefix+shift+o"
+type = "shell"
+command = "/usr/bin/python3 ~/.config/herdr-fold/plugins/sidebar/conversations_pane.py --restore"
+description = "restore panels: sidebar, terminal and Conversations closed in this tab back (Cmd+Shift+O)"
+
+# Find a conversation: the Conversations column of this tab open, its filter empty and the keys going to it; Enter
+# goes to a running one or reopens a closed one in a new tab (Ghostty: Cmd+Shift+R → Ctrl+B, m)
+[[keys.command]]
+key = "prefix+m"
+type = "shell"
+command = "/usr/bin/python3 ~/.config/herdr-fold/plugins/sidebar/conversations_pane.py --find"
+description = "find a conversation in the Conversations column (Cmd+Shift+R)"
+
+# Add a remote machine — herdr's machines list has no button for it: the installer's questions (~/.ssh/config, the
+# Tailscale network, an address typed in), then the new machine gets set up; in a small window. Needs the herdr-fold
+# folder (the installer records where it is).
+[[keys.command]]
+key = "prefix+shift+m"
+type = "popup"
+command = "/usr/bin/python3 ~/.config/herdr-fold/add_machine.py"
+description = "add a remote machine"
+width = "85%"
+height = "80%"
+
+# Pick a color theme (Ghostty: Cmd+K, Cmd+T → Ctrl+B, i) — colors for Ghostty, herdr and the prompt
+[[keys.command]]
+key = "prefix+i"
+type = "popup"
+command = "/usr/bin/python3 ~/.config/herdr-fold/themes/picker.py"
+description = "color theme (Cmd+K Cmd+T)"
+width = "80%"
+height = "60%"
+
+# Select with the mouse, copy with Cmd+C (the selection stays until you copy it).
+# Ghostty keeps Cmd+C only for its own selection (performable:), otherwise it passes it on to herdr.
+[ui]
+copy_on_select = false
+
+# No "copied to clipboard" toast after copying: Cmd+C copies reliably (formatted, too, from replies)
+[ui.toast.clipboard]
+enabled = false
+
+# No sound when an agent finishes or asks something
+[ui.sound]
+enabled = false

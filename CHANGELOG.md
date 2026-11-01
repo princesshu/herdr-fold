@@ -1,0 +1,36 @@
+# Changelog
+
+All notable changes to this project are listed here. The format follows
+[Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and versions follow
+[Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.0] - 2026-11-01
+
+First release.
+
+### Added
+
+- The installer: Ghostty, herdr, starship, gh, bat, git-delta, ripgrep and the JetBrains Mono Nerd Font with Homebrew,
+  after a yes and only what the Mac lacks; their settings, twelve color themes (Ghostty's app icon too: herdr-fold's
+  logo, the sheep, in each theme's colors), the Claude Code and Codex status lines, and herdr's Claude and Codex
+  integrations; herdr settings of your own are kept. Run again, it updates after one question, with your earlier
+  choices. See [Installation](docs/installation.md) and [Themes](docs/themes.md).
+- Workspaces: one per repository from a folder picker, the agent beside the Conversations column and the sidebar above
+  a terminal; keys for workspaces, tabs, panes and sessions; commit and push with an AI-written message; formatted
+  copy; search in the Claude conversation. See [Using it](docs/usage.md) and [Keys](docs/keybindings.md).
+- herdr's marketplace: `herdr plugin install princesshu/herdr-fold` (`herdr-fold 0.1.0`, the whole environment)
+  opens the installer in a herdr tab; the sidebar and the Sessions list install alone from there too.
+- Three herdr plugins; the first two also install on their own:
+  - `herdr-fold.sidebar 0.1.0`: Files, Search, Changes and GitHub Issues with previews, on macOS, Linux and Windows,
+    and the Conversations column with every workspace's Claude and Codex conversations. See
+    [The sidebar](docs/sidebar.md).
+  - `herdr-fold.sessions-view 0.1.0`: the Sessions list, each conversation under its name, with its state; the same
+    name on its pane and on the tab it has to itself.
+  - `herdr-fold.tab-layout 0.1.0`: new workspaces and tabs laid out, and the panes back after a restart.
+- Remote Linux, macOS and Windows machines over SSH, with their own workspaces, sidebar and status line. See
+  [Remote machines](docs/remote-machines.md).
+- The uninstaller, which names what it leaves and where. See [Uninstall](docs/uninstall.md).
+- Privacy: no telemetry; the plugins' state readable by you alone; a hand-added machine's host key shown and confirmed
+  before the first connection; a privacy test over every file and every commit. See [Security](SECURITY.md).
+
+[0.1.0]: https://github.com/princesshu/herdr-fold/releases/tag/v0.1.0

@@ -1,0 +1,12 @@
+#!/bin/sh
+# The commit message by the privacy check's rules: nothing personal in the history
+cd "$(git rev-parse --show-toplevel)" || exit 1
+exec /usr/bin/python3 -I -B - "$1" <<'PY'
+import os, sys
+sys.path.insert(0, os.path.abspath("tests"))
+import test_privacy as tp
+with open(sys.argv[1], encoding="utf-8") as f:
+    text = "".join(line for line in f if not line.startswith("#"))
+problems = [f"line {n}: {what}" for n, what in tp.findings(text, tp.private_words(), *tp.tailnet())]
+sys.exit("\n".join(problems) or 0)
+PY

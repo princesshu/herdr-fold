@@ -1,0 +1,330 @@
+"""Tests for the sidebar's git layer (src/plugins/sidebar/git.py) in temporary repositories: status, staging, commits,
+push and pull, the graph and unusual states; a file name is never a pattern, and what the sidebar runs on its own runs
+no program a downloaded repository's .git/config names."""
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest import mock
+
+from support import SRC, set_env, sign_head, stubs, trap
+
+sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
+import git  # noqa: E402
+
+
+class Repo(unittest.TestCase):
+    def setUp(self):
+        self.root = self.folder()
+        set_env(self, GIT_CONFIG_GLOBAL=os.devnull, GIT_AUTHOR_NAME="dev", GIT_AUTHOR_EMAIL="dev@example.com",
+                GIT_COMMITTER_NAME="dev", GIT_COMMITTER_EMAIL="dev@example.com")
+        self.run_git("init", "-q", "-b", "main")
+
+    def folder(self):
+        path = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, path)
+        return path
+
+    def run_git(self, *args, cwd=None, check=True):
+        return subprocess.run(["git", "-C", cwd or self.root, *args], capture_output=True, text=True,
+                              check=check).stdout
+
+    def write(self, rel, text="x\n", root=None):
+        path = os.path.join(root or self.root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            f.write(text)
+
+    def touch(self, rel):
+        """REL changed in time only, as a file unpacked again: git reads it to tell whether it changed."""
+        path = os.path.join(self.root, rel)
+        later = os.stat(path).st_mtime + 10
+        os.utime(path, (later, later))
+
+    def commit_all(self, message="init", cwd=None):
+        self.run_git("add", "-A", cwd=cwd)
+        self.run_git("commit", "-q", "-m", message, cwd=cwd)
+
+
+class ForeignConfig(Repo):
+    def test_the_repositorys_config_cannot_make_git_read_the_sidebars_terminal(self):
+        """[include] path = /dev/stdin in a downloaded folder's .git/config: git would read the sidebar's input, its
+        keys, until it ends, which a terminal never does."""
+        self.write("a.txt")
+        self.run_git("config", "include.path", "/dev/stdin")
+        code = (f"import sys; sys.path.insert(0, {os.path.join(SRC, 'plugins', 'sidebar')!r}); import git; "
+                f"print(git.status({self.root!r}).error or 'ok')")
+        proc = subprocess.Popen([sys.executable, "-c", code], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, text=True)                   # its input kept open
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            self.fail("git waited on the input")
+        finally:
+            proc.stdin.close()
+        self.assertEqual(proc.stdout.read().strip(), "ok")
+        proc.stdout.close()
+
+    def test_the_status_does_not_start_the_repositorys_fsmonitor(self):
+        """The sidebar asks for the status unasked: a downloaded folder's .git/config must not run a program then."""
+        self.write("a.txt")
+        mark = trap(self.root, "core.fsmonitor", self.folder())
+        git.status(self.root)
+        self.assertFalse(os.path.exists(mark))
+
+    def test_the_status_does_not_run_the_repositorys_filters(self):
+        """A changed file's content passes the filter .gitattributes names: a downloaded folder's .git/config could
+        make that any program, as a clean filter or a long-running one, required or not."""
+        self.write(".gitattributes", "*.txt filter=evil\n")
+        self.write("a.txt")
+        self.commit_all()
+        self.touch("a.txt")                                         # as an unpacked folder's files: read to compare
+        programs = self.folder()
+        marks = [trap(self.root, key, programs) for key in ("filter.evil.clean", "filter.evil.process")]
+        self.run_git("config", "filter.evil.required", "true")
+        st = git.status(self.root)
+        self.assertIsNone(st.error)
+        self.assertEqual([os.path.basename(m) for m in marks if os.path.exists(m)], [])
+
+    def test_a_filter_whose_name_hides_from_the_command_line_stops_the_status(self):
+        """git splits -c at the first =: a driver named with one could not be turned off there, so no status is asked
+        for at all."""
+        self.write(".gitattributes", "*.txt filter=evil=x\n")
+        self.write("a.txt")
+        self.commit_all()
+        self.touch("a.txt")
+        mark = trap(self.root, "filter.evil=x.clean", self.folder())
+        self.assertTrue(git.status(self.root).error)
+        self.assertFalse(os.path.exists(mark))
+
+    def test_a_filter_whose_name_is_read_back_otherwise_stops_the_status(self):
+        """A driver's name that does not come back from git byte for byte (no UTF-8, or a character that splits a
+        line in Python) could not be named on git's command line either."""
+        programs = self.folder()
+        for name in (b"evil\xff", b"evil\x1cx"):
+            with open(os.path.join(self.root, ".gitattributes"), "wb") as f:
+                f.write(b"*.txt filter=" + name + b"\n")
+            self.write("a.txt")
+            self.commit_all()
+            self.touch("a.txt")
+            mark = os.path.join(programs, "ran")
+            stubs(programs, {"filter": f"#!/bin/sh\ntouch '{mark}'\ncat\n"})
+            subprocess.run([b"git", b"-C", self.root.encode(), b"config", b"filter." + name + b".clean",
+                            os.path.join(programs, "filter").encode()], check=True)
+            self.assertTrue(git.status(self.root).error, name)
+            self.assertFalse(os.path.exists(mark), name)
+
+    def test_the_status_runs_nothing_in_a_submodule(self):
+        """A submodule's own config is as foreign as the repository's: its status is not asked for."""
+        sub = self.folder()
+        self.run_git("init", "-q", "-b", "main", cwd=sub)
+        self.write("b.txt", root=sub)
+        self.commit_all(cwd=sub)
+        self.run_git("-c", "protocol.file.allow=always", "submodule", "add", "-q", sub, "sub")
+        self.commit_all()
+        inner = os.path.join(self.root, "sub")
+        self.write(".gitattributes", "*.txt filter=evil\n", root=inner)
+        self.touch("sub/b.txt")
+        mark = trap(inner, "filter.evil.clean", self.folder())
+        self.assertIsNone(git.status(self.root).error)
+        self.assertFalse(os.path.exists(mark))
+
+    def test_a_signed_commit_does_not_start_the_repositorys_signature_check(self):
+        """The Graph and the linked issue's check read the log: a downloaded folder's log.showSignature must not
+        start the signature program its config names."""
+        self.write("a.txt")
+        self.commit_all()
+        sign_head(self.root)
+        self.run_git("config", "log.showSignature", "true")
+        mark = trap(self.root, "gpg.program", self.folder())
+        git.graph(self.root)
+        git.head(self.root)
+        self.assertFalse(os.path.exists(mark))
+
+
+class Status(Repo):
+    def test_every_kind_of_change(self):
+        for name in ("kept.txt", "gone.txt", "moved.txt"):
+            self.write(name)
+        self.write(".gitignore", "build/\n")
+        self.commit_all()
+        self.write("kept.txt", "changed\n")
+        os.remove(os.path.join(self.root, "gone.txt"))
+        self.run_git("mv", "moved.txt", "renamed.txt")
+        self.write("new.txt")
+        self.write("build/out.bin")
+        st = git.status(self.root)
+        self.assertEqual({(c.path, c.code) for c in st.staged}, {("renamed.txt", "R")})
+        self.assertEqual({(c.path, c.code) for c in st.changes},
+                         {("kept.txt", "M"), ("gone.txt", "D"), ("new.txt", "?")})
+        self.assertIn("build/", st.ignored)
+        self.assertEqual((st.branch, st.error), ("main", None))
+
+    def test_a_tracked_file_that_is_ignored_is_marked(self):
+        self.write("secret.cfg")
+        self.commit_all()
+        self.write(".gitignore", "secret.cfg\n")
+        self.write("secret.cfg", "changed\n")
+        st = git.status(self.root)
+        self.assertTrue(next(c for c in st.changes if c.path == "secret.cfg").ignored)
+        self.assertFalse(next(c for c in st.changes if c.path == ".gitignore").ignored)
+
+    def test_no_commit_yet_and_a_detached_head(self):
+        self.write("a.txt")
+        self.assertIsNone(git.status(self.root).error)
+        self.assertEqual(git.graph(self.root), [])
+        self.commit_all()
+        self.write("a.txt", "2\n")
+        self.commit_all("two")
+        self.run_git("checkout", "-q", "HEAD~1")
+        self.assertIsNone(git.status(self.root).branch)
+
+    def test_a_conflict_is_listed(self):
+        self.write("a.txt", "base\n")
+        self.commit_all()
+        self.run_git("checkout", "-q", "-b", "other")
+        self.write("a.txt", "other\n")
+        self.commit_all("other")
+        self.run_git("checkout", "-q", "main")
+        self.write("a.txt", "main\n")
+        self.commit_all("main")
+        self.run_git("merge", "-q", "other", check=False)
+        self.assertIn(("a.txt", "U"), {(c.path, c.code) for c in git.status(self.root).changes})
+
+    def test_outside_a_repository(self):
+        folder = self.folder()
+        self.assertIsNone(git.top(folder))
+        self.assertIsNone(git.git_dir(folder))
+        self.assertEqual(git.git_dir(self.root), os.path.join(os.path.realpath(self.root), ".git"))
+        self.assertIsNotNone(git.status(folder).error)
+
+
+    def test_without_git(self):
+        missing = os.path.join(self.folder(), "git")
+        with mock.patch.object(git, "GIT", missing):
+            self.assertEqual(git.status(self.root).error, "git is not installed")
+
+
+class Actions(Repo):
+    def test_stage_unstage_discard_commit(self):
+        self.write("a.txt")
+        self.commit_all()
+        self.write("a.txt", "changed\n")
+        git.stage(self.root, ["a.txt"])
+        self.assertEqual([c.path for c in git.status(self.root).staged], ["a.txt"])
+        git.unstage(self.root, ["a.txt"])
+        self.assertEqual(git.status(self.root).staged, [])
+        self.assertIsNone(git.discard(self.root, "a.txt"))
+        with open(os.path.join(self.root, "a.txt")) as f:
+            self.assertEqual(f.read(), "x\n")
+        self.write("b.txt")
+        git.stage(self.root, ["b.txt"])
+        self.assertTrue(git.commit(self.root, "feat: add b\n\n- Add b.txt")[0])
+        self.assertEqual(git.graph(self.root)[0].subject, "feat: add b")
+
+    def test_a_name_is_a_name_not_a_pattern(self):
+        for name in ("pages/[id].tsx", "pages/i.tsx", "pages/d.tsx"):
+            self.write(name)
+        self.commit_all()
+        for name in ("pages/[id].tsx", "pages/i.tsx", "pages/d.tsx"):
+            self.write(name, "changed\n")
+        self.assertIsNone(git.stage(self.root, ["pages/[id].tsx"]))
+        self.assertEqual([c.path for c in git.status(self.root).staged], ["pages/[id].tsx"])
+        self.assertIsNone(git.unstage(self.root, ["pages/[id].tsx"]))
+        self.assertIsNone(git.discard(self.root, "pages/[id].tsx"))
+        self.assertEqual(sorted(c.path for c in git.status(self.root).changes), ["pages/d.tsx", "pages/i.tsx"])
+
+    def test_unstage_before_the_first_commit(self):
+        self.write("a.txt")
+        git.stage(self.root, ["a.txt"])
+        git.unstage(self.root, ["a.txt"])
+        self.assertEqual(git.status(self.root).staged, [])
+
+    def test_push_and_pull_fast_forward_only(self):
+        remote = self.folder()
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", remote], check=True)
+        self.write("a.txt")
+        self.commit_all()
+        self.assertEqual(git.push(self.root), (False, "no remote"))
+        self.run_git("remote", "add", "origin", remote)
+        self.assertTrue(git.push(self.root)[0])                         # the first push sets the upstream
+        self.assertEqual(git.status(self.root).upstream, "origin/main")
+        other = self.folder()
+        subprocess.run(["git", "clone", "-q", remote, other], check=True)
+        self.write("b.txt", root=other)
+        self.commit_all("b", cwd=other)
+        self.run_git("push", "-q", cwd=other)
+        self.write("c.txt")
+        self.commit_all("c")                                            # the two have diverged now
+        ok, message = git.pull(self.root)
+        self.assertFalse(ok)
+        self.assertTrue(message)
+        self.assertNotIn("Unmerged", self.run_git("status"))           # nothing was merged
+
+    def test_sync_pulls_then_pushes_and_starts_an_upstream(self):
+        remote = self.folder()
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", remote], check=True)
+        self.write("a.txt")
+        self.commit_all()
+        self.run_git("remote", "add", "origin", remote)
+        self.assertTrue(git.sync(self.root)[0])                         # no upstream yet: only the push, with -u
+        self.assertEqual(git.status(self.root).upstream, "origin/main")
+        other = self.folder()
+        subprocess.run(["git", "clone", "-q", remote, other], check=True)
+        self.write("b.txt", root=other)
+        self.commit_all("b", cwd=other)
+        self.run_git("push", "-q", cwd=other)
+        self.write("c.txt")
+        self.commit_all("c")
+        self.run_git("reset", "-q", "--soft", "HEAD~1")                 # c undone: only behind now
+        self.run_git("stash", "-q", "--include-untracked")
+        self.assertTrue(git.sync(self.root)[0])                         # pulled b, nothing to push
+        self.assertTrue(os.path.exists(os.path.join(self.root, "b.txt")))
+        self.write("d.txt")
+        self.commit_all("d")
+        self.write("e.txt", root=other)
+        self.commit_all("e", cwd=other)
+        self.run_git("push", "-q", cwd=other)
+        ok, _ = git.sync(self.root)                                      # diverged: stops, nothing merged
+        self.assertFalse(ok)
+        self.assertNotIn("e.txt", self.run_git("ls-files"))
+
+    def test_sync_does_not_bring_back_a_branch_deleted_on_the_remote(self):
+        remote = self.folder()
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", remote], check=True)
+        self.write("a.txt")
+        self.commit_all()
+        self.run_git("remote", "add", "origin", remote)
+        self.run_git("push", "-q", "-u", "origin", "main")
+        self.run_git("switch", "-q", "-c", "feature")
+        self.write("b.txt")
+        self.commit_all("b")
+        self.run_git("push", "-q", "-u", "origin", "feature")
+        self.run_git("push", "-q", "origin", "--delete", "feature")                  # merged and deleted there
+        self.run_git("fetch", "-q", "--prune")
+        for step in (git.sync, git.push):
+            ok, line = step(self.root)
+            self.assertFalse(ok)
+            self.assertIn("gone", line)
+        self.assertNotIn("feature", subprocess.run(["git", "-C", remote, "branch"], capture_output=True,
+                                                   text=True).stdout)
+
+    def test_the_graph_marks_head_and_refs(self):
+        self.write("a.txt")
+        self.commit_all("one")
+        self.write("a.txt", "2\n")
+        self.commit_all("two")
+        graph = git.graph(self.root)
+        self.assertEqual([c.subject for c in graph], ["two", "one"])
+        self.assertTrue(graph[0].head)
+        self.assertFalse(graph[1].head)
+        self.assertIn("main", graph[0].refs)
+        self.assertEqual(graph[0].author, "dev")
+
+
+if __name__ == "__main__":
+    unittest.main()

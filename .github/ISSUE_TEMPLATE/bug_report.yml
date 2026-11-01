@@ -1,0 +1,52 @@
+name: Bug report
+description: Something does not work as the docs describe
+labels: [bug]
+body:
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+    validations:
+      required: true
+  - type: input
+    id: herdr
+    attributes:
+      label: herdr version
+      description: "`herdr --version`"
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: herdr-fold commit
+      description: "`git rev-parse --short HEAD` in the herdr-fold folder"
+  - type: input
+    id: agents
+    attributes:
+      label: Claude Code and Codex versions
+      description: "`claude --version`, `codex --version`"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+  - type: textarea
+    id: output
+    attributes:
+      label: The installer's output or the error
+      render: text
+  - type: checkboxes
+    id: secrets
+    attributes:
+      label: Before you send it
+      options:
+        - label: I removed keys, tokens, machine names, IP addresses, my name and e-mail address, folder paths,
+            project names and conversation text from what I pasted.
+          required: true
+        - label: I wrote this myself; no AI tool wrote it, and none is named as its author or co-author.
+          required: true

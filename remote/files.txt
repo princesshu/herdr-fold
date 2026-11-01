@@ -1,0 +1,24 @@
+# What a remote machine gets: path in the package | location under its home | unix (Linux, macOS), windows or all.
+# A path with a * stands for every matching file, its location a folder. The prepare script removes (after a backup)
+# what an earlier list had and this one drops.
+src/herdrlib.py                              | .config/herdr-fold/herdrlib.py                              | all
+src/i18n.py                                  | .config/herdr-fold/i18n.py                                  | all
+src/lang/*.txt                               | .config/herdr-fold/lang/                                    | all
+src/restore_panes.py                         | .config/herdr-fold/restore_panes.py                         | all
+src/statusline_setup.py                      | .config/herdr-fold/statusline_setup.py                      | all
+src/statusline.py                            | .config/herdr-fold/statusline.py                            | all
+src/plugins/sessions-view/herdr-plugin.toml  | .config/herdr-fold/plugins/sessions-view/herdr-plugin.toml  | all
+src/plugins/sessions-view/sessions.py        | .config/herdr-fold/plugins/sessions-view/sessions.py        | all
+src/plugins/sessions-view/LICENSE            | .config/herdr-fold/plugins/sessions-view/LICENSE            | all
+src/plugins/tab-layout/herdr-plugin.toml     | .config/herdr-fold/plugins/tab-layout/herdr-plugin.toml     | all
+src/plugins/tab-layout/tab_layout.py         | .config/herdr-fold/plugins/tab-layout/tab_layout.py         | all
+src/plugins/tab-layout/LICENSE               | .config/herdr-fold/plugins/tab-layout/LICENSE               | all
+src/plugins/sidebar/*.py                     | .config/herdr-fold/plugins/sidebar/                         | all
+src/plugins/sidebar/LICENSE                  | .config/herdr-fold/plugins/sidebar/LICENSE                  | all
+src/close_tab.py                             | .config/herdr-fold/close_tab.py                             | unix
+src/herdr_layout.py                          | .config/herdr-fold/herdr_layout.py                          | unix
+src/new_workspace.py                         | .config/herdr-fold/new_workspace.py                         | unix
+src/projects.py                              | .config/herdr-fold/projects.py                              | unix
+src/tui.py                                   | .config/herdr-fold/tui.py                                   | unix
+src/sidebar.sh                               | .config/herdr-fold/sidebar.sh                               | unix
+src/sidebar.ps1                              | .config/herdr-fold/sidebar.ps1                              | windows

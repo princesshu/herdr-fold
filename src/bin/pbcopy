@@ -1,0 +1,25 @@
+#!/bin/sh
+# herdr's own pbcopy (first on herdr's PATH): the selection goes unchanged to the system pbcopy, then rich_clipboard.py
+# adds a formatted version in the background when it comes from a Claude/Codex answer, so the copy is never lost, even
+# if formatting fails, and herdr never waits.
+here=$(cd "$(dirname "$0")" && pwd)
+# the system pbcopy: the first one on PATH that is not this file, however its folder is written there (a trailing /, …)
+real=
+set -f; IFS=:
+for dir in $PATH; do
+  if [ -x "$dir/pbcopy" ] && ! [ "$dir/pbcopy" -ef "$here/pbcopy" ]; then real="$dir/pbcopy"; break; fi
+done
+unset IFS; set +f
+[ -n "$real" ] || real=/usr/bin/pbcopy
+[ $# -eq 0 ] || exec "$real" "$@"
+tmp=$(mktemp "${TMPDIR:-/tmp}/herdr-clip.XXXXXX") || exec "$real"
+cat > "$tmp"
+"$real" < "$tmp"
+status=$?
+# the formatter reads the selection from a file already gone: opened first, then removed, so a copied secret is never
+# left on disk, not even when the formatter fails
+exec 3< "$tmp"
+rm -f "$tmp"
+/usr/bin/python3 "$here/../rich_clipboard.py" --upgrade <&3 >/dev/null 2>&1 &
+exec 3<&-
+exit $status

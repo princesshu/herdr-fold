@@ -1,0 +1,22 @@
+# starship — two-line prompt: the folder (from the repository's root) above, the git branch and status before the ❯
+# below, so it fits the narrow terminal of the right-hand column. The colors (style, symbol) come from the chosen
+# theme: ~/.config/herdr-fold/themes/apply.py rewrites them (Cmd+K, Cmd+T).
+format = """
+$directory
+$git_branch$git_status$character"""
+
+[directory]
+style = "bold #cba6f7"
+truncate_to_repo = true
+truncation_length = 4
+
+[git_branch]
+format = "[$branch]($style) "
+style = "#9399b2"
+
+[git_status]
+style = "#f38ba8"
+
+[character]
+success_symbol = "[❯](bold #cba6f7)"
+error_symbol = "[❯](bold #f38ba8)"

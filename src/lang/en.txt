@@ -1,0 +1,449 @@
+# herdr-fold — every text the package's scripts print, in US English. One `key = text` per line.
+# Another language: copy this file to <code>.txt next to it and translate the texts only, never the keys. The rules
+# (%s, %%, \n, leading spaces, a \ at the end of a line): docs/translating.md.
+
+# lib/common.sh: the yes/no question — in the language's own letters, the default (what Enter picks) in capitals;
+# lib.yes_answers lists the answers that mean yes, lowercase, separated by spaces (with the yes letter above)
+lib.ask_default_yes = [Y/n]
+lib.ask_default_no = [y/N]
+lib.yes_answers = y yes
+lib.press_enter_to_start = Press Enter to start, any other key to cancel.
+lib.press_any_key = Press any key to exit.
+
+# install.sh: start
+install.macos_only = This installer runs on a Mac; Linux and Windows machines are connected from there.
+install.intro = \n  herdr-fold\n\n  Installs Ghostty, herdr, starship, gh, bat, delta and ripgrep with Homebrew and \
+  sets them up — anything it replaces is backed up first.\n
+
+# install.sh: step 1, prerequisites
+install.step_prerequisites = 1/8 Prerequisites
+install.homebrew = Homebrew
+install.homebrew_missing = Homebrew not found — the apps are installed with it (https://brew.sh)
+install.homebrew_ask = Install it now?
+install.homebrew_later = Install it, then run again: ./install.sh
+install.homebrew_failed = Homebrew installation failed
+install.claude = Claude Code
+install.claude_missing = Claude Code not found — the agent panes need it: https://code.claude.com/docs/en/setup
+install.codex = Codex
+install.codex_missing = Codex not found
+install.ssh_key = SSH key
+install.ssh_key_missing = No SSH key — remote machines need one
+install.tailscale = Tailscale
+install.tailscale_missing = Tailscale not found
+
+# install.sh: steps 2 and 3, apps and theme
+install.step_apps = 2/8 Apps
+install.apps_skipped = skipped (HERDR_FOLD_NO_BREW=1)
+install.apps_missing = not on this Mac yet, Homebrew installs: %s
+install.herdr_old = herdr is older than the %s herdr-fold needs: Homebrew upgrades it
+install.apps_ask = Go ahead with Homebrew?
+install.apps_later = Nothing installed. When you choose: %s, then run again: ./install.sh
+install.brew_install_failed = Homebrew stopped with an error
+install.apps_there = every app is there (none upgraded: Ghostty updates itself, the rest when you choose)
+install.herdr_upgraded = herdr upgraded: herdr-fold needs %s or newer
+install.herdr_too_old = herdr is older than the %s herdr-fold needs, and its upgrade failed: brew upgrade herdr
+install.herdr_too_old_own = herdr is older than the %s herdr-fold needs: herdr update
+install.herdr_twice = herdr is here twice: Ghostty starts %s, this terminal %s — keep one (e.g. brew uninstall herdr)
+install.herdr_unseen = Ghostty looks for herdr in Homebrew's folders and ~/.local/bin: \
+  mkdir -p ~/.local/bin && ln -s "%s" ~/.local/bin/herdr
+install.step_theme = 3/8 Theme
+install.theme_preview = The theme preview is open in your browser.
+install.theme_ask = Theme
+
+# install.sh: step 4, settings
+install.step_settings = 4/8 Settings
+install.missing_from_package = missing from the package: %s
+install.original_set_aside = the machine's own version set aside: ~/.local/state/herdr-fold/original/%s
+install.not_kept = left as it is, as it could not be saved first: %s
+install.files_in_place = %s settings in place
+install.file_installed = %s
+install.ai_session_kept = AI session, leaving it alone: %s
+install.original_restored = restored the machine's original: %s
+install.dropped_deleted = deleted, no longer in the package: %s
+install.dropped_heading = no longer used:
+install.dropped_folder = %s (%s files)
+install.dropped_ask = Remove? A copy is kept first
+install.dropped_removed = removed — the copy: %s
+install.dropped_kept = kept — the next install asks again
+install.theme_setting = setting the theme and Ghostty's icon in its colors
+install.theme_set = theme: %s
+install.theme_failed = setting the theme failed — later: python3 ~/.config/herdr-fold/themes/apply.py
+
+# install.sh: step 5, prompt and status line
+install.step_prompt = 5/8 Prompt and the Claude Code / Codex status line
+install.pane_env = herdr pane environment in ~/.zshrc
+install.trust_intro = Claude shows the status line only in projects it trusts — these of your Claude panes are not \
+  trusted yet:
+install.trust_ask = Trust them, so the status line shows there too? (Claude then also runs their own .claude settings \
+  and hooks)
+install.trust_failed = projects not trusted: %s
+install.trust_done = trusted — in a session already open there, the status line shows after /exit and claude --continue
+install.statusline_failed = status line setup failed — later: python3 ~/.config/herdr-fold/statusline_setup.py
+
+# install.sh: step 6, herdr plugins and integrations
+install.step_plugins = 6/8 herdr plugins and agent integrations
+install.plugins = herdr plugins: %s
+install.plugin_sidebar = sidebar and Conversations column
+install.plugin_sessions = Sessions list
+install.plugin_tab_layout = tab layout
+install.integrations = herdr ↔ %s
+install.herdr_sidebar_too = herdr-sidebar is installed too: it does what herdr-fold's sidebar does
+install.sidebar_failed = sidebar not linked — later: herdr plugin link %s
+install.existing_herdr = herdr is set up here already
+install.existing_config = your settings: ~/.config/herdr/config.toml
+install.existing_plugins = your plugins: %s
+install.config_add_ask = Keep your herdr settings and add herdr-fold's? No: herdr-fold's replace them, yours are kept
+install.config_added = herdr-fold's herdr settings, added to yours between its markers
+install.config_left = your herdr settings are left as they are: %s
+install.plugin_like_sessions = %s sets the Agents list too — the two would overwrite each other
+offer.ready = herdr-fold's installer is ready, in a tab of its own
+offer.ready_body = Nothing changes before you press Enter there
+install.package_kept = herdr-fold is kept in %s: Shift+M, its updates and its uninstaller run from there
+install.package_not_herdr_folds = %s is someone else's: move it out of ~/.local/share, then open the installer again
+install.package_not_kept = herdr-fold could not be kept in %s: nothing was changed
+install.plugin_taken_over = %s came from herdr's marketplace: herdr-fold's own copy takes its place
+install.plugin_like_tab_layout = %s lays out new tabs too — both would act on every new tab
+install.sessions_ask = Show your conversations in herdr's Agents list?
+install.tab_layout_ask = Give every new tab the Conversations column, the sidebar and a terminal?
+install.plugin_declined = %s not linked
+install.sessions_failed = sessions plugin not linked — later: herdr plugin link \
+  ~/.config/herdr-fold/plugins/sessions-view
+install.tab_layout_failed = tab-layout plugin not linked — later: herdr plugin link \
+  ~/.config/herdr-fold/plugins/tab-layout
+install.claude_integration_failed = Claude integration not installed — later: herdr integration install claude
+install.codex_not_found = Codex not found — once you install it and sign in: herdr integration install codex
+install.codex_not_run = Codex has not run on this machine yet — sign in (codex), then: herdr integration install codex
+install.codex_integration_failed = Codex integration not installed — later: herdr integration install codex
+
+# install.sh: creating an SSH key (step 8)
+install.ssh_key_ask = Create an SSH key for this Mac?
+install.ssh_key_authorize = Authorize the key once on every machine (signing in with a password):
+install.ssh_key_unix = Linux / macOS:     ssh-copy-id <user>@<machine>
+install.ssh_key_windows_admin = Windows, admin:    append the line below to %s
+install.ssh_key_windows_other = Windows, other:    append the line below to %s
+install.ssh_key_done = Press Enter once it is on every machine
+
+# install.sh: step 7, GitHub
+install.step_github = 7/8 GitHub
+install.gh_missing = gh not found — step 2 installs it; later: brew install gh, then gh auth login --web
+install.github_account = GitHub: %s
+install.github_signed_in = signed in
+install.git_push_ask = Let git push through your GitHub sign-in?
+install.git_push_ok = git pushes through your GitHub sign-in
+install.github_login_ask = Sign in to GitHub now?
+install.github_login_ok = GitHub: %s — git pushes through it
+install.github_login_failed = sign-in failed — later: gh auth login --web, then gh auth setup-git
+install.github_later = GitHub later: gh auth login --web, then gh auth setup-git
+install.git_author = git: %s <%s>
+install.git_author_name = Commit author name
+install.git_author_email = Commit author email
+install.git_author_later = git author not set — later: git config --global user.name "…" and git config --global \
+  user.email "…"
+
+# install.sh: step 8, remote machines
+install.step_machines = 8/8 Remote machines
+install.machines_skipped = skipped (HERDR_FOLD_NO_MACHINES=1)
+install.machines_failed = not every machine got connected — status: ./machines.sh, retry: ./machines.sh add <name>
+install.machines_later = no new machine — any time later: Ctrl+B, Shift+M
+
+# install.sh: the end
+install.step_done = Done
+install.reopen_ghostty = Reopen Ghostty (Cmd + Q, then open it) for the new settings, the theme and its icon; herdr \
+  and your agents keep running.
+install.open_ghostty = Open Ghostty: herdr starts in it.
+install.handoff = herdr %s is installed, but %s still runs in the background: herdr server live-handoff switches \
+  without stopping your agents
+install.next_steps = A workspace per repo: the "new" button under Spaces · all keys: Ctrl+B, ? · the rest: README.md
+install.finished = herdr-fold is installed
+install.finished_warnings = herdr-fold is installed, with %s warning(s) — see the [!] lines above
+install.in_trash = this herdr-fold folder is in the Trash (%s): cd into the folder you unpacked again, then \
+  run ./install.sh there
+install.update_found = herdr-fold %s is installed here; this copy is %s
+install.update_found_earlier = an earlier herdr-fold is installed here; this copy is %s
+install.update_ask = Update with your earlier choices? No: the entire install process again, step by step
+install.stopped = The installer stopped before the end — see the lines above.
+
+# machines.sh: help, status and adding machines
+machines.help = Remote machines (Linux, macOS, Windows) in herdr — on the central Mac. install.sh calls it, but it can\
+  \nalso run on its own later (e.g. to add a new machine).\
+  \nGhostty + herdr run on the central Mac; the machines' workspaces show up in herdr's sidebar, while Claude/Codex,\
+  \nthe sidebar and the terminal run on the machine itself.\n\
+  \n  ./machines.sh                 status per machine: SSH, connection, apps\
+  \n  ./machines.sh sshconfig       pick from the machines in ~/.ssh/config, one question each → the list\
+  \n  ./machines.sh tailscale       pick from the machines on the Tailscale network, one question each → the list\
+  \n  ./machines.sh manual          add a machine by SSH address (on any network) → the list\
+  \n  ./machines.sh pick            the installer's questions: ~/.ssh/config, Tailscale, by address → the list\
+  \n  ./machines.sh new             the same questions, then prepare + connect only the new machines (Ctrl+B, Shift+M)\
+  \n  ./machines.sh add [name…]     prepare + connect to herdr (herdr asks before it installs anything)\
+  \n  ./machines.sh prepare [name…] update only (apps, settings, plugins)\
+  \n  ./machines.sh remove <name>   takes herdr-fold off the machine, disconnects it, takes it off the list\
+  \nWithout names it applies to every machine on the list (~/.config/herdr-fold/machines.txt; machines connected in\
+  \nherdr are taken over onto it). Requires: key-based SSH login to the machines.
+add_machine.no_package = Adding a machine needs the herdr-fold folder, and it isn't where the installer left it (%s).\
+  \nCopy it back to this Mac and run ./install.sh in it once: from then on Ctrl+B, Shift+M finds it there.
+machines.unknown_command = Unknown command: %s (help: ./machines.sh help)
+machines.ssh_failed = key-based login failed — try it by hand: ssh %s
+machines.ssh_passphrase = (for a passphrase-protected key, first: ssh-add --apple-use-keychain)
+machines.ssh_unknown_name = %s: no machine of that name on this network — check the name, and that Tailscale is on
+machines.ssh_refused = %s answers, but no SSH server runs on it
+machines.ssh_turn_on = turn it on: on Linux, install openssh-server; on macOS, System Settings → General → Sharing → \
+  Remote Login; on Windows, Settings → System → Optional features → OpenSSH Server, then start the sshd service
+machines.ssh_unreachable = %s does not answer — is it on and awake, and on this network?
+machines.ssh_host_key = %s shows another host key than the one this Mac trusts — if it was set up again, check the new \
+  key on it, then: ssh-keygen -R %s
+machines.ssh_failed_why = cannot log in to %s: %s
+machines.heading = %s (%s, %s)
+machines.reaching = reaching %s
+machines.connected = connected to herdr
+machines.preparing = apps and settings onto the machine
+machines.phase_sending = sending the files
+machines.finishing = agent integrations on the machine
+machines.linking = the Sessions list and the tab layout on the machine
+machines.taken_over = %s: taken over from herdr onto the machine list (%s)
+machines.take_over_unreachable = %s is connected in herdr but not reachable now — it goes onto the machine list when \
+  it is
+machines.not_connected = not connected yet — ./machines.sh add %s
+machines.none_listed = No machines on the list yet — add one: ./machines.sh sshconfig, ./machines.sh tailscale or \
+  ./machines.sh manual
+machines.no_tailscale = no Tailscale on this machine
+machines.tailscale_failed = Tailscale is not responding — are you signed in?
+machines.tailscale_empty = no other computers on the Tailscale network
+machines.select_ask = Import %s (%s, %s)%s?
+machines.select_ask_listed = Import %s (%s, %s)? — already imported
+machines.select_offline = (offline now)
+machines.select_user = user
+machines.added_count = %s new machine(s) on the list, %s already there%s
+machines.no_ssh_config = no ~/.ssh/config
+machines.ssh_config_empty = no machines to add in ~/.ssh/config
+machines.sshconfig_ask = Import %s (%s)?
+machines.sshconfig_ask_listed = Import %s (%s)? — already imported
+machines.not_in_package = %s is missing from the package (get the whole package again) — not sent
+machines.removing = taking herdr-fold off the machine
+machines.not_listed = %s is not on the machine list (./machines.sh status lists them)
+machines.disconnected = %s disconnected in herdr
+machines.disconnect_failed = %s could not be disconnected in herdr — later: herdr machine remove %s
+machines.off_the_list = %s is off the machine list
+machines.removed_from_list = %s is off the list (herdr still has it: herdr machine list, then herdr machine remove <id>)
+machines.added = %s added (%s)
+machines.through_config = %s: through its ~/.ssh/config entry from now on
+machines.pick_sshconfig = Import machines from ~/.ssh/config?
+machines.pick_tailscale = Import machines from your Tailscale network?
+machines.pick_manual = Add a machine by hand?
+machines.none_picked = no new machine
+machines.new_failed = the new machine isn't connected yet — try again: Ctrl+B, Shift+M
+machines.manual_user = user
+machines.manual_host = IP address or host name
+machines.manual_more = Add another machine?
+
+# machines.sh: preparing and connecting a machine (the lines printed on the machine itself come from here too)
+machines.prepare_failed = preparing the machine failed
+machines.hostkey_ask = Trust this ED25519 key of %s (compare it with the machine's own)?
+machines.hostkey_unreadable = %s did not show its ED25519 key: not added (check the address and that SSH is on there)
+machines.already_listed = %s is already on the machine list
+machines.already_connected = already connected to herdr
+machines.herdr_asks_install = connecting to herdr: herdr will now ask whether it may install itself on the machine → \
+  yes.
+machines.herdr_asks_stop = If an older herdr is already running on the machine, it also asks whether to stop it → no \
+  (the default).
+machines.connect_failed = connecting failed or was interrupted
+machines.herdr_sidebar_too = herdr-sidebar is installed there too: it does what herdr-fold's sidebar does
+machines.agent_missing = %s not on this machine
+machines.codex_sign_in = codex: sign in first (codex), then: ./machines.sh prepare
+machines.integration_failed = herdr ↔ %s failed
+machines.sessions_failed = sessions plugin not linked — later: herdr --machine %s plugin link '%s'
+machines.tab_layout_failed = tab-layout plugin not linked — later: herdr --machine %s plugin link '%s'
+
+# remote/prepare-unix.sh: on a Linux / macOS machine
+prepare.unix.unsupported = unsupported machine: %s
+prepare.unix.apps = apps (%s)
+prepare.unix.package_missing = %s is missing — install it with the machine's package manager
+prepare.unix.installed_brew = %s (brew)
+prepare.unix.not_installed = %s not installed
+prepare.unix.settings = settings
+prepare.unix.removing = taking herdr-fold off
+prepare.unix.status_line_back = Claude Code status line: the machine's own again
+prepare.unix.kept = kept: %s
+prepare.unix.kept_names = kept: %s, the Sessions list's conversation names (the conversations stay too)
+prepare.unix.removed = no longer used, removed: %s
+prepare.unix.restored = the machine's own again: %s
+prepare.unix.not_kept = left as it is, as it could not be saved first: %s
+prepare.unix.backup = overwritten old files: %s
+prepare.unix.prompt_added = prompt in herdr panes (~/%s)
+
+# remote/prepare-windows.ps1: on a Windows machine (each text is a whole output line, with its status mark)
+prepare.win.unsupported = only x86_64 Windows is supported (this one: %s)
+prepare.win.apps = apps (Windows x86_64)
+prepare.win.on_path = %s on the user PATH
+prepare.win.tool_failed = %s not installed: %s
+prepare.win.git_missing = git is missing — install it: https://git-scm.com/download/win
+prepare.win.python_installer_failed = the python.org installer did not run: %s
+prepare.win.python_unsigned = the downloaded Python installer is not signed by the Python Software Foundation: not run
+prepare.win.python_present = python (%s)
+prepare.win.python_missing = Python is missing — without it the Sessions list, the right column and the Claude status \
+  line do not work on this machine (https://www.python.org/downloads/windows/)
+prepare.win.settings = settings
+prepare.win.backup = overwritten old files: %s
+prepare.win.removing = taking herdr-fold off
+prepare.win.status_line_back = Claude Code status line: the machine's own again
+prepare.win.kept = kept: %s
+prepare.win.kept_names = kept: %s, the Sessions list's conversation names (the conversations stay too)
+prepare.win.removed = no longer used, removed: %s
+prepare.win.restored = the machine's own again: %s
+prepare.win.not_kept = left as it is, as it could not be saved first: %s
+prepare.win.profiles_blocked = prompt: PowerShell profiles are blocked here (ExecutionPolicy = %s) — the panes work, \
+  only the prompt stays the default
+prepare.win.prompt_added = prompt in herdr panes (PowerShell profile)
+prepare.win.statusline_replaced = Claude status line (the machine's earlier one is saved in %s)
+prepare.win.statusline_set = Claude status line
+prepare.win.settings_unreadable = Claude status line not set: %s cannot be read (fix it, then prepare the machine again)
+
+# src/statusline_setup.py: the status line items
+status.effort = effort next to the model
+status.context = context usage and window size
+status.five_hour = 5-hour limit
+status.weekly = weekly limit
+status.title_claude = Claude Code
+status.title_codex = Codex
+status.question = What should the status line show next to the model?
+status.keys = ↑/↓ move · Space on/off · Enter done
+status.herdr_folds = status line: %s
+status.yours_kept = your own status line: %s
+status.codex_restart = Codex shows it when it restarts
+status.yours = your own
+status.codex_tui_elsewhere = Codex status line not changed: %s sets tui outside a [tui] table (move it into one), or \
+  its status_line list does not end
+status.claude_set = Claude Code status line
+status.claude_replaced = Claude Code status line (the earlier one is saved in %s)
+status.claude_unreadable = Claude Code status line not set: %s cannot be read (fix it, then run this again)
+
+# src/themes/apply.py: setting a theme
+theme.current = ← current
+theme.no_such = No such theme: %s (number 1–%s or name, see: apply.py)
+theme.no_section = No theme section in: %s (the installer's fresh configs provide it: ./install.sh)
+theme.ghostty = Ghostty: %s
+theme.ghostty_icon = Ghostty's app icon in the theme's colors
+theme.ghostty_icon_kept = Ghostty keeps its own app icon (this one could not be written)
+theme.herdr = herdr: %s
+theme.herdr_custom = herdr: %s + custom colors
+theme.starship = starship prompt
+theme.reloaded = herdr reloaded it
+theme.picked = %s is set
+theme.ghostty_reload = in Ghostty: Cmd + Shift + , (or reopen it); the prompt updates in new panes
+config.unsure = ~/.config/herdr/config.toml is written in a way this installer cannot read for sure — left as it is; \
+  herdr-fold's: config/herdr/config.toml in the package
+config.markers_broken = a herdr-fold marker in ~/.config/herdr/config.toml has lost its pair — the file is left as it \
+  is (fix the # >>> / # <<< herdr-fold lines)
+config.theme_yours = your herdr theme stays — the theme picker sets Ghostty and the prompt
+config.key_yours = %s: yours stays
+config.chord_yours = %s is yours already (%s) — herdr-fold's stays out: %s
+uninstall.nothing = herdr-fold is not installed here (no ~/.local/state/herdr-fold/installed.txt)
+uninstall.ready = Take herdr-fold off this Mac?
+uninstall.step_files = 2/2 Files
+uninstall.step_herdr = 1/2 herdr
+uninstall.claude_status_line = Claude's status line: yours again
+uninstall.restored = %s: yours is back
+uninstall.not_kept = %s changed since the install and could not be set aside: left where it is
+uninstall.removed = %s files removed
+uninstall.zshrc = ~/.zshrc: the herdr-fold block is out
+uninstall.config_stripped = ~/.config/herdr/config.toml: herdr-fold's parts are out, yours stay
+uninstall.plugin_removed = %s removed
+uninstall.plugin_left = %s is still in herdr: start herdr, then run %s
+uninstall.integration_left = herdr's %s integration is still there: run %s
+uninstall.kept = kept: %s
+uninstall.kept_names = kept: %s, the Sessions list's conversation names (the conversations stay too)
+uninstall.kept_machine_list = kept: %s, the machine list
+uninstall.kept_private_words = kept: %s, the private word list
+uninstall.kept_ssh_key = kept: ~/.ssh/id_ed25519, the SSH key the installer made, and its Host * block in ~/.ssh/config
+uninstall.kept_host_keys = kept: the host keys of %s in ~/.ssh/known_hosts (ssh-keygen -R <host> takes one out)
+uninstall.kept_github = kept: gh's GitHub sign-in (gh auth logout signs out)
+uninstall.kept_github_git = kept: git pushing to GitHub through gh, the credential lines in ~/.gitconfig
+uninstall.kept_git_author = kept: git's commit author, user.name and user.email in ~/.gitconfig
+uninstall.taken_back = %s came from herdr's marketplace before: to have it back alone, %s
+uninstall.brew = the programs stay — to remove them: %s
+uninstall.machines = %s stay connected in herdr, with herdr-fold's files on them, until: ./machines.sh remove <name>
+uninstall.done = herdr-fold is off this Mac
+trust.unreadable = %s cannot be read right now — nothing was changed
+trust.changed = %s changed while it was being updated — nothing was changed
+sync.not_here = not on this machine: %s
+sync.merged = left out: %s holds settings of your own with herdr-fold's added between marks
+sync.changes = changes in the package
+sync.edited = left out: %s is edited in the package and not committed yet
+sync.private_clean = no private data found in the files
+sync.private_found = private data found in the files — take it out before you commit:
+sync.private_unchecked = the files are not checked for private data: tests/test_privacy.py is not here
+picker.keys = Tab agent · → into a folder
+picker.setting_up = setting up %s — starting %s…
+restore.this_machine = this machine
+restore.the_agent = the agent
+restore.sidebar_back = %s · %s: sidebar back above the terminal
+restore.sidebar_back_failed = %s · %s: the sidebar could not come back (%s)
+restore.terminal_added = %s · %s: terminal added under the sidebar
+restore.terminal_failed = %s · %s: the terminal could not be added (%s)
+restore.column_next_to = %s · %s: column added next to %s
+restore.column_failed = %s · %s: the column could not be added (%s)
+restore.done = %s · %s/%s: %s
+restore.start_failed = %s · %s/%s: could not start (%s)
+restore.column_added = column added
+restore.conversations_added = %s: the Conversations column put beside the right column in %s tabs
+restore.sidebar_started = started
+restore.agent_started = agent started
+restore.usage = Usage: restore_panes.py [--machine <machine> | --all]
+commit.title = Commit & push — %s (%s)
+commit.secrets = these look like secrets — check that they belong in the commit:
+commit.more = … and %s more
+commit.changes = Nothing is staged. Changes:
+commit.staged = Staged:
+commit.not_staged = Not staged:
+commit.to_commit = To commit:
+commit.all_ask = Commit all of them?
+commit.include_ask = Include the changes not staged yet?   s: only the staged ones
+commit.secrets_ask = Commit them anyway?
+commit.nothing = Nothing to commit.
+commit.push_ahead = Nothing to commit. Push %s commit(s)?
+commit.writing = Writing the commit message…
+commit.writing_rules = Writing the commit message (rules: %s)…
+commit.no_message = no message could be written (%s)
+commit.problem_missing = not installed
+commit.problem_failed = failed: %s
+commit.problem_empty = no message
+commit.problem_short = too short, even when asked again
+commit.problem_foreign = its message held what the changes do not: %s
+commit.foreign_secret = a secret
+commit.foreign_email = an e-mail address
+commit.foreign_home = a home folder path
+commit.foreign_ip = an IP address
+commit.foreign_tailnet = a tailnet's name
+commit.foreign_name = a private name
+commit.message_prompt = Commit message:
+commit.by_you = you
+commit.edited = edited
+commit.message = Message (%s):
+commit.message_rules = Message (%s, rules: %s):
+commit.message_keys = e edit · r rewrite
+commit.canceled = Canceled — the changes stay staged.
+commit.failed = commit failed:\n%s
+commit.done = committed %s
+commit.no_remote = no remote — committed here only
+commit.pushed = pushed
+commit.push_failed = push failed:\n%s
+commit.pull_first = the remote has newer commits: pull them first (Sync in the sidebar: S), then push
+commit.not_a_repo = not a git repository: %s
+common.not_in_herdr = run this from a herdr pane
+close.ask = Close the tab “%s”?
+close.stays_saved = It stays saved — Cmd+Shift+R brings it back.
+close.main_stays = The main tab stays open
+close.main_stays_body = Cmd+W closes the other tabs
+layout.no_folder = no such folder: %s
+layout.no_machine = no connected machine named %s (herdr machine list)
+layout.unreachable = %s cannot be reached over SSH (%s)
+layout.no_folder_on = no such folder on %s: %s
+layout.exists = a workspace named %s is there already
+layout.agent = %s agent: %s
+layout.agent_asks = %s did not start — in a new folder it asks first whether you trust it: answer in the %s pane
+layout.ready = workspace %s is ready (%s)
+layout.ready_on = workspace %s is ready on %s (%s)
+clip.usage = Usage: rich_clipboard.py --upgrade < <file with the selected text>
+trust.usage = Usage: claude_trust.py list | trust
+add_machine.no_record = ~/.config/herdr-fold/setup-folder is missing
+files.changed_kept = %s changed since the install — kept: %s
+files.not_written = %s could not be written and is left as it was; the new text is in %s

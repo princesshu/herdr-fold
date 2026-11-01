@@ -1,0 +1,7 @@
+#!/bin/sh
+# Before a commit: the privacy check over what is staged and the rest of the repo, so nothing personal gets in
+cd "$(git rev-parse --show-toplevel)" || exit 1
+# the check's own test repositories stay its own: none of this commit's git settings reach them
+for name in $(env | sed -n 's/^\(GIT_[A-Z_]*\)=.*/\1/p'); do unset "$name"; done
+out=$(/usr/bin/python3 -B -m unittest discover -s tests -p test_privacy.py 2>&1) \
+  || { printf '%s\n' "$out" >&2; exit 1; }
