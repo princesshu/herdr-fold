@@ -159,7 +159,7 @@ elif [ -n "$remove" ] && [ -z "$own" ]; then
   rmdir "$sidebar_state" 2>/dev/null
 fi
 if [ -n "$remove" ]; then
-  # the Sessions list's conversation names stay, as the conversations themselves, and are named
+  # AI Sessions' conversation names stay, as the conversations themselves, and are named
   names="$HOME/.local/state/herdr/plugins/herdr-fold.sessions-view/names.json"
   [ -z "$own" ] && [ -f "$names" ] && saved "$(t prepare.unix.kept_names "~/${names#$HOME/}")"
   [ -d "$state" ] && find "$state" -depth -type d -empty -delete

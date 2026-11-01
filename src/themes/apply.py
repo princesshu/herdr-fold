@@ -35,7 +35,7 @@ class ThemeError(Exception):
     """A config file has no theme section (the package's fresh configs provide it)."""
 # the frames of the panes out of focus against the sidebar: faint, herdr's small labels in the same color still legible
 FRAMES = 2.4
-# a session's agent in herdr's Sessions list against the active row's background: still legible there
+# a session's agent in AI Sessions against the active row's background: still legible there
 ON_ACTIVE_ROW = 3.0
 # the sidebar's faintest text (a conversation's agent, the tree lines) against the panes' background: still legible
 GUIDE = 2.2
@@ -193,7 +193,7 @@ def faint(theme):
 
 
 def agent_color(theme):
-    """A session's agent in herdr's Sessions list: the theme's faint text color, moved toward its text color until it
+    """A session's agent in AI Sessions: the theme's faint text color, moved toward its text color until it
     stands out from the active row's background by ON_ACTIVE_ROW — on the other rows still fainter than the name."""
     h = theme["colors"]["herdr"]
     return readable(faint(theme), h["text"], h["active_row_bg"], ON_ACTIVE_ROW)

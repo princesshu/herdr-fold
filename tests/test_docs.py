@@ -180,7 +180,7 @@ class Keys(unittest.TestCase):
         self.assertEqual((sent(r"text:\x02\t"), sent(r"text:\x02\x1b[Z")), ("prefix+tab", "prefix+shift+tab"))
 
 
-# herdr's own agent states, the words its Sessions list shows: the package does not rename them
+# herdr's own agent states, the words AI Sessions shows: the package does not rename them
 HERDR_STATES = ["working", "blocked", "done", "idle"]
 
 

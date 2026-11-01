@@ -4,6 +4,14 @@ All notable changes to this project are listed here. The format follows
 [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- The plugins' names, as herdr's marketplace lists them: `Full Setup` (`herdr-fold`), `AI Sessions`
+  (`herdr-fold.sessions-view`), `Files · Search · Git · Issues · AI Conversations` (`herdr-fold.sidebar`) and
+  `Tab Layout` (`herdr-fold.tab-layout`); AI Sessions' action is now `AI Sessions: reapply`.
+
 ## [0.1.0] - 2026-11-01
 
 First release.
@@ -33,4 +41,5 @@ First release.
 - Privacy: no telemetry; the plugins' state readable by you alone; a hand-added machine's host key shown and confirmed
   before the first connection; a privacy test over every file and every commit. See [Security](SECURITY.md).
 
+[Unreleased]: https://github.com/princesshu/herdr-fold/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/princesshu/herdr-fold/releases/tag/v0.1.0

@@ -1,10 +1,10 @@
 id = "herdr-fold.sidebar"
-name = "Files, Git, Issues & AI Conversations (herdr-fold)"
+name = "Files · Search · Git · Issues · AI Conversations"
 version = "0.1.0"
 min_herdr_version = "0.9.5"
 description = """\
-  Files, Search, Changes and Issues in a pane, and a Conversations column with the Claude and Codex \
-  conversations of every workspace: previews in a tab, AI-written commit messages. Created by princesshu"""
+  Files, Search, Changes (git) and GitHub Issues in a pane, with previews in a tab and AI commit messages, and the \
+  Conversations column with every workspace's Claude and Codex conversations. Created by princesshu"""
 platforms = ["macos", "linux", "windows"]
 
 # A pane of the plugin's closed by hand: the first time on this Mac, herdr says once how it comes back (Cmd+Shift+O)

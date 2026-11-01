@@ -23,7 +23,7 @@ from vt import Focus, Key, Mouse, Resize
 
 POLL = 1.0                    # seconds between two looks at the conversations
 NOTE = 4.0                    # seconds a note ("Archived", …) stays on the bottom row
-TAB_NAME = 24                 # characters of a conversation's name on its tab, as the Sessions list puts it there
+TAB_NAME = 24                 # characters of a conversation's name on its tab, as AI Sessions puts it there
 SESSION = re.compile(r"[0-9A-Za-z][0-9A-Za-z._-]*")     # a conversation's id, as claude --resume and codex resume take
 
 
@@ -283,7 +283,7 @@ class ConversationsApp(Loop):
         self.say("Back in the list")
 
     def do_rename(self, item, name):
-        """ITEM named NAME by hand, as herdr's Rename pane names one: the Sessions list keeps it and shows it too, a
+        """ITEM named NAME by hand, as herdr's Rename pane names one: AI Sessions keeps it and shows it too, a
         running one's pane takes it, and so does its tab if it has the tab to itself."""
         name = preview.label(name)
         self.job("rename", lambda: self.rename(item, name), lambda _: self.renamed(item, name))

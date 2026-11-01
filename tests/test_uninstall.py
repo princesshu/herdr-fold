@@ -213,7 +213,7 @@ class Uninstall(unittest.TestCase):
 
     def plugin_folders(self, ids):
         """What herdr keeps of plugins IDS after unlinking them: their config folders; the tab layout's state folder,
-        empty; and the Sessions list's conversation names. Returns the folders that ought to go."""
+        empty; and AI Sessions' conversation names. Returns the folders that ought to go."""
         for plugin_id in ids:
             os.makedirs(self.path(".config/herdr/plugins/config/" + plugin_id), exist_ok=True)
         os.makedirs(self.path(".local/state/herdr/plugins/herdr-fold.tab-layout"), exist_ok=True)

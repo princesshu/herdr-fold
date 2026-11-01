@@ -39,7 +39,7 @@ herdr's sidebar lists the current workspace's conversations under Sessions, each
 needs you: an approval, an answer or a choice), done (finished since you last looked) or idle (ready for your next
 prompt). Cmd + D and Cmd + E step through them.
 
-A conversation goes by one name: in the Sessions list, on its pane's border, in the Conversations column, and on its
+A conversation goes by one name: in AI Sessions, on its pane's border, in the Conversations column, and on its
 tab when it has the tab to itself (a reopened one's); the workspace's main tab keeps the workspace's name. To rename it:
 
 - right-click its pane → **Rename pane** (**Clear pane name** brings back the conversation's own title);

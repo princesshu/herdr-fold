@@ -105,7 +105,7 @@ class Conversations(unittest.TestCase):
         self.assertEqual(self.listed()["s1"].title, "Login, by hand")
 
     def names(self, value=None):
-        """The Sessions list's names.json: written with VALUE, or read."""
+        """AI Sessions' names.json: written with VALUE, or read."""
         path = os.path.join(self.home, ".local", "state", "herdr", "plugins", "herdr-fold.sessions-view",
                             "names.json")
         if value is None:
@@ -116,7 +116,7 @@ class Conversations(unittest.TestCase):
             f.write(value)
 
     def test_a_name_given_here_is_kept_with_herdrs(self):
-        # as herdr's Rename pane gives one: the Sessions list keeps it and shows it too; its other names stay
+        # as herdr's Rename pane gives one: AI Sessions keeps it and shows it too; its other names stay
         self.claude("s1", prompt("Fix the login"))
         self.names(json.dumps({"s2": {"name": "Prices", "given": True}}))
         conversations.name_session("s1", "Login, by hand")

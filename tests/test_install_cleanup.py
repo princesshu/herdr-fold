@@ -591,7 +591,7 @@ class InstallCleanup(unittest.TestCase):
         self.assertIn(catalog_text("install.existing_plugins", "x.mine"), out)
 
     def test_the_whole_environment_plugin_is_not_called_theirs(self):
-        # herdr-fold's own entry from herdr's marketplace: its folder is the whole package, the sessions view's code too
+        # herdr-fold's own entry from herdr's marketplace: its folder is the whole package, AI Sessions' code too
         self.write(".config/herdr/config.toml", THEIR_CONFIG)
         self.set_plugins({"plugin_id": "herdr-fold", "events": [], "plugin_root": self.pkg,
                           "source": {"kind": "github", "owner": "princesshu", "repo": "herdr-fold"}},
@@ -711,7 +711,7 @@ class InstallCleanup(unittest.TestCase):
 
     def test_a_plugin_said_no_to_stays_unlinked_after_their_settings_were_replaced(self):
         # their config replaced once (from then on it is herdr-fold's, so the next run asks nothing about it), the
-        # Sessions list said no to: the next unattended run keeps that answer
+        # AI Sessions said no to: the next unattended run keeps that answer
         self.write(".config/herdr/config.toml", THEIR_CONFIG)
         self.env["HERDR_FOLD_CONFIG"] = "replace"
         self.install_answering({catalog_text("install.sessions_ask"): "n"})

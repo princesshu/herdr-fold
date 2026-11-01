@@ -29,7 +29,7 @@ These stay too, because they are yours to keep: the SSH key and the `Host *` blo
 keys in `~/.ssh/known_hosts`, Homebrew's line in `~/.zprofile`, git's commit author and GitHub sign-in, and the
 projects Claude trusts in `~/.claude.json`.
 
-At the end it names what stays, each with where it is: the Sessions list's conversation names, the machine list, the
+At the end it names what stays, each with where it is: AI Sessions' conversation names, the machine list, the
 private word list, your files' earlier versions, the machines still connected in herdr, and of the things above, those
 the installer itself made (it records them in `~/.local/state/herdr-fold/outside.txt`), with the command that takes
 one off where there is one, such as `gh auth logout`.
@@ -42,5 +42,5 @@ one off where there is one, such as `gh auth logout`.
 
 This takes the machine off the list and the package off the machine (its files, the shell block, the plugins), and
 puts Claude's earlier status line and the machine's own files that the package replaced back. The conversations and
-their names in the Sessions list stay there, and it says where the names are. Files changed there since stay in its
+their names in AI Sessions stay there, and it says where the names are. Files changed there since stay in its
 backups (`~/.local/state/herdr-fold/prepared-*`).

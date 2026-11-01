@@ -212,7 +212,7 @@ if ($Remove) {
         Remove-EmptyDirs $State
     }
     if (Test-Path $State) { Line saved (T 'prepare.win.kept' $State) }
-    # the Sessions list's conversation names stay, as the conversations themselves, and are named
+    # AI Sessions' conversation names stay, as the conversations themselves, and are named
     $names = Join-Path $env:USERPROFILE '.local\state\herdr\plugins\herdr-fold.sessions-view\names.json'
     if (Test-Path $names) { Line saved (T 'prepare.win.kept_names' $names) }
     if ((Split-Path -Leaf $Here) -eq '.herdr-fold') { Remove-Item -Recurse -Force $Here -ErrorAction SilentlyContinue }

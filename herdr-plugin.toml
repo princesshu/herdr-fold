@@ -1,11 +1,11 @@
 id = "herdr-fold"
-name = "herdr-fold, the whole environment"
+name = "Full Setup"
 version = "0.1.0"
 min_herdr_version = "0.9.5"
 description = """\
-  The whole herdr-fold environment on an Apple silicon Mac: its installer opens in a herdr tab and sets up Ghostty, \
-  the themes, the sidebar with files, git, GitHub issues and AI conversations, the AI Sessions list, the status line \
-  and remote machines over SSH and Tailscale. Created by princesshu"""
+  The whole herdr-fold setup on a Mac, from one installer in a herdr tab: files, search, git and GitHub issues, AI \
+  sessions and conversations, AI commit messages, Ghostty and its themes, the status line, and Linux, macOS and \
+  Windows machines over SSH. Created by princesshu"""
 platforms = ["macos"]
 
 # The installer offered in a tab of its own, once for each copy herdr keeps of the package: on herdr's start and, right

@@ -10,7 +10,7 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # What the package was last tried with: raise each once the package is checked with the newer one
-HERDR = "0.9.5"               # the installer, the plugins and the Sessions list against this herdr
+HERDR = "0.9.5"               # the installer, the plugins and AI Sessions against this herdr
 CLAUDE_MAJOR = 2              # Claude Code: the status line and the Conversations column
 CODEX_MAJOR = 0               # Codex: the same
 
@@ -51,7 +51,7 @@ def lines(fetch):
     else:
         yield f"{'starship':<12}{pin}: up to date", False
     if version(herdr) > version(HERDR):
-        yield (f"{'herdr':<12}{HERDR} tried, {herdr} out: try the install, the sidebar and the Sessions list with it, "
+        yield (f"{'herdr':<12}{HERDR} tried, {herdr} out: try the install, the sidebar and AI Sessions with it, "
                "then raise HERDR in tools/check_updates.py"), True
     else:
         yield f"{'herdr':<12}{HERDR}: up to date", False

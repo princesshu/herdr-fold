@@ -24,7 +24,7 @@ programs, its downloads) and its analytics count nothing; your own Homebrew sett
 
 ## From herdr's marketplace
 
-With herdr already on your Mac, the whole environment is one of herdr's plugins:
+With herdr already on your Mac, the whole environment is one herdr plugin, Full Setup:
 
 ```bash
 herdr plugin install princesshu/herdr-fold
@@ -40,7 +40,7 @@ herdr plugin pane open --plugin herdr-fold --entrypoint install
 ```
 
 `herdr plugin update herdr-fold` brings a newer version, and the installer opens once more to put it in place, with
-one question: Enter keeps your earlier choices. The sidebar and the Sessions list install alone from there too, without
+one question: Enter keeps your earlier choices. The sidebar and AI Sessions install alone from there too, without
 the rest: their READMEs say how.
 
 ## Get the folder
@@ -132,7 +132,7 @@ whether it may stop an older herdr running there (answer no, the default).
   between `# >>> herdr-fold >>>` and `# <<< herdr-fold <<<` marks.
 - `~/.zshrc`: one marked block that loads the herdr pane environment, only inside herdr panes.
 - Claude Code's `statusLine` in `~/.claude/settings.json`, and Codex's `[tui] status_line` in `~/.codex/config.toml`.
-- herdr plugins (the sidebar, the Sessions list, the tab layout) and the herdr integrations for Claude and Codex; a
+- herdr plugins (the sidebar, AI Sessions, the tab layout) and the herdr integrations for Claude and Codex; a
   herdr-sidebar of your own stays, and is named ([The sidebar](sidebar.md)).
 - The theme's colors for the sidebar, in `~/.local/state/herdr/plugins/herdr-fold.sidebar/colors.json`.
 - `~/.config/ghostty/herdr-fold-icon`: which app icon Ghostty shows (the theme's), written into

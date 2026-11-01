@@ -308,8 +308,8 @@ class Credits(unittest.TestCase):
 
     def test_each_plugin_says_it_is_part_of_herdr_fold(self):
         # herdr's marketplace lists every manifest of the repository as a plugin of its own, by its name, linked to its
-        # folder (its README): each one's id and name tell where it comes from, its README is titled with that name, and
-        # the tab layout, which needs the rest of herdr-fold, says how it is installed
+        # folder (its README): the id tells where it comes from, the name what it does (the card names the repository
+        # above it), the README is titled with that name, and the tab layout, which needs the rest, says how it installs
         problems = []
         for plugin in sorted(os.listdir(os.path.join(PACKAGE, "src", "plugins"))):
             manifest = os.path.join("src", "plugins", plugin, "herdr-plugin.toml")
@@ -319,7 +319,7 @@ class Credits(unittest.TestCase):
             top = dict(re.findall(r'^(id|name) = "(.*)"$', head, re.MULTILINE))
             if top.get("id") != "herdr-fold." + plugin:
                 problems.append(f"{manifest}: id {top.get('id')}")
-            if not top.get("name", "").endswith(" (herdr-fold)"):
+            if not top.get("name") or "herdr-fold" in top["name"]:
                 problems.append(f"{manifest}: name {top.get('name')}")
             elif self.read(os.path.join("src", "plugins", plugin, "README.md")).split("\n", 1)[0] != "# " + top["name"]:
                 problems.append(f"{plugin}: its README's title is not its name, the one the marketplace shows")
@@ -327,7 +327,6 @@ class Credits(unittest.TestCase):
         if "herdr-fold's installer" not in tab_layout.split("\n[", 1)[0]:
             problems.append("tab-layout: its description does not name herdr-fold's installer")
         self.assertEqual(problems, [])
-
 
     def test_herdrs_marketplace_finds_four_plugins(self):
         # each manifest is a row on the repository's card, with what the index reads; the root's, the whole
@@ -344,7 +343,7 @@ class Credits(unittest.TestCase):
         manifest = self.read("herdr-plugin.toml")
         head = manifest.split("\n[", 1)[0]
         self.assertEqual(dict(re.findall(r'^(id|name|version|min_herdr_version) = "(.*)"$', head, re.MULTILINE)),
-                         {"id": "herdr-fold", "name": "herdr-fold, the whole environment", "version": "0.1.0",
+                         {"id": "herdr-fold", "name": "Full Setup", "version": "0.1.0",
                           "min_herdr_version": "0.9.5"})
         self.assertIn('platforms = ["macos"]', head)
         self.assertIn("[[startup]]", manifest)

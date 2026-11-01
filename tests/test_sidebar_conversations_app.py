@@ -203,7 +203,7 @@ class Column(unittest.TestCase):
         self.choose("Fix the login", "Rename")
         self.term.type(*[Key("backspace")] * len("login"), *[Key("char", ch) for ch in "signup"], Key("enter"))
         self.until(lambda s: "Fix the signup" in s and "Renamed" in s)
-        self.assertIn("pane rename w1:p1 Fix the signup", self.logged())       # the Sessions list shows it too
+        self.assertIn("pane rename w1:p1 Fix the signup", self.logged())       # AI Sessions shows it too
         self.assertIn("tab rename w1:t1 Fix the signup", self.logged())        # the tab it has to itself
         self.assertEqual(self.names(), {"s1": {"name": "Fix the signup", "given": False}})
 

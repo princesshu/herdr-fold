@@ -62,8 +62,8 @@ A new key in `en.txt` makes the check fail for every other language until it is 
 
 ## What stays in English
 
-- The sidebar's own words (its views, buttons, menus and questions), the herdr plugins' command names, and the
-  Sessions list's one notification (a damaged names file).
+- The sidebar's own words (its views, buttons, menus and questions), the herdr plugins' command names, and
+  AI Sessions' one notification (a damaged names file).
 - The status line itself (`context:`, `current:`, `weekly:`) and its samples in the checkbox list.
 - Theme names and their short descriptions (`themes.js`, shared with the browser preview).
 - Commit messages written with Cmd + Shift + C.

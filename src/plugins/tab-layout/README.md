@@ -1,4 +1,4 @@
-# Tab layout (herdr-fold)
+# Tab Layout
 
 A herdr plugin of herdr-fold that keeps the workspace layout:
 

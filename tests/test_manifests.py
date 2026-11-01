@@ -86,8 +86,8 @@ def outside_needs(folder):
 
 
 class Standalone(unittest.TestCase):
-    """The herdr marketplace lists every plugin of the repository as installable on its own: the sidebar and the
-    Sessions list run without the rest of the package; the tab layout, which does not, says so."""
+    """The herdr marketplace lists every plugin of the repository as installable on its own: the sidebar and
+    AI Sessions run without the rest of the package; the tab layout, which does not, says so."""
 
     def test_the_sidebar_and_the_sessions_list_need_nothing_else(self):
         for plugin in ("sidebar", "sessions-view"):

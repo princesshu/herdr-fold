@@ -2,8 +2,9 @@
 
 <img src="src/themes/logo.svg" alt="herdr-fold's logo: a white sheep with round eyes" width="120" align="right">
 
-Claude Code and Codex workspaces in herdr and Ghostty, on an Apple silicon Mac or on Linux, macOS and Windows machines
-over SSH. One installer sets up all of it; the sidebar and the Sessions list also install alone.
+Files, search, git and GitHub issues, AI sessions and conversations, AI commit messages and themes for Claude Code and
+Codex in herdr and Ghostty, on a Mac and on Linux, macOS and Windows machines over SSH. One installer sets up all of
+it; the sidebar and AI Sessions also install alone.
 
 Created by [princesshu](https://github.com/princesshu).
 
@@ -27,7 +28,7 @@ sidebar's Changes view with the message Claude wrote and the issue it closes, ab
 
 - A Conversations column between them: every workspace's Claude and Codex conversations, running and closed, one
   click away; it collapses to a rail.
-- A Sessions list in herdr's sidebar with each conversation's state. Cmd + D / Cmd + E step through the sessions, Cmd
+- AI Sessions in herdr's sidebar, with each conversation's state. Cmd + D / Cmd + E step through the sessions, Cmd
   with the arrows through the workspaces and the panes, even while you type.
 - Commit and push in one step, with a message Claude or Codex writes and you approve.
 - Twelve color themes for Ghostty, herdr and the prompt, Ghostty's app icon too: herdr-fold's logo, the sheep, in the
@@ -72,7 +73,7 @@ The questions, what each one changes, and the switches: [Installation](docs/inst
 
 - the settings of Ghostty, herdr and starship, and Claude Code's and Codex's status lines;
 - one marked block in `~/.zshrc`, active only inside herdr panes;
-- three herdr plugins of its own (the sidebar with the Conversations column, the Sessions list, the tab layout), and
+- three herdr plugins of its own (the sidebar with the Conversations column, AI Sessions, the tab layout), and
   herdr's Claude and Codex integrations.
 
 Your own files are saved first, in `~/.local/state/herdr-fold/`. Your conversations are never touched.

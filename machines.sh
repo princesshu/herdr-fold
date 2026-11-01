@@ -533,7 +533,7 @@ if ((& $h plugin list 2>$null | Out-String) -match "herdr-sidebar \(herdr-sideba
   loading "$(t machines.linking)" link_plugins "$name" "$target" "$os"
 }
 
-# link_plugins <name> <target> <os> — the Sessions list and the tab layout linked on the machine (said in one line),
+# link_plugins <name> <target> <os> — AI Sessions and the tab layout linked on the machine (said in one line),
 # then the right column put back in its workspaces: a dozen commands over SSH, so it runs under the loading
 link_plugins() {
   local name=$1 target=$2 os=$3 home plugin tl linked=()

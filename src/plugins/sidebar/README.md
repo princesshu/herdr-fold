@@ -1,4 +1,4 @@
-# Files, Git, Issues & AI Conversations (herdr-fold)
+# Files · Search · Git · Issues · AI Conversations
 
 A herdr plugin: Files, Search, Changes (git) and Issues (GitHub) in one pane, and a Conversations column beside it,
 the same on macOS, Linux and Windows.
@@ -43,7 +43,7 @@ the file plain, the diff in git's colors); the built-in pager shows either.
   under them in the Spaces list's order and typography, a running one's mark in its state's color and the closed ones
   faint. Typing filters; Enter or a click goes to a running one, or reopens a closed one in a new tab of its workspace
   with the columns beside it; a right click offers Open, Copy conversation (the whole of it, formatted on a Mac), Rename
-  (the name the Sessions list, a running one's pane and the tab it has to itself show too) and, for a closed one,
+  (the name AI Sessions, a running one's pane and the tab it has to itself show too) and, for a closed one,
   Archive (off the list, its file as it was), several at once when marked (Space, Shift + ↑ ↓, or the box at a closed
   row's start); a right click elsewhere in the column offers the pane's own menu: Show archived (the archived ones back
   in sight, a shade fainter; Unarchive puts one back), then each of the tab's other panes closed or shown back, and
@@ -104,8 +104,8 @@ Alt + Enter commits from the message there too.
   diff cannot make it read or send anything else. The AI tool
   sends what it gets to its own service; the sidebar itself sends nothing anywhere.
 - The Conversations column reads Claude's and Codex's conversation files (`~/.claude/projects/`, `~/.codex/sessions/`,
-  `~/.codex/session_index.jsonl`) and the Sessions list's names (`names.json` of `herdr-fold.sessions-view`), never
-  writing the conversation files (Rename writes the name you give into that `names.json`, under the Sessions list's own
+  `~/.codex/session_index.jsonl`) and AI Sessions' names (`names.json` of `herdr-fold.sessions-view`), never
+  writing the conversation files (Rename writes the name you give into that `names.json`, under AI Sessions' own
   lock); each file is read through once, then only where it grew, kept in `conversation-index.json` in its state folder.
   Whether the column is collapsed, its width, the archived conversations, whether they are shown, the conversation a
   pane reopens (until herdr knows its session), and whether the one-time note on a pane closed by hand was shown are in

@@ -1,7 +1,7 @@
 # Rules for the files the installer and the prepare scripts put on a machine. Load with: source.
 
 # ai_session_file REL — REL (relative to HOME) is Claude's, Codex's or herdr's own data: a conversation, its name, the
-# history, the Sessions list's names — anything under ~/.claude, ~/.codex or ~/.local/state/herdr. Nothing the
+# history, AI Sessions' names — anything under ~/.claude, ~/.codex or ~/.local/state/herdr. Nothing the
 # installer, a prepare script or the uninstaller does may ever delete one.
 ai_session_file() {
   case "$1" in

@@ -1,5 +1,5 @@
 id = "herdr-fold.tab-layout"
-name = "Tab layout (herdr-fold)"
+name = "Tab Layout"
 version = "0.1.0"
 min_herdr_version = "0.9.5"
 description = """\

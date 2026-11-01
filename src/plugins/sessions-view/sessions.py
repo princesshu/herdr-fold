@@ -1,4 +1,4 @@
-"""The Sessions list in herdr's sidebar: the Agents panel ("sessions") shows only this workspace's agents that have a
+"""AI Sessions in herdr's sidebar: the Agents panel ("sessions") shows only this workspace's agents that have a
 conversation. herdr drops the has_session mark on a server restart, so it is recomputed at startup and on each event,
 written only on change (no feedback loop). No event reports title changes: names follow on agent and focus events."""
 import collections

@@ -1,9 +1,9 @@
-# AI Sessions list (herdr-fold)
+# AI Sessions
 
-A herdr plugin that turns herdr's Agents panel into a Sessions list: only the current workspace's Claude and Codex
+A herdr plugin that narrows herdr's Agents panel to AI sessions: only the current workspace's Claude and Codex
 agents that have a conversation, each under its name.
 
-![herdr-fold's window: at the bottom left, in herdr's sidebar under the workspaces, the Sessions list with the
+![herdr-fold's window: at the bottom left, in herdr's sidebar under the workspaces, AI Sessions with the
 workspace's one conversation, its name and its state](../../../docs/media/hero.webp)
 
 - A session shows once its conversation holds a message, the agent is working, or the conversation has a title.
@@ -14,7 +14,7 @@ workspace's one conversation, its name and its state](../../../docs/media/hero.w
   workspace's name. A new title goes on the tab only while the tab shows the conversation's name or herdr's number for
   it, so a tab you renamed yourself keeps your name until you rename the conversation.
 - The list updates when an agent appears or changes state, and when a pane or tab gets the focus. Its action
-  **Reapply sessions view** sets it again by hand.
+  **AI Sessions: reapply** sets it again by hand.
 
 ## What it reads and writes
 

@@ -10,7 +10,7 @@ from screen import Style, centered, glyphs, truncate, width
 from vt import Key, Mouse
 from widgets import Action, ListView, Menu, TextInput
 
-# herdr's states, as its Spaces and Sessions lists mark and color them (unknown: its overlay0, the sidebar's
+# herdr's states, as its Spaces list and AI Sessions mark and color them (unknown: its overlay0, the sidebar's
 # "ignored"); a closed conversation, which herdr has no state for, "·" in the faint guide color
 STATE_ROLE = {"blocked": "deleted", "done": "done", "working": "modified", "idle": "added", "unknown": "ignored"}
 STATE_MARK = {"blocked": "●", "done": "●", "working": "●", "idle": "○", "unknown": "·"}

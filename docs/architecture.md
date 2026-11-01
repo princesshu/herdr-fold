@@ -13,7 +13,7 @@ plugins of its own.
 | `install.sh` | the install wizard |
 | `install.command` | double-click launcher: runs `install.sh` in the Terminal app |
 | `uninstall.sh` | takes it all off this Mac again, by the installer's records |
-| `herdr-plugin.toml` | the whole environment as a herdr plugin, for herdr's marketplace: it opens `install.sh` in a herdr tab, once for each copy herdr keeps (`lib/offer_install.sh`) |
+| `herdr-plugin.toml` | the whole environment as a herdr plugin (Full Setup), for herdr's marketplace: it opens `install.sh` in a herdr tab, once for each copy herdr keeps (`lib/offer_install.sh`) |
 | `Brewfile` | the programs: herdr, Ghostty, starship, gh, bat, git-delta, ripgrep, the JetBrains Mono Nerd Font |
 | `files.txt` | which file goes where on this Mac |
 | `lib/` | the shell helpers: texts (`i18n.sh`), status lines (`output.sh`), file rules (`files.sh`), the loading animation (`loading.sh`), shared settings (`common.sh`); `offer_install.sh`, the whole-environment plugin's hook |
@@ -54,7 +54,7 @@ plugins of its own.
 
 | File | What it is |
 |---|---|
-| `src/plugins/sessions-view/` | the Sessions list: only sessions with a conversation, under their names ([its README](../src/plugins/sessions-view/README.md)) |
+| `src/plugins/sessions-view/` | AI Sessions: only sessions with a conversation, under their names ([its README](../src/plugins/sessions-view/README.md)) |
 | `src/plugins/tab-layout/` | a new workspace asks for a folder, a new tab gets the columns; runs `restore_panes.py` when herdr starts ([its README](../src/plugins/tab-layout/README.md)) |
 | `src/plugins/sidebar/` | the sidebar plugin: Files, Search, Changes and Issues, the preview pager, the commit message writer `commit_push.py` uses too; the Conversations column (`conversations.py` reads the conversation files, the formatted copy too; `conversation_list.py`, `conversations_app.py`; `conversations_pane.py` its place in every tab, and Cmd+Shift+R); `panels.py` what each tab has had, so a pane closed by hand stays closed, and bringing one back; `richtext.py` puts Markdown on the clipboard formatted, for Copy conversation and the formatted copy; the loop both share (`loop.py`) ([its README](../src/plugins/sidebar/README.md); [The sidebar](sidebar.md)) |
 

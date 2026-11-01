@@ -265,13 +265,13 @@ def update(path, kind, entry):
 # --- the names given elsewhere
 
 def names_path():
-    """Where herdr-fold's Sessions list keeps each conversation's name, and whose it is (sessions-view's names.json)."""
+    """Where herdr-fold's AI Sessions keeps each conversation's name, and whose it is (sessions-view's names.json)."""
     return os.path.join(os.path.expanduser("~"), ".local", "state", "herdr", "plugins", "herdr-fold.sessions-view",
                         "names.json")
 
 
 def manual_names():
-    """Names given by hand (herdr's Rename pane, the column's Rename), as the Sessions list keeps them:
+    """Names given by hand (herdr's Rename pane, the column's Rename), as AI Sessions keeps them:
     {session: name}."""
     try:
         with open(names_path(), encoding="utf-8") as f:
@@ -284,7 +284,7 @@ def manual_names():
 
 @contextlib.contextmanager
 def names_lock():
-    """The Sessions list's own lock on its names (sessions-view's names_lock): one writer at a time."""
+    """AI Sessions' own lock on its names (sessions-view's names_lock): one writer at a time."""
     path = names_path() + ".lock"
     os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
     with open(path, "a+b") as f:
@@ -306,9 +306,9 @@ def names_lock():
 
 
 def name_session(session, name):
-    """SESSION named NAME by hand, as herdr's Rename pane names one, where the Sessions list keeps such names: under
+    """SESSION named NAME by hand, as herdr's Rename pane names one, where AI Sessions keeps such names: under
     its lock, the other names as they are, the file written whole. One that cannot be read stays as it is (OSError):
-    the Sessions list sets it aside, its names kept."""
+    AI Sessions sets it aside, its names kept."""
     with names_lock():
         try:
             with open(names_path(), encoding="utf-8") as f:
