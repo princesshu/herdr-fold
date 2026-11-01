@@ -14,10 +14,8 @@ from support import SRC
 # a window that reads one key, then ends; one that takes the mouse too, and shows what it read
 WINDOW = f"import sys; sys.path.insert(0, {SRC!r}); import tui; tui.getkey()"
 MOUSE_WINDOW = f"import sys; sys.path.insert(0, {SRC!r}); import tui; tui.mouse(True); print(repr(tui.getkey()))"
-POPUP_WINDOW = f"import sys; sys.path.insert(0, {SRC!r}); import tui; tui.popup(True); print(repr(tui.getkey()))"
 HIDE, SHOW = b"\x1b[?25l", b"\x1b[?25h"
 MOUSE_ON, MOUSE_OFF = b"\x1b[?1000h\x1b[?1006h", b"\x1b[?1006l\x1b[?1000l"
-FOCUS_ON, FOCUS_OFF = b"\x1b[?1004h", b"\x1b[?1004l"
 
 
 def read_until(fd, done, timeout=5.0):
@@ -61,21 +59,6 @@ class Cursor(unittest.TestCase):
             os.close(fd)
         self.assertIn(b"'\\x1b[<0;12;5M'", shown)
         self.assertLess(shown.index(MOUSE_ON), shown.rindex(MOUSE_OFF))
-
-    def test_a_popup_hears_of_a_click_elsewhere_and_gives_the_reports_back_at_the_end(self):
-        # a click outside the popup takes the focus away: the terminal says so, as one key
-        pid, fd = pty.fork()
-        if pid == 0:
-            os.execv(sys.executable, [sys.executable, "-B", "-c", POPUP_WINDOW])
-        try:
-            shown = read_until(fd, lambda out: FOCUS_ON in out and MOUSE_ON in out)
-            os.write(fd, b"\x1b[O")
-            shown += read_until(fd, lambda out: FOCUS_OFF in out and MOUSE_OFF in out)
-        finally:
-            os.waitpid(pid, 0)
-            os.close(fd)
-        self.assertIn(b"'\\x1b[O'", shown)
-        self.assertLess(shown.index(FOCUS_ON), shown.rindex(FOCUS_OFF))
 
     def test_a_mouse_report_is_its_button_place_and_whether_pressed(self):
         import tui

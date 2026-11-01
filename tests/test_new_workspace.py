@@ -65,13 +65,6 @@ class Tree(unittest.TestCase):
         self.assertEqual(len(self.shown()), 4)
         self.assertEqual(self.press("\x1b"), "cancel")
 
-    def test_a_click_outside_closes_it_as_esc_does(self):
-        # herdr gives a click outside the popup to the pane there: the picker hears its focus go (a modal's way)
-        self.assertEqual(self.press("\x1b[O"), "cancel")
-        self.press("c", "l")
-        self.assertEqual(self.press("\x1b[O"), "cancel")                      # typing or not
-        self.assertIsNone(self.press("\x1b[I"))                               # the focus back: nothing
-
     def test_tab_switches_the_agent(self):
         self.press("\t")
         self.assertEqual(self.picker.agent, "codex")

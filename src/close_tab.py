@@ -8,7 +8,7 @@ sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from herdrlib import agents, has_conversation, herdr  # noqa: E402
 from i18n import t  # noqa: E402
-from tui import FOCUS_LOST, button_at, buttons, clicked, getkey, popup, printable  # noqa: E402
+from tui import button_at, buttons, clicked, getkey, mouse, printable  # noqa: E402
 
 
 def conversations(tab):
@@ -35,7 +35,7 @@ def confirm(tab):
     lines += ["", "  " + t("close.stays_saved"), ""]
     row, spans = buttons([t("common.cancel"), t("close.close")], shutil.get_terminal_size().columns)
     print("\x1b[2J\x1b[H" + "\n".join(lines + [row]), end="", flush=True)
-    popup(True)
+    mouse(True)
     while True:
         key = getkey()
         event = clicked(key)
@@ -44,7 +44,7 @@ def confirm(tab):
         if key in ("\r", "\n") or choice == t("close.close"):
             herdr("tab", "close", tab, check=False)
             return
-        if key in ("\x1b", "q", "\x03", FOCUS_LOST) or choice == t("common.cancel"):     # FOCUS_LOST: a click outside
+        if key in ("\x1b", "q", "\x03") or choice == t("common.cancel"):
             return
 
 

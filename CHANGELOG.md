@@ -20,7 +20,7 @@ All notable changes to this project are listed here. The format follows
   as herdr's new button does.
 - A workspace whose folder is deleted says deleted beside its branch, in the theme's red.
 - Buttons where a key was the only way: Cancel and Open in the folder picker, Cancel and Close when a tab with a
-  conversation is closed. A click outside either closes it, as Esc does.
+  conversation is closed.
 - The folder picker takes the mouse: a click chooses a folder, a double click opens it, the wheel moves, and a click
   on Claude or Codex switches the agent.
 

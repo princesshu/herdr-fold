@@ -79,10 +79,6 @@ class CloseTab(unittest.TestCase):
             return f"\x1b[<0;{lines[row - 1].rindex(label) + 1};{row}M"
         return key
 
-    def test_a_click_outside_keeps_the_tab_as_cancel_does(self):
-        _, closed = self.confirm("\x1b[O")
-        self.assertEqual(closed, [])
-
     def test_close_and_cancel_buttons_take_a_click(self):
         shown, closed = self.confirm(self.click_on("Close"))
         self.assertTrue(ANSI.sub("", shown).rstrip().endswith("Cancel    Close"), shown[-80:])
