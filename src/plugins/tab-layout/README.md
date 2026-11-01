@@ -10,12 +10,15 @@ A herdr plugin of herdr-fold that keeps the workspace layout:
 - When herdr starts, it restarts the Conversations columns, the sidebars and the still-empty agent panes.
 - It shows the confirmation window when you close a tab that holds a conversation.
 - A workspace named after its folder takes the folder's new name, and so does its main tab, when the folder is renamed
-  or moved while herdr runs (seen at the next pane you focus). A name you gave the workspace yourself stays.
+  or moved (seen at the next pane you focus). A folder renamed before is known by the Claude conversations kept under
+  its old name. A name you gave the workspace yourself stays.
 
 ## What it reads and writes
 
 - herdr, through its command line (`herdr`): the workspaces, tabs and panes it lays out and names.
 - git (`git rev-parse`), to tell a git worktree's folder.
+- Claude's conversation folders (`~/.claude/projects/`): only whether one exists for a workspace's old folder;
+  nothing in them is read.
 - herdr-fold's scripts in `~/.config/herdr-fold/` (`herdrlib.py`, `new_workspace.py`, `restore_panes.py`,
   `close_tab.py`, `plugins/sidebar/conversations_pane.py`).
 - The sidebar plugin's state folder (`~/.local/state/herdr/plugins/herdr-fold.sidebar/`): the remembered column widths

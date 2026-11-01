@@ -65,10 +65,10 @@ class SpacesFollowTheirFolder(unittest.TestCase):
     def path(self, *parts):
         return os.path.join(self.repos, *parts)
 
-    def follow(self, labels, cwds, known):
+    def follow(self, labels, cwds, known, held=()):
         workspaces = [{"workspace_id": ws, "label": label} for ws, label in labels.items()]
         panes = [{"workspace_id": ws, "cwd": cwd} for ws, cwd in cwds]
-        return tab_layout.follow_folders(workspaces, panes, known)
+        return tab_layout.follow_folders(workspaces, panes, known, held=lambda path: path in held)
 
     def known_before_the_rename(self):
         renames, known = self.follow({"w1": "old-name"}, [("w1", self.path("old-name"))], {})
@@ -114,6 +114,24 @@ class SpacesFollowTheirFolder(unittest.TestCase):
         os.rename(self.path("old-name"), self.path("new-name"))
         renames, _ = self.follow({"w1": "old-name", "w2": "new-name"}, [("w1", self.path("new-name"))], known)
         self.assertEqual(renames, [("w1", "old-name", "repos-new-name")])
+
+    def test_a_folder_renamed_before_it_was_followed_is_known_by_the_conversations_it_held(self):
+        # the folder named as the workspace, beside where its panes are now, is gone and once held conversations
+        os.rename(self.path("old-name"), self.path("new-name"))
+        renames, known = self.follow({"w1": "old-name"}, [("w1", self.path("new-name", "src"))], {},
+                                     held={self.path("old-name")})
+        self.assertEqual(renames, [("w1", "old-name", "new-name")])
+        self.assertEqual(known["w1"]["folder"], self.path("new-name"))
+
+    def test_a_name_no_folder_ever_had_stays(self):
+        # e.g. app on the folder app-web: never a folder of that name, so a name given by hand
+        os.rename(self.path("old-name"), self.path("old-name-com"))
+        self.assertEqual(self.follow({"w1": "old-name"}, [("w1", self.path("old-name-com"))], {}), ([], {}))
+
+    def test_a_pane_in_a_subfolder_keeps_the_workspace_on_its_folder(self):
+        renames, known = self.follow({"w1": "old-name"}, [("w1", self.path("old-name", "src"))], {})
+        self.assertEqual(renames, [])
+        self.assertEqual(known["w1"]["folder"], self.path("old-name"))
 
     def test_a_closed_workspace_is_forgotten(self):
         known = self.known_before_the_rename()

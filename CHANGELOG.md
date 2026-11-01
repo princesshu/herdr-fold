@@ -14,9 +14,9 @@ All notable changes to this project are listed here. The format follows
 
 ### Fixed
 
-- A folder renamed or moved while herdr runs: its workspace and main tab take the new name (a name you gave the
-  workspace stays), and the sidebar opens on it again, where it was. Before, the workspace kept the old name and the
-  sidebar showed an empty list.
+- A folder renamed or moved: its workspace and main tab take the new name (a name you gave the workspace stays; a
+  folder renamed earlier is known by the Claude conversations kept under its old name), and the sidebar opens on it
+  again, where it was. Before, the workspace kept the old name and the sidebar showed an empty list.
 
 ## [0.1.0] - 2026-11-01
 

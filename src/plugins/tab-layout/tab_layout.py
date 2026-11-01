@@ -3,6 +3,7 @@ any other new tab gets the right-hand column, only while empty (one unnamed shel
 preview tab). On a pane's focus, a workspace named after its folder takes the folder's new name."""
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -56,10 +57,20 @@ def folders_up(path):
         path = parent
 
 
-def follow_folders(workspaces, panes, known, home=None):
-    """The renames (workspace, old name, new name) for each followed workspace whose folder was renamed (its panes'
-    folders went with it), and what is known after them. A workspace is followed while its name is one its folder gives:
-    a name given by hand ends it."""
+def renamed_from(label, places, held):
+    """The folder among PLACES that was named LABEL before it was followed: a folder of that name beside it is gone,
+    and it HELD conversations."""
+    if not label or os.sep in label:
+        return None
+    return next((up for up in places if os.path.dirname(up) != up
+                 and not os.path.lexists(os.path.join(os.path.dirname(up), label))
+                 and held(os.path.join(os.path.dirname(up), label))), None)
+
+
+def follow_folders(workspaces, panes, known, home=None, held=lambda path: False):
+    """The renames (workspace, old name, new name) for each workspace whose folder was renamed (its panes' folders went
+    with it), and what is known after them. Followed: a workspace named as its folder, or as a folder beside it that is
+    gone and HELD conversations (renamed before); a name given by hand ends it."""
     labels = {w["workspace_id"]: w.get("label") or "" for w in workspaces}
     cwds = {}
     for pane in panes:
@@ -69,10 +80,15 @@ def follow_folders(workspaces, panes, known, home=None):
     for ws, label in labels.items():
         mine, seen = cwds.get(ws, []), known.get(ws)
         if seen is None:
-            folder = next((cwd for cwd in mine if label in space_labels(cwd, home) and identity(cwd)), None)
+            places = [up for cwd in mine for up in folders_up(cwd) if identity(up)]
+            folder = next((up for up in places if label in space_labels(up, home)), None)
             if folder:
                 now[ws] = {"label": label, "folder": folder, "id": identity(folder)}
-            continue
+                continue
+            folder = renamed_from(label, places, held)
+            if folder is None:
+                continue
+            seen = {"label": label, "folder": os.path.join(os.path.dirname(folder), label), "id": identity(folder)}
         if label != seen["label"]:
             continue
         moved = None if os.path.isdir(seen["folder"]) else next(
@@ -85,6 +101,12 @@ def follow_folders(workspaces, panes, known, home=None):
             renames.append((ws, label, new))
         now[ws] = {"label": new, "folder": moved, "id": seen["id"]}
     return renames, now
+
+
+def held_conversations(path, home):
+    """Whether Claude kept conversations for folder PATH: under ~/.claude/projects, the path with every character but
+    letters and digits as -."""
+    return os.path.isdir(os.path.join(home, ".claude", "projects", re.sub(r"[^A-Za-z0-9]", "-", path)))
 
 
 def rename_spaces():
@@ -100,8 +122,10 @@ def rename_spaces():
     workspaces = herdr("workspace", "list", check=False).get("workspaces")
     if not workspaces:                                  # herdr not answering: what is known stays
         return
+    home = os.path.expanduser("~")
     renames, now = follow_folders(workspaces, herdr("pane", "list", check=False).get("panes") or [],
-                                  known if isinstance(known, dict) else {}, os.path.expanduser("~"))
+                                  known if isinstance(known, dict) else {}, home,
+                                  lambda path: held_conversations(path, home))
     for ws, old, new in renames:
         herdr("workspace", "rename", ws, new, check=False)
         for tab in herdr("tab", "list", "--workspace", ws, check=False).get("tabs") or []:
