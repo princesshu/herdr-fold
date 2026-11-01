@@ -110,6 +110,11 @@ def herdr_block(theme):
              "# sessions", "[ui.sidebar.agents]", "row_gap = 1", "rows = [",
              f'  ["state_icon", {{ token = "pane", fg = "{h["text"]}", bold = true }}],',
              f'  ["state_text", {{ token = "agent", fg = "{agent_color(theme)}" }}],', "]"]
+    body += ["",
+             "# The Spaces rows: herdr's own, and deleted in the theme's red beside the branch of a space whose folder",
+             "# is gone (the tab-layout plugin says so)", "[ui.sidebar.spaces]", "rows = [",
+             '  ["state_icon", "workspace"],',
+             f'  ["branch", "git_status", {{ token = "$folder", fg = "{h["red"]}" }}],', "]"]
     return body + [END]
 
 

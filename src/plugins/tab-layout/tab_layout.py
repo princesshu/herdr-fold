@@ -58,6 +58,15 @@ def folders_up(path):
         path = parent
 
 
+def folders_of(panes):
+    """Each workspace's panes' folders."""
+    cwds = {}
+    for pane in panes:
+        if pane.get("cwd"):
+            cwds.setdefault(pane["workspace_id"], []).append(pane["cwd"])
+    return cwds
+
+
 def renamed_from(label, places, held):
     """The folder among PLACES that was named LABEL before it was followed: a folder of that name beside it is gone,
     and it HELD conversations."""
@@ -73,10 +82,7 @@ def follow_folders(workspaces, panes, known, home=None, held=lambda path: False)
     with it), and what is known after them. Followed: a workspace named as its folder, or as a folder beside it that is
     gone and HELD conversations (renamed before); a name given by hand ends it."""
     labels = {w["workspace_id"]: w.get("label") or "" for w in workspaces}
-    cwds = {}
-    for pane in panes:
-        if pane.get("cwd"):
-            cwds.setdefault(pane["workspace_id"], []).append(pane["cwd"])
+    cwds = folders_of(panes)
     renames, now = [], {}
     for ws, label in labels.items():
         mine, seen = cwds.get(ws, []), known.get(ws)
@@ -102,6 +108,12 @@ def follow_folders(workspaces, panes, known, home=None, held=lambda path: False)
             renames.append((ws, label, new))
         now[ws] = {"label": new, "folder": moved, "id": seen["id"]}
     return renames, now
+
+
+def gone(panes):
+    """The workspaces whose panes' folders are all gone: herdr keeps naming a deleted folder as a pane's, while a
+    renamed one's panes follow it."""
+    return {ws for ws, mine in folders_of(panes).items() if not any(os.path.isdir(cwd) for cwd in mine)}
 
 
 def held_conversations(path, home):
@@ -136,8 +148,8 @@ def came_from(placeholder):
 
 
 def on_focus():
-    """The workspace in front kept, with the one before it; each followed workspace whose folder was renamed takes
-    its new name, and so does its main tab (named as it)."""
+    """The workspace in front kept, with the one before it; a workspace whose folder is gone said deleted; each
+    followed one whose folder was renamed takes its new name, and so does its main tab (named as it)."""
     workspaces = herdr("workspace", "list", check=False).get("workspaces")
     if not workspaces:                                  # herdr not answering: what is known stays
         return
@@ -145,10 +157,16 @@ def on_focus():
     front = next((w["workspace_id"] for w in workspaces if w.get("focused")), None)
     if front and focus.get("now") != front:
         save(state, FOCUS, {"now": front, "before": focus.get("now")})
+    panes = herdr("pane", "list", check=False).get("panes") or []
+    deleted = gone(panes)
+    for space in workspaces:                            # the theme's Space rows show $folder beside the branch
+        said = (space.get("tokens") or {}).get("folder") == "deleted"
+        if (space["workspace_id"] in deleted) != said:
+            herdr("workspace", "report-metadata", space["workspace_id"], "--source", "herdr-fold.tab-layout",
+                  *(["--clear-token", "folder"] if said else ["--token", "folder=deleted"]), check=False)
     state, known = load(SPACES)
     home = os.path.expanduser("~")
-    renames, now = follow_folders(workspaces, herdr("pane", "list", check=False).get("panes") or [], known, home,
-                                  lambda path: held_conversations(path, home))
+    renames, now = follow_folders(workspaces, panes, known, home, lambda path: held_conversations(path, home))
     for ws, old, new in renames:
         herdr("workspace", "rename", ws, new, check=False)
         for tab in herdr("tab", "list", "--workspace", ws, check=False).get("tabs") or []:

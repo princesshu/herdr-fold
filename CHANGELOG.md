@@ -16,6 +16,7 @@ All notable changes to this project are listed here. The format follows
 
 - The sidebar's Files view: a folder's right click offers New Workspace, which opens herdr-fold's folder picker on it,
   as herdr's new button does.
+- A workspace whose folder is deleted says deleted beside its branch, in the theme's red.
 - The folder picker takes the mouse: a click chooses a folder, a double click opens it, the wheel moves, and a click
   on Claude or Codex switches the agent.
 

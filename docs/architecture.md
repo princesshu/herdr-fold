@@ -23,7 +23,7 @@ plugins of its own.
 | File | What it is |
 |---|---|
 | `config/ghostty/config` | Ghostty: theme (written by the installer), font, the Cmd keys |
-| `config/herdr/config.toml` | herdr: theme (written by the installer), keys, Sessions rows |
+| `config/herdr/config.toml` | herdr: theme (written by the installer), keys, Sessions and Spaces rows |
 | `config/starship.toml` | the prompt in herdr panes |
 | `src/pane-env.sh` | the herdr pane environment, loaded by `~/.zshrc` only in herdr panes |
 

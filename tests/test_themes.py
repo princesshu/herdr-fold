@@ -138,8 +138,16 @@ class PackageSettings(unittest.TestCase):
         name = r'  \["state_icon", \{ token = "pane"[^\n]*\],\n'
         state = r'  \["state_text", \{ token = "agent", fg = "#[0-9a-f]{6}" \}\],\n'
         self.assertRegex(self.herdr, r"\[ui\.sidebar\.agents\]\nrow_gap = 1\nrows = \[\n" + name + state + r"\]\n")
-        self.assertNotIn("[ui.sidebar.spaces]", self.herdr)                # the Spaces list stays as herdr draws it
         self.assertNotIn("$nav", self.herdr)
+
+    def test_a_space_whose_folder_is_gone_says_deleted_beside_its_branch_in_the_themes_red(self):
+        # herdr's own Space rows, and the tab layout's $folder token after the branch (it reports "deleted")
+        for theme in apply.load_themes():
+            body = "\n".join(apply.herdr_block(theme))
+            rows = body.split("[ui.sidebar.spaces]\n", 1)[-1].split("\n]", 1)[0]
+            self.assertEqual(rows.split("\n"), ["rows = [", '  ["state_icon", "workspace"],',
+                                                 f'  ["branch", "git_status", {{ token = "$folder", fg = '
+                                                 f'"{theme["colors"]["herdr"]["red"]}" }}],'], theme["id"])
 
     def test_a_sessions_agent_shows_on_the_active_row_and_stays_fainter_than_its_name(self):
         # the active row is mixed from the accent: herdr's own faint gray all but vanished on it

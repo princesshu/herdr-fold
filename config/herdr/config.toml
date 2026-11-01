@@ -24,6 +24,14 @@ rows = [
   ["state_icon", { token = "pane", fg = "#cdd6f4", bold = true }],
   ["state_text", { token = "agent", fg = "#8f94ae" }],
 ]
+
+# The Spaces rows: herdr's own, and deleted in the theme's red beside the branch of a space whose folder
+# is gone (the tab-layout plugin says so)
+[ui.sidebar.spaces]
+rows = [
+  ["state_icon", "workspace"],
+  ["branch", "git_status", { token = "$folder", fg = "#f38ba8" }],
+]
 # --- end of theme ---
 
 # Next / previous session: Ctrl+B, Shift+↓ / ↑ (Ghostty: Cmd+D / Cmd+E send Ctrl+Alt+Shift+↓ / ↑, even while typing).

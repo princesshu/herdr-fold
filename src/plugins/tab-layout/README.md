@@ -12,6 +12,8 @@ A herdr plugin of herdr-fold that keeps the workspace layout:
 - A workspace named after its folder takes the folder's new name, and so does its main tab, when the folder is renamed
   or moved (seen at the next pane you focus). A folder renamed before is known by the Claude conversations kept under
   its old name. A name you gave the workspace yourself stays.
+- A workspace whose folder is gone says deleted beside its branch: its `folder` token, which herdr-fold's theme shows
+  in the Spaces list (`$folder`).
 
 ## What it reads and writes
 

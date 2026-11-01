@@ -150,6 +150,48 @@ class SpacesFollowTheirFolder(unittest.TestCase):
         self.assertEqual(self.follow({}, [], known), ([], {}))
 
 
+class DeletedFolders(unittest.TestCase):
+    """A space whose folder is gone says deleted beside its branch (the theme's Space rows show its $folder token):
+    herdr keeps naming a deleted folder as its panes' folder, while a renamed one's panes follow it."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.here = os.path.join(self.tmp, "here")
+        os.makedirs(self.here)
+        self.gone = os.path.join(self.tmp, "gone")
+
+    def test_a_space_is_deleted_when_none_of_its_panes_folders_is_there(self):
+        panes = [{"workspace_id": "w1", "cwd": self.gone}, {"workspace_id": "w1", "cwd": self.gone + "/src"},
+                 {"workspace_id": "w2", "cwd": self.gone}, {"workspace_id": "w2", "cwd": self.here},
+                 {"workspace_id": "w3"}]
+        self.assertEqual(tab_layout.gone(panes), {"w1"})
+
+    def calls_for(self, cwd, tokens):
+        calls = []
+
+        def herdr(*args, **kwargs):
+            calls.append(args)
+            if args[:2] == ("workspace", "list"):
+                return {"workspaces": [{"workspace_id": "w1", "label": "app", "tokens": tokens}]}
+            if args[:2] == ("pane", "list"):
+                return {"panes": [{"pane_id": "w1:p1", "workspace_id": "w1", "cwd": cwd}]}
+            return {}
+        set_attrs(self, tab_layout, herdr=herdr)
+        set_env(self, HERDR_PLUGIN_STATE_DIR=os.path.join(self.tmp, "state"), HERDR_PLUGIN_EVENT="pane.focused")
+        tab_layout.main()
+        return [call for call in calls if call[:2] == ("workspace", "report-metadata")]
+
+    def test_it_is_said_once_and_taken_back_when_the_folder_is_there_again(self):
+        self.assertEqual(self.calls_for(self.gone, {}), [("workspace", "report-metadata", "w1", "--source",
+                                                          "herdr-fold.tab-layout", "--token", "folder=deleted")])
+        self.assertEqual(self.calls_for(self.gone, {"folder": "deleted"}), [])          # said already
+        self.assertEqual(self.calls_for(self.here, {"folder": "deleted"}), [("workspace", "report-metadata", "w1",
+                                                                             "--source", "herdr-fold.tab-layout",
+                                                                             "--clear-token", "folder")])
+        self.assertEqual(self.calls_for(self.here, {}), [])
+
+
 class FollowOnFocus(unittest.TestCase):
     """On a pane's focus the plugin renames the workspace and its main tab (the one named as the workspace), never
     another tab, and keeps what it knows in its state folder."""

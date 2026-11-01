@@ -28,7 +28,8 @@ opens on it, with the Claude / Codex toggle.
 
 Rename or move the folder, and the workspace and its main tab take the folder's new name at the next pane you focus
 (a folder renamed earlier too, known by the Claude conversations kept under its old name), and the sidebar opens on it
-again, where it was. A name you gave the workspace yourself stays.
+again, where it was. A name you gave the workspace yourself stays. A workspace whose folder is deleted says
+**deleted** beside its branch, in the theme's red.
 
 Cmd + ↓ / Cmd + ↑ step through the workspaces, Cmd + → / Cmd + ← through the panes, Cmd + T / Cmd + R through the tabs.
 
