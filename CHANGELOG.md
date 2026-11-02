@@ -19,6 +19,9 @@ All notable changes to this project are listed here. The format follows
   shows the repository of the folder or file chosen in Files, however deep, with its changes, commit and sync; Files'
   marks and the Issues view follow it. See [The sidebar](docs/sidebar.md#how-it-starts).
 
+- Tips in the sidebar: a control shown by an icon alone says what it does, and its key, once the mouse rests on it
+  (✦, ↻, the view tabs, a row's Stage, Unstage, Discard and diff icons, the Files and Search buttons).
+
 ### Changed
 
 - Committing needs no staging, as in GitHub Desktop: with nothing staged, a commit and its written message take every
@@ -26,7 +29,8 @@ All notable changes to this project are listed here. The format follows
   even if it was tracked before. The sidebar commits exactly the changes it showed (and asked about, for files named
   like secrets): one come since waits. Something staged by hand is still committed alone.
 - The sidebar's Changes view keeps the Graph at its bottom, the changes scrolling above it on their own; ↑ and ↓
-  cross from one to the other. Each file's letter stands under its section's count.
+  cross from one to the other. Each file's letter stands under its section's count. A folded section stays folded,
+  in every tab and after an update, and a new version comes back to the rows you were on.
 
 ### Security
 

@@ -1,5 +1,6 @@
 """Tests for the sidebar's Changes view (src/plugins/sidebar/scm.py): the message field, Commit and its menu, the
 changes, staging, Discard and a secret-looking file's commit only after a question, the graph, unusual states."""
+import json
 import os
 import sys
 import time
@@ -360,6 +361,25 @@ class View(unittest.TestCase):
                                                                                    "new.py", "app.py")}
         self.assertEqual(last["new.py"], last["▾ Staged changes"])
         self.assertEqual(last["app.py"], last["▾ Changes"])
+
+    def test_a_section_folded_is_kept_by_the_app(self):
+        self.draw()
+        self.assertEqual(self.click("▾ Graph"), Action("remember_folded", (["graph"],)))
+        self.draw()
+        self.assertEqual(self.click("▸ Graph"), Action("remember_folded", ([],)))
+        self.assertEqual(Scm(icons=False, folded=["graph", "elsewhere"]).folded, {"graph"})
+
+    def test_a_new_version_comes_back_to_the_same_rows(self):
+        self.draw()
+        self.view.focus = "list"
+        self.press("end")                                                    # draft.md
+        self.press("down", "down", "down")                                   # the Graph: commit number 1
+        kept = json.loads(json.dumps(self.view.kept()))                      # as the handover file carries it
+        self.view = Scm(icons=False)
+        self.view.take(kept)
+        self.draw()
+        self.assertEqual((self.view.focus, self.view.graph_list.selected().subject), ("graph", "commit number 1"))
+        self.assertEqual(self.view.list.selected().change.path, "draft.md")
 
     def test_the_graph_stays_at_the_panels_bottom(self):
         self.draw()

@@ -330,6 +330,40 @@ class Running(Harness):
         self.assertFalse(self.thread.is_alive())
 
 
+class Tips(Harness):
+    """A control shown by an icon alone tells what it does, and its key, once the mouse rests on it."""
+
+    def setUp(self):
+        Repo.setUp(self)
+        self.start()
+
+    def region(self, match):
+        """Where the first region whose target MATCH accepts is, once it is drawn."""
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            found = next(((x0, y) for y, x0, _, target in list(self.app.canvas.regions) if match(target)), None)
+            if found:
+                return found
+            time.sleep(0.05)
+        self.fail(f"no such region:\n{self.screen()}")
+
+    def test_an_icons_tip_shows_once_the_mouse_rests_on_it_and_a_key_hides_it(self):
+        self.term.type(Key("char", "3"))
+        self.until(lambda s: "a.txt" in s)
+        self.term.type(Mouse("move", *self.region(lambda target: target == "suggest")))
+        self.until(lambda s: "Write the message · A" in s, timeout=3)
+        self.term.type(Key("char", "x", ctrl=True))
+        self.until(lambda s: "Write the message" not in s)
+
+    def test_a_files_icons_tell_what_they_do(self):
+        self.term.type(Key("char", "3"))
+        self.until(lambda s: "a.txt" in s)
+        self.term.type(Mouse("move", *self.region(lambda target: isinstance(target, tuple) and target[0] == "row"
+                                                  and "a.txt" in self.row("a.txt"))))
+        self.term.type(Mouse("move", *self.region(lambda target: isinstance(target, tuple) and target[0] == "stage")))
+        self.until(lambda s: " Stage " in s, timeout=3)
+
+
 class PreviewTab(Harness):
     """A file, a diff, a commit or an issue opened from the sidebar shows in the workspace's preview tab, laid out as
     the sidebar's own tab (its panes of the plugin's), whose new sidebar comes back to where this one was."""
@@ -818,6 +852,14 @@ class NewVersion(unittest.TestCase):
         self.app.collect()
         self.now += seconds
         self.app.tick()
+
+    def test_the_changes_views_place_is_handed_over(self):
+        self.app.views["git"].focus = "graph"
+        self.assertEqual(self.app.left()["changes"]["focus"], "graph")
+
+    def test_a_folded_section_stays_folded_in_the_next_one(self):
+        self.app.act(Action("remember_folded", (["graph"],)))
+        self.assertEqual(self.make().views["git"].folded, {"graph"})
 
     def test_it_hands_over_once_the_new_version_is_still(self):
         self.update()

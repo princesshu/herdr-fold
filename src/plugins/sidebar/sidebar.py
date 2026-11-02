@@ -36,11 +36,20 @@ VIEWS = {"files": "Files", "search": "Search", "git": "Changes", "issues": "Issu
 VIEW_KEYS = {"1": "files", "2": "search", "3": "git", "4": "issues", "f9": "files", "f10": "search", "f11": "git",
              "f12": "issues"}
 # linked: the issue each repository's next commit fixes, {repository: [number, title]}
-DEFAULTS = {"hidden": False, "icons": True, "commit_mode": "commit", "view": "files", "linked": {}}
+DEFAULTS = {"hidden": False, "icons": True, "commit_mode": "commit", "view": "files", "linked": {}, "folded": []}
 STALE = 60.0                  # seconds: the issues shown or listed here asked for again (a new one shows up)
 BUSY = {"commit": "Committing…", "sync": "Syncing…", "suggest": "Writing the message…"}   # the first running shows
 EMPTY = git.Status()
 TAB = 5                       # the cells of a view's tab: its icon in the middle one
+TIP_DELAY = 0.5               # seconds the mouse rests on a control shown by an icon before it says what it does
+# what each such control does, by its target (a row's buttons by their kind), and its key
+TIPS = {"suggest": "Write the message · A", "mode": "Commit mode", "sync": "Sync · S", "panels": "Panes",
+        "unlink": "Unlink the issue", "view:files": "Files · 1", "view:search": "Search · 2", "view:git": "Changes · 3",
+        "view:issues": "Issues · 4", "new_file": "New file", "new_folder": "New folder", "refresh": "Refresh",
+        "collapse": "Collapse all", "case": "Match case · Alt+C", "word": "Whole word · Alt+W",
+        "regex": "Regular expression · Alt+R", "clear": "Clear · Esc", "stage": "Stage", "unstage": "Unstage",
+        "discard": "Discard changes · d", "diff": "Show the diff · Space", "agent": "To the agent · t",
+        "web": "Open in the browser · b"}
 # the cells between the last view's tab and the ⋯ at least: the shown view's title (a cell of air on each side), the ⋯ a
 # group of its own
 APART = 1 + max(width(title) for title in VIEWS.values()) + 1
@@ -113,7 +122,7 @@ class App(Loop):
         self.tree = Tree(self.root, show_hidden=self.settings["hidden"])
         icons = self.settings["icons"]
         self.views = {"files": Explorer(self.tree, icons, self.repo), "search": Find(self.root, icons, clock),
-                      "git": Scm(self.settings["commit_mode"], icons), "issues": Issues(icons)}
+                      "git": Scm(self.settings["commit_mode"], icons, self.settings["folded"]), "issues": Issues(icons)}
         self.github = github.repo_name(self.repo) if self.repo else None     # OWNER/NAME on GitHub, or None
         self.issues_asked = {}                            # when each query's issues were last asked for
         self.views["git"].linked = self.linked()
@@ -127,6 +136,7 @@ class App(Loop):
         self.dots = (0, None, 0)                          # where the ⋯'s menu opens: open_menu()'s arguments
         self.needs = None                                 # the cells this tab's header was said to take
         self.menu = None                                  # the pane's own menu: (Menu, its row, its column, its tab)
+        self.tip = None                         # the control under the mouse: (target, tip, x, y, when due, drawn)
 
     def stop(self):
         if self.searching:
@@ -189,10 +199,11 @@ class App(Loop):
             self.refresh()
 
     def tick(self):
-        """The poll when due, and the paused search; whether anything shown changed."""
-        now, shown = self.clock(), False
+        """The poll when due, the paused search and a tip come due; whether anything shown changed."""
+        now = self.clock()
+        shown = bool(self.tip) and not self.tip[5] and now >= self.tip[4]
         if now >= self.next_poll:
-            shown = self.follow(now)                      # a new version first, before this poll starts a job
+            shown = self.follow(now) or shown             # a new version first, before this poll starts a job
             if self.quit:
                 return shown
             self.moved = self.moved or moved_to(self.root, self.identity)
@@ -228,7 +239,8 @@ class App(Loop):
         return {"view": self.view, "expanded": sorted(map(self.moved_path, self.tree.expanded)),
                 "selected": self.moved_path(getattr(files.list.selected(), "path", None)), "top": files.list.top,
                 "chosen": files.moved,
-                "message": self.views["git"].field.text, "query": find.field.text, "switches": find.switches,
+                "message": self.views["git"].field.text, "changes": self.views["git"].kept(), "query": find.field.text,
+                "switches": find.switches,
                 "issues": self.views["issues"].kept()}
 
     def moved_path(self, path):
@@ -276,6 +288,7 @@ class App(Loop):
                 files.list.top = left["top"]      # as it was scrolled, not as a list not yet drawn (one row) puts it
         if isinstance(left.get("message"), str) and left["message"]:
             self.views["git"].set_message(left["message"])
+        self.views["git"].take(left.get("changes"))
         find = self.views["search"]
         for name, on in (left.get("switches") or {}).items():
             if name in find.switches:
@@ -286,7 +299,26 @@ class App(Loop):
             self.act(find.ask())
 
     def deadlines(self):
-        return [self.next_poll, self.views["search"].deadline() or self.next_poll]
+        tip = self.tip[4] if self.tip and self.tip[4] > self.clock() else self.next_poll
+        return [self.next_poll, self.views["search"].deadline() or self.next_poll, tip]
+
+    def point(self, target, x, y):
+        """The mouse on TARGET at X, Y: a control shown by an icon says what it does once the mouse rests on it."""
+        tip = TIPS.get(target[0] if isinstance(target, tuple) else target)
+        if not tip:
+            self.tip = None
+        elif not self.tip or self.tip[0] != target:
+            self.tip = (target, tip, x, y, self.clock() + TIP_DELAY, False)
+
+    def draw_tip(self, canvas):
+        """The tip under the mouse (above it on the last row), whole inside the pane, once it is due."""
+        target, tip, x, y, due, _ = self.tip
+        if self.clock() < due:
+            return
+        self.tip = (target, tip, x, y, due, True)
+        label = truncate(f" {tip} ", canvas.width)
+        row = y + 1 if y + 1 < canvas.height else y - 1
+        canvas.put(row, max(0, min(x, canvas.width - width(label))), label, Style(fg="text", bg="selection"))
 
     # --- settings
 
@@ -301,6 +333,8 @@ class App(Loop):
 
     def handle(self, event):
         self.watcher.touch()
+        if not (isinstance(event, Mouse) and event.kind == "move"):
+            self.tip = None                               # a key, a click or the wheel: the tip goes
         if isinstance(event, Resize):
             self.renderer.reset()
             self.resized()
@@ -330,6 +364,7 @@ class App(Loop):
         elif isinstance(event, Mouse) and event.kind == "move":
             target = self.canvas.hit(event.x, event.y) if self.canvas else None
             self.pointed = target[5:] if str(target).startswith("view:") else target if target == "panels" else None
+            self.point(target, event.x, event.y)
         elif isinstance(event, Mouse) and event.kind == "press":
             self.error = self.note = None
             target = self.canvas.hit(event.x, event.y) if self.canvas else None
@@ -723,6 +758,9 @@ class App(Loop):
     def do_remember_mode(self, mode):
         self.save(commit_mode=mode)
 
+    def do_remember_folded(self, folded):
+        self.save(folded=folded)
+
     def do_sync(self):
         if not self.repo or "sync" in self.running:
             return
@@ -759,6 +797,8 @@ class App(Loop):
         if self.menu:
             menu, y, x = self.menu[:3]
             menu.draw(canvas, *menu.at(y, x, cells, 0, rows))
+        elif self.tip:
+            self.draw_tip(canvas)
         self.canvas = canvas
         self.term.write(self.renderer.frame(canvas))
         self.term.flush()

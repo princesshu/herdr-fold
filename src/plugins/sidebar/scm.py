@@ -37,18 +37,20 @@ GAP = Gap()
 
 
 class Scm:
-    def __init__(self, mode="commit", icons=True):
+    def __init__(self, mode="commit", icons=True, folded=()):
         self.mode = mode if mode in MODES else "commit"
         self.icons = icons
         self.field = TextInput(multiline=True, placeholder="Commit message")
         self.list = ListView(1)                       # the changes
         self.graph_list = ListView(1)                 # the Graph, at the view's bottom
-        self.focus, self.folded = "button", set()     # focus: message, button, list or graph
+        self.focus = "button"                          # message, button, list or graph
+        self.folded = set(folded) & {"staged", "changes", "graph"}     # the sections closed, kept by the app
         self.keyed = False            # the keys moved last (not the mouse): the button then shows that it has the focus
         self.working = self.notice = self.menu = self.confirm = self.then = None     # then: the Action of the yes
         self.status, self.hover, self.canvas, self.top, self.height = None, None, None, 0, 1
         self.shown = None             # what the rows were built from: a mouse move must not rebuild 50 000 of them
         self.linked = None            # (number, title) of the issue the next commit fixes
+        self.wanted = None            # where the version before this one was (kept()), once the rows are there
 
     @property
     def editing(self):
@@ -84,6 +86,22 @@ class Scm:
         refill(self.list, items)
         self.off_the_gap(1)
         refill(self.graph_list, [Section("graph", "Graph")] + ([] if "graph" in self.folded else list(graph)))
+        if self.wanted:
+            for rows, name in ((self.list, "list"), (self.graph_list, "graph")):
+                found = next((i for i, item in enumerate(rows.items) if key_of(item) == self.wanted.get(name)), None)
+                if found is not None:
+                    rows.index = found
+                    rows.keep_visible()
+            if self.wanted.get("focus") in ("message", "button", "list", "graph"):
+                self.focus = self.wanted["focus"]
+            self.wanted = None
+
+    def kept(self):
+        """Where the view is, for the next version: the focus, and the chosen row of the changes and of the Graph."""
+        return {"focus": self.focus, "list": key_of(self.list.selected()), "graph": key_of(self.graph_list.selected())}
+
+    def take(self, kept):
+        self.wanted = kept if isinstance(kept, dict) else None
 
     def paths(self, item):
         if isinstance(item, Entry):
@@ -435,7 +453,7 @@ class Scm:
     def activate(self, item):
         if isinstance(item, Section):
             self.folded.symmetric_difference_update({item.kind})
-            return None
+            return Action("remember_folded", (sorted(self.folded),))
         if isinstance(item, Entry):
             return Action("unstage" if item.staged else "stage", (self.paths(item),))
         return self.preview(item)
@@ -475,3 +493,14 @@ def refill(rows, items):
         if chosen in items:
             rows.index = items.index(chosen)
             rows.keep_visible()
+
+
+def key_of(item):
+    """ITEM as the next version finds it again: a file by its path and side, a section by its kind, a commit by hash."""
+    if isinstance(item, Entry):
+        return ["entry", item.change.path, item.staged]
+    if isinstance(item, Section):
+        return ["section", item.kind]
+    if isinstance(item, Commit):
+        return ["commit", item.hash]
+    return None
