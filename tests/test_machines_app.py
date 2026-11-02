@@ -10,7 +10,8 @@ from test_remote_prepare import Prepare
 FAKE_HC = """#!/bin/sh
 printf '%s\\n' "hc $*" >> "$HOME/hc-calls"
 if [ "$*" = "machine ls --json" ]; then
-  if [ -n "$STUB_HC_HAS" ]; then printf '{"machines": [{"name": "%s"}]}\\n' "$STUB_HC_HAS"
+  if [ -n "$STUB_HC_BROKEN" ]; then echo '{"error":{"message":"the socket path is too long"}}' >&2; exit 2
+  elif [ -n "$STUB_HC_HAS" ]; then printf '{"machines": [{"name": "%s"}]}\\n' "$STUB_HC_HAS"
   else echo '{"machines": []}'; fi
 fi
 exit 0
@@ -50,6 +51,13 @@ class AppMachines(Prepare, unittest.TestCase):
         self.assertIn("hc machine add box --name box --install", self.hc_calls())
         self.assertEqual(self.recorded(), ["box"])
         self.assertIn(catalog_text("machines.app_added", "box"), shown)
+
+    def test_an_hc_that_cannot_list_is_said_in_a_line_not_a_traceback(self):
+        self.app_part()
+        self.env["STUB_HC_BROKEN"] = "1"
+        shown = self.add()
+        self.assertNotIn("Traceback", shown)
+        self.assertIn("hc machine add box --name box --install", self.hc_calls())
 
     def test_without_the_app_part_hc_is_not_asked(self):
         self.add()

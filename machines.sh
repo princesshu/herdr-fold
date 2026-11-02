@@ -563,7 +563,11 @@ add_to_app() {
   hc=$(hc_bin) || { warn "$(t machines.app_no_hc "$1")"; return 0; }
   if "$hc" machine ls --json 2>/dev/null | python3 -c '
 import json, sys
-sys.exit(0 if any(m.get("name") == sys.argv[1] for m in json.load(sys.stdin).get("machines", [])) else 1)' "$1"; then
+try:
+    machines = json.load(sys.stdin).get("machines", [])
+except (ValueError, AttributeError):                 # no list: as if the app had none
+    machines = []
+sys.exit(0 if any(isinstance(m, dict) and m.get("name") == sys.argv[1] for m in machines) else 1)' "$1"; then
     verbose && have "$(t machines.app_already "$1")"
     return 0
   fi
