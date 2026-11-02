@@ -157,10 +157,9 @@ class TextInput:
         return max(1, min(height, len(shown)))
 
 
-def wrap(text, cells):
+def wrap(text, cells, breaks=" "):
     """TEXT's rows CELLS wide, as (start, end) index pairs: each of its lines starts a row, a row breaks after the last
-    space that fits (the spaces at a break stay at its end, past the edge), and a word wider than a row
-    breaks inside."""
+    of BREAKS that fits (spaces at a break stay at its end, past the edge), a word wider than a row inside it."""
     rows, start = [], 0
     for logical in text.split("\n"):
         end = start + len(logical)
@@ -174,7 +173,7 @@ def wrap(text, cells):
                 used = width(text[row:i])
                 continue
             used += char_width(ch)
-            if ch == " ":
+            if ch in breaks:
                 after_space = i + 1
             i += 1
         rows.append((row, end))

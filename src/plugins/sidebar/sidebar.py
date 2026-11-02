@@ -29,7 +29,7 @@ from scm import Scm  # noqa: E402
 from screen import ROOMY, Canvas, Style, centered, glyphs, truncate, width  # noqa: E402
 from tree import Tree  # noqa: E402
 from vt import Focus, Key, Mouse, Resize  # noqa: E402
-from widgets import Menu  # noqa: E402
+from widgets import Menu, wrap  # noqa: E402
 import watch  # noqa: E402
 
 VIEWS = {"files": "Files", "search": "Search", "git": "Changes", "issues": "Issues"}     # each with its title, a word
@@ -302,22 +302,30 @@ class App(Loop):
         return [self.next_poll, self.views["search"].deadline() or self.next_poll, tip]
 
     def point(self, target, x, y):
-        """The mouse on TARGET at X, Y: a control shown by an icon says what it does once the mouse rests on it."""
+        """The mouse on TARGET at X, Y: a control shown by an icon says what it does once the mouse rests on it, a
+        changed file its path."""
         tip = TIPS.get(target[0] if isinstance(target, tuple) else target)
+        if not tip and self.view == "git":
+            tip = self.views["git"].tip(target)
         if not tip:
             self.tip = None
         elif not self.tip or self.tip[0] != target:
             self.tip = (target, tip, x, y, self.clock() + TIP_DELAY, False)
 
     def draw_tip(self, canvas):
-        """The tip under the mouse (above it on the last row), whole inside the pane, once it is due."""
+        """The tip under the mouse (above it where the rows below are too few), whole inside the pane, once it is due;
+        one too wide for a row goes on in the next (a path after a /)."""
         target, tip, x, y, due, _ = self.tip
         if self.clock() < due:
             return
         self.tip = (target, tip, x, y, due, True)
-        label = truncate(f" {tip} ", canvas.width)
-        row = y + 1 if y + 1 < canvas.height else y - 1
-        canvas.put(row, max(0, min(x, canvas.width - width(label))), label, Style(fg="text", bg="selection"))
+        lines = [tip[start:end] for start, end in wrap(tip, max(1, canvas.width - 2), breaks=" /")]
+        cells = max(width(line) for line in lines) + 2
+        top = y + 1 if y + len(lines) < canvas.height else max(0, y - len(lines))
+        left = max(0, min(x, canvas.width - cells))
+        for row, line in enumerate(lines):
+            label = truncate(f" {line} ", canvas.width)
+            canvas.put(top + row, left, label + " " * (cells - width(label)), Style(fg="text", bg="selection"))
 
     # --- settings
 

@@ -363,6 +363,31 @@ class Tips(Harness):
         self.term.type(Mouse("move", *self.region(lambda target: isinstance(target, tuple) and target[0] == "stage")))
         self.until(lambda s: " Stage " in s, timeout=3)
 
+    def changed_row(self, name):
+        """Where the Changes row of the file NAME starts, once it is drawn."""
+        self.until(lambda s: name in s)
+        y = next(y for y, line in enumerate(self.screen().splitlines()) if name in line)
+        return next((x0, ry) for ry, x0, _, target in list(self.app.canvas.regions)
+                    if ry == y and isinstance(target, tuple) and target[0] == "row")
+
+    def test_a_changed_files_tip_is_its_whole_path_in_the_repository(self):
+        self.write("src/b.py", "print('b, changed')\n")
+        self.term.type(Key("char", "3"))
+        self.term.type(Mouse("move", *self.changed_row("b.py")))
+        self.until(lambda s: " src/b.py " in s, timeout=3)
+
+    def test_a_path_wider_than_the_pane_shows_whole_broken_after_its_slashes(self):
+        rel = "src/a-rather-long-folder-name/and-another-one/the-file.txt"
+        os.makedirs(os.path.join(self.root, os.path.dirname(rel)))
+        self.write(rel, "x\n")
+        subprocess.run(["git", "-C", self.root, "add", rel], check=True)
+        subprocess.run(["git", "-C", self.root, "commit", "-q", "-m", "deep"], check=True)
+        self.write(rel, "x, changed\n")
+        self.term.type(Key("char", "3"))
+        self.term.type(Mouse("move", *self.changed_row("the-file.txt")))
+        self.until(lambda s: " src/a-rather-long-folder-name/" in s
+                   and " and-another-one/the-file.txt " in s, timeout=3)
+
 
 class PreviewTab(Harness):
     """A file, a diff, a commit or an issue opened from the sidebar shows in the workspace's preview tab, laid out as

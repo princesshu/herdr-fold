@@ -252,7 +252,7 @@ export default class HerdrFold extends View {
     const parts = path.split("/"), name = parts.pop();
     const color = code === "A" || code === "?" ? t.ansi2 : code === "D" || code === "U" ? t.ansi1 : t.blocked;
     return h_flex().id(`file-${path}`).h(28).flex_none().px(8).gap(8).items_center().rounded(7).cursor_pointer()
-      .when(this.open === path, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover))
+      .when(this.open === path, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover)).tooltip(path)
       .on_click((_e, cx) => this.pick(path, cx))
       .child(div().w(14).text_size(11).text_color(color).child(code === "?" ? "A" : code))
       .child(h_flex().flex_1().min_w(0)

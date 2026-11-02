@@ -20,7 +20,9 @@ All notable changes to this project are listed here. The format follows
   marks and the Issues view follow it. See [The sidebar](docs/sidebar.md#how-it-starts).
 
 - Tips in the sidebar: a control shown by an icon alone says what it does once the mouse rests on it
-  (✦, ↻, the view tabs, a row's Stage, Unstage, Discard and diff icons, the Files and Search buttons).
+  (✦, ↻, the view tabs, a row's Stage, Unstage, Discard and diff icons, the Files and Search buttons). A changed
+  file's row in Changes shows its whole path in the repository, as in GitHub Desktop, on more rows when it is long;
+  so does the Herdr app mod's.
 
 ### Changed
 

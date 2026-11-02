@@ -216,6 +216,13 @@ class Scm:
         else:
             self.commit_row(canvas, y, item, bg)
 
+    def tip(self, target):
+        """A changed file's whole path in its repository, for the mouse resting on its row (as GitHub Desktop's)."""
+        if isinstance(target, tuple) and target[0] == "row" and 0 <= target[1] < len(self.list.items):
+            item = self.list.items[target[1]]
+            return item.change.path if isinstance(item, Entry) else None
+        return None
+
     def icons_at(self, canvas, y, end, index, kinds, bg):
         """The hover icons KINDS ending before column END; returns the first column they take."""
         x = end - 2 * len(kinds)
