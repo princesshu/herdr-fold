@@ -47,7 +47,7 @@ TIPS = {"suggest": "Write the message", "mode": "Commit mode", "sync": "Sync", "
         "unlink": "Unlink the issue", "view:files": "Files", "view:search": "Search", "view:git": "Changes",
         "view:issues": "Issues", "new_file": "New file", "new_folder": "New folder", "refresh": "Refresh",
         "collapse": "Collapse all", "case": "Match case", "word": "Whole word", "regex": "Regular expression",
-        "clear": "Clear", "stage": "Stage", "unstage": "Unstage", "discard": "Discard changes", "diff": "Show the diff",
+        "clear": "Clear", "stage": "Stage", "unstage": "Unstage", "discard": "Discard changes", "diff": "Show diff",
         "agent": "To the agent", "web": "Open in the browser"}
 # the cells between the last view's tab and the ⋯ at least: the shown view's title (a cell of air on each side), the ⋯ a
 # group of its own
