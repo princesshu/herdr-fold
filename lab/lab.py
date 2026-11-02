@@ -19,6 +19,26 @@ HOME = os.path.join(os.path.expanduser("~"), ".local", "share", "herdr-fold-lab"
 NAME = "herdr-fold-lab-linux"                          # the machine's container
 IMAGE = "herdr-fold-lab"                               # its image, tagged by what it is built from
 MARK = ".herdr-fold-lab"                               # in the lab's own folder: drop takes only a folder with it
+# ssh and scp with the lab's settings first: a -F its caller gives (herdr's own) is read after them, and ~/.ssh never
+WRAPPER = """#!/bin/sh
+config=CONFIG
+merged=
+n=$#
+while [ "$n" -gt 0 ]; do
+  a=$1; shift; n=$((n - 1))
+  if [ "$a" = -F ] && [ "$n" -gt 0 ]; then
+    merged=$(mktemp "${config%/*}/merged.XXXXXX") || exit 1
+    printf 'Include "%s"\\nInclude "%s"\\n' "$config" "$1" > "$merged"
+    shift; n=$((n - 1)); set -- "$@" -F "$merged"
+  else
+    set -- "$@" "$a"
+  fi
+done
+[ -n "$merged" ] || set -- -F "$config" "$@"
+/usr/bin/PROGRAM "$@"; code=$?
+[ -z "$merged" ] || rm -f "$merged"
+exit $code
+"""
 
 
 class LabError(Exception):
@@ -116,10 +136,10 @@ class Lab:
                     f'  IdentitiesOnly yes\n  UserKnownHostsFile "{os.path.join(self.home, "known_hosts")}"\n'
                     "  StrictHostKeyChecking yes\n  BatchMode yes\n  ConnectTimeout 5\n")
         os.makedirs(self.bin, exist_ok=True)
-        for program in ("ssh", "scp"):                    # first on a demo's PATH: ~/.ssh is never read
+        for program in ("ssh", "scp"):                    # first on a demo's PATH
             path = os.path.join(self.bin, program)
             with open(path, "w") as f:
-                f.write(f'#!/bin/sh\nexec /usr/bin/{program} -F {shlex.quote(config)} "$@"\n')
+                f.write(WRAPPER.replace("CONFIG", shlex.quote(config)).replace("PROGRAM", program))
             os.chmod(path, 0o755)
         deadline = time.monotonic() + self.wait
         while self.ssh("true").returncode != 0:

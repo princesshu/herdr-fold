@@ -2,6 +2,7 @@
 machine down, SSH reads only the lab's own settings (never ~/.ssh), and drop removes only a folder the lab made."""
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -46,10 +47,17 @@ class Harness(unittest.TestCase):
         machine = lab.Lab(self.home, wait=0.5)
         with self.assertRaises(lab.LabError):
             machine.up()
-        for program in ("ssh", "scp"):
-            with open(os.path.join(self.home, "bin", program)) as f:
-                wrapper = f.read()
-            self.assertIn(f"-F '{os.path.join(self.home, 'ssh_config')}'", wrapper, program)
+        ssh = os.path.join(self.home, "bin", "ssh")
+        resolved = subprocess.run([ssh, "-G", "lab"], capture_output=True, text=True).stdout     # ssh -G: no connection
+        self.assertIn("hostname 127.0.0.1", resolved)
+        self.assertIn("user dev", resolved)
+        theirs = os.path.join(self.tmp, "theirs.config")                    # a caller's own, as herdr gives one
+        with open(theirs, "w") as f:
+            f.write("Host *\n  ServerAliveInterval 42\n")
+        resolved = subprocess.run([ssh, "-F", theirs, "-G", "lab"], capture_output=True, text=True).stdout
+        self.assertIn("hostname 127.0.0.1", resolved)
+        self.assertIn("serveraliveinterval 42", resolved)
+        self.assertTrue(os.path.isfile(os.path.join(self.home, "bin", "scp")))
         with open(os.path.join(self.home, "ssh_config")) as f:
             config = f.read()
         self.assertIn("IdentitiesOnly yes", config)

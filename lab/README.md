@@ -22,9 +22,12 @@ python3 lab/lab.py drop     # everything of the lab's gone: the machine, its ima
 | `linux/Containerfile` | the machine: SSH, Python and git, a user `dev`, and `claude`, a stand-in that answers one message |
 | `linux/sshd.conf`, `linux/claude` | its SSH settings (only `dev`, only by the lab's key) and the stand-in for Claude Code |
 | `tests/test_machine.py` | the machine answers over SSH with what a remote machine of herdr-fold's needs |
+| `tests/test_whole_way.py` | the whole remote way: `install.sh` in a home of its own adds the machine to a demo herdr and the Herdr app's core, the mod's core commits and pushes on it, `uninstall.sh` takes the app's part off |
 
 Everything it keeps is in `~/.local/share/herdr-fold-lab`, never in the repository or `~/.ssh`: the container
 tool's data (started with that folder when it was not running), the lab's SSH key (named `herdr-fold-lab`), the
-machine's key, and `ssh_config` with `bin/ssh` and `bin/scp`, which read only it. The machine listens on
-`127.0.0.1` alone, at a port of its own each time. `tests/test_lab_harness.py` checks the lab itself without a
-machine, in the usual test run.
+machine's key, and `ssh_config` with `bin/ssh` and `bin/scp`, which read it first and a caller's `-F` (herdr's own)
+after it, never `~/.ssh`. The machine listens on `127.0.0.1` alone, at a port of its own each time. A whole-way
+run makes its demo home in that folder too and removes it afterwards: its herdr and the app's core keep their
+sockets there (`XDG_RUNTIME_DIR`), within the 104 bytes macOS allows a socket's path. `tests/test_lab_harness.py`
+checks the lab itself without a machine, in the usual test run.
