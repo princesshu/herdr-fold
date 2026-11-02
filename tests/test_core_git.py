@@ -148,6 +148,21 @@ class ForeignConfig(Repo):
         self.assertIsNone(git.status(self.root).error)
         self.assertFalse(os.path.exists(mark))
 
+    def test_a_submodules_diff_runs_nothing_in_it(self):
+        """A submodule's diff would look inside it for changes: its config is as foreign, so only its commit is told."""
+        sub = self.folder()
+        self.run_git("init", "-q", "-b", "main", cwd=sub)
+        self.write("b.txt", root=sub)
+        self.commit_all(cwd=sub)
+        self.run_git("-c", "protocol.file.allow=always", "submodule", "add", "-q", sub, "sub")
+        self.commit_all()
+        inner = os.path.join(self.root, "sub")
+        self.write(".gitattributes", "*.txt filter=evil\n", root=inner)
+        self.touch("sub/b.txt")
+        marks = [trap(inner, key, self.folder()) for key in ("filter.evil.clean", "core.fsmonitor")]
+        self.assertIsNone(git.diff(self.root, "sub")[1])
+        self.assertEqual([os.path.basename(m) for m in marks if os.path.exists(m)], [])
+
     def test_a_signed_commit_does_not_start_the_repositorys_signature_check(self):
         """The Graph and the linked issue's check read the log: a downloaded folder's log.showSignature must not
         start the signature program its config names."""

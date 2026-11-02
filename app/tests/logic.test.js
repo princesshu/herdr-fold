@@ -6,7 +6,8 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PYTHON, background, changedFiles, diffRows, syncLabel, written } from "../mods/herdr-fold/logic.js";
+import { PYTHON, background, changedFiles, diffRows, secretQuestion, syncLabel, written }
+  from "../mods/herdr-fold/logic.js";
 
 test("a diff's lines numbered once, old and new apart", () => {
   const rows = diffRows(["@@ -3,2 +3,3 @@", " same", "-old", "+new", "+more"]);
@@ -87,4 +88,11 @@ test("the writer's answer: a message to fill in, a warning for files named like 
     { message: null, note: "No message: claude is not installed" });
   assert.deepEqual(written({ message: null, secret_looking: [], note: "", files: [] }),
     { message: null, note: "Nothing to commit" });
+});
+
+test("files named like secrets are asked about before a commit, in the TUI sidebar's words", () => {
+  assert.equal(secretQuestion([]), null);
+  assert.equal(secretQuestion(["deploy/.env"]), ".env looks like a secret. Commit it anyway?");
+  assert.equal(secretQuestion(["a.key", "b.key", "c.key", "d.key", "e.key"]),
+    "a.key, b.key, c.key and 2 more look like secrets. Commit them anyway?");
 });

@@ -182,12 +182,16 @@ export const COMMIT_MESSAGE = [
   "    return any(fnmatch.fnmatch(os.path.basename(path), pattern) for pattern in SECRET_LOOKING)",
   "",
   "",
+  "def staged(root):",
+  "    return [path for path in git(root, \"diff\", \"--cached\", \"--name-only\", \"-z\").split(\"\\0\") if pa" +
+    "th]",
+  "",
+  "",
   "def request(root):",
   "    \"\"\"What the AI gets: the staged diff only (cut at MAX_DIFF), without the contents of a file whose nam" +
     "e looks like a",
   "    secret's; every staged file; the recent subjects; the rules.\"\"\"",
-  "    files = [path for path in git(root, \"diff\", \"--cached\", \"--name-only\", \"-z\").split(\"\\0\") if p" +
-    "ath]",
+  "    files = staged(root)",
   "    withheld = [path for path in files if secret_looking(path)]",
   "    diff = git(root, \"diff\", \"--cached\", \"--no-ext-diff\", \"--no-textconv\", \"--\", \":/\",",
   "               *(f\":(top,exclude,literal){path}\" for path in withheld))",
@@ -369,16 +373,20 @@ export const COMMIT_MESSAGE = [
   "",
   "",
   "def main(argv):",
-  "    \"\"\"herdr-fold's Herdr app mod runs this on the repository's machine: the message for REPO's staged ch" +
-    "anges (with",
-  "    the linked issue's Fixes line), who wrote it, why the others could not, and the staged files, as JSON.\"" +
-    "\"\"",
-  "    if len(argv) != 2:",
-  "        print(\"usage: commit_message.py REPO\", file=sys.stderr)",
+  "    \"\"\"herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: write REPO (t" +
+    "he message for",
+  "    its staged changes with the linked issue's Fixes line, who wrote it, why the others could not, the stage" +
+    "d files),",
+  "    secrets REPO (the staged files named like secrets, asked before a commit).\"\"\"",
+  "    if len(argv) != 3 or argv[1] not in (\"write\", \"secrets\"):",
+  "        print(\"usage: commit_message.py write|secrets REPO\", file=sys.stderr)",
   "        return 2",
-  "    req = request(argv[1])",
+  "    if argv[1] == \"secrets\":",
+  "        print(json.dumps({\"secret_looking\": [path for path in staged(argv[2]) if secret_looking(path)]}))",
+  "        return 0",
+  "    req = request(argv[2])",
   "    found = write(req)",
-  "    linked = linked_issue(argv[1])",
+  "    linked = linked_issue(argv[2])",
   "    print(json.dumps({\"message\": found.message and with_fixes(found.message, linked and linked[0]),",
   "                      \"backend\": found.backend, \"problems\": [asdict(problem) for problem in found.proble" +
     "ms],",
@@ -565,7 +573,9 @@ export const GIT = [
   "        return \"\", NO_DIFF",
   "    tracked = run(root, \"ls-files\", \"-z\", \"--\", path).stdout",
   "    against = [\"HEAD\", \"--\", path] if tracked else [\"--no-index\", \"--\", os.devnull, path]",
-  "    out = run(root, *off, \"diff\", \"--no-ext-diff\", \"--no-textconv\", \"--no-color\", *against)",
+  "    out = run(root, *off, \"diff\", \"--no-ext-diff\", \"--no-textconv\", \"--no-color\", \"--ignore-submodu" +
+    "les=dirty\",",
+  "              *against)",
   "    return out.stdout, (last_line(out) or \"No diff\") if out.returncode > 1 else None    # --no-index: 1, t" +
     "hey differ",
   "",

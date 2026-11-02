@@ -67,6 +67,16 @@ export function background(source, args) {
   };
 }
 
+/** The question before a commit of PATHS, staged files named like secrets (core/commit_message.py), or null.
+ * @param {string[]} paths */
+export function secretQuestion(paths) {
+  const names = paths.map((path) => path.split("/").pop());
+  if (!names.length) return null;
+  const shown = names.slice(0, 3).join(", ") + (names.length > 3 ? ` and ${names.length - 3} more` : "");
+  return names.length === 1 ? `${shown} looks like a secret. Commit it anyway?`
+    : `${shown} look like secrets. Commit them anyway?`;
+}
+
 /** The commit message writer's answer (core/commit_message.py): the message to fill in, a line to show beside it.
  * @param {{ message: string | null, note: string | null, secret_looking: string[], files?: string[] }} answer */
 export function written(answer) {

@@ -5,7 +5,7 @@ import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list } from "gpui-base";
 import { spaces, panes, focused, exec, watchFolder, nextCommand, theme, settings } from "herdr";
 import { COMMIT_MESSAGE, GIT } from "./helper.js";
-import { PYTHON, background, changedFiles, diffRows, syncLabel, written } from "./logic.js";
+import { PYTHON, background, changedFiles, diffRows, secretQuestion, syncLabel, written } from "./logic.js";
 
 const REFRESH = 10000;             // ms between two looks when no folder change says so (another machine's space)
 const POLL = 1500;                 // ms between two looks at the message being written
@@ -63,7 +63,7 @@ export default class HerdrFold extends View {
     if (this.loading || this.busy) return;
     const here = place(), key = JSON.stringify(here);
     if (key !== this.key) {
-      Object.assign(this, { key, root: null, files: [], rows: [], status: null, open: null, note: null });
+      Object.assign(this, { key, root: null, files: [], rows: [], status: null, open: null, note: null, asked: null });
     }
     if (!here.cwd) return;
     this.loading = true;
@@ -145,14 +145,22 @@ export default class HerdrFold extends View {
     cx.notify();
   }
 
+  /** Every change committed; files named like secrets are asked about first, as the TUI sidebar does: Commit again. */
   commit(cx) {
-    const message = this.message.trim();
+    const message = this.message.trim(), asked = this.asked;
     if (!message) return;
+    this.asked = null;
     this.act(cx, "Committing…", async () => {
-      for (const args of [["add", "-A"], ["commit", "-m", message]]) {
-        const out = await run(["git", ...args], this.root, this.on);
-        if (out.code !== 0) throw new Error(lastLine(out));
+      const { root, on } = this;
+      const added = await run(["git", "add", "-A"], root, on);
+      if (added.code !== 0) throw new Error(lastLine(added));
+      const question = secretQuestion((await python(COMMIT_MESSAGE, ["secrets", root], root, on)).secret_looking);
+      if (question && question !== asked) {
+        this.asked = question;
+        return question;
       }
+      const out = await run(["git", "commit", "-m", message], root, on);
+      if (out.code !== 0) throw new Error(lastLine(out));
       this.input.set_value("");
       this.message = "";
       return null;
@@ -165,7 +173,7 @@ export default class HerdrFold extends View {
       const { root, on, key } = this;
       const added = await run(["git", "add", "-A"], root, on);
       if (added.code !== 0) throw new Error(lastLine(added));
-      const job = background(COMMIT_MESSAGE, [root]), started = await run(job.start, root, on);
+      const job = background(COMMIT_MESSAGE, ["write", root]), started = await run(job.start, root, on);
       if (started.code !== 0) throw new Error(lastLine(started));
       const folder = started.stdout.trim();
       try {
@@ -259,7 +267,8 @@ export default class HerdrFold extends View {
         .border_color(t.border).cursor_text()
         .child(Input.new(this.input).h_full().text_size(12).text_color(t.foreground)))
       .child(button(t, "write", "✦", this.ready, false, (cx) => this.write(cx)))
-      .child(button(t, "commit", this.busy ?? "Commit", commit, true, (cx) => this.commit(cx)));
+      .child(button(t, "commit", this.busy ?? (this.asked ? "Commit anyway" : "Commit"), commit, true,
+        (cx) => this.commit(cx)));
   }
 }
 

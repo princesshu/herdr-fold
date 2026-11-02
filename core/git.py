@@ -154,7 +154,8 @@ def diff(root, path):
         return "", NO_DIFF
     tracked = run(root, "ls-files", "-z", "--", path).stdout
     against = ["HEAD", "--", path] if tracked else ["--no-index", "--", os.devnull, path]
-    out = run(root, *off, "diff", "--no-ext-diff", "--no-textconv", "--no-color", *against)
+    out = run(root, *off, "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--ignore-submodules=dirty",
+              *against)
     return out.stdout, (last_line(out) or "No diff") if out.returncode > 1 else None    # --no-index: 1, they differ
 
 

@@ -285,8 +285,8 @@ class Context(unittest.TestCase):
 
 
 class CommandLine(unittest.TestCase):
-    """The writer for herdr-fold's Herdr app mod: `python3 commit_message.py REPO` answers in JSON, on the machine the
-    repository is on."""
+    """The writer for herdr-fold's Herdr app mod: `python3 commit_message.py write|secrets REPO` answers in JSON, on
+    the machine the repository is on."""
 
     def setUp(self):
         self.tmp = os.path.realpath(tempfile.mkdtemp())
@@ -303,12 +303,13 @@ class CommandLine(unittest.TestCase):
                 f.write(name + "\n")
         subprocess.run(git + ["add", "-A"], check=True, env={"GIT_CONFIG_GLOBAL": os.devnull, "PATH": "/usr/bin:/bin"})
 
-    def answer(self, path, *answers):
+    def answer(self, path, *answers, command="write"):
         with open(self.answers, "w") as f:
             f.write("\n".join(answers) + "\n")
-        out = subprocess.run([sys.executable, "-B", cm.__file__, self.repo], capture_output=True, text=True, env={
-            "HOME": self.home, "PATH": f"{path}:/usr/bin:/bin", "GIT_CONFIG_GLOBAL": os.devnull,
-            "LOG": os.path.join(self.tmp, "log"), "ANSWERS": self.answers}, timeout=60)
+        env = {"HOME": self.home, "PATH": f"{path}:/usr/bin:/bin", "GIT_CONFIG_GLOBAL": os.devnull,
+               "LOG": os.path.join(self.tmp, "log"), "ANSWERS": self.answers}
+        out = subprocess.run([sys.executable, "-B", cm.__file__, command, self.repo], capture_output=True, text=True,
+                             env=env, timeout=60)
         self.assertEqual(out.returncode, 0, out.stderr)
         return json.loads(out.stdout)
 
@@ -317,6 +318,11 @@ class CommandLine(unittest.TestCase):
         self.assertEqual((result["message"], result["backend"], result["problems"]), (GOOD, "claude", []))
         self.assertEqual(sorted(result["files"]), [".env", "a.txt", "b.txt"])
         self.assertEqual(result["secret_looking"], [".env"])
+
+    def test_the_staged_files_named_like_secrets_without_an_ai(self):
+        """Asked before a commit, as the TUI sidebar asks: no AI runs for it."""
+        self.assertEqual(self.answer(self.bin, command="secrets"), {"secret_looking": [".env"]})
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "log")))
 
     def test_the_issue_linked_in_the_sidebar_closes_with_it(self):
         state = os.path.join(self.home, ".local", "state", "herdr", "plugins", "herdr-fold.sidebar")
