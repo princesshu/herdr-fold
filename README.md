@@ -28,8 +28,9 @@ sidebar's Changes view with the message Claude wrote and the issue it closes, ab
 
 - A Conversations column between them: every workspace's Claude and Codex conversations, running and closed, one
   click away; it collapses to a rail.
-- AI Sessions in herdr's sidebar, with each conversation's state. Cmd + D / Cmd + E step through the sessions, Cmd
-  with the arrows through the workspaces and the panes, even while you type.
+- AI Sessions in herdr's sidebar, with each conversation's state, and in the Spaces list how long an agent has waited
+  on you. Cmd + D / Cmd + E step through the sessions, Cmd with the arrows through the workspaces and the panes, even
+  while you type.
 - Commit and push in one step, with a message Claude or Codex writes and you approve.
 - Twelve color themes for Ghostty, herdr and the prompt, Ghostty's app icon too: herdr-fold's logo, the sheep, in the
   theme's colors. A status line with the model, effort, context with its window size and limits, the same for Claude

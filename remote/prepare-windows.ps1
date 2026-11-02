@@ -92,8 +92,14 @@ function Remove-PluginFolders([string[]]$ids) {
     $herdrHas = @($answer.result.plugins | ForEach-Object { $_.plugin_id })
     foreach ($id in $ids) {
         if ($herdrHas -contains $id) { continue }
-        foreach ($folder in (Join-Path $env:USERPROFILE ".config\herdr\plugins\config\$id"),
-                 (Join-Path $env:USERPROFILE ".local\state\herdr\plugins\$id")) {
+        $pluginState = Join-Path $env:USERPROFILE ".local\state\herdr\plugins\$id"
+        if ($id -eq 'herdr-fold.sessions-view' -and (Test-Path $pluginState)) {   # its waits and locks; names stay
+            Get-ChildItem -Force $pluginState | Where-Object {
+                $_.Name -in 'waits.json', 'clock.lock', 'names.json.lock', 'waits.json.lock' -or
+                $_.Name -like '.names.json.*.tmp' -or $_.Name -like '.waits.json.*.tmp'
+            } | Remove-Item -Force -ErrorAction SilentlyContinue
+        }
+        foreach ($folder in (Join-Path $env:USERPROFILE ".config\herdr\plugins\config\$id"), $pluginState) {
             if ((Test-Path $folder) -and -not (Get-ChildItem -Force $folder)) { Remove-Item -Force $folder }
         }
     }

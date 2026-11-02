@@ -19,6 +19,8 @@ All notable changes to this project are listed here. The format follows
 - The sidebar's Files view: a folder's right click offers New Workspace, which opens herdr-fold's folder picker on it,
   as herdr's new button does.
 - A workspace whose folder is deleted says deleted beside its branch, in the theme's red.
+- A workspace where an agent waits on you, blocked or done and not seen yet, says how long beside its branch
+  (`waiting 12m`), in the theme's yellow; it counts on while you work elsewhere.
 - Buttons where a key was the only way: Cancel and Open in the folder picker, Cancel and Close when a tab with a
   conversation is closed.
 - The folder picker takes the mouse: a click chooses a folder, a double click opens it, the wheel moves, and a click

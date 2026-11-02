@@ -4,7 +4,8 @@ version = "0.1.0"
 min_herdr_version = "0.9.5"
 description = """\
   herdr's Agents panel as AI sessions: the current workspace's Claude and Codex conversations with their state, \
-  each under the conversation's name or your pane name, the same name on its own tab. Created by princesshu"""
+  each under the conversation's name or your pane name, the same name on its own tab; and for each workspace, how \
+  long an agent there has waited on you. Created by princesshu"""
 platforms = ["macos", "linux", "windows"]
 
 # After every server start: marks + view (neither survives a restart on its own).
@@ -18,7 +19,7 @@ on = "pane.agent_detected"
 command = ["/usr/bin/python3", "sessions.py"]
 platforms = ["macos", "linux"]
 
-# Once an agent starts working, it definitely has a conversation.
+# Once an agent starts working, it definitely has a conversation; blocked or done, it waits on you (since now).
 # (Title changes — pane.updated — are not available as a plugin event.)
 [[events]]
 on = "pane.agent_status_changed"

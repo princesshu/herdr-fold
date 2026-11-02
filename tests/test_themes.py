@@ -140,14 +140,18 @@ class PackageSettings(unittest.TestCase):
         self.assertRegex(self.herdr, r"\[ui\.sidebar\.agents\]\nrow_gap = 1\nrows = \[\n" + name + state + r"\]\n")
         self.assertNotIn("$nav", self.herdr)
 
-    def test_a_space_whose_folder_is_gone_says_deleted_beside_its_branch_in_the_themes_red(self):
-        # herdr's own Space rows, and the tab layout's $folder token after the branch (it reports "deleted")
+    def test_a_space_says_how_long_an_agent_waits_and_whether_its_folder_is_gone_beside_its_branch(self):
+        # herdr's own Space rows; after the branch AI Sessions' $waiting in the theme's yellow, then the tab layout's
+        # $folder in its red (it reports "deleted")
         for theme in apply.load_themes():
+            h = theme["colors"]["herdr"]
             body = "\n".join(apply.herdr_block(theme))
             rows = body.split("[ui.sidebar.spaces]\n", 1)[-1].split("\n]", 1)[0]
             self.assertEqual(rows.split("\n"), ["rows = [", '  ["state_icon", "workspace"],',
-                                                 f'  ["branch", "git_status", {{ token = "$folder", fg = '
-                                                 f'"{theme["colors"]["herdr"]["red"]}" }}],'], theme["id"])
+                                                 f'  ["branch", "git_status", {{ token = "$waiting", fg = '
+                                                 f'"{h["yellow"]}" }}, {{ token = "$folder", fg = "{h["red"]}" }}],'],
+                             theme["id"])
+            self.assertGreaterEqual(apply.contrast(h["yellow"], h["sidebar_bg"]), 4.5, theme["id"])
 
     def test_a_sessions_agent_shows_on_the_active_row_and_stays_fainter_than_its_name(self):
         # the active row is mixed from the accent: herdr's own faint gray all but vanished on it

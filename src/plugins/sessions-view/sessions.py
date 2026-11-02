@@ -1,6 +1,6 @@
 """AI Sessions in herdr's sidebar: the Agents panel ("sessions") shows only this workspace's agents that have a
-conversation. herdr drops the has_session mark on a server restart, so it is recomputed at startup and on each event,
-written only on change (no feedback loop). No event reports title changes: names follow on agent and focus events."""
+conversation, and each Space row how long an agent there waits on you. Marks are recomputed at startup and on each
+event, written only on change (no feedback loop). No event reports title changes: names follow on agent and focus."""
 import collections
 import contextlib
 import errno
@@ -23,6 +23,9 @@ GENERIC_TITLES = {"", "claude code", "claude", "codex", "openai codex"}
 # A shell's path, e.g. C:\Windows\...\powershell.exe or /bin/zsh: a Windows console shows it as its title
 SHELL_TITLE = re.compile(r"(?i)[\\/][^\\/]*(\.exe|sh)$")
 TAB_NAME = 24          # characters of a conversation's name on its tab: herdr's tab row fits several
+WAITING = ("blocked", "done")   # waiting on you: a question, or an answer not seen yet (seen, done turns idle)
+WAIT_TOKEN = "waiting"          # the theme's Space rows show it beside the branch ($waiting)
+TICK = 20              # seconds between two looks while an agent waits: a label is late by this much at most
 
 
 def generic(title):
@@ -214,7 +217,7 @@ def set_aside_damaged():
     """A names.json that cannot be read goes aside as names.json.damaged-<date> — never deleted, the names in it stay
     there — and herdr says so; naming goes on in a new file. Under the lock: one of the runs at the same time
     does it."""
-    with names_lock():
+    with locked(names_path() + ".lock"):
         if load_names() is not None:                     # another run set it aside already
             return
         aside = names_path() + time.strftime(".damaged-%Y%m%d-%H%M%S")
@@ -237,20 +240,26 @@ def load_names():
 
 
 @contextlib.contextmanager
-def names_lock():
-    """One writer at a time: herdr runs the plugin once per event, often several at once (focus changes)."""
-    path = names_path() + ".lock"
+def locked(path, wait=True):
+    """The lock file PATH held for the block; yields whether this run holds it: WAIT for it, or give up at once while
+    another run has it. herdr runs the plugin once per event, often several at once (focus changes)."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a+b") as f:
-        if os.name == "nt":
-            import msvcrt
-            f.seek(0)
-            msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
-        else:
-            import fcntl
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
         try:
-            yield
+            if os.name == "nt":
+                import msvcrt
+                f.seek(0)
+                msvcrt.locking(f.fileno(), msvcrt.LK_LOCK if wait else msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX | (0 if wait else fcntl.LOCK_NB))
+        except OSError:
+            if wait:
+                raise
+            yield False
+            return
+        try:
+            yield True
         finally:
             if os.name == "nt":
                 f.seek(0)
@@ -259,12 +268,20 @@ def names_lock():
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
+def write_json(path, value):
+    """VALUE in PATH, written whole to a file beside it first: a reader sees the old file or the new."""
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=f".{os.path.basename(path)}.", suffix=".tmp")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(value, f, ensure_ascii=False)
+    os.replace(tmp, path)
+
+
 def save_names(changes):
     """Applies CHANGES (session key → entry, or None to drop it) to what is on disk NOW, under the lock, and writes the
     file whole at once: a run that saved meanwhile keeps its names."""
     if not changes:
         return
-    with names_lock():
+    with locked(names_path() + ".lock"):
         names = load_names()
         if names is None:
             return
@@ -274,18 +291,93 @@ def save_names(changes):
                 names.pop(key, None)
             else:
                 names[key] = entry
-        if json.dumps(names, sort_keys=True) == before:
-            return
-        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(names_path()), prefix=".names.")
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(names, f, ensure_ascii=False)
-        os.replace(tmp, names_path())
+        if json.dumps(names, sort_keys=True) != before:
+            write_json(names_path(), names)
+
+
+def state_path(name):
+    state_dir = os.environ.get("HERDR_PLUGIN_STATE_DIR") or os.path.expanduser(
+        "~/.local/state/herdr/plugins/herdr-fold.sessions-view")
+    return os.path.join(state_dir, name)
 
 
 def names_path():
-    state_dir = os.environ.get("HERDR_PLUGIN_STATE_DIR") or os.path.expanduser(
-        "~/.local/state/herdr/plugins/herdr-fold.sessions-view")
-    return os.path.join(state_dir, "names.json")
+    return state_path("names.json")
+
+
+def waited(seconds):
+    """A wait as its Space row says it: under a minute, then whole minutes, hours, days."""
+    minutes = int(seconds // 60)
+    if minutes < 1:
+        return "waiting <1m"
+    for unit, size in (("d", 1440), ("h", 60), ("m", 1)):
+        if minutes >= size:
+            return f"waiting {minutes // size}{unit}"
+
+
+def load_waits():
+    """waits.json: each waiting agent's pane → its state change and since when; {} when missing or damaged (a wait
+    recorded there then only starts again)."""
+    try:
+        with open(state_path("waits.json"), encoding="utf-8") as f:
+            waits = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return waits if isinstance(waits, dict) else {}
+
+
+def report_waits(agents, now):
+    """Each agent waiting on you, since its last state change (herdr's state_change_seq), kept in waits.json; each
+    workspace's $waiting token set to its longest wait, or cleared, where it changed. Whether any agent waits."""
+    with locked(state_path("waits.json.lock")):
+        known, waits = load_waits(), {}
+        for agent in agents:
+            if agent.get("agent_status") in WAITING:
+                seq, was = agent.get("state_change_seq"), known.get(agent["pane_id"])
+                same = isinstance(was, dict) and was.get("seq") == seq and isinstance(was.get("since"), (int, float))
+                waits[agent["pane_id"]] = {"seq": seq, "since": was["since"] if same else now}
+        if waits != known:
+            write_json(state_path("waits.json"), waits)
+    first = {}
+    for agent in agents:
+        if agent["pane_id"] in waits:
+            space = agent["workspace_id"]
+            first[space] = min(first.get(space, now), waits[agent["pane_id"]]["since"])
+    for space in call("workspace.list", {}).get("result", {}).get("workspaces", []):
+        ws = space["workspace_id"]
+        want = waited(now - first[ws]) if ws in first else None
+        if (space.get("tokens") or {}).get(WAIT_TOKEN) != want:
+            call("workspace.report_metadata", {"workspace_id": ws, "source": SOURCE, "tokens": {WAIT_TOKEN: want}})
+    return bool(waits)
+
+
+def code_stamp():
+    """This file as it is now: another one after an update, None once it is removed."""
+    try:
+        found = os.stat(os.path.abspath(__file__))
+    except OSError:
+        return None
+    return found.st_ino, found.st_mtime_ns, found.st_size
+
+
+def keep_time(clock=time.time, sleep=time.sleep):
+    """While an agent waits, the labels stay current: one run looks again every TICK seconds, until none waits, herdr
+    stops answering or this file changes (an update, an uninstall: the next event starts the new one)."""
+    while load_waits():
+        with locked(state_path("clock.lock"), wait=False) as mine:
+            if not mine:
+                return
+            code = code_stamp()
+            while True:
+                sleep(TICK)
+                if code_stamp() != code:
+                    return
+                try:
+                    if not report_waits(call("agent.list", {}).get("result", {}).get("agents", []), clock()):
+                        break
+                except (OSError, ValueError):
+                    return
+        # let go: a wait recorded meanwhile, whose own run was turned away, is kept by this one
 
 
 def mark_panes():
@@ -313,17 +405,27 @@ def apply_view():
     })
 
 
+def refresh():
+    """The marks, the names and the waits, once."""
+    agents = mark_panes()
+    sync_names(agents)
+    report_waits(agents, time.time())
+
+
 if __name__ == "__main__":
     event = os.environ.get("HERDR_PLUGIN_EVENT", "")
-    sync_names(mark_panes())
+    refresh()
+    applied = True
     # At startup and on manual runs the view is set too; on events only the marks are refreshed.
     if event in ("", "startup") or os.environ.get("HERDR_PLUGIN_ACTION_ID"):
         result = apply_view()
-        print(json.dumps(result, ensure_ascii=False))
+        print(json.dumps(result, ensure_ascii=False), flush=True)
         if event == "startup":
             # Agents of resumed conversations take a few seconds to come up and get their titles.
             # There is no plugin event for title changes, so after startup the plugin keeps re-marking for a minute.
             for _ in range(20):
                 time.sleep(3)
-                sync_names(mark_panes())
-        sys.exit(0 if result.get("result", {}).get("active") else 1)
+                refresh()
+        applied = bool(result.get("result", {}).get("active"))
+    keep_time()
+    sys.exit(0 if applied else 1)

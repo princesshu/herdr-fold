@@ -269,6 +269,129 @@ class SyncNames(unittest.TestCase):
         self.assertEqual(len(self.tab_renames[0][1]), sessions.TAB_NAME)
 
 
+class Waits(unittest.TestCase):
+    """How long an agent waits on you (blocked, or done and not seen yet), as its workspace's $waiting token: the
+    theme's Space rows show it beside the branch."""
+
+    def setUp(self):
+        self.state = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.state)
+        set_env(self, HERDR_PLUGIN_STATE_DIR=self.state)
+        self.tokens, self.reports, self.agents = {"w1": {}, "w2": {}}, [], []
+
+        def call(method, params):
+            if method == "agent.list":
+                return {"result": {"agents": self.agents}}
+            if method == "workspace.list":
+                return {"result": {"workspaces": [{"workspace_id": ws, "tokens": dict(tokens)}
+                                                  for ws, tokens in self.tokens.items()]}}
+            if method == "workspace.report_metadata":
+                self.reports.append((params["workspace_id"], params["tokens"]["waiting"]))
+                self.assertEqual(params["source"], sessions.SOURCE)
+                for name, value in params["tokens"].items():
+                    if value is None:
+                        self.tokens[params["workspace_id"]].pop(name, None)
+                    else:
+                        self.tokens[params["workspace_id"]][name] = value
+            return {"result": {}}
+        set_attrs(self, sessions, call=call)
+
+    def agent(self, pane, status, seq=1):
+        return {"pane_id": pane, "workspace_id": pane.split(":")[0], "agent_status": status, "state_change_seq": seq}
+
+    def test_a_wait_reads_in_minutes_then_hours_then_days(self):
+        self.assertEqual(sessions.waited(59), "waiting <1m")
+        self.assertEqual(sessions.waited(12 * 60 + 59), "waiting 12m")
+        self.assertEqual(sessions.waited(2 * 3600 + 59 * 60), "waiting 2h")
+        self.assertEqual(sessions.waited(3 * 86400 + 5), "waiting 3d")
+
+    def test_a_blocked_agent_waits_from_its_state_change_on(self):
+        self.agents = [self.agent("w1:p1", "blocked", seq=4)]
+        self.assertTrue(sessions.report_waits(self.agents, 1000.0))
+        self.assertTrue(sessions.report_waits(self.agents, 1000.0 + 12 * 60))
+        self.assertEqual(self.reports, [("w1", "waiting <1m"), ("w1", "waiting 12m")])
+
+    def test_a_done_agent_not_seen_yet_waits_too(self):
+        sessions.report_waits([self.agent("w1:p1", "done")], 1000.0)
+        self.assertEqual(self.reports, [("w1", "waiting <1m")])
+
+    def test_working_and_idle_agents_do_not_wait(self):
+        self.assertFalse(sessions.report_waits([self.agent("w1:p1", "working"), self.agent("w1:p2", "idle")], 1000.0))
+        self.assertEqual(self.reports, [])
+
+    def test_a_new_state_change_starts_the_wait_again(self):
+        # answered and finished between two runs: the done agent waits from now, not from the question
+        sessions.report_waits([self.agent("w1:p1", "blocked", seq=4)], 1000.0)
+        sessions.report_waits([self.agent("w1:p1", "done", seq=6)], 1000.0 + 30 * 60)
+        self.assertEqual(self.reports, [("w1", "waiting <1m")])
+
+    def test_a_workspace_shows_its_longest_wait(self):
+        sessions.report_waits([self.agent("w1:p1", "blocked")], 1000.0)
+        sessions.report_waits([self.agent("w1:p1", "blocked"), self.agent("w1:p2", "done"),
+                               self.agent("w2:p3", "done")], 1000.0 + 5 * 60)
+        self.assertEqual(self.reports, [("w1", "waiting <1m"), ("w1", "waiting 5m"), ("w2", "waiting <1m")])
+
+    def test_the_label_goes_once_no_agent_waits_there(self):
+        sessions.report_waits([self.agent("w1:p1", "blocked")], 1000.0)
+        self.assertFalse(sessions.report_waits([self.agent("w1:p1", "working", seq=2)], 1060.0))
+        self.assertEqual(self.reports, [("w1", "waiting <1m"), ("w1", None)])
+        self.assertEqual(self.tokens, {"w1": {}, "w2": {}})
+
+    def test_a_label_already_shown_is_not_reported_again(self):
+        self.tokens["w1"] = {"waiting": "waiting <1m"}
+        sessions.report_waits([self.agent("w1:p1", "blocked")], 1000.0)
+        self.assertEqual(self.reports, [])
+
+    def test_a_label_left_from_before_a_restart_goes(self):
+        # herdr drops tokens on a restart; a wait recorded then, whose pane no longer waits, is forgotten
+        with open(os.path.join(self.state, "waits.json"), "w") as f:
+            json.dump({"w1:p9": {"seq": 2, "since": 10.0}}, f)
+        self.tokens["w2"] = {"waiting": "waiting 3h"}
+        self.assertFalse(sessions.report_waits([], 1000.0))
+        self.assertEqual(self.reports, [("w2", None)])
+        with open(os.path.join(self.state, "waits.json")) as f:
+            self.assertEqual(json.load(f), {})
+
+    def test_the_clock_runs_while_an_agent_waits_and_ends_when_none_does(self):
+        now, slept = [1000.0], []
+
+        def sleep(seconds):
+            slept.append(seconds)
+            now[0] += seconds
+            if len(slept) == 3:                      # answered after the third tick
+                self.agents = [self.agent("w1:p1", "working", seq=2)]
+        self.agents = [self.agent("w1:p1", "blocked")]
+        sessions.report_waits(self.agents, now[0])
+        finished(self, lambda: sessions.keep_time(clock=lambda: now[0], sleep=sleep))
+        self.assertEqual(len(slept), 3)
+        self.assertEqual(self.reports[0], ("w1", "waiting <1m"))
+        self.assertEqual(self.reports[-1], ("w1", None))
+
+    def test_one_run_keeps_the_clock_at_a_time(self):
+        self.agents = [self.agent("w1:p1", "blocked")]
+        sessions.report_waits(self.agents, 1000.0)
+        with sessions.locked(os.path.join(self.state, "clock.lock")) as mine:
+            self.assertTrue(mine)
+            finished(self, lambda: sessions.keep_time(clock=lambda: 2000.0, sleep=self.fail))
+
+    def test_the_clock_ends_when_herdr_stops_answering(self):
+        self.agents = [self.agent("w1:p1", "blocked")]
+        sessions.report_waits(self.agents, 1000.0)
+
+        def gone(method, params):
+            raise ConnectionRefusedError
+        sessions.call = gone
+        finished(self, lambda: sessions.keep_time(clock=lambda: 2000.0, sleep=lambda seconds: None))
+
+    def test_the_clock_ends_when_the_plugin_is_updated_or_removed(self):
+        self.agents = [self.agent("w1:p1", "blocked")]
+        sessions.report_waits(self.agents, 1000.0)
+        stamps = iter(["old", "new"])
+        set_attrs(self, sessions, code_stamp=lambda: next(stamps))
+        finished(self, lambda: sessions.keep_time(clock=lambda: 2000.0, sleep=lambda seconds: None))
+        self.assertEqual(self.reports, [("w1", "waiting <1m")])
+
+
 class WindowsPipe(unittest.TestCase):
     def test_the_pipe_is_named_after_the_socket_path(self):
         # as herdr's own plugin examples do: \\.\pipe\ + HERDR_SOCKET_PATH

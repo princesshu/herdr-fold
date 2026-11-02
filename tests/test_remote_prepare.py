@@ -183,14 +183,19 @@ class Prepared(Prepare):
         self.prepare()
         self.plugins_listed("herdr-fold.sessions-view", "herdr-fold.tab-layout")
         config = os.path.join(self.profile, ".config", "herdr", "plugins", "config")
+        state = os.path.join(self.profile, ".local", "state", "herdr", "plugins")
         folders = [os.path.join(config, "herdr-fold.sessions-view"), os.path.join(config, "herdr-fold.tab-layout"),
-                   os.path.join(self.profile, ".local", "state", "herdr", "plugins", "herdr-fold.tab-layout")]
+                   os.path.join(state, "herdr-fold.tab-layout"), os.path.join(state, "herdr-fold.sessions-view")]
         for folder in folders:
             os.makedirs(folder)
         if self.kind == "unix":                     # the workspaces it follows: never made on Windows
             for name, text in (("spaces.json", '{"w1": {"label": "app"}}\n'), ("focus.json", '{"now": "w1"}\n')):
                 with open(os.path.join(folders[2], name), "w") as f:
                     f.write(text)
+        # AI Sessions' waits and locks (no conversation names: they would stay)
+        for name in ("waits.json", "waits.json.lock", "clock.lock", "names.json.lock"):
+            with open(os.path.join(folders[3], name), "w") as f:
+                f.write("{}\n" if name.endswith(".json") else "")
         out = self.remove()
         self.assertEqual([folder for folder in folders if os.path.exists(folder)], [], out)
 

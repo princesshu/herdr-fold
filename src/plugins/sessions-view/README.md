@@ -15,16 +15,22 @@ workspace's one conversation, its name and its state](../../../docs/media/hero.w
   it, so a tab you renamed yourself keeps your name until you rename the conversation.
 - The list updates when an agent appears or changes state, and when a pane or tab gets the focus. Its action
   **AI Sessions: reapply** sets it again by hand.
+- A workspace where an agent waits on you, blocked or done and not seen yet, gets its `waiting` token: `waiting 12m`,
+  the longest wait there. herdr-fold's theme shows it in the Spaces list beside the branch (`$waiting`); in your own
+  settings, put `"$waiting"` in a row of `[ui.sidebar.spaces]`. While an agent waits, one run of the plugin stays to
+  count the minutes, looking again every 20 seconds, and ends once none waits.
 
 ## What it reads and writes
 
 - herdr, through its socket (`~/.config/herdr/herdr.sock`, or `HERDR_SOCKET_PATH`): it reads the agents, panes and
-  tabs, and gives the panes and the conversations' own tabs their names.
+  tabs, gives the panes and the conversations' own tabs their names, and the workspaces their `waiting` token.
 - Claude's transcripts (`~/.claude/projects/*/<session>.jsonl`) and Codex's sessions (`~/.codex/sessions/`,
   `~/.codex/session_index.jsonl`): read only, to see whether a session has a conversation and what its title is.
 - `names.json` in its herdr state folder (`~/.local/state/herdr/plugins/herdr-fold.sessions-view/`, or
   `HERDR_PLUGIN_STATE_DIR`): the names, and whether you or the conversation gave them; herdr-fold's Conversations column
   writes a name given there too. A damaged file is set aside as `names.json.damaged-<date>`, never deleted.
+- `waits.json` in the same folder: each waiting agent's pane and since when it waits. Beside them, the lock files
+  that keep its runs from writing at once (`names.json.lock`, `waits.json.lock`, `clock.lock`).
 
 It sends nothing anywhere.
 

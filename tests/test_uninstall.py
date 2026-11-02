@@ -213,14 +213,19 @@ class Uninstall(unittest.TestCase):
 
     def plugin_folders(self, ids):
         """What herdr keeps of plugins IDS after unlinking them: their config folders; the tab layout's state folder,
-        with the workspaces it follows (a write cut short too); and AI Sessions' conversation names. Returns the
-        folders that ought to go."""
+        with the workspaces it follows (a write cut short too); and AI Sessions' conversation names, beside its waits
+        and locks. Returns the folders that ought to go."""
         for plugin_id in ids:
             os.makedirs(self.path(".config/herdr/plugins/config/" + plugin_id), exist_ok=True)
         self.write(".local/state/herdr/plugins/herdr-fold.tab-layout/spaces.json", '{"w1": {"label": "app"}}\n')
         self.write(".local/state/herdr/plugins/herdr-fold.tab-layout/.spaces.json.x1.tmp", "{")
         self.write(".local/state/herdr/plugins/herdr-fold.tab-layout/focus.json", '{"now": "w1"}\n')
-        self.write(".local/state/herdr/plugins/herdr-fold.sessions-view/names.json", '{"s1": "my work"}\n')
+        sessions = ".local/state/herdr/plugins/herdr-fold.sessions-view/"
+        self.write(sessions + "names.json", '{"s1": "my work"}\n')
+        self.write(sessions + "waits.json", '{"w1:p1": {"seq": 1, "since": 1.0}}\n')
+        self.write(sessions + ".waits.json.x1.tmp", "{")
+        for lock in ("names.json.lock", "waits.json.lock", "clock.lock"):
+            self.write(sessions + lock, "")
         return [self.path(".config/herdr/plugins/config/" + plugin_id) for plugin_id in ids] + [
             self.path(".local/state/herdr/plugins/herdr-fold.tab-layout")]
 
@@ -233,6 +238,7 @@ class Uninstall(unittest.TestCase):
             folders.extend(self.plugin_folders(ids))
         _, out = self.install_and_uninstall(between)
         self.assertEqual([folder for folder in folders if os.path.exists(folder)], [], out)
+        self.assertEqual(os.listdir(self.path(".local/state/herdr/plugins/herdr-fold.sessions-view")), ["names.json"])
         self.assertEqual(self.read(".local/state/herdr/plugins/herdr-fold.sessions-view/names.json"),
                          '{"s1": "my work"}\n')
 
