@@ -276,15 +276,24 @@ class Running(Harness):
         with mock.patch.dict(commit_message.TIMEOUTS, {"claude": 1.5, "codex": 1.5}):
             self.term.type(Key("char", "3"))
             self.until(lambda s: "a.txt" in s and "new.txt" in s)          # the status read, not only the title
-            self.term.type(Key("char", "A"))
-            self.until(lambda s: "Nothing is staged" in s)                  # an empty diff is not described
-            subprocess.run(["git", "-C", self.root, "add", "a.txt"], check=True)
-            self.until(lambda s: "Staged changes" in s, timeout=15)        # a new status, paced by git's own time
-            self.term.type(Key("char", "A"))
+            self.term.type(Key("char", "A"))                                 # nothing staged: it all goes in
             self.until(lambda s: "Writing the message" in s)
             self.term.type(Key("char", "1"))
             self.until(lambda s: "project" in s, timeout=1.0)                # the view answers meanwhile
             self.until(lambda s: "claude failed" in s, timeout=15)          # however busy the machine
+
+    def test_a_commit_with_nothing_staged_takes_every_change(self):
+        self.term.type(Key("char", "3"))
+        self.until(lambda s: "a.txt" in s and "new.txt" in s)
+        self.term.type(*keys("feat: all of it"), Key("enter", alt=True))
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline and "feat: all of it" not in subprocess.run(
+                ["git", "-C", self.root, "log", "-1", "--format=%s"], capture_output=True, text=True).stdout:
+            time.sleep(0.1)
+        shown = subprocess.run(["git", "-C", self.root, "show", "--name-only", "--format=%s", "HEAD"],
+                               capture_output=True, text=True).stdout.split()
+        self.assertEqual(shown[:4], ["feat:", "all", "of", "it"])
+        self.assertEqual(sorted(shown[4:]), ["a.txt", "new.txt"])
 
     def test_the_hidden_files_setting_is_kept(self):
         self.until(lambda s: "a.txt" in s)

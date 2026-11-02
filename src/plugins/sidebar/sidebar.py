@@ -668,13 +668,20 @@ class App(Loop):
         self.git_job("git", work, reload=True)
 
     def do_suggest(self):
+        """The message written for what a commit takes: the staged changes, or every change, staged first."""
         if "suggest" in self.running:
             return
-        if not (self.status or EMPTY).staged:
-            self.error = "Nothing is staged"
+        status = self.status or EMPTY
+        if not (status.staged or status.changes):
+            self.error = "Nothing to commit"
             return
-        self.suggesting = self.views["git"].field.text
-        self.job("suggest", lambda: commit_message.write(commit_message.request(self.repo)), self.got_suggestion)
+        self.suggesting, repo = self.views["git"].field.text, self.repo
+
+        def work():
+            git.stage_all(repo)
+            return commit_message.write(commit_message.request(repo))
+
+        self.job("suggest", work, self.got_suggestion)
 
     def got_suggestion(self, suggestion):
         """The written message goes into the field only if nothing happened meanwhile: no commit, no typing."""
@@ -685,6 +692,7 @@ class App(Loop):
                 self.views["git"].set_message(commit_message.with_fixes(suggestion.message, linked and linked[0]))
         else:
             self.error = "No message: " + commit_message.explain(suggestion.problems)
+        self.refresh()                                  # what was staged for it
 
     def do_commit(self, message, mode):
         if "commit" in self.running or "sync" in self.running:

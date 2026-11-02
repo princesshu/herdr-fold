@@ -38,6 +38,13 @@ async function python(source, args, root, on) {
   return JSON.parse(out.stdout);
 }
 
+/** With nothing staged, every change staged, as a commit takes them (core/git.py's stage_all).
+ * @param {string} root @param {string | null} on */
+async function stage(root, on) {
+  const staged = await python(GIT, ["stage", root], root, on);
+  if (!staged.ok) throw new Error(staged.advice);
+}
+
 export default class HerdrFold extends View {
   init(_props, cx) {
     if ((this.launcher = props()?.overlay)) {     // Cmd+Shift+G (mod.open): the right panel at herdr-fold, then gone
@@ -151,34 +158,33 @@ export default class HerdrFold extends View {
     cx.notify();
   }
 
-  /** Every change committed; files named like secrets are asked about first, as the TUI sidebar does: Commit again. */
+  /** The staged changes committed, or every change with none staged (core/git.py); files named like secrets are asked
+   * about first, as the TUI sidebar does: Commit again. */
   commit(cx) {
     const message = this.message.trim(), asked = this.asked;
     if (!message) return;
     this.asked = null;
     this.act(cx, "Committing…", async () => {
       const { root, on } = this;
-      const added = await run(["git", "add", "-A"], root, on);
-      if (added.code !== 0) throw new Error(lastLine(added));
+      await stage(root, on);
       const question = secretQuestion((await python(COMMIT_MESSAGE, ["secrets", root], root, on)).secret_looking);
       if (question && question !== asked) {
         this.asked = question;
         return question;
       }
-      const out = await run(["git", "commit", "-m", message], root, on);
-      if (out.code !== 0) throw new Error(lastLine(out));
+      const done = await python(GIT, ["commit", root, message], root, on);
+      if (!done.ok) throw new Error(done.advice);
       this.input.set_value("");
       this.message = "";
       return null;
     });
   }
 
-  /** Every change staged, then the message core/commit_message.py has Claude or Codex write, in the background. */
+  /** The message core/commit_message.py has Claude or Codex write for what a commit takes, in the background. */
   write(cx) {
     this.act(cx, "Writing the message…", async (cx) => {
       const { root, on, key } = this;
-      const added = await run(["git", "add", "-A"], root, on);
-      if (added.code !== 0) throw new Error(lastLine(added));
+      await stage(root, on);
       const job = background(COMMIT_MESSAGE, ["write", root]), started = await run(job.start, root, on);
       if (started.code !== 0) throw new Error(lastLine(started));
       const folder = started.stdout.trim();

@@ -105,7 +105,9 @@ issue](media/issue-to-agent.webp)
 
 Cmd + Shift + C commits and pushes the repo of the focused pane, in one step:
 
-- If nothing is staged, it offers all changes; if only some are staged, it offers the rest too. Files that look like
+- If nothing is staged, it offers all changes; if only some are staged, it offers the rest too: never a file
+  .gitignore names, even one tracked before (the sidebar's Commit and ✦ take every change unasked when nothing is
+  staged). Files that look like
   secrets (`.env`, keys, certificates) are named first, staged ones too, and committed only when you go on; the AI
   gets their names, never their contents.
 - Claude (Haiku) writes the message, or a small Codex model if Claude is missing or fails (`HERDR_COMMIT_AI=claude` or

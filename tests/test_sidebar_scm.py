@@ -25,7 +25,7 @@ def key(name, **mods):
 
 def changes():
     return Status(branch="main", upstream="origin/main", ahead=1, staged=[Change("src/new.py", "A")],
-                  changes=[Change("src/app.py", "M"), Change("old.txt", "D"), Change("notes.local", "M", ignored=True),
+                  changes=[Change("src/app.py", "M"), Change("old.txt", "D"), Change("notes.local", "M"),
                            Change("draft.md", "?")])
 
 
@@ -202,7 +202,6 @@ class View(unittest.TestCase):
         x, y = self.at("old.txt")
         self.assertTrue(canvas.rows[y][x][1].strike)
         self.assertEqual(text(canvas, y)[42], "D")
-        self.assertIn("tracked, but ignored", text(canvas, self.row_of("notes.local")))
         self.assertEqual(text(canvas, self.row_of("draft.md"))[42], "U")
         self.assertEqual(canvas.rows[self.row_of("draft.md")][42][1].fg, "added")
 
@@ -256,6 +255,14 @@ class View(unittest.TestCase):
         self.assertIsNone(self.press("enter"))                    # Cancel is the default
         self.assertIsNone(self.view.handle(key("enter", alt=True)))
         self.assertEqual(self.press("y"), Action("commit", ("feat: deploy", "commit")))
+
+    def test_with_nothing_staged_a_change_named_like_a_secret_is_asked_about_too(self):
+        self.status = Status(branch="main", changes=[Change("deploy/.env", "?"), Change("a.txt", "M")])
+        self.draw()
+        self.view.set_message("feat: deploy")
+        self.assertIsNone(self.view.commit())
+        self.draw()
+        self.assertIn(".env looks like a secret", self.shown())
 
     def test_a_busy_line_does_not_stop_a_commit(self):
         self.view.busy("Writing the message…")

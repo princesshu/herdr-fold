@@ -234,9 +234,8 @@ class Scm:
             kinds = ("diff", "unstage") if item.staged else ("diff", "discard", "stage")
             end = self.icons_at(canvas, y, end, index, kinds, bg) - 1
         x = canvas.put(y, x, truncate(name, end - x), Style(fg="text", bg=bg, strike=change.code == "D"))
-        detail = "tracked, but ignored" if change.ignored else folder
-        if detail and end - x - 1 > 1:
-            canvas.put(y, x + 1, truncate(detail, end - x - 1), Style(fg="muted", bg=bg))
+        if folder and end - x - 1 > 1:
+            canvas.put(y, x + 1, truncate(folder, end - x - 1), Style(fg="muted", bg=bg))
 
     def commit_row(self, canvas, y, commit, bg):
         cells = canvas.width
@@ -404,7 +403,8 @@ class Scm:
             self.notice = "The message is empty"
             return None
         action = Action("commit", (message, self.mode))
-        names = [os.path.basename(change.path) for change in self.status.staged if secret_looking(change.path)]
+        taken = self.status.staged or self.status.changes            # with nothing staged, a commit takes every change
+        names = [os.path.basename(change.path) for change in taken if secret_looking(change.path)]
         if not names:
             return action
         shown = ", ".join(names[:3]) + (f" and {len(names) - 3} more" if len(names) > 3 else "")

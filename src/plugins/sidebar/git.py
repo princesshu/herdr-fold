@@ -20,7 +20,6 @@ GIT = shutil.which("git") or next(
 class Change:
     path: str
     code: str                 # M, A, D, R, U (conflict), ? (untracked)
-    ignored: bool = False     # tracked, but matched by .gitignore
 
 
 @dataclass
@@ -142,9 +141,9 @@ def status(root):
             st.changes.append(Change(entry[2:], "?"))
         elif entry.startswith("! "):
             st.ignored.add(entry[2:])
+    # a file .gitignore names is no change, even one committed before it named it
     tracked_ignored = set(run(root, "ls-files", "-ci", "--exclude-standard", "-z").stdout.split("\0")) - {""}
-    if tracked_ignored:
-        st.changes = [Change(c.path, c.code, c.path in tracked_ignored) for c in st.changes]
+    st.changes = [c for c in st.changes if c.path not in tracked_ignored]
     return st
 
 
@@ -178,7 +177,22 @@ def discard(root, path):
     return None if out.returncode == 0 else last_line(out)
 
 
+def stage_all(root, rest=False):
+    """Every change status lists staged (never an ignored file, nor a repository of its own inside, "inner/"), as
+    GitHub Desktop commits: with nothing staged yet, or REST: beside what is. (whether it worked, else the error)"""
+    st = status(root)
+    if st.error:
+        return False, st.error
+    paths = [c.path for c in st.changes if not c.path.endswith("/")] if rest or not st.staged else []
+    out = run(root, "add", "-A", "--", *paths) if paths else None
+    return (True, "") if out is None or out.returncode == 0 else (False, last_line(out))
+
+
 def commit(root, message):
+    """The staged changes committed, or every change with none staged (stage_all)."""
+    ok, line = stage_all(root)
+    if not ok:
+        return False, line
     out = run(root, "commit", "-F", "-", stdin=message)
     return out.returncode == 0, last_line(out)
 
@@ -245,12 +259,14 @@ def graph(root, n=20):
 
 
 def main(argv):
-    """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: status ROOT (the branch,
-    how far from its upstream, the changes), diff ROOT PATH (its text, else why there is none), sync ROOT or push ROOT
-    (whether it worked, else what to do)."""
+    """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: status ROOT, diff ROOT PATH
+    (its text, else why there is none), stage ROOT (stage_all), commit ROOT MESSAGE, sync ROOT or push ROOT (whether
+    each worked, else what to do)."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
-    if command not in ("status", "diff", "sync", "push") or len(args) != (2 if command == "diff" else 1):
-        print("usage: git.py status|sync|push ROOT, or git.py diff ROOT PATH", file=sys.stderr)
+    if command not in ("status", "diff", "stage", "commit", "sync", "push") or \
+            len(args) != (2 if command in ("diff", "commit") else 1):
+        print("usage: git.py status|stage|sync|push ROOT, git.py diff ROOT PATH, git.py commit ROOT MESSAGE",
+              file=sys.stderr)
         return 2
     if command == "status":
         st = status(args[0])
@@ -259,7 +275,7 @@ def main(argv):
         text, error = diff(*args)
         answer = {"text": text, "error": error}
     else:
-        ok, line = (sync if command == "sync" else push)(args[0])
+        ok, line = {"stage": stage_all, "commit": commit, "sync": sync, "push": push}[command](*args)
         answer = {"ok": ok, "advice": None if ok else advice(line)}
     print(json.dumps(answer))
     return 0

@@ -17,11 +17,12 @@ Claude wrote and the issue it fixes, Issues by priority](../../../docs/media/sid
   searched as git sees it: its ignored files (node_modules, build output) are neither hits nor read.
 - **Changes** (git): in a folder that is no repository itself, the repository of the folder or file chosen in Files,
   as Search searches there, its name before the branch in the status bar; the staged and unstaged changes, staging,
-  unstaging and discarding them; a commit message
-  written by Claude or Codex from the staged changes (a file whose name looks like a secret's, such as `.env` or a key,
-  by its name only); Commit, Commit & Push or Commit & Sync, after a question when such a file is staged; the last 20
-  commits in the Graph, kept at the view's bottom while the changes scroll above it; each file's letter under its
-  section's count.
+  unstaging and discarding them, none of them needed: with nothing staged, the message and the commit take every
+  change, as GitHub Desktop does (never a file .gitignore names, even one tracked before, nor a repository inside); a
+  commit message written by Claude or Codex from what the commit takes (a file whose name looks like a secret's, such
+  as `.env` or a key, by its name only); Commit, Commit & Push or Commit & Sync, after a question when such a file goes
+  in; the last 20 commits in the Graph, kept at the view's bottom while the changes scroll above it; each file's
+  letter under its section's count.
 - **Issues** (for a repository on GitHub), laid out and keyed as GitHub's own issue list: the search field with the
   filters button (assigned to me, created by me, a label, the priority), Open and Closed. While shown, the list is asked
   for every minute; while it holds any, behind another view too, so an issue made on GitHub or in another tab shows up
@@ -82,7 +83,8 @@ Alt + Enter commits from the message there too.
 - The folder it shows, and git there: the status, the diffs, the recent commits, the search's file list, what the commit
   message is written from. A repository's own fsmonitor, signature check, external diff and text conversion programs
   never run, nor does any filter for the status the sidebar asks for on its own, and no submodule is asked for one. Its
-  filters (git-lfs, git-crypt) run when you stage a change or show its diff, and its hooks when you commit or sync, as
+  filters (git-lfs, git-crypt) run when you stage a change (a commit or message with nothing staged stages them all)
+  or show its diff, and its hooks when you commit or sync, as
   with git in a terminal: open only folders whose `.git` you trust (a folder from a zip or a share may bring its own).
 - `rg` for the search when installed, else `git grep`, else its own search (over git's file list of each repository
   in the folder); `bat` and `delta` for the previews.

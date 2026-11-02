@@ -11,6 +11,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.append(os.path.join(HERE, "plugins", "sidebar"))     # last: its module names never shadow this folder's
 import commit_message  # noqa: E402
+from git import stage_all, status  # noqa: E402
 from i18n import line, t  # noqa: E402
 from tui import find, getkey, printable, read_line, wait_and_exit  # noqa: E402
 
@@ -117,8 +118,9 @@ def warn_secrets(lines):
 
 
 def status_lines(repo):
-    """`git status --porcelain`, every file on its own line: a new folder's files too (a .env inside it is named)."""
-    return git(repo, "status", "--porcelain", "--untracked-files=all").stdout.splitlines()
+    """The changes not staged as `git status --porcelain` names them ("XY path"), every file on its own line: a new
+    folder's files too (a .env inside it is named), never an ignored one, even tracked (the sidebar's git layer)."""
+    return [f"{'??' if c.code == '?' else ' ' + c.code} {c.path}" for c in status(repo).changes]
 
 
 def file_row(line):
@@ -188,10 +190,10 @@ def main():
         print("\n" + t("commit.all_ask"))
         if getkey() not in ("\r", "\n"):
             sys.exit(0)
-        git(repo, "add", "-A")
+        stage_all(repo)
         staged = git(repo, "diff", "--cached", "--name-status").stdout.splitlines()
     else:
-        rest = [l for l in status_lines(repo) if l[1:2] not in (" ", "")]
+        rest = status_lines(repo)
         if rest:
             show_files(t("commit.staged"), staged)
             show_files(t("commit.not_staged"), rest, full=True)
@@ -199,7 +201,7 @@ def main():
             print("\n" + t("commit.include_ask"))
             key = getkey()
             if key in ("\r", "\n"):
-                git(repo, "add", "-A")
+                stage_all(repo, rest=True)
                 staged = git(repo, "diff", "--cached", "--name-status").stdout.splitlines()
             elif key != "s":
                 sys.exit(0)

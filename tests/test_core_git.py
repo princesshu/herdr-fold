@@ -193,8 +193,7 @@ class CommandLine(Repo):
         self.run_git("add", "b.txt")
         self.assertEqual(self.cli("status", self.root), {
             "branch": "main", "upstream": None, "ahead": 0, "behind": 0, "error": None, "ignored": [],
-            "staged": [{"path": "b.txt", "code": "A", "ignored": False}],
-            "changes": [{"path": "a.txt", "code": "M", "ignored": False}]})
+            "staged": [{"path": "b.txt", "code": "A"}], "changes": [{"path": "a.txt", "code": "M"}]})
 
     def test_a_files_diff_a_new_ones_as_all_added(self):
         self.write("a.txt")
@@ -205,6 +204,14 @@ class CommandLine(Repo):
         self.assertEqual((changed["error"], new["error"]), (None, None))
         self.assertIn("+changed", changed["text"])
         self.assertIn("+fresh", new["text"])
+
+    def test_a_commit_and_what_to_do_when_it_fails(self):
+        self.write("a.txt")
+        self.commit_all()
+        self.write("a.txt", "changed\n")
+        self.assertEqual(self.cli("commit", self.root, "fix: change a"), {"ok": True, "advice": None})
+        self.assertEqual(self.run_git("log", "-1", "--format=%s").strip(), "fix: change a")
+        self.assertFalse(self.cli("commit", self.root, "fix: nothing")["ok"])
 
     def test_a_sync_and_what_to_do_when_it_fails(self):
         self.write("a.txt")
@@ -235,14 +242,13 @@ class Status(Repo):
         self.assertIn("build/", st.ignored)
         self.assertEqual((st.branch, st.error), ("main", None))
 
-    def test_a_tracked_file_that_is_ignored_is_marked(self):
+    def test_an_ignored_file_is_no_change_even_tracked(self):
+        """A file .gitignore names is no change, even one committed before it named it: an edit of it shows nowhere."""
         self.write("secret.cfg")
         self.commit_all()
         self.write(".gitignore", "secret.cfg\n")
         self.write("secret.cfg", "changed\n")
-        st = git.status(self.root)
-        self.assertTrue(next(c for c in st.changes if c.path == "secret.cfg").ignored)
-        self.assertFalse(next(c for c in st.changes if c.path == ".gitignore").ignored)
+        self.assertEqual([c.path for c in git.status(self.root).changes], [".gitignore"])
 
     def test_no_commit_yet_and_a_detached_head(self):
         self.write("a.txt")
@@ -296,6 +302,31 @@ class Actions(Repo):
         git.stage(self.root, ["b.txt"])
         self.assertTrue(git.commit(self.root, "feat: add b\n\n- Add b.txt")[0])
         self.assertEqual(git.graph(self.root)[0].subject, "feat: add b")
+
+    def test_a_commit_with_nothing_staged_takes_every_change(self):
+        """As GitHub Desktop commits: the changed, deleted and new files, never an ignored one."""
+        for name in ("a.txt", "gone.txt", ".gitignore"):
+            self.write(name, "x\n" if name != ".gitignore" else "notes.local\n")
+        self.commit_all()
+        self.write("a.txt", "changed\n")
+        os.remove(os.path.join(self.root, "gone.txt"))
+        self.write("new.txt", "new\n")                                    # not gone.txt's: no rename
+        self.write("notes.local", "mine\n")
+        self.run_git("init", "-q", "-b", "main", "inner")                  # a repository of its own inside: not added
+        self.write("inner/c.txt")
+        self.assertTrue(git.commit(self.root, "feat: everything")[0])
+        shown = self.run_git("show", "--name-status", "--format=", "HEAD").split()
+        self.assertEqual(sorted(zip(shown[::2], shown[1::2])), [("A", "new.txt"), ("D", "gone.txt"), ("M", "a.txt")])
+
+    def test_a_commit_takes_only_what_is_staged_when_something_is(self):
+        self.write("a.txt")
+        self.commit_all()
+        self.write("a.txt", "changed\n")
+        self.write("b.txt")
+        git.stage(self.root, ["b.txt"])
+        self.assertTrue(git.commit(self.root, "feat: b only")[0])
+        self.assertEqual(self.run_git("show", "--name-only", "--format=", "HEAD").split(), ["b.txt"])
+        self.assertEqual([c.path for c in git.status(self.root).changes], ["a.txt"])
 
     def test_a_name_is_a_name_not_a_pattern(self):
         for name in ("pages/[id].tsx", "pages/i.tsx", "pages/d.tsx"):
