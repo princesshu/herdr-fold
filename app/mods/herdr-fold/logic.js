@@ -43,10 +43,13 @@ export function syncLabel(status) {
   return status?.upstream ? `↻ ${status.behind}↓ ${status.ahead}↑` : "↻";
 }
 
+// core/'s code runs in the repository's folder, isolated: a module there (a json.py) is never imported for Python's
+export const PYTHON = ["python3", "-I", "-c"];
+
 // a job's own folder, made by mktemp: poll answers 3 while the job runs, then 0 and its output or 4 and its error;
 // clear removes that folder and nothing else
 const START = 'd=$(mktemp -d "${TMPDIR:-/tmp}/herdr-fold.XXXXXX") || exit 1; src=$1; shift; '
-  + '(python3 -c "$src" "$@" >"$d/out" 2>"$d/err"; echo $? >"$d/done") </dev/null >/dev/null 2>&1 & echo "$d"';
+  + `(${PYTHON.join(" ")} "$src" "$@" >"$d/out" 2>"$d/err"; echo $? >"$d/done") </dev/null >/dev/null 2>&1 & echo "$d"`;
 const POLL = 'test -f "$1/done" || exit 3; read code <"$1/done"; '
   + 'if [ "$code" = 0 ]; then cat "$1/out"; else tail -n 3 "$1/err" >&2; exit 4; fi';
 const CLEAR = 'case "$1" in */herdr-fold.*) rm -rf -- "$1" ;; esac';

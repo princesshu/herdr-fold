@@ -3,10 +3,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { background, changedFiles, diffRows, syncLabel, written } from "../mods/herdr-fold/logic.js";
+import { PYTHON, background, changedFiles, diffRows, syncLabel, written } from "../mods/herdr-fold/logic.js";
 
 test("a diff's lines numbered once, old and new apart", () => {
   const rows = diffRows(["@@ -3,2 +3,3 @@", " same", "-old", "+new", "+more"]);
@@ -26,9 +26,9 @@ test("the sync button says how far the branch is from its upstream, as the TUI s
   assert.equal(syncLabel(null), "↻");
 });
 
-/** @param {string[]} argv */
-function run(argv) {
-  const out = spawnSync(argv[0], argv.slice(1), { encoding: "utf8" });
+/** @param {string[]} argv @param {string} [cwd] */
+function run(argv, cwd) {
+  const out = spawnSync(argv[0], argv.slice(1), { encoding: "utf8", cwd });
   return { code: out.status, stdout: out.stdout, stderr: out.stderr };
 }
 
@@ -65,6 +65,18 @@ test("a failed job answers 4 with its error's last lines; clear removes only a j
   run(job.clear(other));
   assert.equal(existsSync(other), true);
   rmSync(other, { recursive: true });
+});
+
+test("the helpers run in the repository's folder but never import a module it holds (a json.py) for Python's", () => {
+  const repo = mkdtempSync(join(tmpdir(), "repo-")), mark = join(repo, "ran");
+  writeFileSync(join(repo, "json.py"), `open(${JSON.stringify(mark)}, "w")\n`);
+  const source = "import json; print(json.dumps(1))";
+  assert.equal(run([...PYTHON, source], repo).stdout, "1\n");
+  const job = background(source, []), folder = run(job.start, repo).stdout.trim(), done = finished(job, folder);
+  assert.deepEqual([done.code, done.stdout], [0, "1\n"]);
+  run(job.clear(folder));
+  assert.equal(existsSync(mark), false);
+  rmSync(repo, { recursive: true });
 });
 
 test("the writer's answer: a message to fill in, a warning for files named like secrets, or why there is none", () => {

@@ -119,6 +119,14 @@ class Writer(unittest.TestCase):
         self.assertEqual(suggestion.message, GOOD)
         self.assertIn(cm.Problem("claude", "foreign", "email"), suggestion.problems)
 
+    def test_the_rules_are_no_source_of_something_private(self):
+        """The message tells of the changes: an address the /commit rules hold, but the changes do not, is dropped."""
+        self.answers_are("feat: add a\n\n- Add a.txt for someone@mail.example\n- Add b.txt", GOOD)
+        self.req = cm.Request("+a\n+b\n", ["a.txt", "b.txt"], "", "Thank someone@mail.example", ".claude/x.md")
+        suggestion = self.write()
+        self.assertEqual(suggestion.message, GOOD)
+        self.assertIn(cm.Problem("claude", "foreign", "email"), suggestion.problems)
+
     def test_one_file_may_have_a_subject_only(self):
         self.answers_are("fix: correct a typo")
         self.req = cm.Request("+x\n", ["a.txt"], "", None, None)
@@ -221,6 +229,22 @@ class Context(unittest.TestCase):
         self.assertNotIn("hunter2", req.diff)
         self.assertNotIn("PRIVATE", req.diff)
         self.assertIn("deploy/.env, server.key", req.diff)                 # the AI is told why they show no change
+
+    def test_a_repositorys_rules_are_read_only_from_inside_it(self):
+        """A downloaded folder's /commit rule file may link to a file elsewhere (a key), and the rules go to the AI: a
+        link out of the repository is passed over, one inside it is read."""
+        root, home, outside = tempfile.mkdtemp(), tempfile.mkdtemp(), tempfile.mkdtemp()
+        for folder in (root, home, outside):
+            self.addCleanup(shutil.rmtree, folder)
+        set_env(self, HOME=home)
+        key, kept = os.path.join(outside, "key"), os.path.join(root, "commit-rules.md")
+        for path, text in ((key, "PRIVATE KEY"), (kept, "Keep it short")):
+            with open(path, "w") as f:
+                f.write(text)
+        for rel, target in zip(cm.RULE_FILES, (key, kept)):
+            os.makedirs(os.path.dirname(os.path.join(root, rel)))
+            os.symlink(target, os.path.join(root, rel))
+        self.assertEqual(cm.rules(root), ("Keep it short", cm.RULE_FILES[1]))
 
     def test_the_users_diff_settings_do_not_change_what_the_ai_reads(self):
         root = tempfile.mkdtemp()

@@ -1,6 +1,6 @@
 """The sidebar's git layer: nothing loses work silently (a pull is fast-forward only; no reset, clean or force push).
 Every command runs without optional locks or prompts, with a time limit, a file name never read as a pattern. The
-unasked status runs nothing a repository's config names (fsmonitor, filters, submodules); staging still runs filters."""
+unasked status and diff run nothing a repository's config names (fsmonitor, filters, submodules); staging still does."""
 import json
 import os
 import shutil
@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass, field
 
 TIMEOUT = 60
 NO_STATUS = "No status: a filter in its git config cannot be turned off"
+NO_DIFF = "No diff: a filter in its git config cannot be turned off"
 GIT = shutil.which("git") or next(
     (p for p in ("/usr/bin/git", "/opt/homebrew/bin/git", "/usr/local/bin/git") if os.path.exists(p)), "git")
 
@@ -146,6 +147,17 @@ def status(root):
     return st
 
 
+def diff(root, path):
+    """PATH's diff against the last commit, an untracked file's as all added: (its text, else why there is none)."""
+    off = no_filters(root)
+    if off is None:
+        return "", NO_DIFF
+    tracked = run(root, "ls-files", "-z", "--", path).stdout
+    against = ["HEAD", "--", path] if tracked else ["--no-index", "--", os.devnull, path]
+    out = run(root, *off, "diff", "--no-ext-diff", "--no-textconv", "--no-color", *against)
+    return out.stdout, (last_line(out) or "No diff") if out.returncode > 1 else None    # --no-index: 1, they differ
+
+
 def stage(root, paths):
     out = run(root, "add", "--", *paths)
     return None if out.returncode == 0 else last_line(out)
@@ -232,16 +244,20 @@ def graph(root, n=20):
 
 def main(argv):
     """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: status ROOT (the branch,
-    how far from its upstream, the staged and other changes), sync ROOT or push ROOT (whether it worked, else what to
-    do)."""
-    if len(argv) != 3 or argv[1] not in ("status", "sync", "push"):
-        print("usage: git.py status|sync|push ROOT", file=sys.stderr)
+    how far from its upstream, the changes), diff ROOT PATH (its text, else why there is none), sync ROOT or push ROOT
+    (whether it worked, else what to do)."""
+    command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
+    if command not in ("status", "diff", "sync", "push") or len(args) != (2 if command == "diff" else 1):
+        print("usage: git.py status|sync|push ROOT, or git.py diff ROOT PATH", file=sys.stderr)
         return 2
-    if argv[1] == "status":
-        st = status(argv[2])
+    if command == "status":
+        st = status(args[0])
         answer = dict(asdict(st), ignored=sorted(st.ignored))
+    elif command == "diff":
+        text, error = diff(*args)
+        answer = {"text": text, "error": error}
     else:
-        ok, line = (sync if argv[1] == "sync" else push)(argv[2])
+        ok, line = (sync if command == "sync" else push)(args[0])
         answer = {"ok": ok, "advice": None if ok else advice(line)}
     print(json.dumps(answer))
     return 0

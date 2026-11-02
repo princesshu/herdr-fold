@@ -11,6 +11,12 @@ All notable changes to this project are listed here. The format follows
 - Cmd + Shift + U marks the focused agent unread: its workspace says `waiting` again, from then, until you come back
   to it after leaving it; again on a marked one takes the mark off. See [Sessions](docs/usage.md#sessions).
 
+### Security
+
+- The commit message writer (the sidebar's Changes view and Cmd + Shift + C) reads a repository's `/commit` rules only
+  from inside it: a downloaded folder's rule file linking to a file elsewhere, a key, is passed over, as its text would
+  go to the AI. A written message is checked against the changes alone, never against the rules.
+
 ## [0.2.0] - 2026-11-02
 
 The whole environment `herdr-fold 0.2.0` and its plugins `herdr-fold.sidebar 0.2.0`, `herdr-fold.sessions-view 0.2.0`

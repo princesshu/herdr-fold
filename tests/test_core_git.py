@@ -91,6 +91,20 @@ class ForeignConfig(Repo):
         self.assertIsNone(st.error)
         self.assertEqual([os.path.basename(m) for m in marks if os.path.exists(m)], [])
 
+    def test_a_files_diff_runs_none_of_the_repositorys_filters(self):
+        """The Herdr app mod shows a changed file's diff unasked: as the status, it runs no filter a downloaded
+        folder's .git/config names."""
+        self.write(".gitattributes", "*.txt filter=evil\n")
+        self.write("a.txt")
+        self.commit_all()
+        self.write("a.txt", "changed\n")
+        programs = self.folder()
+        marks = [trap(self.root, key, programs) for key in ("filter.evil.clean", "filter.evil.process")]
+        self.run_git("config", "filter.evil.required", "true")
+        text, error = git.diff(self.root, "a.txt")
+        self.assertEqual((error, "+changed" in text), (None, True))
+        self.assertEqual([os.path.basename(m) for m in marks if os.path.exists(m)], [])
+
     def test_a_filter_whose_name_hides_from_the_command_line_stops_the_status(self):
         """git splits -c at the first =: a driver named with one could not be turned off there, so no status is asked
         for at all."""
@@ -166,6 +180,16 @@ class CommandLine(Repo):
             "branch": "main", "upstream": None, "ahead": 0, "behind": 0, "error": None, "ignored": [],
             "staged": [{"path": "b.txt", "code": "A", "ignored": False}],
             "changes": [{"path": "a.txt", "code": "M", "ignored": False}]})
+
+    def test_a_files_diff_a_new_ones_as_all_added(self):
+        self.write("a.txt")
+        self.commit_all()
+        self.write("a.txt", "changed\n")
+        self.write("new.txt", "fresh\n")
+        changed, new = self.cli("diff", self.root, "a.txt"), self.cli("diff", self.root, "new.txt")
+        self.assertEqual((changed["error"], new["error"]), (None, None))
+        self.assertIn("+changed", changed["text"])
+        self.assertIn("+fresh", new["text"])
 
     def test_a_sync_and_what_to_do_when_it_fails(self):
         self.write("a.txt")

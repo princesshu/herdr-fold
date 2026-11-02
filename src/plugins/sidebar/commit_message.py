@@ -14,7 +14,7 @@ import subprocess
 import sys
 import tempfile
 import unicodedata
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 
 MAX_DIFF = 60_000
 # file names that look like a secret's: named before such a file is committed, its contents never shown to an AI
@@ -121,18 +121,20 @@ def git(root, *args):
 
 
 def rules(root):
-    """(rules text, where they come from) of the /commit skill, or (None, None)."""
-    home = os.path.expanduser("~")
+    """(rules text, where they come from) of the /commit skill, or (None, None). The repository's own file is read only
+    from inside it: a downloaded folder's may link to a key elsewhere, and the rules go to the AI."""
+    home, inside = os.path.expanduser("~"), os.path.join(os.path.realpath(root), "")
+    own = [os.path.join(root, f) for f in RULE_FILES]
     shared = [os.path.join(home, ".claude", "skills", "commit", "SKILL.md"),
               os.path.join(home, ".claude", "commands", "commit.md")]
-    candidates = [os.path.join(root, f) for f in RULE_FILES] + shared
-    for path in candidates:
-        if os.path.isfile(path):
-            with open(path, encoding="utf-8") as f:
-                text = f.read()
-            if text.startswith("---"):
-                text = text.split("---", 2)[-1]
-            return text.strip(), os.path.relpath(path, root) if path.startswith(root) else path.replace(home, "~")
+    for path in own + shared:
+        if not os.path.isfile(path) or (path in own and not os.path.realpath(path).startswith(inside)):
+            continue
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        if text.startswith("---"):
+            text = text.split("---", 2)[-1]
+        return text.strip(), os.path.relpath(path, root) if path in own else path.replace(home, "~")
     return None, None
 
 
@@ -266,7 +268,7 @@ def write(req, order=None, which=find):
         if message is None:
             problems.append(Problem(backend, "failed" if reason else "empty", reason or ""))
             continue
-        held = foreign(message, text)
+        held = foreign(message, context(replace(req, rules=None)))     # the changes: not what the rules name
         if held:
             problems.append(Problem(backend, "foreign", ",".join(held)))
             continue

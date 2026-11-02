@@ -5,15 +5,12 @@ import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list } from "gpui-base";
 import { spaces, panes, focused, exec, watchFolder, nextCommand, theme, settings } from "herdr";
 import { COMMIT_MESSAGE, GIT } from "./helper.js";
-import { background, changedFiles, diffRows, syncLabel, written } from "./logic.js";
+import { PYTHON, background, changedFiles, diffRows, syncLabel, written } from "./logic.js";
 
 const REFRESH = 10000;             // ms between two looks when no folder change says so (another machine's space)
 const POLL = 1500;                 // ms between two looks at the message being written
 const WRITING = 6 * 60 * 1000;     // ms the message may take: both AIs, each asked twice
 const LINES = 1500;                // a diff's lines shown at most
-// a read changes nothing in .git and runs nothing the repository's config names, as core/git.py's status
-const DIFF = ["--no-optional-locks", "-c", "core.fsmonitor=false", "diff", "--no-ext-diff", "--no-textconv",
-  "--no-color"];
 
 /** The focused pane's folder, and the machine its space is on (null: this one). */
 function place() {
@@ -25,13 +22,16 @@ function place() {
 /** @param {{ code: number, stdout: string, stderr: string }} out */
 const lastLine = (out) => (out.stderr || out.stdout).trim().split("\n").pop() || `exit ${out.code}`;
 
+/** @param {unknown} e */
+const said = (e) => String(e instanceof Error ? e.message : e);
+
 /** ARGV run in ROOT on machine ON. @param {string[]} argv @param {string} root @param {string | null} on */
 const run = (argv, root, on) => exec(argv[0], argv.slice(1), { cwd: root, on });
 
 /** core/'s SOURCE run by python3 with ARGS where the repository is: its JSON answer.
  * @param {string} source @param {string[]} args @param {string} root @param {string | null} on */
 async function python(source, args, root, on) {
-  const out = await run(["python3", "-c", source, ...args], root, on);
+  const out = await run([...PYTHON, source, ...args], root, on);
   if (out.code !== 0) throw new Error(lastLine(out));
   return JSON.parse(out.stdout);
 }
@@ -79,7 +79,7 @@ export default class HerdrFold extends View {
         if (!this.files.some((f) => f.path === this.open)) this.open = this.files[0]?.path ?? null;
         if (this.open) await this.load(this.open, key);
       } catch (e) {
-        if (key === this.key) this.note = String(e instanceof Error ? e.message : e);
+        if (key === this.key) this.note = said(e);
       } finally {
         this.loading = false;
         cx.notify();
@@ -103,14 +103,12 @@ export default class HerdrFold extends View {
     });
   }
 
-  /** PATH's diff against the last commit (an untracked file's as all new). */
+  /** PATH's diff, from core/git.py: shown unasked, it runs nothing the repository's config names. */
   async load(path, key) {
-    const fresh = this.files.find((f) => f.path === path)?.code === "?";
-    const against = fresh ? ["--no-index", "--", "/dev/null", path] : ["HEAD", "--", path];
-    const out = await run(["git", ...DIFF, ...against], this.root, this.on);
+    const { text, error } = await python(GIT, ["diff", this.root, path], this.root, this.on);
     if (key !== this.key || path !== this.open) return;
-    const lines = out.stdout.replace(/\n$/, "").split("\n"), hunk = lines.findIndex((l) => l.startsWith("@@"));
-    this.rows = diffRows(hunk < 0 ? [out.code > 1 ? lastLine(out) : "No text diff"] : lines.slice(hunk, hunk + LINES));
+    const lines = text.replace(/\n$/, "").split("\n"), hunk = lines.findIndex((l) => l.startsWith("@@"));
+    this.rows = diffRows(hunk < 0 ? [error ?? "No text diff"] : lines.slice(hunk, hunk + LINES));
   }
 
   pick(path, cx) {
@@ -118,7 +116,9 @@ export default class HerdrFold extends View {
     this.rows = [];
     const key = this.key;
     cx.spawn(async (cx) => {
-      await this.load(path, key).catch(() => {});
+      await this.load(path, key).catch((e) => {
+        if (key === this.key) this.note = said(e);
+      });
       cx.notify();
     });
     cx.notify();
@@ -135,7 +135,7 @@ export default class HerdrFold extends View {
         const note = await work(cx);
         if (key === this.key) this.note = note;
       } catch (e) {
-        if (key === this.key) this.note = String(e instanceof Error ? e.message : e);
+        if (key === this.key) this.note = said(e);
       } finally {
         this.busy = null;
         this.refresh(cx);
