@@ -7,6 +7,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SIDEBAR = os.path.join("src", "plugins", "sidebar")
+ALSO = {"repos.py": ["src"]}  # a module the scripts of src/ use too (the folder picker), beside the sidebar's copy
 WIDTH = 110                   # a string literal's cells on a line of helper.js
 # the Herdr app mod's helper.js: the name it imports each module's source by, and the module
 HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"COMMIT_MESSAGE": "commit_message.py",
@@ -49,6 +50,8 @@ def outputs():
     """{path from the package's root: its content}."""
     made = {os.path.join(SIDEBAR, name): f"# {note(name)}\n" + core(name)
             for name in sorted(os.listdir(os.path.join(ROOT, "core"))) if name.endswith(".py")}
+    made.update({os.path.join(folder, name): f"# {note(name)}\n" + core(name)
+                 for name, folders in ALSO.items() for folder in folders})
     for path, sources in HELPERS.items():
         lines = js_note(list(sources.values()))
         lines += [f"export const {const} = {literal(core(name))};" for const, name in sources.items()]

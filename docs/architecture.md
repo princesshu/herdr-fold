@@ -45,7 +45,8 @@ plugins of its own.
 | `src/statusline.py` | the Claude Code status line, on macOS, Linux and Windows |
 | `src/statusline_setup.py` | the status line items: one checkbox list, a group for Claude and one for Codex |
 | `src/herdr_config.py` | adds this package's keys and theme to your own herdr settings, between marks, and takes them out again |
-| `src/projects.py` | where the folder picker starts: the folder holding the most git repositories, found by itself |
+| `src/projects.py` | where the folder picker starts: the folder holding the most git repositories, a few levels down |
+| `src/repos.py` | the search for git repositories, generated from `core/repos.py` for the folder picker |
 | `src/add_machine.py` | adds a remote machine (Ctrl + B, then Shift + M) through `machines.sh new` |
 | `src/sidebar.sh`, `src/sidebar.ps1` | starts the sidebar at the top of the right column (`.ps1`: on Windows) |
 | `src/tui.py`, `src/herdrlib.py` | key handling for the small windows, the shared herdr helpers |
@@ -63,7 +64,7 @@ plugins of its own.
 
 | File | What it is |
 |---|---|
-| `core/` | the data layer the TUI sidebar and the Herdr app mod share, its one source: `git.py` (the status, a file's diff, a sync that loses nothing), `commit_message.py` (the commit message Claude or Codex writes, the staged files named like secrets); each answers the mod in JSON from the command line; `tools/build.py` copies it into the sidebar's folder and into the mod, each installing on its own |
+| `core/` | the data layer the TUI sidebar and the Herdr app mod share, its one source: `git.py` (the status, a file's diff, a sync that loses nothing), `commit_message.py` (the commit message Claude or Codex writes, the staged files named like secrets), `repos.py` (the git repositories under a folder, at any depth or a few levels down); each answers the mod in JSON from the command line; `tools/build.py` copies it into the sidebar's folder and into the mod, each installing on its own |
 
 ### The Herdr app
 
@@ -93,7 +94,7 @@ plugins of its own.
 | `docs/` | the guides, and their screenshots, the animation and the logo (`docs/media/`) |
 | `tests/` | the tests: `/usr/bin/python3 -m unittest discover -s tests` |
 | `tools/sync.sh` | copies this Mac's settings back into the package (not over a file edited there and not committed), then checks the files for private data |
-| `tools/build.py` | copies `core/` into the TUI sidebar (`src/plugins/sidebar/`) and into the app mod (`app/mods/herdr-fold/helper.js`); a test fails while a copy differs |
+| `tools/build.py` | copies `core/` into the TUI sidebar (`src/plugins/sidebar/`), `repos.py` into `src/` for the folder picker too, and the mod's modules into the app mod (`app/mods/herdr-fold/helper.js`); a test fails while a copy differs |
 | `tools/preview_colors.py` | writes `src/themes/preview-colors.js` from the theme setter, the sidebar's icons, the loading sheep and the logo, which it first draws anew on a Mac with Swift (`src/themes/logo.svg`) |
 | `tools/logo.swift` | draws herdr-fold's logo, its app icon, as SVG: the sheep with Liquid Glass in the shape of the Mac's own app icons |
 | `tools/check_updates.py` | for the maintainer: whether what herdr-fold builds on moved on ([Keeping up](../CONTRIBUTING.md#keeping-up)) |
