@@ -16,8 +16,8 @@ All notable changes to this project are listed here. The format follows
   Where the Herdr app is on the Mac, `install.sh` asks once and sets it all up, the remote machines in the app too;
   `uninstall.sh` takes it off. See [The Herdr app](docs/app.md).
 - The sidebar in a workspace whose folder is no repository itself (your home folder, a folder of projects): Changes
-  lists every repository below it, however deep, the one used last open with its changes, commit and sync; Enter or a
-  click opens another, and Files marks the changes of all of them. See [The sidebar](docs/sidebar.md#how-it-starts).
+  shows the repository of the folder or file chosen in Files, however deep, with its changes, commit and sync; Files'
+  marks and the Issues view follow it. See [The sidebar](docs/sidebar.md#how-it-starts).
 
 ### Security
 

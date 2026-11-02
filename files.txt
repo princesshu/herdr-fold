@@ -19,7 +19,6 @@ src/add_machine.py     | .config/herdr-fold/add_machine.py
 src/new_workspace.py   | .config/herdr-fold/new_workspace.py
 src/open_file.py       | .config/herdr-fold/open_file.py
 src/projects.py        | .config/herdr-fold/projects.py
-src/repos.py           | .config/herdr-fold/repos.py
 src/statusline_setup.py | .config/herdr-fold/statusline_setup.py
 src/statusline.py      | .config/herdr-fold/statusline.py
 src/claude_trust.py    | .config/herdr-fold/claude_trust.py

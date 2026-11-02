@@ -604,18 +604,14 @@ class NotYetARepository(Harness):
         self.until(lambda s: "Staged changes" in s, timeout=15)               # a new status, paced by git's own time
 
 
-class NestedRepositories(Harness):
-    """A workspace that is no repository itself, a repository near and one deep below it: both show in Changes, the
-    one used last open; another one chosen takes the message, the commit and the marks."""
+class ChosenInFiles(Harness):
+    """A workspace that is no repository itself, a repository near and one deep below it: Changes shows the repository
+    of the folder chosen in Files (as Search searches there), its message, commit and marks with it."""
 
     def setUp(self):
         Repo.setUp(self)
         shutil.rmtree(os.path.join(self.root, ".git"))
         self.app_repo, self.lib = (self.repository(rel) for rel in ("work/app", "deep/a/b/c/lib"))
-        long_ago = time.time() - 10000
-        for path in (os.path.join(self.lib, ".git", "index"), os.path.join(self.lib, ".git", "HEAD"),
-                     os.path.join(self.lib, ".git", "logs", "HEAD"), os.path.join(self.lib, "lib.txt")):
-            os.utime(path, (long_ago, long_ago))
         self.start()
 
     def repository(self, rel):
@@ -632,17 +628,28 @@ class NestedRepositories(Harness):
             f.write("two\n")
         return path
 
-    def test_every_repository_below_shows_and_the_one_used_last_is_open(self):
-        self.term.type(Key("char", "3"))
-        self.until(lambda s: "Repositories" in s and "app" in s and "lib" in s and "app.txt" in s, timeout=10)
-        self.assertNotIn("lib.txt", self.screen())
+    def choose_lib(self):
+        """In Files: from deep, the first row, to a, b, c and lib, each opened on the way."""
+        self.until(lambda s: "deep" in s)
+        self.term.type(*[key for _ in range(4) for key in (Key("right"), Key("down"))])
+        self.until(lambda s: "lib" in s)
 
-    def test_another_one_chosen_takes_the_commit(self):
+    def test_without_a_folder_chosen_it_is_no_repository(self):
         self.term.type(Key("char", "3"))
-        self.until(lambda s: "app.txt" in s, timeout=10)
-        self.term.type(Key("down"), Key("down"), Key("down"), Key("enter"))      # Repositories, app, lib
-        self.until(lambda s: "lib.txt" in s and "app.txt" not in s, timeout=10)
-        self.term.type(Key("down"), Key("down"), Key("enter"))                   # from lib's row: lib.txt staged
+        self.until(lambda s: "Not a git repository" in s)
+
+    def test_the_repository_of_the_folder_chosen_in_files_shows(self):
+        self.choose_lib()
+        self.term.type(Key("char", "3"))
+        self.until(lambda s: "lib.txt" in s and "lib" in self.row("⎇"), timeout=10)
+        self.assertNotIn("app.txt", self.screen())
+        self.assertNotIn("Repositories", self.screen())
+
+    def test_its_commit_goes_into_that_repository(self):
+        self.choose_lib()
+        self.term.type(Key("char", "3"))
+        self.until(lambda s: "lib.txt" in s, timeout=10)
+        self.term.type(Key("down"), Key("down"), Key("enter"))                   # lib.txt staged
         self.until(lambda s: "Staged changes" in s, timeout=15)
         self.term.type(Key("esc"), Key("up"), *keys("feat: in lib"), Key("enter", alt=True))
         deadline = time.monotonic() + 15
@@ -654,9 +661,10 @@ class NestedRepositories(Harness):
         self.assertEqual(subprocess.run(["git", "-C", self.app_repo, "log", "-1", "--format=%s"],
                                         capture_output=True, text=True).stdout.strip(), "init")
 
-    def test_the_files_view_marks_a_deep_repositorys_change(self):
-        self.until(lambda s: self.row("deep").rstrip().endswith("●") and self.row("work").rstrip().endswith("●"),
-                   timeout=10)
+    def test_files_marks_that_repositorys_changes(self):
+        self.choose_lib()
+        self.until(lambda s: self.row("lib.txt").rstrip().endswith("M") if "lib.txt" in s else
+                   self.row("lib").rstrip().endswith("●"), timeout=10)
 
 
 class PaneMenu(unittest.TestCase):

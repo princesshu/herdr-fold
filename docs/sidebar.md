@@ -32,11 +32,10 @@ Claude wrote and the issue it fixes, Issues by priority](media/sidebar.webp)
 It runs in a plain herdr pane named `sidebar`, started by `src/sidebar.sh` (`src/sidebar.ps1` on Windows) with the
 system Python: the workspace builder, the tab-layout plugin and `restore_panes.py` run it. In your home folder it opens
 `~/Documents` instead. In a workspace whose folder is no repository itself (your home folder, a folder of projects),
-Changes lists every repository below it, however deep, under Repositories: the one used last is open, with its
-changes, commit and sync, and the Issues view follows it; Enter or a click on another opens that one, and Files marks
-the changes of all of them. Quitting it (`q`) leaves a shell; `python3 ~/.config/herdr-fold/restore_panes.py`
-starts it there again. After an update it starts its new version by itself, where it was, and so it does on its
-folder's new place when the folder is renamed or moved.
+Changes shows the repository of the folder or file chosen in Files, however deep, its name before the branch in the
+status bar: its changes, commit and sync, Files' marks and the Issues view follow it. Quitting it (`q`) leaves a
+shell; `python3 ~/.config/herdr-fold/restore_panes.py` starts it there again. After an update it starts its new version
+by itself, where it was, and so it does on its folder's new place when the folder is renamed or moved.
 
 The column keeps one width everywhere: drag it wider or narrower in one tab, and every other tab's column, in every
 workspace, gets that width at once; a new column opens at it too. A tab's column is never narrower than its sidebar's

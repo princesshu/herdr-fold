@@ -15,9 +15,9 @@ Claude wrote and the issue it fixes, Issues by priority](../../../docs/media/sid
   narrows nothing); the field's × or Esc clears the text and it, until Search is shown again and takes the choice in
   Files anew. A search stops after 60 s and says so. In a folder that is no repository, each repository in it is
   searched as git sees it: its ignored files (node_modules, build output) are neither hits nor read.
-- **Changes** (git): in a folder that is no repository itself, its repositories under Repositories, however deep
-  (hidden, bulky and macOS-guarded folders left out; looked for again every 30 s), the one used last open, Enter or a
-  click opening another; the staged and unstaged changes, staging, unstaging and discarding them; a commit message
+- **Changes** (git): in a folder that is no repository itself, the repository of the folder or file chosen in Files,
+  as Search searches there, its name before the branch in the status bar; the staged and unstaged changes, staging,
+  unstaging and discarding them; a commit message
   written by Claude or Codex from the staged changes (a file whose name looks like a secret's, such as `.env` or a key,
   by its name only); Commit, Commit & Push or Commit & Sync, after a question when such a file is staged; the last 20
   commits.

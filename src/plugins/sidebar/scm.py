@@ -1,6 +1,6 @@
-"""The sidebar's Changes view: the commit message with ✦, the Commit button and its mode menu, the issue the commit
-fixes, the repositories below a workspace that is none itself, Staged Changes, Changes and the Graph. A staged file
-named like a secret's is committed only after a question. Every git command comes back as an Action for the app."""
+"""The sidebar's Changes view: the commit message with ✦ to have it written, the Commit button and its mode menu, the
+issue the commit fixes, Staged Changes, Changes and the Graph. A staged file whose name looks like a secret's is
+committed only after a question. The view only asks: every git command comes back as an Action for the app."""
 import os
 from dataclasses import dataclass
 
@@ -26,18 +26,6 @@ class Section:
 class Entry:
     change: Change
     staged: bool
-
-
-@dataclass(frozen=True)
-class Repo:
-    """A repository below a workspace that is none itself: the chosen one's changes show under the list."""
-    path: str
-    name: str
-    folder: str               # where it is, from the workspace's folder
-    branch: str
-    sync: str                 # ↻ 1↓ 2↑, or empty without an upstream
-    count: int                # its changes, staged or not
-    active: bool
 
 
 @dataclass(frozen=True)
@@ -77,17 +65,14 @@ class Scm:
 
     # --- what is shown
 
-    def sync(self, status, graph, repos=()):
-        """The list's rows, built again only from a new status, graph or REPOS or a section folded; the chosen one
-        stays chosen when it is still there."""
+    def sync(self, status, graph):
+        """The list's rows, built again only from a new status or graph or a section folded; the chosen one stays
+        chosen when it is still there."""
         folded = frozenset(self.folded)
-        if self.shown and self.shown[0] is status and self.shown[1] is graph and self.shown[2:] == (folded, repos):
+        if self.shown and self.shown[0] is status and self.shown[1] is graph and self.shown[2] == folded:
             return
-        self.shown = (status, graph, folded, repos)
+        self.shown = (status, graph, folded)
         items = []
-        if repos:
-            items.append(Section("repos", "Repositories", len(repos)))
-            items += [] if "repos" in self.folded else list(repos)
         if status.staged:
             items.append(Section("staged", "Staged changes", len(status.staged)))
             items += [] if "staged" in self.folded else [Entry(change, True) for change in status.staged]
@@ -113,9 +98,8 @@ class Scm:
 
     # --- drawing
 
-    def draw(self, canvas, top, height, status, graph, roomy, repos=()):
-        """The view from row TOP, HEIGHT rows, REPOS on top of it; its field and buttons tall in a ROOMY pane, chips in
-        a low one."""
+    def draw(self, canvas, top, height, status, graph, roomy):
+        """The view from row TOP, HEIGHT rows; its field and buttons tall in a ROOMY pane, chips in a low one."""
         self.canvas, self.top, self.height, self.status = canvas, top, height, status
         cells = canvas.width
         if status is None:
@@ -124,7 +108,7 @@ class Scm:
             line = "Not a git repository" if "not a git repository" in status.error.lower() else status.error
             canvas.put(top, 1, truncate(line, cells - 2), Style(fg="muted"))
             return
-        self.sync(status, graph, repos)
+        self.sync(status, graph)
         side = cells - SIDE - 1                           # the AI's and the mode's buttons, a cell in from the edge
         main = side - 2                                   # the message and the commit button: a cell of air before
         inner = main - 4                                  # the text, two cells in from the shape's ends
@@ -207,8 +191,6 @@ class Scm:
             self.section(canvas, y, index, item, bg, hovered)
         elif isinstance(item, Entry):
             self.entry(canvas, y, index, item, bg, hovered)
-        elif isinstance(item, Repo):
-            self.repo_row(canvas, y, item, bg)
         else:
             self.commit_row(canvas, y, item, bg)
 
@@ -225,20 +207,15 @@ class Scm:
         mark = glyphs(self.icons)["closed" if item.kind in self.folded else "open"]
         x = canvas.put(y, 1, mark + after(self.icons), Style(fg="muted", bg=bg))
         end = cells - 1
-        if item.count is not None:
-            end = self.count_chip(canvas, y, end, item.count)
+        if item.count is not None:                       # the count on a chip
+            count = str(item.count)
+            end -= width(count) + 2
+            canvas.chip(y, end, width(count) + 2, "badge")
+            canvas.put(y, end + 1, count, Style(fg="badge_text", bg="badge"))
         kinds = {"staged": ("unstage",), "changes": ("discard", "stage")}.get(item.kind, ())
         if hovered and kinds and item.count:
             end = self.icons_at(canvas, y, end - 1, index, kinds, bg)
         canvas.put(y, x, truncate(item.title, end - x - 1), Style(fg="text", bg=bg, bold=True))
-
-    def count_chip(self, canvas, y, end, count):
-        """COUNT on a chip ending before column END; returns the column the chip starts at."""
-        text = str(count)
-        end -= width(text) + 2
-        canvas.chip(y, end, width(text) + 2, "badge")
-        canvas.put(y, end + 1, text, Style(fg="badge_text", bg="badge"))
-        return end
 
     def entry(self, canvas, y, index, item, bg, hovered):
         change, cells = item.change, canvas.width
@@ -255,18 +232,6 @@ class Scm:
         detail = "tracked, but ignored" if change.ignored else folder
         if detail and end - x - 1 > 1:
             canvas.put(y, x + 1, truncate(detail, end - x - 1), Style(fg="muted", bg=bg))
-
-    def repo_row(self, canvas, y, repo, bg):
-        """The chosen one marked and bold, then its branch and sync, its changes on a chip; where it is, dim."""
-        end = self.count_chip(canvas, y, canvas.width - 1, repo.count) if repo.count else canvas.width - 1
-        x = canvas.put(y, 2 + len(after(self.icons)), "● " if repo.active else "○ ",
-                       Style(fg="accent" if repo.active else "muted", bg=bg))
-        parts = ((repo.name, "text", repo.active), (f"{repo.branch} {repo.sync}".strip(), "accent", False),
-                 (repo.folder, "muted", False))
-        for part, role, bold in parts:
-            room = end - 1 - x
-            if part and room > 1:
-                x = canvas.put(y, x, truncate(part, room), Style(fg=role, bg=bg, bold=bold)) + 1
 
     def commit_row(self, canvas, y, commit, bg):
         cells = canvas.width
@@ -403,7 +368,7 @@ class Scm:
             item = self.list.items[index]
             if kind == "row":
                 self.focus, self.list.index = "list", index
-                return self.activate(item) if isinstance(item, (Section, Repo)) else self.preview(item)
+                return self.preview(item) if not isinstance(item, Section) else self.activate(item)
             if kind in ("stage", "unstage"):
                 return Action(kind, (self.paths(item),))
             if kind == "discard":
@@ -452,8 +417,6 @@ class Scm:
             return None
         if isinstance(item, Entry):
             return Action("unstage" if item.staged else "stage", (self.paths(item),))
-        if isinstance(item, Repo):
-            return Action("choose_repo", (item.path,))
         return self.preview(item)
 
     def preview(self, item):

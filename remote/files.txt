@@ -19,7 +19,6 @@ src/close_tab.py                             | .config/herdr-fold/close_tab.py  
 src/herdr_layout.py                          | .config/herdr-fold/herdr_layout.py                          | unix
 src/new_workspace.py                         | .config/herdr-fold/new_workspace.py                         | unix
 src/projects.py                              | .config/herdr-fold/projects.py                              | unix
-src/repos.py                                 | .config/herdr-fold/repos.py                                 | unix
 src/tui.py                                   | .config/herdr-fold/tui.py                                   | unix
 src/sidebar.sh                               | .config/herdr-fold/sidebar.sh                               | unix
 src/sidebar.ps1                              | .config/herdr-fold/sidebar.ps1                              | windows
