@@ -23,7 +23,8 @@ All notable changes to this project are listed here. The format follows
 
 - Committing needs no staging, as in GitHub Desktop: with nothing staged, a commit and its written message take every
   change, in the sidebar and in the Herdr app mod; a file .gitignore names is never one of them, nor shows in Changes,
-  even if it was tracked before. Something staged by hand is still committed alone.
+  even if it was tracked before. The sidebar commits exactly the changes it showed (and asked about, for files named
+  like secrets): one come since waits. Something staged by hand is still committed alone.
 - The sidebar's Changes view keeps the Graph at its bottom, the changes scrolling above it on their own; ↑ and ↓
   cross from one to the other. Each file's letter stands under its section's count.
 

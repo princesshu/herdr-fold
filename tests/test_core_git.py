@@ -318,6 +318,15 @@ class Actions(Repo):
         shown = self.run_git("show", "--name-status", "--format=", "HEAD").split()
         self.assertEqual(sorted(zip(shown[::2], shown[1::2])), [("A", "new.txt"), ("D", "gone.txt"), ("M", "a.txt")])
 
+    def test_a_commit_takes_the_paths_it_was_given_not_one_come_since(self):
+        self.write("a.txt")
+        self.commit_all()
+        self.write("a.txt", "changed\n")
+        self.write(".env", "TOKEN=1\n")                                    # come after the question was asked
+        self.assertTrue(git.commit(self.root, "fix: a", ["a.txt"])[0])
+        self.assertEqual(self.run_git("show", "--name-only", "--format=", "HEAD").split(), ["a.txt"])
+        self.assertEqual([c.path for c in git.status(self.root).changes], [".env"])
+
     def test_a_commit_takes_only_what_is_staged_when_something_is(self):
         self.write("a.txt")
         self.commit_all()

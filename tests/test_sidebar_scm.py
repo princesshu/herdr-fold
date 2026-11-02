@@ -216,7 +216,7 @@ class View(unittest.TestCase):
         self.assertIn("Commit & Push", text(self.canvas, self.rows_where(5, "button")[0]))   # the button's label row
         self.view.set_message("feat: add a thing")
         self.draw()
-        self.assertEqual(self.click("Commit & Push"), Action("commit", ("feat: add a thing", "push")))
+        self.assertEqual(self.click("Commit & Push"), Action("commit", ("feat: add a thing", "push", ())))
         self.assertEqual(Scm(mode="sync").mode, "sync")
 
     def test_an_empty_message_does_not_commit(self):
@@ -235,7 +235,7 @@ class View(unittest.TestCase):
         self.press("enter")
         for ch in "- b":
             self.press(ch)
-        self.assertEqual(self.view.handle(key("enter", alt=True)), Action("commit", ("fix: a\n- b", "commit")))
+        self.assertEqual(self.view.handle(key("enter", alt=True)), Action("commit", ("fix: a\n- b", "commit", ())))
         self.press("esc")
         self.assertFalse(self.view.editing)
         self.press("right")                                       # the mode menu holds the keys
@@ -254,7 +254,7 @@ class View(unittest.TestCase):
         self.assertIn(".env looks like a secret. Commit it anyway?", self.shown())
         self.assertIsNone(self.press("enter"))                    # Cancel is the default
         self.assertIsNone(self.view.handle(key("enter", alt=True)))
-        self.assertEqual(self.press("y"), Action("commit", ("feat: deploy", "commit")))
+        self.assertEqual(self.press("y"), Action("commit", ("feat: deploy", "commit", ())))
 
     def test_with_nothing_staged_a_change_named_like_a_secret_is_asked_about_too(self):
         self.status = Status(branch="main", changes=[Change("deploy/.env", "?"), Change("a.txt", "M")])
@@ -264,12 +264,19 @@ class View(unittest.TestCase):
         self.draw()
         self.assertIn(".env looks like a secret", self.shown())
 
+    def test_with_nothing_staged_a_commit_takes_the_changes_it_showed(self):
+        """Only what the question about secrets saw: a file come since (an agent's .env) waits for the next commit."""
+        self.status = Status(branch="main", changes=[Change("a.txt", "M"), Change("b.txt", "?"), Change("inner/", "?")])
+        self.draw()
+        self.view.set_message("feat: a and b")
+        self.assertEqual(self.view.commit(), Action("commit", ("feat: a and b", "commit", ("a.txt", "b.txt"))))
+
     def test_a_busy_line_does_not_stop_a_commit(self):
         self.view.busy("Writing the message…")
         self.view.set_message("fix: mine")
         self.draw()
         self.assertEqual(self.view.handle(Mouse("press", *self.target("commit"))),
-                         Action("commit", ("fix: mine", "commit")))
+                         Action("commit", ("fix: mine", "commit", ())))
 
     def test_a_nested_repository_has_its_name(self):
         self.status = Status(branch="main", changes=[Change("inner/", "?")])

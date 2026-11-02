@@ -18,7 +18,8 @@ Claude wrote and the issue it fixes, Issues by priority](../../../docs/media/sid
 - **Changes** (git): in a folder that is no repository itself, the repository of the folder or file chosen in Files,
   as Search searches there, its name before the branch in the status bar; the staged and unstaged changes, staging,
   unstaging and discarding them, none of them needed: with nothing staged, the message and the commit take every
-  change, as GitHub Desktop does (never a file .gitignore names, even one tracked before, nor a repository inside); a
+  change shown, as GitHub Desktop does (never a file .gitignore names, even one tracked before, nor a repository
+  inside; a file come after the commit was asked for waits for the next one); a
   commit message written by Claude or Codex from what the commit takes (a file whose name looks like a secret's, such
   as `.env` or a key, by its name only); Commit, Commit & Push or Commit & Sync, after a question when such a file goes
   in; the last 20 commits in the Graph, kept at the view's bottom while the changes scroll above it; each file's

@@ -694,14 +694,14 @@ class App(Loop):
             self.error = "No message: " + commit_message.explain(suggestion.problems)
         self.refresh()                                  # what was staged for it
 
-    def do_commit(self, message, mode):
+    def do_commit(self, message, mode, paths):
         if "commit" in self.running or "sync" in self.running:
             self.note = "A commit or sync is still running"
             return
         self.suggesting = None                          # a message still being written is for changes now committed
 
         def work():
-            ok, line = git.commit(self.repo, message)
+            ok, line = git.commit(self.repo, message, paths)
             if not ok:
                 return False, line
             if mode in ("push", "sync"):

@@ -176,22 +176,33 @@ def discard(root, path):
     return None if out.returncode == 0 else last_line(out)
 
 
+def taken(changes):
+    """The paths a commit of CHANGES takes: never a repository of its own inside ("inner/")."""
+    return [c.path for c in changes if not c.path.endswith("/")]
+
+
 def stage_all(root, rest=False):
     """Every change status lists staged (never an ignored file, nor a repository of its own inside, "inner/"), as
     GitHub Desktop commits: with nothing staged yet, or REST: beside what is. (whether it worked, else the error)"""
     st = status(root)
     if st.error:
         return False, st.error
-    paths = [c.path for c in st.changes if not c.path.endswith("/")] if rest or not st.staged else []
+    paths = taken(st.changes) if rest or not st.staged else []
     out = run(root, "add", "-A", "--", *paths) if paths else None
     return (True, "") if out is None or out.returncode == 0 else (False, last_line(out))
 
 
-def commit(root, message):
-    """The staged changes committed, or every change with none staged (stage_all)."""
-    ok, line = stage_all(root)
-    if not ok:
-        return False, line
+def commit(root, message, paths=None):
+    """The staged changes committed, PATHS staged first (the changes a question about secrets saw: one come since
+    waits), or without PATHS every change when none is staged (stage_all)."""
+    if paths is None:
+        ok, line = stage_all(root)
+        if not ok:
+            return False, line
+    elif paths:
+        out = run(root, "add", "-A", "--", *paths)
+        if out.returncode != 0:
+            return False, last_line(out)
     out = run(root, "commit", "-F", "-", stdin=message)
     return out.returncode == 0, last_line(out)
 

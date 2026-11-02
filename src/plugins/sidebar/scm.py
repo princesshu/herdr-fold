@@ -5,7 +5,7 @@ import os
 from dataclasses import dataclass
 
 from commit_message import secret_looking
-from git import Change, Commit
+from git import Change, Commit, taken
 from screen import GIT_LETTER, GIT_ROLE, PLAIN, Canvas, Style, after, centered, glyphs, icon, truncate, width
 from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, TextInput
@@ -402,9 +402,11 @@ class Scm:
         if not message:
             self.notice = "The message is empty"
             return None
-        action = Action("commit", (message, self.mode))
-        taken = self.status.staged or self.status.changes            # with nothing staged, a commit takes every change
-        names = [os.path.basename(change.path) for change in taken if secret_looking(change.path)]
+        # with nothing staged, every change shown: exactly those, so one come since is never committed unasked
+        paths = () if self.status.staged else tuple(taken(self.status.changes))
+        action = Action("commit", (message, self.mode, paths))
+        going = [change.path for change in self.status.staged] or paths
+        names = [os.path.basename(path) for path in going if secret_looking(path)]
         if not names:
             return action
         shown = ", ".join(names[:3]) + (f" and {len(names) - 3} more" if len(names) > 3 else "")
