@@ -1,6 +1,7 @@
-"""Tests for the sidebar's git layer (src/plugins/sidebar/git.py) in temporary repositories: status, staging, commits,
-push and pull, the graph and unusual states; a file name is never a pattern, and what the sidebar runs on its own runs
-no program a downloaded repository's .git/config names."""
+"""Tests for the git layer (core/git.py: the TUI sidebar's and the Herdr app mod's) in temporary repositories: status,
+staging, commits, push and pull, the graph and unusual states; a file name is never a pattern, and what runs unasked
+runs no program a downloaded repository's .git/config names."""
+import json
 import os
 import shutil
 import subprocess
@@ -9,9 +10,9 @@ import tempfile
 import unittest
 from unittest import mock
 
-from support import SRC, set_env, sign_head, stubs, trap
+from support import PACKAGE, set_env, sign_head, stubs, trap
 
-sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
+sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import git  # noqa: E402
 
 
@@ -54,7 +55,7 @@ class ForeignConfig(Repo):
         keys, until it ends, which a terminal never does."""
         self.write("a.txt")
         self.run_git("config", "include.path", "/dev/stdin")
-        code = (f"import sys; sys.path.insert(0, {os.path.join(SRC, 'plugins', 'sidebar')!r}); import git; "
+        code = (f"import sys; sys.path.insert(0, {os.path.join(PACKAGE, 'core')!r}); import git; "
                 f"print(git.status({self.root!r}).error or 'ok')")
         proc = subprocess.Popen([sys.executable, "-c", code], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=subprocess.DEVNULL, text=True)                   # its input kept open
@@ -144,6 +145,37 @@ class ForeignConfig(Repo):
         git.graph(self.root)
         git.head(self.root)
         self.assertFalse(os.path.exists(mark))
+
+
+class CommandLine(Repo):
+    """herdr-fold's Herdr app mod runs this layer on the repository's machine: python3 git.py status|sync|push ROOT,
+    answering in JSON, so it lists and syncs as the TUI sidebar does."""
+
+    def cli(self, *args):
+        out = subprocess.run([sys.executable, "-B", git.__file__, *args], capture_output=True, text=True, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return json.loads(out.stdout)
+
+    def test_the_branch_how_far_from_its_upstream_and_the_changes(self):
+        self.write("a.txt")
+        self.commit_all()
+        self.write("a.txt", "changed\n")
+        self.write("b.txt")
+        self.run_git("add", "b.txt")
+        self.assertEqual(self.cli("status", self.root), {
+            "branch": "main", "upstream": None, "ahead": 0, "behind": 0, "error": None, "ignored": [],
+            "staged": [{"path": "b.txt", "code": "A", "ignored": False}],
+            "changes": [{"path": "a.txt", "code": "M", "ignored": False}]})
+
+    def test_a_sync_and_what_to_do_when_it_fails(self):
+        self.write("a.txt")
+        self.commit_all()
+        self.assertEqual(self.cli("sync", self.root), {"ok": False, "advice": git.advice("no remote")})
+        remote = self.folder()
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", remote], check=True)
+        self.run_git("remote", "add", "origin", remote)
+        self.assertEqual(self.cli("push", self.root), {"ok": True, "advice": None})
+        self.assertEqual(self.cli("status", self.root)["upstream"], "origin/main")
 
 
 class Status(Repo):
@@ -312,6 +344,13 @@ class Actions(Repo):
             self.assertIn("gone", line)
         self.assertNotIn("feature", subprocess.run(["git", "-C", remote, "branch"], capture_output=True,
                                                    text=True).stdout)
+
+    def test_a_failed_sync_says_what_to_do(self):
+        self.assertIn("merge or rebase", git.advice("fatal: Not possible to fast-forward, aborting."))
+        self.assertIn("git remote add", git.advice("no remote"))
+        self.assertIn("sign in", git.advice("fatal: Authentication failed for 'https://example.com/r.git/'"))
+        self.assertIn("deleted on the remote", git.advice("its upstream branch is gone from the remote"))
+        self.assertEqual(git.advice("error: something else"), "error: something else")
 
     def test_the_graph_marks_head_and_refs(self):
         self.write("a.txt")

@@ -1,10 +1,13 @@
+# Generated from core/git.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
 """The sidebar's git layer: nothing loses work silently (a pull is fast-forward only; no reset, clean or force push).
 Every command runs without optional locks or prompts, with a time limit, a file name never read as a pattern. The
 unasked status runs nothing a repository's config names (fsmonitor, filters, submodules); staging still runs filters."""
+import json
 import os
 import shutil
 import subprocess
-from dataclasses import dataclass, field
+import sys
+from dataclasses import asdict, dataclass, field
 
 TIMEOUT = 60
 NO_STATUS = "No status: a filter in its git config cannot be turned off"
@@ -200,6 +203,20 @@ def sync(root):
     return push(root)
 
 
+# a failed pull or push, and the one line that says what to do
+ADVICE = ((("Not possible to fast-forward", "diverged"), "The branches have diverged: merge or rebase in a terminal"),
+          (("no remote", "No configured push destination", "does not appear to be a git repository"),
+           "No remote to sync with: add one with git remote add"),
+          (("Authentication failed", "Permission denied", "could not read Username"),
+           "The remote refused the sign-in: sign in to it, then sync again"),
+          (("upstream branch is gone",),
+           "The branch was deleted on the remote: push it from a terminal to bring it back"))
+
+
+def advice(line):
+    return next((text for needles, text in ADVICE if any(needle in line for needle in needles)), line)
+
+
 def graph(root, n=20):
     out = run(root, "log", f"-n{n}", "--format=%h%x00%s%x00%an%x00%D%x1e")
     commits = []
@@ -212,3 +229,24 @@ def graph(root, n=20):
         refs = tuple(ref[len("HEAD -> "):] if ref.startswith("HEAD -> ") else ref for ref in refs if ref != "HEAD")
         commits.append(Commit(hash_, subject, author, refs, head))
     return commits
+
+
+def main(argv):
+    """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: status ROOT (the branch,
+    how far from its upstream, the staged and other changes), sync ROOT or push ROOT (whether it worked, else what to
+    do)."""
+    if len(argv) != 3 or argv[1] not in ("status", "sync", "push"):
+        print("usage: git.py status|sync|push ROOT", file=sys.stderr)
+        return 2
+    if argv[1] == "status":
+        st = status(argv[2])
+        answer = dict(asdict(st), ignored=sorted(st.ignored))
+    else:
+        ok, line = (sync if argv[1] == "sync" else push)(argv[2])
+        answer = {"ok": ok, "advice": None if ok else advice(line)}
+    print(json.dumps(answer))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

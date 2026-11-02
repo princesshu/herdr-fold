@@ -1063,15 +1063,6 @@ class NewWorkspace(unittest.TestCase):
                        "--focus", "--env", f"HERDR_NEW_WORKSPACE_FOLDER={folder}"), self.calls)
 
 
-class Advice(unittest.TestCase):
-    def test_a_failed_sync_says_what_to_do(self):
-        self.assertIn("merge or rebase", sidebar.advice("fatal: Not possible to fast-forward, aborting."))
-        self.assertIn("git remote add", sidebar.advice("no remote"))
-        self.assertIn("sign in", sidebar.advice("fatal: Authentication failed for 'https://example.com/r.git/'"))
-        self.assertIn("deleted on the remote", sidebar.advice("its upstream branch is gone from the remote"))
-        self.assertEqual(sidebar.advice("error: something else"), "error: something else")
-
-
 class Terminal(Repo):
     def run_sidebar(self, *keys_):
         """sidebar.py in a pty; once it shows the branch, KEYS are typed half a second apart. What it shows is read

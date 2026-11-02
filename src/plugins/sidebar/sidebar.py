@@ -39,17 +39,6 @@ VIEW_KEYS = {"1": "files", "2": "search", "3": "git", "4": "issues", "f9": "file
 DEFAULTS = {"hidden": False, "icons": True, "commit_mode": "commit", "view": "files", "linked": {}}
 STALE = 60.0                  # seconds: the issues shown or listed here asked for again (a new one shows up)
 BUSY = {"commit": "Committing…", "sync": "Syncing…", "suggest": "Writing the message…"}   # the first running shows
-PROBLEMS = {"missing": "{0} is not installed", "failed": "{0} failed: {1}", "empty": "{0} gave no message",
-            "short": "{0} wrote too short a message, twice",
-            "foreign": "{0}'s message held what the changes do not: {1}"}
-# a failed pull or push, and the one line that says what to do
-ADVICE = ((("Not possible to fast-forward", "diverged"), "The branches have diverged: merge or rebase in a terminal"),
-          (("no remote", "No configured push destination", "does not appear to be a git repository"),
-           "No remote to sync with: add one with git remote add"),
-          (("Authentication failed", "Permission denied", "could not read Username"),
-           "The remote refused the sign-in: sign in to it, then sync again"),
-          (("upstream branch is gone",),
-           "The branch was deleted on the remote: push it from a terminal to bring it back"))
 EMPTY = git.Status()
 TAB = 5                       # the cells of a view's tab: its icon in the middle one
 # the cells between the last view's tab and the ⋯ at least: the shown view's title (a cell of air on each side), the ⋯ a
@@ -60,10 +49,6 @@ APART = 1 + max(width(title) for title in VIEWS.values()) + 1
 def narrowest(views):
     """The cells the header takes with VIEWS shown: a cell of edge, their tabs, APART, the ⋯ and a cell of edge."""
     return len(views) * (TAB + 1) + APART + TAB + 1
-
-
-def advice(line):
-    return next((text for needles, text in ADVICE if any(needle in line for needle in needles)), line)
 
 
 def load_settings(path):
@@ -688,8 +673,7 @@ class App(Loop):
                 linked = self.views["git"].linked
                 self.views["git"].set_message(commit_message.with_fixes(suggestion.message, linked and linked[0]))
         else:
-            self.error = "No message: " + "; ".join(PROBLEMS[p.kind].format(p.backend, p.detail)
-                                                     for p in suggestion.problems)
+            self.error = "No message: " + commit_message.explain(suggestion.problems)
 
     def do_commit(self, message, mode):
         if "commit" in self.running or "sync" in self.running:
@@ -703,7 +687,7 @@ class App(Loop):
                 return False, line
             if mode in ("push", "sync"):
                 ok, line = (git.push if mode == "push" else git.sync)(self.repo)
-            return True, None if ok else advice(line)
+            return True, None if ok else git.advice(line)
 
         def then(answer):
             committed, error = answer
@@ -726,7 +710,7 @@ class App(Loop):
 
         def work():
             ok, line = git.sync(self.repo)
-            return None if ok else advice(line)
+            return None if ok else git.advice(line)
 
         self.git_job("sync", work)
 

@@ -1,6 +1,7 @@
-"""The commit message writer, shared by the sidebar and Cmd+Shift+C: Claude Haiku, then Codex, both without tools, write
-it from the staged changes only. A message holding a secret or a private name the changes do not is dropped (a diff can
-steer an AI); a squashed one is asked again once. Returns data: the caller words the problems in its own language."""
+# Generated from core/commit_message.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
+"""The commit message writer, shared by the sidebar, Cmd+Shift+C and herdr-fold's Herdr app mod (JSON from REPO):
+Claude Haiku, then Codex, both without tools, write it from the staged changes only. A message with a secret or private
+name the changes lack is dropped (a diff can steer an AI); a squashed one is asked again. Returns data, not words."""
 import fnmatch
 import getpass
 import glob
@@ -10,9 +11,10 @@ import re
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 
 MAX_DIFF = 60_000
 # file names that look like a secret's: named before such a file is committed, its contents never shown to an AI
@@ -67,6 +69,11 @@ class Problem:
     backend: str
     kind: str                 # missing, failed, empty, short, foreign
     detail: str = ""          # a failure's last line; the private kinds, comma-separated
+
+
+# a problem in words: the sidebar's and the Herdr app's (Cmd+Shift+C words its own, in the installer's language)
+WORDS = {"missing": "{0} is not installed", "failed": "{0} failed: {1}", "empty": "{0} gave no message",
+         "short": "{0} wrote too short a message, twice", "foreign": "{0}'s message held what the changes do not: {1}"}
 
 
 @dataclass
@@ -127,6 +134,11 @@ def rules(root):
                 text = text.split("---", 2)[-1]
             return text.strip(), os.path.relpath(path, root) if path.startswith(root) else path.replace(home, "~")
     return None, None
+
+
+def explain(problems):
+    """Why no AI wrote a message, in one line."""
+    return "; ".join(WORDS[p.kind].format(p.backend, p.detail) for p in problems)
 
 
 def secret_looking(path):
@@ -293,3 +305,23 @@ def linked_issue(repo, state=None):
         return (int(found[0]), str(found[1])) if isinstance(found, list) and len(found) == 2 else None
     except (OSError, ValueError, TypeError, AttributeError):
         return None
+
+
+def main(argv):
+    """herdr-fold's Herdr app mod runs this on the repository's machine: the message for REPO's staged changes (with
+    the linked issue's Fixes line), who wrote it, why the others could not, and the staged files, as JSON."""
+    if len(argv) != 2:
+        print("usage: commit_message.py REPO", file=sys.stderr)
+        return 2
+    req = request(argv[1])
+    found = write(req)
+    linked = linked_issue(argv[1])
+    print(json.dumps({"message": found.message and with_fixes(found.message, linked and linked[0]),
+                      "backend": found.backend, "problems": [asdict(problem) for problem in found.problems],
+                      "note": None if found.message else explain(found.problems),
+                      "files": req.files, "secret_looking": [path for path in req.files if secret_looking(path)]}))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

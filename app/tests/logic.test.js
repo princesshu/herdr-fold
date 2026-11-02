@@ -1,0 +1,78 @@
+// @ts-check
+// Tests for the mod's logic that needs no window: node --test app/tests (tests/test_app.py runs them, Node there).
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { background, changedFiles, diffRows, syncLabel, written } from "../mods/herdr-fold/logic.js";
+
+test("a diff's lines numbered once, old and new apart", () => {
+  const rows = diffRows(["@@ -3,2 +3,3 @@", " same", "-old", "+new", "+more"]);
+  assert.deepEqual(rows.map((r) => [r.kind, r.number ?? null]), [["@", null], [" ", 3], ["-", 4], ["+", 4], ["+", 5]]);
+});
+
+test("each changed file once, staged or not, in the order git gives them", () => {
+  const status = { staged: [{ path: "b.txt", code: "A" }, { path: "a.txt", code: "M" }],
+    changes: [{ path: "a.txt", code: "M" }, { path: "new.txt", code: "?" }] };
+  assert.deepEqual(changedFiles(status), [{ path: "b.txt", code: "A" }, { path: "a.txt", code: "M" },
+    { path: "new.txt", code: "?" }]);
+});
+
+test("the sync button says how far the branch is from its upstream, as the TUI sidebar does", () => {
+  assert.equal(syncLabel({ upstream: "origin/main", ahead: 2, behind: 1 }), "↻ 1↓ 2↑");
+  assert.equal(syncLabel({ upstream: null, ahead: 0, behind: 0 }), "↻");
+  assert.equal(syncLabel(null), "↻");
+});
+
+/** @param {string[]} argv */
+function run(argv) {
+  const out = spawnSync(argv[0], argv.slice(1), { encoding: "utf8" });
+  return { code: out.status, stdout: out.stdout, stderr: out.stderr };
+}
+
+/** The job's poll until it no longer answers 3, five seconds at most.
+ * @param {ReturnType<typeof background>} job
+ * @param {string} folder */
+function finished(job, folder) {
+  let done = run(job.poll(folder));
+  for (let i = 0; i < 50 && done.code === 3; i++) {
+    run(["sleep", "0.1"]);
+    done = run(job.poll(folder));
+  }
+  return done;
+}
+
+test("a long job runs in the background, answers 3 until done, then its output; clear removes its folder", () => {
+  const job = background("import sys, time; time.sleep(0.3); print(sys.argv[1])", ["/srv/app"]);
+  const folder = run(job.start).stdout.trim();
+  assert.match(folder, /\/herdr-fold\.[A-Za-z0-9]+$/);
+  assert.equal(run(job.poll(folder)).code, 3);
+  const done = finished(job, folder);
+  assert.deepEqual([done.code, done.stdout], [0, "/srv/app\n"]);
+  run(job.clear(folder));
+  assert.equal(existsSync(folder), false);
+});
+
+test("a failed job answers 4 with its error's last lines; clear removes only a job's folder", () => {
+  const job = background("raise SystemExit('broken here')", []);
+  const folder = run(job.start).stdout.trim();
+  const done = finished(job, folder);
+  assert.deepEqual([done.code, done.stderr.trim()], [4, "broken here"]);
+  run(job.clear(folder));
+  const other = mkdtempSync(join(tmpdir(), "other-"));
+  run(job.clear(other));
+  assert.equal(existsSync(other), true);
+  rmSync(other, { recursive: true });
+});
+
+test("the writer's answer: a message to fill in, a warning for files named like secrets, or why there is none", () => {
+  assert.deepEqual(written({ message: "feat: a", secret_looking: [], note: null }), { message: "feat: a", note: null });
+  assert.deepEqual(written({ message: "feat: a", secret_looking: [".env"], note: null }),
+    { message: "feat: a", note: "Staged, named like a secret: .env" });
+  assert.deepEqual(written({ message: null, secret_looking: [], note: "claude is not installed", files: ["a"] }),
+    { message: null, note: "No message: claude is not installed" });
+  assert.deepEqual(written({ message: null, secret_looking: [], note: "", files: [] }),
+    { message: null, note: "Nothing to commit" });
+});

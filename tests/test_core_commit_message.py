@@ -1,6 +1,6 @@
-"""Tests for the commit message writer (src/plugins/sidebar/commit_message.py, also behind Cmd+Shift+C): fallback
-models, a detailed body, nothing private or from secret-like files, and tool-less AIs run outside the pane's identity.
-"""
+"""Tests for the commit message writer (core/commit_message.py: the sidebar's, Cmd+Shift+C's and the Herdr app mod's):
+fallback models, a detailed body, nothing private or from secret-like files, tool-less AIs run outside the pane."""
+import json
 import os
 import shutil
 import subprocess
@@ -8,9 +8,9 @@ import sys
 import tempfile
 import unittest
 
-from support import SRC, set_attrs, set_env, stubs, trap
+from support import PACKAGE, set_attrs, set_env, stubs, trap
 
-sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
+sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import commit_message as cm  # noqa: E402
 
 GOOD = "feat: add a and b\n\n- Add a.txt\n- Add b.txt"
@@ -172,7 +172,7 @@ class Context(unittest.TestCase):
         set_env(self, GIT_CONFIG_GLOBAL=os.devnull)
         subprocess.run(["git", "-C", root, "init", "-q"], check=True)
         subprocess.run(["git", "-C", root, "config", "include.path", "/dev/stdin"], check=True)
-        code = (f"import sys; sys.path.insert(0, {os.path.join(SRC, 'plugins', 'sidebar')!r}); "
+        code = (f"import sys; sys.path.insert(0, {os.path.join(PACKAGE, 'core')!r}); "
                 f"import commit_message; print(repr(commit_message.git({root!r}, 'status', '--short')))")
         proc = subprocess.Popen([sys.executable, "-c", code], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=subprocess.DEVNULL, text=True)                   # its input kept open
@@ -258,6 +258,59 @@ class Context(unittest.TestCase):
         marks = [trap(root, key, programs) for key in ("core.fsmonitor", "diff.conv.textconv")]
         self.assertIn("+a", cm.request(root).diff)
         self.assertEqual([os.path.basename(m) for m in marks if os.path.exists(m)], [])
+
+
+class CommandLine(unittest.TestCase):
+    """The writer for herdr-fold's Herdr app mod: `python3 commit_message.py REPO` answers in JSON, on the machine the
+    repository is on."""
+
+    def setUp(self):
+        self.tmp = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.home, self.repo = os.path.join(self.tmp, "home"), os.path.join(self.tmp, "app")
+        self.bin = stubs(os.path.join(self.tmp, "bin"), {"claude": FAKE})
+        self.answers = os.path.join(self.tmp, "answers")
+        os.makedirs(self.home)
+        os.makedirs(self.repo)
+        git = ["git", "-C", self.repo, "-c", "user.name=dev", "-c", "user.email=dev@example.com"]
+        subprocess.run(git + ["init", "-q"], check=True, env={"GIT_CONFIG_GLOBAL": os.devnull, "PATH": "/usr/bin:/bin"})
+        for name in ("a.txt", "b.txt", ".env"):
+            with open(os.path.join(self.repo, name), "w") as f:
+                f.write(name + "\n")
+        subprocess.run(git + ["add", "-A"], check=True, env={"GIT_CONFIG_GLOBAL": os.devnull, "PATH": "/usr/bin:/bin"})
+
+    def answer(self, path, *answers):
+        with open(self.answers, "w") as f:
+            f.write("\n".join(answers) + "\n")
+        out = subprocess.run([sys.executable, "-B", cm.__file__, self.repo], capture_output=True, text=True, env={
+            "HOME": self.home, "PATH": f"{path}:/usr/bin:/bin", "GIT_CONFIG_GLOBAL": os.devnull,
+            "LOG": os.path.join(self.tmp, "log"), "ANSWERS": self.answers}, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return json.loads(out.stdout)
+
+    def test_the_message_its_writer_and_the_files_named_like_secrets(self):
+        result = self.answer(self.bin, GOOD.replace("\n", "|"))
+        self.assertEqual((result["message"], result["backend"], result["problems"]), (GOOD, "claude", []))
+        self.assertEqual(sorted(result["files"]), [".env", "a.txt", "b.txt"])
+        self.assertEqual(result["secret_looking"], [".env"])
+
+    def test_the_issue_linked_in_the_sidebar_closes_with_it(self):
+        state = os.path.join(self.home, ".local", "state", "herdr", "plugins", "herdr-fold.sidebar")
+        os.makedirs(state)
+        with open(os.path.join(state, "settings.json"), "w") as f:
+            json.dump({"linked": {self.repo: [42, "Login fails"]}}, f)
+        self.assertTrue(self.answer(self.bin, GOOD.replace("\n", "|"))["message"].endswith("\n\nFixes #42"))
+
+    def test_without_an_ai_it_says_why(self):
+        result = self.answer(os.path.join(self.tmp, "nothing"))
+        self.assertIsNone(result["message"])
+        self.assertEqual([(p["backend"], p["kind"]) for p in result["problems"]], [("claude", "missing"),
+                                                                                   ("codex", "missing")])
+        self.assertEqual(result["note"], "claude is not installed; codex is not installed")
+
+    def test_the_problems_in_words(self):
+        self.assertEqual(cm.explain([cm.Problem("claude", "failed", "rate limited"), cm.Problem("codex", "short")]),
+                         "claude failed: rate limited; codex wrote too short a message, twice")
 
 
 class Fixes(unittest.TestCase):
