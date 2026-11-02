@@ -21,6 +21,8 @@ All notable changes to this project are listed here. The format follows
 - A workspace whose folder is deleted says deleted beside its branch, in the theme's red.
 - A workspace where an agent waits on you, blocked or done and not seen yet, says how long beside its branch
   (`waiting 12m`), in the theme's yellow; it counts on while you work elsewhere.
+- Cmd + Shift + L: the files the focused pane's output names (`src/app.py:42`, a traceback's line), the newest first;
+  Enter shows one at that line in the sidebar's preview tab.
 - Buttons where a key was the only way: Cancel and Open in the folder picker, Cancel and Close when a tab with a
   conversation is closed.
 - The folder picker takes the mouse: a click chooses a folder, a double click opens it, the wheel moves, and a click
@@ -33,6 +35,8 @@ All notable changes to this project are listed here. The format follows
   again, where it was. Before, the workspace kept the old name and the sidebar showed an empty list.
 - Esc in the folder picker goes back to the workspace it was opened from; before, herdr showed a neighbour of the
   closed one.
+- The folder picker's rows fit a narrow window (a half-screen Ghostty); before, they wrapped and a click landed a row
+  off.
 
 ## [0.1.0] - 2026-11-01
 

@@ -114,6 +114,11 @@ def command(path, windows=os.name == "nt"):
     return Launch('"$HERDR_FOLD_PYTHON" -B "$HERDR_FOLD_PAGER" && exit', env)
 
 
+def seed_file(state_dir, tab):
+    """Where a new preview TAB's sidebar finds where to be: where the sidebar that opened it was, or the file shown."""
+    return os.path.join(state_dir, "seed-" + "".join(ch if ch.isalnum() else "-" for ch in tab) + ".json")
+
+
 def open_preview(herdr, workspace, root, spec, state_dir, lay_out=None, here=None):
     """SPEC in WORKSPACE's preview tab, else in a new tab in ROOT laid out by LAY_OUT(tab) before the pager starts.
     A preview tab whose pager no longer runs, or whose spec file is gone, is closed after, HERE (the asking pane's tab)

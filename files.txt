@@ -17,6 +17,7 @@ src/tui.py             | .config/herdr-fold/tui.py
 src/herdrlib.py        | .config/herdr-fold/herdrlib.py
 src/add_machine.py     | .config/herdr-fold/add_machine.py
 src/new_workspace.py   | .config/herdr-fold/new_workspace.py
+src/open_file.py       | .config/herdr-fold/open_file.py
 src/projects.py        | .config/herdr-fold/projects.py
 src/statusline_setup.py | .config/herdr-fold/statusline_setup.py
 src/statusline.py      | .config/herdr-fold/statusline.py

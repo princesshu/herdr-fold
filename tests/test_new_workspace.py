@@ -85,7 +85,7 @@ class Mouse(unittest.TestCase):
         for rel in ("archives/old", "claude"):
             os.makedirs(os.path.join(self.tmp, "projects", rel))
         self.picker = new_workspace.Picker(os.path.join(self.tmp, "projects"))
-        set_attrs(self, new_workspace, icons_on=lambda: False)
+        set_attrs(self, new_workspace, icons_on=lambda state_dir: False)
 
     def lines(self):
         return ANSI.sub("", new_workspace.screen(self.picker, set(), 10, 60)).split("\n")
@@ -132,7 +132,7 @@ class Screen(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp)
         for rel in ("app/.git", "notes"):
             os.makedirs(os.path.join(self.tmp, "projects", rel))
-        set_attrs(self, new_workspace, HOME=self.tmp, icons_on=lambda: False)
+        set_attrs(self, new_workspace, HOME=self.tmp, icons_on=lambda state_dir: False)
         self.picker = new_workspace.Picker(os.path.join(self.tmp, "projects"))
 
     def screen(self, **settings):
@@ -172,6 +172,12 @@ class Screen(unittest.TestCase):
         for obvious in ("Enter", "Esc", "↑", "↓"):
             self.assertNotIn(obvious, keys)
         self.assertTrue(keys.rstrip().endswith("Cancel    Open"), keys)
+
+    def test_every_row_fits_a_narrow_window(self):
+        # the popup is 70% of the terminal: a half-screen Ghostty window gives it under 60 cells
+        lines = ANSI.sub("", new_workspace.screen(self.picker, {os.path.join(self.tmp, "projects", "app")}, 10, 50))
+        self.assertLessEqual(max(len(line) for line in lines.split("\n")), 50)
+        self.assertIn("git open", lines)
 
     def test_no_helper_text_and_no_dot_row(self):
         text = " ".join(self.lines())

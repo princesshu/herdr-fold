@@ -2,7 +2,6 @@
 reuse the active workspace's folder. herdr_layout.py builds the chosen folder's workspace (or it jumps to an existing
 one), and the empty one is closed."""
 import collections
-import json
 import os
 import shutil
 import sys
@@ -14,14 +13,15 @@ from herdr_layout import LayoutError, build  # noqa: E402
 from herdrlib import AGENTS, PLUGIN_STATE, agent_pane_ids, free_label, herdr  # noqa: E402
 from i18n import line, t  # noqa: E402
 from projects import repositories, start  # noqa: E402
-from screen import after, glyphs, icon  # noqa: E402  the sidebar's, on the path herdrlib gives
+from screen import after, glyphs, icon, icons_on  # noqa: E402  the sidebar's, on the path herdrlib gives
 from tui import GRAY, INVERT, RESET, button_at, buttons, clicked, getkey, mouse, printable, wait_and_exit  # noqa: E402
 
 HOME = os.path.expanduser("~")
 BOLD = "\x1b[1m"
 FIRST_ROW = 3              # the tree's first row on screen, under the title and the filter
 DOUBLE = 0.4               # seconds within which a second click on a row opens it
-NAME_CELLS = 48            # a row's cells before its tags
+NAME_CELLS = 48            # a row's cells before its tags, fewer in a narrower window (a wrapped row moves the clicks)
+TAGS_CELLS = 8             # "git open"
 
 Row = collections.namedtuple("Row", "path name depth open")
 
@@ -55,15 +55,6 @@ def indent(depth):
     return "" if not depth else "  " + "│ " * (depth - 1)
 
 
-def icons_on():
-    """Whether the sidebar shows Nerd Font icons (its own setting, as its Files view draws them)."""
-    try:
-        with open(os.path.join(PLUGIN_STATE, "settings.json"), encoding="utf-8") as f:
-            return json.load(f).get("icons", True) is not False
-    except (OSError, ValueError, AttributeError):
-        return True
-
-
 def title_of(folder):
     return printable(folder.replace(HOME, "~", 1))
 
@@ -75,7 +66,7 @@ def toggle_start(title, width):
 
 def picker_buttons(width):
     """The last row: the keys a click cannot show, then Cancel and Open (Enter's)."""
-    return buttons([t("common.cancel"), t("picker.open")], width, t("picker.keys"))
+    return buttons([t("common.cancel"), t("common.open")], width, t("picker.keys"))
 
 
 class Picker:
@@ -173,7 +164,7 @@ class Picker:
             return None
         if at == FIRST_ROW + len(shown) + 1:
             label = button_at(column, picker_buttons(width)[1])
-            return label and ("open" if label == t("picker.open") else "cancel")
+            return label and ("open" if label == t("common.open") else "cancel")
         if not FIRST_ROW <= at < FIRST_ROW + len(shown):
             return None
         row, self.chosen = shown[at - FIRST_ROW], self.top + at - FIRST_ROW
@@ -231,7 +222,8 @@ def open_folder(path, agent, placeholder):
 def screen(picker, opened, height, width):
     """The picker: the folder as the title with the agent toggle on its right, what you type to filter by (only then),
     the tree, and the keys that are not obvious with Cancel and Open."""
-    rows, icons = picker.fit(height), icons_on()
+    rows, icons = picker.fit(height), icons_on(PLUGIN_STATE)
+    cells = max(1, min(NAME_CELLS, width - TAGS_CELLS - 3))
     toggle = " │ ".join(f"{INVERT} {a} {RESET}" if a == picker.agent else f" {a} " for a in AGENTS)
     title = title_of(picker.root)
     lines = [f"{BOLD}{title}{RESET}" + " " * (toggle_start(title, width) - len(title)) + toggle,
@@ -242,7 +234,7 @@ def screen(picker, opened, height, width):
         cell = indent(row.depth) + mark + folder + printable(row.name)
         tags = " ".join(tag for tag, on in (("git", is_repo(row.path)), ("open", row.path in opened)) if on)
         color = INVERT if n == picker.chosen else GRAY if row.depth and row.name.startswith(".") else ""
-        lines.append(f"{color} {cell[:NAME_CELLS]:{NAME_CELLS}} {GRAY if n != picker.chosen else ''}{tags:8} {RESET}")
+        lines.append(f"{color} {cell[:cells]:{cells}} {GRAY if n != picker.chosen else ''}{tags:{TAGS_CELLS}} {RESET}")
     lines += ["", picker_buttons(width)[0]]
     return "\x1b[2J\x1b[H" + "\n".join(lines)
 

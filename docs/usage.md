@@ -142,6 +142,14 @@ Notes and Slack get the formatted version, plain-text targets the plain one. Onl
 Cmd + F searches the Claude conversation of the focused pane: type, Enter accepts, `n` / `N` jump to the next /
 previous match, Esc goes back to typing.
 
+## Opening a file the agent named
+
+Cmd + Shift + L lists the files the focused pane's recent output names, the newest first: `src/app.py:42`,
+`src/app.ts(12,5)`, `README.md#L3`, a Python traceback's `File "…", line 9`, or a path alone. Only files that are
+there show, a relative path found from the pane's folder or its repository's top. Type to narrow the list; Enter, a
+double click or Open shows the file in the sidebar's preview tab at that line, marked, and the tab's sidebar opens
+Files on it. It works on any pane: an agent's reply, a test run's failure, a compiler's errors.
+
 ## The status line
 
 Next to the model name, the status line can show the effort, the context used with the context window size, and the

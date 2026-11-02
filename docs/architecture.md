@@ -33,6 +33,7 @@ plugins of its own.
 |---|---|
 | `src/herdr_layout.py` | builds the workspace for a repo, on this Mac or on a remote machine |
 | `src/new_workspace.py` | the folder picker of a new workspace |
+| `src/open_file.py` | opens a file the focused pane's output names, at its line, in the sidebar's preview tab (Cmd + Shift + L) |
 | `src/restore_panes.py` | after a restart, starts the Conversations columns, the sidebars and the still-empty agent panes again |
 | `src/toggle_column.py` | hides and shows the right column (Cmd + Shift + E) |
 | `src/close_tab.py` | closes a tab (Cmd + W); asks first for a tab with a conversation |

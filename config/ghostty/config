@@ -89,6 +89,9 @@ keybind = super+shift+c=text:\x02y
 # Cmd+F → search the Claude conversation (herdr: Ctrl+B, a) — instead of Ghostty's own search, which inside herdr
 # would only see the visible screen
 keybind = super+f=text:\x02a
+# Cmd+Shift+L → open a file the focused pane's output names, at its line, in the sidebar's preview (herdr: Ctrl+B,
+# Shift+L)
+keybind = super+shift+l=text:\x02L
 # Cmd+Shift+H → collapse the Conversations column to a rail, or open it, in every tab at once (herdr: Ctrl+B, Shift+H)
 keybind = super+shift+h=text:\x02H
 # Cmd+Shift+O → restore panels: every pane closed by hand in the tab back (herdr: Ctrl+B, Shift+O)

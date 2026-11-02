@@ -2,7 +2,6 @@
 running conversation focused, a closed one reopened in a new tab of its workspace, and its width set in every tab (a
 rail while collapsed). Ctrl+C quits; a new version of the plugin takes over in the same pane, as the sidebar's does."""
 import base64
-import json
 import os
 import re
 import sys
@@ -18,7 +17,7 @@ import richtext
 from conversation_list import RAIL, ConversationList
 from fileops import system_clipboard
 from loop import CODE, Loop
-from screen import ROOMY, Canvas, Style, truncate
+from screen import ROOMY, Canvas, Style, icons_on, truncate
 from vt import Focus, Key, Mouse, Resize
 
 POLL = 1.0                    # seconds between two looks at the conversations
@@ -42,16 +41,6 @@ def own_tab(call, pane):
     if not tab or sum(agent.get("tab_id") == tab for agent in agents) != 1:
         return None
     return None if (call("tab", "get", tab).get("tab") or {}).get("number") == 1 else tab
-
-
-def icons_on(state_dir):
-    """Whether the sidebar shows Nerd Font icons (its settings.json): unless turned off there."""
-    try:
-        with open(os.path.join(state_dir, "settings.json"), encoding="utf-8") as f:
-            settings = json.load(f)
-    except (OSError, ValueError):
-        return True
-    return not isinstance(settings, dict) or settings.get("icons") is not False
 
 
 class ConversationsApp(Loop):

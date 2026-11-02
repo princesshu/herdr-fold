@@ -42,7 +42,8 @@ header: 33 cells with three views, 39 with Issues.
 ## Keys
 
 Cmd + Shift + G (Changes), Cmd + Shift + I (Issues), Cmd + Shift + E and Cmd + Shift + O reach it from anywhere:
-[Keys](keybindings.md#panes-and-tabs).
+[Keys](keybindings.md#panes-and-tabs). Cmd + Shift + L opens a file the focused pane's output names in its preview,
+at that line ([Opening a file the agent named](usage.md#opening-a-file-the-agent-named)).
 
 The ⋯ at the header's right edge (or a right click on them, the header or the status bar) closes or shows back the
 tab's other panes, one by one (Close Conversations, Show terminal…), and offers Restore panels while any is closed. The

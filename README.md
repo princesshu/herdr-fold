@@ -21,7 +21,7 @@ sidebar's Changes view with the message Claude wrote and the issue it closes, ab
 
 - One workspace per repo: Claude or Codex on the left; on the right, a sidebar (Files, Search, Changes (git) and,
   for a repo on GitHub, Issues) above a terminal. An issue goes to the agent in one key, and the next commit
-  closes it.
+  closes it; a file the agent names opens at its line in one key too.
 
   ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the message
   Claude wrote and the issue it fixes, Issues by priority](docs/media/sidebar.webp)
@@ -92,6 +92,7 @@ Your own files are saved first, in `~/.local/state/herdr-fold/`. Your conversati
 | Ctrl + B, then w | the Spaces list: W / S move, Enter switches |
 | Ctrl + B, then Shift + N | new workspace |
 | Cmd + Shift + C | commit and push |
+| Cmd + Shift + L | open a file the agent named, at its line |
 | Cmd + Shift + R | find a conversation in the Conversations column |
 | Cmd + Shift + E | show / hide the sidebar and terminal |
 | Cmd + Shift + H | collapse / open the Conversations column |

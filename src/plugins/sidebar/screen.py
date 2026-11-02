@@ -1,5 +1,6 @@
 """The sidebar's drawing: a canvas of cells the views paint on (a wide character takes two, never half of one),
 clickable regions, a renderer that sends only the rows changed since the last frame, and the icons."""
+import json
 import os
 import unicodedata
 from dataclasses import dataclass
@@ -101,6 +102,16 @@ def after(nerd):
     """The blank after a mark before its text: two cells after a Nerd Font icon (the terminal draws the icon over the
     first one), one after a plain mark."""
     return "  " if nerd else " "
+
+
+def icons_on(state_dir):
+    """Whether the sidebar shows Nerd Font icons (its settings.json in STATE_DIR): unless turned off there."""
+    try:
+        with open(os.path.join(state_dir, "settings.json"), encoding="utf-8") as f:
+            settings = json.load(f)
+    except (OSError, ValueError):
+        return True
+    return not isinstance(settings, dict) or settings.get("icons") is not False
 
 
 def centered(start, cells):

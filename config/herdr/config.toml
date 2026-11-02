@@ -95,6 +95,16 @@ type = "shell"
 command = "/usr/bin/python3 ~/.config/herdr-fold/claude_search.py"
 description = "search the Claude conversation (Cmd+F)"
 
+# Open a file the focused pane's output names, at its line, in the sidebar's preview tab — in a small window
+# (Ghostty: Cmd+Shift+L → Ctrl+B, Shift+L): the files its recent lines name that are there, the newest first
+[[keys.command]]
+key = "prefix+shift+l"
+type = "popup"
+command = "/usr/bin/python3 ~/.config/herdr-fold/open_file.py"
+description = "open a file the pane's output names, at its line (Cmd+Shift+L)"
+width = "70%"
+height = "60%"
+
 # The Conversations column right before the right column, in every tab: collapse it to a rail everywhere at once, or
 # open it, the choice kept (Ghostty: Cmd+Shift+H → Ctrl+B, Shift+H)
 [[keys.command]]

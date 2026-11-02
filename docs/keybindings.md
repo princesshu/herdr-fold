@@ -25,6 +25,7 @@ all.
 | Cmd + Shift + G | the sidebar's Changes view |
 | Cmd + Shift + I | the sidebar's Issues view, for a repository on GitHub |
 | Cmd + Shift + C | commit and push, with a message written by Claude or Codex: Enter commits and pushes, `e` edits, `r` writes a new one, Esc cancels |
+| Cmd + Shift + L | open a file the focused pane's output names (`src/app.py:42`, a traceback's line), at that line, in the sidebar's preview tab: the newest first, type to narrow the list |
 | Cmd + T / Cmd + R | next / previous tab of the workspace, wrapping around; keep Cmd held and tap again to step on |
 | Ctrl + B, then 1…9 | tab 1…9 of the workspace |
 | Cmd + W | close the active tab, never the main tab (a workspace's first); a tab with a conversation asks first |
@@ -77,6 +78,7 @@ In another terminal, the same commands are on herdr's keys:
 | Cmd + Shift + I | Ctrl + B, then Shift + I |
 | Cmd + W | Ctrl + B, then t |
 | Cmd + Shift + C | Ctrl + B, then y |
+| Cmd + Shift + L | Ctrl + B, then Shift + L |
 | Cmd + F | Ctrl + B, then a |
 | Cmd + Shift + R | Ctrl + B, then m |
 | Cmd + K, then Cmd + T | Ctrl + B, then i |

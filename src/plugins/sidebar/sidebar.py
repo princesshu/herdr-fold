@@ -114,11 +114,6 @@ def picker_there(herdr):
     return any(plugin.get("plugin_id") == "herdr-fold.tab-layout" for plugin in plugins)
 
 
-def seed_file(state_dir, tab):
-    """Where a new preview TAB's sidebar finds where the sidebar that opened it was."""
-    return os.path.join(state_dir, "seed-" + "".join(ch if ch.isalnum() else "-" for ch in tab) + ".json")
-
-
 class App(Loop):
     def __init__(self, root, terminal, herdr, state_dir, clock=time.monotonic, code=CODE):
         super().__init__(terminal, herdr, state_dir, clock, code)
@@ -269,7 +264,7 @@ class App(Loop):
         except OSError:
             return
         tab = self.own_tab()
-        path = seed_file(self.state_dir, tab) if tab else None
+        path = preview.seed_file(self.state_dir, tab) if tab else None
         try:
             with open(path, encoding="utf-8") as f:
                 left = json.load(f)
@@ -466,7 +461,7 @@ class App(Loop):
 
             def lay_out(tab):
                 kinds = panels.present(self.herdr.call("pane", "list").get("panes") or []).get(here)
-                statefile.write(seed_file(self.state_dir, tab), seed)
+                statefile.write(preview.seed_file(self.state_dir, tab), seed)
                 conversations_pane.bring(self.herdr.call, tab, kinds or set(panels.KINDS), self.state_dir)
 
             preview.open_preview(self.herdr, workspace, cwd, spec, self.state_dir, lay_out, here)
