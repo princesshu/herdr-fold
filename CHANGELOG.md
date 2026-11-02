@@ -12,7 +12,8 @@ All notable changes to this project are listed here. The format follows
   to it after leaving it; again on a marked one takes the mark off. See [Sessions](docs/usage.md#sessions).
 - herdr-fold in herdr's desktop app: a mod with the sidebar's Changes view (the changed files, a file's diff, the
   message Claude or Codex writes, commit, sync), for a space on this Mac or on another machine, with the TUI's data
-  layer underneath. See [The Herdr app](docs/app.md).
+  layer underneath; a layout of its own puts it in the right panel, where the app's Changes was (Cmd + Shift + G). See
+  [The Herdr app](docs/app.md).
 
 ### Security
 

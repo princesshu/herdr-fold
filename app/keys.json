@@ -1,0 +1,6 @@
+{
+  "layout:herdr-fold": {
+    "cmd-shift-g": "mod.open:herdr-fold",
+    "cmd-shift-c": "herdr-fold.write"
+  }
+}

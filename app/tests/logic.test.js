@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PYTHON, background, changedFiles, diffRows, secretQuestion, syncLabel, written }
+import { PYTHON, background, changedFiles, diffRows, panelToggle, secretQuestion, syncLabel, written }
   from "../mods/herdr-fold/logic.js";
 
 test("a diff's lines numbered once, old and new apart", () => {
@@ -102,4 +102,14 @@ test("files named like secrets are asked about before a commit, in the TUI sideb
   assert.equal(secretQuestion(["deploy/.env"]), ".env looks like a secret. Commit it anyway?");
   assert.equal(secretQuestion(["a.key", "b.key", "c.key", "d.key", "e.key"]),
     "a.key, b.key, c.key and 2 more look like secrets. Commit them anyway?");
+});
+
+test("Cmd+Shift+G shows the right panel at herdr-fold, as the Changes button does, or hides it from there", () => {
+  /** @param {boolean} hidden @param {string} active */
+  const tree = (hidden, active) => ({ id: "root", children: [{ id: "work", children: [{ id: "panel", hidden,
+    children: [{ id: "panel-body", type: "stack", active, children: [{ id: "files" }, { id: "changes" }] }] }] }] });
+  const show = [["layout.select", { stack: "panel-body", child: "changes" }], ["layout.show", { id: "panel" }]];
+  assert.deepEqual(panelToggle(tree(true, "changes")), show);
+  assert.deepEqual(panelToggle(tree(false, "files")), show);
+  assert.deepEqual(panelToggle(tree(false, "changes")), [["layout.hide", { id: "panel" }]]);
 });

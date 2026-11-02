@@ -4,6 +4,9 @@ herdr's desktop app takes mods: JavaScript that draws panels in its window. herd
 TUI sidebar's counterpart in the app, with the same data layer underneath (`core/`), so a repository shows and commits
 the same in both. It installs on its own, without the TUI environment.
 
+It comes with a layout of its own, `herdr-fold`: the app's main layout, with herdr-fold in the right panel where the
+app's own Changes was. The Changes button at the top right opens it there, and so does Cmd + Shift + G.
+
 Its first view is Changes. The other sidebar views (Files, Search, Issues) and the Conversations column are not in the
 app yet.
 
@@ -23,32 +26,39 @@ The list follows the files: on this Mac a change shows at once, on another machi
 ## Installing it
 
 It needs the Herdr app, and Python 3 and git on the machine the space is on (Claude Code or Codex too, for the ✦).
+From the `app` folder of herdr-fold:
 
-1. Copy the `app/mods/herdr-fold` folder into the app's mods folder:
-
-   ```bash
-   cp -R app/mods/herdr-fold ~/.config/herdr-app/mods/
-   ```
-
-2. In a terminal of the space, open it beside that terminal:
+1. Copy the mod and the layout into the app's home:
 
    ```bash
-   herdr-app do pane.split --direction right --mod herdr-fold
+   cp -R mods/herdr-fold ~/.config/herdr-app/mods/
+   cp layouts/herdr-fold.json ~/.config/herdr-app/layouts/
    ```
 
-The pane belongs to the tab and stays there; close it like any pane. To remove the mod, delete
-`~/.config/herdr-app/mods/herdr-fold`.
+2. Add the `layout:herdr-fold` section of `keys.json` to `~/.config/herdr-app/keys.json`.
+3. Show the layout:
+
+   ```bash
+   herdr-app do layout.switch --name herdr-fold
+   ```
+
+Your own layout stays as it was: Cmd + Shift + L switches between the layouts. To remove it all, delete the two copied
+items and the keys section.
+
+Without the layout, herdr-fold also opens beside a terminal, as a pane of that tab:
+`herdr-app do pane.split --direction right --mod herdr-fold`.
 
 ## Keys
 
-None are bound yet. The mod takes three commands, for `~/.config/herdr-app/keys.json`:
+In the herdr-fold layout:
 
-```json
-{ "global": { "cmd-shift-c": "herdr-fold.write", "cmd-shift-y": "herdr-fold.sync" } }
-```
+| Key | What it does |
+|---|---|
+| Cmd + Shift + G | shows the right panel at herdr-fold, as the Changes button does; again hides it |
+| Cmd + Shift + C | has Claude or Codex write the message, as the ✦ does; Enter commits |
 
-`herdr-fold.write` writes the message, `herdr-fold.commit` commits, `herdr-fold.sync` syncs; they reach a shown
-herdr-fold only.
+The mod takes three commands for keys of your own: `herdr-fold.write`, `herdr-fold.commit` and `herdr-fold.sync`
+(they reach a herdr-fold that shows).
 
 ## On another machine
 

@@ -43,6 +43,24 @@ export function syncLabel(status) {
   return status?.upstream ? `↻ ${status.behind}↓ ${status.ahead}↑` : "↻";
 }
 
+/** The node of the layout tree NODE named ID, or null. @param {any} node @param {string} id @returns {any} */
+function find(node, id) {
+  if (!node || node.id === id) return node ?? null;
+  for (const child of node.children ?? []) {
+    const found = find(child, id);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** What Cmd+Shift+G runs in layout ROOT: the right panel shown at herdr-fold, as the Changes button does, or hidden
+ * when it shows that already. @param {any} root */
+export function panelToggle(root) {
+  const panel = find(root, "panel"), body = find(root, "panel-body");
+  return panel && !panel.hidden && body?.active === "changes" ? [["layout.hide", { id: "panel" }]]
+    : [["layout.select", { stack: "panel-body", child: "changes" }], ["layout.show", { id: "panel" }]];
+}
+
 // core/'s code runs in the repository's folder, isolated: a module there (a json.py) is never imported for Python's
 export const PYTHON = ["python3", "-I", "-c"];
 

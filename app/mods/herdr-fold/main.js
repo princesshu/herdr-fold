@@ -3,9 +3,11 @@
 // writes, and a sync that loses nothing. The git work runs on the space's machine, with core/'s code (helper.js).
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list } from "gpui-base";
-import { spaces, panes, focused, exec, watchFolder, nextCommand, theme, settings } from "herdr";
+import { spaces, panes, focused, exec, watchFolder, nextCommand, theme, settings, layout, props, closeOverlay,
+  run as command } from "herdr";
 import { COMMIT_MESSAGE, GIT } from "./helper.js";
-import { PYTHON, background, changedFiles, diffRows, secretQuestion, syncLabel, written } from "./logic.js";
+import { PYTHON, background, changedFiles, diffRows, panelToggle, secretQuestion, syncLabel, written }
+  from "./logic.js";
 
 const REFRESH = 10000;             // ms between two looks when no folder change says so (another machine's space)
 const POLL = 1500;                 // ms between two looks at the message being written
@@ -38,6 +40,10 @@ async function python(source, args, root, on) {
 
 export default class HerdrFold extends View {
   init(_props, cx) {
+    if ((this.launcher = props()?.overlay)) {     // Cmd+Shift+G (mod.open): the right panel at herdr-fold, then gone
+      for (const [name, args] of panelToggle(layout())) command(name, args);
+      return void closeOverlay(this.launcher);
+    }
     this.files = []; this.rows = []; this.status = null; this.message = "";
     this.input = InputState.new({ placeholder: "Commit message" });
     this.input.on("change", (_e, cx) => {
@@ -204,6 +210,7 @@ export default class HerdrFold extends View {
   }
 
   render(cx) {
+    if (this.launcher) return div();
     if (JSON.stringify(place()) !== this.key) this.refresh(cx);
     const t = theme();
     return v_flex().id("herdr-fold").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1()
