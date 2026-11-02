@@ -16,7 +16,7 @@ plugins of its own.
 | `herdr-plugin.toml` | the whole environment as a herdr plugin (Full Setup), for herdr's marketplace: it opens `install.sh` in a herdr tab, once for each copy herdr keeps (`lib/offer_install.sh`) |
 | `Brewfile` | the programs: herdr, Ghostty, starship, gh, bat, git-delta, ripgrep, the JetBrains Mono Nerd Font |
 | `files.txt` | which file goes where on this Mac |
-| `lib/` | the shell helpers: texts (`i18n.sh`), status lines (`output.sh`), file rules (`files.sh`), the loading animation (`loading.sh`), shared settings (`common.sh`); `offer_install.sh`, the whole-environment plugin's hook |
+| `lib/` | the shell helpers: texts (`i18n.sh`), status lines (`output.sh`), file rules (`files.sh`), the loading animation (`loading.sh`), shared settings (`common.sh`); `offer_install.sh`, the whole-environment plugin's hook; `herdr_app.py`, herdr-fold in the Herdr app for the installer and the uninstaller (the mod, its layout and keys, in the app's home) |
 
 ### Settings
 
