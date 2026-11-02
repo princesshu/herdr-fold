@@ -1,6 +1,6 @@
 id = "herdr-fold.tab-layout"
 name = "Tab Layout"
-version = "0.1.0"
+version = "0.2.0"
 min_herdr_version = "0.9.5"
 description = """\
   Keeps the layout: a new workspace asks for its folder, new tabs get the columns, and after a restart the \

@@ -6,6 +6,11 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-02
+
+The whole environment `herdr-fold 0.2.0` and its plugins `herdr-fold.sidebar 0.2.0`, `herdr-fold.sessions-view 0.2.0`
+and `herdr-fold.tab-layout 0.2.0`.
+
 ### Changed
 
 - The plugins' names, as herdr's marketplace lists them: `Full Setup` (`herdr-fold`), `AI Sessions`
@@ -20,9 +25,11 @@ All notable changes to this project are listed here. The format follows
   as herdr's new button does.
 - A workspace whose folder is deleted says deleted beside its branch, in the theme's red.
 - A workspace where an agent waits on you, blocked or done and not seen yet, says how long beside its branch
-  (`waiting 12m`), in the theme's yellow; it counts on while you work elsewhere.
+  (`waiting 12m`), in the theme's yellow; it counts on while you work elsewhere. See
+  [Sessions](docs/usage.md#sessions).
 - Cmd + Shift + L: the files the focused pane's output names (`src/app.py:42`, a traceback's line), the newest first;
-  Enter shows one at that line in the sidebar's preview tab.
+  Enter shows one at that line in the sidebar's preview tab. See
+  [Opening a file the agent named](docs/usage.md#opening-a-file-the-agent-named).
 - Buttons where a key was the only way: Cancel and Open in the folder picker, Cancel and Close when a tab with a
   conversation is closed.
 - The folder picker takes the mouse: a click chooses a folder, a double click opens it, the wheel moves, and a click
@@ -69,5 +76,6 @@ First release.
 - Privacy: no telemetry; the plugins' state readable by you alone; a hand-added machine's host key shown and confirmed
   before the first connection; a privacy test over every file and every commit. See [Security](SECURITY.md).
 
-[Unreleased]: https://github.com/princesshu/herdr-fold/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/princesshu/herdr-fold/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/princesshu/herdr-fold/releases/tag/v0.2.0
 [0.1.0]: https://github.com/princesshu/herdr-fold/releases/tag/v0.1.0
