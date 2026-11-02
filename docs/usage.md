@@ -52,7 +52,9 @@ prompt). Cmd + D and Cmd + E step through them.
 
 The Spaces list says how long an agent has waited on you, blocked or done, beside its workspace's branch: `waiting
 12m` in the theme's yellow, the longest wait when several agents wait there. It counts on while you work elsewhere and
-goes once you answer, or look at the finished one.
+goes once you answer, or look at the finished one. To come back to one you have seen, mark it unread: Cmd + Shift + U
+on its pane, and its workspace says `waiting` again, from now, until you return to it after leaving it (Cmd + Shift + U
+again takes the mark off).
 
 ![The Spaces list: harbor-web's agent blocked and waiting 12 minutes, tidepool's done and waiting 3 minutes, beside
 their branch](media/waiting.webp)

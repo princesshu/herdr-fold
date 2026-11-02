@@ -13,6 +13,7 @@ all.
 | Ctrl + B, then w | make the Spaces list active: W / S or ↑ / ↓ move the highlight, Enter switches, Esc cancels, 1–9 jumps |
 | Ctrl + B, then Shift + N | new workspace, with the folder picker (the same as the **new** button under Spaces) |
 | Cmd + D / Cmd + E | next / previous session of the current workspace, even while typing; wraps around |
+| Cmd + Shift + U | mark the focused agent unread: its workspace says `waiting` again, from now, until you come back to it after leaving it; again on a marked one takes the mark off |
 | Cmd + B | show / hide herdr's sidebar (Spaces and Sessions) |
 | Ctrl + B, then Shift + M | add a remote machine |
 
@@ -81,6 +82,7 @@ In another terminal, the same commands are on herdr's keys:
 | Cmd + Shift + L | Ctrl + B, then Shift + L |
 | Cmd + F | Ctrl + B, then a |
 | Cmd + Shift + R | Ctrl + B, then m |
+| Cmd + Shift + U | Ctrl + B, then Shift + U |
 | Cmd + K, then Cmd + T | Ctrl + B, then i |
 
 ## Remapping keys

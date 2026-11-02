@@ -19,6 +19,8 @@ workspace's one conversation, its name and its state](../../../docs/media/hero.w
   the longest wait there. herdr-fold's theme shows it in the Spaces list beside the branch (`$waiting`); in your own
   settings, put `"$waiting"` in a row of `[ui.sidebar.spaces]`. While an agent waits, one run of the plugin stays to
   count the minutes, looking again every 20 seconds, and ends once none waits.
+- Its action **AI Sessions: mark unread** (herdr-fold's Cmd + Shift + U) marks the focused agent unread: it waits on
+  you again, from then, until you come back to its pane after leaving it; again on a marked one takes the mark off.
 
 ## What it reads and writes
 

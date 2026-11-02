@@ -89,6 +89,7 @@ Your own files are saved first, in `~/.local/state/herdr-fold/`. Your conversati
 | Cmd + → / Cmd + ← | next / previous pane: the agent, Conversations, the sidebar, the terminal |
 | Cmd + T / Cmd + R | next / previous tab |
 | Cmd + D / Cmd + E | next / previous session |
+| Cmd + Shift + U | mark the agent unread, to come back to |
 | Ctrl + B, then w | the Spaces list: W / S move, Enter switches |
 | Ctrl + B, then Shift + N | new workspace |
 | Cmd + Shift + C | commit and push |

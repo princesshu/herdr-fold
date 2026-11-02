@@ -352,6 +352,34 @@ class Waits(unittest.TestCase):
         with open(os.path.join(self.state, "waits.json")) as f:
             self.assertEqual(json.load(f), {})
 
+    def test_an_agent_marked_unread_waits_until_looked_at_again(self):
+        # Cmd+Shift+U while on it: it waits from now; leaving it, then coming back to it, reads it
+        agents = [self.agent("w1:p1", "idle")]
+        sessions.mark_unread("w1:p1", agents, 1000.0)
+        sessions.report_waits(agents, 1300.0, focused="w1:p1")                  # still on it
+        sessions.report_waits(agents, 1360.0, focused="w2:p1")                  # left it
+        self.assertTrue(sessions.report_waits(agents, 1500.0))                   # the clock's look
+        self.assertFalse(sessions.report_waits(agents, 1600.0, focused="w1:p1"))
+        self.assertEqual(self.reports, [("w1", "waiting <1m"), ("w1", "waiting 5m"), ("w1", "waiting 6m"),
+                                        ("w1", "waiting 8m"), ("w1", None)])
+
+    def test_marking_it_again_takes_the_mark_off(self):
+        agents = [self.agent("w1:p1", "idle")]
+        sessions.mark_unread("w1:p1", agents, 1000.0)
+        sessions.mark_unread("w1:p1", agents, 1060.0)
+        self.assertEqual(self.reports, [("w1", "waiting <1m"), ("w1", None)])
+
+    def test_a_marked_agent_stays_marked_while_it_works_and_goes_with_its_pane(self):
+        sessions.mark_unread("w1:p1", [self.agent("w1:p1", "idle")], 1000.0)
+        self.assertTrue(sessions.report_waits([self.agent("w1:p1", "working", seq=2)], 1100.0, focused="w2:p1"))
+        self.assertFalse(sessions.report_waits([], 1200.0))
+        self.assertEqual(self.reports[-1], ("w1", None))
+
+    def test_only_an_agent_can_be_marked_unread(self):
+        sessions.mark_unread("w1:p9", [self.agent("w1:p1", "idle")], 1000.0)
+        self.assertEqual(self.reports, [])
+        self.assertEqual(sessions.load_waits(), {})
+
     def test_the_clock_runs_while_an_agent_waits_and_ends_when_none_does(self):
         now, slept = [1000.0], []
 
@@ -400,11 +428,18 @@ class WindowsPipe(unittest.TestCase):
 
 
 class Manifest(unittest.TestCase):
-    def test_windows_can_reapply_the_view(self):
+    def blocks(self):
         with open(os.path.join(os.path.dirname(sessions.__file__), "herdr-plugin.toml"), encoding="utf-8") as f:
-            blocks = f.read().split("[[")
-        self.assertTrue([b for b in blocks if b.startswith("actions]") and 'id = "apply-windows"' in b
+            return f.read().split("[[")
+
+    def test_windows_can_reapply_the_view(self):
+        self.assertTrue([b for b in self.blocks() if b.startswith("actions]") and 'id = "apply-windows"' in b
                          and 'platforms = ["windows"]' in b])
+
+    def test_mark_unread_is_an_action_everywhere(self):
+        actions = [b for b in self.blocks() if b.startswith("actions]") and "sessions.py\", \"--unread\"]" in b]
+        self.assertEqual(sorted(b.split('id = "')[1].split('"')[0] for b in actions),
+                         ["mark-unread", "mark-unread-windows"])
 
 
 if __name__ == "__main__":

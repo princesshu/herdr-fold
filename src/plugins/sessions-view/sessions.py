@@ -326,16 +326,31 @@ def load_waits():
     return waits if isinstance(waits, dict) else {}
 
 
-def report_waits(agents, now):
-    """Each agent waiting on you, since its last state change (herdr's state_change_seq), kept in waits.json; each
-    workspace's $waiting token set to its longest wait, or cleared, where it changed. Whether any agent waits."""
+def still_unread(was, pane, focused):
+    """WAS, the record of PANE's agent marked unread, once the focus went to FOCUSED (None: no focus change): kept
+    while it stays there, noted as left when another pane gets it, and gone (read) when it comes back after that."""
+    if focused is None or (focused == pane and not was.get("left")):
+        return was
+    return dict(was, left=True) if focused != pane else None
+
+
+def report_waits(agents, now, focused=None):
+    """Each agent waiting on you, since its last state change (herdr's state_change_seq) or since it was marked
+    unread, kept in waits.json; each workspace's $waiting token set to its longest wait, or cleared, where it changed.
+    FOCUSED: the pane a focus change went to. Whether any agent waits."""
     with locked(state_path("waits.json.lock")):
         known, waits = load_waits(), {}
         for agent in agents:
+            pane, seq = agent["pane_id"], agent.get("state_change_seq")
+            was = known.get(pane) if isinstance(known.get(pane), dict) else None
+            if was and was.get("unread") and isinstance(was.get("since"), (int, float)):
+                was = still_unread(was, pane, focused)
+                if was:
+                    waits[pane] = was
+                    continue
             if agent.get("agent_status") in WAITING:
-                seq, was = agent.get("state_change_seq"), known.get(agent["pane_id"])
-                same = isinstance(was, dict) and was.get("seq") == seq and isinstance(was.get("since"), (int, float))
-                waits[agent["pane_id"]] = {"seq": seq, "since": was["since"] if same else now}
+                same = bool(was) and was.get("seq") == seq and isinstance(was.get("since"), (int, float))
+                waits[pane] = {"seq": seq, "since": was["since"] if same else now}
         if waits != known:
             write_json(state_path("waits.json"), waits)
     first = {}
@@ -349,6 +364,24 @@ def report_waits(agents, now):
         if (space.get("tokens") or {}).get(WAIT_TOKEN) != want:
             call("workspace.report_metadata", {"workspace_id": ws, "source": SOURCE, "tokens": {WAIT_TOKEN: want}})
     return bool(waits)
+
+
+def mark_unread(pane, agents, now):
+    """Cmd+Shift+U: PANE's agent waits on you again, from NOW or from when it began to wait, until you come back to it
+    after leaving it; marked already, the mark goes. Then the labels."""
+    agent = next((one for one in agents if one["pane_id"] == pane), None)
+    if agent is None:
+        return
+    with locked(state_path("waits.json.lock")):
+        waits = load_waits()
+        was = waits.get(pane) if isinstance(waits.get(pane), dict) else {}
+        if was.get("unread"):
+            del waits[pane]
+        else:
+            since = was["since"] if isinstance(was.get("since"), (int, float)) else now
+            waits[pane] = {"seq": agent.get("state_change_seq"), "since": since, "unread": True, "left": False}
+        write_json(state_path("waits.json"), waits)
+    report_waits(agents, now)
 
 
 def code_stamp():
@@ -405,16 +438,20 @@ def apply_view():
     })
 
 
-def refresh():
-    """The marks, the names and the waits, once."""
+def refresh(focused=None):
+    """The marks, the names and the waits, once (FOCUSED: the pane a focus change went to)."""
     agents = mark_panes()
     sync_names(agents)
-    report_waits(agents, time.time())
+    report_waits(agents, time.time(), focused)
 
 
 if __name__ == "__main__":
     event = os.environ.get("HERDR_PLUGIN_EVENT", "")
-    refresh()
+    if sys.argv[1:] == ["--unread"]:                    # Cmd+Shift+U, on the focused pane
+        mark_unread(os.environ.get("HERDR_PANE_ID"), mark_panes(), time.time())
+        keep_time()
+        sys.exit(0)
+    refresh(os.environ.get("HERDR_PANE_ID") if event in ("pane.focused", "tab.focused") else None)
     applied = True
     # At startup and on manual runs the view is set too; on events only the marks are refreshed.
     if event in ("", "startup") or os.environ.get("HERDR_PLUGIN_ACTION_ID"):

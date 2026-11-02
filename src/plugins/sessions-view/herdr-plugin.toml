@@ -44,6 +44,13 @@ title = "AI Sessions: reapply"
 command = ["/usr/bin/python3", "sessions.py"]
 platforms = ["macos", "linux"]
 
+# Mark unread (Cmd+Shift+U): the focused agent waits on you again, its workspace says so, until you come back to it
+[[actions]]
+id = "mark-unread"
+title = "AI Sessions: mark unread"
+command = ["/usr/bin/python3", "sessions.py", "--unread"]
+platforms = ["macos", "linux"]
+
 # Windows: the same. Machine setup (prepare-windows.ps1) replaces "python" with the full path to Python.
 [[startup]]
 command = ["python", "sessions.py"]
@@ -75,4 +82,10 @@ platforms = ["windows"]
 id = "apply-windows"
 title = "AI Sessions: reapply"
 command = ["python", "sessions.py"]
+platforms = ["windows"]
+
+[[actions]]
+id = "mark-unread-windows"
+title = "AI Sessions: mark unread"
+command = ["python", "sessions.py", "--unread"]
 platforms = ["windows"]

@@ -6,6 +6,11 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Cmd + Shift + U marks the focused agent unread: its workspace says `waiting` again, from then, until you come back
+  to it after leaving it; again on a marked one takes the mark off. See [Sessions](docs/usage.md#sessions).
+
 ## [0.2.0] - 2026-11-02
 
 The whole environment `herdr-fold 0.2.0` and its plugins `herdr-fold.sidebar 0.2.0`, `herdr-fold.sessions-view 0.2.0`

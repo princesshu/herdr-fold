@@ -129,6 +129,14 @@ type = "shell"
 command = "/usr/bin/python3 ~/.config/herdr-fold/plugins/sidebar/conversations_pane.py --find"
 description = "find a conversation in the Conversations column (Cmd+Shift+R)"
 
+# Mark the focused agent unread: its workspace says it waits on you again, until you come back to it after leaving it
+# (Ghostty: Cmd+Shift+U → Ctrl+B, Shift+U); again on a marked one takes the mark off
+[[keys.command]]
+key = "prefix+shift+u"
+type = "plugin_action"
+command = "herdr-fold.sessions-view.mark-unread"
+description = "mark the focused agent unread, or not any more (Cmd+Shift+U)"
+
 # Add a remote machine — herdr's machines list has no button for it: the installer's questions (~/.ssh/config, the
 # Tailscale network, an address typed in), then the new machine gets set up; in a small window. Needs the herdr-fold
 # folder (the installer records where it is).

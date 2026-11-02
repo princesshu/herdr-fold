@@ -98,6 +98,8 @@ keybind = super+shift+h=text:\x02H
 keybind = super+shift+o=text:\x02O
 # Cmd+Shift+R → find a conversation in the Conversations column (herdr: Ctrl+B, m)
 keybind = super+shift+r=text:\x02m
+# Cmd+Shift+U → mark the focused agent unread: its workspace says it waits on you again (herdr: Ctrl+B, Shift+U)
+keybind = super+shift+u=text:\x02U
 # Cmd+K, Cmd+T → pick a color theme (herdr: Ctrl+B, i). Cmd+K thus starts a key sequence, so
 # Ghostty's default Cmd+K (clear screen) is not available.
 keybind = super+k>super+t=text:\x02i
