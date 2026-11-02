@@ -14,8 +14,10 @@ All notable changes to this project are listed here. The format follows
   message Claude or Codex writes, commit, sync), for a space on this Mac or on another machine, with the TUI's data
   layer underneath; a layout of its own puts it in the right panel, where the app's Changes was (Cmd + Shift + G).
   Where the Herdr app is on the Mac, `install.sh` asks once and sets it all up, the remote machines in the app too;
-  `uninstall.sh` takes it off. See
-  [The Herdr app](docs/app.md).
+  `uninstall.sh` takes it off. See [The Herdr app](docs/app.md).
+- The sidebar in a workspace whose folder is no repository itself (your home folder, a folder of projects): Changes
+  lists every repository below it, however deep, the one used last open with its changes, commit and sync; Enter or a
+  click opens another, and Files marks the changes of all of them. See [The sidebar](docs/sidebar.md#how-it-starts).
 
 ### Security
 

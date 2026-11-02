@@ -18,14 +18,15 @@ import git  # noqa: E402
 import github  # noqa: E402
 import panels  # noqa: E402
 import preview  # noqa: E402
+import repos  # noqa: E402
 import search  # noqa: E402
 import statefile  # noqa: E402
-from explorer import Explorer, git_marks  # noqa: E402
+from explorer import Explorer, git_marks, merged  # noqa: E402
 from fileops import Ops  # noqa: E402
 from find import Find  # noqa: E402
 from issues import Issues  # noqa: E402
 from loop import CODE, Loop  # noqa: E402
-from scm import Scm  # noqa: E402
+from scm import Repo, Scm  # noqa: E402
 from screen import ROOMY, Canvas, Style, centered, glyphs, truncate, width  # noqa: E402
 from tree import Tree  # noqa: E402
 from vt import Focus, Key, Mouse, Resize  # noqa: E402
@@ -38,6 +39,7 @@ VIEW_KEYS = {"1": "files", "2": "search", "3": "git", "4": "issues", "f9": "file
 # linked: the issue each repository's next commit fixes, {repository: [number, title]}
 DEFAULTS = {"hidden": False, "icons": True, "commit_mode": "commit", "view": "files", "linked": {}}
 STALE = 60.0                  # seconds: the issues shown or listed here asked for again (a new one shows up)
+NESTED = 30.0                 # seconds: the repositories below a workspace that is none itself looked for again
 BUSY = {"commit": "Committing…", "sync": "Syncing…", "suggest": "Writing the message…"}   # the first running shows
 EMPTY = git.Status()
 TAB = 5                       # the cells of a view's tab: its icon in the middle one
@@ -120,6 +122,8 @@ class App(Loop):
         self.repo_ops = Ops(self.repo) if self.repo else None
         self.watcher = watch.Watcher(self.tree.expanded_dirs, git.git_dir(self.root), clock)
         self.status, self.graph, self.searching = None, [], None
+        # below a workspace that is no repository: {path: (status, marks, used)}, the one chosen, the others' marks
+        self.found, self.chosen, self.elsewhere, self.next_nested = {}, None, None, None
         self.suggesting = None                            # the message as it was when ✦ asked; None: no answer wanted
         self.pointed = None                               # the view tab (or the ⋯) under the mouse
         self.dots = (0, None, 0)                          # where the ⋯'s menu opens: open_menu()'s arguments
@@ -141,11 +145,18 @@ class App(Loop):
         if "status" in self.running:
             self.again.add("status")
             return
-        root, with_graph, started = self.root, self.view == "git", self.clock()
+        root, chosen, with_graph, started = self.root, self.chosen, self.view == "git", self.clock()
         settings = os.path.join(self.state_dir, "settings.json")
+        look = self.next_nested is None or started >= self.next_nested     # the repositories below, when due
 
         def work():
-            repo = git.top(root)
+            top = git.top(root)
+            found = below(root) if look and not top else None
+            if found is not None and chosen not in found:                  # the one used last, unless one is chosen
+                chosen_now = max(found, key=lambda path: found[path][2], default=None)
+            else:
+                chosen_now = chosen
+            repo = top or (chosen_now if chosen_now and os.path.isdir(chosen_now) else None)
             # not a repository when looked up: so it is shown, even if git init ran meanwhile (the next status has it)
             status = git.status(repo) if repo else git.Status(error=git.status(root).error or "not a git repository")
             graph = git.graph(repo) if repo and with_graph and not status.error else None
@@ -153,12 +164,20 @@ class App(Loop):
             linked = load_settings(settings)["linked"]           # every tab's sidebar links: another one's may be new
             latest = git.head(repo) if repo and linked.get(repo) else (None, "")
             return (repo, name, status, git_marks(status, repo or root, root), graph, started, self.clock(), linked,
-                    latest)
+                    latest, not top, found, chosen_now)
 
         self.job("status", work, self.got_status)
 
     def got_status(self, answer):
-        repo, self.github, self.status, marks, graph, started, finished, linked, (head, message) = answer
+        repo, self.github, self.status, marks, graph, started, finished, linked, (head, message), nested, found, \
+            chosen = answer
+        if not nested:                                  # the workspace is a repository itself (again)
+            self.found, self.chosen, self.elsewhere, self.next_nested = {}, None, None, None
+        elif found is not None:
+            self.found, self.chosen, self.elsewhere = found, chosen, others(found, chosen)
+            self.next_nested = started + NESTED
+        if self.elsewhere:
+            marks = merged(marks, self.elsewhere)
         if narrowest(self.tabs()) != self.needs:                # Issues came or went: the header's width with it
             self.needs = narrowest(self.tabs())
             self.job("need", lambda cells=self.needs: self.need(cells))
@@ -203,6 +222,8 @@ class App(Loop):
                 shown = True
             if self.watcher.status_due(bool(changed), self.view == "git"):
                 self.refresh()
+            if self.next_nested is not None and now >= self.next_nested:
+                self.refresh()
             listing = self.views["issues"].listing        # asked on screen; behind it only while it lists any
             if self.github and (self.view == "issues" or listing and listing.issues):
                 self.fresh_issues(STALE)
@@ -210,6 +231,22 @@ class App(Loop):
         search = self.views["search"].tick(now)
         self.act(search)
         return shown or search is not None
+
+    def do_choose_repo(self, path):
+        self.chosen, self.elsewhere = path, others(self.found, path)
+        self.refresh()
+
+    def repo_rows(self):
+        """Changes' Repositories: the ones found below a workspace that is none itself, the one used last first."""
+        rows = []
+        for path, (status, _, _) in sorted(self.found.items(), key=lambda item: -item[1][2]):
+            status = self.status if path == self.repo and self.status else status
+            sync = f"↻ {status.behind}↓ {status.ahead}↑" if status.upstream else ""
+            folder = os.path.relpath(os.path.dirname(path), self.root)
+            count = len({change.path for change in (*status.staged, *status.changes)})
+            rows.append(Repo(path, os.path.basename(path), "" if folder == "." else folder,
+                             status.branch or "detached", sync, count, path == self.repo))
+        return tuple(rows)
 
     def busy(self):
         """Whether a restart would cut something short: any job (loop.py's busy()), or a name being typed or a
@@ -730,7 +767,7 @@ class App(Loop):
         elif self.view in ("search", "issues"):
             view.draw(canvas, top, height, roomy)
         else:
-            view.draw(canvas, top, height, self.status, self.graph, roomy)
+            view.draw(canvas, top, height, self.status, self.graph, roomy, self.repo_rows())
         if line:
             canvas.put(rows - 2, 0, " " * cells)
             canvas.put(rows - 2, 1, truncate(line, cells - 2), Style(fg="deleted" if self.error else "muted"))
@@ -781,6 +818,22 @@ class App(Loop):
         syncing = "sync" in self.running or "commit" in self.running
         end = canvas.put(y, x + 3, sync, Style(fg="accent" if syncing else "muted", bg="badge"))
         canvas.region(y, x + 2, end + 1, "sync")
+
+
+def below(root):
+    """The repositories below ROOT, any depth down (core/repos.py), each with its status, its Files marks and when it
+    was used last: {path: (status, marks, used)}."""
+    found = {}
+    for path in repos.repositories([root]):
+        status = git.status(path)
+        changed = {change.path for change in (*status.staged, *status.changes)}
+        found[path] = (status, git_marks(status, path, root), repos.used(path, changed))
+    return found
+
+
+def others(found, chosen):
+    """The Files marks of the repositories FOUND but CHOSEN, as one."""
+    return merged(*(marks for path, (_, marks, _) in found.items() if path != chosen))
 
 
 def main(argv):

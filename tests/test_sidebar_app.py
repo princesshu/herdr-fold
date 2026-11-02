@@ -604,6 +604,61 @@ class NotYetARepository(Harness):
         self.until(lambda s: "Staged changes" in s, timeout=15)               # a new status, paced by git's own time
 
 
+class NestedRepositories(Harness):
+    """A workspace that is no repository itself, a repository near and one deep below it: both show in Changes, the
+    one used last open; another one chosen takes the message, the commit and the marks."""
+
+    def setUp(self):
+        Repo.setUp(self)
+        shutil.rmtree(os.path.join(self.root, ".git"))
+        self.app_repo, self.lib = (self.repository(rel) for rel in ("work/app", "deep/a/b/c/lib"))
+        long_ago = time.time() - 10000
+        for path in (os.path.join(self.lib, ".git", "index"), os.path.join(self.lib, ".git", "HEAD"),
+                     os.path.join(self.lib, ".git", "logs", "HEAD"), os.path.join(self.lib, "lib.txt")):
+            os.utime(path, (long_ago, long_ago))
+        self.start()
+
+    def repository(self, rel):
+        path = os.path.join(self.root, rel)
+        name = os.path.basename(rel)
+        os.makedirs(path)
+        with open(os.path.join(path, name + ".txt"), "w") as f:
+            f.write("one\n")
+        git = ["git", "-C", path]
+        subprocess.run(git + ["init", "-q", "-b", "main"], check=True)
+        subprocess.run(git + ["add", "-A"], check=True)
+        subprocess.run(git + ["commit", "-q", "-m", "init"], check=True)
+        with open(os.path.join(path, name + ".txt"), "w") as f:
+            f.write("two\n")
+        return path
+
+    def test_every_repository_below_shows_and_the_one_used_last_is_open(self):
+        self.term.type(Key("char", "3"))
+        self.until(lambda s: "Repositories" in s and "app" in s and "lib" in s and "app.txt" in s, timeout=10)
+        self.assertNotIn("lib.txt", self.screen())
+
+    def test_another_one_chosen_takes_the_commit(self):
+        self.term.type(Key("char", "3"))
+        self.until(lambda s: "app.txt" in s, timeout=10)
+        self.term.type(Key("down"), Key("down"), Key("down"), Key("enter"))      # Repositories, app, lib
+        self.until(lambda s: "lib.txt" in s and "app.txt" not in s, timeout=10)
+        self.term.type(Key("down"), Key("down"), Key("enter"))                   # from lib's row: lib.txt staged
+        self.until(lambda s: "Staged changes" in s, timeout=15)
+        self.term.type(Key("esc"), Key("up"), *keys("feat: in lib"), Key("enter", alt=True))
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline and "feat: in lib" not in subprocess.run(
+                ["git", "-C", self.lib, "log", "-1", "--format=%s"], capture_output=True, text=True).stdout:
+            time.sleep(0.1)
+        self.assertEqual(subprocess.run(["git", "-C", self.lib, "log", "-1", "--format=%s"], capture_output=True,
+                                        text=True).stdout.strip(), "feat: in lib")
+        self.assertEqual(subprocess.run(["git", "-C", self.app_repo, "log", "-1", "--format=%s"],
+                                        capture_output=True, text=True).stdout.strip(), "init")
+
+    def test_the_files_view_marks_a_deep_repositorys_change(self):
+        self.until(lambda s: self.row("deep").rstrip().endswith("●") and self.row("work").rstrip().endswith("●"),
+                   timeout=10)
+
+
 class PaneMenu(unittest.TestCase):
     """A right click on the sidebar's header or status bar: its own menu, each of the tab's other panes closed or shown
     back."""

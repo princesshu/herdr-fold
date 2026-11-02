@@ -62,6 +62,18 @@ class Popup:
     x: int
 
 
+def merged(*marks):
+    """The marks of several repositories under the root (git_marks of each) as one."""
+    files, folders, ignored = {}, {}, set()
+    for their_files, their_folders, their_ignored in marks:
+        for path, code in their_files.items():
+            files[path] = stronger(files.get(path), code)
+        for path, code in their_folders.items():
+            folders[path] = stronger(folders.get(path), code)
+        ignored |= their_ignored
+    return files, folders, ignored
+
+
 class Explorer:
     def __init__(self, tree, icons=True, repo=None):
         self.tree, self.icons = tree, icons

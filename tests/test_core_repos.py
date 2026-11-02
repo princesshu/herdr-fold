@@ -66,5 +66,30 @@ class Repositories(unittest.TestCase):
         self.assertEqual(self.found(budget=0), [])
 
 
+class Used(unittest.TestCase):
+    def setUp(self):
+        self.repo = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.repo)
+        os.makedirs(os.path.join(self.repo, ".git", "logs"))
+        for rel, when in ((".git/HEAD", 100), (".git/index", 300), (".git/logs/HEAD", 200), ("a.txt", 50),
+                          ("b.txt", 900)):
+            with open(os.path.join(self.repo, rel), "w") as f:
+                f.write("x\n")
+            os.utime(os.path.join(self.repo, rel), (when, when))
+
+    def test_the_last_commit_checkout_or_staging(self):
+        self.assertEqual(repos.used(self.repo), 300)
+
+    def test_a_changed_file_edited_since(self):
+        self.assertEqual(repos.used(self.repo, ["a.txt", "b.txt", "gone.txt"]), 900)
+
+    def test_a_worktree_by_its_git_file(self):
+        tree = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tree)
+        with open(os.path.join(tree, ".git"), "w") as f:
+            f.write(f"gitdir: {os.path.join(self.repo, '.git')}\n")
+        self.assertEqual(repos.used(tree), 300)
+
+
 if __name__ == "__main__":
     unittest.main()

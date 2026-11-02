@@ -35,6 +35,24 @@ def repositories(where, depth=None, budget=BUDGET):
     return found
 
 
+def used(repo, changed=()):
+    """When REPO was used last: its last commit, checkout or staging, or a file of CHANGED (paths from it) edited since;
+    0 when none can be read."""
+    git = os.path.join(repo, ".git")
+    if os.path.isfile(git):                            # a worktree or submodule: .git names its folder
+        with open(git, encoding="utf-8", errors="replace") as f:
+            line = f.readline().strip()
+        git = os.path.join(repo, line[len("gitdir:"):].strip()) if line.startswith("gitdir:") else git
+    times = [0]
+    for path in [os.path.join(git, rel) for rel in ("HEAD", "index", os.path.join("logs", "HEAD"))] + [
+            os.path.join(repo, rel) for rel in changed]:
+        try:
+            times.append(os.stat(path).st_mtime)
+        except OSError:
+            pass
+    return max(times)
+
+
 def owned(path):
     """True if PATH is the user's own or root's."""
     try:
