@@ -331,7 +331,7 @@ class Running(Harness):
 
 
 class Tips(Harness):
-    """A control shown by an icon alone tells what it does, and its key, once the mouse rests on it."""
+    """A control shown by an icon alone tells what it does once the mouse rests on it."""
 
     def setUp(self):
         Repo.setUp(self)
@@ -351,7 +351,7 @@ class Tips(Harness):
         self.term.type(Key("char", "3"))
         self.until(lambda s: "a.txt" in s)
         self.term.type(Mouse("move", *self.region(lambda target: target == "suggest")))
-        self.until(lambda s: "Write the message · A" in s, timeout=3)
+        self.until(lambda s: " Write the message " in s, timeout=3)
         self.term.type(Key("char", "x", ctrl=True))
         self.until(lambda s: "Write the message" not in s)
 

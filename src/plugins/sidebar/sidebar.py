@@ -42,14 +42,13 @@ BUSY = {"commit": "Committing…", "sync": "Syncing…", "suggest": "Writing the
 EMPTY = git.Status()
 TAB = 5                       # the cells of a view's tab: its icon in the middle one
 TIP_DELAY = 0.5               # seconds the mouse rests on a control shown by an icon before it says what it does
-# what each such control does, by its target (a row's buttons by their kind), and its key
-TIPS = {"suggest": "Write the message · A", "mode": "Commit mode", "sync": "Sync · S", "panels": "Panes",
-        "unlink": "Unlink the issue", "view:files": "Files · 1", "view:search": "Search · 2", "view:git": "Changes · 3",
-        "view:issues": "Issues · 4", "new_file": "New file", "new_folder": "New folder", "refresh": "Refresh",
-        "collapse": "Collapse all", "case": "Match case · Alt+C", "word": "Whole word · Alt+W",
-        "regex": "Regular expression · Alt+R", "clear": "Clear · Esc", "stage": "Stage", "unstage": "Unstage",
-        "discard": "Discard changes · d", "diff": "Show the diff · Space", "agent": "To the agent · t",
-        "web": "Open in the browser · b"}
+# what each such control does, by its target (a row's buttons by their kind)
+TIPS = {"suggest": "Write the message", "mode": "Commit mode", "sync": "Sync", "panels": "Panes",
+        "unlink": "Unlink the issue", "view:files": "Files", "view:search": "Search", "view:git": "Changes",
+        "view:issues": "Issues", "new_file": "New file", "new_folder": "New folder", "refresh": "Refresh",
+        "collapse": "Collapse all", "case": "Match case", "word": "Whole word", "regex": "Regular expression",
+        "clear": "Clear", "stage": "Stage", "unstage": "Unstage", "discard": "Discard changes", "diff": "Show the diff",
+        "agent": "To the agent", "web": "Open in the browser"}
 # the cells between the last view's tab and the ⋯ at least: the shown view's title (a cell of air on each side), the ⋯ a
 # group of its own
 APART = 1 + max(width(title) for title in VIEWS.values()) + 1

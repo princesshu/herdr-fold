@@ -76,8 +76,8 @@ the file plain, the diff in git's colors); the built-in pager shows either.
 | Preview | ↑ ↓ or `j` `k`, PgUp PgDn or `b` Space, Home End or `g` `G`, `/` search, `n` `N` the next and previous hit, `q`, Esc or Ctrl + C closes the whole tab |
 
 Everything works with the mouse too: a click, a right click for the menu, the wheel, and the row icons on hover. A
-control shown by an icon alone (✦, ↻, the view tabs, a row's icons…) says what it does, and its key, once the mouse
-rests on it for half a second. The sections folded in Changes stay folded after an update or a restart (a sidebar
+control shown by an icon alone (✦, ↻, the view tabs, a row's icons…) says what it does once the mouse rests on it
+for half a second. The sections folded in Changes stay folded after an update or a restart (a sidebar
 started later, in another tab too, takes them); a new version comes back to the rows you were on.
 The Alt keys need Option to work as Alt in the terminal (herdr-fold's Ghostty leaves Option to the keyboard layout);
 Alt + Enter commits from the message there too.

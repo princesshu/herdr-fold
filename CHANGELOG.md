@@ -19,7 +19,7 @@ All notable changes to this project are listed here. The format follows
   shows the repository of the folder or file chosen in Files, however deep, with its changes, commit and sync; Files'
   marks and the Issues view follow it. See [The sidebar](docs/sidebar.md#how-it-starts).
 
-- Tips in the sidebar: a control shown by an icon alone says what it does, and its key, once the mouse rests on it
+- Tips in the sidebar: a control shown by an icon alone says what it does once the mouse rests on it
   (✦, ↻, the view tabs, a row's Stage, Unstage, Discard and diff icons, the Files and Search buttons).
 
 ### Changed
