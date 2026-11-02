@@ -113,6 +113,13 @@ install.tab_layout_failed = tab-layout plugin not linked — later: herdr plugin
 install.claude_integration_failed = Claude integration not installed — later: herdr integration install claude
 install.codex_not_found = Codex not found — once you install it and sign in: herdr integration install codex
 install.codex_not_run = Codex has not run on this machine yet — sign in (codex), then: herdr integration install codex
+install.app_ask = Set up herdr-fold in the Herdr app too?
+install.app_done = Herdr app: herdr-fold's Changes view, its layout and keys
+install.app_layout = Herdr app: the herdr-fold layout shows; Cmd + Shift + L switches back
+install.app_keys_unread = Herdr app: %s is not valid JSON, so its keys were left as they are
+install.app_not_herdr_folds = Herdr app: %s is someone else's, so it was left as it is
+install.app_check_failed = Herdr app: the mod did not load — %s
+install.app_failed = Herdr app: herdr-fold could not be set up
 install.codex_integration_failed = Codex integration not installed — later: herdr integration install codex
 
 # install.sh: creating an SSH key (step 8)
@@ -348,6 +355,7 @@ uninstall.zshrc = ~/.zshrc: the herdr-fold block is out
 uninstall.config_stripped = ~/.config/herdr/config.toml: herdr-fold's parts are out, yours stay
 uninstall.plugin_removed = %s removed
 uninstall.plugin_left = %s is still in herdr: start herdr, then run %s
+uninstall.app_off = Herdr app: herdr-fold's mod, layout and keys removed
 uninstall.integration_left = herdr's %s integration is still there: run %s
 uninstall.kept = kept: %s
 uninstall.kept_names = kept: %s, AI Sessions' conversation names (the conversations stay too)

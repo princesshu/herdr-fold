@@ -520,6 +520,30 @@ else
   integration codex "$(was codex)" && hooked+=("$(t install.codex)") \
     || warn "$(t install.codex_integration_failed)"
 fi
+# herdr-fold in the Herdr app (herdr's desktop app), when it is on this Mac: its mod, layout and keys; a running app
+# shows the layout at once. A program of its own, so asked even on a fresh herdr; an update keeps the last answer
+app_wanted() {
+  if grep -qxF declined:herdr-fold.app "$plugins" 2>/dev/null; then
+    ! updating && ask "$(t install.app_ask)" n && return 0
+  elif grep -qxF herdr-fold.app "$plugins" 2>/dev/null && updating || ask "$(t install.app_ask)" y; then return 0; fi
+  echo declined:herdr-fold.app >> "$plugins.new"
+  return 1
+}
+app=$(python3 "$DOT/lib/herdr_app.py" cli)
+if [ -n "$app" ] && app_wanted; then
+  python3 "$DOT/lib/herdr_app.py" install "$DOT"; rc=$?
+  app_home=$(python3 "$DOT/lib/herdr_app.py" home)
+  case $rc in
+    0|3)
+      echo herdr-fold.app >> "$plugins.new"; ok "$(t install.app_done)"
+      [ $rc = 0 ] || warn "$(t install.app_keys_unread "$(shown "$app_home/keys.json")")"
+      out=$("$app" check "$app_home/mods/herdr-fold" 2>&1) || warn "$(t install.app_check_failed "${out##*$'\n'}")"
+      "$app" status >/dev/null 2>&1 && "$app" do layout.switch --name herdr-fold >/dev/null 2>&1 \
+        && note "$(t install.app_layout)" ;;
+    4) warn "$(t install.app_not_herdr_folds "$(shown "$app_home/mods/herdr-fold")")" ;;
+    *) warn "$(t install.app_failed)" ;;
+  esac
+fi
 mv "$plugins.new" "$plugins"
 [ ${#linked[@]} = 0 ] || ok "$(t install.plugins "$(joined "${linked[@]}")")"
 [ ${#hooked[@]} = 0 ] || ok "$(t install.integrations "$(joined "${hooked[@]}")")"

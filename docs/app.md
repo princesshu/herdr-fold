@@ -26,7 +26,12 @@ The list follows the files: on this Mac a change shows at once, on another machi
 ## Installing it
 
 It needs the Herdr app, and Python 3 and git on the machine the space is on (Claude Code or Codex too, for the ✦).
-From the `app` folder of herdr-fold:
+
+With the TUI environment, `./install.sh` does it all: where the Herdr app is on the Mac, it asks
+`Set up herdr-fold in the Herdr app too?`, and a yes puts the mod, the layout and the keys in place, and shows the
+layout in a running app. `./uninstall.sh` takes them off again.
+
+Without the TUI environment, from the `app` folder of herdr-fold:
 
 1. Copy the mod and the layout into the app's home:
 

@@ -89,6 +89,7 @@ the default: the capital letter in `[Y/n]` (yes) or `[y/N]` (no). Each line it p
 | 5 Status line | `Trust them, so the status line shows there too? (Claude then also runs their own .claude settings and hooks)` | some of your Claude panes are in git repositories Claude does not trust yet (never a folder outside one, your home folder or a folder above it) | no |
 | 6 Plugins | `Show your conversations in herdr's Agents list?` | herdr was set up before | yes, or your last answer |
 | 6 Plugins | `Give every new tab the Conversations column, the sidebar and a terminal?` | herdr was set up before | yes, or your last answer |
+| 6 Plugins | `Set up herdr-fold in the Herdr app too?` | the Herdr app (herdr's desktop app) is on this Mac; an update asks only the first time | yes (no after an earlier no): its mod, layout and keys in the app, and the remote machines there too ([The Herdr app](app.md)) |
 | 7 GitHub | `Sign in to GitHub now?` | the Mac is not signed in to GitHub | yes |
 | 7 GitHub | `Let git push through your GitHub sign-in?` | signed in, but git does not use it yet | yes |
 | 7 GitHub | `Commit author name`, `Commit author email` | git has no author yet | signed in to GitHub: your login and its noreply address (`ID+login@users.noreply.github.com`), so a commit shows no real address; else none |
@@ -150,7 +151,10 @@ Only when you say yes, or when something is missing:
 - `~/.ssh/known_hosts`: the key of each machine you trust;
 - `~/.zprofile`: Homebrew's `brew shellenv` line, when the installer installs Homebrew;
 - git's global commit author (`user.name`, `user.email`), only if none is set, and git's GitHub sign-in through `gh`;
-- `~/.claude.json`: the projects you let Claude trust, so the status line shows there.
+- `~/.claude.json`: the projects you let Claude trust, so the status line shows there;
+- in the Herdr app's home (`~/.config/herdr-app`, or `HERDR_APP_HOME`): herdr-fold's mod (`mods/herdr-fold`), its
+  layout (`layouts/herdr-fold.json`) and its keys (the `layout:herdr-fold` section of `keys.json`), when you say yes
+  to the Herdr app question; your own mods, layouts and keys stay.
 
 Everything it replaces is saved first, in `~/.local/state/herdr-fold/`:
 
