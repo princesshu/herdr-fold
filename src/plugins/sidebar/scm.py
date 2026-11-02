@@ -185,9 +185,8 @@ class Scm:
         cells, marks = canvas.width, glyphs(self.icons)
         side = cells - SIDE - 1
         main = side - 2
-        # no edge above: half a row of air under the message (its own edge's lower half), not a whole one
-        row, taken = canvas.control(y, 1, main, 1, "button", roomy, top=False)
-        canvas.control(y, side, SIDE, 1, "button", roomy, top=False)
+        row, taken = canvas.control(y, 1, main, 1, "button", roomy)
+        canvas.control(y, side, SIDE, 1, "button", roomy)
         for r in range(y, y + taken):
             canvas.region(r, 1, 1 + main, "commit")
             canvas.region(r, side, side + SIDE, "mode")

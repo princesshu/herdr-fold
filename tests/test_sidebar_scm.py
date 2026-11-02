@@ -112,7 +112,7 @@ class View(unittest.TestCase):
     def regions_of(self, name):
         return sorted({y for y, _, _, target in self.canvas.regions if target == name})
 
-    def test_a_roomy_pane_gives_the_message_its_square_shape_and_the_commit_half_a_row_under_it(self):
+    def test_a_roomy_pane_gives_the_message_and_the_commit_the_same_square_shape(self):
         self.draw()
         w = self.canvas.width
         side, main = w - 6, w - 8                                          # the AI's and the mode's column; the message
@@ -124,13 +124,12 @@ class View(unittest.TestCase):
         self.assertEqual(self.rows_where(side + 1, "selection", 4), [1])
         self.assertEqual(text(self.canvas, 1)[side + 2], "✦")               # in its middle cell
         self.assertEqual(self.regions_of("suggest"), [0, 1, 2])
-        self.assertEqual(self.rows_where(5, "button"), [3])                # the commit button: no edge above, so
-        self.assertIn("✓ Commit", text(self.canvas, 3))                     # half a row of air under the message
-        self.assertEqual(text(self.canvas, 4)[1:1 + main], "▀" * main)     # its edge below
-        self.assertEqual((text(self.canvas, 3)[side + 2], self.bg(side + 2, 3)), ("⌄", "button"))
-        self.assertIsNone(self.bg(side - 1, 3))                             # its mode is a button of its own
-        self.assertEqual((self.regions_of("commit"), self.regions_of("mode")), ([3, 4], [3, 4]))
-        self.assertIn("Staged changes", text(self.canvas, 5))               # right under the button's edge
+        self.assertEqual(self.rows_where(5, "button"), [4])                # the commit button: the same shape
+        self.assertIn("✓ Commit", text(self.canvas, 4))
+        self.assertEqual((text(self.canvas, 4)[side + 2], self.bg(side + 2, 4)), ("⌄", "button"))
+        self.assertIsNone(self.bg(side - 1, 4))                             # its mode is a button of its own
+        self.assertEqual((self.regions_of("commit"), self.regions_of("mode")), ([3, 4, 5], [3, 4, 5]))
+        self.assertIn("Staged changes", text(self.canvas, 6))               # right under the button's edge
 
     def test_the_button_shows_the_focus_only_once_the_keys_brought_it_there(self):
         self.draw()

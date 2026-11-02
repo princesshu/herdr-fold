@@ -156,15 +156,14 @@ class Canvas:
         elif ch and char_width(ch) == 2 and x + 1 < self.width:
             row[x + 1] = (" ", row[x + 1][1])
 
-    def shape(self, y, x, cells, rows, color, top=True):
-        """A tall control in COLOR, CELLS wide, square: ROWS content rows between a half row of edge above (row Y;
-        none without TOP, its content from row Y) and below, block characters the terminal draws to the cell's edges."""
+    def shape(self, y, x, cells, rows, color):
+        """A tall control in COLOR, CELLS wide, square: ROWS content rows (Y+1 to Y+ROWS) between a half row of edge
+        above (row Y) and below (row Y+ROWS+1), block characters the terminal draws to the cell's edges."""
         edge = Style(fg=color)
-        if top:
-            self.put(y, x, "▄" * cells, edge)
-        for row in range(y + top, y + top + rows):
+        self.put(y, x, "▄" * cells, edge)
+        for row in range(y + 1, y + 1 + rows):
             self.put(row, x, " " * cells, Style(bg=color))
-        self.put(y + top + rows, x, "▀" * cells, edge)
+        self.put(y + rows + 1, x, "▀" * cells, edge)
 
     def chip(self, y, x, cells, color, under=None):
         """A one-row control in COLOR, CELLS wide; its content goes between X+1 and X+CELLS-1. On a background UNDER,
@@ -179,12 +178,12 @@ class Canvas:
         """Row Y's background as a chosen or hovered row (none: a plain row)."""
         self.put(y, 0, " " * self.width, Style(bg=bg))
 
-    def control(self, y, x, cells, rows, color, roomy, top=True):
-        """A control's shape: in a roomy pane tall, a half row of edge above (but not without TOP) and below its ROWS
-        content rows; in a low one a chip (plain rows for more). Returns its first content row and the rows it takes."""
+    def control(self, y, x, cells, rows, color, roomy):
+        """A control's shape: in a roomy pane tall, a half row of edge above and below its ROWS content rows; in a low
+        one a chip (plain rows for more than one). Returns its first content row and the rows it takes."""
         if roomy:
-            self.shape(y, x, cells, rows, color, top)
-            return y + top, rows + 1 + top
+            self.shape(y, x, cells, rows, color)
+            return y + 1, rows + 2
         if rows == 1:
             self.chip(y, x, cells, color)
         else:

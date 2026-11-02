@@ -30,8 +30,7 @@ All notable changes to this project are listed here. The format follows
   like secrets): one come since waits. Something staged by hand is still committed alone.
 - The sidebar's Changes view keeps the Graph at its bottom, the changes scrolling above it on their own; ↑ and ↓
   cross from one to the other. Each file's letter stands under its section's count. A folded section stays folded
-  after an update or a restart, and a new version comes back to the rows you were on. The Commit button sits
-  half a row under the message, not a whole one.
+  after an update or a restart, and a new version comes back to the rows you were on.
 
 ### Security
 
