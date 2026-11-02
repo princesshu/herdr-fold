@@ -157,6 +157,7 @@ More: [Troubleshooting](docs/troubleshooting.md).
 - [Remote machines](docs/remote-machines.md): Linux, macOS and Windows machines
 - [Themes](docs/themes.md): the twelve themes and the picker
 - [The sidebar](docs/sidebar.md): Files, Search, Changes and Issues, as herdr-fold uses them
+- [The Herdr app](docs/app.md): the sidebar's Changes view as a mod for herdr's desktop app
 - [Troubleshooting](docs/troubleshooting.md)
 - [Translating](docs/translating.md): the installer in another language
 - [How it is built](docs/architecture.md): the files and the installer's records

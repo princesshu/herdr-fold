@@ -99,11 +99,11 @@ Alt + Enter commits from the message there too.
   copied anywhere.
 - When you ask for a message: `claude` (or `codex`) gets the staged diff, the staged file names, and either the
   repository's `/commit` rules (`.claude/skills/commit/SKILL.md`, `.claude/commands/commit.md` or
-  `.agents/skills/commit/SKILL.md`, else `~/.claude/skills/commit/SKILL.md` or `~/.claude/commands/commit.md`) or,
-  without rules, the recent commit subjects; nothing from ignored or unstaged files. The AI runs with no tools,
-  memories or plugins, and Claude with none of your instructions (Codex still reads its own `~/.codex/AGENTS.md`), so a
-  diff cannot make it read or send anything else. The AI tool
-  sends what it gets to its own service; the sidebar itself sends nothing anywhere.
+  `.agents/skills/commit/SKILL.md`, read only from inside the repository, else `~/.claude/skills/commit/SKILL.md` or
+  `~/.claude/commands/commit.md`) or, without rules, the recent commit subjects; nothing from ignored or unstaged
+  files. The AI runs with no tools, memories or plugins, and Claude with none of your instructions (Codex still reads
+  its own `~/.codex/AGENTS.md`), so a diff cannot make it read or send anything else. The AI tool sends what it gets to
+  its own service; the sidebar itself sends nothing anywhere.
 - The Conversations column reads Claude's and Codex's conversation files (`~/.claude/projects/`, `~/.codex/sessions/`,
   `~/.codex/session_index.jsonl`) and AI Sessions' names (`names.json` of `herdr-fold.sessions-view`), never
   writing the conversation files (Rename writes the name you give into that `names.json`, under AI Sessions' own

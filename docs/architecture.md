@@ -63,13 +63,13 @@ plugins of its own.
 
 | File | What it is |
 |---|---|
-| `core/` | the data layer the TUI sidebar and the Herdr app mod share, its one source: `git.py` (the status, a sync that loses nothing), `commit_message.py` (the commit message Claude or Codex writes); `tools/build.py` copies it into the sidebar's folder and into the mod, each installing on its own |
+| `core/` | the data layer the TUI sidebar and the Herdr app mod share, its one source: `git.py` (the status, a file's diff, a sync that loses nothing), `commit_message.py` (the commit message Claude or Codex writes, the staged files named like secrets); each answers the mod in JSON from the command line; `tools/build.py` copies it into the sidebar's folder and into the mod, each installing on its own |
 
 ### The Herdr app
 
 | File | What it is |
 |---|---|
-| `app/mods/herdr-fold/` | herdr-fold's mod for the Herdr desktop app, the TUI sidebar's counterpart; `helper.js` holds the core's source, which it runs on the space's machine; `logic.js` what it works out without a window |
+| `app/mods/herdr-fold/` | herdr-fold's mod for the Herdr desktop app, the TUI sidebar's counterpart ([The Herdr app](app.md)): `main.js` the Changes view; `helper.js` holds the core's source, which it runs with `python3 -I` on the space's machine; `logic.js` what it works out without a window: a diff's rows, the sync label, the question before a commit, the message writer as a background job |
 | `app/tests/` | the mod's logic tested with Node (`logic.test.js`, `node --test app/tests`); `tests/test_app.py` runs them, and the app's own check of the mod |
 
 ### Remote machines

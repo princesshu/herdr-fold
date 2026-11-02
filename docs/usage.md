@@ -115,7 +115,8 @@ Cmd + Shift + C commits and pushes the repo of the focused pane, in one step:
   instructions (Codex still reads its own `~/.codex/AGENTS.md`), so a diff cannot make it read or send anything else. If
   the repo has a `/commit` skill (`.claude/skills/commit/SKILL.md`, `.claude/commands/commit.md` or
   `.agents/skills/commit/SKILL.md`; or, without one, the one under `~/.claude`), it follows that skill's rules;
-  otherwise the style of the recent commits.
+  otherwise the style of the recent commits. The repo's own rule file is read only from inside it: one linking to a
+  file elsewhere is passed over, as its text would go to the AI.
 - A suggested message that holds a secret, an e-mail address, a home folder path, an IP address, a tailnet's name or a
   private name (this Mac's names, your full name) the changes do not is dropped: the next AI tries, or you type the
   message.
