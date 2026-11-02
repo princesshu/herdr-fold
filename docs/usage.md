@@ -54,6 +54,9 @@ The Spaces list says how long an agent has waited on you, blocked or done, besid
 12m` in the theme's yellow, the longest wait when several agents wait there. It counts on while you work elsewhere and
 goes once you answer, or look at the finished one.
 
+![The Spaces list: harbor-web's agent blocked and waiting 12 minutes, tidepool's done and waiting 3 minutes, beside
+their branch](media/waiting.webp)
+
 A conversation goes by one name: in AI Sessions, on its pane's border, in the Conversations column, and on its
 tab when it has the tab to itself (a reopened one's); the workspace's main tab keeps the workspace's name. To rename it:
 
@@ -149,6 +152,9 @@ Cmd + Shift + L lists the files the focused pane's recent output names, the newe
 there show, a relative path found from the pane's folder or its repository's top. Type to narrow the list; Enter, a
 double click or Open shows the file in the sidebar's preview tab at that line, marked, and the tab's sidebar opens
 Files on it. It works on any pane: an agent's reply, a test run's failure, a compiler's errors.
+
+![An agent's reply naming the files it changed and the lines that matter, and over it the list of those files, the
+newest first, each with its line, Cancel and Open at the bottom](media/open-file.webp)
 
 ## The status line
 
