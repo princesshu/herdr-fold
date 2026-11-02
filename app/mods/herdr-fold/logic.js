@@ -47,19 +47,19 @@ export function syncLabel(status) {
 export const PYTHON = ["python3", "-I", "-c"];
 
 // a job's own folder, made by mktemp: poll answers 3 while the job runs, then 0 and its output or 4 and its error;
-// clear removes that folder and nothing else
-const START = 'd=$(mktemp -d "${TMPDIR:-/tmp}/herdr-fold.XXXXXX") || exit 1; src=$1; shift; '
-  + `(${PYTHON.join(" ")} "$src" "$@" >"$d/out" 2>"$d/err"; echo $? >"$d/done") </dev/null >/dev/null 2>&1 & echo "$d"`;
+// clear removes that folder and nothing else, as the job does KEEP seconds after it ends (a mod closed meanwhile)
+const START = 'd=$(mktemp -d "${TMPDIR:-/tmp}/herdr-fold.XXXXXX") || exit 1; keep=$1; src=$2; shift 2; '
+  + `(${PYTHON.join(" ")} "$src" "$@" >"$d/out" 2>"$d/err"; echo $? >"$d/done"; sleep "$keep"; rm -rf -- "$d") `
+  + '</dev/null >/dev/null 2>&1 & echo "$d"';
 const POLL = 'test -f "$1/done" || exit 3; read code <"$1/done"; '
   + 'if [ "$code" = 0 ]; then cat "$1/out"; else tail -n 3 "$1/err" >&2; exit 4; fi';
 const CLEAR = 'case "$1" in */herdr-fold.*) rm -rf -- "$1" ;; esac';
 
 /** SOURCE (python) run with ARGS in the background: start prints its folder, poll answers 3, 0 or 4, clear removes it.
- * @param {string} source
- * @param {string[]} args */
-export function background(source, args) {
+ * @param {string} source @param {string[]} args @param {number} [keep] */
+export function background(source, args, keep = 600) {
   return {
-    start: ["sh", "-c", START, "sh", source, ...args],
+    start: ["sh", "-c", START, "sh", String(keep), source, ...args],
     /** @param {string} folder */
     poll: (folder) => ["sh", "-c", POLL, "sh", folder],
     /** @param {string} folder */

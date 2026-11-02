@@ -68,6 +68,13 @@ test("a failed job answers 4 with its error's last lines; clear removes only a j
   rmSync(other, { recursive: true });
 });
 
+test("a job's folder removes itself a while after the job ends, should the mod be gone and never clear it", () => {
+  const job = background("print(1)", [], 1), folder = run(job.start).stdout.trim();
+  assert.equal(finished(job, folder).code, 0);
+  run(["sleep", "1.5"]);
+  assert.equal(existsSync(folder), false);
+});
+
 test("the helpers run in the repository's folder but never import a module it holds (a json.py) for Python's", () => {
   const repo = mkdtempSync(join(tmpdir(), "repo-")), mark = join(repo, "ran");
   writeFileSync(join(repo, "json.py"), `open(${JSON.stringify(mark)}, "w")\n`);
