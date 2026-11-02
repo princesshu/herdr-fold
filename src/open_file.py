@@ -16,7 +16,8 @@ import preview  # noqa: E402
 import statefile  # noqa: E402
 from i18n import line, t  # noqa: E402
 from screen import after, icon, icons_on  # noqa: E402
-from tui import GRAY, INVERT, RESET, button_at, buttons, clicked, getkey, mouse, printable, wait_and_exit  # noqa: E402
+from tui import (GRAY, INVERT, MARGIN, RESET, button_at, buttons, clicked, getkey, mouse, printable,  # noqa: E402
+                 wait_and_exit)
 
 HOME = os.path.expanduser("~")
 BOLD = "\x1b[1m"
@@ -161,10 +162,11 @@ def row(found, root, chosen, width, icons):
 def screen(picker, height, width):
     """The popup: the pane's folder as the title, what you type to filter by (only then), the files, Cancel and Open."""
     rows, icons = picker.fit(height), icons_on(PLUGIN_STATE)
-    lines = [f"{BOLD}{printable(picker.root.replace(HOME, '~', 1))}{RESET}", f"{picker.filt}▏" if picker.filt else ""]
+    lines = [" " * MARGIN + f"{BOLD}{printable(picker.root.replace(HOME, '~', 1))}{RESET}",
+             " " * MARGIN + f"{picker.filt}▏" if picker.filt else ""]
     lines += [row(one, picker.root, n == picker.chosen, width, icons) for n, one in enumerate(rows, picker.top)]
     if not picker.files:
-        lines.append(" " + GRAY + t("named.none") + RESET)
+        lines.append(" " * MARGIN + GRAY + t("named.none") + RESET)
     lines += ["", picker_buttons(width, bool(picker.files))[0]]
     return "\x1b[2J\x1b[H" + "\n".join(lines)
 

@@ -37,6 +37,8 @@ All notable changes to this project are listed here. The format follows
   closed one.
 - The folder picker's rows fit a narrow window (a half-screen Ghostty); before, they wrapped and a click landed a row
   off.
+- The small windows (the folder picker, Cmd + Shift + L's list, the close question) keep a cell clear at both edges;
+  before, the buttons touched the right border and the title the left one.
 
 ## [0.1.0] - 2026-11-01
 

@@ -21,6 +21,7 @@ _mouse = False            # clicks and the wheel reported to the window
 MOUSE_REPORT = re.compile(r"\x1b\[<(\d+);(\d+);(\d+)([Mm])")
 GRAY, INVERT, RESET = "\x1b[90m", "\x1b[7m", "\x1b[0m"
 GAP = 2                   # cells between two buttons
+MARGIN = 1                # cells kept clear at a window's left and right edge
 
 
 def printable(text):
@@ -56,16 +57,18 @@ def clicked(key):
 
 
 def buttons(labels, width, left=""):
-    """A row with LEFT, faint, at its start and the button LABELS at its right end, the last one the default (inverted:
-    Enter presses it); and where each button is, for button_at(): (first column, last column, label), 1-based."""
+    """A row with LEFT, faint, at its start and the button LABELS at its end, MARGIN cells from each edge, the last one
+    the default (inverted: Enter presses it); and where each button is, for button_at(): (first column, last, label)."""
     cells = [f" {label} " for label in labels]
-    column = start = max(len(left) + GAP + 1, width - sum(map(len, cells)) - GAP * (len(cells) - 1) + 1)
+    column = start = max(MARGIN + len(left) + GAP + 1,
+                         width - MARGIN - sum(map(len, cells)) - GAP * (len(cells) - 1) + 1)
     spans = []
     for label, cell in zip(labels, cells):
         spans.append((column, column + len(cell) - 1, label))
         column += len(cell) + GAP
     shown = [(INVERT + cell + RESET) if n == len(cells) - 1 else cell for n, cell in enumerate(cells)]
-    return f"{GRAY}{left}{RESET}" + " " * (start - 1 - len(left)) + (" " * GAP).join(shown), spans
+    return (" " * MARGIN + f"{GRAY}{left}{RESET}" + " " * (start - 1 - MARGIN - len(left)) + (" " * GAP).join(shown)
+            + " " * MARGIN), spans
 
 
 def button_at(column, spans):

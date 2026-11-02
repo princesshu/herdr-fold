@@ -81,13 +81,13 @@ class Picker(Root):
 
     def test_the_title_is_the_folder_each_file_under_it_with_its_line(self):
         lines = self.lines()
-        self.assertEqual(lines[0].rstrip(), "~/" + os.path.basename(self.root))
+        self.assertEqual(lines[0].rstrip(), " ~/" + os.path.basename(self.root))     # a cell clear at the edge
         self.assertEqual([line.strip() for line in lines[2:4]], ["src/app.py:42", "README.md"])
 
     def test_typing_narrows_the_list_and_shows_what_was_typed(self):
         self.press("r", "e", "a")
         lines = self.lines()
-        self.assertIn("rea", lines[1])
+        self.assertTrue(lines[1].startswith(" rea"), lines[1])
         self.assertEqual([line.strip() for line in lines[2:4]], ["README.md", ""])
         self.assertEqual(self.picker.chosen_file().path, self.path("README.md"))
 

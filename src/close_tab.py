@@ -8,7 +8,7 @@ sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from herdrlib import agents, has_conversation, herdr  # noqa: E402
 from i18n import t  # noqa: E402
-from tui import button_at, buttons, clicked, getkey, mouse, printable  # noqa: E402
+from tui import MARGIN, button_at, buttons, clicked, getkey, mouse, printable  # noqa: E402
 
 
 def conversations(tab):
@@ -29,10 +29,11 @@ def close(tab):
 
 def confirm(tab):
     label = (herdr("tab", "get", tab, check=False).get("tab") or {}).get("label") or tab
-    lines = ["\x1b[1m" + t("close.ask", printable(label)) + "\x1b[22m", ""]
-    lines += [f"  {printable(agent.get('terminal_title_stripped') or agent.get('agent'))}"
+    pad = " " * MARGIN
+    lines = [pad + "\x1b[1m" + t("close.ask", printable(label)) + "\x1b[22m", ""]
+    lines += [f"{pad}  {printable(agent.get('terminal_title_stripped') or agent.get('agent'))}"
               for agent in conversations(tab)]
-    lines += ["", "  " + t("close.stays_saved"), ""]
+    lines += ["", pad + "  " + t("close.stays_saved"), ""]
     row, spans = buttons([t("common.cancel"), t("close.close")], shutil.get_terminal_size().columns)
     print("\x1b[2J\x1b[H" + "\n".join(lines + [row]), end="", flush=True)
     mouse(True)

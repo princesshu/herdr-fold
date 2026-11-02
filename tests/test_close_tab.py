@@ -82,6 +82,9 @@ class CloseTab(unittest.TestCase):
     def test_close_and_cancel_buttons_take_a_click(self):
         shown, closed = self.confirm(self.click_on("Close"))
         self.assertTrue(ANSI.sub("", shown).rstrip().endswith("Cancel    Close"), shown[-80:])
+        lines = ANSI.sub("", shown.split("\x1b[H")[-1]).split("\n")
+        self.assertTrue(lines[0].startswith(" Close the tab"), lines[0])            # a cell clear at each edge
+        self.assertTrue(lines[-1].endswith(" Close  "), lines[-1])
         self.assertEqual(closed, [("tab", "close", "w1:t2")])
         _, closed = self.confirm(self.click_on("Cancel"))
         self.assertEqual(closed, [("tab", "close", "w1:t2")])                  # the first one's, no other

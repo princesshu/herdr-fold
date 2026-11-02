@@ -14,7 +14,8 @@ from herdrlib import AGENTS, PLUGIN_STATE, agent_pane_ids, free_label, herdr  # 
 from i18n import line, t  # noqa: E402
 from projects import repositories, start  # noqa: E402
 from screen import after, glyphs, icon, icons_on  # noqa: E402  the sidebar's, on the path herdrlib gives
-from tui import GRAY, INVERT, RESET, button_at, buttons, clicked, getkey, mouse, printable, wait_and_exit  # noqa: E402
+from tui import (GRAY, INVERT, MARGIN, RESET, button_at, buttons, clicked, getkey, mouse, printable,  # noqa: E402
+                 wait_and_exit)
 
 HOME = os.path.expanduser("~")
 BOLD = "\x1b[1m"
@@ -60,8 +61,9 @@ def title_of(folder):
 
 
 def toggle_start(title, width):
-    """The toggle's first column (0-based) on the title row: at its right end, a cell from the title at least."""
-    return len(title) + max(1, width - len(title) - len(" │ ".join(f" {a} " for a in AGENTS)))
+    """The toggle's first column (0-based) on the title row: at its right end, MARGIN from the edge, a cell from the
+    title at least."""
+    return MARGIN + len(title) + max(1, width - 2 * MARGIN - len(title) - len(" │ ".join(f" {a} " for a in AGENTS)))
 
 
 def picker_buttons(width):
@@ -226,8 +228,8 @@ def screen(picker, opened, height, width):
     cells = max(1, min(NAME_CELLS, width - TAGS_CELLS - 3))
     toggle = " │ ".join(f"{INVERT} {a} {RESET}" if a == picker.agent else f" {a} " for a in AGENTS)
     title = title_of(picker.root)
-    lines = [f"{BOLD}{title}{RESET}" + " " * (toggle_start(title, width) - len(title)) + toggle,
-             f"{picker.filt}▏" if picker.filt else ""]
+    lines = [" " * MARGIN + f"{BOLD}{title}{RESET}" + " " * (toggle_start(title, width) - MARGIN - len(title)) + toggle
+             + " " * MARGIN, " " * MARGIN + f"{picker.filt}▏" if picker.filt else ""]
     for n, row in enumerate(rows, picker.top):
         mark = glyphs(icons)["open" if row.open else "closed"] + after(icons)
         folder = icon(row.name, True, row.open) + after(True) if icons else ""

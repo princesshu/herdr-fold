@@ -150,7 +150,7 @@ class Screen(unittest.TestCase):
 
     def test_the_title_is_the_folder_the_tree_under_it_as_files_shows_it(self):
         lines = self.lines()
-        self.assertTrue(lines[0].startswith("~/projects"))
+        self.assertTrue(lines[0].startswith(" ~/projects"))
         self.assertEqual([line.rstrip() for line in lines[2:5]],
                          [" ▾ projects", "   ▸ app" + " " * 42 + "git open", "   ▸ notes"])
 
@@ -172,6 +172,12 @@ class Screen(unittest.TestCase):
         for obvious in ("Enter", "Esc", "↑", "↓"):
             self.assertNotIn(obvious, keys)
         self.assertTrue(keys.rstrip().endswith("Cancel    Open"), keys)
+
+    def test_the_title_and_the_toggle_keep_a_cell_clear_at_each_edge(self):
+        first = self.lines()[0]
+        self.assertEqual(len(first), 80)
+        self.assertTrue(first.startswith(" ~/projects") and first.endswith(" codex  "), first)
+        self.assertTrue(self.lines(filt="no")[1].startswith(" no"))
 
     def test_every_row_fits_a_narrow_window(self):
         # the popup is 70% of the terminal: a half-screen Ghostty window gives it under 60 cells
