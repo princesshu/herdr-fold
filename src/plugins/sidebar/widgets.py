@@ -1,9 +1,12 @@
 """The sidebar's controls: a list that keeps its selection in view, a text field (one line, or several for the commit
 message), a drop-down menu and a confirmation. Plus Action, what a view asks the app to do: the views stay free of
 side effects, so they are tested without a terminal."""
+import time
 from dataclasses import dataclass
 
 from screen import PLAIN, Style, char_width, truncate, width
+
+DOUBLE_CLICK = 0.4            # seconds: a click on the same place sooner than this after one is a double (or triple)
 
 
 @dataclass(frozen=True)
@@ -62,12 +65,33 @@ class TextInput:
     def __init__(self, multiline=False, placeholder=""):
         self.multiline, self.placeholder = multiline, placeholder
         self.text, self.cursor = "", 0
+        self.anchor = None            # the selection's other end (the cursor is the one that moves), or None
         self.top = 0                  # the first row shown: a text taller than the field shows from here
+        self.place = None             # where it was last drawn, for a click: (row, column, cells, rows)
+        self.clicks = (None, 0, 0)    # the last click: when, at which index, how many in a row
 
     def clear(self):
-        self.text, self.cursor, self.top = "", 0, 0
+        self.text, self.cursor, self.top, self.anchor = "", 0, 0, None
+
+    def span(self):
+        """The selection's (start, end), or None."""
+        if self.anchor is None or self.anchor == self.cursor:
+            return None
+        return min(self.anchor, self.cursor), max(self.anchor, self.cursor)
+
+    def selected(self):
+        span = self.span()
+        return self.text[span[0]:span[1]] if span else ""
+
+    def cut(self):
+        """The selection taken out of the text; whether there was one."""
+        span, self.anchor = self.span(), None
+        if span:
+            self.text, self.cursor = self.text[:span[0]] + self.text[span[1]:], span[0]
+        return bool(span)
 
     def insert(self, text):
+        self.cut()
         self.text = self.text[:self.cursor] + text + self.text[self.cursor:]
         self.cursor += len(text)
 
@@ -78,30 +102,75 @@ class TextInput:
         end = self.text.find("\n", self.cursor)
         return len(self.text) if end < 0 else end
 
+    def word_start(self):
+        """Where the word before the cursor starts, the spaces between them taken with it."""
+        i = self.cursor
+        while i and self.text[i - 1].isspace():
+            i -= 1
+        while i and not self.text[i - 1].isspace():
+            i -= 1
+        return i
+
+    def word_at(self, i):
+        """(start, end) of the word at index I (letters, digits and _), or of the one character there."""
+        i = min(i, len(self.text) - 1)
+        if i < 0:
+            return 0, 0
+        def is_word(ch):
+            return ch.isalnum() or ch == "_"
+        if not is_word(self.text[i]):
+            return i, i + 1
+        start, end = i, i + 1
+        while start and is_word(self.text[start - 1]):
+            start -= 1
+        while end < len(self.text) and is_word(self.text[end]):
+            end += 1
+        return start, end
+
     def handle(self, key):
         """Edit by KEY; False if the key is not the field's (the view handles it)."""
         name = key.name
+        if name in ("left", "right", "home", "end", "up", "down") or (name == "char" and key.ctrl and key.char in "ae"):
+            return self.move(key)
         if name == "char" and key.ctrl:
-            if key.char == "a":
-                self.cursor = self.line_start()
-            elif key.char == "e":
-                self.cursor = self.line_end()
-            elif key.char == "u":
+            if key.char != "u":
+                return False
+            if not self.cut():
                 start = self.line_start()
                 self.text, self.cursor = self.text[:start] + self.text[self.cursor:], start
-            else:
-                return False
         elif name == "char" and not key.alt:
             self.insert(key.char)
         elif name == "paste":
             self.insert(key.char if self.multiline else key.char.replace("\r\n", " ").replace("\n", " "))
         elif name == "enter" and self.multiline:
             self.insert("\n")
-        elif name == "backspace" and self.cursor:
-            self.text, self.cursor = self.text[:self.cursor - 1] + self.text[self.cursor:], self.cursor - 1
-        elif name == "delete" and self.cursor < len(self.text):
-            self.text = self.text[:self.cursor] + self.text[self.cursor + 1:]
-        elif name == "left":
+        elif name in ("backspace", "delete"):
+            if self.cut():
+                pass
+            elif name == "backspace" and key.alt:                     # Option + Backspace: the word before
+                start = self.word_start()
+                self.text, self.cursor = self.text[:start] + self.text[self.cursor:], start
+            elif name == "backspace" and self.cursor:
+                self.text, self.cursor = self.text[:self.cursor - 1] + self.text[self.cursor:], self.cursor - 1
+            elif name == "delete" and self.cursor < len(self.text):
+                self.text = self.text[:self.cursor] + self.text[self.cursor + 1:]
+        else:
+            return False
+        return True
+
+    def move(self, key):
+        """A cursor key (Ctrl + A and E too): with Shift the selection follows the cursor; without, Left or Right
+        leaves a selection at that side, any other drops it."""
+        span = self.span()
+        if key.shift:
+            self.anchor = self.cursor if self.anchor is None else self.anchor
+        elif span and key.name in ("left", "right"):
+            self.cursor, self.anchor = span[0] if key.name == "left" else span[1], None
+            return True
+        else:
+            self.anchor = None
+        name = {"a": "home", "e": "end"}[key.char] if key.name == "char" else key.name
+        if name == "left":
             self.cursor = max(0, self.cursor - 1)
         elif name == "right":
             self.cursor = min(len(self.text), self.cursor + 1)
@@ -109,7 +178,7 @@ class TextInput:
             self.cursor = self.line_start()
         elif name == "end":
             self.cursor = self.line_end()
-        elif name in ("up", "down") and self.multiline:
+        elif self.multiline:
             column = self.cursor - self.line_start()
             if name == "up" and self.line_start() > 0:
                 start = self.text.rfind("\n", 0, self.line_start() - 1) + 1
@@ -120,9 +189,47 @@ class TextInput:
                 self.cursor = min(start + column, len(self.text) if end < 0 else end)
             else:
                 return False
-        elif name not in ("backspace", "delete"):
+        else:
             return False
         return True
+
+    def index_at(self, x, y):
+        """The text's index at column X, row Y of the canvas where the field was last drawn: past a row's text its end,
+        above or below the field its nearest row."""
+        if not self.place or not self.text:
+            return len(self.text)
+        row0, column0, cells, rows = self.place
+        spans = wrap(self.text, cells)
+        row = self.top + min(max(y - row0, 0), rows - 1)
+        if row >= len(spans):
+            return len(self.text)
+        start, end = spans[row]
+        i, used = start, 0
+        while i < end and used + char_width(self.text[i]) <= x - column0:
+            used += char_width(self.text[i])
+            i += 1
+        soft_break = row + 1 < len(spans) and spans[row + 1][0] == end
+        return i - 1 if soft_break and i == end else i       # the break's end shows on the next row
+
+    def press(self, x, y, now=None):
+        """A click at column X, row Y: the cursor there, where a drag selects from; a second one there soon after
+        selects its word, a third the whole text."""
+        now = time.monotonic() if now is None else now
+        at = self.index_at(x, y)
+        last, where, count = self.clicks
+        count = count + 1 if last is not None and now - last <= DOUBLE_CLICK and where == at else 1
+        self.clicks = (now, at, count)
+        if count == 1:
+            self.anchor = self.cursor = at
+        elif count == 2:
+            self.anchor, self.cursor = self.word_at(at)
+        else:
+            self.anchor, self.cursor = 0, len(self.text)
+
+    def drag(self, x, y):
+        """The mouse dragged to column X, row Y: the selection from where it was pressed to there."""
+        self.anchor = self.cursor if self.anchor is None else self.anchor
+        self.cursor = self.index_at(x, y)
 
     def lines(self, cells):
         """The text wrapped to CELLS wide rows (an empty field is one empty row)."""
@@ -138,19 +245,27 @@ class TextInput:
         return len(rows) - 1, 0
 
     def draw(self, canvas, y, x, cells, height, style=Style(bg="input"), focused=False):
-        """Paint the field (or its placeholder) in HEIGHT rows; when FOCUSED, its cursor's place goes to the canvas, for
-        the terminal's own cursor. Returns the rows used."""
-        rows = self.lines(cells) if self.text else [self.placeholder]
+        """Paint the field (or its placeholder) in HEIGHT rows, its selection lit; when FOCUSED, its cursor's place goes
+        to the canvas, for the terminal's own cursor. Returns the rows used."""
+        self.place = (y, x, cells, height)
+        spans = wrap(self.text, cells)
+        rows = [self.text[start:end] for start, end in spans] if self.text else [self.placeholder]
         row, column = self.cursor_cell(cells)
         if focused:                   # the rows at the cursor show, wherever it is; otherwise they stay where they were
             self.top = min(self.top, row) if row < self.top + height else row - height + 1
         self.top = max(0, min(self.top, len(rows) - height))
-        shown = rows[self.top:self.top + height]
+        shown, span = rows[self.top:self.top + height], self.span()
         for i in range(height):
             canvas.put(y + i, x, " " * cells, style)
         for i, text in enumerate(shown):
             text_style = style if self.text else Style(fg="muted", bg=style.bg)
             canvas.put(y + i, x, truncate(text.rstrip(" "), cells), text_style)   # the break's spaces lie past the edge
+            start, end = spans[self.top + i]
+            a, b = (max(start, span[0]), min(end, span[1])) if span else (0, 0)       # the row's part of it
+            if a < b:
+                before = width(self.text[start:a])
+                canvas.put(y + i, x + before, truncate(self.text[a:b].rstrip(" "), cells - before),
+                           Style(fg=style.fg, bg="selection"))
         if focused and self.top <= row < self.top + height:
             canvas.cursor = (y + row - self.top, x + min(column, cells - 1))
         canvas.region(y, x, x + cells, "input")

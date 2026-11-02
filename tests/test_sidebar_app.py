@@ -389,6 +389,36 @@ class Tips(Harness):
                    and " and-another-one/the-file.txt " in s, timeout=3)
 
 
+class Message(Harness):
+    """The commit message's field takes the mouse and the keys a text field does: a drag or Shift selects, and
+    Backspace takes the selection whole."""
+
+    def setUp(self):
+        Repo.setUp(self)
+        self.start()
+
+    def typed(self, text):
+        """TEXT typed as the message, once Changes shows: where it starts in the field."""
+        self.term.type(Key("char", "3"))
+        self.until(lambda s: "a.txt" in s)
+        self.term.type(*keys(text))
+        self.until(lambda s: text in s)
+        y = next(y for y, line in enumerate(self.screen().splitlines()) if text in line)
+        return self.screen().splitlines()[y].index(text), y
+
+    def test_a_message_dragged_over_goes_whole_with_backspace(self):
+        x, y = self.typed("fix: a typo")
+        end = x + len("fix: a typo")
+        self.term.type(Mouse("press", x, y, 0), Mouse("move", end, y, 0), Mouse("release", end, y, 0))
+        self.term.type(Key("backspace"))
+        self.until(lambda s: "fix: a typo" not in s and "Commit message" in s)
+
+    def test_shift_home_selects_and_typing_puts_the_new_message_in_its_place(self):
+        self.typed("fix: a typo")
+        self.term.type(Key("home", shift=True), *keys("feat: a word"))
+        self.until(lambda s: "feat: a word" in s and "typo" not in s)
+
+
 class PreviewTab(Harness):
     """A file, a diff, a commit or an issue opened from the sidebar shows in the workspace's preview tab, laid out as
     the sidebar's own tab (its panes of the plugin's), whose new sidebar comes back to where this one was."""

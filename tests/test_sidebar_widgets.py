@@ -158,6 +158,76 @@ class Text(unittest.TestCase):
         field.draw(canvas, 0, 0, 14, 3)
         self.assertEqual(text(canvas, 0), "Subject line")
 
+    def test_shift_and_an_arrow_select_and_backspace_takes_the_selection_whole(self):
+        field = TextInput()
+        typed(field, "hello world")
+        for _ in range(5):
+            field.handle(Key("left", shift=True))
+        self.assertEqual(field.selected(), "world")
+        field.handle(Key("backspace"))
+        self.assertEqual((field.text, field.cursor, field.selected()), ("hello ", 6, ""))
+
+    def test_typing_or_pasting_puts_the_new_text_in_the_selections_place(self):
+        field = TextInput(multiline=True)
+        typed(field, "fix: a typo")
+        field.handle(Key("home", shift=True))
+        typed(field, "feat")
+        self.assertEqual(field.text, "feat")
+        field.handle(Key("left", shift=True))
+        field.handle(Key("paste", "t: more"))
+        self.assertEqual(field.text, "feat: more")
+
+    def test_an_arrow_without_shift_leaves_the_selection_at_its_side(self):
+        field = TextInput()
+        typed(field, "abcdef")
+        field.handle(Key("left", shift=True))
+        field.handle(Key("left", shift=True))
+        field.handle(Key("left"))
+        self.assertEqual((field.cursor, field.selected()), (4, ""))
+        field.handle(Key("right", shift=True))
+        field.handle(Key("right"))
+        self.assertEqual((field.cursor, field.selected()), (5, ""))
+
+    def test_option_backspace_deletes_the_word_before_the_cursor(self):
+        field = TextInput()
+        typed(field, "feat: add the thing")
+        field.handle(Key("backspace", alt=True))
+        self.assertEqual(field.text, "feat: add the ")
+        field.handle(Key("backspace", alt=True))
+        self.assertEqual(field.text, "feat: add ")
+
+    def test_a_click_puts_the_cursor_there_and_a_drag_selects(self):
+        field = TextInput(multiline=True)
+        field.insert("one two three\nfour")
+        field.draw(Canvas(30, 3), 1, 2, 20, 2)                    # at row 1, column 2, 20 cells wide
+        field.press(2 + 4, 1, now=10.0)                           # before "two"
+        self.assertEqual((field.cursor, field.selected()), (4, ""))
+        field.drag(2 + 2, 2)                                      # into "four", on the next row
+        self.assertEqual(field.selected(), "two three\nfo")
+        field.handle(Key("delete"))
+        self.assertEqual(field.text, "one ur")
+
+    def test_a_double_click_selects_a_word_and_a_triple_click_the_whole_text(self):
+        field = TextInput(multiline=True)
+        field.insert("feat: add the thing\n\n- more")
+        field.draw(Canvas(30, 3), 0, 0, 30, 3)
+        field.press(11, 0, now=10.0)
+        field.press(11, 0, now=10.2)
+        self.assertEqual(field.selected(), "the")
+        field.press(11, 0, now=10.4)
+        self.assertEqual(field.selected(), field.text)
+        field.press(11, 0, now=12.0)                              # a while later: one click again
+        self.assertEqual(field.selected(), "")
+
+    def test_the_selection_shows_lit(self):
+        field = TextInput()
+        typed(field, "abcdef")
+        field.handle(Key("left", shift=True))
+        field.handle(Key("left", shift=True))
+        canvas = Canvas(10, 1)
+        field.draw(canvas, 0, 0, 10, 1, focused=True)
+        self.assertEqual([style.bg for _, style in canvas.rows[0][3:7]], ["input", "selection", "selection", "input"])
+
     def test_long_lines_wrap_and_nothing_is_lost(self):
         field = TextInput(multiline=True)
         field.handle(Key("paste", "x" * 70))

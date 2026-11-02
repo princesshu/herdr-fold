@@ -46,6 +46,7 @@ class Scm:
         self.focus = "button"                          # message, button, list or graph
         self.folded = set(folded) & {"staged", "changes", "graph"}     # the sections closed, kept by the app
         self.keyed = False            # the keys moved last (not the mouse): the button then shows that it has the focus
+        self.selecting = False        # the left button went down in the message and is held: a drag selects
         self.working = self.notice = self.menu = self.confirm = self.then = None     # then: the Action of the yes
         self.status, self.hover, self.canvas, self.top, self.height = None, None, None, 0, 1
         self.shown = None             # what the rows were built from: a mouse move must not rebuild 50 000 of them
@@ -373,16 +374,20 @@ class Scm:
 
     def mouse(self, event):
         target = self.canvas.hit(event.x, event.y) if self.canvas else None
-        if event.kind == "move":
+        if event.kind == "move" and self.selecting and event.button == 0:
+            self.field.drag(event.x, event.y)
+        elif event.kind == "move":
             self.hover = (target if target[0] == "graph" else target[1]) if isinstance(target, tuple) else None
         elif event.kind in ("wheel_up", "wheel_down"):                    # the list under the mouse
             rows = self.graph_list if isinstance(target, tuple) and target[0] == "graph" else self.list
             rows.scroll(3 if event.kind == "wheel_down" else -3)
         elif event.kind == "press" and event.button == 0:
-            return self.press(target)
+            return self.press(target, event)
+        elif event.kind == "release":
+            self.selecting = False
         return None
 
-    def press(self, target):
+    def press(self, target, event):
         if self.confirm:
             return self.answer(target == "confirm:yes") if target in ("confirm:yes", "confirm:no") else None
         if self.menu:
@@ -391,8 +396,9 @@ class Scm:
             self.menu = None
             return None
         self.notice = None
-        if target == "input":
-            self.focus = "message"
+        if target == "input":                             # the cursor where it is pressed, a drag selecting on
+            self.focus, self.selecting = "message", True
+            self.field.press(event.x, event.y)
         elif target == "suggest":
             return self.suggest()
         elif target == "commit":

@@ -18,7 +18,6 @@ All notable changes to this project are listed here. The format follows
 - The sidebar in a workspace whose folder is no repository itself (your home folder, a folder of projects): Changes
   shows the repository of the folder or file chosen in Files, however deep, with its changes, commit and sync; Files'
   marks and the Issues view follow it. See [The sidebar](docs/sidebar.md#how-it-starts).
-
 - Tips in the sidebar: a control shown by an icon alone says what it does once the mouse rests on it
   (✦, ↻, the view tabs, a row's Stage, Unstage, Discard and diff icons, the Files and Search buttons). A changed
   file's row in Changes shows its whole path in the repository, as in GitHub Desktop, on more rows when it is long;
@@ -33,6 +32,13 @@ All notable changes to this project are listed here. The format follows
 - The sidebar's Changes view keeps the Graph at its bottom, the changes scrolling above it on their own; ↑ and ↓
   cross from one to the other. Each file's letter stands under its section's count. A folded section stays folded
   after an update or a restart, and a new version comes back to the rows you were on.
+
+### Fixed
+
+- The sidebar's fields select text as text fields do, the commit message too, where it went only a letter at a
+  time: Shift with an arrow, Home or End, and in the message a drag, a double click (a word) or a triple click
+  (all of it); Backspace or Delete takes the selection whole, typing or pasting replaces it, and Alt + Backspace
+  takes the word before the cursor.
 
 ### Security
 
