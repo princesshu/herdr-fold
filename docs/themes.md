@@ -23,7 +23,8 @@ icon](media/themes.webp)
 ## What a theme sets
 
 - Ghostty's colors;
-- herdr's colors, the Spaces and Sessions highlight too;
+- herdr's colors, the Spaces and Sessions highlight too, and the Spaces list's labels: `waiting 12m` in the theme's
+  yellow, `deleted` in its red;
 - the prompt's colors;
 - the sidebar's colors (`herdr-fold.sidebar`), in its state folder; a running sidebar switches at once;
 - on a Mac, Ghostty's app icon in the Dock and the app switcher: herdr-fold's logo, the sheep, in the theme's colors
