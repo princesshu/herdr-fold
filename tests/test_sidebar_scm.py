@@ -197,14 +197,14 @@ class View(unittest.TestCase):
         canvas = self.draw()
         x, y = self.at("app.py")
         self.assertEqual(canvas.rows[y][x][1].fg, "text")
-        self.assertEqual(text(canvas, y)[43], "M")
-        self.assertEqual(canvas.rows[y][43][1].fg, "modified")
+        self.assertEqual(text(canvas, y)[42], "M")
+        self.assertEqual(canvas.rows[y][42][1].fg, "modified")
         x, y = self.at("old.txt")
         self.assertTrue(canvas.rows[y][x][1].strike)
-        self.assertEqual(text(canvas, y)[43], "D")
+        self.assertEqual(text(canvas, y)[42], "D")
         self.assertIn("tracked, but ignored", text(canvas, self.row_of("notes.local")))
-        self.assertEqual(text(canvas, self.row_of("draft.md"))[43], "U")
-        self.assertEqual(canvas.rows[self.row_of("draft.md")][43][1].fg, "added")
+        self.assertEqual(text(canvas, self.row_of("draft.md"))[42], "U")
+        self.assertEqual(canvas.rows[self.row_of("draft.md")][42][1].fg, "added")
 
     def test_the_mode_menu_and_the_remembered_mode(self):
         self.draw()
@@ -340,6 +340,44 @@ class View(unittest.TestCase):
         self.assertIn("○", text(canvas, self.row_of("commit number 19")))
         self.assertEqual(self.click("commit number 7"), Action("preview_commit", ("0000007",)))
 
+    def test_each_files_letter_stands_under_its_sections_count(self):
+        self.draw()
+        last = {name: len(self.rows()[self.row_of(name)].rstrip()) - 1 for name in ("▾ Staged changes", "▾ Changes",
+                                                                                   "new.py", "app.py")}
+        self.assertEqual(last["new.py"], last["▾ Staged changes"])
+        self.assertEqual(last["app.py"], last["▾ Changes"])
+
+    def test_the_graph_stays_at_the_panels_bottom(self):
+        self.draw()
+        self.assertEqual(self.row_of("commit number 19"), self.canvas.height - 1)
+        between = range(self.row_of("draft.md") + 1, self.row_of("▾ Graph"))
+        self.assertGreater(len(between), 1)                                   # few changes: the room stays empty
+        self.assertTrue(all(not self.rows()[y].strip() for y in between))
+
+    def test_many_changes_leave_the_graph_its_room(self):
+        self.status = Status(branch="main", changes=[Change(f"f{i}.txt", "M") for i in range(200)])
+        self.draw()
+        graph = self.row_of("▾ Graph")
+        self.assertGreaterEqual(self.canvas.height - graph, 10)              # a third of the list's room at least
+        self.assertEqual(self.row_of("commit number 0"), graph + 1)
+        self.view.focus = "list"
+        self.press("end")                                                    # the changes scroll on their own
+        self.draw()
+        self.assertIn("f199.txt", self.shown())
+        self.assertEqual(self.row_of("▾ Graph"), graph)
+
+    def test_the_keys_go_from_the_changes_into_the_graph_and_back(self):
+        self.draw()
+        self.view.focus = "list"
+        self.press("end")                                                    # the last change: draft.md
+        self.assertEqual(self.view.list.selected().change.path, "draft.md")
+        self.press("down")
+        self.assertEqual((self.view.focus, self.view.graph_list.selected().title), ("graph", "Graph"))
+        self.press("down")
+        self.assertEqual(self.press("enter"), Action("preview_commit", ("0000000",)))
+        self.press("up", "up")
+        self.assertEqual((self.view.focus, self.view.list.selected().change.path), ("list", "draft.md"))
+
     def test_the_unusual_states(self):
         self.status = Status(branch="main", staged=[Change("a.txt", "A")])          # no commit yet
         self.graph = []
@@ -351,7 +389,7 @@ class View(unittest.TestCase):
         self.status = Status(branch="main", changes=[Change("a.txt", "U")])         # a conflict
         canvas = self.draw()
         y = self.row_of("a.txt")
-        self.assertEqual((text(canvas, y)[43], canvas.rows[y][43][1].fg), ("!", "conflict"))
+        self.assertEqual((text(canvas, y)[42], canvas.rows[y][42][1].fg), ("!", "conflict"))
         self.status = Status(error="fatal: not a git repository (or any of the parent directories): .git")
         self.draw()
         self.assertEqual(text(self.canvas, 0).strip(), "Not a git repository")
@@ -366,7 +404,7 @@ class View(unittest.TestCase):
         canvas = self.draw(width=24)
         y = self.row_of("a-very")
         self.assertIn("…", text(canvas, y))
-        self.assertEqual(text(canvas, y)[22], "M")
+        self.assertEqual(text(canvas, y)[21], "M")
         self.assertTrue(text(canvas, self.rows_where(5, "button")[0]).rstrip().endswith("⌄"))
         self.assertIn("…", text(canvas, self.row_of("commit number 0")))
 

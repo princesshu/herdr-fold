@@ -41,8 +41,9 @@ class Scm:
         self.mode = mode if mode in MODES else "commit"
         self.icons = icons
         self.field = TextInput(multiline=True, placeholder="Commit message")
-        self.list = ListView(1)
-        self.focus, self.folded = "button", set()
+        self.list = ListView(1)                       # the changes
+        self.graph_list = ListView(1)                 # the Graph, at the view's bottom
+        self.focus, self.folded = "button", set()     # focus: message, button, list or graph
         self.keyed = False            # the keys moved last (not the mouse): the button then shows that it has the focus
         self.working = self.notice = self.menu = self.confirm = self.then = None     # then: the Action of the yes
         self.status, self.hover, self.canvas, self.top, self.height = None, None, None, 0, 1
@@ -78,17 +79,11 @@ class Scm:
             items += [] if "staged" in self.folded else [Entry(change, True) for change in status.staged]
         items.append(Section("changes", "Changes", len(status.changes)))
         items += [] if "changes" in self.folded else [Entry(change, False) for change in status.changes]
-        items.append(Section("graph", "Graph"))
-        items += [] if "graph" in self.folded else list(graph)
         items = [row for i, item in enumerate(items)
                  for row in ((GAP, item) if i and isinstance(item, Section) else (item,))]
-        if items != self.list.items:
-            chosen = self.list.selected()
-            self.list.set(items)
-            if chosen in items:
-                self.list.index = items.index(chosen)
-                self.list.keep_visible()
-            self.off_the_gap(1)
+        refill(self.list, items)
+        self.off_the_gap(1)
+        refill(self.graph_list, [Section("graph", "Graph")] + ([] if "graph" in self.folded else list(graph)))
 
     def paths(self, item):
         if isinstance(item, Entry):
@@ -137,13 +132,20 @@ class Scm:
                 continue
             canvas.put(y, 1, truncate(line, cells - 2), Style(fg=role))
         first = y + (1 if roomy and not lines else 2)    # the button's lower edge, or an empty row, of air
-        if self.list.height != top + height - first:
-            self.list.resize(top + height - first)
-        for row in range(self.list.height):
-            index = self.list.at(row)
-            if index is None:
-                break
-            self.row(canvas, first + row, index)
+        # the changes take what they need, the Graph the rest at the bottom, a third of the room at least
+        room, history = top + height - first, self.graph_list.items
+        least = len(history) if len(history) <= 1 else min(len(history), max(3, room // 3))
+        above = min(len(self.list.items), max(1, room - least - 1))
+        below = max(0, min(len(history), room - above - 1))
+        parts = ((self.list, first, above, False), (self.graph_list, top + height - below, below, True))
+        for rows, y0, shown, graph in parts:
+            if shown and rows.height != shown:
+                rows.resize(shown)
+            for row in range(shown):
+                index = rows.at(row)
+                if index is None:
+                    break
+                self.row(canvas, y0 + row, index, graph)
         if self.menu:
             wide = min(cells, self.menu.width())
             self.menu.draw(canvas, below + tall, max(0, cells - 1 - wide), wide)
@@ -178,15 +180,17 @@ class Scm:
         canvas.put(row, centered(side, SIDE), marks["more"], fill)
         return taken
 
-    def row(self, canvas, y, index):
-        item, cells = self.list.items[index], canvas.width
+    def row(self, canvas, y, index, graph=False):
+        """Row INDEX of the changes, or of the GRAPH."""
+        rows, cells = self.graph_list if graph else self.list, canvas.width
+        item = rows.items[index]
         if isinstance(item, Gap):
             return
-        chosen = index == self.list.index and self.focus == "list"
-        hovered = index == self.hover
+        chosen = index == rows.index and self.focus == ("graph" if graph else "list")
+        hovered = self.hover == (("graph", index) if graph else index)
         bg = "selection" if chosen else ("hover" if hovered else None)
         canvas.band(y, bg)
-        canvas.region(y, 0, cells, ("row", index))
+        canvas.region(y, 0, cells, ("graph" if graph else "row", index))
         if isinstance(item, Section):
             self.section(canvas, y, index, item, bg, hovered)
         elif isinstance(item, Entry):
@@ -223,8 +227,9 @@ class Scm:
         folder, name = os.path.split(change.path.rstrip("/"))          # a nested repository is "inner/"
         if self.icons:
             x = canvas.put(y, x, icon(name) + after(True), Style(fg="muted", bg=bg))
-        canvas.put(y, cells - 2, GIT_LETTER.get(change.code, change.code), Style(fg=GIT_ROLE[change.code], bg=bg))
-        end = cells - 3
+        letter = cells - 3                                # under the last digit of its section's count
+        canvas.put(y, letter, GIT_LETTER.get(change.code, change.code), Style(fg=GIT_ROLE[change.code], bg=bg))
+        end = letter
         if hovered:
             kinds = ("diff", "unstage") if item.staged else ("diff", "discard", "stage")
             end = self.icons_at(canvas, y, end, index, kinds, bg) - 1
@@ -279,7 +284,7 @@ class Scm:
 
     def off_the_gap(self, step):
         """A move that ends on the empty row above a section goes on to the section (a gap is never first or last)."""
-        if isinstance(self.list.selected(), Gap):
+        if self.focus != "graph" and isinstance(self.list.selected(), Gap):
             self.list.move(step)
 
     def button_key(self, event):
@@ -297,17 +302,26 @@ class Scm:
         return None
 
     def list_key(self, event):
-        name, item = event.name, self.list.selected()
-        if (name == "up" and self.list.index == 0) or name == "esc":
+        """The changes' keys, or the Graph's: up from the top of the Graph and down from the last change cross over."""
+        name, graph = event.name, self.focus == "graph"
+        rows = self.graph_list if graph else self.list
+        item = rows.selected()
+        if name == "esc" or (name == "up" and rows.index == 0 and not graph):
             self.focus = "button"
+        elif name == "up" and rows.index == 0:
+            self.focus, self.list.index = "list", len(self.list.items) - 1
+            self.list.keep_visible()
+        elif name == "down" and rows.index == len(rows.items) - 1 and not graph and self.graph_list.items:
+            self.focus, self.graph_list.index = "graph", 0
+            self.graph_list.keep_visible()
         elif name in ("up", "down"):
-            self.list.move(1 if name == "down" else -1)
+            rows.move(1 if name == "down" else -1)
             self.off_the_gap(1 if name == "down" else -1)
         elif name in ("pageup", "pagedown"):
-            self.list.page(1 if name == "pagedown" else -1)
+            rows.page(1 if name == "pagedown" else -1)
             self.off_the_gap(1 if name == "pagedown" else -1)
         elif name in ("home", "end"):
-            self.list.move(len(self.list.items) * (1 if name == "end" else -1))
+            rows.move(len(rows.items) * (1 if name == "end" else -1))
         elif name == "enter":
             return self.activate(item)
         elif name == "char" and event.char == " ":
@@ -336,9 +350,10 @@ class Scm:
     def mouse(self, event):
         target = self.canvas.hit(event.x, event.y) if self.canvas else None
         if event.kind == "move":
-            self.hover = target[1] if isinstance(target, tuple) else None
-        elif event.kind in ("wheel_up", "wheel_down"):
-            self.list.scroll(3 if event.kind == "wheel_down" else -3)
+            self.hover = (target if target[0] == "graph" else target[1]) if isinstance(target, tuple) else None
+        elif event.kind in ("wheel_up", "wheel_down"):                    # the list under the mouse
+            rows = self.graph_list if isinstance(target, tuple) and target[0] == "graph" else self.list
+            rows.scroll(3 if event.kind == "wheel_down" else -3)
         elif event.kind == "press" and event.button == 0:
             return self.press(target)
         return None
@@ -363,6 +378,10 @@ class Scm:
             self.menu = Menu(MODES.values())
         elif target == "unlink":
             return Action("unlink", ())
+        elif isinstance(target, tuple) and target[0] == "graph":
+            self.focus, self.graph_list.index = "graph", target[1]
+            item = self.graph_list.items[target[1]]
+            return self.activate(item) if isinstance(item, Section) else self.preview(item)
         elif isinstance(target, tuple):
             kind, index = target
             item = self.list.items[index]
@@ -444,3 +463,13 @@ class Scm:
             return None
         then, self.confirm, self.then = self.then, None, None
         return then if yes else None
+
+
+def refill(rows, items):
+    """ROWS (a ListView) with ITEMS, the chosen one still chosen when it is still there."""
+    if items != rows.items:
+        chosen = rows.selected()
+        rows.set(items)
+        if chosen in items:
+            rows.index = items.index(chosen)
+            rows.keep_visible()

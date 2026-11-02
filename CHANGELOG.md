@@ -19,6 +19,11 @@ All notable changes to this project are listed here. The format follows
   shows the repository of the folder or file chosen in Files, however deep, with its changes, commit and sync; Files'
   marks and the Issues view follow it. See [The sidebar](docs/sidebar.md#how-it-starts).
 
+### Changed
+
+- The sidebar's Changes view keeps the Graph at its bottom, the changes scrolling above it on their own; ↑ and ↓
+  cross from one to the other. Each file's letter stands under its section's count.
+
 ### Security
 
 - The commit message writer (the sidebar's Changes view and Cmd + Shift + C) reads a repository's `/commit` rules only

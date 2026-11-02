@@ -20,7 +20,8 @@ Claude wrote and the issue it fixes, Issues by priority](../../../docs/media/sid
   unstaging and discarding them; a commit message
   written by Claude or Codex from the staged changes (a file whose name looks like a secret's, such as `.env` or a key,
   by its name only); Commit, Commit & Push or Commit & Sync, after a question when such a file is staged; the last 20
-  commits.
+  commits in the Graph, kept at the view's bottom while the changes scroll above it; each file's letter under its
+  section's count.
 - **Issues** (for a repository on GitHub), laid out and keyed as GitHub's own issue list: the search field with the
   filters button (assigned to me, created by me, a label, the priority), Open and Closed. While shown, the list is asked
   for every minute; while it holds any, behind another view too, so an issue made on GitHub or in another tab shows up
