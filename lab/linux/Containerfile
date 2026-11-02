@@ -1,0 +1,13 @@
+# The lab's Linux machine: what a remote machine of herdr-fold's needs (SSH, Python, git), a user dev, and a stand-in
+# for Claude Code. lab/lab.py builds it, tagged by these files, and starts a new machine from it each time.
+FROM docker.io/library/debian:bookworm-slim
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends openssh-server python3 git bash ca-certificates curl procps \
+ && rm -rf /var/lib/apt/lists/*
+RUN useradd --create-home --shell /bin/bash dev \
+ && mkdir -p /run/sshd /home/dev/.ssh && chown dev:dev /home/dev/.ssh && chmod 700 /home/dev/.ssh \
+ && ssh-keygen -A
+COPY sshd.conf /etc/ssh/sshd_config.d/lab.conf
+COPY claude /usr/local/bin/claude
+RUN chmod 755 /usr/local/bin/claude
+CMD ["/usr/sbin/sshd", "-D", "-e"]

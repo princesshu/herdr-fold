@@ -18,6 +18,10 @@ The Windows scripts' tests need PowerShell 7: put `pwsh` on your `PATH`, or poin
 skipped. The tests run in temporary folders with stand-ins for herdr, Homebrew, SSH and the clipboard; they never touch
 your own settings.
 
+The remote way on a real machine runs in the lab, only when called: `python3 lab/lab.py test` brings up a Linux
+machine in a container (Apple's container tool), runs `lab/tests` on it over SSH and takes it down
+([the lab's README](lab/README.md)).
+
 ## Writing code
 
 - Bash 3.2 (the one macOS ships), PowerShell 5.1 with a UTF-8 BOM (without one it reads a script as ANSI), Python

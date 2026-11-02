@@ -92,6 +92,7 @@ plugins of its own.
 | `src/i18n.py` | looks the texts up for the Python scripts |
 | `docs/` | the guides, and their screenshots, the animation and the logo (`docs/media/`) |
 | `tests/` | the tests: `/usr/bin/python3 -m unittest discover -s tests` |
+| `lab/` | the test lab: a Linux machine in a container reached over SSH as a remote machine, run only when called (`python3 lab/lab.py test`); `lab.py`, the machine in `linux/` (`Containerfile`, `sshd.conf`, a stand-in `claude`), its tests in `tests/` ([its README](../lab/README.md)) |
 | `tools/sync.sh` | copies this Mac's settings back into the package (not over a file edited there and not committed), then checks the files for private data |
 | `tools/build.py` | copies `core/` into the TUI sidebar (`src/plugins/sidebar/`) and into the app mod (`app/mods/herdr-fold/helper.js`); a test fails while a copy differs |
 | `tools/preview_colors.py` | writes `src/themes/preview-colors.js` from the theme setter, the sidebar's icons, the loading sheep and the logo, which it first draws anew on a Mac with Swift (`src/themes/logo.svg`) |

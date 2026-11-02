@@ -1,0 +1,4 @@
+#!/bin/sh
+# The lab's stand-in for Claude Code: reads what it is given and answers one message; it never reaches a service.
+cat >/dev/null
+printf 'feat: change the lab files\n\n- Change what the lab test edited\n'
