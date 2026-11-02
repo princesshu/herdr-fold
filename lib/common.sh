@@ -9,6 +9,25 @@ trim() { sed 's/^[[:space:]]*//; s/[[:space:]]*$//'; }
 
 # The remote machines (machines.sh fills it in) — outside the package, so a new copy of the package keeps it
 MACHINE_LIST="$HOME/.config/herdr-fold/machines.txt"
+# The machines herdr-fold added to the Herdr app's core (hc); only these come off it again
+APP_MACHINES="$HOME/.local/state/herdr-fold/app-machines.txt"
+
+# The Herdr app's core, hc (herdr-core): on PATH, else beside the app's command line
+hc_bin() {
+  local app
+  command -v herdr-core || command -v hc \
+    || { app=$(python3 "$DOT/lib/herdr_app.py" cli) && [ -x "${app%/*}/herdr-core" ] && echo "${app%/*}/herdr-core"; }
+}
+
+# remove_from_app NAME — a machine herdr-fold added to the Herdr app leaves it (its terminals keep running there)
+remove_from_app() {
+  local hc tmp
+  grep -qxF "$1" "$APP_MACHINES" 2>/dev/null || return 0
+  hc=$(hc_bin)
+  if [ -n "$hc" ] && "$hc" machine rm "$1" >/dev/null 2>&1; then ok "$(t machines.app_removed "$1")"
+  else warn "$(t machines.app_remove_failed "$1" "$1")"; fi
+  tmp=$(mktemp) && grep -vxF "$1" "$APP_MACHINES" > "$tmp"; mv "$tmp" "$APP_MACHINES"
+}
 
 # The package's files and where they go on the machine, from files.txt, as "path in the package|path under HOME"
 # lines. A line with a * stands for every matching file in the package: `src/lang/*.txt | .config/herdr-fold/lang/`

@@ -67,9 +67,10 @@ The mod takes three commands for keys of your own: `herdr-fold.write`, `herdr-fo
 
 ## On another machine
 
-A space on another machine (Settings → Machines in the app) works the same: the git commands and the message writer
-run there, through the app's own connection. Nothing is installed or left on that machine; the mod carries its code
-and runs it with that machine's `python3`.
+A space on another machine works the same: the git commands and the message writer run there, through the app's own
+connection. With the TUI environment, `install.sh` (and `./machines.sh add` later) adds each of herdr-fold's machines
+to the app, prepared as for the TUI; without it, add one in Settings → Machines. The mod installs nothing there: it
+carries its code and runs it with that machine's `python3`.
 
 ## What it runs and reads
 

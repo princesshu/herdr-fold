@@ -555,6 +555,26 @@ link_plugins() {
   python3 "$HOME/.config/herdr-fold/restore_panes.py" --machine "$name"
 }
 
+# add_to_app NAME TARGET — with the Herdr app part installed (install.sh's question), the machine joins the app's
+# core too, which copies itself there; one the app has already is left as it is, and not recorded
+add_to_app() {
+  local hc out
+  grep -qxF herdr-fold.app "$HOME/.local/state/herdr-fold/plugins.txt" 2>/dev/null || return 0
+  hc=$(hc_bin) || { warn "$(t machines.app_no_hc "$1")"; return 0; }
+  if "$hc" machine ls --json 2>/dev/null | python3 -c '
+import json, sys
+sys.exit(0 if any(m.get("name") == sys.argv[1] for m in json.load(sys.stdin).get("machines", [])) else 1)' "$1"; then
+    verbose && have "$(t machines.app_already "$1")"
+    return 0
+  fi
+  if out=$("$hc" machine add "$2" --name "$1" --install 2>&1 </dev/null); then
+    mkdir -p "$(dirname "$APP_MACHINES")" && echo "$1" >> "$APP_MACHINES"
+    ok "$(t machines.app_added "$1")"
+  else
+    warn "$(t machines.app_failed "$1" "${out##*$'\n'}")"
+  fi
+}
+
 cmd_add() {
   local failed=0
   while IFS='|' read -r name target os <&3; do
@@ -570,6 +590,7 @@ cmd_add() {
         || { warn "$(t machines.connect_failed)"; failed=1; continue; }
     fi
     finish_machine "$name" "$target" "$os"
+    add_to_app "$name" "$target"
   done 3< <(machines "$@")
   return $failed
 }
@@ -597,6 +618,7 @@ cmd_remove() {
     herdr machine remove "$id" >/dev/null 2>&1 && ok "$(t machines.disconnected "$name")" \
       || warn "$(t machines.disconnect_failed "$name" "$id")"
   fi
+  remove_from_app "$name"
   remove_from_list "$name" && ok "$(t machines.off_the_list "$name")"
 }
 

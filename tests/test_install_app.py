@@ -116,6 +116,19 @@ class InstallApp(unittest.TestCase):
         self.assertIn("herdr-app do layout.switch --name main", self.app_calls())
         self.assertIn(catalog_text("uninstall.app_off"), out)
 
+    def test_uninstall_takes_the_machines_it_added_off_the_app(self):
+        self.with_app()
+        hc_log = os.path.join(self.tmp, "hc-calls")
+        stubs(self.fakes, {"herdr-core": f'#!/bin/sh\necho "hc $*" >> {hc_log}\n'})
+        self.run_script("install.sh")
+        record = os.path.join(self.home, ".local", "state", "herdr-fold", "app-machines.txt")
+        with open(record, "w") as f:
+            f.write("box\nalpha\n")
+        self.run_script("uninstall.sh")
+        with open(hc_log) as f:
+            self.assertEqual(f.read().splitlines(), ["hc machine rm box", "hc machine rm alpha"])
+        self.assertFalse(os.path.exists(record))
+
 
 if __name__ == "__main__":
     unittest.main()

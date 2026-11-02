@@ -47,6 +47,9 @@ except (ValueError, KeyError, TypeError):
     else warn "$(t uninstall.plugin_left "$id" "$off")"; fi
   done < "$state/plugins.txt"
 fi
+# the machines herdr-fold added to the Herdr app leave it (their terminals keep running there)
+while IFS= read -r name; do remove_from_app "$name"; done < <(cat "$APP_MACHINES" 2>/dev/null)
+rm -f "$APP_MACHINES"
 # herdr-fold's whole environment from herdr's marketplace (the plugin that offered the installer): on no record, as the
 # installer did not put it there, and herdr-fold's all the same
 if herdr plugin list --json 2>/dev/null | python3 -c '

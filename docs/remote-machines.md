@@ -10,7 +10,9 @@ remote machine keeps running after you close the Mac.
 2. connects the machine to herdr, which installs herdr there (a single file, no admin rights);
 3. installs the herdr integrations for Claude and Codex, names a herdr-sidebar of the machine's own, and links
    AI Sessions and the tab layout; the sidebar comes with the settings, in the Mac's theme colors (a theme picked
-   later reaches a machine with its next update), and runs with the machine's Python.
+   later reaches a machine with its next update), and runs with the machine's Python;
+4. with herdr-fold set up in the Herdr app too ([The Herdr app](app.md)): adds the machine to the app, whose core
+   (herdr-core) copies itself there, a single file as herdr's; a machine the app has already is left as it is.
 
 It does not install Claude Code or Codex or sign them in: do that once on each machine.
 
@@ -58,5 +60,6 @@ herdr machine list              # the connected machines
 ```
 
 `./machines.sh remove` puts Claude's earlier status line and the machine's own files that the package replaced back on
-the machine (a linked file comes back as the link; the package never writes through one). Files changed there since
+the machine (a linked file comes back as the link; the package never writes through one), and takes it off the Herdr
+app when herdr-fold added it there. Files changed there since
 stay in its backups (`~/.local/state/herdr-fold/prepared-*`).

@@ -13,7 +13,8 @@ All notable changes to this project are listed here. The format follows
 - herdr-fold in herdr's desktop app: a mod with the sidebar's Changes view (the changed files, a file's diff, the
   message Claude or Codex writes, commit, sync), for a space on this Mac or on another machine, with the TUI's data
   layer underneath; a layout of its own puts it in the right panel, where the app's Changes was (Cmd + Shift + G).
-  Where the Herdr app is on the Mac, `install.sh` asks once and sets it all up; `uninstall.sh` takes it off. See
+  Where the Herdr app is on the Mac, `install.sh` asks once and sets it all up, the remote machines in the app too;
+  `uninstall.sh` takes it off. See
   [The Herdr app](docs/app.md).
 
 ### Security
