@@ -72,13 +72,7 @@ class WholeWay(unittest.TestCase):
         """The demo's Herdr app on this screen, a space on the machine at ROOT: the mod's star, Commit and Sync, by the
         app's own commands; what the window lists while the message is written, in the log."""
         app, said = herdr_app(), os.path.join(self.tmp, "app.log")
-        shared = os.path.join(self.home, ".config", "herdr-app", "shared.json")       # past the welcome, as the app's
-        welcomed = {}                                                                 # own bench script starts it
-        if os.path.exists(shared):
-            with open(shared, encoding="utf-8") as f:
-                welcomed = json.load(f)
-        with open(shared, "w", encoding="utf-8") as f:
-            json.dump(dict(welcomed, **{"frame.welcomed": True}), f)
+        self.seen_before(app)
         with open(said, "w") as log:                        # the app's own lines, for a failure to show
             window = subprocess.Popen([app], env=self.env, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
         self.addCleanup(self.quit, window)
@@ -102,6 +96,19 @@ class WholeWay(unittest.TestCase):
         self.run_here(app, "do", "herdr-fold.sync")
         self.wait_for(lambda: self.on_machine("git -C app rev-parse HEAD") ==
                       self.on_machine("git -C origin.git rev-parse main"), "the mod's push", 60)
+
+    def seen_before(self, app):
+        """The demo's app as one that ran this version before: no welcome, no What's New over the mod's panel (the
+        app's own bench script starts it past the welcome the same way)."""
+        home = os.path.join(self.home, ".config", "herdr-app")
+        for name, value in (("shared.json", {"frame.welcomed": True}),
+                            ("update-notes.json", {"last_run": self.run_here(app, "--version").stdout.split()[-1]})):
+            path, kept = os.path.join(home, name), {}
+            if os.path.exists(path):
+                with open(path, encoding="utf-8") as f:
+                    kept = json.load(f)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(dict(kept, **value), f)
 
     def app_failed(self, app, said):
         """What shows why the mod did not get on: the window's status and its own lines, the core's terminals, the job
