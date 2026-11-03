@@ -71,21 +71,27 @@ class WholeWay(unittest.TestCase):
     def in_the_app_window(self, root):
         """The demo's Herdr app on this screen, a space on the machine at ROOT: the mod's star, Commit and Sync, by the
         app's own commands; what the window lists while the message is written, in the log."""
-        app = herdr_app()
-        window = subprocess.Popen([app], env=self.env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                  stderr=subprocess.DEVNULL)
+        app, said = herdr_app(), os.path.join(self.tmp, "app.log")
+        with open(said, "w") as log:                        # the app's own lines, for a failure to show
+            window = subprocess.Popen([app], env=self.env, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
         self.addCleanup(self.quit, window)
         self.wait_for(lambda: self.run_here(app, "status").returncode == 0, "the Herdr app", 120)
         self.on_machine("cd app && echo four > a.txt")
+        # the right panel shown at herdr-fold, as mod.open does from a hidden one (again it would hide it): a hidden
+        # copy gets no commands
         for args in (["space.new", "--machine", "lab", "--folder", root], ["layout.switch", "--name", "herdr-fold"],
-                     ["mod.open", "--name", "herdr-fold"], ["herdr-fold.write"]):
+                     ["layout.select", "--stack", "panel-body", "--child", "changes"], ["layout.show", "--id", "panel"],
+                     ["herdr-fold.write"]):
             out = self.run_here(app, "do", *args)
             self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         print("\nthe window while the message is written:\n" + self.run_here(app, "ls").stdout, file=sys.stderr)
         deadline = time.monotonic() + 180
         while not self.on_machine("git -C app log -1 --format=%s").startswith(walk.MESSAGE) or \
                 "four" not in self.on_machine("git -C app show --format= HEAD -- a.txt"):
-            self.assertLess(time.monotonic(), deadline, "the mod's commit did not come")
+            if time.monotonic() > deadline:
+                with open(said, errors="replace") as f:
+                    lines = f.read()[-3000:]
+                self.fail("the mod's commit did not come\n" + self.run_here(app, "status").stdout + lines)
             self.run_here(app, "do", "herdr-fold.commit")         # nothing to commit while the message is written
             time.sleep(2)
         self.run_here(app, "do", "herdr-fold.sync")
