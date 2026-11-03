@@ -29,11 +29,11 @@ python3 lab/lab.py drop     # everything of the lab's gone: the machine, its ima
 
 Everything it keeps is in `~/.local/share/herdr-fold-lab`, never in the repository or `~/.ssh`: the container
 tool's data (started with that folder when it was not running), the lab's SSH key (named `herdr-fold-lab`), the
-machine's key, and `ssh_config` with `bin/ssh` and `bin/scp`, which read it first and a caller's `-F` (herdr's own)
-after it, never `~/.ssh`. The machine listens on `127.0.0.1` alone, at a port of its own each time. A whole-way
-run makes its demo home in that folder too and removes it afterwards: its herdr and the app's core keep their
-sockets there (`XDG_RUNTIME_DIR`), within the 104 bytes macOS allows a socket's path. `tests/test_lab_harness.py`
-checks the lab itself without a machine, in the usual test run.
+machine's key, and `ssh_config` with `bin/ssh` and `bin/scp`, which use only these settings (ahead of a caller's own
+`-F`, herdr's, as options: they write nothing), never `~/.ssh`. The machine listens on `127.0.0.1` alone, at a port
+of its own each time. A whole-way run makes its demo home in that folder too and removes it afterwards: its herdr
+and the app's core keep their sockets there (`XDG_RUNTIME_DIR`), within the 104 bytes macOS allows a socket's
+path. `tests/test_lab_harness.py` checks the lab itself without a machine, in the usual test run.
 
 ## On GitHub's runners
 
