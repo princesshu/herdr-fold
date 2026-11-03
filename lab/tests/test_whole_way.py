@@ -76,6 +76,7 @@ class WholeWay(unittest.TestCase):
             window = subprocess.Popen([app], env=self.env, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
         self.addCleanup(self.quit, window)
         self.wait_for(lambda: self.run_here(app, "status").returncode == 0, "the Herdr app", 120)
+        self.run_here(app, "do", "overlay.close", "--id", "frame-welcome")      # a first start's welcome, over it all
         self.on_machine("cd app && echo four > a.txt")
         # the right panel shown at herdr-fold, as mod.open does from a hidden one (again it would hide it): a hidden
         # copy gets no commands
