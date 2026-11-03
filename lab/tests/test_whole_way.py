@@ -1,6 +1,6 @@
 """The whole remote way on the lab's machine: install.sh in a home of its own connects it to herdr (the TUI) and to the
-Herdr app's core as the installer does, the mod's own code commits and pushes there, and uninstall.sh takes the app's
-part off again. Run by python3 lab/lab.py test; nothing of the person's own (herdr, the app, ~/.ssh) is used."""
+Herdr app's core, the mod's code commits and pushes there, the TUI's sidebar draws there, and uninstall.sh takes the
+app's part off again. Run by python3 lab/lab.py test; nothing of the person's own (herdr, the app, ~/.ssh) is used."""
 import json
 import os
 import shlex
@@ -110,9 +110,22 @@ class WholeWay(unittest.TestCase):
                 self.assertEqual(f.read().split(), ["lab"])
         with self.subTest("the mod's code commits and pushes on the machine, a secret asked about first"):
             walk.commit_and_push(self, self.on_machine, self.on_python)
+        root = self.on_machine("pwd").strip() + "/app"
         with self.subTest("the mod's star writes in the background through the app's core, outliving its exec"):
-            root = self.on_machine("pwd").strip() + "/app"
             walk.write_in_the_background(self, self.app_core, self.on_machine, root, "python3", on="lab")
+        with self.subTest("the TUI's sidebar draws on the machine, in a workspace herdr-fold lays out there"):
+            out = self.run_here("python3", os.path.join(self.home, ".config", "herdr-fold", "herdr_layout.py"),
+                                "--machine", "lab", root)
+            self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+            panes = json.loads(self.run_here("herdr", "--machine", "lab", "pane", "list").stdout)["result"]["panes"]
+            # the new workspace's (the installer laid out one in the machine's home before)
+            sidebar = next(pane["pane_id"] for pane in panes if pane.get("label") == "sidebar" and pane["cwd"] == root)
+            deadline, shown = time.monotonic() + 60, ""
+            while "a.txt" not in shown and time.monotonic() < deadline:          # its Files view: the repository's file
+                read = self.run_here("herdr", "--machine", "lab", "pane", "read", sidebar)
+                shown = read.stdout + read.stderr
+                time.sleep(1)
+            self.assertIn("a.txt", shown, shown[-3000:])
         with self.subTest("uninstall.sh takes the app's part off"):
             out = self.run_here("/bin/bash", os.path.join(self.package, "uninstall.sh"))
             self.assertEqual(out.returncode, 0, out.stdout[-2000:] + out.stderr[-2000:])
