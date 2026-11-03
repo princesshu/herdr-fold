@@ -92,14 +92,14 @@ plugins of its own.
 | `src/i18n.py` | looks the texts up for the Python scripts |
 | `docs/` | the guides, and their screenshots, the animation and the logo (`docs/media/`) |
 | `tests/` | the tests: `/usr/bin/python3 -m unittest discover -s tests` |
-| `lab/` | the test lab: a Linux machine in a container reached over SSH as a remote machine, run only when called (`python3 lab/lab.py test`); `lab.py`, the machine in `linux/` (`Containerfile`, `sshd.conf`, a stand-in `claude`), its tests in `tests/` ([its README](../lab/README.md)) |
+| `lab/` | the test lab: a Linux machine in a container reached over SSH as a remote machine, run only when called (`python3 lab/lab.py test`); `lab.py`, the machine in `linux/` (`Containerfile`, `sshd.conf`, a stand-in `claude`), its tests in `tests/`, the mod's way through a change in `walk.py`, what GitHub's runners run in `ci/` ([its README](../lab/README.md)) |
 | `tools/sync.sh` | copies this Mac's settings back into the package (not over a file edited there and not committed), then checks the files for private data |
 | `tools/build.py` | copies `core/` into the TUI sidebar (`src/plugins/sidebar/`) and into the app mod (`app/mods/herdr-fold/helper.js`); a test fails while a copy differs |
 | `tools/preview_colors.py` | writes `src/themes/preview-colors.js` from the theme setter, the sidebar's icons, the loading sheep and the logo, which it first draws anew on a Mac with Swift (`src/themes/logo.svg`) |
 | `tools/logo.swift` | draws herdr-fold's logo, its app icon, as SVG: the sheep with Liquid Glass in the shape of the Mac's own app icons |
 | `tools/check_updates.py` | for the maintainer: whether what herdr-fold builds on moved on ([Keeping up](../CONTRIBUTING.md#keeping-up)) |
 | `.githooks/` | `pre-commit` runs the privacy test before a commit, `commit-msg` reads its message the same way (on with `git config core.hooksPath .githooks`) |
-| `.github/` | the issue forms, the pull request template, and the weekly run of `tools/check_updates.py` (`workflows/check-updates.yml`) |
+| `.github/` | the issue forms, the pull request template, the weekly run of `tools/check_updates.py` (`workflows/check-updates.yml`), and the lab on GitHub's runners, run by hand (`workflows/lab.yml`) |
 
 ## Where things go
 

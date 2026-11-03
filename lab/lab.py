@@ -49,6 +49,11 @@ def available():
     return bool(shutil.which("container"))
 
 
+def on_githubs_runner():
+    """Whether this runs on one of GitHub's own runners: a fresh machine, thrown away after its job."""
+    return os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted"
+
+
 def last(text):
     lines = [line.strip() for line in (text or "").splitlines() if line.strip()]
     return lines[-1] if lines else "no answer"
@@ -58,6 +63,12 @@ class Lab:
     def __init__(self, home=HOME, wait=120.0):
         self.home, self.wait = home, wait
         self.bin, self.started = os.path.join(home, "bin"), os.path.join(home, "started")
+
+    def folder(self):
+        """The lab's folder, with its mark: drop takes only a folder that has it."""
+        os.makedirs(self.home, exist_ok=True)
+        with open(os.path.join(self.home, MARK), "w"):
+            pass
 
     def container(self, *args, stdin=None):
         """The container program with ARGS: (its exit code, what it said)."""
@@ -72,9 +83,7 @@ class Lab:
     def up(self):
         """A new machine from its image (built first when there is none), its SSH answering as `lab`; anything that
         fails takes it down again."""
-        os.makedirs(self.home, exist_ok=True)
-        with open(os.path.join(self.home, MARK), "w"):
-            pass
+        self.folder()
         try:
             self.services()
             tag = self.image()
@@ -118,18 +127,29 @@ class Lab:
             self.container("image", "rm", old)
         return tag
 
-    def reach(self, port):
-        """The lab's key on the machine, the machine's key and SSH's settings here; then SSH asked until it answers."""
+    def key(self):
+        """The lab's SSH key, made the first time and named for the lab (not this Mac's user and name): its public
+        half."""
         key = os.path.join(self.home, "key")
-        if not os.path.exists(key):                       # named for the lab, not this Mac's user and name
+        if not os.path.exists(key):
             subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "herdr-fold-lab", "-f", key],
                            check=True)
         with open(key + ".pub") as f:
-            self.container("exec", "-i", NAME, "sh", "-c", "cat > /home/dev/.ssh/authorized_keys && chown dev:dev "
-                           "/home/dev/.ssh/authorized_keys && chmod 600 /home/dev/.ssh/authorized_keys", stdin=f.read())
+            return f.read()
+
+    def reach(self, port):
+        """The lab's key on the container's machine, and SSH to it with the machine's own key."""
+        self.container("exec", "-i", NAME, "sh", "-c", "cat > /home/dev/.ssh/authorized_keys && chown dev:dev "
+                       "/home/dev/.ssh/authorized_keys && chmod 600 /home/dev/.ssh/authorized_keys", stdin=self.key())
         _, host = self.container("exec", NAME, "cat", "/etc/ssh/ssh_host_ed25519_key.pub")
+        self.connect(port, host)
+
+    def connect(self, port, host_key):
+        """SSH's settings for the machine at PORT on 127.0.0.1, known by HOST_KEY (its public key line), as `lab`;
+        then SSH asked until it answers."""
+        key = os.path.join(self.home, "key")
         with open(os.path.join(self.home, "known_hosts"), "w") as f:
-            f.write(f"[127.0.0.1]:{port} {' '.join(host.split()[:2])}\n")
+            f.write(f"[127.0.0.1]:{port} {' '.join(host_key.split()[:2])}\n")
         config = os.path.join(self.home, "ssh_config")
         with open(config, "w") as f:
             f.write(f'Host lab\n  HostName 127.0.0.1\n  Port {port}\n  User dev\n  IdentityFile "{key}"\n'
@@ -142,10 +162,14 @@ class Lab:
                 f.write(WRAPPER.replace("CONFIG", shlex.quote(config)).replace("PROGRAM", program))
             os.chmod(path, 0o755)
         deadline = time.monotonic() + self.wait
-        while self.ssh("true").returncode != 0:
+        while not self.answers():
             if time.monotonic() >= deadline:
                 raise LabError("the machine's SSH did not answer")
             time.sleep(0.5)
+
+    def answers(self):
+        """Whether a machine answers SSH as `lab` with the lab's settings."""
+        return os.path.exists(os.path.join(self.bin, "ssh")) and self.ssh("true").returncode == 0
 
     def remove(self):
         self.container("stop", NAME)
@@ -180,8 +204,9 @@ class Lab:
             shutil.rmtree(self.home)
 
     def test(self):
-        """The lab's tests (lab/tests) on a machine of their own: brought up for them, unless one runs already."""
-        brought = not self.running()
+        """The lab's tests (lab/tests) on its machine: brought up for them, unless one answers already (a runner's
+        own, lab/ci)."""
+        brought = not self.answers()
         if brought:
             self.up()
         try:

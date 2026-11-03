@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 from support import PACKAGE, set_env, stubs
 
@@ -63,6 +64,42 @@ class Harness(unittest.TestCase):
         self.assertIn("IdentitiesOnly yes", config)
         self.assertIn(f'UserKnownHostsFile "{os.path.join(self.home, "known_hosts")}"', config)
         self.assertNotIn("~/.ssh", config)
+
+    def test_a_machine_that_answers_already_is_tested_as_it_is(self):
+        machine = lab.Lab(self.home, wait=0.5)
+        with mock.patch.object(lab.Lab, "answers", return_value=True), \
+                mock.patch.object(lab.unittest.defaultTestLoader, "discover", return_value=unittest.TestSuite()):
+            self.assertTrue(machine.test())
+        self.assertFalse(os.path.exists(self.log))                    # the container program never asked
+
+    def test_connect_points_ssh_at_the_port_and_host_key_given(self):
+        machine = lab.Lab(self.home, wait=0.5)
+        machine.folder()
+        with self.assertRaises(lab.LabError):
+            machine.connect(2222, "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample lab\n")      # nothing answers there
+        with open(os.path.join(self.home, "known_hosts")) as f:
+            self.assertEqual(f.read(), "[127.0.0.1]:2222 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample\n")
+        resolved = subprocess.run([os.path.join(self.home, "bin", "ssh"), "-G", "lab"], capture_output=True,
+                                  text=True).stdout
+        self.assertIn("port 2222", resolved)
+
+    def test_the_mac_runners_machine_is_made_only_on_githubs_own_runners(self):
+        stubs(os.path.join(self.tmp, "bin"), {"sudo": '#!/bin/sh\necho "sudo $*" >> "$LAB_LOG"\n'})
+        env = {key: value for key, value in os.environ.items() if key != "RUNNER_ENVIRONMENT"}
+        out = subprocess.run([sys.executable, os.path.join(PACKAGE, "lab", "ci", "mac_machine.py")],
+                             env=dict(env, HOME=self.tmp), capture_output=True, text=True)
+        self.assertNotEqual(out.returncode, 0)
+        self.assertIn("GitHub", out.stderr)
+        self.assertFalse(os.path.exists(self.log))                    # no sudo, no user, no server
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, ".local", "share", "herdr-fold-lab")))
+
+    def test_a_machines_side_runs_only_on_githubs_own_runners(self):
+        env = {key: value for key, value in os.environ.items() if key != "RUNNER_ENVIRONMENT"}
+        out = subprocess.run([sys.executable, os.path.join(PACKAGE, "lab", "ci", "machine_side.py")],
+                             env=dict(env, HOME=self.tmp, USERPROFILE=self.tmp), capture_output=True, text=True)
+        self.assertNotEqual(out.returncode, 0)
+        self.assertIn("GitHub", out.stderr)
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, ".herdr-fold")))         # nothing prepared
 
     def test_drop_removes_only_a_folder_the_lab_made(self):
         os.makedirs(self.home)

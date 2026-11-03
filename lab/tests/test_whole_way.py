@@ -3,6 +3,7 @@ Herdr app's core as the installer does, the mod's own code commits and pushes th
 part off again. Run by python3 lab/lab.py test; nothing of the person's own (herdr, the app, ~/.ssh) is used."""
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -15,6 +16,7 @@ PACKAGE = os.path.dirname(LAB)
 sys.path.insert(0, LAB)
 sys.path.insert(0, os.path.join(PACKAGE, "tests"))
 import lab  # noqa: E402
+import walk  # noqa: E402
 from support import copy_package, run_in_terminal, stubs  # noqa: E402
 
 # stand-ins on this Mac: no GitHub sign-in, browser, Tailscale network or Codex; a Claude that answers one message
@@ -35,8 +37,9 @@ class WholeWay(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp)
         self.home = os.path.join(self.tmp, "home")
         os.makedirs(os.path.join(self.home, ".config", "herdr-fold"))
+        system = {"Linux": "linux", "Darwin": "macos"}[self.on_machine("uname -s").strip()]
         with open(os.path.join(self.home, ".config", "herdr-fold", "machines.txt"), "w") as f:
-            f.write("lab | lab | linux\n")
+            f.write(f"lab | lab | {system}\n")
         fakes = stubs(os.path.join(self.tmp, "fakes"), FAKES)
         # herdr runs ssh through the login shell, whose /etc/zprofile puts the system's ssh first: the home's own
         # .zprofile, read after it, puts the lab's (which reads only the lab's settings) back in front
@@ -82,11 +85,8 @@ class WholeWay(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stdout[-2000:] + out.stderr[-2000:])
         return out.stdout
 
-    def core(self, module, *args):
-        """core/MODULE run on the machine as the mod runs it: python3 -I, its source given, not installed there."""
-        with open(os.path.join(PACKAGE, "core", module), encoding="utf-8") as f:
-            source = f.read()
-        return json.loads(self.on_machine("python3 -I - " + " ".join(args), stdin=source))
+    def on_python(self, args, stdin):
+        return self.on_machine("python3 " + " ".join(map(shlex.quote, args)), stdin)
 
     def test_the_whole_way(self):
         shown, ended = run_in_terminal(["/bin/bash", os.path.join(self.package, "install.sh")], self.env,
@@ -104,19 +104,7 @@ class WholeWay(unittest.TestCase):
             with open(os.path.join(state, "app-machines.txt")) as f:
                 self.assertEqual(f.read().split(), ["lab"])
         with self.subTest("the mod's code commits and pushes on the machine, a secret asked about first"):
-            self.on_machine("git init -q --bare -b main origin.git && git init -q -b main app && cd app && "
-                            "git config user.name dev && git config user.email dev@example.com && echo one > a.txt "
-                            "&& git add -A && git commit -q -m init && git remote add origin ../origin.git && "
-                            "git push -q -u origin main && echo two > a.txt && echo TOKEN=1 > .env")
-            self.assertEqual(self.core("git.py", "stage", "app"), {"ok": True, "advice": None})
-            self.assertEqual(self.core("commit_message.py", "secrets", "app"), {"secret_looking": [".env"]})
-            written = self.core("commit_message.py", "write", "app")["message"]       # the machine's stand-in Claude
-            self.assertTrue(written.startswith("feat: change the lab files"), written)
-            self.assertEqual(self.core("git.py", "commit", "app", "'feat: change the lab files'"),
-                             {"ok": True, "advice": None})
-            self.assertEqual(self.core("git.py", "sync", "app"), {"ok": True, "advice": None})
-            pushed = self.on_machine("git -C origin.git log -1 --format=%s").strip()
-            self.assertEqual(pushed, "feat: change the lab files")
+            walk.commit_and_push(self, self.on_machine, self.on_python)
         with self.subTest("uninstall.sh takes the app's part off"):
             out = self.run_here("/bin/bash", os.path.join(self.package, "uninstall.sh"))
             self.assertEqual(out.returncode, 0, out.stdout[-2000:] + out.stderr[-2000:])

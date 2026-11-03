@@ -20,7 +20,8 @@ your own settings.
 
 The remote way on a real machine runs in the lab, only when called: `python3 lab/lab.py test` brings up a Linux
 machine in a container (Apple's container tool), runs `lab/tests` on it over SSH and takes it down
-([the lab's README](lab/README.md)).
+([the lab's README](lab/README.md)). A clean Mac, Linux on x86_64 and Windows are in its workflow on GitHub's
+runners, started by hand: `gh workflow run lab`.
 
 ## Writing code
 

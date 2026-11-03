@@ -1,0 +1,53 @@
+# For the maintainer, run by hand: herdr-fold's lab on GitHub's own runners (lab/README.md). The Mac installs it as a
+# person does and reaches itself as a second user over SSH, the whole remote way; Linux and Windows run a machine's
+# side as machines.sh does over SSH. No secrets: the token only reads.
+name: Lab
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      DO_NOT_TRACK: "1"
+      HERDR_TELEMETRY: "0"
+      HOMEBREW_NO_ANALYTICS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: The Herdr app and its core, from the app's installer
+        run: |
+          curl -fsSL https://releases.herdr.dev/app/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: herdr-fold installed as a person does, Homebrew and all
+        run: HERDR_FOLD_YES=1 HERDR_FOLD_NO_MACHINES=1 ./install.sh </dev/null
+      - name: The lab's machine, a second user over SSH
+        run: python3 lab/ci/mac_machine.py
+      - name: The lab's tests
+        run: python3 lab/lab.py test
+
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: A machine's side, as machines.sh runs it there
+        run: python3 lab/ci/machine_side.py -v
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: A machine's side, as machines.sh runs it there
+        run: python lab/ci/machine_side.py -v
