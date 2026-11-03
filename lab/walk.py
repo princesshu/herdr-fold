@@ -43,15 +43,18 @@ def write_in_the_background(test, hc, shell, root, binary, on=None):
     machine, None for HC's own): a change in ROOT staged, written by a job in a core terminal, then all of it gone."""
     commands = mod_job(binary, root, on)
 
+    def given(argv, folder):                    # the stand-in alone, never a word of a source that names it
+        return [folder if arg == "FOLDER" else arg for arg in argv]
+
     def exec_(argv, folder=""):
-        return hc(["exec", *(["--on", on] if on else []), "--cwd", root, *(a.replace("FOLDER", folder) for a in argv)])
+        return hc(["exec", *(["--on", on] if on else []), "--cwd", root, *given(argv, folder)])
 
     shell("cd app && echo three > a.txt")
     test.assertEqual(json.loads(exec_(commands["stage"])[1]), {"ok": True, "advice": None})
     code, folder, said = exec_(commands["prepare"])
     test.assertEqual(code, 0, said)
     folder = folder.strip()
-    code, started, said = hc([a.replace("FOLDER", folder) for a in commands["start"]])
+    code, started, said = hc(given(commands["start"], folder))
     test.assertEqual(code, 0, said)
     terminal, deadline = json.loads(started)["address"], time.monotonic() + 120
     while (answer := exec_(commands["poll"], folder))[0] == 3 and time.monotonic() < deadline:
