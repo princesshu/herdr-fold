@@ -20,19 +20,19 @@ def source(module):
         return f.read()
 
 
-# the mod's own commands for the star's job, from logic.js (FOLDER: the job's folder, once it has one)
-MOD_JOB = """import(process.argv[1]).then(({ background, pythonCommand }) => {
-  const [binary, git, writer, root, on] = JSON.parse(process.argv[2]);
-  const job = background(binary, writer, ["write", root]);
-  console.log(JSON.stringify({ stage: [...pythonCommand(binary), git, "stage", root], prepare: job.prepare,
+# the mod's own commands for the star's job, from logic.js and helper.js (FOLDER: the job's folder, once it has one)
+MOD_JOB = """const mod = process.argv[1], [binary, root, on] = JSON.parse(process.argv[2]);
+Promise.all([import(mod + "/logic.js"), import(mod + "/helper.js")]).then(([{ background, pythonCommand }, core]) => {
+  const job = background(binary, core.COMMIT_MESSAGE, ["write", root]);
+  console.log(JSON.stringify({ stage: [...pythonCommand(binary), core.GIT, "stage", root], prepare: job.prepare,
     start: job.start("FOLDER", root, on), poll: job.poll("FOLDER"), clear: job.clear("FOLDER") }));
 });"""
 
 
 def mod_job(binary, root, on):
-    logic = pathlib.Path(PACKAGE, "app", "mods", "herdr-fold", "logic.js").as_uri()
-    given = json.dumps([binary, source("git.py"), source("commit_message.py"), root, on])
-    out = subprocess.run(["node", "-e", MOD_JOB, logic, given], capture_output=True, text=True, timeout=60)
+    mod = pathlib.Path(PACKAGE, "app", "mods", "herdr-fold").as_uri()
+    out = subprocess.run(["node", "-e", MOD_JOB, mod, json.dumps([binary, root, on])], capture_output=True, text=True,
+                         encoding="utf-8", timeout=60)
     if out.returncode:
         raise RuntimeError(out.stderr)
     return json.loads(out.stdout)
