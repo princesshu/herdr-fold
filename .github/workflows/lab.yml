@@ -17,6 +17,7 @@ jobs:
       DO_NOT_TRACK: "1"
       HERDR_TELEMETRY: "0"
       HOMEBREW_NO_ANALYTICS: "1"
+      LAB_ARTIFACTS: ${{ runner.temp }}/lab-artifacts
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -31,6 +32,14 @@ jobs:
         run: python3 lab/ci/mac_machine.py
       - name: The lab's tests
         run: python3 lab/lab.py test
+      - name: The app's window, when the lab failed
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: app-window
+          path: ${{ runner.temp }}/lab-artifacts
+          retention-days: 1
+          if-no-files-found: ignore
 
   linux:
     runs-on: ubuntu-latest

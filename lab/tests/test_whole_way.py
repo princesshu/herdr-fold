@@ -96,14 +96,26 @@ class WholeWay(unittest.TestCase):
         while not self.on_machine("git -C app log -1 --format=%s").startswith(walk.MESSAGE) or \
                 "four" not in self.on_machine("git -C app show --format= HEAD -- a.txt"):
             if time.monotonic() > deadline:
-                with open(said, errors="replace") as f:
-                    lines = f.read()[-3000:]
-                self.fail("the mod's commit did not come\n" + self.run_here(app, "status").stdout + lines)
+                self.fail("the mod's commit did not come\n" + self.app_failed(app, said))
             self.run_here(app, "do", "herdr-fold.commit")         # nothing to commit while the message is written
             time.sleep(2)
         self.run_here(app, "do", "herdr-fold.sync")
         self.wait_for(lambda: self.on_machine("git -C app rev-parse HEAD") ==
                       self.on_machine("git -C origin.git rev-parse main"), "the mod's push", 60)
+
+    def app_failed(self, app, said):
+        """What shows why the mod did not get on: the window's status and its own lines, the core's terminals, the job
+        folders on the machine; a picture of the window where the runner keeps one (LAB_ARTIFACTS)."""
+        kept = os.environ.get("LAB_ARTIFACTS")
+        if kept:
+            os.makedirs(kept, exist_ok=True)
+            self.run_here(app, "shot", os.path.join(kept, "app-window.png"))
+        jobs = self.on_machine("python3 -c 'import os, tempfile; d = tempfile.gettempdir(); "
+                               "print(sorted(n for n in os.listdir(d) if n.startswith(\"herdr-fold.\")))'")
+        with open(said, errors="replace") as f:
+            lines = f.read()[-3000:]
+        terminals = self.run_here("herdr-core", "ls", "--all", "--json").stdout
+        return "\n".join([self.run_here(app, "status").stdout, terminals, "job folders on the machine: " + jobs, lines])
 
     def quit(self, window):
         """The demo's app quits, its own PID ended if it does not."""
