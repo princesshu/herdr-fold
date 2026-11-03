@@ -68,6 +68,39 @@ class WholeWay(unittest.TestCase):
             self.server.kill()
             self.server.wait()
 
+    def in_the_app_window(self, root):
+        """The demo's Herdr app on this screen, a space on the machine at ROOT: the mod's star, Commit and Sync, by the
+        app's own commands; what the window lists while the message is written, in the log."""
+        app = herdr_app()
+        window = subprocess.Popen([app], env=self.env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL)
+        self.addCleanup(self.quit, window)
+        self.wait_for(lambda: self.run_here(app, "status").returncode == 0, "the Herdr app", 120)
+        self.on_machine("cd app && echo four > a.txt")
+        for args in (["space.new", "--machine", "lab", "--folder", root], ["layout.switch", "--name", "herdr-fold"],
+                     ["mod.open", "--name", "herdr-fold"], ["herdr-fold.write"]):
+            out = self.run_here(app, "do", *args)
+            self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        print("\nthe window while the message is written:\n" + self.run_here(app, "ls").stdout, file=sys.stderr)
+        deadline = time.monotonic() + 180
+        while not self.on_machine("git -C app log -1 --format=%s").startswith(walk.MESSAGE) or \
+                "four" not in self.on_machine("git -C app show --format= HEAD -- a.txt"):
+            self.assertLess(time.monotonic(), deadline, "the mod's commit did not come")
+            self.run_here(app, "do", "herdr-fold.commit")         # nothing to commit while the message is written
+            time.sleep(2)
+        self.run_here(app, "do", "herdr-fold.sync")
+        self.wait_for(lambda: self.on_machine("git -C app rev-parse HEAD") ==
+                      self.on_machine("git -C origin.git rev-parse main"), "the mod's push", 60)
+
+    def quit(self, window):
+        """The demo's app quits, its own PID ended if it does not."""
+        self.run_here(herdr_app(), "do", "app.quit")
+        try:
+            window.wait(30)
+        except subprocess.TimeoutExpired:
+            window.kill()
+            window.wait()
+
     def run_here(self, *argv):
         return subprocess.run(argv, env=self.env, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=600)
 
@@ -126,6 +159,10 @@ class WholeWay(unittest.TestCase):
                 shown = read.stdout + read.stderr
                 time.sleep(1)
             self.assertIn("a.txt", shown, shown[-3000:])
+        with self.subTest("the Herdr app's window: its mod writes, commits and syncs a change on the machine"):
+            if not lab.on_githubs_runner():
+                self.skipTest("the app's window opens on a GitHub runner only, never on this Mac's screen")
+            self.in_the_app_window(root)
         with self.subTest("uninstall.sh takes the app's part off"):
             out = self.run_here("/bin/bash", os.path.join(self.package, "uninstall.sh"))
             self.assertEqual(out.returncode, 0, out.stdout[-2000:] + out.stderr[-2000:])
