@@ -82,6 +82,9 @@ keybind = super+shift+e=text:\x02f
 keybind = super+shift+g=text:\x02u
 # Cmd+Shift+I → the sidebar's Issues view, for a repository on GitHub (herdr: Ctrl+B, Shift+I)
 keybind = super+shift+i=text:\x02I
+# Cmd+A → the whole text of the sidebar's field you are in, the commit message's (herdr: Ctrl+B, Shift+A). Ghostty's
+# own select all would take the whole window, every herdr pane in it
+keybind = super+a=text:\x02A
 # Cmd+W → closes the active herdr tab (not the workspace's main tab), NOT the Ghostty window (herdr: Ctrl+B, t)
 keybind = super+w=text:\x02t
 # Cmd+Shift+C → commit + push in one step, with an AI-written message (herdr: Ctrl+B, y)

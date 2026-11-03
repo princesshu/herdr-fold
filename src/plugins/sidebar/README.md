@@ -80,9 +80,9 @@ control shown by an icon alone (✦, ↻, the view tabs, a row's icons…) says 
 for half a second, and a changed file's row in Changes its whole path in the repository, on more rows when it is
 wider than the pane. The sections folded in Changes stay folded after an update or a restart (a sidebar
 started later, in another tab too, takes them); a new version comes back to the rows you were on.
-In a field, Shift with an arrow, Home or End selects, in the commit message a drag, a double click (a word) or a
-triple click (all of it) too; Backspace or Delete takes the selection, typing replaces it, and Alt + Backspace
-takes the word before the cursor.
+In a field, Shift with an arrow, Home or End selects, and Cmd + A its whole text (herdr-fold's Ghostty and herdr
+keys send F8); in the commit message a drag, a double click (a word) or a triple click (all of it) too. Backspace or
+Delete takes the selection, typing replaces it, and Alt + Backspace takes the word before the cursor.
 The Alt keys need Option to work as Alt in the terminal (herdr-fold's Ghostty leaves Option to the keyboard layout);
 Alt + Enter commits from the message there too.
 

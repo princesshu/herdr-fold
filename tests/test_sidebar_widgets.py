@@ -219,6 +219,14 @@ class Text(unittest.TestCase):
         field.press(11, 0, now=12.0)                              # a while later: one click again
         self.assertEqual(field.selected(), "")
 
+    def test_f8_the_key_cmd_a_sends_selects_the_whole_text(self):
+        field = TextInput(multiline=True)
+        typed(field, "feat: a\n\n- b")
+        field.handle(Key("f8"))
+        self.assertEqual(field.selected(), "feat: a\n\n- b")
+        field.handle(Key("backspace"))
+        self.assertEqual(field.text, "")
+
     def test_the_selection_shows_lit(self):
         field = TextInput()
         typed(field, "abcdef")

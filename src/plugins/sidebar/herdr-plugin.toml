@@ -39,6 +39,13 @@ title = "Sidebar: Issues"
 command = ["/usr/bin/python3", "actions.py", "show-issues"]
 platforms = ["macos", "linux"]
 
+# Cmd + A: the text of the field that has the keys, in the sidebar that has them (F8); other panes are left alone
+[[actions]]
+id = "select-all"
+title = "Sidebar: select the field's text"
+command = ["/usr/bin/python3", "actions.py", "select-all"]
+platforms = ["macos", "linux"]
+
 # Windows: the same with Python (an action id is unique within a plugin, so the Windows ones have their own)
 [[actions]]
 id = "show-files-windows"
@@ -62,6 +69,12 @@ platforms = ["windows"]
 id = "show-issues-windows"
 title = "Sidebar: Issues"
 command = ["python", "actions.py", "show-issues"]
+platforms = ["windows"]
+
+[[actions]]
+id = "select-all-windows"
+title = "Sidebar: select the field's text"
+command = ["python", "actions.py", "select-all"]
 platforms = ["windows"]
 
 # The Conversations column (a plain pane named "conversations": python3 sidebar.py --conversations, right before the

@@ -22,8 +22,10 @@ class Keys(unittest.TestCase):
                          [Key("enter"), Key("backspace"), Key("tab"), Key("backtab"), Key("delete"), Key("home"),
                           Key("end")])
 
-    def test_f9_to_f11_switch_the_views(self):
-        self.assertEqual(decode(b"\x1b[20~\x1b[21~\x1b[23~"), [Key("f9"), Key("f10"), Key("f11")])
+    def test_f8_selects_a_fields_text_and_f9_to_f12_switch_the_views(self):
+        # what herdr sends for the sidebar's actions: F8 for Cmd + A, F9 to F12 for the views
+        self.assertEqual(decode(b"\x1b[19~\x1b[20~\x1b[21~\x1b[23~\x1b[24~"),
+                         [Key("f8"), Key("f9"), Key("f10"), Key("f11"), Key("f12")])
 
     def test_text_with_accents_and_symbols(self):
         self.assertEqual(decode("aé€".encode()), [Key("char", "a"), Key("char", "é"), Key("char", "€")])

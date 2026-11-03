@@ -398,13 +398,14 @@ class Message(Harness):
         self.start()
 
     def typed(self, text):
-        """TEXT typed as the message, once Changes shows: where it starts in the field."""
+        """TEXT typed as the message, once Changes shows: where its first line starts in the field."""
         self.term.type(Key("char", "3"))
         self.until(lambda s: "a.txt" in s)
         self.term.type(*keys(text))
-        self.until(lambda s: text in s)
-        y = next(y for y, line in enumerate(self.screen().splitlines()) if text in line)
-        return self.screen().splitlines()[y].index(text), y
+        first, last = text.split("\n")[0], text.split("\n")[-1]
+        self.until(lambda s: first in s and last in s)
+        y = next(y for y, line in enumerate(self.screen().splitlines()) if first in line)
+        return self.screen().splitlines()[y].index(first), y
 
     def test_a_message_dragged_over_goes_whole_with_backspace(self):
         x, y = self.typed("fix: a typo")
@@ -412,6 +413,11 @@ class Message(Harness):
         self.term.type(Mouse("press", x, y, 0), Mouse("move", end, y, 0), Mouse("release", end, y, 0))
         self.term.type(Key("backspace"))
         self.until(lambda s: "fix: a typo" not in s and "Commit message" in s)
+
+    def test_cmd_a_in_the_message_selects_it_all_for_backspace(self):
+        self.typed("feat: a whole\n\nmessage")
+        self.term.type(Key("f8"), Key("backspace"))                 # F8: what herdr sends the sidebar for Cmd + A
+        self.until(lambda s: "whole" not in s and "Commit message" in s)
 
     def test_shift_home_selects_and_typing_puts_the_new_message_in_its_place(self):
         self.typed("fix: a typo")
@@ -1350,6 +1356,23 @@ class Actions(Repo):
         self.assertEqual(out.returncode, 0, out.stderr)
         with open(self.log) as f:
             self.assertIn("pane send-keys w1:p2 f12", f.read().splitlines())
+
+    def test_select_all_goes_to_the_sidebar_only_when_it_has_the_keys(self):
+        out = self.action("select-all", HERDR_ACTIVE_TAB_ID="w1:t1", HERDR_ACTIVE_PANE_ID="w1:p2")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        with open(self.log) as f:
+            self.assertIn("pane send-keys w1:p2 f8", f.read().splitlines())
+        os.remove(self.log)
+        out = self.action("select-all", HERDR_ACTIVE_TAB_ID="w1:t1", HERDR_ACTIVE_PANE_ID="w1:p1")     # the agent's
+        self.assertEqual((out.returncode, out.stderr), (0, ""))
+        self.assertFalse(any("send-keys" in line for line in self.logged_lines()))
+
+    def logged_lines(self):
+        try:
+            with open(self.log) as f:
+                return f.read().splitlines()
+        except OSError:
+            return []
 
     def test_no_sidebar_in_the_tab_says_so(self):
         out = self.action("show-files", HERDR_ACTIVE_TAB_ID="w1:t9")

@@ -36,9 +36,11 @@ All notable changes to this project are listed here. The format follows
 ### Fixed
 
 - The sidebar's fields select text as text fields do, the commit message too, where it went only a letter at a
-  time: Shift with an arrow, Home or End, and in the message a drag, a double click (a word) or a triple click
-  (all of it); Backspace or Delete takes the selection whole, typing or pasting replaces it, and Alt + Backspace
-  takes the word before the cursor.
+  time: Cmd + A, Shift with an arrow, Home or End, and in the message a drag, a double click (a word) or a triple
+  click (all of it); Backspace or Delete takes the selection whole, typing or pasting replaces it, and
+  Alt + Backspace takes the word before the cursor. Cmd + A no longer flashes the window (Ghostty's own select
+  all, of every pane): it reaches only the sidebar's field you are in. See [Keys](docs/keybindings.md).
+- Cmd + Shift + I opens the sidebar's Issues view: the key herdr sends it for that (F12) was not read.
 
 ### Security
 

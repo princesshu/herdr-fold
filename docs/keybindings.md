@@ -25,6 +25,7 @@ all.
 | Cmd + Shift + O | restore panels: every pane closed by hand in the tab comes back (sidebar, terminal, Conversations column), the right column shown |
 | Cmd + Shift + G | the sidebar's Changes view |
 | Cmd + Shift + I | the sidebar's Issues view, for a repository on GitHub |
+| Cmd + A | in the sidebar's field you are in (the commit message, a search): select its whole text, for Backspace, typing or a paste; in other panes it does nothing |
 | Cmd + Shift + C | commit and push, with a message written by Claude or Codex: Enter commits and pushes, `e` edits, `r` writes a new one, Esc cancels |
 | Cmd + Shift + L | open a file the focused pane's output names (`src/app.py:42`, a traceback's line), at that line, in the sidebar's preview tab: the newest first, type to narrow the list |
 | Cmd + T / Cmd + R | next / previous tab of the workspace, wrapping around; keep Cmd held and tap again to step on |
@@ -77,6 +78,7 @@ In another terminal, the same commands are on herdr's keys:
 | Cmd + Shift + H | Ctrl + B, then Shift + H |
 | Cmd + Shift + G | Ctrl + B, then u |
 | Cmd + Shift + I | Ctrl + B, then Shift + I |
+| Cmd + A | Ctrl + B, then Shift + A |
 | Cmd + W | Ctrl + B, then t |
 | Cmd + Shift + C | Ctrl + B, then y |
 | Cmd + Shift + L | Ctrl + B, then Shift + L |

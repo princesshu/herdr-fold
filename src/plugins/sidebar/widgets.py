@@ -144,6 +144,8 @@ class TextInput:
             self.insert(key.char if self.multiline else key.char.replace("\r\n", " ").replace("\n", " "))
         elif name == "enter" and self.multiline:
             self.insert("\n")
+        elif name == "f8":                     # what herdr sends a sidebar that has the keys for Cmd + A (actions.py)
+            self.anchor, self.cursor = 0, len(self.text)
         elif name in ("backspace", "delete"):
             if self.cut():
                 pass

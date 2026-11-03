@@ -69,6 +69,14 @@ type = "plugin_action"
 command = "herdr-fold.sidebar.show-issues"
 description = "sidebar: Issues (Cmd+Shift+I)"
 
+# Select the text of the sidebar's field that has the keys, the commit message's say (Ghostty: Cmd+A → Ctrl+B,
+# Shift+A); in any other pane it does nothing, as Ghostty's own select all would take the whole window there
+[[keys.command]]
+key = "prefix+shift+a"
+type = "plugin_action"
+command = "herdr-fold.sidebar.select-all"
+description = "sidebar: select the field's text (Cmd+A)"
+
 # Close the active tab (Ghostty: Cmd+W → Ctrl+B, t) — asks first if the tab has a conversation; never
 # closes the main tab (a workspace's first, named as the workspace)
 [[keys.command]]

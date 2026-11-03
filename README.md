@@ -99,6 +99,7 @@ Your own files are saved first, in `~/.local/state/herdr-fold/`. Your conversati
 | Cmd + Shift + H | collapse / open the Conversations column |
 | Cmd + Shift + O | restore the panels closed in the tab |
 | Cmd + Shift + G / Cmd + Shift + I | the sidebar's Changes / Issues |
+| Cmd + A | select the whole text of the sidebar's field you are in |
 | Cmd + F | search the Claude conversation |
 | Cmd + W | close the tab |
 | Cmd + K, then Cmd + T | pick a theme |
