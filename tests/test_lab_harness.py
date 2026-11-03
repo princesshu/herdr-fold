@@ -101,6 +101,14 @@ class Harness(unittest.TestCase):
         self.assertIn("GitHub", out.stderr)
         self.assertFalse(os.path.exists(os.path.join(self.tmp, ".herdr-fold")))         # nothing prepared
 
+    def test_status_counts_the_room_its_files_take_not_their_size(self):
+        # the container tool's disk is a sparse file: its size says hundreds of GiB, the room it takes far less
+        machine = lab.Lab(self.home)
+        machine.folder()
+        with open(os.path.join(self.home, "disk"), "wb") as f:
+            f.truncate(4 * 2 ** 30)
+        self.assertTrue(machine.status()["folder"].endswith("(0 MiB)"), machine.status()["folder"])
+
     def test_drop_removes_only_a_folder_the_lab_made(self):
         os.makedirs(self.home)
         with open(os.path.join(self.home, "mine.txt"), "w") as f:

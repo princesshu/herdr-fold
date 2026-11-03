@@ -187,7 +187,9 @@ class Lab:
 
     def status(self):
         _, images = self.container("image", "list", "--format", "json")
-        size = sum(os.path.getsize(os.path.join(top, name)) for top, _, names in os.walk(self.home) for name in names)
+        # the room the files take (a sparse disk's size says far more)
+        size = sum(os.lstat(os.path.join(top, name)).st_blocks * 512 for top, _, names in os.walk(self.home)
+                   for name in names)
         return {"machine": "running" if self.running() else "down",
                 "image": ", ".join(sorted(set(re.findall(rf"{IMAGE}:[0-9a-f]{{12}}", images)))) or "none",
                 "folder": f"{self.home} ({size / 2 ** 20:.0f} MiB)" if os.path.isdir(self.home) else "none"}
