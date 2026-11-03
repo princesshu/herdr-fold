@@ -72,11 +72,17 @@ class WholeWay(unittest.TestCase):
         """The demo's Herdr app on this screen, a space on the machine at ROOT: the mod's star, Commit and Sync, by the
         app's own commands; what the window lists while the message is written, in the log."""
         app, said = herdr_app(), os.path.join(self.tmp, "app.log")
+        shared = os.path.join(self.home, ".config", "herdr-app", "shared.json")       # past the welcome, as the app's
+        welcomed = {}                                                                 # own bench script starts it
+        if os.path.exists(shared):
+            with open(shared, encoding="utf-8") as f:
+                welcomed = json.load(f)
+        with open(shared, "w", encoding="utf-8") as f:
+            json.dump(dict(welcomed, **{"frame.welcomed": True}), f)
         with open(said, "w") as log:                        # the app's own lines, for a failure to show
             window = subprocess.Popen([app], env=self.env, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
         self.addCleanup(self.quit, window)
         self.wait_for(lambda: self.run_here(app, "status").returncode == 0, "the Herdr app", 120)
-        self.run_here(app, "do", "overlay.close", "--id", "frame-welcome")      # a first start's welcome, over it all
         self.on_machine("cd app && echo four > a.txt")
         # the right panel shown at herdr-fold, as mod.open does from a hidden one (again it would hide it): a hidden
         # copy gets no commands
