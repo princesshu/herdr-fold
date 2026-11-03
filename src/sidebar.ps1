@@ -3,14 +3,7 @@
 # Quitting it (q) → back to the shell.
 param([string]$Dir = (Get-Location).Path, [switch]$Conversations)
 
-# Python as prepare-windows.ps1 finds it: not the Store's "python" in WindowsApps, else a python.org install
-$python = (Get-Command python -All -CommandType Application -ErrorAction SilentlyContinue |
-    Where-Object { $_.Source -notlike '*WindowsApps*' } | Select-Object -First 1).Source
-if (-not $python) {
-    $python = (
-        Get-ChildItem -ErrorAction SilentlyContinue -Path "$env:LOCALAPPDATA\Programs\Python\Python3*\python.exe",
-        "$env:ProgramFiles\Python3*\python.exe" | Sort-Object FullName -Descending | Select-Object -First 1).FullName
-}
+$python = & (Join-Path $PSScriptRoot 'python.ps1')       # the real Python, not the Store's alias
 if (-not $python) {
     Write-Output 'The sidebar needs Python 3.9 or newer: https://www.python.org/downloads/'
     exit 1

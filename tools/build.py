@@ -1,6 +1,6 @@
 """Writes the copies of core/, the shared data layer: into the TUI sidebar (src/plugins/sidebar/, which installs on its
-own) and into the Herdr app mod (helper.js: the source, run as python3 -c on the space's machine). Edit core/, then run
-this: tests/test_build.py fails while a copy differs."""
+own) and into the Herdr app mod (helper.js: the source, run with Python's -c on the space's machine). Edit core/, then
+run this: tests/test_build.py fails while a copy differs."""
 import json
 import os
 import sys
@@ -10,7 +10,8 @@ SIDEBAR = os.path.join("src", "plugins", "sidebar")
 WIDTH = 110                   # a string literal's cells on a line of helper.js
 # the Herdr app mod's helper.js: the name it imports each module's source by, and the module
 HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"COMMIT_MESSAGE": "commit_message.py",
-                                                                    "GIT": "git.py"}}
+                                                                    "GIT": "git.py", "JOB": "job.py"}}
+MOD_ONLY = {"job.py"}         # what only the mod runs (its background jobs): the sidebar gets no copy
 
 
 def core(name):
@@ -26,7 +27,7 @@ def js_note(names):
     """helper.js's opening comment: where it comes from, and what it is for."""
     sources = " and ".join("core/" + name for name in names)
     return ["// @ts-check", f"// Generated from {sources} by tools/build.py: change them there,",
-            "// then run /usr/bin/python3 tools/build.py. Each module's source, run as python3 -c on the space's "
+            "// then run /usr/bin/python3 tools/build.py. Each module's source, run with Python's -c on the space's "
             "machine."]
 
 
@@ -48,7 +49,7 @@ def literal(text):
 def outputs():
     """{path from the package's root: its content}."""
     made = {os.path.join(SIDEBAR, name): f"# {note(name)}\n" + core(name)
-            for name in sorted(os.listdir(os.path.join(ROOT, "core"))) if name.endswith(".py")}
+            for name in sorted(os.listdir(os.path.join(ROOT, "core"))) if name.endswith(".py") and name not in MOD_ONLY}
     for path, sources in HELPERS.items():
         lines = js_note(list(sources.values()))
         lines += [f"export const {const} = {literal(core(name))};" for const, name in sources.items()]

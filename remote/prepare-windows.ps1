@@ -250,16 +250,8 @@ function Expand-Exe($zip, $exe) {
     Move-Item -Force (Join-Path $Tmp $exe) (Join-Path $Bin $exe)
 }
 
-# The real Python (not the Microsoft Store "python" shortcut)
-function Find-Python {
-    $cmd = Get-Command python -ErrorAction SilentlyContinue | Where-Object { $_.Source -notlike '*WindowsApps*' } |
-        Select-Object -First 1
-    if ($cmd) { return $cmd.Source }
-    $found = Get-ChildItem -ErrorAction SilentlyContinue -Path "$env:LOCALAPPDATA\Programs\Python\Python3*\python.exe",
-        "$env:ProgramFiles\Python3*\python.exe" | Sort-Object FullName -Descending | Select-Object -First 1
-    if ($found) { return $found.FullName }
-    return $null
-}
+# The real Python (not the Microsoft Store "python" shortcut), by the payload's python.ps1: the sidebar's own rule
+function Find-Python { & (Join-Path $F '.config\herdr-fold\python.ps1') }
 
 Line section (T 'prepare.win.apps')
 # User PATH: herdr's panes start from this environment

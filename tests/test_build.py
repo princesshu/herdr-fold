@@ -26,11 +26,14 @@ class Copies(unittest.TestCase):
             with self.subTest(rel):
                 self.assertIn("Generated from core/", content.split("\n", 2)[0 if rel.endswith(".py") else 1])
 
-    def test_the_tui_sidebar_gets_each_core_module_it_imports(self):
+    def test_the_tui_sidebar_gets_each_core_module_but_the_ones_only_the_mod_runs(self):
+        # job.py starts the Herdr app mod's background jobs: the sidebar carries no copy it would never run
         sidebar = os.path.join("src", "plugins", "sidebar")
         for name in sorted(os.listdir(CORE)):
             if name.endswith(".py"):
-                self.assertIn(os.path.join(sidebar, name), build.outputs(), name)
+                self.assertEqual(os.path.join(sidebar, name) in build.outputs(), name not in build.MOD_ONLY, name)
+        in_helpers = {name for sources in build.HELPERS.values() for name in sources.values()}
+        self.assertLessEqual(build.MOD_ONLY, in_helpers)
 
 
 class Core(unittest.TestCase):

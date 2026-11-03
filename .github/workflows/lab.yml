@@ -35,19 +35,31 @@ jobs:
   linux:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      DO_NOT_TRACK: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
+      - name: herdr-core, from its installer
+        run: |
+          curl -fsSL https://releases.herdr.dev/core/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: A machine's side, as machines.sh runs it there
         run: python3 lab/ci/machine_side.py -v
 
   windows:
     runs-on: windows-latest
     timeout-minutes: 30
+    env:
+      DO_NOT_TRACK: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
+      - name: herdr-core, from its installer
+        run: |
+          irm https://releases.herdr.dev/core/install.ps1 | iex
+          "$env:LOCALAPPDATA\Programs\herdr-core" >> $env:GITHUB_PATH
       - name: A machine's side, as machines.sh runs it there
         run: python lab/ci/machine_side.py -v

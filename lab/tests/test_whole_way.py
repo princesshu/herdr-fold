@@ -88,6 +88,11 @@ class WholeWay(unittest.TestCase):
     def on_python(self, args, stdin):
         return self.on_machine("python3 " + " ".join(map(shlex.quote, args)), stdin)
 
+    def app_core(self, args):
+        """hc ARGS through the demo's app core, as the mod has it run them: its code and what it printed."""
+        out = self.run_here("herdr-core", *args)
+        return out.returncode, out.stdout, out.stderr
+
     def test_the_whole_way(self):
         shown, ended = run_in_terminal(["/bin/bash", os.path.join(self.package, "install.sh")], self.env,
                                        lambda line: "y" if "install" in line.lower() else "", timeout=1500)
@@ -105,6 +110,9 @@ class WholeWay(unittest.TestCase):
                 self.assertEqual(f.read().split(), ["lab"])
         with self.subTest("the mod's code commits and pushes on the machine, a secret asked about first"):
             walk.commit_and_push(self, self.on_machine, self.on_python)
+        with self.subTest("the mod's star writes in the background through the app's core, outliving its exec"):
+            root = self.on_machine("pwd").strip() + "/app"
+            walk.write_in_the_background(self, self.app_core, self.on_machine, root, "python3", on="lab")
         with self.subTest("uninstall.sh takes the app's part off"):
             out = self.run_here("/bin/bash", os.path.join(self.package, "uninstall.sh"))
             self.assertEqual(out.returncode, 0, out.stdout[-2000:] + out.stderr[-2000:])

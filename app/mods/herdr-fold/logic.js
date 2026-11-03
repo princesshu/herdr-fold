@@ -2,6 +2,8 @@
 // What the mod works out without the window: a diff's rows, the sync button's words, a long job run in the background
 // on the space's machine (exec stops a program after 30 s; an AI may take minutes), the commit message writer's answer.
 
+import { JOB } from "./helper.js";
+
 /** @typedef {{ kind: string, number?: number, text: string }} Row */
 
 /** A diff's lines as rows, each numbered once: removed ones by the old file, the others by the new one.
@@ -61,27 +63,26 @@ export function panelToggle(root) {
     : [["layout.select", { stack: "panel-body", child: "changes" }], ["layout.show", { id: "panel" }]];
 }
 
-// core/'s code runs in the repository's folder, isolated: a module there (a json.py) is never imported for Python's
-export const PYTHON = ["python3", "-I", "-c"];
+// core/'s code runs where the repository is, isolated (a module there, a json.py, is never imported for Python's)
+// and in UTF-8 on every system; BINARY: python3, or the Python a Windows machine's python.ps1 names
+/** @param {string} binary @returns {string[]} */
+export const pythonCommand = (binary) => [binary, "-X", "utf8", "-I", "-c"];
 
-// a job's own folder, made by mktemp: poll answers 3 while the job runs, then 0 and its output or 4 and its error;
-// clear removes that folder and nothing else, as the job does KEEP seconds after it ends (a mod closed meanwhile)
-const START = 'd=$(mktemp -d "${TMPDIR:-/tmp}/herdr-fold.XXXXXX") || exit 1; keep=$1; src=$2; shift 2; '
-  + `(${PYTHON.join(" ")} "$src" "$@" >"$d/out" 2>"$d/err"; echo $? >"$d/done"; sleep "$keep"; rm -rf -- "$d") `
-  + '</dev/null >/dev/null 2>&1 & echo "$d"';
-const POLL = 'test -f "$1/done" || exit 3; read code <"$1/done"; '
-  + 'if [ "$code" = 0 ]; then cat "$1/out"; else tail -n 3 "$1/err" >&2; exit 4; fi';
-const CLEAR = 'case "$1" in */herdr-fold.*) rm -rf -- "$1" ;; esac';
-
-/** SOURCE (python) run with ARGS in the background: start prints its folder, poll answers 3, 0 or 4, clear removes it.
- * @param {string} source @param {string[]} args @param {number} [keep] */
-export function background(source, args, keep = 600) {
+/** core/'s SOURCE with ARGS in the background (core/job.py): prepare makes its folder; start, hc's arguments, runs it
+ * in a core terminal, which outlives the 30 s an exec may take; poll answers 3, 0 or 4; clear removes the folder.
+ * @param {string} binary @param {string} source @param {string[]} args @param {number} [keep] */
+export function background(binary, source, args, keep = 600) {
+  /** @param {string[]} rest */
+  const job = (...rest) => [...pythonCommand(binary), JOB, ...rest];
   return {
-    start: ["sh", "-c", START, "sh", String(keep), source, ...args],
+    prepare: job("prepare", source),
+    /** @param {string} folder @param {string} root @param {string | null} on */
+    start: (folder, root, on) => ["run", "--bg", "--json", "--no-parent", "--rm", ...(on ? ["--on", on] : []),
+      "--cwd", root, "--", ...job("run", folder, String(keep), ...args)],
     /** @param {string} folder */
-    poll: (folder) => ["sh", "-c", POLL, "sh", folder],
+    poll: (folder) => job("poll", folder),
     /** @param {string} folder */
-    clear: (folder) => ["sh", "-c", CLEAR, "sh", folder],
+    clear: (folder) => job("clear", folder),
   };
 }
 

@@ -70,11 +70,13 @@ The mod takes three commands for keys of your own: `herdr-fold.write`, `herdr-fo
 A space on another machine works the same: the git commands and the message writer run there, through the app's own
 connection. With the TUI environment, `install.sh` (and `./machines.sh add` later) adds each of herdr-fold's machines
 to the app, prepared as for the TUI; without it, add one in Settings → Machines. The mod installs nothing there: it
-carries its code and runs it with that machine's `python3`.
+carries its code and runs it with that machine's Python: `python3`, or on Windows the one herdr-fold's preparation
+finds there (not the Store's alias). The message writer runs as a job of its own, so the app's connection ending does
+not take it.
 
 ## What it runs and reads
 
-- git, on the space's machine, and herdr-fold's own code with `python3 -I`: isolated, so no module in the repository's
+- git, on the space's machine, and herdr-fold's own code with Python's `-I`: isolated, so no module in the repository's
   folder (a `json.py`) is ever imported in its place.
 - The list and the diff are asked for unasked, so they run nothing a repository's own config names: no fsmonitor,
   filter, external diff, text conversion or submodule look. Staging (the ✦ and Commit) runs its filters, and

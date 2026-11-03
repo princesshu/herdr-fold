@@ -122,7 +122,8 @@ class WindowsSidebarLauncher(Launcher, unittest.TestCase):
     def setUp(self):
         super().setUp()
         # the launcher sits in ~/.config/herdr-fold, next to plugins/: it finds the plugin from its own folder
-        shutil.copy(os.path.join(HERDR_DIR, "sidebar.ps1"), os.path.join(self.home, ".config", "herdr-fold"))
+        for name in ("sidebar.ps1", "python.ps1"):                         # as the machine gets them
+            shutil.copy(os.path.join(HERDR_DIR, name), os.path.join(self.home, ".config", "herdr-fold"))
         self.bin = stubs(os.path.join(self.tmp, "bin"), {"python": '#!/bin/sh\nexec /usr/bin/python3 "$@"\n'})
 
     def launch(self, folder, cwd=None, path=None, local_app_data=None):
@@ -145,6 +146,32 @@ class WindowsSidebarLauncher(Launcher, unittest.TestCase):
 
     def test_says_what_is_missing_without_python(self):
         self.assertIn("The sidebar needs Python 3.9 or newer", self.launch(self.folder, path="/bin"))
+
+
+@unittest.skipUnless(PWSH, "no PowerShell (pwsh) on this machine")
+class WindowsPython(unittest.TestCase):
+    """python.ps1: the real Python's path on a Windows machine, which its sidebar, prepare script and the Herdr app mod
+    take; the Store's alias in WindowsApps is passed over."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.local = os.path.join(self.tmp, "AppData", "Local")
+
+    def find(self, path):
+        done = subprocess.run([PWSH, "-NoProfile", "-File", os.path.join(HERDR_DIR, "python.ps1")], capture_output=True,
+                              text=True, timeout=60, env={"PATH": path, "LOCALAPPDATA": self.local, "HOME": self.tmp})
+        return done.returncode, done.stdout.strip()
+
+    def test_the_python_on_the_path_unless_it_is_the_stores_alias(self):
+        real = stubs(os.path.join(self.tmp, "Python"), {"python": "#!/bin/sh\n"})
+        self.assertEqual(self.find(f"{real}:/bin"), (0, os.path.join(real, "python")))
+        store = stubs(os.path.join(self.tmp, "WindowsApps"), {"python": "#!/bin/sh\n"})
+        installed = stubs(os.path.join(self.local, "Programs", "Python", "Python312"), {"python.exe": "#!/bin/sh\n"})
+        self.assertEqual(self.find(f"{store}:/bin"), (0, os.path.join(installed, "python.exe")))
+
+    def test_nothing_without_a_python(self):
+        self.assertEqual(self.find("/bin"), (1, ""))
 
 
 if __name__ == "__main__":

@@ -22,3 +22,4 @@ src/projects.py                              | .config/herdr-fold/projects.py   
 src/tui.py                                   | .config/herdr-fold/tui.py                                   | unix
 src/sidebar.sh                               | .config/herdr-fold/sidebar.sh                               | unix
 src/sidebar.ps1                              | .config/herdr-fold/sidebar.ps1                              | windows
+src/python.ps1                               | .config/herdr-fold/python.ps1                               | windows

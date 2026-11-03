@@ -41,6 +41,12 @@ class MachineSide(unittest.TestCase):
     def python(self, args, stdin):
         return self.run_here([sys.executable, *args], stdin)
 
+    def own_core(self, args):
+        """hc ARGS through this machine's own core, as the Mac's has them run here: its code and what it printed."""
+        out = subprocess.run([self.hc, *args], cwd=self.work, env=self.env, capture_output=True, encoding="utf-8",
+                             errors="replace", timeout=600)
+        return out.returncode, out.stdout, out.stderr
+
     def prepare(self, mode=""):
         """machines.sh's payload in ~/.herdr-fold and its prepare script run there, as over SSH: the files it lists."""
         script = "prepare-windows.ps1" if WINDOWS else "prepare-unix.sh"
@@ -70,6 +76,16 @@ class MachineSide(unittest.TestCase):
             shutil.copy(os.path.join(LAB, *STAND_IN), stand_in)
             os.chmod(stand_in, 0o755)
             walk.commit_and_push(self, self.shell, self.python)
+        with self.subTest("the mod's star writes in the background through the machine's core, outliving its exec"):
+            self.hc = shutil.which("herdr-core")
+            self.assertTrue(self.hc, "no herdr-core on this runner")
+            self.addCleanup(subprocess.run, [self.hc, "server", "stop"], capture_output=True, timeout=60)
+            shell = self.run_here([self.hc, "exec", "echo %OS%"])          # how the mod tells a Windows machine
+            self.assertEqual("Windows_NT" in shell, WINDOWS, shell)
+            binary = self.run_here(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                                    os.path.join(HOME, ".config", "herdr-fold", "python.ps1")]).strip() \
+                if WINDOWS else "python3"
+            walk.write_in_the_background(self, self.own_core, self.shell, os.path.join(self.work, "app"), binary)
         with self.subTest("the prepare script takes herdr-fold off"):
             self.prepare("remove")
             self.assertEqual([rel for rel in listed if os.path.exists(os.path.join(HOME, rel))], [])

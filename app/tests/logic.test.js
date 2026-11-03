@@ -2,11 +2,11 @@
 // Tests for the mod's logic that needs no window: node --test app/tests (tests/test_app.py runs them, Node there).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PYTHON, background, changedFiles, diffRows, panelToggle, secretQuestion, syncLabel, written }
+import { background, changedFiles, diffRows, panelToggle, pythonCommand, secretQuestion, syncLabel, written }
   from "../mods/herdr-fold/logic.js";
 
 test("a diff's lines numbered once, old and new apart", () => {
@@ -45,10 +45,27 @@ function finished(job, folder) {
   return done;
 }
 
+/** The job prepared, then run as the core's terminal would run it (what comes after hc's --): its folder.
+ * @param {ReturnType<typeof background>} job @param {string} [cwd] */
+function started(job, cwd) {
+  const folder = run(job.prepare, cwd).stdout.trim(), argv = job.start(folder, cwd ?? ".", null);
+  const terminal = argv.slice(argv.indexOf("--") + 1);
+  spawn(terminal[0], terminal.slice(1), { cwd, detached: true, stdio: "ignore" }).unref();
+  return folder;
+}
+
+test("a job's terminal: in the background, of no parent, gone once it ends, where the repository is", () => {
+  const job = background("python3", "print(1)", ["write", "/srv/app"]), start = job.start("/tmp/f", "/srv/app", "box");
+  assert.deepEqual(start.slice(0, start.indexOf("--")),
+    ["run", "--bg", "--json", "--no-parent", "--rm", "--on", "box", "--cwd", "/srv/app"]);
+  assert.deepEqual(start.slice(-5), ["run", "/tmp/f", "600", "write", "/srv/app"]);
+  assert.equal(job.start("/tmp/f", "/srv/app", null).includes("--on"), false);         // this machine's own core
+});
+
 test("a long job runs in the background, answers 3 until done, then its output; clear removes its folder", () => {
-  const job = background("import sys, time; time.sleep(0.3); print(sys.argv[1])", ["/srv/app"]);
-  const folder = run(job.start).stdout.trim();
-  assert.match(folder, /\/herdr-fold\.[A-Za-z0-9]+$/);
+  const job = background("python3", "import sys, time; time.sleep(0.3); print(sys.argv[1])", ["/srv/app"]);
+  const folder = started(job);
+  assert.match(folder, /[/\\]herdr-fold\.[A-Za-z0-9_]+$/);
   assert.equal(run(job.poll(folder)).code, 3);
   const done = finished(job, folder);
   assert.deepEqual([done.code, done.stdout], [0, "/srv/app\n"]);
@@ -57,8 +74,8 @@ test("a long job runs in the background, answers 3 until done, then its output; 
 });
 
 test("a failed job answers 4 with its error's last lines; clear removes only a job's folder", () => {
-  const job = background("raise SystemExit('broken here')", []);
-  const folder = run(job.start).stdout.trim();
+  const job = background("python3", "raise SystemExit('broken here')", []);
+  const folder = started(job);
   const done = finished(job, folder);
   assert.deepEqual([done.code, done.stderr.trim()], [4, "broken here"]);
   run(job.clear(folder));
@@ -69,7 +86,7 @@ test("a failed job answers 4 with its error's last lines; clear removes only a j
 });
 
 test("a job's folder removes itself a while after the job ends, should the mod be gone and never clear it", () => {
-  const job = background("print(1)", [], 1), folder = run(job.start).stdout.trim();
+  const job = background("python3", "print(1)", [], 1), folder = started(job);
   assert.equal(finished(job, folder).code, 0);
   run(["sleep", "1.5"]);
   assert.equal(existsSync(folder), false);
@@ -79,8 +96,8 @@ test("the helpers run in the repository's folder but never import a module it ho
   const repo = mkdtempSync(join(tmpdir(), "repo-")), mark = join(repo, "ran");
   writeFileSync(join(repo, "json.py"), `open(${JSON.stringify(mark)}, "w")\n`);
   const source = "import json; print(json.dumps(1))";
-  assert.equal(run([...PYTHON, source], repo).stdout, "1\n");
-  const job = background(source, []), folder = run(job.start, repo).stdout.trim(), done = finished(job, folder);
+  assert.equal(run([...pythonCommand("python3"), source], repo).stdout, "1\n");
+  const job = background("python3", source, []), folder = started(job, repo), done = finished(job, folder);
   assert.deepEqual([done.code, done.stdout], [0, "1\n"]);
   run(job.clear(folder));
   assert.equal(existsSync(mark), false);

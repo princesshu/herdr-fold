@@ -48,6 +48,7 @@ plugins of its own.
 | `src/projects.py` | where the folder picker starts: the folder holding the most git repositories, found by itself |
 | `src/add_machine.py` | adds a remote machine (Ctrl + B, then Shift + M) through `machines.sh new` |
 | `src/sidebar.sh`, `src/sidebar.ps1` | starts the sidebar at the top of the right column (`.ps1`: on Windows) |
+| `src/python.ps1` | on a Windows machine, the real Python's path (not the Store's alias): its sidebar's launcher, its prepare script and the Herdr app mod ask it |
 | `src/tui.py`, `src/herdrlib.py` | key handling for the small windows, the shared herdr helpers |
 | `src/themes/` | the 12 themes (`themes.js`), their preview (`preview.html`, with the colors the theme setter gives the sidebar, the loading sheep and the logo in `preview-colors.js`), the theme setter (`apply.py`, which gives Ghostty the logo in a theme's colors as its app icon), the picker (`picker.py`), herdr-fold's logo (`logo.svg`, from `tools/logo.swift`) |
 
@@ -63,13 +64,13 @@ plugins of its own.
 
 | File | What it is |
 |---|---|
-| `core/` | the data layer the TUI sidebar and the Herdr app mod share, its one source: `git.py` (the status, a file's diff, a sync that loses nothing), `commit_message.py` (the commit message Claude or Codex writes, the staged files named like secrets); each answers the mod in JSON from the command line; `tools/build.py` copies it into the sidebar's folder and into the mod, each installing on its own |
+| `core/` | the data layer the TUI sidebar and the Herdr app mod share, its one source: `git.py` (the status, a file's diff, a sync that loses nothing), `commit_message.py` (the commit message Claude or Codex writes, the staged files named like secrets), `job.py` (the mod's background job: started out of the exec that starts it, polled, cleared); each answers the mod in JSON from the command line; `tools/build.py` copies it into the sidebar's folder (all but `job.py`) and into the mod, each installing on its own |
 
 ### The Herdr app
 
 | File | What it is |
 |---|---|
-| `app/mods/herdr-fold/` | herdr-fold's mod for the Herdr desktop app, the TUI sidebar's counterpart ([The Herdr app](app.md)): `main.js` the Changes view, and the toggle Cmd+Shift+G opens it as; `helper.js` holds the core's source, which it runs with `python3 -I` on the space's machine; `logic.js` what it works out without a window: a diff's rows, the sync label, the question before a commit, the message writer as a background job |
+| `app/mods/herdr-fold/` | herdr-fold's mod for the Herdr desktop app, the TUI sidebar's counterpart ([The Herdr app](app.md)): `main.js` the Changes view, and the toggle Cmd+Shift+G opens it as; `helper.js` holds the core's source, which it runs with Python's `-I` on the space's machine (`python3`, or what a Windows machine's `python.ps1` names); `logic.js` what it works out without a window: a diff's rows, the sync label, the question before a commit, the message writer as a background job |
 | `app/layouts/herdr-fold.json` | the app's main layout with herdr-fold in the right panel, where the app's own Changes was: the Changes button and Cmd+Shift+G open it there |
 | `app/keys.json` | the keys, merged into the app's own: in that layout Cmd+Shift+G shows or hides herdr-fold, and Cmd+Shift+C has it write the message |
 | `app/tests/` | the mod's logic tested with Node (`logic.test.js`, `node --test app/tests`); `tests/test_app.py` runs them, and the app's own check of the mod |
@@ -94,7 +95,7 @@ plugins of its own.
 | `tests/` | the tests: `/usr/bin/python3 -m unittest discover -s tests` |
 | `lab/` | the test lab: a Linux machine in a container reached over SSH as a remote machine, run only when called (`python3 lab/lab.py test`); `lab.py`, the machine in `linux/` (`Containerfile`, `sshd.conf`, a stand-in `claude`), its tests in `tests/`, the mod's way through a change in `walk.py`, what GitHub's runners run in `ci/` ([its README](../lab/README.md)) |
 | `tools/sync.sh` | copies this Mac's settings back into the package (not over a file edited there and not committed), then checks the files for private data |
-| `tools/build.py` | copies `core/` into the TUI sidebar (`src/plugins/sidebar/`) and into the app mod (`app/mods/herdr-fold/helper.js`); a test fails while a copy differs |
+| `tools/build.py` | copies `core/` into the TUI sidebar (`src/plugins/sidebar/`, all but the mod's own `job.py`) and into the app mod (`app/mods/herdr-fold/helper.js`); a test fails while a copy differs |
 | `tools/preview_colors.py` | writes `src/themes/preview-colors.js` from the theme setter, the sidebar's icons, the loading sheep and the logo, which it first draws anew on a Mac with Swift (`src/themes/logo.svg`) |
 | `tools/logo.swift` | draws herdr-fold's logo, its app icon, as SVG: the sheep with Liquid Glass in the shape of the Mac's own app icons |
 | `tools/check_updates.py` | for the maintainer: whether what herdr-fold builds on moved on ([Keeping up](../CONTRIBUTING.md#keeping-up)) |

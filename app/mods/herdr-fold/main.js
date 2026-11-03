@@ -3,10 +3,10 @@
 // writes, and a sync that loses nothing. The git work runs on the space's machine, with core/'s code (helper.js).
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list } from "gpui-base";
-import { spaces, panes, focused, exec, watchFolder, nextCommand, theme, settings, layout, props, closeOverlay,
+import { spaces, panes, focused, exec, hc, home, watchFolder, nextCommand, theme, settings, layout, props, closeOverlay,
   run as command } from "herdr";
 import { COMMIT_MESSAGE, GIT } from "./helper.js";
-import { PYTHON, background, changedFiles, diffRows, panelToggle, secretQuestion, syncLabel, written }
+import { background, changedFiles, diffRows, panelToggle, pythonCommand, secretQuestion, syncLabel, written }
   from "./logic.js";
 
 const REFRESH = 10000;             // ms between two looks when no folder change says so (another machine's space)
@@ -30,10 +30,35 @@ const said = (e) => String(e instanceof Error ? e.message : e);
 /** ARGV run in ROOT on machine ON. @param {string[]} argv @param {string} root @param {string | null} on */
 const run = (argv, root, on) => exec(argv[0], argv.slice(1), { cwd: root, on });
 
-/** core/'s SOURCE run by python3 with ARGS where the repository is: its JSON answer.
+/** The Python core/'s code runs with on each machine (null: this one), asked once; an unreachable one is asked again.
+ * @type {Map<string | null, Promise<string>>} */
+const pythons = new Map();
+
+/** @param {string | null} on */
+function pythonOn(on) {
+  let found = pythons.get(on);
+  if (!found) {
+    pythons.set(on, (found = findPython(on)));
+    found.catch(() => pythons.delete(on));
+  }
+  return found;
+}
+
+/** python3, or on Windows (its shell knows %OS%) the Python herdr-fold's python.ps1 names there, else python.
+ * @param {string | null} on */
+async function findPython(on) {
+  const shell = await hc(["exec", ...(on ? ["--on", on] : []), "echo %OS%"]);
+  if (shell.code !== 0) throw new Error(lastLine(shell));
+  if (!shell.stdout.includes("Windows_NT")) return "python3";
+  const found = await exec("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+    ".config/herdr-fold/python.ps1"], { cwd: on ? undefined : home(), on });
+  return (found.code === 0 && found.stdout.trim()) || "python";
+}
+
+/** core/'s SOURCE run with ARGS where the repository is: its JSON answer.
  * @param {string} source @param {string[]} args @param {string} root @param {string | null} on */
 async function python(source, args, root, on) {
-  const out = await run([...PYTHON, source, ...args], root, on);
+  const out = await run([...pythonCommand(await pythonOn(on)), source, ...args], root, on);
   if (out.code !== 0) throw new Error(lastLine(out));
   return JSON.parse(out.stdout);
 }
@@ -185,10 +210,16 @@ export default class HerdrFold extends View {
     this.act(cx, "Writing the message…", async (cx) => {
       const { root, on, key } = this;
       await stage(root, on);
-      const job = background(COMMIT_MESSAGE, ["write", root]), started = await run(job.start, root, on);
-      if (started.code !== 0) throw new Error(lastLine(started));
-      const folder = started.stdout.trim();
+      const job = background(await pythonOn(on), COMMIT_MESSAGE, ["write", root]);
+      const prepared = await run(job.prepare, root, on);
+      if (prepared.code !== 0) throw new Error(lastLine(prepared));
+      const folder = prepared.stdout.trim();
+      /** @type {string | null} the core's terminal the job runs in: stopped once its answer is read */
+      let terminal = null;
       try {
+        const started = await hc(job.start(folder, root, on));
+        if (started.code !== 0) throw new Error(lastLine(started));
+        terminal = JSON.parse(started.stdout).address;
         for (let waited = 0; waited < WRITING; waited += POLL) {
           await new Promise((done) => cx.timer.after(POLL, () => done(null)));
           const out = await run(job.poll(folder), root, on);
@@ -204,6 +235,7 @@ export default class HerdrFold extends View {
         throw new Error("No message: the AIs took longer than six minutes");
       } finally {
         await run(job.clear(folder), root, on);
+        if (terminal) await hc(["kill", terminal]);
       }
     });
   }
