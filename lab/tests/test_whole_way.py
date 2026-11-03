@@ -220,9 +220,9 @@ class WholeWay(unittest.TestCase):
             self.run_here("herdr", "--machine", "lab", "server", "stop")
             # started again as `herdr --remote` does once the connection is back: the old one gone first (its socket
             # with it), then a server of its own, apart from the ssh session
-            self.on_machine("for i in $(seq 60); do [ -S ~/.config/herdr/herdr.sock ] || break; sleep 0.5; done; "
-                            "(setsid nohup ~/.local/bin/herdr server >/dev/null 2>&1 </dev/null &); sleep 2; "
-                            "~/.local/bin/herdr status server")
+            self.on_machine('h=$(PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" command -v herdr) && '
+                            "for i in $(seq 60); do [ -S ~/.config/herdr/herdr.sock ] || break; sleep 0.5; done; "
+                            '(nohup "$h" server >/dev/null 2>&1 </dev/null &); sleep 2; "$h" status server')
             self.wait_for(self.back, "the machine's herdr again", 120)
             deadline, after = time.monotonic() + 150, {}
             while time.monotonic() < deadline:          # its panes back, the sidebar started in its own again
