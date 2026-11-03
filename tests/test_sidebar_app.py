@@ -1358,12 +1358,13 @@ class Actions(Repo):
             self.assertIn("pane send-keys w1:p2 f12", f.read().splitlines())
 
     def test_select_all_goes_to_the_sidebar_only_when_it_has_the_keys(self):
-        out = self.action("select-all", HERDR_ACTIVE_TAB_ID="w1:t1", HERDR_ACTIVE_PANE_ID="w1:p2")
+        # as herdr runs a plugin action from a key: the focused pane in HERDR_PANE_ID, its tab in HERDR_TAB_ID
+        out = self.action("select-all", HERDR_TAB_ID="w1:t1", HERDR_PANE_ID="w1:p2")
         self.assertEqual(out.returncode, 0, out.stderr)
         with open(self.log) as f:
             self.assertIn("pane send-keys w1:p2 f8", f.read().splitlines())
         os.remove(self.log)
-        out = self.action("select-all", HERDR_ACTIVE_TAB_ID="w1:t1", HERDR_ACTIVE_PANE_ID="w1:p1")     # the agent's
+        out = self.action("select-all", HERDR_TAB_ID="w1:t1", HERDR_PANE_ID="w1:p1")                  # the agent's
         self.assertEqual((out.returncode, out.stderr), (0, ""))
         self.assertFalse(any("send-keys" in line for line in self.logged_lines()))
 

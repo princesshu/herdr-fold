@@ -10,7 +10,7 @@ from support import SRC
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 from git import Change, Commit, Status  # noqa: E402
-from scm import Entry, Gap, Scm, Section  # noqa: E402
+from scm import MESSAGE_ROWS, Entry, Gap, Scm, Section  # noqa: E402
 from screen import Canvas, glyphs  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
 from widgets import Action  # noqa: E402
@@ -130,6 +130,16 @@ class View(unittest.TestCase):
         self.assertIsNone(self.bg(side - 1, 4))                             # its mode is a button of its own
         self.assertEqual((self.regions_of("commit"), self.regions_of("mode")), ([3, 4, 5], [3, 4, 5]))
         self.assertIn("Staged changes", text(self.canvas, 6))               # right under the button's edge
+
+    def test_the_star_stands_in_the_middle_of_its_button_however_long_the_message(self):
+        # a field of an odd number of rows has a middle one for the star: two lines get three rows, the third empty
+        for lines in range(1, 9):
+            for roomy in (True, False):
+                self.view.set_message("\n".join(f"line {n}" for n in range(lines)))
+                self.draw(roomy=roomy)
+                button, star = self.regions_of("suggest"), self.row_of("✦")
+                self.assertEqual(star - button[0], button[-1] - star, (lines, roomy))
+                self.assertIn(f"line {min(lines, MESSAGE_ROWS) - 1}", self.shown(), (lines, roomy))
 
     def test_the_button_shows_the_focus_only_once_the_keys_brought_it_there(self):
         self.draw()

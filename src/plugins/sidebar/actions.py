@@ -21,7 +21,7 @@ def main(argv):
     try:
         panes = herdr.call("pane", "list", "--workspace", tab.split(":")[0]).get("panes", [])
         if argv[1] == "select-all":           # any other pane is left alone, as Cmd + A would do nothing there
-            focused = os.environ.get("HERDR_ACTIVE_PANE_ID")
+            focused = os.environ.get("HERDR_ACTIVE_PANE_ID") or os.environ.get("HERDR_PANE_ID")   # a plugin action's
             if any(p.get("pane_id") == focused and p.get("label") == "sidebar" for p in panes):
                 herdr.call("pane", "send-keys", focused, KEYS[argv[1]])
             return

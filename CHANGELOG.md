@@ -41,6 +41,8 @@ All notable changes to this project are listed here. The format follows
   Alt + Backspace takes the word before the cursor. Cmd + A no longer flashes the window (Ghostty's own select
   all, of every pane): it reaches only the sidebar's field you are in. See [Keys](docs/keybindings.md).
 - Cmd + Shift + I opens the sidebar's Issues view: the key herdr sends it for that (F12) was not read.
+- The AI's button beside a commit message of several lines has its star in the middle: the field opens to an odd
+  number of rows, up to seven, a message of two lines with an empty third.
 
 ### Security
 

@@ -11,7 +11,7 @@ from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, TextInput
 
 MODES = {"commit": "Commit", "push": "Commit & Push", "sync": "Commit & Sync"}
-MESSAGE_ROWS = 6              # the message field grows with its text up to this many rows
+MESSAGE_ROWS = 7              # the message field grows with its text up to this many rows (odd: see draw())
 SIDE = 5                      # the cells of the AI's button beside the message, and of the mode's under it
 
 
@@ -127,6 +127,7 @@ class Scm:
         main = side - 2                                   # the message and the commit button: a cell of air before
         inner = main - 4                                  # the text, two cells in from the shape's ends
         rows = min(MESSAGE_ROWS, len(self.field.lines(inner))) if self.field.text else 1
+        rows += 1 - rows % 2                              # an odd number: the star beside them has a middle row
         text_row, taken = canvas.control(top, 1, main, rows, "input", roomy)
         for y in range(top, top + taken):
             canvas.region(y, 1, 1 + main, "input")
