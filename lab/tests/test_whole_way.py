@@ -68,6 +68,24 @@ class WholeWay(unittest.TestCase):
             self.server.kill()
             self.server.wait()
 
+    def back(self):
+        """Whether the demo herdr reaches the machine's again: its status asked anew, as herdr does, dials it."""
+        self.run_here("herdr", "machine", "status", "lab", "--json")
+        return self.run_here("herdr", "--machine", "lab", "workspace", "list").returncode == 0
+
+    def layout_at(self, root):
+        """The panes of the machine's workspace at ROOT, by their label: their id and where they are."""
+        listed = self.run_here("herdr", "--machine", "lab", "pane", "list")
+        panes = [pane for pane in json.loads(listed.stdout or "{}").get("result", {}).get("panes", [])
+                 if pane.get("cwd") == root]
+        if not panes:
+            return {}
+        out = self.run_here("herdr", "--machine", "lab", "pane", "layout", "--pane", panes[0]["pane_id"])
+        rects = {p["pane_id"]: p["rect"] for p in json.loads(out.stdout or "{}").get("result", {})
+                 .get("layout", {}).get("panes", [])}
+        return {pane.get("label"): {"pane_id": pane["pane_id"], "rect": rects.get(pane["pane_id"], {})}
+                for pane in panes}
+
     def in_the_app_window(self, root):
         """The demo's Herdr app on this screen, a space on the machine at ROOT: the mod's star, Commit and Sync, by the
         app's own commands; what the window lists while the message is written, in the log."""
@@ -192,11 +210,33 @@ class WholeWay(unittest.TestCase):
             # the new workspace's (the installer laid out one in the machine's home before)
             sidebar = next(pane["pane_id"] for pane in panes if pane.get("label") == "sidebar" and pane["cwd"] == root)
             deadline, shown = time.monotonic() + 60, ""
-            while "a.txt" not in shown and time.monotonic() < deadline:          # its Files view: the repository's file
+            while "↻" not in shown and time.monotonic() < deadline:     # its status bar, in the repository: narrow too
                 read = self.run_here("herdr", "--machine", "lab", "pane", "read", sidebar)
                 shown = read.stdout + read.stderr
                 time.sleep(1)
-            self.assertIn("a.txt", shown, shown[-3000:])
+            self.assertIn("↻", shown, shown[-3000:])
+        with self.subTest("the machine's herdr started again keeps the layout: the sidebar in its place"):
+            before = self.layout_at(root)
+            self.run_here("herdr", "--machine", "lab", "server", "stop")
+            # started again as `herdr --remote` does once the connection is back: the old one gone first (its socket
+            # with it), then a server of its own, apart from the ssh session
+            self.on_machine("for i in $(seq 60); do [ -S ~/.config/herdr/herdr.sock ] || break; sleep 0.5; done; "
+                            "(setsid nohup ~/.local/bin/herdr server >/dev/null 2>&1 </dev/null &); sleep 2; "
+                            "~/.local/bin/herdr status server")
+            self.wait_for(self.back, "the machine's herdr again", 120)
+            deadline, after = time.monotonic() + 150, {}
+            while time.monotonic() < deadline:          # its panes back, the sidebar started in its own again
+                after = self.layout_at(root)
+                if "sidebar" in after and "↻" in self.run_here("herdr", "--machine", "lab", "pane", "read",
+                                                                after["sidebar"]["pane_id"]).stdout:
+                    break
+                time.sleep(2)
+            shown = json.dumps({"before": before, "after": after}, indent=1)
+            self.assertEqual(sorted(after), sorted(before), shown)
+            for label in before:                    # each where it was; a column may take its kept width again
+                self.assertEqual(after[label]["rect"]["y"], before[label]["rect"]["y"], shown)
+                self.assertLessEqual(abs(after[label]["rect"]["x"] - before[label]["rect"]["x"]), 2, shown)
+                self.assertLessEqual(abs(after[label]["rect"]["width"] - before[label]["rect"]["width"]), 2, shown)
         with self.subTest("the Herdr app's window: its mod writes, commits and syncs a change on the machine"):
             if not lab.on_githubs_runner():
                 self.skipTest("the app's window opens on a GitHub runner only, never on this Mac's screen")
