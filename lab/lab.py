@@ -19,25 +19,23 @@ HOME = os.path.join(os.path.expanduser("~"), ".local", "share", "herdr-fold-lab"
 NAME = "herdr-fold-lab-linux"                          # the machine's container
 IMAGE = "herdr-fold-lab"                               # its image, tagged by what it is built from
 MARK = ".herdr-fold-lab"                               # in the lab's own folder: drop takes only a folder with it
-# ssh and scp with the lab's settings first: a -F its caller gives (herdr's own) is read after them, and ~/.ssh never
+# ssh and scp with the lab's settings, never ~/.ssh: where a caller (herdr) gives its own -F among the options, they go
+# ahead of it as options and nothing is written (ssh may be ended at any moment); else the lab's own settings file
 WRAPPER = """#!/bin/sh
-config=CONFIG
-merged=
-n=$#
-while [ "$n" -gt 0 ]; do
-  a=$1; shift; n=$((n - 1))
-  if [ "$a" = -F ] && [ "$n" -gt 0 ]; then
-    merged=$(mktemp "${config%/*}/merged.XXXXXX") || exit 1
-    printf 'Include "%s"\\nInclude "%s"\\n' "$config" "$1" > "$merged"
-    shift; n=$((n - 1)); set -- "$@" -F "$merged"
-  else
-    set -- "$@" "$a"
-  fi
+own=
+skip=
+for a in "$@"; do
+  if [ -n "$skip" ]; then skip=; [ "$own" = next ] && own=yes; continue; fi
+  case "$a" in
+    -F) own=next; skip=1 ;;
+    -F?*) own=yes ;;
+    -[bcDEeIiJLlmOoPpQRSWwX]) skip=1 ;;
+    -*) ;;
+    *) break ;;
+  esac
 done
-[ -n "$merged" ] || set -- -F "$config" "$@"
-/usr/bin/PROGRAM "$@"; code=$?
-[ -z "$merged" ] || rm -f "$merged"
-exit $code
+[ "$own" = yes ] && exec /usr/bin/PROGRAM OPTIONS "$@"
+exec /usr/bin/PROGRAM -F CONFIG "$@"
 """
 
 
@@ -147,19 +145,24 @@ class Lab:
     def connect(self, port, host_key):
         """SSH's settings for the machine at PORT on 127.0.0.1, known by HOST_KEY (its public key line), as `lab`;
         then SSH asked until it answers."""
-        key = os.path.join(self.home, "key")
-        with open(os.path.join(self.home, "known_hosts"), "w") as f:
+        known = os.path.join(self.home, "known_hosts")
+        with open(known, "w") as f:
             f.write(f"[127.0.0.1]:{port} {' '.join(host_key.split()[:2])}\n")
+        settings = [("HostName", "127.0.0.1"), ("Port", str(port)), ("User", "dev"),
+                    ("IdentityFile", os.path.join(self.home, "key")), ("IdentitiesOnly", "yes"),
+                    ("UserKnownHostsFile", known), ("StrictHostKeyChecking", "yes"), ("BatchMode", "yes"),
+                    ("ConnectTimeout", "5")]
+        quoted = [(name, f'"{value}"' if os.sep in value else value) for name, value in settings]   # paths: spaces
         config = os.path.join(self.home, "ssh_config")
         with open(config, "w") as f:
-            f.write(f'Host lab\n  HostName 127.0.0.1\n  Port {port}\n  User dev\n  IdentityFile "{key}"\n'
-                    f'  IdentitiesOnly yes\n  UserKnownHostsFile "{os.path.join(self.home, "known_hosts")}"\n'
-                    "  StrictHostKeyChecking yes\n  BatchMode yes\n  ConnectTimeout 5\n")
+            f.write("Host lab\n" + "".join(f"  {name} {value}\n" for name, value in quoted))
+        options = " ".join(shlex.quote(f"-o{name}={value}") for name, value in quoted)
         os.makedirs(self.bin, exist_ok=True)
         for program in ("ssh", "scp"):                    # first on a demo's PATH
             path = os.path.join(self.bin, program)
             with open(path, "w") as f:
-                f.write(WRAPPER.replace("CONFIG", shlex.quote(config)).replace("PROGRAM", program))
+                f.write(WRAPPER.replace("OPTIONS", options).replace("CONFIG", shlex.quote(config))
+                        .replace("PROGRAM", program))
             os.chmod(path, 0o755)
         deadline = time.monotonic() + self.wait
         while not self.answers():

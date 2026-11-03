@@ -49,14 +49,16 @@ class Harness(unittest.TestCase):
         with self.assertRaises(lab.LabError):
             machine.up()
         ssh = os.path.join(self.home, "bin", "ssh")
-        resolved = subprocess.run([ssh, "-G", "lab"], capture_output=True, text=True).stdout     # ssh -G: no connection
-        self.assertIn("hostname 127.0.0.1", resolved)
+        out = subprocess.run([ssh, "-G", "lab"], capture_output=True, text=True)                 # ssh -G: no connection
+        resolved = out.stdout
+        self.assertIn("hostname 127.0.0.1", resolved, out.stderr)
         self.assertIn("user dev", resolved)
         theirs = os.path.join(self.tmp, "theirs.config")                    # a caller's own, as herdr gives one
         with open(theirs, "w") as f:
             f.write("Host *\n  ServerAliveInterval 42\n")
-        resolved = subprocess.run([ssh, "-F", theirs, "-G", "lab"], capture_output=True, text=True).stdout
-        self.assertIn("hostname 127.0.0.1", resolved)
+        out = subprocess.run([ssh, "-F", theirs, "-G", "lab"], capture_output=True, text=True)
+        resolved = out.stdout
+        self.assertIn("hostname 127.0.0.1", resolved, out.stderr)
         self.assertIn("serveraliveinterval 42", resolved)
         self.assertTrue(os.path.isfile(os.path.join(self.home, "bin", "scp")))
         with open(os.path.join(self.home, "ssh_config")) as f:
@@ -100,6 +102,24 @@ class Harness(unittest.TestCase):
         self.assertNotEqual(out.returncode, 0)
         self.assertIn("GitHub", out.stderr)
         self.assertFalse(os.path.exists(os.path.join(self.tmp, ".herdr-fold")))         # nothing prepared
+
+    def test_ssh_writes_nothing_for_a_callers_own_settings_and_never_reads_ssh_folders(self):
+        # herdr gives its own -F and may end ssh at any moment: nothing is left behind; an -F of the remote command
+        # is no setting, so the lab's own file still stands in for ~/.ssh
+        machine = lab.Lab(self.home, wait=0.5)
+        with self.assertRaises(lab.LabError):
+            machine.up()
+        ssh, theirs = os.path.join(self.home, "bin", "ssh"), os.path.join(self.tmp, "theirs.config")
+        with open(theirs, "w") as f:
+            f.write("Host *\n  ServerAliveInterval 42\n")
+        before = sorted(os.listdir(self.home))
+        resolved = subprocess.run([ssh, "-F", theirs, "-G", "lab"], capture_output=True, text=True).stdout
+        self.assertIn("serveraliveinterval 42", resolved)
+        self.assertIn("port", resolved)
+        self.assertEqual(sorted(os.listdir(self.home)), before)
+        resolved = subprocess.run([ssh, "-G", "lab", "grep", "-F", theirs], capture_output=True, text=True).stdout
+        self.assertNotIn("serveraliveinterval 42", resolved)
+        self.assertIn("hostname 127.0.0.1", resolved)
 
     def test_status_counts_the_room_its_files_take_not_their_size(self):
         # the container tool's disk is a sparse file: its size says hundreds of GiB, the room it takes far less
