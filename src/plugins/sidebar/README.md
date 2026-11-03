@@ -4,7 +4,7 @@ A herdr plugin: Files, Search, Changes (git) and Issues (GitHub) in one pane, an
 the same on macOS, Linux and Windows.
 
 ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the message
-Claude wrote and the issue it fixes, Issues by priority](../../../docs/media/sidebar.webp)
+Claude wrote, the issue it fixes and the Graph, Issues by priority](../../../docs/media/sidebar.webp)
 
 - **Files:** the folder as a tree, with git's letter on each changed file and a dot on each folder holding changes;
   a new file or folder, renaming, moving to the Trash, copying a path. A click opens the file in a preview tab. With

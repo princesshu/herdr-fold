@@ -24,7 +24,7 @@ sidebar's Changes view with the message Claude wrote and the issue it closes, ab
   closes it; a file the agent names opens at its line in one key too.
 
   ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the message
-  Claude wrote and the issue it fixes, Issues by priority](docs/media/sidebar.webp)
+  Claude wrote, the issue it fixes and the Graph, Issues by priority](docs/media/sidebar.webp)
 
 - A Conversations column between them: every workspace's Claude and Codex conversations, running and closed, one
   click away; it collapses to a rail.
