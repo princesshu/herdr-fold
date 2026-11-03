@@ -81,18 +81,24 @@ class WholeWay(unittest.TestCase):
         # the right panel shown at herdr-fold, as mod.open does from a hidden one (again it would hide it): a hidden
         # copy gets no commands
         for args in (["space.new", "--machine", "lab", "--folder", root], ["layout.switch", "--name", "herdr-fold"],
-                     ["layout.select", "--stack", "panel-body", "--child", "changes"], ["layout.show", "--id", "panel"],
-                     ["herdr-fold.write"]):
+                     ["layout.select", "--stack", "panel-body", "--child", "changes"],
+                     ["layout.show", "--id", "panel"]):
             out = self.run_here(app, "do", *args)
             self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        print("\nthe window while the message is written:\n" + self.run_here(app, "ls").stdout, file=sys.stderr)
-        deadline = time.monotonic() + 180
+        deadline, asked, listed = time.monotonic() + 180, 0.0, False
         while not self.on_machine("git -C app log -1 --format=%s").startswith(walk.MESSAGE) or \
                 "four" not in self.on_machine("git -C app show --format= HEAD -- a.txt"):
             if time.monotonic() > deadline:
                 self.fail("the mod's commit did not come\n" + self.app_failed(app, said))
+            if time.monotonic() - asked > 20:       # before the mod has its repository, or while it works, it drops it
+                self.run_here(app, "do", "herdr-fold.write")
+                asked = time.monotonic()
             self.run_here(app, "do", "herdr-fold.commit")         # nothing to commit while the message is written
             time.sleep(2)
+            if not listed:
+                print("\nthe window while the message is written:\n" + self.run_here(app, "ls").stdout,
+                      file=sys.stderr)
+                listed = True
         self.run_here(app, "do", "herdr-fold.sync")
         self.wait_for(lambda: self.on_machine("git -C app rev-parse HEAD") ==
                       self.on_machine("git -C origin.git rev-parse main"), "the mod's push", 60)
