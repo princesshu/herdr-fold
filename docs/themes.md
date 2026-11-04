@@ -18,7 +18,7 @@ python3 ~/.config/herdr-fold/themes/apply.py 2     # by number or by name, for e
 ```
 
 ![The twelve themes, each as a sketch of the work window in its colors, with its loading sheep and its app
-icon](media/screenshots/themes.webp)
+icon](../assets/screenshots/themes.webp)
 
 ## What a theme sets
 

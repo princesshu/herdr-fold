@@ -92,7 +92,8 @@ plugins of its own.
 |---|---|
 | `src/lang/en.txt` | every text the scripts print, one `key = text` per line (see [Translating](translating.md)) |
 | `src/i18n.py` | looks the texts up for the Python scripts |
-| `docs/` | the guides; their screenshots and the animation (`docs/media/screenshots/`), the styleguide's pictures (`docs/media/styleguide/`) |
+| `docs/` | the guides |
+| `assets/` | the pictures the README and the guides show: the screenshots and the animation (`screenshots/`), the styleguide's (`styleguide/`) |
 | `tests/` | the tests: `/usr/bin/python3 -m unittest discover -s tests` |
 | `lab/` | the test lab: a Linux machine in a container reached over SSH as a remote machine, run only when called (`python3 lab/lab.py test`); `lab.py`, the machine in `linux/` (`Containerfile`, `sshd.conf`, a stand-in `claude`), its tests in `tests/`, the mod's way through a change in `walk.py`, what GitHub's runners run in `ci/` ([its README](../lab/README.md)) |
 | `tools/sync.sh` | copies this Mac's settings back into the package (not over a file edited there and not committed), then checks the files for private data |

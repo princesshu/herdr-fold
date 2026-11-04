@@ -9,7 +9,7 @@ colors are the layout's theme, Catppuccin Mocha, as in the TUI.
 
 ### Color
 
-![The theme's colors by role: surfaces, text, accent and the states of a change](media/styleguide/color.webp)
+![The theme's colors by role: surfaces, text, accent and the states of a change](../assets/styleguide/color.webp)
 
 | Token | Use |
 |---|---|
@@ -30,16 +30,16 @@ colors are the layout's theme, Catppuccin Mocha, as in the TUI.
 
 ### Type, shape and size
 
-![The type scale, the radii and the heights](media/styleguide/type.webp)
+![The type scale, the radii and the heights](../assets/styleguide/type.webp)
 
 Body text is 13, a button's words 12 bold, a folder or a caption 11; code (a diff, a hit) is Menlo 11. Panels are
 rounded 10, controls 8, rows 6 and chips 5.
 
 ### Iconography
 
-![The Codicons by name, and the plain marks that stand in for them](media/styleguide/icons.webp)
+![The Codicons by name, and the plain marks that stand in for them](../assets/styleguide/icons.webp)
 
-![Each file type's icon](media/styleguide/file-types.webp)
+![Each file type's icon](../assets/styleguide/file-types.webp)
 
 The icons are the TUI sidebar's, from one table both draw from (`core/icons.py`): Codicons and each file type's mark
 in a Nerd Font when one is installed (the TUI environment installs JetBrainsMono Nerd Font), otherwise the plain marks.
@@ -51,46 +51,46 @@ the part looks without a Nerd Font.
 
 ### Buttons
 
-![Primary, busy, secondary, disabled, icon and row buttons](media/styleguide/buttons.webp)
+![Primary, busy, secondary, disabled, icon and row buttons](../assets/styleguide/buttons.webp)
 
 Commit is the one solid button; it keeps its color while it cannot commit yet. A secondary button dims its words when
 it cannot be pressed. A row's buttons show only with the mouse on the row.
 
 ### Commit
 
-![The message field with its ✦, Commit and its mode arrow, in each state](media/styleguide/commit.webp)
+![The message field with its ✦, Commit and its mode arrow, in each state](../assets/styleguide/commit.webp)
 
 ### View tabs and the search field
 
-![The view tabs with the sync button, and the search field with its switches](media/styleguide/tabs.webp)
+![The view tabs with the sync button, and the search field with its switches](../assets/styleguide/tabs.webp)
 
 ### Section header and count chip
 
-![A section's header: default, with the mouse on it, asking, folded; the count chip](media/styleguide/sections.webp)
+![A section's header: default, with the mouse on it, asking, folded; the count chip](../assets/styleguide/sections.webp)
 
 ### File row
 
-![A changed file's row in each state](media/styleguide/rows.webp)
+![A changed file's row in each state](../assets/styleguide/rows.webp)
 
 ### Graph and mode menu
 
-![The Graph open, a commit chosen, folded; the Commit button's modes](media/styleguide/graph.webp)
+![The Graph open, a commit chosen, folded; the Commit button's modes](../assets/styleguide/graph.webp)
 
 ### Diff, problems and empty states
 
-![A diff with a problem under it, and the list's empty states](media/styleguide/content.webp)
+![A diff with a problem under it, and the list's empty states](../assets/styleguide/content.webp)
 
 ### Search results
 
-![Hits by file, one shown at its line below](media/styleguide/search.webp)
+![Hits by file, one shown at its line below](../assets/styleguide/search.webp)
 
 ### The tab's terminal
 
-![The tab's terminal header: starting, shown, and when it could not start](media/styleguide/terminal.webp)
+![The tab's terminal header: starting, shown, and when it could not start](../assets/styleguide/terminal.webp)
 
 ## Patterns
 
-![The Changes and Search panels, and Changes with the plain marks](media/styleguide/panels.webp)
+![The Changes and Search panels, and Changes with the plain marks](../assets/styleguide/panels.webp)
 
 ## A new part
 

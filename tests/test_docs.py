@@ -371,7 +371,7 @@ class Pictures(unittest.TestCase):
 
     def test_a_plugin_installed_alone_shows_itself(self):
         for plugin in ("sidebar", "sessions-view"):
-            pictures = re.findall(r"\]\((\.\./\.\./\.\./docs/media/screenshots/[\w-]+\.webp)\)",
+            pictures = re.findall(r"\]\((\.\./\.\./\.\./assets/screenshots/[\w-]+\.webp)\)",
                                   read(f"src/plugins/{plugin}/README.md"))
             self.assertTrue(pictures, plugin)
             for rel in pictures:
@@ -380,7 +380,7 @@ class Pictures(unittest.TestCase):
 
     def test_the_readmes_list_shows_the_sidebar(self):
         what_you_get = read("README.md").split("## What you get", 1)[1].split("\n## ", 1)[0]
-        self.assertIn("(docs/media/screenshots/sidebar.webp)", what_you_get)
+        self.assertIn("(assets/screenshots/sidebar.webp)", what_you_get)
 
     def test_the_readme_opens_with_the_logo_and_says_it_is_the_sheep(self):
         # under the title: above it, GitHub's rule below the title would run through the logo
