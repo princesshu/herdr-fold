@@ -16,7 +16,7 @@ PACKAGE = os.path.dirname(LAB)
 sys.path.insert(0, LAB)
 sys.path.insert(0, os.path.join(PACKAGE, "tests"))
 sys.path.insert(0, os.path.join(PACKAGE, "lib"))
-import herdr_app  # noqa: E402
+import herdr_app as app_setup  # noqa: E402  (herdr_app() below is the app's command line)
 import lab  # noqa: E402
 import walk  # noqa: E402
 from support import copy_package, run_in_terminal, stubs  # noqa: E402
@@ -114,9 +114,9 @@ class WholeWay(unittest.TestCase):
         self.assertEqual(broken, [], self.app_failed(app, said))
         # the tab's own terminal under the panel, on the space's machine, as the TUI's right column has it there
         app_home = os.path.join(self.home, ".config", "herdr-app")
-        self.wait_for(lambda: any(a.startswith("lab/") for a in herdr_app.tab_terminals(app_home)),
+        self.wait_for(lambda: any(a.startswith("lab/") for a in app_setup.tab_terminals(app_home)),
                       "the tab's terminal on the machine", 60)
-        address = next(a for a in herdr_app.tab_terminals(app_home) if a.startswith("lab/"))
+        address = next(a for a in app_setup.tab_terminals(app_home) if a.startswith("lab/"))
         got = self.run_here("herdr-core", "get", "--json", address)
         self.assertEqual(json.loads(got.stdout or "{}").get("state"), "live", got.stdout + got.stderr)
 
