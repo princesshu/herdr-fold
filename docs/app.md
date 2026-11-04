@@ -109,7 +109,8 @@ In the herdr-fold layout:
 
 The mod takes commands for keys of your own: `herdr-fold.write`, `herdr-fold.commit` and `herdr-fold.sync`, and
 `herdr-fold.changes` and `herdr-fold.search`, which show that view (Search with the keys in its field); they reach a
-herdr-fold that shows.
+herdr-fold that shows. `herdr-fold.styleguide` opens the mod's parts, each in each of its states, in a tab:
+[Styleguide](styleguide.md).
 
 ## On another machine
 

@@ -107,9 +107,10 @@ export class TerminalHeader {
     if (next.gone.length) command("layout.set", { layout: next.tree });
   }
 
-  /** As the app's pane header: the program's icon and name, the folder; or what is happening instead. */
-  render(t) {
-    const shown = this.starting ? null : live(this.address), program = shown?.program;
+  /** As the app's pane header: the program's icon and name, the folder of the terminal SHOWN; or what is happening
+   * instead. */
+  render(t, shown = this.starting ? null : live(this.address)) {
+    const program = shown?.program;
     const icon = !program?.icon ? null : program.tint ? svg(program.icon).size(14).text_color(t.muted)
       : image(program.icon).size(14);
     const own = shown && !machineOf(shown.address) ? home() : null;

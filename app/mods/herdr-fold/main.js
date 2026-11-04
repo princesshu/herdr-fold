@@ -9,6 +9,8 @@ import { COMMIT_MESSAGE, FILEOPS, GIT, SEARCH } from "./helper.js";
 import { afterCommit, background, commitMode, commitRows, diffRows, excerpt, fileIcon, foldedSections, lastLine, letter,
   marked, marks, MODES, nerdFont, panelToggle, pythonCommand, rowActions, said, searchRows, searchSummary,
   secretQuestion, syncLabel, written } from "./logic.js";
+import { button, chip, glyph, small } from "./parts.js";
+import { guide, styleguide } from "./styleguide.js";
 import { TerminalHeader } from "./terminal.js";
 
 const REFRESH = 10000;             // ms between two looks when no folder change says so (another machine's space)
@@ -98,6 +100,10 @@ export default class HerdrFold extends View {
       return void cx.timer.every(REFRESH, (cx) => this.terminal.look(cx));
     }
     if ((this.blank = part === "none")) return;
+    if (part === "styleguide") {                  // all of it, or its section props().section names (a picture of it)
+      this.only = props()?.section ?? null;
+      return void (this.guide = guide(HerdrFold.prototype, nerdFont(fonts())));
+    }
     this.rows = []; this.commits = []; this.status = null; this.message = "";
     this.view = shared(VIEW) === "search" ? "search" : "changes";
     this.switches = { case: false, word: false, regex: false };
@@ -118,11 +124,12 @@ export default class HerdrFold extends View {
     cx.timer.every(REFRESH, (cx) => this.refresh(cx));
     cx.spawn(async (cx) => {
       for (;;) {                                  // "herdr-fold.<command>": a bound key, or herdr-app do
-        const command = await nextCommand();
-        if (command === "write") this.write(cx);
-        else if (command === "commit") this.commit(cx);
-        else if (command === "sync") this.sync(cx);
-        else if (command === "changes" || command === "search") this.show(command, cx);
+        const asked = await nextCommand();
+        if (asked === "write") this.write(cx);
+        else if (asked === "commit") this.commit(cx);
+        else if (asked === "sync") this.sync(cx);
+        else if (asked === "changes" || asked === "search") this.show(asked, cx);
+        else if (asked === "styleguide") command("tab.new", { mod: "herdr-fold", props: { part: "styleguide" } });
       }
     });
   }
@@ -370,7 +377,7 @@ export default class HerdrFold extends View {
   }
 
   /** HIT's file below the hits, from a few lines above it, its line marked; read on its machine. */
-  open(hit, cx) {
+  reveal(hit, cx) {
     const key = `${hit.path}:${hit.line}`, { cwd, on } = this.searched;
     this.peek = key;
     this.peekRows = [];
@@ -402,7 +409,7 @@ export default class HerdrFold extends View {
   render(cx) {
     if (this.launcher || this.blank) return div();
     const t = theme();
-    if (this.guide) return styleguide(this.guide, t);
+    if (this.guide) return styleguide(this.guide, t, this.only);
     if (this.terminal) {
       this.terminal.watch(cx);
       return this.terminal.render(t);
@@ -490,12 +497,16 @@ export default class HerdrFold extends View {
         .child(div().px(5).rounded(4).text_size(10).bg(t.raised).text_color(t.muted).child(String(r.count)))
       : h_flex().id(`hit-${r.path}:${r.line}`).w_full().h(24).flex_none().pl(10).pr(10).gap(8).items_center()
         .rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
-        .when(this.peek === `${r.path}:${r.line}`, (e) => e.bg(t.selected)).on_click((_e, cx) => this.open(r, cx))
+        .when(this.peek === `${r.path}:${r.line}`, (e) => e.bg(t.selected))
         .child(div().w(34).flex_none().text_right().text_size(11).text_color(t.dim).child(String(r.line)))
         .child(this.line(t, r.text, r.spans));
     return div().flex_1().min_h(0).relative().text_size(12)
       .child(v_virtual_list("results", this.results.length, 24, (i) => String(i),
-        (range) => this.results.slice(range.start, range.end).map(row)).size_full())
+        (range) => this.results.slice(range.start, range.end).map(row)).size_full()
+        .on_item_click((key, cx) => {                   // the list's own: a row may register no handler
+          const hit = this.results[Number(key)];
+          if (hit?.kind === "hit") this.reveal(hit, cx);
+        }))
       .child(Scrollbar.vertical("results").viewport_from_layout().absolute().inset_0());
   }
 
@@ -638,7 +649,7 @@ export default class HerdrFold extends View {
         .child(div().id("message").flex_1().min_w(0).h(32).px(10).flex().items_center().rounded(8).border_1()
           .border_color(t.border).cursor_text()
           .child(Input.new(this.input).h_full().text_size(12).text_color(t.foreground)))
-        .child(button(t, "write", glyph(this.font, this.m.ai), this.ready, false, (cx) => this.write(cx))
+        .child(button(t, "write", glyph(this.font, this.m.ai).text_size(15), this.ready, false, (cx) => this.write(cx))
           .bg(t.selection).text_color(this.ready ? t.accent : t.muted)))
       .child(h_flex().gap(8)
         .child(button(t, "commit", label, commit, true, (cx) => this.commit(cx)).flex_1().justify_center())
@@ -648,36 +659,4 @@ export default class HerdrFold extends View {
         })))
       .when(Boolean(this.menu), (e) => e.child(this.modes(t)));
   }
-}
-
-/** A mark from icons.js, in FONT (a Nerd Font) when there is one. @param {string | null} font @param {string} mark */
-function glyph(font, mark) {
-  return div().flex_none().flex().items_center().justify_center().when(Boolean(font), (e) => e.font_family(font))
-    .child(mark);
-}
-
-/** A button, its words bold as the TUI's: SOLID in the accent, as the TUI's Commit and its arrow, even while it
- * cannot be pressed; the others faint then. */
-function button(t, id, label, enabled, solid, onClick) {
-  return div().id(id).h(32).px(12).flex().items_center().rounded(8).text_size(12).font_bold()
-    .bg(solid ? t.solid : t.raised).text_color(solid ? t.solid_foreground : enabled ? t.foreground : t.dim)
-    .when(enabled, (e) => e.cursor_pointer().on_click((_e, cx) => onClick(cx))).child(label);
-}
-
-/** A row's own small button, saying what it does when the mouse rests on it. */
-function small(t, id, label, tip, enabled, onClick) {
-  return div().id(id).h(20).min_w(20).px(5).flex().items_center().justify_center().rounded(5).text_size(12)
-    .font_semibold().text_color(enabled ? t.foreground : t.dim).tooltip(tip)
-    .when(enabled, (e) => e.cursor_pointer().hover((s) => s.bg(t.raised).text_color(t.foreground))
-      .on_click((_e, cx) => {
-        cx.stop_propagation();                          // the row's own click (its diff) stays out of it
-        onClick(cx);
-      }))
-    .child(label);
-}
-
-/** A count on a chip, as the TUI sidebar's sections show theirs. */
-function chip(t, text) {
-  return div().flex_none().px(6).rounded(5).text_size(11).font_semibold().bg(t.raised).text_color(t.foreground)
-    .child(text);
 }

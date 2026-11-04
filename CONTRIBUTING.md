@@ -34,6 +34,9 @@ runners, started by hand: `gh workflow run lab`.
 - A new question, switch or key goes in the docs too: the docs tests check them against the code.
 - Comments say what the code cannot: the why, a gotcha. None repeats the code, and no comment or docstring runs
   longer than three lines (a test checks); a longer explanation goes in `docs/`.
+- A new part of the Herdr app mod, or a new state of one, goes into its styleguide in the same change
+  (`app/mods/herdr-fold/styleguide.js`, drawn by the view's own code), and its picture in
+  [Styleguide](docs/styleguide.md) is made again.
 - A change to a theme, to the sidebar's colors or icons, to the loading sheep or to the logo (`tools/logo.swift`):
   run `/usr/bin/python3 tools/preview_colors.py`, so the theme preview and the logo show it (a test fails until then).
 

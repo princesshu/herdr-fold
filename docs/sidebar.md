@@ -7,9 +7,10 @@ macOS, Linux and Windows. Its keys, what it reads and writes on the machine, and
 herdr-fold does with it.
 
 ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the message
-Claude wrote, the issue it fixes and the Graph, Issues by priority](media/sidebar.webp)
+Claude wrote, the issue it fixes and the Graph, Issues by priority](media/screenshots/sidebar.webp)
 
-![A diff in the preview tab, its lines numbered, the tab laid out as the one it was opened from](media/preview.webp)
+![A diff in the preview tab, its lines numbered, the tab laid out as the one it was opened
+from](media/screenshots/preview.webp)
 
 ## How it gets there
 

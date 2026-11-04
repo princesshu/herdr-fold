@@ -20,6 +20,9 @@ All notable changes to this project are listed here. The format follows
   has it, on the space's machine; the sidebar's icons, from one table both draw from. Where the Herdr app is on the Mac,
   `install.sh` asks once and sets it all up, the remote machines in the app too; `uninstall.sh` takes it off. See [The
   Herdr app](docs/app.md).
+- A styleguide for the Herdr app mod: its colors, type, sizes and icons, each part in each of its states and the
+  panels they make, drawn by the views' own code; `herdr-app do herdr-fold.styleguide` opens it, and
+  [Styleguide](docs/styleguide.md) shows it on GitHub.
 - The sidebar in a workspace whose folder is no repository itself (your home folder, a folder of projects): Changes
   shows the repository of the folder or file chosen in Files, however deep, with its changes, commit and sync; Files'
   marks and the Issues view follow it. See [The sidebar](docs/sidebar.md#how-it-starts).

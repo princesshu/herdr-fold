@@ -16,7 +16,7 @@ One workspace per repo:
    **Cancel** goes back to the workspace you came from.
 
 ![The folder picker over the new workspace: Documents as a tree, driftwood chosen, Claude or Codex at its top
-right, Cancel and Open at the bottom](media/new-workspace.webp)
+right, Cancel and Open at the bottom](media/screenshots/new-workspace.webp)
 
 The workspace's main tab is named after the folder (the home folder's is `home`): the agent on the left, the
 Conversations column, and on the right the sidebar above a terminal. Drag the right column's edge to resize it in every
@@ -57,7 +57,7 @@ on its pane, and its workspace says `waiting` again, from now, until you return 
 again takes the mark off).
 
 ![The Spaces list: harbor-web's agent blocked and waiting 12 minutes, tidepool's done and waiting 3 minutes, beside
-their branch](media/waiting.webp)
+their branch](media/screenshots/waiting.webp)
 
 A conversation goes by one name: in AI Sessions, on its pane's border, in the Conversations column, and on its
 tab when it has the tab to itself (a reopened one's); the workspace's main tab keeps the workspace's name. To rename it:
@@ -78,7 +78,7 @@ Every conversation of the workspaces under Spaces, running or closed, in the col
 3. Enter goes to a running conversation, or reopens a closed one in a new tab of its workspace.
 
 ![The Conversations column open beside Claude: each workspace's conversations, a running one's mark in its state's
-color, the closed ones faint](media/conversations.webp)
+color, the closed ones faint](media/screenshots/conversations.webp)
 
 A right click on a conversation offers Open, Copy conversation (all of it, formatted for Notes, Mail or Docs), Rename
 and, for a closed one, Archive: it leaves the list and its file stays as it was, so `claude --resume` or `codex resume`
@@ -99,7 +99,7 @@ For a repository on GitHub:
    C adds it too); once the commit is pushed, GitHub closes the issue.
 
 ![An issue from the sidebar goes to Claude, which fixes it, and the message it writes closes the
-issue](media/issue-to-agent.webp)
+issue](media/screenshots/issue-to-agent.webp)
 
 ## Commit and push
 
@@ -160,7 +160,7 @@ Files on it. It works on any pane: an agent's reply, a test run's failure, a com
 pane lists nothing: its files are on that machine, and the list shows only files that are on the Mac.
 
 ![An agent's reply naming the files it changed and the lines that matter, and over it the list of those files, the
-newest first, each with its line, Cancel and Open at the bottom](media/open-file.webp)
+newest first, each with its line, Cancel and Open at the bottom](media/screenshots/open-file.webp)
 
 ## The status line
 

@@ -16,7 +16,7 @@ https://img.shields.io/badge/platforms-macOS%2015%2B%20Apple%20silicon%20%7C%20L
 ![Three workspaces under Spaces, one saying how long its agent has waited; Claude's report of an issue it fixed,
 above its status line (model, context, limits); the Conversations column with each workspace's conversations; and on
 the right the sidebar's Changes view with the message Claude wrote and the issue it closes,
-above a terminal](docs/media/hero.webp)
+above a terminal](docs/media/screenshots/hero.webp)
 
 ## What you get
 
@@ -25,7 +25,7 @@ above a terminal](docs/media/hero.webp)
   closes it; a file the agent names opens at its line in one key too.
 
   ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the message
-  Claude wrote, the issue it fixes and the Graph, Issues by priority](docs/media/sidebar.webp)
+  Claude wrote, the issue it fixes and the Graph, Issues by priority](docs/media/screenshots/sidebar.webp)
 
 - A Conversations column between them: every workspace's Claude and Codex conversations, running and closed, one
   click away; it collapses to a rail.
@@ -41,7 +41,7 @@ above a terminal](docs/media/hero.webp)
   on remote machines alike, dark in the TUI's colors, the twelve themes in Settings: [The Herdr app](docs/app.md).
 
 ![An issue from the sidebar goes to Claude, which fixes it, and the message it writes closes the
-issue](docs/media/issue-to-agent.webp)
+issue](docs/media/screenshots/issue-to-agent.webp)
 
 ## Requirements
 
@@ -164,7 +164,7 @@ More: [Troubleshooting](docs/troubleshooting.md).
 - [Themes](docs/themes.md): the twelve themes and the picker
 - [The sidebar](docs/sidebar.md): Files, Search, Changes and Issues, as herdr-fold uses them
 - [The Herdr app](docs/app.md): the sidebar's Changes and Search views as a mod for herdr's desktop app, its layout
-  and themes
+  and themes; its parts in each state: [Styleguide](docs/styleguide.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Translating](docs/translating.md): the installer in another language
 - [How it is built](docs/architecture.md): the files and the installer's records

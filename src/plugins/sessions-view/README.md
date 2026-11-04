@@ -4,7 +4,7 @@ A herdr plugin that narrows herdr's Agents panel to AI sessions: only the curren
 agents that have a conversation, each under its name.
 
 ![herdr-fold's window: at the bottom left, in herdr's sidebar under the workspaces, AI Sessions with the
-workspace's one conversation, its name and its state](../../../docs/media/hero.webp)
+workspace's one conversation, its name and its state](../../../docs/media/screenshots/hero.webp)
 
 - A session shows once its conversation holds a message, the agent is working, or the conversation has a title.
 - Its name is the pane name. Rename it from herdr's right-click menu (**Rename pane**), or with **Rename** in
