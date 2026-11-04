@@ -6,8 +6,9 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterCommit, background, changedFiles, commitMode, commitRows, diffRows, MODES, panelToggle, pythonCommand,
-  rowActions, secretQuestion, syncLabel, written } from "../mods/herdr-fold/logic.js";
+import { afterCommit, background, changedFiles, commitMode, commitRows, diffRows, excerpt, marked, MODES, panelToggle,
+  pythonCommand, rowActions, searchRows, searchSummary, secretQuestion, syncLabel, written }
+  from "../mods/herdr-fold/logic.js";
 
 test("a diff's lines numbered once, old and new apart", () => {
   const rows = diffRows(["@@ -3,2 +3,3 @@", " same", "-old", "+new", "+more"]);
@@ -25,6 +26,37 @@ test("a commit's diff: its header as it is, each file's name a heading, its hunk
       ["@", null, "a.txt"], ["@", null, "@@ -1 +1 @@"], ["-", 1, "1"], ["+", 1, "2"],
       ["@", null, "new.png"], ["", null, "Binary files /dev/null and b/new.png differ"]]);
   });
+
+test("the search's hits under a row for their file, in the order they came, each file counted", () => {
+  const hit = (path, line) => ({ path, line, text: "x", spans: [[0, 1]] });
+  const rows = searchRows([hit("a.py", 3), hit("a.py", 9), hit("b/c.py", 1)]);
+  assert.deepEqual(rows.map((r) => [r.kind, r.path, r.line ?? r.count]),
+    [["file", "a.py", 2], ["hit", "a.py", 3], ["hit", "a.py", 9], ["file", "b/c.py", 1], ["hit", "b/c.py", 1]]);
+});
+
+test("a line in pieces, the matches marked: as the TUI sidebar marks them", () => {
+  assert.deepEqual(marked("const hero = hero", [[6, 10], [13, 17]]), [{ text: "const ", hit: false },
+    { text: "hero", hit: true }, { text: " = ", hit: false }, { text: "hero", hit: true }]);
+  assert.deepEqual(marked("plain", []), [{ text: "plain", hit: false }]);
+});
+
+test("a file's lines round a hit: a few before it, numbered from where they start", () => {
+  const text = Array.from({ length: 40 }, (_, i) => `line ${i + 1}`).join("\n") + "\n";
+  const { start, lines } = excerpt(text, 20, 5, 10);
+  assert.equal(start, 15);
+  assert.deepEqual([lines[0], lines.at(-1), lines.length], ["line 15", "line 24", 10]);
+  assert.equal(excerpt(text, 2, 5, 10).start, 1);                  // never before the first line
+  assert.equal(excerpt("a\r\nb\n", 1, 5, 10).lines[0], "a");      // a line ends at its newline, \r and all
+});
+
+test("the search's summary, in the TUI sidebar's words", () => {
+  assert.equal(searchSummary({ total: 7, files: 1, hits: new Array(7), error: null }), "7 results in 1 file");
+  assert.equal(searchSummary({ total: 1, files: 1, hits: new Array(1), error: null }), "1 result in 1 file");
+  assert.equal(searchSummary({ total: 1500, files: 30, hits: new Array(1000), error: null }),
+    "1000 of 1500 results shown");
+  assert.equal(searchSummary({ total: 0, files: 0, hits: [], error: null }), "No results found");
+  assert.equal(searchSummary({ total: 0, files: 0, hits: [], error: "invalid regex: x" }), "invalid regex: x");
+});
 
 test("each changed file once, staged or not, in the order git gives them", () => {
   const status = { staged: [{ path: "b.txt", code: "A" }, { path: "a.txt", code: "M" }],

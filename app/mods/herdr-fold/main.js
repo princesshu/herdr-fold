@@ -1,19 +1,22 @@
 // @ts-check
-// herdr-fold for the Herdr app, the TUI sidebar's Changes: staging, the message Claude or Codex writes, a commit that
-// may push or sync after, the last commits; the git work runs on the space's machine, with core/'s code (helper.js).
+// herdr-fold for the Herdr app, the TUI sidebar's Changes and Search: staging, the message Claude or Codex writes, a
+// commit, the last commits; a search of the folder. It runs on the space's machine, with core/'s code (helper.js).
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list } from "gpui-base";
 import { spaces, panes, focused, exec, hc, home, watchFolder, nextCommand, theme, settings, layout, props, closeOverlay,
-  shared, setShared, run as command } from "herdr";
-import { COMMIT_MESSAGE, FILEOPS, GIT } from "./helper.js";
-import { afterCommit, background, changedFiles, commitMode, commitRows, diffRows, MODES, panelToggle, pythonCommand,
-  rowActions, secretQuestion, syncLabel, written } from "./logic.js";
+  shared, setShared, readTextFile, run as command } from "herdr";
+import { COMMIT_MESSAGE, FILEOPS, GIT, SEARCH } from "./helper.js";
+import { afterCommit, background, changedFiles, commitMode, commitRows, diffRows, excerpt, marked, MODES, panelToggle,
+  pythonCommand, rowActions, searchRows, searchSummary, secretQuestion, syncLabel, written } from "./logic.js";
 
 const REFRESH = 10000;             // ms between two looks when no folder change says so (another machine's space)
 const POLL = 1500;                 // ms between two looks at the message being written
 const WRITING = 6 * 60 * 1000;     // ms the message may take: both AIs, each asked twice
 const LINES = 1500;                // a diff's lines shown at most
-const MODE = "herdr-fold.commit_mode", GRAPH = "herdr-fold.graph_folded";    // kept by the app (shared)
+const MODE = "herdr-fold.commit_mode", GRAPH = "herdr-fold.graph_folded", VIEW = "herdr-fold.view";   // kept (shared)
+const QUIET = 150;                 // ms after typing stops before the search runs (Enter: at once)
+const FOUND = 1000;                // the hits a search brings at most (the count goes on)
+const ABOVE = 12;                  // a hit's file shown from these lines above it
 const BUSY = { stage: "Staging…", unstage: "Unstaging…", discard: "Discarding…" };
 const ICONS = { stage: "+", unstage: "−", discard: "↶" };
 const TIPS = { stage: "Stage", unstage: "Unstage", discard: "Discard changes" };
@@ -92,6 +95,12 @@ export default class HerdrFold extends View {
       return void closeOverlay(this.launcher);
     }
     this.files = []; this.rows = []; this.commits = []; this.status = null; this.message = "";
+    this.view = shared(VIEW) === "search" ? "search" : "changes";
+    this.switches = { case: false, word: false, regex: false };
+    this.found = null; this.results = []; this.peek = null; this.peekRows = []; this.asking = 0;
+    this.find = InputState.new({ placeholder: "Search" });
+    this.find.on("change", (_e, cx) => this.later(cx));
+    this.find.on("submit", (_e, cx) => this.search(cx));
     this.mode = commitMode(shared(MODE));
     this.folded = shared(GRAPH) === true;
     this.input = InputState.new({ placeholder: "Commit message" });
@@ -109,6 +118,7 @@ export default class HerdrFold extends View {
         if (command === "write") this.write(cx);
         else if (command === "commit") this.commit(cx);
         else if (command === "sync") this.sync(cx);
+        else if (command === "changes" || command === "search") this.show(command, cx);
       }
     });
   }
@@ -302,6 +312,70 @@ export default class HerdrFold extends View {
     this.act(cx, "Syncing…", () => git("sync", this.root, this.on));
   }
 
+  /** The view shown, kept for the next start; Search takes the keys. @param {string} view */
+  show(view, cx) {
+    this.view = view === "search" ? "search" : "changes";
+    setShared(VIEW, this.view);
+    if (this.view === "search") this.find.focus();
+    cx.notify();
+  }
+
+  /** The search QUIET ms after the last key, unless another key came meanwhile. */
+  later(cx) {
+    const asked = ++this.asking;
+    cx.timer.after(QUIET, (cx) => {
+      if (asked === this.asking) this.search(cx);
+    });
+  }
+
+  /** The query in the focused pane's folder, on its machine (core/search.py): an older answer is dropped. */
+  search(cx) {
+    const text = this.find.value(), here = place(), asked = ++this.asking;
+    if (!text || !here.cwd) {
+      Object.assign(this, { found: null, results: [], peek: null, peekRows: [], searching: false });
+      return void cx.notify();
+    }
+    this.searching = true;
+    this.searched = here;
+    cx.spawn(async (cx) => {
+      try {
+        const found = await python(SEARCH, [here.cwd, JSON.stringify({ text, ...this.switches, limit: FOUND })],
+          here.cwd, here.on);
+        if (asked !== this.asking) return;
+        Object.assign(this, { found, results: searchRows(found.hits), peek: null, peekRows: [] });
+      } catch (e) {
+        if (asked === this.asking) Object.assign(this, { found: { hits: [], total: 0, files: 0, error: said(e) },
+        results: [], peek: null, peekRows: [] });
+      } finally {
+        if (asked === this.asking) this.searching = false;
+        cx.notify();
+      }
+    });
+    cx.notify();
+  }
+
+  /** HIT's file below the hits, from a few lines above it, its line marked; read on its machine. */
+  open(hit, cx) {
+    const key = `${hit.path}:${hit.line}`, { cwd, on } = this.searched;
+    this.peek = key;
+    this.peekRows = [];
+    cx.spawn(async (cx) => {
+      try {
+        const text = await readTextFile(`${cwd}/${hit.path}`, { on });
+        if (this.peek !== key) return;
+        if (text === null) return void (this.peekRows = [{ text: "This file is no longer there" }]);
+        const { start, lines } = excerpt(text, hit.line, ABOVE, LINES);
+        this.peekRows = lines.map((line, i) => ({ number: start + i, text: line,
+          spans: start + i === hit.line ? hit.spans : null }));
+      } catch (e) {
+        if (this.peek === key) this.peekRows = [{ text: said(e) }];
+      } finally {
+        cx.notify();
+      }
+    });
+    cx.notify();
+  }
+
   /** @param {string} mode */
   choose(mode, cx) {
     this.mode = commitMode(mode);
@@ -313,10 +387,11 @@ export default class HerdrFold extends View {
   render(cx) {
     if (this.launcher) return div();
     if (JSON.stringify(place()) !== this.key) this.refresh(cx);
-    const t = theme();
-    return v_flex().id("herdr-fold").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1()
-      .border_color(t.border).text_color(t.foreground).text_size(13)
-      .child(this.header(t)).child(this.list(t)).child(this.diff(t)).child(this.graph(t))
+    const t = theme(), frame = v_flex().id("herdr-fold").size_full().min_h(0).rounded(10).overflow_hidden()
+      .bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13).child(this.header(t));
+    if (this.view === "search") return frame.child(this.query(t)).child(this.hits(t)).when(Boolean(this.peek),
+      (e) => e.child(this.lines(t)));
+    return frame.child(this.list(t)).child(this.diff(t)).child(this.graph(t))
       .when(Boolean(this.note && this.root), (e) => e.child(div().px(10).py(6).text_size(11).text_color(t.ansi1)
         .child(this.note)))
       .when(Boolean(this.menu), (e) => e.child(this.modes(t)))
@@ -327,13 +402,80 @@ export default class HerdrFold extends View {
     return Boolean(this.root && !this.busy && !this.loading);
   }
 
+  /** The views' tabs, as the TUI sidebar's; with Changes, the number of files and the sync button. */
   header(t) {
-    return h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
-      .child(div().font_semibold().child("Changes"))
-      .child(div().px(5).py(1).rounded(4).border_1().border_color(t.border).text_size(10).text_color(t.muted)
-        .child(`${this.files.length} files`))
+    const tab = (view, label) => div().id(`view-${view}`).h(26).px(10).flex().items_center().rounded(6)
+      .cursor_pointer().text_color(this.view === view ? t.foreground : t.muted).hover((s) => s.bg(t.hover))
+      .when(this.view === view, (e) => e.bg(t.selected).font_semibold()).on_click((_e, cx) => this.show(view, cx))
+      .child(label);
+    const changes = this.view === "changes";
+    return h_flex().h(42).flex_none().px(10).gap(4).items_center().border_b(1).border_color(t.border)
+      .child(tab("changes", "Changes")).child(tab("search", "Search"))
+      .when(changes, (e) => e.child(div().ml(4).px(5).py(1).rounded(4).border_1().border_color(t.border).text_size(10)
+        .text_color(t.muted).child(`${this.files.length} files`)))
       .child(div().flex_1())
-      .child(button(t, "sync", syncLabel(this.status), this.ready, false, (cx) => this.sync(cx)));
+      .when(changes, (e) => e.child(button(t, "sync", syncLabel(this.status), this.ready, false,
+        (cx) => this.sync(cx))));
+  }
+
+  /** The search field with its switches (Aa, ab, .*), then the folder searched or what the search found. */
+  query(t) {
+    const toggle = (name, label, tip) => div().id(`switch-${name}`).h(24).px(6).flex().items_center().rounded(5)
+      .text_size(12).cursor_pointer().tooltip(tip).text_color(this.switches[name] ? t.accent : t.muted)
+      .when(this.switches[name], (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover))
+      .on_click((_e, cx) => {
+        cx.stop_propagation();
+        this.switches[name] = !this.switches[name];
+        this.search(cx);
+      })
+      .child(label);
+    const folder = (this.found ? this.searched?.cwd : place().cwd)?.split(/[\\/]/).pop() ?? "";
+    const status = this.searching ? "Searching…" : this.found ? searchSummary(this.found) : `in ${folder}`;
+    return v_flex().flex_none().p(10).gap(6).border_b(1).border_color(t.border)
+      .child(h_flex().id("search").h(32).pl(10).pr(4).gap(2).items_center().rounded(8).border_1()
+        .border_color(t.border).cursor_text()
+        .child(Input.new(this.find).flex_1().h_full().text_size(12).text_color(t.foreground))
+        .child(toggle("case", "Aa", "Match case")).child(toggle("word", "ab", "Whole word"))
+        .child(toggle("regex", ".*", "Regular expression")))
+      .child(div().text_size(11).text_color(this.found?.error ? t.ansi1 : t.dim).truncate().child(status));
+  }
+
+  /** The hits by file, the matches marked; a click shows the file there. */
+  hits(t) {
+    const row = (r) => r.kind === "file"
+      ? h_flex().id(`found-${r.path}`).w_full().h(24).flex_none().px(10).gap(6).items_center().tooltip(r.path)
+        .child(div().font_semibold().child(r.path.split("/").pop()))
+        .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim)
+          .child(r.path.includes("/") ? r.path.slice(0, r.path.lastIndexOf("/")) : ""))
+        .child(div().px(5).rounded(4).text_size(10).bg(t.raised).text_color(t.muted).child(String(r.count)))
+      : h_flex().id(`hit-${r.path}:${r.line}`).w_full().h(24).flex_none().pl(10).pr(10).gap(8).items_center()
+        .rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
+        .when(this.peek === `${r.path}:${r.line}`, (e) => e.bg(t.selected)).on_click((_e, cx) => this.open(r, cx))
+        .child(div().w(34).flex_none().text_right().text_size(11).text_color(t.dim).child(String(r.line)))
+        .child(this.line(t, r.text, r.spans));
+    return div().flex_1().min_h(0).relative().text_size(12)
+      .child(v_virtual_list("results", this.results.length, 24, (i) => String(i),
+        (range) => this.results.slice(range.start, range.end).map(row)).size_full())
+      .child(Scrollbar.vertical("results").viewport_from_layout().absolute().inset_0());
+  }
+
+  /** TEXT in one row, the matches (SPANS) marked. */
+  line(t, text, spans) {
+    return h_flex().flex_1().min_w(0).overflow_hidden().font_family(settings().font_family ?? "JetBrains Mono")
+      .children(marked(text, spans ?? []).map(({ text, hit }) => div().flex_none().child(text)
+        .when(hit, (e) => e.bg(t.selection).text_color(t.foreground).font_semibold())));
+  }
+
+  /** The hit's file from a few lines above it, numbered, its line marked. */
+  lines(t) {
+    const row = ({ number, text, spans }) => h_flex().w_full().h(20).flex_none().gap(10)
+      .when(Boolean(spans), (e) => e.bg(t.selected))
+      .child(div().w(34).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
+      .child(this.line(t, text, spans));
+    return div().flex_1().min_h(0).relative().border_t(1).border_color(t.border).text_size(11)
+      .child(v_virtual_list("lines", this.peekRows.length, 20, (i) => String(i),
+        (range) => this.peekRows.slice(range.start, range.end).map(row)).size_full())
+      .child(Scrollbar.vertical("lines").viewport_from_layout().absolute().inset_0());
   }
 
   /** The changes in two sections, as the TUI sidebar lists them: Staged Changes, then Changes. */

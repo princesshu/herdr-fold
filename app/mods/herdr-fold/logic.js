@@ -79,6 +79,55 @@ export const commitMode = (kept) => (typeof kept === "string" && kept in MODES ?
 /** What follows a commit in MODE: a push, a sync, or nothing. @param {string} mode */
 export const afterCommit = (mode) => (mode === "push" || mode === "sync" ? mode : null);
 
+/** @typedef {{ path: string, line: number, text: string, spans: number[][] }} Hit */
+
+/** The search's hits (core/search.py) as the list's rows: each file's row, counting its hits, then its hits.
+ * @param {Hit[]} hits */
+export function searchRows(hits) {
+  /** @type {({ kind: "file", path: string, count: number } | ({ kind: "hit" } & Hit))[]} */
+  const rows = [];
+  for (const hit of hits) {
+    const last = rows.findLast((row) => row.kind === "file");
+    if (last?.path === hit.path) /** @type {{ count: number }} */ (last).count++;
+    else rows.push({ kind: "file", path: hit.path, count: 1 });
+    rows.push({ kind: "hit", ...hit });
+  }
+  return rows;
+}
+
+/** TEXT in pieces, the SPANS (where the query matched, from core/search.py) marked.
+ * @param {string} text @param {number[][]} spans */
+export function marked(text, spans) {
+  const pieces = [];
+  let at = 0;
+  for (const [start, end] of spans) {
+    if (start > at) pieces.push({ text: text.slice(at, start), hit: false });
+    pieces.push({ text: text.slice(start, end), hit: true });
+    at = end;
+  }
+  if (at < text.length || !pieces.length) pieces.push({ text: text.slice(at), hit: false });
+  return pieces;
+}
+
+/** COUNT lines of TEXT from BEFORE lines above line LINE (counted from 1, never before the first): where they start,
+ * and the lines, each ending at its newline as the search counts them. @param {string} text @param {number} line
+ * @param {number} before @param {number} count */
+export function excerpt(text, line, before, count) {
+  const start = Math.max(1, line - before), all = text.split("\n");
+  if (all.at(-1) === "") all.pop();
+  return { start, lines: all.slice(start - 1, start - 1 + count).map((l) => l.replace(/\r$/, "")) };
+}
+
+/** The line above the hits, as the TUI sidebar says it.
+ * @param {{ total: number, files: number, hits: unknown[], error: string | null }} found */
+export function searchSummary(found) {
+  if (found.error) return found.error;
+  if (!found.total) return "No results found";
+  if (found.hits.length < found.total) return `${found.hits.length} of ${found.total} results shown`;
+  const s = (n) => (n === 1 ? "" : "s");
+  return `${found.total} result${s(found.total)} in ${found.files} file${s(found.files)}`;
+}
+
 /** The sync button: how far the branch is from its upstream, as the TUI sidebar says it.
  * @param {{ upstream: string | null, ahead: number, behind: number } | null} status */
 export function syncLabel(status) {

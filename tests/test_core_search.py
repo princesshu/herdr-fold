@@ -1,6 +1,7 @@
-"""Tests for the sidebar's search (src/plugins/sidebar/search.py): ripgrep, git grep and the built-in search agree on
-switches, ignored files, the limit, errors and folders of repositories; nothing outside the folder is read, and no
-program can wait on the terminal or run past its time."""
+"""Tests for the search (core/search.py: the TUI sidebar's and the app mod's): ripgrep, git grep and the built-in search
+agree on switches, ignored files, the limit, errors and folders of repositories; nothing outside the folder is read,
+and no program can wait on the terminal or run past its time; the mod's command line answers in JSON."""
+import json
 import os
 import shutil
 import subprocess
@@ -11,9 +12,9 @@ import time
 import unittest
 from unittest import mock
 
-from support import SRC, set_env, stubs, trap
+from support import PACKAGE, set_env, stubs, trap
 
-sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
+sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import search as module  # noqa: E402
 from search import Query, search  # noqa: E402
 
@@ -183,7 +184,7 @@ class Search(unittest.TestCase):
     def test_a_repositorys_config_cannot_make_git_wait_on_the_terminal(self):
         # [include] path = /dev/stdin (or /dev/tty): git would read the sidebar's own terminal, its keys, for good
         subprocess.run(["git", "-C", self.root, "config", "include.path", "/dev/stdin"], check=True)
-        code = (f"import shutil, sys; sys.path.insert(0, {os.path.join(SRC, 'plugins', 'sidebar')!r}); "
+        code = (f"import shutil, sys; sys.path.insert(0, {os.path.join(PACKAGE, 'core')!r}); "
                 f"from search import Query, search; "
                 f"print(search({self.root!r}, Query('Hero'), which=lambda n: None if n == 'rg' else shutil.which(n))"
                 f".total)")
@@ -262,6 +263,42 @@ class Search(unittest.TestCase):
 
     def test_an_empty_query_finds_nothing(self):
         self.assertEqual(search(self.root, Query(""), which=no_rg).total, 0)
+
+
+class CommandLine(Search):
+    """The Herdr app mod searches on the space's machine: python3 search.py ROOT QUERY, QUERY a JSON object (text,
+    case, word, regex, place, limit), so a text that starts with a dash is never read as an option; JSON back."""
+
+    def cli(self, root, query):
+        out = subprocess.run([sys.executable, "-B", module.__file__, root, json.dumps(query)], capture_output=True,
+                             text=True, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return json.loads(out.stdout)
+
+    def test_the_hits_their_lines_and_where_they_match(self):
+        found = self.cli(self.root, {"text": "hero"})
+        self.assertEqual((found["total"], found["files"], found["error"]), (4, 3, None))
+        hit = next(h for h in found["hits"] if h["path"] == "components/Hero.tsx" and h["line"] == 2)
+        self.assertEqual((hit["text"], hit["spans"]), ("  const hero = 1", [[8, 12]]))
+
+    def test_the_switches_the_place_and_the_limit(self):
+        self.assertEqual(self.cli(self.root, {"text": "Hero", "case": True, "word": True})["total"], 2)
+        self.assertEqual(self.cli(self.root, {"text": "her.?ic", "regex": True})["total"], 1)
+        inside = self.cli(self.root, {"text": "hero", "place": "components"})
+        self.assertEqual({h["path"] for h in inside["hits"]}, {"components/Hero.tsx", "components/Heroic.tsx"})
+        limited = self.cli(self.root, {"text": "hero", "limit": 1})
+        self.assertEqual((len(limited["hits"]), limited["total"]), (1, 4))
+
+    def test_a_text_like_an_option_is_searched_for(self):
+        with open(os.path.join(self.root, "flags.txt"), "w") as f:
+            f.write("run with --force here\n")
+        self.assertEqual(self.cli(self.root, {"text": "--force"})["total"], 1)
+
+    def test_a_query_that_is_no_json_object_is_a_usage_error(self):
+        for query in ("hero", "[1]", "{}"):
+            out = subprocess.run([sys.executable, "-B", module.__file__, self.root, query], capture_output=True,
+                                 text=True, timeout=60)
+            self.assertEqual(out.returncode, 2, query)
 
 
 if __name__ == "__main__":

@@ -102,7 +102,9 @@ class WholeWay(unittest.TestCase):
         self.run_here(app, "do", "herdr-fold.sync")
         self.wait_for(lambda: self.on_machine("git -C app rev-parse HEAD") ==
                       self.on_machine("git -C origin.git rev-parse main"), "the mod's push", 60)
-        # drawn too, not only obeyed: the window's status names any error a mod's code ran into
+        # drawn too, not only obeyed, Search as well: the window's status names any error a mod's code ran into
+        self.assertEqual(self.run_here(app, "do", "herdr-fold.search").returncode, 0)
+        time.sleep(3)
         status = self.run_here(app, "status").stdout
         print("\nthe window's status:\n" + status, file=sys.stderr)
         broken = [line for line in status.splitlines() if "herdr-fold" in line and

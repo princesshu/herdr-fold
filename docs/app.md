@@ -7,8 +7,8 @@ the same in both. It installs on its own, without the TUI environment.
 It comes with a layout of its own, `herdr-fold`: the app's main layout, with herdr-fold in the right panel where the
 app's own Changes was. The Changes button at the top right opens it there, and so does Cmd + Shift + G.
 
-Its first view is Changes. The other sidebar views (Files, Search, Issues) and the Conversations column are not in the
-app yet.
+Its views are Changes and Search, the tabs at its top; it keeps the one shown. The other sidebar views (Files, Issues)
+and the Conversations column are not in the app yet.
 
 ## Changes
 
@@ -23,6 +23,17 @@ For the repository of the focused pane, top to bottom:
 | Commit | commits the staged changes, or every change with none staged, with the message (Enter in the field too); a file whose name looks like a secret's (`.env`, a key, a certificate) is asked about first: the button says Commit anyway, and pressing it again commits. Its arrow chooses Commit, Commit & Push or Commit & Sync, as the TUI's: after the commit, a push or a sync; the choice stays for the next commit |
 
 The list follows the files: on this Mac a change shows at once, on another machine within ten seconds.
+
+## Search
+
+The focused pane's folder, searched as the TUI sidebar's Search does it, on the space's machine: ripgrep where it is,
+else git grep in a repository, else herdr-fold's own search; a file .gitignore names is never a hit nor read.
+
+| Part | What it does |
+|---|---|
+| Field | the text to find: the search runs once typing stops, Enter at once; Aa matches case, ab whole words, .* takes it as a regular expression |
+| The line under it | the folder searched, then how many hits in how many files (the first 1000 shown), or what went wrong |
+| Hits | by file, each with its line number, the match marked; a click shows the file below, from a few lines above the hit, its line marked |
 
 ## Installing it
 
@@ -63,8 +74,9 @@ In the herdr-fold layout:
 | Cmd + Shift + G | shows the right panel at herdr-fold, as the Changes button does; again hides it |
 | Cmd + Shift + C | has Claude or Codex write the message, as the ✦ does; Enter commits |
 
-The mod takes three commands for keys of your own: `herdr-fold.write`, `herdr-fold.commit` and `herdr-fold.sync`
-(they reach a herdr-fold that shows).
+The mod takes commands for keys of your own: `herdr-fold.write`, `herdr-fold.commit` and `herdr-fold.sync`, and
+`herdr-fold.changes` and `herdr-fold.search`, which show that view (Search with the keys in its field); they reach a
+herdr-fold that shows.
 
 ## On another machine
 
@@ -78,7 +90,8 @@ not take it.
 ## What it runs and reads
 
 - git, on the space's machine, and herdr-fold's own code with Python's `-I`: isolated, so no module in the repository's
-  folder (a `json.py`) is ever imported in its place.
+  folder (a `json.py`) is ever imported in its place. Search runs ripgrep or git grep there, with no input, no terminal
+  and a time limit; a hit's file is read with the app's own file reader, on that machine.
 - The list and the diff are asked for unasked, so they run nothing a repository's own config names: no fsmonitor,
   filter, external diff, text conversion or submodule look. Staging (the ✦ and Commit) runs its filters, and
   committing and syncing its hooks, as git in a terminal does.

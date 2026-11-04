@@ -1,12 +1,15 @@
+# Generated from core/search.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
 """The sidebar's search of the root or a folder or file in it: ripgrep, else git grep in a repository, else a built-in
 search. Ignored files are never hits nor read; every program runs with no stdin, no terminal and a time limit. A line
 ends only at a newline (no splitlines()), as ripgrep and git grep count; one Python regex marks the match everywhere."""
+import json
 import os
 import re
 import shutil
 import signal
 import stat
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -15,6 +18,7 @@ from dataclasses import dataclass, field
 MAX_FILE = 2_000_000
 MAX_LINE = 500
 TIMEOUT = 60                  # seconds a search's program may run: a repository's config can make git wait for good
+MOD_TIMEOUT = 25              # the same for the app mod's: the app's exec stops a program after 30 s
 QUICK = 10                    # seconds for git's look at a folder (whether it is a repository, its file list)
 # how every program a search runs starts: with nothing to read and no terminal to open (a repository's config can
 # name /dev/stdin or /dev/tty for git to read, which would be the sidebar's own terminal and its keys)
@@ -245,3 +249,30 @@ def strip_dot(parsed):
     if parsed and parsed[0][:2] in ("./", ".\\"):
         return (parsed[0][2:],) + parsed[1:]
     return parsed
+
+
+def main(argv):
+    """herdr-fold's Herdr app mod runs this on the space's machine: search.py ROOT QUERY, QUERY a JSON object (text,
+    case, word, regex, place, limit), so no text is ever read as an option; JSON back: the hits, their count, the
+    error."""
+    global TIMEOUT
+    try:
+        asked = json.loads(argv[2]) if len(argv) == 3 else None
+    except ValueError:
+        asked = None
+    if not isinstance(asked, dict) or not isinstance(asked.get("text"), str) or not asked["text"]:
+        print("usage: search.py ROOT QUERY (a JSON object: text, case, word, regex, place, limit)", file=sys.stderr)
+        return 2
+    TIMEOUT = min(TIMEOUT, MOD_TIMEOUT)
+    query = Query(asked["text"], *(bool(asked.get(name)) for name in ("case", "word", "regex")))
+    limit = asked.get("limit") if isinstance(asked.get("limit"), int) and asked["limit"] > 0 else 1000
+    place = asked.get("place") if isinstance(asked.get("place"), str) else ""
+    found = search(argv[1], query, limit=limit, place=place)
+    print(json.dumps({"hits": [{"path": hit.path, "line": hit.line_no, "text": hit.text,
+                                "spans": [list(span) for span in hit.spans]} for hit in found.hits],
+                      "total": found.total, "files": found.files, "error": found.error}))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
