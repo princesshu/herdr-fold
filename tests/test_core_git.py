@@ -223,6 +223,57 @@ class CommandLine(Repo):
         self.assertEqual(self.cli("push", self.root), {"ok": True, "advice": None})
         self.assertEqual(self.cli("status", self.root)["upstream"], "origin/main")
 
+    def test_named_files_staged_and_unstaged_the_rest_left(self):
+        self.write("a.txt")
+        self.commit_all()
+        self.write("a.txt", "changed\n")
+        self.write("b.txt")
+        self.assertEqual(self.cli("stage", self.root, "b.txt"), {"ok": True, "advice": None})
+        status = self.cli("status", self.root)
+        self.assertEqual((status["staged"], status["changes"]),
+                         ([{"path": "b.txt", "code": "A"}], [{"path": "a.txt", "code": "M"}]))
+        self.assertEqual(self.cli("unstage", self.root, "b.txt"), {"ok": True, "advice": None})
+        self.assertEqual(self.cli("status", self.root)["staged"], [])
+        self.assertEqual(self.cli("stage", self.root), {"ok": True, "advice": None})     # no name: every change
+        self.assertEqual(len(self.cli("status", self.root)["staged"]), 2)
+
+    def test_a_tracked_files_change_discarded_a_new_file_never_touched(self):
+        self.write("a.txt", "kept\n")
+        self.commit_all()
+        self.write("a.txt", "changed\n")
+        self.write("new.txt", "mine\n")
+        self.assertEqual(self.cli("discard", self.root, "a.txt"), {"ok": True, "advice": None})
+        with open(os.path.join(self.root, "a.txt")) as f:
+            self.assertEqual(f.read(), "kept\n")
+        self.assertFalse(self.cli("discard", self.root, "new.txt")["ok"])
+        self.assertTrue(os.path.exists(os.path.join(self.root, "new.txt")))
+
+    def test_the_graph_newest_first(self):
+        self.write("a.txt")
+        self.commit_all("one")
+        self.write("a.txt", "2\n")
+        self.commit_all("two")
+        commits = self.cli("graph", self.root)["commits"]
+        self.assertEqual([(c["subject"], c["author"], c["head"]) for c in commits],
+                         [("two", "dev", True), ("one", "dev", False)])
+        self.assertEqual(commits[0]["refs"], ["main"])
+        self.assertEqual(commits[0]["hash"], self.run_git("rev-parse", "--short", "HEAD").strip())
+
+    def test_a_commits_diff_by_its_hash_and_by_nothing_else(self):
+        self.write("a.txt", "1\n")
+        self.commit_all("one")
+        self.write("a.txt", "2\n")
+        self.commit_all("two")
+        shown = self.cli("show", self.root, self.run_git("rev-parse", "--short", "HEAD").strip())
+        self.assertIsNone(shown["error"])
+        self.assertIn("two", shown["text"])
+        self.assertIn("+2", shown["text"])
+        self.assertNotIn("dev@example.com", shown["text"])               # the author by name, never by address
+        written = os.path.join(self.folder(), "out")
+        for rev in (f"--output={written}", "HEAD~1", "main"):        # an option or a name: never handed to git
+            self.assertEqual(self.cli("show", self.root, rev), {"text": "", "error": "Not a commit"})
+        self.assertFalse(os.path.exists(written))
+
 
 class Status(Repo):
     def test_every_kind_of_change(self):

@@ -102,6 +102,12 @@ class WholeWay(unittest.TestCase):
         self.run_here(app, "do", "herdr-fold.sync")
         self.wait_for(lambda: self.on_machine("git -C app rev-parse HEAD") ==
                       self.on_machine("git -C origin.git rev-parse main"), "the mod's push", 60)
+        # drawn too, not only obeyed: the window's status names any error a mod's code ran into
+        status = self.run_here(app, "status").stdout
+        print("\nthe window's status:\n" + status, file=sys.stderr)
+        broken = [line for line in status.splitlines() if "herdr-fold" in line and
+                  any(word in line.lower() for word in ("error", "panic", "exception", "failed"))]
+        self.assertEqual(broken, [], self.app_failed(app, said))
 
     def seen_before(self, app):
         """The demo's app as one that ran this version before: no welcome, no What's New over the mod's panel (the

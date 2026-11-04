@@ -409,6 +409,7 @@ export const GIT = [
     "ill does.\"\"\"",
   "import json",
   "import os",
+  "import re",
   "import shutil",
   "import subprocess",
   "import sys",
@@ -579,6 +580,22 @@ export const GIT = [
     "hey differ",
   "",
   "",
+  "def show(root, rev):",
+  "    \"\"\"Commit REV's message and diff, REV a hash only (never a name or an option git would take): (its te" +
+    "xt, else why",
+  "    there is none).\"\"\"",
+  "    if not re.fullmatch(r\"[0-9a-f]{4,40}\", rev):",
+  "        return \"\", \"Not a commit\"",
+  "    off = no_filters(root)",
+  "    if off is None:",
+  "        return \"\", NO_DIFF",
+  "    out = run(root, *off, \"show\", \"--no-ext-diff\", \"--no-textconv\", \"--no-color\", \"--ignore-submodu" +
+    "les=dirty\",",
+  "              \"--format=%h  %an  %ar%n%n%B\", rev, \"--\")                # the author by name, not by addr" +
+    "ess",
+  "    return out.stdout, (last_line(out) or \"Not a commit\") if out.returncode else None",
+  "",
+  "",
   "def stage(root, paths):",
   "    out = run(root, \"add\", \"--\", *paths)",
   "    return None if out.returncode == 0 else last_line(out)",
@@ -696,28 +713,47 @@ export const GIT = [
   "    return commits",
   "",
   "",
+  "# what the Herdr app mod asks for: the arguments each command takes after ROOT, at least and at most (None: " +
+    "any number)",
+  "COMMANDS = {\"status\": (0, 0), \"diff\": (1, 1), \"show\": (1, 1), \"graph\": (0, 0), \"stage\": (0, None),",
+  "            \"unstage\": (1, None), \"discard\": (1, 1), \"commit\": (1, 1), \"sync\": (0, 0), \"push\": (0," +
+    " 0)}",
+  "",
+  "",
   "def main(argv):",
-  "    \"\"\"herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: status ROOT, " +
-    "diff ROOT PATH",
-  "    (its text, else why there is none), stage ROOT (stage_all), commit ROOT MESSAGE, sync ROOT or push ROOT " +
+  "    \"\"\"herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: status, graph" +
+    "; diff, show",
+  "    (the text, else why there is none); stage (no PATH: every change), unstage, discard, commit, sync, push " +
     "(whether",
-  "    each worked, else what to do).\"\"\"",
+  "    each worked, else what to do). The arguments each takes: COMMANDS and the usage line.\"\"\"",
   "    command, args = (argv[1], argv[2:]) if len(argv) > 1 else (\"\", [])",
-  "    if command not in (\"status\", \"diff\", \"stage\", \"commit\", \"sync\", \"push\") or \\",
-  "            len(args) != (2 if command in (\"diff\", \"commit\") else 1):",
-  "        print(\"usage: git.py status|stage|sync|push ROOT, git.py diff ROOT PATH, git.py commit ROOT MESSAGE" +
-    "\",",
-  "              file=sys.stderr)",
+  "    least, most = COMMANDS.get(command, (0, -1))                # an unknown command: no count fits",
+  "    given = len(args) - 1                                        # after ROOT",
+  "    if not args or given < least or (most is not None and given > most):",
+  "        print(\"usage: git.py status|graph|sync|push ROOT, git.py diff|discard ROOT PATH, git.py show ROOT H" +
+    "ASH, \"",
+  "              \"git.py stage ROOT [PATH\u2026], git.py unstage ROOT PATH\u2026, git.py commit ROOT MESSAGE\"" +
+    ", file=sys.stderr)",
   "        return 2",
+  "    root, rest = args[0], args[1:]",
   "    if command == \"status\":",
-  "        st = status(args[0])",
+  "        st = status(root)",
   "        answer = dict(asdict(st), ignored=sorted(st.ignored))",
-  "    elif command == \"diff\":",
-  "        text, error = diff(*args)",
+  "    elif command in (\"diff\", \"show\"):",
+  "        text, error = (diff if command == \"diff\" else show)(root, *rest)",
   "        answer = {\"text\": text, \"error\": error}",
+  "    elif command == \"graph\":",
+  "        answer = {\"commits\": [dict(asdict(c), refs=list(c.refs)) for c in graph(root)]}",
   "    else:",
-  "        ok, line = {\"stage\": stage_all, \"commit\": commit, \"sync\": sync, \"push\": push}[command](*args" +
-    ")",
+  "        if command in (\"unstage\", \"discard\") or (command == \"stage\" and rest):     # named files: None" +
+    ", or the error",
+  "            error = {\"stage\": stage, \"unstage\": unstage}[command](root, rest) if command != \"discard\" " +
+    "\\",
+  "                else discard(root, rest[0])",
+  "            ok, line = error is None, error or \"\"",
+  "        else:",
+  "            ok, line = {\"stage\": stage_all, \"commit\": commit, \"sync\": sync, \"push\": push}[command](r" +
+    "oot, *rest)",
   "        answer = {\"ok\": ok, \"advice\": None if ok else advice(line)}",
   "    print(json.dumps(answer))",
   "    return 0",

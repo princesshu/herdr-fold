@@ -29,6 +29,29 @@ export function diffRows(lines) {
   });
 }
 
+/** A commit's message and diff (core/git.py's show) as rows: its header as it is, each file's name a heading, its
+ * hunks numbered; a file's own lines (index, ---, +++) left out, what git says instead of a hunk kept.
+ * @param {string} text @returns {Row[]} */
+export function commitRows(text) {
+  /** @type {Row[]} */
+  const rows = [];
+  /** @type {string[] | null} the file's hunk lines; null before the first file */
+  let hunks = null;
+  const flush = () => hunks && rows.push(...diffRows(hunks));
+  for (const line of text.replace(/\n$/, "").split("\n")) {
+    const file = /^diff --git a\/.* b\/(.*)$/.exec(line);
+    if (file) {
+      flush();
+      hunks = [];
+      rows.push({ kind: "@", text: file[1] });
+    } else if (!hunks) rows.push({ kind: "", text: line });
+    else if (hunks.length || line.startsWith("@@")) hunks.push(line);
+    else if (line.startsWith("Binary files")) rows.push({ kind: "", text: line });
+  }
+  flush();
+  return rows;
+}
+
 /** Each changed file once from core/git.py's status, staged ones first, as git lists them.
  * @param {{ staged: { path: string, code: string }[], changes: { path: string, code: string }[] }} status */
 export function changedFiles(status) {
@@ -38,6 +61,23 @@ export function changedFiles(status) {
   }
   return [...seen.values()];
 }
+
+/** A row's buttons, as the TUI sidebar's: a staged file unstages; a change stages, and a tracked file's change
+ * discards (never a new file, nor a conflict's: those are settled in the file).
+ * @param {"staged" | "changes"} kind @param {string} code @returns {string[]} */
+export function rowActions(kind, code) {
+  if (kind === "staged") return ["unstage"];
+  return code === "?" || code === "U" ? ["stage"] : ["discard", "stage"];
+}
+
+/** The Commit button's modes, as the TUI sidebar names them. */
+export const MODES = { commit: "Commit", push: "Commit & Push", sync: "Commit & Sync" };
+
+/** The mode kept, or Commit for anything else. @param {unknown} kept @returns {keyof MODES} */
+export const commitMode = (kept) => (typeof kept === "string" && kept in MODES ? /** @type {any} */ (kept) : "commit");
+
+/** What follows a commit in MODE: a push, a sync, or nothing. @param {string} mode */
+export const afterCommit = (mode) => (mode === "push" || mode === "sync" ? mode : null);
 
 /** The sync button: how far the branch is from its upstream, as the TUI sidebar says it.
  * @param {{ upstream: string | null, ahead: number, behind: number } | null} status */

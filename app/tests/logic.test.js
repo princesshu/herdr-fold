@@ -6,19 +6,47 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { background, changedFiles, diffRows, panelToggle, pythonCommand, secretQuestion, syncLabel, written }
-  from "../mods/herdr-fold/logic.js";
+import { afterCommit, background, changedFiles, commitMode, commitRows, diffRows, MODES, panelToggle, pythonCommand,
+  rowActions, secretQuestion, syncLabel, written } from "../mods/herdr-fold/logic.js";
 
 test("a diff's lines numbered once, old and new apart", () => {
   const rows = diffRows(["@@ -3,2 +3,3 @@", " same", "-old", "+new", "+more"]);
   assert.deepEqual(rows.map((r) => [r.kind, r.number ?? null]), [["@", null], [" ", 3], ["-", 4], ["+", 4], ["+", 5]]);
 });
 
+test("a commit's diff: its header as it is, each file's name a heading, its hunks numbered, its own lines left out",
+  () => {
+    const rows = commitRows(["abc1234  dev  2 days ago", "", "fix: two files", "",
+      "diff --git a/a.txt b/a.txt", "index 1..2 100644", "--- a/a.txt", "+++ b/a.txt", "@@ -1 +1 @@", "-1", "+2",
+      "diff --git a/new.png b/new.png", "new file mode 100644", "Binary files /dev/null and b/new.png differ", ""]
+      .join("\n"));
+    assert.deepEqual(rows.map((r) => [r.kind, r.number ?? null, r.text]), [
+      ["", null, "abc1234  dev  2 days ago"], ["", null, ""], ["", null, "fix: two files"], ["", null, ""],
+      ["@", null, "a.txt"], ["@", null, "@@ -1 +1 @@"], ["-", 1, "1"], ["+", 1, "2"],
+      ["@", null, "new.png"], ["", null, "Binary files /dev/null and b/new.png differ"]]);
+  });
+
 test("each changed file once, staged or not, in the order git gives them", () => {
   const status = { staged: [{ path: "b.txt", code: "A" }, { path: "a.txt", code: "M" }],
     changes: [{ path: "a.txt", code: "M" }, { path: "new.txt", code: "?" }] };
   assert.deepEqual(changedFiles(status), [{ path: "b.txt", code: "A" }, { path: "a.txt", code: "M" },
     { path: "new.txt", code: "?" }]);
+});
+
+test("a row's buttons, as the TUI sidebar's: a staged file unstages, a change stages, a tracked one discards", () => {
+  assert.deepEqual(rowActions("staged", "M"), ["unstage"]);
+  assert.deepEqual(rowActions("changes", "M"), ["discard", "stage"]);
+  assert.deepEqual(rowActions("changes", "D"), ["discard", "stage"]);
+  assert.deepEqual(rowActions("changes", "?"), ["stage"]);           // a new file is never thrown away from here
+  assert.deepEqual(rowActions("changes", "U"), ["stage"]);           // a conflict is settled, not undone
+});
+
+test("the commit modes, named as in the TUI sidebar, and what follows each commit", () => {
+  assert.deepEqual(Object.values(MODES), ["Commit", "Commit & Push", "Commit & Sync"]);
+  assert.equal(commitMode("push"), "push");
+  assert.equal(commitMode(undefined), "commit");                    // nothing kept yet, or something else kept
+  assert.equal(commitMode("rm -rf"), "commit");
+  assert.deepEqual(["commit", "push", "sync"].map(afterCommit), [null, "push", "sync"]);
 });
 
 test("the sync button says how far the branch is from its upstream, as the TUI sidebar does", () => {
