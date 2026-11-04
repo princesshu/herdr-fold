@@ -41,7 +41,8 @@ class Install(unittest.TestCase):
         self.assertEqual(herdr_app.install(PACKAGE, self.home), 0)
         for name in os.listdir(MOD):
             self.assertEqual(read(os.path.join(self.home, "mods", "herdr-fold", name)), read(os.path.join(MOD, name)))
-        for rel in (("layouts", "herdr-fold.json"), ("themes", "herdr-fold.json")):     # the layout in its own theme
+        themes = os.path.join(PACKAGE, "app", "themes")
+        for rel in [("layouts", "herdr-fold.json")] + [("themes", name) for name in os.listdir(themes)]:
             self.assertEqual(read(os.path.join(self.home, *rel)), read(os.path.join(PACKAGE, "app", *rel)))
         with open(os.path.join(PACKAGE, "app", "keys.json"), encoding="utf-8") as f:
             self.assertEqual(keys(self.home), json.load(f))

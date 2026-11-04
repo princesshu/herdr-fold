@@ -42,16 +42,29 @@ class Copies(unittest.TestCase):
 class AppTheme(unittest.TestCase):
     """The Herdr app's herdr-fold layout wears the TUI's own colors: its theme made from the package's (themes.js)."""
 
-    def test_the_layout_is_in_the_tuis_colors(self):
+    def setUp(self):
         sys.path.insert(0, os.path.join(PACKAGE, "src", "themes"))
         import apply
-        tui = apply.find(apply.load_themes(), apply.current_id(os.path.join(PACKAGE, "config", "ghostty", "config")))
-        made = json.loads(build.outputs()[os.path.join("app", "themes", "herdr-fold.json")])
-        colors, frame = tui["colors"], tui["colors"]["herdr"]
-        self.assertEqual((made["background"], made["foreground"], made["cursor"], made["ansi"]),
-                         (colors["background"], colors["foreground"], colors["cursor"], colors["palette"]))
-        self.assertEqual((made["colors"]["accent"], made["colors"]["chrome"], made["colors"]["selected"]),
-                         (frame["accent"], frame["sidebar_bg"], frame["active_row_bg"]))
+        self.themes = apply.load_themes()
+        self.default = apply.current_id(os.path.join(PACKAGE, "config", "ghostty", "config"))
+
+    def made(self, name):
+        return json.loads(build.outputs()[os.path.join("app", "themes", name)])
+
+    def test_every_tui_theme_is_one_of_the_apps_in_its_colors(self):
+        for tui in self.themes:
+            with self.subTest(tui["id"]):
+                made, colors, frame = self.made(f"herdr-fold-{tui['id']}.json"), tui["colors"], tui["colors"]["herdr"]
+                self.assertEqual((made["background"], made["foreground"], made["cursor"], made["ansi"]),
+                                 (colors["background"], colors["foreground"], colors["cursor"], colors["palette"]))
+                self.assertEqual((made["colors"]["accent"], made["colors"]["chrome"], made["colors"]["selected"]),
+                                 (frame["accent"], frame["sidebar_bg"], frame["active_row_bg"]))
+        themes = {rel for rel in build.outputs() if rel.startswith(os.path.join("app", "themes", ""))}
+        self.assertEqual(len(themes), len(self.themes) + 1)        # each theme, and the layout's own
+
+    def test_the_layout_wears_the_tuis_default_catppuccin(self):
+        self.assertEqual(self.default, "catppuccin")
+        self.assertEqual(self.made("herdr-fold.json"), self.made("herdr-fold-catppuccin.json"))
         with open(os.path.join(PACKAGE, "app", "layouts", "herdr-fold.json"), encoding="utf-8") as f:
             self.assertEqual(json.load(f)["theme"], "herdr-fold")
 

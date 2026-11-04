@@ -8,7 +8,7 @@ import sys
 import tempfile
 
 MOD, LAYOUT, KEYS = os.path.join("mods", "herdr-fold"), os.path.join("layouts", "herdr-fold.json"), "keys.json"
-THEME = os.path.join("themes", "herdr-fold.json")   # the layout's own (the app offers it only there)
+THEMES = "themes"              # herdr-fold.json (the layout's own) and the TUI's themes, herdr-fold-ID.json
 TITLE = "herdr-fold"            # the mod.json title that marks a mods/herdr-fold folder as herdr-fold's copy
 
 
@@ -83,6 +83,12 @@ def drop_keys(mine, added):
     return kept
 
 
+def themes(package):
+    """The themes PACKAGE brings, each a file under themes/: all named herdr-fold, none a person's own."""
+    return [os.path.join(THEMES, name) for name in sorted(os.listdir(os.path.join(package, "app", THEMES)))
+            if name.startswith("herdr-fold") and name.endswith(".json")]
+
+
 def package_keys(package):
     with open(os.path.join(package, "app", KEYS), encoding="utf-8") as f:
         return json.load(f)
@@ -93,7 +99,7 @@ def install(package, home):
     if os.path.lexists(os.path.join(home, MOD)) and not herdr_folds(os.path.join(home, MOD)):
         return 4
     replace(os.path.join(home, MOD), os.path.join(package, "app", MOD))
-    for rel in (LAYOUT, THEME):
+    for rel in (LAYOUT, *themes(package)):
         os.makedirs(os.path.join(home, os.path.dirname(rel)), exist_ok=True)
         shutil.copyfile(os.path.join(package, "app", rel), os.path.join(home, rel))
     mine = read_keys(os.path.join(home, KEYS))
@@ -106,7 +112,7 @@ def install(package, home):
 def uninstall(package, home):
     if herdr_folds(os.path.join(home, MOD)):
         replace(os.path.join(home, MOD))
-    for rel in (LAYOUT, THEME):
+    for rel in (LAYOUT, *themes(package)):
         if os.path.isfile(os.path.join(home, rel)):
             os.remove(os.path.join(home, rel))
     mine = read_keys(os.path.join(home, KEYS))

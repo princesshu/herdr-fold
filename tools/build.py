@@ -13,7 +13,8 @@ HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"COMMIT_MESS
                                                                     "FILEOPS": "fileops.py", "GIT": "git.py",
                                                                     "JOB": "job.py", "SEARCH": "search.py"}}
 MOD_ONLY = {"job.py"}         # what only the mod runs (its background jobs): the sidebar gets no copy
-THEME = os.path.join("app", "themes", "herdr-fold.json")      # the herdr-fold layout's own theme in the Herdr app
+THEMES = os.path.join("app", "themes")      # the TUI's themes in the Herdr app: herdr-fold-ID.json for each, and
+THEME = os.path.join(THEMES, "herdr-fold.json")   # the herdr-fold layout's own (the package's, Catppuccin Mocha)
 
 
 def core(name):
@@ -47,12 +48,17 @@ def literal(text):
     return "[\n  " + ",\n  ".join(rows) + ',\n].join("\\n")'
 
 
-def app_theme():
-    """The herdr-fold layout's theme in the Herdr app: the package's TUI theme (src/themes/themes.js, the one its
-    Ghostty config sets), in the app's theme format, the panels in the colors of herdr's frame round the TUI's panes."""
+def tui_themes():
+    """The TUI's themes (src/themes/themes.js), and the package's own among them (the one its Ghostty config sets)."""
     sys.path.insert(0, os.path.join(ROOT, "src", "themes"))
     import apply
-    theme = apply.find(apply.load_themes(), apply.current_id(os.path.join(ROOT, "config", "ghostty", "config")))
+    themes = apply.load_themes()
+    return themes, apply.find(themes, apply.current_id(os.path.join(ROOT, "config", "ghostty", "config")))
+
+
+def app_theme(theme):
+    """THEME, one of the TUI's, as a Herdr app theme: the TUI's terminal colors, the panels in the colors of herdr's
+    frame round the TUI's panes."""
     colors, frame = theme["colors"], theme["colors"]["herdr"]
     selection = theme["herdr"].get("custom", {}).get("selection_bg") or frame["surface0"]
     panels = {"canvas": "sidebar_bg", "chrome": "sidebar_bg", "surface": "panel_bg", "popover": "panel_bg",
@@ -75,7 +81,9 @@ def outputs():
         lines = js_note(list(sources.values()))
         lines += [f"export const {const} = {literal(core(name))};" for const, name in sources.items()]
         made[path] = "\n".join(lines) + "\n"
-    made[THEME] = app_theme()
+    themes, own = tui_themes()
+    made.update({os.path.join(THEMES, f"herdr-fold-{theme['id']}.json"): app_theme(theme) for theme in themes})
+    made[THEME] = app_theme(own)
     return made
 
 

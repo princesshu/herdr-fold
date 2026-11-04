@@ -15,9 +15,9 @@ All notable changes to this project are listed here. The format follows
   Commit & Push or Commit & Sync, sync, and the Graph of the last commits with each one's diff) and Search (the space's
   folder, with the TUI's switches, a hit's file shown at its line), for a space on this Mac or on another machine
   (Linux, macOS or Windows), with the TUI's data layer underneath; a layout of its own puts it in the right panel, where
-  the app's Changes was (Cmd + Shift + G), dark in the TUI's colors, its code in Menlo as VS Code's. Where the Herdr app
-  is on the Mac, `install.sh` asks once and sets it all up, the remote machines in the app too; `uninstall.sh` takes it
-  off. See [The Herdr app](docs/app.md).
+  the app's Changes was (Cmd + Shift + G), dark in the TUI's colors (Catppuccin Mocha), its code in Menlo as VS Code's;
+  the TUI's twelve themes come along in the app's Settings. Where the Herdr app is on the Mac, `install.sh` asks once
+  and sets it all up, the remote machines in the app too; `uninstall.sh` takes it off. See [The Herdr app](docs/app.md).
 - The sidebar in a workspace whose folder is no repository itself (your home folder, a folder of projects): Changes
   shows the repository of the folder or file chosen in Files, however deep, with its changes, commit and sync; Files'
   marks and the Issues view follow it. See [The sidebar](docs/sidebar.md#how-it-starts).

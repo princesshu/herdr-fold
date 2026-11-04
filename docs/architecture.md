@@ -72,7 +72,7 @@ plugins of its own.
 |---|---|
 | `app/mods/herdr-fold/` | herdr-fold's mod for the Herdr desktop app, the TUI sidebar's counterpart ([The Herdr app](app.md)): `main.js` the Changes view, and the toggle Cmd+Shift+G opens it as; `helper.js` holds the core's source, which it runs with Python's `-I` on the space's machine (`python3`, or what a Windows machine's `python.ps1` names); `logic.js` what it works out without a window: a diff's rows, the sync label, the question before a commit, the message writer as a background job |
 | `app/layouts/herdr-fold.json` | the app's main layout with herdr-fold in the right panel, where the app's own Changes was: the Changes button and Cmd+Shift+G open it there |
-| `app/themes/herdr-fold.json` | that layout's own theme, made by `tools/build.py` from the TUI's (the package's theme in `src/themes/themes.js`): its terminals and panels in the TUI's colors; the app's theme menu changes it |
+| `app/themes/` | the TUI's themes as the app's, made by `tools/build.py` from `src/themes/themes.js`: `herdr-fold.json`, that layout's own (the package's, Catppuccin Mocha), and `herdr-fold-ID.json` for each of the TUI's, offered in the app's Settings for every layout |
 | `app/keys.json` | the keys, merged into the app's own: in that layout Cmd+Shift+G shows or hides herdr-fold, and Cmd+Shift+C has it write the message |
 | `app/tests/` | the mod's logic tested with Node (`logic.test.js`, `node --test app/tests`); `tests/test_app.py` runs them, and the app's own check of the mod |
 

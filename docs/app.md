@@ -9,6 +9,23 @@ app's own Changes was. The Changes button at the top right opens it there, and s
 dark, in the TUI's own colors (its theme, `themes/herdr-fold.json`, is made from the TUI's), and its code is in Menlo,
 as VS Code's (on Linux and Windows the app's JetBrains Mono); the app's theme and font menus change them.
 
+The TUI's themes come along, for any layout: Settings lists each under its file's name, in `themes/`.
+
+| File | The TUI's theme |
+|---|---|
+| `herdr-fold-catppuccin.json` | Catppuccin Mocha |
+| `herdr-fold-vscode.json` | VS Code (Dark Modern) |
+| `herdr-fold-vesper.json` | Vesper |
+| `herdr-fold-github-dark.json` | GitHub Dark |
+| `herdr-fold-tokyo-night.json` | Tokyo Night |
+| `herdr-fold-kanagawa.json` | Kanagawa |
+| `herdr-fold-rose-pine.json` | Rosé Pine |
+| `herdr-fold-one-dark.json` | One Dark |
+| `herdr-fold-dracula.json` | Dracula |
+| `herdr-fold-gruvbox.json` | Gruvbox |
+| `herdr-fold-nord.json` | Nord |
+| `herdr-fold-solarized.json` | Solarized |
+
 Its views are Changes and Search, the tabs at its top; it keeps the one shown. The other sidebar views (Files, Issues)
 and the Conversations column are not in the app yet.
 
