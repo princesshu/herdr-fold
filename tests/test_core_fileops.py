@@ -1,15 +1,19 @@
-"""Tests for the sidebar's file operations (src/plugins/sidebar/fileops.py) in a temporary root and home: new, rename
-(never overwriting), the Trash (macOS and Windows through stand-ins), the path copied with a stand-in clipboard;
-nothing outside the root, in an AI tool's folder or in a folder holding one is ever touched."""
+"""Tests for the file operations (core/fileops.py: the TUI sidebar's and the app mod's) in a temporary root and home:
+new, rename (never overwriting), the Trash (macOS and Windows through stand-ins), the path copied with a stand-in
+clipboard; nothing outside the root, in an AI tool's folder or in a folder holding one is ever touched."""
+import contextlib
+import io
+import json
 import os
 import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
-from support import SRC, set_env
+from support import PACKAGE, set_env
 
-sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
+sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import fileops  # noqa: E402
 from fileops import Ops, Refused  # noqa: E402
 
@@ -127,6 +131,40 @@ class Files(unittest.TestCase):
         ops = self.ops(clipboard=lambda text: copied.append(text) or True)
         self.assertTrue(ops.copy_path(os.path.join(self.root, "README.md")))
         self.assertEqual(copied, [os.path.join(self.root, "README.md")])
+
+
+class CommandLine(Files):
+    """The Herdr app mod sends a new file to the Trash on the repository's machine: python3 fileops.py trash ROOT PATH,
+    answering in JSON; the system's Trash (macOS, Windows) through a stand-in, Linux's under the temporary home."""
+
+    def cli(self, *args):
+        trashed = os.path.join(self.tmp, "trashed")
+        os.makedirs(trashed, exist_ok=True)
+        stand_in = lambda path: shutil.move(path, trashed)                     # noqa: E731
+        out = io.StringIO()
+        with mock.patch.object(fileops, "mac_trash", stand_in), \
+                mock.patch.object(fileops, "windows_recycle", stand_in), \
+                mock.patch.dict(os.environ, {"HOME": self.home}), contextlib.redirect_stdout(out):
+            code = fileops.main(["fileops.py", *args])
+        return code, (json.loads(out.getvalue()) if out.getvalue() else None)
+
+    def test_a_new_file_goes_to_the_trash(self):
+        self.write("notes/new.txt")
+        code, answer = self.cli("trash", self.root, "notes/new.txt")
+        self.assertEqual((code, answer["ok"]), (0, True))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "notes", "new.txt")))
+
+    def test_nothing_outside_the_root(self):
+        self.write("kept.txt", root=self.home)
+        for rel in ("../../kept.txt", os.path.join(self.home, "kept.txt")):
+            code, answer = self.cli("trash", self.root, rel)
+            self.assertEqual((code, answer["ok"]), (0, False))
+            self.assertIn("outside", answer["advice"])
+        self.assertTrue(os.path.exists(os.path.join(self.home, "kept.txt")))
+
+    def test_anything_else_is_a_usage_error(self):
+        self.assertEqual(self.cli("rename", self.root, "README.md"), (2, None))
+        self.assertEqual(self.cli("trash", self.root), (2, None))
 
 
 if __name__ == "__main__":

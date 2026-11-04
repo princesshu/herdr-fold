@@ -64,7 +64,7 @@ plugins of its own.
 
 | File | What it is |
 |---|---|
-| `core/` | the data layer the TUI sidebar and the Herdr app mod share, its one source: `git.py` (the status, a file's diff, a sync that loses nothing), `commit_message.py` (the commit message Claude or Codex writes, the staged files named like secrets), `job.py` (the mod's background job: started out of the exec that starts it, polled, cleared); each answers the mod in JSON from the command line; `tools/build.py` copies it into the sidebar's folder (all but `job.py`) and into the mod, each installing on its own |
+| `core/` | the data layer the TUI sidebar and the Herdr app mod share, its one source: `git.py` (the status, a file's diff, staging, the last commits, a sync that loses nothing), `fileops.py` (new, rename and the system's Trash, never outside the root nor in an AI tool's folder), `commit_message.py` (the commit message Claude or Codex writes, the staged files named like secrets), `job.py` (the mod's background job: started out of the exec that starts it, polled, cleared); each answers the mod in JSON from the command line; `tools/build.py` copies it into the sidebar's folder (all but `job.py`) and into the mod, each installing on its own |
 
 ### The Herdr app
 

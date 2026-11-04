@@ -5,7 +5,7 @@ import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list } from "gpui-base";
 import { spaces, panes, focused, exec, hc, home, watchFolder, nextCommand, theme, settings, layout, props, closeOverlay,
   shared, setShared, run as command } from "herdr";
-import { COMMIT_MESSAGE, GIT } from "./helper.js";
+import { COMMIT_MESSAGE, FILEOPS, GIT } from "./helper.js";
 import { afterCommit, background, changedFiles, commitMode, commitRows, diffRows, MODES, panelToggle, pythonCommand,
   rowActions, secretQuestion, syncLabel, written } from "./logic.js";
 
@@ -222,15 +222,20 @@ export default class HerdrFold extends View {
     cx.notify();
   }
 
-  /** A row's button: stage or unstage PATH, or discard its change once asked (a second press of Discard).
-   * @param {string} action @param {string} path */
-  change(action, path, cx) {
+  /** A row's button: stage or unstage PATH, or once asked (a second press of Discard) undo its change, a new file
+   * (CODE ?) sent to the Trash as the TUI sidebar does (core/fileops.py). @param {string} action @param {string} path
+   * @param {string} code */
+  change(action, path, code, cx) {
     if (action === "discard" && this.confirm !== path) {
       this.confirm = path;
       return void cx.notify();
     }
     this.confirm = null;
-    this.act(cx, BUSY[action], () => git(action, this.root, this.on, [path]));
+    this.act(cx, BUSY[action], async () => {
+      if (action !== "discard" || code !== "?") return git(action, this.root, this.on, [path]);
+      const done = await python(FILEOPS, ["trash", this.root, path], this.root, this.on);
+      return done.ok ? null : done.advice;
+    });
   }
 
   /** The staged changes committed, or every change with none staged (core/git.py), then pushed or synced as the mode
@@ -362,8 +367,9 @@ export default class HerdrFold extends View {
           cx.notify();
         })))
       .children(rowActions(kind, code).map((action) => small(t, `${key}-${action}`,
-        asking && action === "discard" ? "Discard" : ICONS[action], TIPS[action], this.ready,
-        (cx) => this.change(action, path, cx))));
+        asking && action === "discard" ? "Discard" : ICONS[action],
+        action === "discard" && code === "?" ? "Move to the Trash" : TIPS[action], this.ready,
+        (cx) => this.change(action, path, code, cx))));
   }
 
   diff(t) {
@@ -388,7 +394,8 @@ export default class HerdrFold extends View {
         setShared(GRAPH, this.folded);
         cx.notify();
       })
-      .child(div().w(10).text_color(t.dim).child(this.folded ? "▸" : "▾")).child(div().font_semibold().child("Graph"))
+      .child(div().w(10).text_color(t.dim).child(this.folded ? "▸" : "▾"))
+      .child(div().font_semibold().child("Graph"))
       .child(div().text_size(11).text_color(t.dim).child(String(this.commits.length)));
     const commit = ({ hash, subject, author, refs, head }) => {
       const key = shown("commit", hash);

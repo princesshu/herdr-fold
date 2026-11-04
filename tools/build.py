@@ -10,7 +10,8 @@ SIDEBAR = os.path.join("src", "plugins", "sidebar")
 WIDTH = 110                   # a string literal's cells on a line of helper.js
 # the Herdr app mod's helper.js: the name it imports each module's source by, and the module
 HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"COMMIT_MESSAGE": "commit_message.py",
-                                                                    "GIT": "git.py", "JOB": "job.py"}}
+                                                                    "FILEOPS": "fileops.py", "GIT": "git.py",
+                                                                    "JOB": "job.py"}}
 MOD_ONLY = {"job.py"}         # what only the mod runs (its background jobs): the sidebar gets no copy
 
 
@@ -25,9 +26,10 @@ def note(name):
 
 def js_note(names):
     """helper.js's opening comment: where it comes from, and what it is for."""
-    sources = " and ".join("core/" + name for name in names)
-    return ["// @ts-check", f"// Generated from {sources} by tools/build.py: change them there,",
-            "// then run /usr/bin/python3 tools/build.py. Each module's source, run with Python's -c on the space's "
+    sources = ", ".join("core/" + name for name in names[:-1]) + " and core/" + names[-1] if len(names) > 1 \
+        else "core/" + names[0]
+    return ["// @ts-check", f"// Generated from {sources} by tools/build.py:",
+            "// change them there, then run it again. Each module's source, run with Python's -c on the space's "
             "machine."]
 
 

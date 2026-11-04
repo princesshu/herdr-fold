@@ -62,12 +62,12 @@ export function changedFiles(status) {
   return [...seen.values()];
 }
 
-/** A row's buttons, as the TUI sidebar's: a staged file unstages; a change stages, and a tracked file's change
- * discards (never a new file, nor a conflict's: those are settled in the file).
+/** A row's buttons, as the TUI sidebar's: a staged file unstages; a change stages and discards (a new file to the
+ * Trash, never deleted), but a conflict's, which is settled in the file.
  * @param {"staged" | "changes"} kind @param {string} code @returns {string[]} */
 export function rowActions(kind, code) {
   if (kind === "staged") return ["unstage"];
-  return code === "?" || code === "U" ? ["stage"] : ["discard", "stage"];
+  return code === "U" ? ["stage"] : ["discard", "stage"];
 }
 
 /** The Commit button's modes, as the TUI sidebar names them. */

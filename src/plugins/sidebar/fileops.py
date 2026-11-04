@@ -1,7 +1,9 @@
+# Generated from core/fileops.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
 """The sidebar's file operations: a new file or folder, renaming, and deleting, always into the system's Trash. Each
 stays inside the root (a symbolic link leading out too), never overwrites, and never touches the AI tools' folders
 (PROTECTED) nor moves a folder holding one. Copying a path uses the clipboard program, else the caller's OSC 52."""
 import datetime
+import json
 import os
 import shutil
 import subprocess
@@ -186,3 +188,22 @@ class Ops:
     def copy_path(self, path):
         """Put PATH on the clipboard; False when there is no clipboard program (then OSC 52 is the caller's)."""
         return self.clipboard(path)
+
+
+def main(argv):
+    """herdr-fold's Herdr app mod runs this on the repository's machine: trash ROOT PATH sends PATH (from ROOT) to the
+    system's Trash, as the TUI sidebar does a new file it discards; JSON: where it went, else why not."""
+    if argv[1:2] != ["trash"] or len(argv) != 4:
+        print("usage: fileops.py trash ROOT PATH", file=sys.stderr)
+        return 2
+    root, path = argv[2], argv[3]
+    try:
+        answer = {"ok": True, "where": Ops(root).trash(os.path.join(root, path))}
+    except OSError as err:                              # Refused too: the line to show
+        answer = {"ok": False, "advice": str(err)}
+    print(json.dumps(answer))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

@@ -33,11 +33,11 @@ test("each changed file once, staged or not, in the order git gives them", () =>
     { path: "new.txt", code: "?" }]);
 });
 
-test("a row's buttons, as the TUI sidebar's: a staged file unstages, a change stages, a tracked one discards", () => {
+test("a row's buttons, as the TUI sidebar's: a staged file unstages, a change stages and discards", () => {
   assert.deepEqual(rowActions("staged", "M"), ["unstage"]);
   assert.deepEqual(rowActions("changes", "M"), ["discard", "stage"]);
   assert.deepEqual(rowActions("changes", "D"), ["discard", "stage"]);
-  assert.deepEqual(rowActions("changes", "?"), ["stage"]);           // a new file is never thrown away from here
+  assert.deepEqual(rowActions("changes", "?"), ["discard", "stage"]); // a new file: to the Trash, never deleted
   assert.deepEqual(rowActions("changes", "U"), ["stage"]);           // a conflict is settled, not undone
 });
 
