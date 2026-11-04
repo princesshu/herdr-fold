@@ -41,8 +41,8 @@ class Install(unittest.TestCase):
         self.assertEqual(herdr_app.install(PACKAGE, self.home), 0)
         for name in os.listdir(MOD):
             self.assertEqual(read(os.path.join(self.home, "mods", "herdr-fold", name)), read(os.path.join(MOD, name)))
-        self.assertEqual(read(os.path.join(self.home, "layouts", "herdr-fold.json")),
-                         read(os.path.join(PACKAGE, "app", "layouts", "herdr-fold.json")))
+        for rel in (("layouts", "herdr-fold.json"), ("themes", "herdr-fold.json")):     # the layout in its own theme
+            self.assertEqual(read(os.path.join(self.home, *rel)), read(os.path.join(PACKAGE, "app", *rel)))
         with open(os.path.join(PACKAGE, "app", "keys.json"), encoding="utf-8") as f:
             self.assertEqual(keys(self.home), json.load(f))
 
@@ -85,10 +85,12 @@ class Install(unittest.TestCase):
     def test_uninstall_takes_off_what_install_put(self):
         self.write("mods/other/main.js", "// another mod\n")
         self.write("layouts/mine.json", "{}\n")
+        self.write("themes/mine.json", "{}\n")
         herdr_app.install(PACKAGE, self.home)
         herdr_app.uninstall(PACKAGE, self.home)
         self.assertEqual(sorted(os.listdir(os.path.join(self.home, "mods"))), ["other"])
         self.assertEqual(os.listdir(os.path.join(self.home, "layouts")), ["mine.json"])
+        self.assertEqual(os.listdir(os.path.join(self.home, "themes")), ["mine.json"])
 
     def test_the_app_home_follows_herdr_app_home(self):
         set_env(self, HERDR_APP_HOME=self.home)

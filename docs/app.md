@@ -5,7 +5,9 @@ TUI sidebar's counterpart in the app, with the same data layer underneath (`core
 the same in both. It installs on its own, without the TUI environment.
 
 It comes with a layout of its own, `herdr-fold`: the app's main layout, with herdr-fold in the right panel where the
-app's own Changes was. The Changes button at the top right opens it there, and so does Cmd + Shift + G.
+app's own Changes was. The Changes button at the top right opens it there, and so does Cmd + Shift + G. The layout is
+dark, in the TUI's own colors (its theme, `themes/herdr-fold.json`, is made from the TUI's), and its code is in Menlo,
+as VS Code's (on Linux and Windows the app's JetBrains Mono); the app's theme and font menus change them.
 
 Its views are Changes and Search, the tabs at its top; it keeps the one shown. The other sidebar views (Files, Issues)
 and the Conversations column are not in the app yet.
@@ -45,11 +47,13 @@ layout in a running app. `./uninstall.sh` takes them off again.
 
 Without the TUI environment, from the `app` folder of herdr-fold:
 
-1. Copy the mod and the layout into the app's home:
+1. Copy the mod, the layout and its theme into the app's home:
 
    ```bash
+   mkdir -p ~/.config/herdr-app/mods ~/.config/herdr-app/layouts ~/.config/herdr-app/themes
    cp -R mods/herdr-fold ~/.config/herdr-app/mods/
    cp layouts/herdr-fold.json ~/.config/herdr-app/layouts/
+   cp themes/herdr-fold.json ~/.config/herdr-app/themes/
    ```
 
 2. Add the `layout:herdr-fold` section of `keys.json` to `~/.config/herdr-app/keys.json`.
@@ -59,7 +63,7 @@ Without the TUI environment, from the `app` folder of herdr-fold:
    herdr-app do layout.switch --name herdr-fold
    ```
 
-Your own layout stays as it was: Cmd + Shift + L switches between the layouts. To remove it all, delete the two copied
+Your own layout stays as it was: Cmd + Shift + L switches between the layouts. To remove it all, delete the three copied
 items and the keys section.
 
 Without the layout, herdr-fold also opens beside a terminal, as a pane of that tab:

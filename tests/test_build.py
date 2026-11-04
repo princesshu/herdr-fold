@@ -2,6 +2,7 @@
 TUI sidebar, the Herdr app mod) carries a copy of what it needs; a copy that differs from core/ fails here."""
 import ast
 import importlib.util
+import json
 import os
 import sys
 import sysconfig
@@ -23,6 +24,8 @@ class Copies(unittest.TestCase):
 
     def test_a_copy_names_its_source_first(self):
         for rel, content in build.outputs().items():
+            if rel.endswith(".json"):
+                continue                                # no comment in JSON: the app's theme, made from the TUI's
             with self.subTest(rel):
                 self.assertIn("Generated from core/", content.split("\n", 2)[0 if rel.endswith(".py") else 1])
 
@@ -34,6 +37,23 @@ class Copies(unittest.TestCase):
                 self.assertEqual(os.path.join(sidebar, name) in build.outputs(), name not in build.MOD_ONLY, name)
         in_helpers = {name for sources in build.HELPERS.values() for name in sources.values()}
         self.assertLessEqual(build.MOD_ONLY, in_helpers)
+
+
+class AppTheme(unittest.TestCase):
+    """The Herdr app's herdr-fold layout wears the TUI's own colors: its theme made from the package's (themes.js)."""
+
+    def test_the_layout_is_in_the_tuis_colors(self):
+        sys.path.insert(0, os.path.join(PACKAGE, "src", "themes"))
+        import apply
+        tui = apply.find(apply.load_themes(), apply.current_id(os.path.join(PACKAGE, "config", "ghostty", "config")))
+        made = json.loads(build.outputs()[os.path.join("app", "themes", "herdr-fold.json")])
+        colors, frame = tui["colors"], tui["colors"]["herdr"]
+        self.assertEqual((made["background"], made["foreground"], made["cursor"], made["ansi"]),
+                         (colors["background"], colors["foreground"], colors["cursor"], colors["palette"]))
+        self.assertEqual((made["colors"]["accent"], made["colors"]["chrome"], made["colors"]["selected"]),
+                         (frame["accent"], frame["sidebar_bg"], frame["active_row_bg"]))
+        with open(os.path.join(PACKAGE, "app", "layouts", "herdr-fold.json"), encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["theme"], "herdr-fold")
 
 
 class Core(unittest.TestCase):

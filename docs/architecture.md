@@ -64,7 +64,7 @@ plugins of its own.
 
 | File | What it is |
 |---|---|
-| `core/` | the data layer the TUI sidebar and the Herdr app mod share, its one source: `git.py` (the status, a file's diff, staging, the last commits, a sync that loses nothing), `fileops.py` (new, rename and the system's Trash, never outside the root nor in an AI tool's folder), `search.py` (ripgrep, else git grep, else its own search: ignored files never read), `commit_message.py` (the commit message Claude or Codex writes, the staged files named like secrets), `job.py` (the mod's background job: started out of the exec that starts it, polled, cleared); each answers the mod in JSON from the command line; `tools/build.py` copies it into the sidebar's folder (all but `job.py`) and into the mod, each installing on its own |
+| `core/` | the data layer the TUI sidebar and the Herdr app mod share, its one source: `git.py` (the status, a file's diff, staging, the last commits, a sync that loses nothing, the repository's name on GitHub), `fileops.py` (new, rename and the system's Trash, never outside the root nor in an AI tool's folder), `search.py` (ripgrep, else git grep, else its own search: ignored files never read), `github.py` (the issues through gh, GitHub's priority field, a change, the agent's prompt), `commit_message.py` (the commit message Claude or Codex writes, the staged files named like secrets), `job.py` (the mod's background job: started out of the exec that starts it, polled, cleared); each answers the mod in JSON from the command line; `tools/build.py` copies it into the sidebar's folder (all but `job.py`) and into the mod, each installing on its own |
 
 ### The Herdr app
 
@@ -72,6 +72,7 @@ plugins of its own.
 |---|---|
 | `app/mods/herdr-fold/` | herdr-fold's mod for the Herdr desktop app, the TUI sidebar's counterpart ([The Herdr app](app.md)): `main.js` the Changes view, and the toggle Cmd+Shift+G opens it as; `helper.js` holds the core's source, which it runs with Python's `-I` on the space's machine (`python3`, or what a Windows machine's `python.ps1` names); `logic.js` what it works out without a window: a diff's rows, the sync label, the question before a commit, the message writer as a background job |
 | `app/layouts/herdr-fold.json` | the app's main layout with herdr-fold in the right panel, where the app's own Changes was: the Changes button and Cmd+Shift+G open it there |
+| `app/themes/herdr-fold.json` | that layout's own theme, made by `tools/build.py` from the TUI's (the package's theme in `src/themes/themes.js`): its terminals and panels in the TUI's colors; the app's theme menu changes it |
 | `app/keys.json` | the keys, merged into the app's own: in that layout Cmd+Shift+G shows or hides herdr-fold, and Cmd+Shift+C has it write the message |
 | `app/tests/` | the mod's logic tested with Node (`logic.test.js`, `node --test app/tests`); `tests/test_app.py` runs them, and the app's own check of the mod |
 

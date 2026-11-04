@@ -1,6 +1,6 @@
-"""herdr-fold in the Herdr app (herdr's desktop app), for install.sh and uninstall.sh: the mod, its layout and its keys
-into the app's home, and off again; nothing else of the app's is touched. Usage: herdr_app.py cli | home | install
-PACKAGE (0; 3: keys.json unreadable, left as it is; 4: a mods/herdr-fold not herdr-fold's) | uninstall PACKAGE"""
+"""herdr-fold in the Herdr app (herdr's desktop app), for install.sh and uninstall.sh: the mod, its layout (in its own
+theme) and its keys into the app's home, and off again; nothing else of the app's is touched. Usage: herdr_app.py cli |
+home | install PACKAGE (0; 3: keys.json unreadable, left as it is; 4: a mods/herdr-fold not herdr-fold's) | uninstall"""
 import json
 import os
 import shutil
@@ -8,6 +8,7 @@ import sys
 import tempfile
 
 MOD, LAYOUT, KEYS = os.path.join("mods", "herdr-fold"), os.path.join("layouts", "herdr-fold.json"), "keys.json"
+THEME = os.path.join("themes", "herdr-fold.json")   # the layout's own (the app offers it only there)
 TITLE = "herdr-fold"            # the mod.json title that marks a mods/herdr-fold folder as herdr-fold's copy
 
 
@@ -92,8 +93,9 @@ def install(package, home):
     if os.path.lexists(os.path.join(home, MOD)) and not herdr_folds(os.path.join(home, MOD)):
         return 4
     replace(os.path.join(home, MOD), os.path.join(package, "app", MOD))
-    os.makedirs(os.path.join(home, "layouts"), exist_ok=True)
-    shutil.copyfile(os.path.join(package, "app", LAYOUT), os.path.join(home, LAYOUT))
+    for rel in (LAYOUT, THEME):
+        os.makedirs(os.path.join(home, os.path.dirname(rel)), exist_ok=True)
+        shutil.copyfile(os.path.join(package, "app", rel), os.path.join(home, rel))
     mine = read_keys(os.path.join(home, KEYS))
     if mine is None:
         return 3
@@ -104,8 +106,9 @@ def install(package, home):
 def uninstall(package, home):
     if herdr_folds(os.path.join(home, MOD)):
         replace(os.path.join(home, MOD))
-    if os.path.isfile(os.path.join(home, LAYOUT)):
-        os.remove(os.path.join(home, LAYOUT))
+    for rel in (LAYOUT, THEME):
+        if os.path.isfile(os.path.join(home, rel)):
+            os.remove(os.path.join(home, rel))
     mine = read_keys(os.path.join(home, KEYS))
     if mine:
         write_keys(os.path.join(home, KEYS), drop_keys(mine, package_keys(package)))

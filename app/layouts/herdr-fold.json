@@ -1,6 +1,8 @@
 {
   "id": "root",
   "type": "row",
+  "theme": "herdr-fold",
+  "font": "Menlo",
   "titlebar": "none",
   "traffic_lights": [
     12,

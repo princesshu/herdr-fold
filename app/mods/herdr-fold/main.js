@@ -28,6 +28,9 @@ function place() {
   return { cwd: pane?.cwd || space?.folder || null, on: space?.machine ?? null };
 }
 
+/** The code's font: the layout's (herdr-fold's is Menlo, as VS Code's), else the person's, else Menlo. */
+const codeFont = () => /** @type {any} */ (layout())?.font ?? settings().font_family ?? "Menlo";
+
 /** @param {{ code: number, stdout: string, stderr: string }} out */
 const lastLine = (out) => (out.stderr || out.stdout).trim().split("\n").pop() || `exit ${out.code}`;
 
@@ -461,7 +464,7 @@ export default class HerdrFold extends View {
 
   /** TEXT in one row, the matches (SPANS) marked. */
   line(t, text, spans) {
-    return h_flex().flex_1().min_w(0).overflow_hidden().font_family(settings().font_family ?? "JetBrains Mono")
+    return h_flex().flex_1().min_w(0).overflow_hidden().font_family(codeFont())
       .children(marked(text, spans ?? []).map(({ text, hit }) => div().flex_none().child(text)
         .when(hit, (e) => e.bg(t.selection).text_color(t.foreground).font_semibold())));
   }
@@ -521,7 +524,7 @@ export default class HerdrFold extends View {
         .when(kind === "+", (e) => e.bg(t.ansi2 + "18")).when(kind === "-", (e) => e.bg(t.ansi1 + "18"))
         .child(div().w(30).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
         .child(div().flex_1().min_w(0).truncate().child(text));
-    return div().flex_1().min_h(0).relative().font_family(settings().font_family ?? "JetBrains Mono").text_size(11)
+    return div().flex_1().min_h(0).relative().font_family(codeFont()).text_size(11)
       .child(v_virtual_list("diff", this.rows.length, 20, (i) => String(i),
         (range) => this.rows.slice(range.start, range.end).map(row)).size_full())
       .child(Scrollbar.vertical("diff").viewport_from_layout().absolute().inset_0());
