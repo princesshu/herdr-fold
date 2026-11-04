@@ -268,6 +268,27 @@ def advice(line):
     return next((text for needles, text in ADVICE if any(needle in line for needle in needles)), line)
 
 
+# github.com in a remote's address: https://[user@]github.com/OWNER/NAME[.git][/], git@github.com:OWNER/NAME[.git],
+# ssh://git@github.com/OWNER/NAME[.git]
+ADDRESS = re.compile(r"^(?:https?://(?:[^@/]+@)?|ssh://(?:[^@/]+@)?|[^@/:]+@)github\.com[:/]([\w.-]+)/([\w.-]+?)"
+                     r"(?:\.git)?/?$")
+
+
+def github_name(root):
+    """OWNER/NAME of the repository at ROOT on GitHub: origin's when it is there, else the first other remote's;
+    None without one (no repository, no remote, or none on github.com)."""
+    out = run(root, "config", "--local", "--get-regexp", r"^remote\..*\.url$")
+    if out.returncode != 0:
+        return None
+    found = {}
+    for line in out.stdout.splitlines():
+        key, _, url = line.partition(" ")
+        match = ADDRESS.match(url.strip())
+        if match:
+            found.setdefault(key[len("remote."):-len(".url")], "/".join(match.groups()))
+    return found.get("origin") or next(iter(found.values()), None)
+
+
 def graph(root, n=20):
     out = run(root, "log", f"-n{n}", "--format=%h%x00%s%x00%an%x00%D%x1e")
     commits = []

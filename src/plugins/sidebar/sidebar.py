@@ -16,6 +16,7 @@ import commit_message  # noqa: E402
 import conversations_pane  # noqa: E402
 import git  # noqa: E402
 import github  # noqa: E402
+import issue_work  # noqa: E402
 import panels  # noqa: E402
 import preview  # noqa: E402
 import search  # noqa: E402
@@ -122,7 +123,7 @@ class App(Loop):
         icons = self.settings["icons"]
         self.views = {"files": Explorer(self.tree, icons, self.repo), "search": Find(self.root, icons, clock),
                       "git": Scm(self.settings["commit_mode"], icons, self.settings["folded"]), "issues": Issues(icons)}
-        self.github = github.repo_name(self.repo) if self.repo else None     # OWNER/NAME on GitHub, or None
+        self.github = git.github_name(self.repo) if self.repo else None     # OWNER/NAME on GitHub, or None
         self.issues_asked = {}                            # when each query's issues were last asked for
         self.views["git"].linked = self.linked()
         self.view = self.settings["view"] if self.settings["view"] in self.tabs() else "files"
@@ -162,7 +163,7 @@ class App(Loop):
             # not a repository when looked up: so it is shown, even if git init ran meanwhile (the next status has it)
             status = git.status(repo) if repo else git.Status(error=git.status(root).error or "not a git repository")
             graph = git.graph(repo) if repo and with_graph and not status.error else None
-            name = github.repo_name(repo) if repo else None
+            name = git.github_name(repo) if repo else None
             linked = load_settings(settings)["linked"]           # every tab's sidebar links: another one's may be new
             latest = git.head(repo) if repo and linked.get(repo) else (None, "")
             return (repo, name, status, git_marks(status, repo or root, root), graph, started, self.clock(), linked,
@@ -527,10 +528,10 @@ class App(Loop):
             return
 
         def work():
-            listing = github.kept(state_dir, name, query, STALE) if shared else None
+            listing = issue_work.kept(state_dir, name, query, STALE) if shared else None
             if listing is None:
                 listing = github.issues(name, query)
-                github.keep(state_dir, name, query, listing)
+                issue_work.keep(state_dir, name, query, listing)
             return listing
 
         def then(listing):
@@ -540,7 +541,7 @@ class App(Loop):
         self.job("issues", work, then)
 
     def do_preview_issue(self, issue):
-        self.open_preview(github.view_spec(self.github, issue), self.repo or self.root)
+        self.open_preview(issue_work.view_spec(self.github, issue), self.repo or self.root)
 
     def do_issue_web(self, issue):
         name = self.github
@@ -551,10 +552,10 @@ class App(Loop):
         self.job("issue", lambda: github.open_in_browser(name, issue.number), then)
 
     def do_issue_comment(self, issue):
-        self.open_tab(f"issue: #{issue.number}", github.comment_argv(self.github, issue.number))
+        self.open_tab(f"issue: #{issue.number}", issue_work.comment_argv(self.github, issue.number))
 
     def do_new_issue(self):
-        self.open_tab("issue: new", github.create_argv(self.github))
+        self.open_tab("issue: new", issue_work.create_argv(self.github))
 
     def do_issue_change(self, issue, what):
         name, done = self.github, {"close": "Closed", "reopen": "Reopened", "assign": "Assigned to you:"}[what]

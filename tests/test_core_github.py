@@ -1,5 +1,8 @@
-"""Tests for the sidebar's GitHub layer (src/plugins/sidebar/github.py) with a fake GitHub CLI: the repository's name
-from git's config, issues per filter, failures in plain words, changes, previews, the agent's prompt, relative times."""
+"""Tests for the GitHub layer (core/github.py: the TUI sidebar's and the app mod's) with a stand-in gh: issues per
+filter, GitHub's priority field, failures in plain words, changes, the agent's prompt, relative times, and the
+mod's command line."""
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -8,9 +11,9 @@ import sys
 import tempfile
 import unittest
 
-from support import SRC, set_env, stubs
+from support import PACKAGE, set_env, stubs
 
-sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
+sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import github  # noqa: E402
 from github import Query  # noqa: E402
 
@@ -35,97 +38,6 @@ FIELDS = {"data": {"repository": {
     "i42": {"issueFieldValues": {"nodes": [{"name": "S", "field": {"name": "Effort"}},
                                            {"name": "High", "field": {"name": "Priority"}}]}},
     "i38": {"issueFieldValues": {"nodes": []}}}}}
-
-
-class Shared(unittest.TestCase):
-    """One question a minute for every sidebar of a repository: the latest answer kept in the state folder."""
-
-    def setUp(self):
-        self.state = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.state)
-        self.listing = github.Listing((github.Issue(42, "Login fails", ("bug",), ("dev",), "2026-10-22T10:00:00Z",
-                                                    "OPEN", "https://github.com/acme/app/issues/42", "High"),))
-
-    def test_an_answer_kept_comes_back_while_fresh(self):
-        github.keep(self.state, "acme/app", Query(), self.listing)
-        self.assertEqual(github.kept(self.state, "acme/app", Query(), 60), self.listing)
-
-    def test_nothing_kept_where_the_state_folder_is_gone(self):
-        # removed with herdr-fold while a sidebar still asked: not brought back
-        gone = os.path.join(self.state, "gone")
-        github.keep(gone, "acme/app", Query(), self.listing)
-        self.assertFalse(os.path.exists(gone))
-
-    def test_none_when_old_for_another_query_or_repository_or_damaged(self):
-        github.keep(self.state, "acme/app", Query(), self.listing)
-        self.assertIsNone(github.kept(self.state, "acme/app", Query(), 0))
-        self.assertIsNone(github.kept(self.state, "acme/app", Query("closed"), 60))
-        self.assertIsNone(github.kept(self.state, "acme/web", Query(), 60))
-        for name in os.listdir(self.state):
-            with open(os.path.join(self.state, name), "w") as f:
-                f.write("{")
-        self.assertIsNone(github.kept(self.state, "acme/app", Query(), 60))
-
-    def test_none_when_it_is_not_as_kept(self):
-        # a file not as keep() writes it (another version's, or edited by hand): GitHub is asked instead
-        github.keep(self.state, "acme/app", Query(), self.listing)
-        path = github.shared_path(self.state, "acme/app", Query())
-        with open(path) as f:
-            good = json.load(f)
-        row = good["issues"][0]
-        wrong = [{**good, "issues": [{**row, **change}]}
-                 for change in ({"number": "42"}, {"number": True}, {"title": 7}, {"labels": "bug"},
-                                {"assignees": [1]}, {"priority": None}, {"more": ""})]
-        wrong += [{**good, "error": {"text": "x"}}, {**good, "issues": {"42": row}}, [good]]
-        for data in wrong:
-            with self.subTest(data=data):
-                with open(path, "w") as f:
-                    json.dump(data, f)
-                self.assertIsNone(github.kept(self.state, "acme/app", Query(), 60))
-
-
-class Repository(unittest.TestCase):
-    def setUp(self):
-        self.root = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.root)
-        set_env(self, GIT_CONFIG_GLOBAL=os.devnull)
-        self.git("init", "-q")
-
-    def git(self, *args):
-        subprocess.run(["git", "-C", self.root, *args], check=True, capture_output=True)
-
-    def test_the_github_name_from_any_form_of_its_address(self):
-        for url in ("https://github.com/acme/app.git", "https://github.com/acme/app", "git@github.com:acme/app.git",
-                    "ssh://git@github.com/acme/app.git", "https://git@github.com/acme/app/"):
-            if self.remotes():
-                self.git("remote", "remove", "origin")
-            self.git("remote", "add", "origin", url)
-            self.assertEqual(github.repo_name(self.root), "acme/app", url)
-
-    def remotes(self):
-        return subprocess.run(["git", "-C", self.root, "remote"], capture_output=True, text=True).stdout.split()
-
-    def test_origin_wins_over_another_github_remote(self):
-        self.git("remote", "add", "fork", "https://github.com/someone/app.git")
-        self.git("remote", "add", "origin", "https://github.com/acme/app.git")
-        self.assertEqual(github.repo_name(self.root), "acme/app")
-
-    def test_another_github_remote_when_origin_is_elsewhere(self):
-        self.git("remote", "add", "origin", "https://gitlab.com/acme/app.git")
-        self.git("remote", "add", "hub", "git@github.com:acme/app.git")
-        self.assertEqual(github.repo_name(self.root), "acme/app")
-
-    def test_no_github_remote_is_no_name(self):
-        self.assertIsNone(github.repo_name(self.root))
-        self.git("remote", "add", "origin", "https://gitlab.com/acme/app.git")
-        self.assertIsNone(github.repo_name(self.root))
-        self.git("remote", "add", "lookalike", "https://github.com.example.com/acme/app.git")
-        self.assertIsNone(github.repo_name(self.root))
-
-    def test_a_folder_outside_a_repository_has_none(self):
-        outside = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, outside)
-        self.assertIsNone(github.repo_name(outside))
 
 
 class CLI(unittest.TestCase):
@@ -243,16 +155,36 @@ class CLI(unittest.TestCase):
         set_env(self, GH_FAIL="exec: xdg-open: not found")
         self.assertEqual(github.open_in_browser("acme/app", 42), "exec: xdg-open: not found")
 
-    def test_the_preview_shows_it_as_a_terminal_would(self):
-        spec = github.view_spec("acme/app", github.Issue(42, "Login fails on Safari"))
-        self.assertEqual(spec["title"], "#42 Login fails on Safa…")             # a tab's name: its title cut short
-        self.assertEqual(spec["pipeline"][0][1:], ["issue", "view", "42", "-R", "acme/app", "--comments"])
-        self.assertTrue(os.path.isabs(spec["pipeline"][0][0]))
-        self.assertTrue(spec["env"]["GH_FORCE_TTY"])
 
-    def test_new_issue_and_comment_run_gh_s_own_prompts(self):
-        self.assertEqual(github.create_argv("acme/app")[1:], ["issue", "create", "-R", "acme/app"])
-        self.assertEqual(github.comment_argv("acme/app", 42)[1:], ["issue", "comment", "42", "-R", "acme/app"])
+class CommandLine(CLI):
+    """The Herdr app mod asks on the space's machine: python3 github.py issues REPO QUERY (QUERY a JSON object), change
+    REPO NUMBER WHAT, prompt REPO NUMBER; JSON back, as the TUI sidebar gets it."""
+
+    def cli(self, *args):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = github.main(["github.py", *args])
+        return code, (json.loads(out.getvalue()) if out.getvalue() else None)
+
+    def test_the_issues_as_the_sidebar_lists_them(self):
+        code, answer = self.cli("issues", "acme/app", json.dumps({"state": "open"}))
+        self.assertEqual((code, answer["error"]), (0, None))
+        self.assertEqual([(i["number"], i["title"], i["labels"]) for i in answer["issues"]],
+                         [(42, "Login fails on Safari", ["bug", "ui"]), (38, "Add a dark mode toggle", [])])
+        self.assertIn("issue list -R acme/app --state open", self.calls()[0])
+
+    def test_a_change_and_the_prompt(self):
+        with open(self.answer, "w"):
+            pass
+        self.assertEqual(self.cli("change", "acme/app", "42", "close"), (0, {"ok": True, "advice": None}))
+        self.assertEqual(self.calls()[-1], "issue close 42 -R acme/app")
+        code, answer = self.cli("prompt", "acme/app", "42")
+        self.assertEqual(answer["prompt"], github.prompt("acme/app", github.Issue(42, "")))
+
+    def test_anything_else_is_a_usage_error(self):
+        for args in (("issues", "acme/app", "{\"state\": \"all\"}"), ("issues", "acme/app", "open"),
+                     ("change", "acme/app", "42", "delete"), ("change", "acme/app", "x", "close"), ("list",)):
+            self.assertEqual(self.cli(*args), (2, None), args)
 
 
 class Words(unittest.TestCase):

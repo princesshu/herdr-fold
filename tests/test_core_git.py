@@ -495,5 +495,51 @@ class Actions(Repo):
         self.assertEqual(graph[0].author, "dev")
 
 
+class GitHubName(unittest.TestCase):
+    """The repository's name on GitHub, from git's config: nothing of the repository's runs."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root)
+        set_env(self, GIT_CONFIG_GLOBAL=os.devnull)
+        self.git("init", "-q")
+
+    def git(self, *args):
+        subprocess.run(["git", "-C", self.root, *args], check=True, capture_output=True)
+
+    def test_the_github_name_from_any_form_of_its_address(self):
+        for url in ("https://github.com/acme/app.git", "https://github.com/acme/app", "git@github.com:acme/app.git",
+                    "ssh://git@github.com/acme/app.git", "https://git@github.com/acme/app/"):
+            if self.remotes():
+                self.git("remote", "remove", "origin")
+            self.git("remote", "add", "origin", url)
+            self.assertEqual(git.github_name(self.root), "acme/app", url)
+
+    def remotes(self):
+        return subprocess.run(["git", "-C", self.root, "remote"], capture_output=True, text=True).stdout.split()
+
+    def test_origin_wins_over_another_github_remote(self):
+        self.git("remote", "add", "fork", "https://github.com/someone/app.git")
+        self.git("remote", "add", "origin", "https://github.com/acme/app.git")
+        self.assertEqual(git.github_name(self.root), "acme/app")
+
+    def test_another_github_remote_when_origin_is_elsewhere(self):
+        self.git("remote", "add", "origin", "https://gitlab.com/acme/app.git")
+        self.git("remote", "add", "hub", "git@github.com:acme/app.git")
+        self.assertEqual(git.github_name(self.root), "acme/app")
+
+    def test_no_github_remote_is_no_name(self):
+        self.assertIsNone(git.github_name(self.root))
+        self.git("remote", "add", "origin", "https://gitlab.com/acme/app.git")
+        self.assertIsNone(git.github_name(self.root))
+        self.git("remote", "add", "lookalike", "https://github.com.example.com/acme/app.git")
+        self.assertIsNone(git.github_name(self.root))
+
+    def test_a_folder_outside_a_repository_has_none(self):
+        outside = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, outside)
+        self.assertIsNone(git.github_name(outside))
+
+
 if __name__ == "__main__":
     unittest.main()

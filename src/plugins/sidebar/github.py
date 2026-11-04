@@ -1,19 +1,15 @@
-"""The sidebar's GitHub issues through gh, as its user is signed in on the machine the sidebar runs on: the repository
-from its remotes (read from git's config, so nothing of the repository's runs), its issues by filter, and the changes
-made from the sidebar. A failure comes back as one line in plain words."""
+# Generated from core/github.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
+"""GitHub issues through gh, as its user is signed in on the machine it runs on (the TUI sidebar's and the app mod's):
+the issues by filter, the changes made from there, the agent's prompt, relative times. A failure comes back as one
+line in plain words. The repository's name on GitHub: core/git.py's github_name."""
 import calendar
-import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
+import sys
 import time
 from dataclasses import asdict, dataclass, replace
-
-import git
-import statefile
-from screen import truncate
 
 STATES = {"open": "Open", "closed": "Closed"}         # GitHub's own: is:open, is:closed
 LIMIT = 100
@@ -21,10 +17,6 @@ FIELDS = "number,title,labels,assignees,updatedAt,state,url"
 TIMEOUT = 30
 NO_GH = "Issues need the GitHub CLI: install gh, then sign in with gh auth login"
 SIGNED_OUT = "Sign in to GitHub first: gh auth login in a terminal"
-# github.com in a remote's address: https://[user@]github.com/OWNER/NAME[.git][/], git@github.com:OWNER/NAME[.git],
-# ssh://git@github.com/OWNER/NAME[.git]
-ADDRESS = re.compile(r"^(?:https?://(?:[^@/]+@)?|ssh://(?:[^@/]+@)?|[^@/:]+@)github\.com[:/]([\w.-]+)/([\w.-]+?)"
-                     r"(?:\.git)?/?$")
 
 
 @dataclass(frozen=True)
@@ -52,67 +44,6 @@ class Query:
 class Listing:
     issues: tuple = ()
     error: str = None
-
-
-def shared_path(state_dir, repo, query):
-    """Where the latest answer to QUERY about REPO waits for every sidebar of the repository, in the state folder."""
-    key = hashlib.sha256(json.dumps([repo, asdict(query)], sort_keys=True).encode()).hexdigest()[:16]
-    return os.path.join(state_dir, f"issues-{key}.json")
-
-
-def keep(state_dir, repo, query, listing):
-    """LISTING, the answer to QUERY about REPO just got, for the repository's other sidebars; when it cannot be
-    written, each of them asks GitHub on its own. Never into a state folder that is gone (herdr-fold removed)."""
-    if not os.path.isdir(state_dir):
-        return
-    try:
-        statefile.write(shared_path(state_dir, repo, query),
-                        {"at": time.time(), "issues": [asdict(issue) for issue in listing.issues],
-                         "error": listing.error})
-    except OSError:
-        pass
-
-
-def kept(state_dir, repo, query, fresh):
-    """The answer to QUERY about REPO a sidebar kept less than FRESH seconds ago; None without one, or with one not as
-    keep() writes it (another version's, or edited by hand): GitHub is asked instead."""
-    try:
-        with open(shared_path(state_dir, repo, query), encoding="utf-8") as f:
-            data = json.load(f)
-        if not 0 <= time.time() - float(data["at"]) < fresh:
-            return None
-        found, error = tuple(kept_issue(row) for row in data["issues"]), data["error"]
-    except (OSError, ValueError, TypeError, KeyError, AttributeError):
-        return None
-    return Listing(found, error) if error is None or isinstance(error, str) else None
-
-
-TEXTS, NAMES = ("title", "updated", "state", "url", "priority"), ("labels", "assignees")     # an Issue's, as kept
-
-
-def kept_issue(row):
-    """The issue ROW is, as keep() writes one; ValueError for anything else."""
-    if (not isinstance(row, dict) or set(row) != {"number", *TEXTS, *NAMES} or type(row["number"]) is not int
-            or not all(isinstance(row[name], str) for name in TEXTS)
-            or not all(isinstance(row[name], list) and all(isinstance(item, str) for item in row[name])
-                       for name in NAMES)):
-        raise ValueError("not an issue as kept")
-    return Issue(**{**row, "labels": tuple(row["labels"]), "assignees": tuple(row["assignees"])})
-
-
-def repo_name(root):
-    """OWNER/NAME of the repository at ROOT on GitHub: origin's when it is there, else the first other remote's;
-    None without one (no repository, no remote, or none on github.com)."""
-    out = git.run(root, "config", "--local", "--get-regexp", r"^remote\..*\.url$")
-    if out.returncode != 0:
-        return None
-    found = {}
-    for line in out.stdout.splitlines():
-        key, _, url = line.partition(" ")
-        match = ADDRESS.match(url.strip())
-        if match:
-            found.setdefault(key[len("remote."):-len(".url")], "/".join(match.groups()))
-    return found.get("origin") or next(iter(found.values()), None)
 
 
 def gh(*args):
@@ -205,25 +136,6 @@ def open_in_browser(repo, number):
     return None if done is not None and done.returncode == 0 else failure(done)
 
 
-TAB_TITLE = 20                  # cells of an issue's title in its preview tab's name: herdr's tab row fits several
-
-def view_spec(repo, issue):
-    """The preview of ISSUE: gh's own view, with its comments, laid out as in a terminal; its tab named with the number
-    and the start of the title (TAB_TITLE cells)."""
-    binary = shutil.which("gh") or "gh"
-    return {"title": f"#{issue.number} {truncate(issue.title, TAB_TITLE)}", "line": None, "file": None,
-            "pipeline": [[binary, "issue", "view", str(issue.number), "-R", repo, "--comments"]],
-            "env": {"GH_FORCE_TTY": "100", "GH_PROMPT_DISABLED": "1", "GH_NO_UPDATE_NOTIFIER": "1"}}
-
-
-def create_argv(repo):
-    return [shutil.which("gh") or "gh", "issue", "create", "-R", repo]
-
-
-def comment_argv(repo, number):
-    return [shutil.which("gh") or "gh", "issue", "comment", str(number), "-R", repo]
-
-
 def prompt(repo, issue):
     """The one line the agent gets for ISSUE of REPO: its number and how to read it, none of its words. Anyone may
     write an issue, and the prompt is typed in as the user's own words: what the issue says reaches the agent only
@@ -256,3 +168,35 @@ def since(then, now=None):
         if seconds >= size:
             return f"{int(seconds // size)}{unit}"
     return "now"
+
+
+def main(argv):
+    """herdr-fold's Herdr app mod runs this on the space's machine, answering in JSON: issues REPO QUERY (QUERY a JSON
+    object: state, assigned, authored, label), change REPO NUMBER close|reopen|assign, prompt REPO NUMBER."""
+    command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
+    try:
+        if command == "issues" and len(args) == 2:
+            asked = json.loads(args[1])
+            fields = {name: asked[name] for name in ("state", "assigned", "authored", "label") if name in asked}
+            if fields.get("state", "open") not in STATES or not isinstance(fields.get("label", ""), str):
+                raise ValueError("not a query")
+            found = issues(args[0], Query(**{**fields, "assigned": bool(fields.get("assigned")),
+                                             "authored": bool(fields.get("authored"))}))
+            answer = {"issues": [asdict(issue) for issue in found.issues], "error": found.error}
+        elif command == "change" and len(args) == 3 and args[2] in ("close", "reopen", "assign"):
+            error = change(args[0], int(args[1]), args[2])
+            answer = {"ok": error is None, "advice": error}
+        elif command == "prompt" and len(args) == 2:
+            answer = {"prompt": prompt(args[0], Issue(int(args[1]), ""))}
+        else:
+            raise ValueError("unknown command")
+    except (ValueError, TypeError, AttributeError):
+        print("usage: github.py issues REPO QUERY | change REPO NUMBER close|reopen|assign | prompt REPO NUMBER",
+              file=sys.stderr)
+        return 2
+    print(json.dumps(answer))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
