@@ -150,7 +150,7 @@ class View(unittest.TestCase):
         self.press("up")                                                    # from the list's top to the button
         self.draw()
         mark = self.canvas.rows[label][x][1]
-        self.assertEqual((mark.fg, mark.bg), ("button", "button_text"))     # the label lit the other way round
+        self.assertEqual((mark.fg, mark.bg, mark.underline), ("button_text", "button", True))   # underlined, in place
         self.view.handle(Mouse("press", 2, label + 6, 0))
         self.draw()
         self.assertEqual(self.bg(x, label), "button")

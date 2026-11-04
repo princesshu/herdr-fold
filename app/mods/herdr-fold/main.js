@@ -576,16 +576,17 @@ export default class HerdrFold extends View {
   /** On top, as the TUI sidebar has it: the message and its ✦, then Commit across, its arrow choosing the mode. */
   composer(t) {
     const commit = this.ready && Boolean(this.message.trim());
-    const label = this.busy ?? `✓ ${MODES[this.mode]}${this.asked ? " anyway" : ""}`;
+    const label = this.busy ?? `${MODES[this.mode]}${this.asked ? " anyway" : ""}`;
     return v_flex().flex_none().p(10).gap(8).border_b(1).border_color(t.border)
       .child(h_flex().gap(8)
         .child(div().id("message").flex_1().min_w(0).h(32).px(10).flex().items_center().rounded(8).border_1()
           .border_color(t.border).cursor_text()
           .child(Input.new(this.input).h_full().text_size(12).text_color(t.foreground)))
-        .child(button(t, "write", "✦", this.ready, false, (cx) => this.write(cx))))
+        .child(button(t, "write", "✦", this.ready, false, (cx) => this.write(cx)).bg(t.selection)
+          .text_color(this.ready ? t.accent : t.muted)))
       .child(h_flex().gap(8)
         .child(button(t, "commit", label, commit, true, (cx) => this.commit(cx)).flex_1().justify_center())
-        .child(button(t, "mode", this.menu ? "▴" : "▾", this.ready, false, (cx) => {
+        .child(button(t, "mode", this.menu ? "▴" : "▾", this.ready, true, (cx) => {
           this.menu = !this.menu;
           cx.notify();
         })))
@@ -593,10 +594,11 @@ export default class HerdrFold extends View {
   }
 }
 
-/** A button: SOLID for the one Enter presses too, faint while it cannot be pressed. */
+/** A button: SOLID in the accent, as the TUI's Commit and its arrow, even while it cannot be pressed; the others
+ * faint then. */
 function button(t, id, label, enabled, solid, onClick) {
-  return div().id(id).h(32).px(12).flex().items_center().rounded(8).text_size(12)
-    .bg(enabled && solid ? t.solid : t.raised).text_color(!enabled ? t.dim : solid ? t.solid_foreground : t.foreground)
+  return div().id(id).h(32).px(12).flex().items_center().rounded(8).text_size(12).when(solid, (e) => e.font_semibold())
+    .bg(solid ? t.solid : t.raised).text_color(solid ? t.solid_foreground : enabled ? t.foreground : t.dim)
     .when(enabled, (e) => e.cursor_pointer().on_click((_e, cx) => onClick(cx))).child(label);
 }
 

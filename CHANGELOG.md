@@ -36,6 +36,8 @@ All notable changes to this project are listed here. The format follows
 - The sidebar's Changes view keeps the Graph at its bottom, the changes scrolling above it on their own; ↑ and ↓
   cross from one to the other. Each file's letter stands under its section's count. A folded section stays folded
   after an update or a restart, and a new version comes back to the rows you were on.
+- The Commit button the keys moved to underlines its label, in the button's own colors (no dark box over it), in
+  the sidebar; the Herdr app mod's stays in the accent too while it cannot commit yet, its message and ✦ above it.
 
 ### Fixed
 

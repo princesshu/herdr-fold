@@ -194,9 +194,9 @@ class Scm:
             canvas.region(r, side, side + SIDE, "mode")
         fill = Style(fg="button_text", bg="button", bold=True)
         label = truncate(f" {marks['check']} {MODES[self.mode]} ", main - 4)
-        focused = self.focus == "button" and self.keyed    # the keys brought it here: the label lit the other way
+        focused = self.focus == "button" and self.keyed    # the keys brought it here: its label underlined
         canvas.put(row, 1 + max(0, (main - width(label)) // 2), label,
-                   Style(fg="button", bg="button_text", bold=True) if focused else fill)
+                   Style(fg="button_text", bg="button", bold=True, underline=True) if focused else fill)
         canvas.put(row, centered(side, SIDE), marks["more"], fill)
         return taken
 
