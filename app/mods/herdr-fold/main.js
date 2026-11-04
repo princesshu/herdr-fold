@@ -6,8 +6,10 @@ import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list } from "gp
 import { spaces, panes, focused, exec, hc, home, watchFolder, nextCommand, theme, settings, layout, props, closeOverlay,
   shared, setShared, readTextFile, run as command } from "herdr";
 import { COMMIT_MESSAGE, FILEOPS, GIT, SEARCH } from "./helper.js";
-import { afterCommit, background, changedFiles, commitMode, commitRows, diffRows, excerpt, marked, MODES, panelToggle,
-  pythonCommand, rowActions, searchRows, searchSummary, secretQuestion, syncLabel, written } from "./logic.js";
+import { afterCommit, background, changedFiles, commitMode, commitRows, diffRows, excerpt, lastLine, marked, MODES,
+  panelToggle, pythonCommand, rowActions, said, searchRows, searchSummary, secretQuestion, syncLabel, written }
+  from "./logic.js";
+import { TerminalHeader } from "./terminal.js";
 
 const REFRESH = 10000;             // ms between two looks when no folder change says so (another machine's space)
 const POLL = 1500;                 // ms between two looks at the message being written
@@ -30,12 +32,6 @@ function place() {
 
 /** The code's font: the layout's (herdr-fold's is Menlo, as VS Code's), else the person's, else Menlo. */
 const codeFont = () => /** @type {any} */ (layout())?.font ?? settings().font_family ?? "Menlo";
-
-/** @param {{ code: number, stdout: string, stderr: string }} out */
-const lastLine = (out) => (out.stderr || out.stdout).trim().split("\n").pop() || `exit ${out.code}`;
-
-/** @param {unknown} e */
-const said = (e) => String(e instanceof Error ? e.message : e);
 
 /** What the diff below shows, as a key: "staged:PATH", "changes:PATH" or "commit:HASH". @param {string} kind
  * @param {string} id */
@@ -97,6 +93,12 @@ export default class HerdrFold extends View {
       for (const [name, args] of panelToggle(layout())) command(name, args);
       return void closeOverlay(this.launcher);
     }
+    const part = props()?.part;                   // the layout's terminal stack: its header, its stand-in
+    if (part === "terminal") {
+      this.terminal = new TerminalHeader();
+      return void cx.timer.every(REFRESH, (cx) => this.terminal.look(cx));
+    }
+    if ((this.blank = part === "none")) return;
     this.files = []; this.rows = []; this.commits = []; this.status = null; this.message = "";
     this.view = shared(VIEW) === "search" ? "search" : "changes";
     this.switches = { case: false, word: false, regex: false };
@@ -388,9 +390,14 @@ export default class HerdrFold extends View {
   }
 
   render(cx) {
-    if (this.launcher) return div();
+    if (this.launcher || this.blank) return div();
+    const t = theme();
+    if (this.terminal) {
+      this.terminal.watch(cx);
+      return this.terminal.render(t);
+    }
     if (JSON.stringify(place()) !== this.key) this.refresh(cx);
-    const t = theme(), frame = v_flex().id("herdr-fold").size_full().min_h(0).rounded(10).overflow_hidden()
+    const frame = v_flex().id("herdr-fold").size_full().min_h(0).rounded(10).overflow_hidden()
       .bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13).child(this.header(t));
     if (this.view === "search") return frame.child(this.query(t)).child(this.hits(t)).when(Boolean(this.peek),
       (e) => e.child(this.lines(t)));
@@ -486,8 +493,9 @@ export default class HerdrFold extends View {
     const empty = this.loading ? "Loading changes…" : this.root ? "No uncommitted changes" : this.note || "No folder";
     const staged = this.status?.staged ?? [], changes = this.status?.changes ?? [];
     const rows = (staged.length ? 1 + staged.length : 0) + (changes.length ? 1 + changes.length : 0);
-    return v_flex().id("changed").flex_none().h(Math.min(240, Math.max(44, rows * 28 + 12)))
-      .overflow_y_scrollbar().p(6).border_b(1).border_color(t.border)
+    // as tall as its rows (240 at most), less when the panel is short: the commit row below always shows
+    return v_flex().id("changed").flex_grow(0).flex_shrink(1).flex_basis(Math.min(240, Math.max(44, rows * 28 + 12)))
+      .min_h(44).overflow_y_scrollbar().p(6).border_b(1).border_color(t.border)
       .when(staged.length > 0, (e) => e.child(section(t, "Staged Changes", staged.length))
         .children(staged.map((f) => this.file(t, "staged", f))))
       .when(changes.length > 0, (e) => e.child(section(t, "Changes", changes.length))
@@ -524,7 +532,7 @@ export default class HerdrFold extends View {
         .when(kind === "+", (e) => e.bg(t.ansi2 + "18")).when(kind === "-", (e) => e.bg(t.ansi1 + "18"))
         .child(div().w(30).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
         .child(div().flex_1().min_w(0).truncate().child(text));
-    return div().flex_1().min_h(0).relative().font_family(codeFont()).text_size(11)
+    return div().flex_1().min_h(120).relative().font_family(codeFont()).text_size(11)
       .child(v_virtual_list("diff", this.rows.length, 20, (i) => String(i),
         (range) => this.rows.slice(range.start, range.end).map(row)).size_full())
       .child(Scrollbar.vertical("diff").viewport_from_layout().absolute().inset_0());
@@ -552,9 +560,9 @@ export default class HerdrFold extends View {
         .children(refs.map((ref) => div().px(5).rounded(4).text_size(10).bg(t.raised).text_color(t.accent).child(ref)))
         .child(div().flex_none().text_size(11).text_color(t.dim).child(author));
     };
-    return v_flex().flex_none().border_t(1).border_color(t.border).child(heading)
-      .when(!this.folded && this.commits.length > 0, (e) => e.child(v_flex().id("commits").flex_none()
-        .h(Math.min(150, this.commits.length * 24 + 8)).overflow_y_scrollbar().px(6).pb(6)
+    return v_flex().flex_grow(0).flex_shrink(1).min_h(28).border_t(1).border_color(t.border).child(heading)
+      .when(!this.folded && this.commits.length > 0, (e) => e.child(v_flex().id("commits").flex_grow(0).flex_shrink(1)
+        .flex_basis(Math.min(150, this.commits.length * 24 + 8)).min_h(0).overflow_y_scrollbar().px(6).pb(6)
         .children(this.commits.map(commit))));
   }
 

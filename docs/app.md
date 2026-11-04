@@ -5,7 +5,8 @@ TUI sidebar's counterpart in the app, with the same data layer underneath (`core
 the same in both. It installs on its own, without the TUI environment.
 
 It comes with a layout of its own, `herdr-fold`: the app's main layout, with herdr-fold in the right panel where the
-app's own Changes was. The Changes button at the top right opens it there, and so does Cmd + Shift + G. The layout is
+app's own Changes was, above the tab's own terminal, as the TUI's right column has them. The Changes button at the top
+right opens it there, and so does Cmd + Shift + G. The layout is
 dark, in the TUI's own colors (its theme, `themes/herdr-fold.json`, is made from the TUI's), and its code is in Menlo,
 as VS Code's (on Linux and Windows the app's JetBrains Mono); the app's theme and font menus change them.
 
@@ -54,6 +55,13 @@ else git grep in a repository, else herdr-fold's own search; a file .gitignore n
 | The line under it | the folder searched, then how many hits in how many files (the first 1000 shown), or what went wrong |
 | Hits | by file, each with its line number, the match marked; a click shows the file below, from a few lines above the hit, its line marked |
 
+## The tab's terminal
+
+Under herdr-fold, each tab has a terminal of its own, as in the TUI: it starts the first time the tab shows, in the
+space's folder on its machine, with that machine's shell, and switching tabs switches it. Like the tab's own terminals,
+it keeps running when the app quits, and ends when the tab closes; a shell that exits makes way for a new one. Its
+header names the program and the folder, as the app's pane header does; the edge above it resizes the two.
+
 ## Installing it
 
 It needs the Herdr app, and Python 3 and git on the machine the space is on (Claude Code or Codex too, for the ✦).
@@ -80,8 +88,9 @@ Without the TUI environment, from the `app` folder of herdr-fold:
    herdr-app do layout.switch --name herdr-fold
    ```
 
-Your own layout stays as it was: Cmd + Shift + L switches between the layouts. To remove it all, delete the three copied
-items and the keys section.
+Your own layout stays as it was: Cmd + Shift + L switches between the layouts. To remove it all, switch to another
+layout, end the tabs' terminals the layout's `fold-terminals` stack names (`herdr-core kill <address>`), then delete the
+three copied items and the keys section.
 
 Without the layout, herdr-fold also opens beside a terminal, as a pane of that tab:
 `herdr-app do pane.split --direction right --mod herdr-fold`.
@@ -118,4 +127,6 @@ not take it.
   committing and syncing its hooks, as git in a terminal does.
 - The message writer hands Claude or Codex what the TUI's does, and nothing else; its answer waits in a temporary
   folder of its own, removed once read (or ten minutes after it is written, should the pane be closed meanwhile).
+- A tab's terminal is the app core's, on the space's machine, with that machine's shell: herdr-fold types nothing into
+  it, and marks it with a label (`herdr-fold.tab`) to find it again.
 - The mod itself sends nothing anywhere; the sync talks to the repository's remote, the AI tool to its own service.

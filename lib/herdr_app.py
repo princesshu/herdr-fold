@@ -1,21 +1,54 @@
-"""herdr-fold in the Herdr app (herdr's desktop app), for install.sh and uninstall.sh: the mod, its layout (in its own
-theme) and its keys into the app's home, and off again; nothing else of the app's is touched. Usage: herdr_app.py cli |
-home | install PACKAGE (0; 3: keys.json unreadable, left as it is; 4: a mods/herdr-fold not herdr-fold's) | uninstall"""
+"""herdr-fold in the Herdr app, for install.sh and uninstall.sh: the mod, its layout, themes and keys into the app's
+home and off again, the tabs' terminals it started ended. Usage: herdr_app.py cli | core | home | install PACKAGE (0; 3:
+keys.json unreadable, left as it is; 4: a mods/herdr-fold not herdr-fold's) | uninstall PACKAGE | end-terminals"""
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 
 MOD, LAYOUT, KEYS = os.path.join("mods", "herdr-fold"), os.path.join("layouts", "herdr-fold.json"), "keys.json"
 THEMES = "themes"              # herdr-fold.json (the layout's own) and the TUI's themes, herdr-fold-ID.json
 TITLE = "herdr-fold"            # the mod.json title that marks a mods/herdr-fold folder as herdr-fold's copy
+TERMINALS = "fold-terminals"    # the layout's stack of the tabs' terminals the mod started (app/mods/herdr-fold)
 
 
 def cli():
     """The app's command line (herdr-app on PATH, else where the app puts it), or None without the app."""
     local = os.path.expanduser("~/.local/bin/herdr-app")
     return shutil.which("herdr-app") or (local if os.access(local, os.X_OK) else None)
+
+
+def core():
+    """The app's core, hc (herdr-core): on PATH, else beside the app's command line, or None."""
+    app = cli()
+    beside = os.path.join(os.path.dirname(app), "herdr-core") if app else ""
+    return shutil.which("herdr-core") or shutil.which("hc") or (beside if os.access(beside, os.X_OK) else None)
+
+
+def nodes(node):
+    yield node
+    for child in node.get("children") or []:
+        yield from nodes(child)
+
+
+def tab_terminals(home):
+    """The terminals the mod started for tabs, as the layout in HOME names them: this computer's and other machines'
+    (`lab/t7`)."""
+    try:
+        with open(os.path.join(home, LAYOUT), encoding="utf-8") as f:
+            layout = json.load(f)
+    except (OSError, ValueError):
+        return []
+    stacks = [n for n in nodes(layout) if isinstance(n, dict) and n.get("id") == TERMINALS]
+    return [address for stack in stacks for child in stack.get("children") or []
+            if isinstance(address := (child.get("content") or {}).get("terminal"), str)]
+
+
+def end_terminals(hc, home):
+    for address in tab_terminals(home):
+        subprocess.run([hc, "kill", "--", address], capture_output=True, timeout=30, stdin=subprocess.DEVNULL)
 
 
 def app_home():
@@ -127,6 +160,16 @@ def main(argv):
         if found:
             print(found)
         return 0 if found else 1
+    if command == "core" and not args:
+        found = core()
+        if found:
+            print(found)
+        return 0 if found else 1
+    if command == "end-terminals" and not args:
+        found = core()
+        if found:
+            end_terminals(found, app_home())
+        return 0
     if command == "home" and not args:
         print(app_home())
         return 0
@@ -135,7 +178,8 @@ def main(argv):
     if command == "uninstall" and len(args) == 1:
         uninstall(args[0], app_home())
         return 0
-    print("usage: herdr_app.py cli | home | install PACKAGE | uninstall PACKAGE", file=sys.stderr)
+    print("usage: herdr_app.py cli | core | home | install PACKAGE | uninstall PACKAGE | end-terminals",
+          file=sys.stderr)
     return 2
 
 

@@ -6,9 +6,9 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterCommit, background, changedFiles, commitMode, commitRows, diffRows, excerpt, marked, MODES, panelToggle,
-  pythonCommand, rowActions, searchRows, searchSummary, secretQuestion, syncLabel, written }
-  from "../mods/herdr-fold/logic.js";
+import { afterCommit, background, changedFiles, commitMode, commitRows, diffRows, excerpt, folderName, lastLine,
+  machineOf, marked, MODES, panelToggle, pythonCommand, rowActions, said, searchRows, searchSummary, secretQuestion,
+  strays, syncLabel, TERMINALS, terminalId, withoutTabs, withTerminal, written } from "../mods/herdr-fold/logic.js";
 
 test("a diff's lines numbered once, old and new apart", () => {
   const rows = diffRows(["@@ -3,2 +3,3 @@", " same", "-old", "+new", "+more"]);
@@ -56,6 +56,72 @@ test("the search's summary, in the TUI sidebar's words", () => {
     "1000 of 1500 results shown");
   assert.equal(searchSummary({ total: 0, files: 0, hits: [], error: null }), "No results found");
   assert.equal(searchSummary({ total: 0, files: 0, hits: [], error: "invalid regex: x" }), "invalid regex: x");
+});
+
+/** A layout as herdr-fold's has it: the panel, its views above, its tabs' terminals below (the stand-in first). */
+const tree = () => ({ id: "root", children: [{ id: "panel", children: [{ id: "panel-body", children: [] },
+  { id: TERMINALS, active: "fold-terminal-none",
+    children: [{ id: "fold-terminal-none", content: { mod: "x" } }] }] }] });
+
+test("a tab's terminal in the panel's stack: added once, its address kept up to date", () => {
+  const first = withTerminal(tree(), "tb42", "lab/t7");
+  assert.equal(first.changed, true);
+  const stack = first.tree.children[0].children[1];
+  assert.deepEqual(stack.children.map((c) => c.id), ["fold-terminal-none", terminalId("tb42")]);
+  assert.deepEqual(stack.children[1], { id: terminalId("tb42"), type: "block", content: { terminal: "lab/t7" } });
+  assert.equal(withTerminal(first.tree, "tb42", "lab/t7").changed, false);       // nothing to write again
+  const moved = withTerminal(first.tree, "tb42", "lab/t9");
+  assert.equal(moved.changed, true);
+  assert.deepEqual(moved.tree.children[0].children[1].children[1].content, { terminal: "lab/t9" });
+});
+
+test("the terminals of tabs that are gone come out of the stack; the stand-in and the live ones stay", () => {
+  const two = withTerminal(withTerminal(tree(), "tb1", "t1").tree, "tb2", "t2").tree;
+  const { tree: left, gone } = withoutTabs(two, ["tb2"], new Set([null]));
+  assert.deepEqual(gone, [terminalId("tb1")]);
+  assert.deepEqual(left.children[0].children[1].children.map((c) => c.id), ["fold-terminal-none", terminalId("tb2")]);
+  assert.deepEqual(withoutTabs(left, ["tb2"], new Set([null])).gone, []);
+});
+
+test("a terminal on a machine away stays, its tabs not listed meanwhile; it goes once the machine is back", () => {
+  const away = withTerminal(withTerminal(tree(), "lab/tb1", "lab/t1").tree, "tb2", "t2").tree;
+  assert.deepEqual(withoutTabs(away, ["tb2"], new Set([null])).gone, []);
+  assert.deepEqual(withoutTabs(away, ["tb2"], new Set([null, "lab"])).gone, [terminalId("lab/tb1")]);
+});
+
+test("a second terminal started for a tab ends while the one its block shows is live, not while that one is gone",
+  () => {
+    const shown = withTerminal(tree(), "tb1", "t2").tree;
+    const one = (address, live) => ({ address, tab: "tb1", live });
+    assert.deepEqual(strays(shown, [one("t1", true), one("t2", true), one("t0", false)]), ["t1"]);
+    assert.deepEqual(strays(shown, [one("t1", true), one("t2", false)]), []);       // t1 may be the one replacing it
+    assert.deepEqual(strays(tree(), [one("t1", true)]), []);                        // no block yet: it is coming
+  });
+
+test("what a failed program said: its error's last line, else its output's, else its exit code", () => {
+  assert.equal(lastLine({ code: 1, stdout: "out\n", stderr: "warning\nno machine: lab\n" }), "no machine: lab");
+  assert.equal(lastLine({ code: 2, stdout: "first\nlast\n", stderr: "" }), "last");
+  assert.equal(lastLine({ code: 3, stdout: "", stderr: "  \n" }), "exit 3");
+  assert.equal(said(new Error("gone")), "gone");
+  assert.equal(said("plain"), "plain");
+});
+
+test("a terminal's machine from its address: the name before the slash, none on this computer", () => {
+  assert.equal(machineOf("lab/t7"), "lab");
+  assert.equal(machineOf("t7"), null);
+});
+
+test("a terminal's folder as the app's pane header names it: under the home folder from ~", () => {
+  assert.equal(folderName("/Users/dev/work/api", "/Users/dev"), "~/work/api");
+  assert.equal(folderName("/Users/dev", "/Users/dev"), "~");
+  assert.equal(folderName("/Users/a_b/x", "/Users/a"), "/Users/a_b/x");
+  assert.equal(folderName("/srv/api", null), "/srv/api");
+  assert.equal(folderName(null, "/Users/dev"), "");
+});
+
+test("a tab's id makes a layout id of letters, digits and dashes only", () => {
+  assert.equal(terminalId("tb4223ef"), "fold-terminal-tb4223ef");
+  assert.match(terminalId("lab/tb 1:x"), /^fold-terminal-[a-z0-9-]+$/);
 });
 
 test("each changed file once, staged or not, in the order git gives them", () => {

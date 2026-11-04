@@ -14,9 +14,7 @@ APP_MACHINES="$HOME/.local/state/herdr-fold/app-machines.txt"
 
 # The Herdr app's core, hc (herdr-core): on PATH, else beside the app's command line
 hc_bin() {
-  local app
-  command -v herdr-core || command -v hc \
-    || { app=$(python3 "$DOT/lib/herdr_app.py" cli) && [ -x "${app%/*}/herdr-core" ] && echo "${app%/*}/herdr-core"; }
+  python3 "$DOT/lib/herdr_app.py" core
 }
 
 # remove_from_app NAME — a machine herdr-fold added to the Herdr app leaves it (its terminals keep running there)

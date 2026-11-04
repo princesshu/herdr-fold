@@ -128,6 +128,13 @@ export function searchSummary(found) {
   return `${found.total} result${s(found.total)} in ${found.files} file${s(found.files)}`;
 }
 
+/** What a program that failed said last (its error, else its output), or its exit code.
+ * @param {{ code: number, stdout: string, stderr: string }} out */
+export const lastLine = (out) => (out.stderr || out.stdout).trim().split("\n").pop() || `exit ${out.code}`;
+
+/** An error's message, or the thrown value as text. @param {unknown} e */
+export const said = (e) => String(e instanceof Error ? e.message : e);
+
 /** The sync button: how far the branch is from its upstream, as the TUI sidebar says it.
  * @param {{ upstream: string | null, ahead: number, behind: number } | null} status */
 export function syncLabel(status) {
@@ -150,6 +157,61 @@ export function panelToggle(root) {
   const panel = find(root, "panel"), body = find(root, "panel-body");
   return panel && !panel.hidden && body?.active === "changes" ? [["layout.hide", { id: "panel" }]]
     : [["layout.select", { stack: "panel-body", child: "changes" }], ["layout.show", { id: "panel" }]];
+}
+
+/** The stack under the panel's views showing the focused tab's own terminal, as the TUI's right column does; its
+ * stand-in shows until a tab's terminal is there, its header names the one shown. */
+export const TERMINALS = "fold-terminals";
+const PREFIX = "fold-terminal-", NONE = "fold-terminal-none";
+
+/** The layout id of TAB's terminal in that stack. @param {string} tab */
+export const terminalId = (tab) => PREFIX + tab.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+
+/** A terminal's machine, from its address (`lab/t7`): null for this computer's. @param {string} address */
+export const machineOf = (address) => (address.includes("/") ? address.split("/")[0] : null);
+
+/** CWD as the app's pane header names a folder: from ~ under HOME (this computer's). @param {string | null} cwd
+ * @param {string | null} home */
+export function folderName(cwd, home) {
+  if (!cwd) return "";
+  return home && (cwd === home || cwd.startsWith(home + "/")) ? "~" + cwd.slice(home.length) : cwd;
+}
+
+/** TREE (a layout) with TAB's terminal, at ADDRESS, in the TERMINALS stack (which draws its frame): a copy, and
+ * whether it differs from TREE (else nothing to write).
+ * @param {any} tree @param {string} tab @param {string} address */
+export function withTerminal(tree, tab, address) {
+  const copy = JSON.parse(JSON.stringify(tree)), stack = find(copy, TERMINALS), id = terminalId(tab);
+  const child = stack?.children?.find((c) => c.id === id);
+  if (!stack || child?.content?.terminal === address) return { tree, changed: false };
+  if (child) child.content = { terminal: address };
+  else stack.children.push({ id, type: "block", content: { terminal: address } });
+  return { tree: copy, changed: true };
+}
+
+/** TREE without the terminals of tabs not in LIVE (tab ids) whose machine is in REACHABLE (null: this computer): a
+ * copy, and the ids taken out. A machine away lists no tabs, so its terminals wait for it.
+ * @param {any} tree @param {string[]} live @param {Set<string | null>} reachable */
+export function withoutTabs(tree, live, reachable) {
+  const keep = new Set(live.map(terminalId)), copy = JSON.parse(JSON.stringify(tree)), stack = find(copy, TERMINALS);
+  const gone = (stack?.children ?? []).filter((c) => c.id.startsWith(PREFIX) && c.id !== NONE && !keep.has(c.id) &&
+    reachable.has(machineOf(String(c.content?.terminal ?? "")))).map((c) => c.id);
+  if (!gone.length) return { tree, gone };
+  stack.children = stack.children.filter((c) => !gone.includes(c.id));
+  if (gone.includes(stack.active)) stack.active = NONE;
+  return { tree: copy, gone };
+}
+
+/** The terminals started for a tab beside the one its block shows (the mod reloaded while one started), to end: only
+ * while that one is live, as a terminal replacing an ended one is not in the block yet.
+ * @param {any} tree @param {{ address: string, tab: string, live: boolean }[]} labelled */
+export function strays(tree, labelled) {
+  const shows = new Map((find(tree, TERMINALS)?.children ?? []).map((c) => [c.id, c.content?.terminal]));
+  const live = new Set(labelled.filter((t) => t.live).map((t) => t.address));
+  return labelled.filter((t) => {
+    const shown = shows.get(terminalId(t.tab));
+    return t.live && shown && shown !== t.address && live.has(shown);
+  }).map((t) => t.address);
 }
 
 // core/'s code runs where the repository is, isolated (a module there, a json.py, is never imported for Python's)

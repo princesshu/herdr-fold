@@ -19,7 +19,8 @@ It asks `Take herdr-fold off this Mac?`, then works from the installer's records
   the first install stays in `~/.local/state/herdr-fold/original/`;
 - the plugins and herdr integrations it put there are removed, with the empty folders herdr keeps of them;
 - in the Herdr app: herdr-fold's mod, its layout, its themes and its keys (a running app shows its main layout
-  first), and the machines herdr-fold added there; your own mods, layouts, themes, keys and machines stay;
+  first, and the terminals herdr-fold started for its tabs end), and the machines herdr-fold added there; your own
+  mods, layouts, themes, keys, machines and terminals stay;
 - Claude's earlier status line comes back (or herdr-fold's just goes);
 - Ghostty's own app icon comes back: the icons the themes drew go.
 

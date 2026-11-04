@@ -16,7 +16,7 @@ plugins of its own.
 | `herdr-plugin.toml` | the whole environment as a herdr plugin (Full Setup), for herdr's marketplace: it opens `install.sh` in a herdr tab, once for each copy herdr keeps (`lib/offer_install.sh`) |
 | `Brewfile` | the programs: herdr, Ghostty, starship, gh, bat, git-delta, ripgrep, the JetBrains Mono Nerd Font |
 | `files.txt` | which file goes where on this Mac |
-| `lib/` | the shell helpers: texts (`i18n.sh`), status lines (`output.sh`), file rules (`files.sh`), the loading animation (`loading.sh`), shared settings (`common.sh`); `offer_install.sh`, the whole-environment plugin's hook; `herdr_app.py`, herdr-fold in the Herdr app for the installer and the uninstaller (the mod, its layout and keys, in the app's home) |
+| `lib/` | the shell helpers: texts (`i18n.sh`), status lines (`output.sh`), file rules (`files.sh`), the loading animation (`loading.sh`), shared settings (`common.sh`); `offer_install.sh`, the whole-environment plugin's hook; `herdr_app.py`, herdr-fold in the Herdr app for the installer and the uninstaller (the mod, its layout and keys, in the app's home; the tabs' terminals its layout names, ended), and where the app's core is |
 
 ### Settings
 
@@ -70,8 +70,8 @@ plugins of its own.
 
 | File | What it is |
 |---|---|
-| `app/mods/herdr-fold/` | herdr-fold's mod for the Herdr desktop app, the TUI sidebar's counterpart ([The Herdr app](app.md)): `main.js` the Changes view, and the toggle Cmd+Shift+G opens it as; `helper.js` holds the core's source, which it runs with Python's `-I` on the space's machine (`python3`, or what a Windows machine's `python.ps1` names); `logic.js` what it works out without a window: a diff's rows, the sync label, the question before a commit, the message writer as a background job |
-| `app/layouts/herdr-fold.json` | the app's main layout with herdr-fold in the right panel, where the app's own Changes was: the Changes button and Cmd+Shift+G open it there |
+| `app/mods/herdr-fold/` | herdr-fold's mod for the Herdr desktop app, the TUI sidebar's counterpart ([The Herdr app](app.md)): `main.js` the Changes and Search views, and the toggle Cmd+Shift+G opens it as; `terminal.js` the tab's own terminal under them: it follows the focused tab, starts one through the app's core on the space's machine, and ends a closed tab's; `helper.js` holds the core's source, which it runs with Python's `-I` on the space's machine (`python3`, or what a Windows machine's `python.ps1` names); `logic.js` what it works out without a window: a diff's rows, the sync label, the question before a commit, the message writer as a background job, the layout with a tab's terminal in it or a closed tab's out |
+| `app/layouts/herdr-fold.json` | the app's main layout with herdr-fold in the right panel, where the app's own Changes was: the Changes button and Cmd+Shift+G open it there; under it the `fold-terminals` stack, a block per tab's terminal, its header herdr-fold naming the one shown |
 | `app/themes/` | the TUI's themes as the app's, made by `tools/build.py` from `src/themes/themes.js`: `herdr-fold.json`, that layout's own (the package's, Catppuccin Mocha), and `herdr-fold-ID.json` for each of the TUI's, offered in the app's Settings for every layout |
 | `app/keys.json` | the keys, merged into the app's own: in that layout Cmd+Shift+G shows or hides herdr-fold, and Cmd+Shift+C has it write the message |
 | `app/tests/` | the mod's logic tested with Node (`logic.test.js`, `node --test app/tests`); `tests/test_app.py` runs them, and the app's own check of the mod |

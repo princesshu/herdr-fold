@@ -8,6 +8,7 @@ import tempfile
 import unittest
 
 from support import catalog_text, copy_package, from_homebrew, run_in_terminal, stubs
+from test_app_install import with_tab_terminals
 from test_install_cleanup import DEFAULTS_STUB, GH_STUB, STUB
 
 # the app's command line: logs each call; running (status answers) only with STUB_APP_RUNNING, on STUB_APP_LAYOUT
@@ -107,8 +108,13 @@ class InstallApp(unittest.TestCase):
 
     def test_uninstall_takes_the_app_part_off(self):
         self.with_app(running=True, layout="herdr-fold")
+        hc_log = os.path.join(self.tmp, "hc-calls")
+        stubs(self.fakes, {"herdr-core": f'#!/bin/sh\necho "hc $*" >> {hc_log}\n'})
         self.run_script("install.sh")
+        with_tab_terminals(self.app_home, "t2", "lab/t5")
         out = self.run_script("uninstall.sh")
+        with open(hc_log) as f:
+            self.assertEqual(f.read().splitlines(), ["hc kill -- t2", "hc kill -- lab/t5"])
         self.assertFalse(self.in_app("mods/herdr-fold"))
         self.assertFalse(self.in_app("layouts/herdr-fold.json"))
         with open(os.path.join(self.app_home, "keys.json")) as f:

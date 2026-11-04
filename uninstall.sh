@@ -13,11 +13,14 @@ changed="$state/changed-$(date +%Y%m%d-%H%M%S)"
 ask "$(t uninstall.ready)" y || exit 0
 
 step "$(t uninstall.step_herdr)"
-# herdr-fold in the Herdr app: a running app leaves its layout first, then the mod, the layout and the keys go
+# herdr-fold in the Herdr app: a running app leaves its layout first and the terminals the mod started for tabs end
+# (its core runs then; asking a stopped one would start it), then the mod, the layout and the keys go
 app_off() {
-  local app; app=$(python3 "$DOT/lib/herdr_app.py" cli)
-  [ -n "$app" ] && "$app" status 2>/dev/null | grep -q '"layout": *"herdr-fold"' \
-    && "$app" do layout.switch --name main >/dev/null 2>&1
+  local app status; app=$(python3 "$DOT/lib/herdr_app.py" cli)
+  if [ -n "$app" ] && status=$("$app" status 2>/dev/null); then
+    grep -q '"layout": *"herdr-fold"' <<<"$status" && "$app" do layout.switch --name main >/dev/null 2>&1
+    python3 "$DOT/lib/herdr_app.py" end-terminals
+  fi
   python3 "$DOT/lib/herdr_app.py" uninstall "$DOT" && ok "$(t uninstall.app_off)"
 }
 # the plugins and integrations first: a running herdr then calls nothing that is about to go. A plugin herdr no longer

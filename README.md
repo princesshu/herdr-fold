@@ -37,8 +37,8 @@ above a terminal](docs/media/hero.webp)
   theme's colors. A status line with the model, effort, context with its window size and limits, the same for Claude
   and Codex.
 - Workspaces on Linux, macOS and Windows machines over SSH; the agents keep running there when the Mac sleeps.
-- In herdr's desktop app too: a mod with the sidebar's Changes and Search (the other views follow), on remote machines
-  alike, a dark layout in the TUI's colors, the twelve themes in its Settings: [The Herdr app](docs/app.md).
+- In herdr's desktop app too: the sidebar's Changes and Search (the other views follow) above the tab's own terminal,
+  on remote machines alike, dark in the TUI's colors, the twelve themes in Settings: [The Herdr app](docs/app.md).
 
 ![An issue from the sidebar goes to Claude, which fixes it, and the message it writes closes the
 issue](docs/media/issue-to-agent.webp)

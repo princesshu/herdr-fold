@@ -137,7 +137,6 @@
             {
               "id": "panel",
               "type": "column",
-              "hidden": true,
               "size": {
                 "px": 368
               },
@@ -147,7 +146,7 @@
                 {
                   "id": "panel-body",
                   "type": "stack",
-                  "active": "files",
+                  "active": "changes",
                   "children": [
                     {
                       "id": "files",
@@ -163,9 +162,49 @@
                         "mod": "herdr-fold"
                       }
                     }
+                  ],
+                  "size": {
+                    "weight": 3
+                  }
+                },
+                {
+                  "id": "fold-terminals",
+                  "type": "stack",
+                  "size": {
+                    "weight": 2
+                  },
+                  "min": 120,
+                  "background": "background",
+                  "border": {
+                    "width": 1,
+                    "color": "border"
+                  },
+                  "radius": 10,
+                  "header": {
+                    "content": {
+                      "mod": "herdr-fold",
+                      "props": {
+                        "part": "terminal"
+                      }
+                    },
+                    "height": 30
+                  },
+                  "active": "fold-terminal-none",
+                  "children": [
+                    {
+                      "id": "fold-terminal-none",
+                      "type": "block",
+                      "content": {
+                        "mod": "herdr-fold",
+                        "props": {
+                          "part": "none"
+                        }
+                      }
+                    }
                   ]
                 }
-              ]
+              ],
+              "gap": 8
             }
           ]
         },

@@ -1,6 +1,6 @@
 """The whole remote way on the lab's machine: install.sh in a home of its own connects it to herdr (the TUI) and to the
-Herdr app's core, the mod's code commits and pushes there, the TUI's sidebar draws there, and uninstall.sh takes the
-app's part off again. Run by python3 lab/lab.py test; nothing of the person's own (herdr, the app, ~/.ssh) is used."""
+Herdr app's core, where the mod commits, pushes and starts the tab's terminal; the TUI's sidebar draws there too; then
+uninstall.sh takes the app's part off. Run by python3 lab/lab.py test; nothing of the person's own is used."""
 import json
 import os
 import shlex
@@ -15,6 +15,8 @@ LAB = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PACKAGE = os.path.dirname(LAB)
 sys.path.insert(0, LAB)
 sys.path.insert(0, os.path.join(PACKAGE, "tests"))
+sys.path.insert(0, os.path.join(PACKAGE, "lib"))
+import herdr_app  # noqa: E402
 import lab  # noqa: E402
 import walk  # noqa: E402
 from support import copy_package, run_in_terminal, stubs  # noqa: E402
@@ -110,6 +112,13 @@ class WholeWay(unittest.TestCase):
         broken = [line for line in status.splitlines() if "herdr-fold" in line and
                   any(word in line.lower() for word in ("error", "panic", "exception", "failed"))]
         self.assertEqual(broken, [], self.app_failed(app, said))
+        # the tab's own terminal under the panel, on the space's machine, as the TUI's right column has it there
+        app_home = os.path.join(self.home, ".config", "herdr-app")
+        self.wait_for(lambda: any(a.startswith("lab/") for a in herdr_app.tab_terminals(app_home)),
+                      "the tab's terminal on the machine", 60)
+        address = next(a for a in herdr_app.tab_terminals(app_home) if a.startswith("lab/"))
+        got = self.run_here("herdr-core", "get", "--json", address)
+        self.assertEqual(json.loads(got.stdout or "{}").get("state"), "live", got.stdout + got.stderr)
 
     def seen_before(self, app):
         """The demo's app as one that ran this version before: no welcome, no What's New over the mod's panel (the

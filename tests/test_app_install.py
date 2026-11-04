@@ -102,6 +102,41 @@ class Install(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(self.home, "mods", "herdr-fold", "main.js")))
 
 
+def with_tab_terminals(home, *addresses):
+    """The layout in HOME with terminals in its fold-terminals stack, as the mod puts the tabs' there."""
+    path = os.path.join(home, "layouts", "herdr-fold.json")
+    with open(path, encoding="utf-8") as f:
+        layout = json.load(f)
+    stack, = [n for n in herdr_app.nodes(layout) if n.get("id") == "fold-terminals"]
+    stack["children"] += [{"id": f"fold-terminal-tb{i}", "type": "block", "content": {"terminal": address}}
+                          for i, address in enumerate(addresses)]
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(layout, f)
+
+
+class Terminals(unittest.TestCase):
+    """The terminals the mod started for tabs, on this computer and on other machines, end with herdr-fold."""
+
+    def test_the_tabs_terminals_the_layout_names_end(self):
+        home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, home)
+        herdr_app.install(PACKAGE, home)
+        self.assertEqual(herdr_app.tab_terminals(home), [])
+        with_tab_terminals(home, "t2", "lab/t5")
+        self.assertEqual(herdr_app.tab_terminals(home), ["t2", "lab/t5"])
+        hc, log = os.path.join(home, "herdr-core"), os.path.join(home, "killed")
+        with open(hc, "w") as f:
+            f.write(f'#!/bin/sh\necho "$*" >> {log}\n')
+        os.chmod(hc, 0o755)
+        herdr_app.end_terminals(hc, home)
+        self.assertEqual(read(log), b"kill -- t2\nkill -- lab/t5\n")
+
+    def test_no_layout_no_terminals(self):
+        home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, home)
+        self.assertEqual(herdr_app.tab_terminals(home), [])
+
+
 class Found(unittest.TestCase):
     def test_the_app_is_found_by_its_command_line(self):
         home = tempfile.mkdtemp()
