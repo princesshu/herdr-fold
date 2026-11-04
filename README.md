@@ -13,9 +13,10 @@ Created by [princesshu](https://github.com/princesshu).
 https://img.shields.io/badge/platforms-macOS%2015%2B%20Apple%20silicon%20%7C%20Linux%20and%20Windows%20over%20SSH-lightgrey)
 ![herdr 0.9.5+](https://img.shields.io/badge/herdr-0.9.5%2B-lightgrey)
 
-![A workspace of three under Spaces, a remote machine's below them, Claude's report of an issue it fixed on the left
-above its status line (model, context, limits), the Conversations column collapsed to a rail, and on the right the
-sidebar's Changes view with the message Claude wrote and the issue it closes, above a terminal](docs/media/hero.webp)
+![Three workspaces under Spaces, one saying how long its agent has waited; Claude's report of an issue it fixed,
+above its status line (model, context, limits); the Conversations column with each workspace's conversations; and on
+the right the sidebar's Changes view with the message Claude wrote and the issue it closes,
+above a terminal](docs/media/hero.webp)
 
 ## What you get
 
