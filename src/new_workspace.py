@@ -13,7 +13,8 @@ from herdr_layout import LayoutError, build  # noqa: E402
 from herdrlib import AGENTS, PLUGIN_STATE, agent_pane_ids, free_label, herdr  # noqa: E402
 from i18n import line, t  # noqa: E402
 from projects import repositories, start  # noqa: E402
-from screen import after, glyphs, icon, icons_on  # noqa: E402  the sidebar's, on the path herdrlib gives
+from icons import glyphs, icon  # noqa: E402  the sidebar's, on the path herdrlib gives
+from screen import after, icons_on  # noqa: E402  the sidebar's, on the path herdrlib gives
 from tui import (GRAY, INVERT, MARGIN, RESET, button_at, buttons, clicked, getkey, mouse, printable,  # noqa: E402
                  wait_and_exit)
 

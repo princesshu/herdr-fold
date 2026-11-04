@@ -11,7 +11,8 @@ from support import SRC
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 from git import Change, Commit, Status  # noqa: E402
 from scm import MESSAGE_ROWS, Entry, Gap, Scm, Section  # noqa: E402
-from screen import Canvas, glyphs  # noqa: E402
+from icons import glyphs  # noqa: E402
+from screen import Canvas  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
 from widgets import Action  # noqa: E402
 

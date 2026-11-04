@@ -6,7 +6,8 @@ from dataclasses import dataclass
 
 from commit_message import secret_looking
 from git import Change, Commit, taken
-from screen import GIT_LETTER, GIT_ROLE, PLAIN, Canvas, Style, after, centered, glyphs, icon, truncate, width
+from icons import GIT_LETTER, glyphs, icon
+from screen import GIT_ROLE, PLAIN, Canvas, Style, after, centered, truncate, width
 from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, TextInput
 

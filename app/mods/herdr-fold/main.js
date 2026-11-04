@@ -4,11 +4,11 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list } from "gpui-base";
 import { spaces, panes, focused, exec, hc, home, watchFolder, nextCommand, theme, settings, layout, props, closeOverlay,
-  shared, setShared, readTextFile, run as command } from "herdr";
+  shared, setShared, readTextFile, fonts, run as command } from "herdr";
 import { COMMIT_MESSAGE, FILEOPS, GIT, SEARCH } from "./helper.js";
-import { afterCommit, background, changedFiles, commitMode, commitRows, diffRows, excerpt, lastLine, marked, MODES,
-  panelToggle, pythonCommand, rowActions, said, searchRows, searchSummary, secretQuestion, syncLabel, written }
-  from "./logic.js";
+import { afterCommit, background, changedFiles, commitMode, commitRows, diffRows, excerpt, fileIcon, lastLine, letter,
+  marked, marks, MODES, nerdFont, panelToggle, pythonCommand, rowActions, said, searchRows, searchSummary,
+  secretQuestion, syncLabel, written } from "./logic.js";
 import { TerminalHeader } from "./terminal.js";
 
 const REFRESH = 10000;             // ms between two looks when no folder change says so (another machine's space)
@@ -20,7 +20,6 @@ const QUIET = 150;                 // ms after typing stops before the search ru
 const FOUND = 1000;                // the hits a search brings at most (the count goes on)
 const ABOVE = 12;                  // a hit's file shown from these lines above it
 const BUSY = { stage: "Staging…", unstage: "Unstaging…", discard: "Discarding…" };
-const ICONS = { stage: "+", unstage: "−", discard: "↶" };
 const TIPS = { stage: "Stage", unstage: "Unstage", discard: "Discard changes" };
 
 /** The focused pane's folder, and the machine its space is on (null: this one). */
@@ -397,6 +396,8 @@ export default class HerdrFold extends View {
       return this.terminal.render(t);
     }
     if (JSON.stringify(place()) !== this.key) this.refresh(cx);
+    this.font = nerdFont(fonts());                // the TUI's icons in a Nerd Font, else its plain marks
+    this.m = marks(this.font);
     const frame = v_flex().id("herdr-fold").size_full().min_h(0).rounded(10).overflow_hidden()
       .bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13).child(this.header(t));
     if (this.view === "search") return frame.child(this.query(t)).child(this.hits(t)).when(Boolean(this.peek),
@@ -410,19 +411,19 @@ export default class HerdrFold extends View {
     return Boolean(this.root && !this.busy && !this.loading);
   }
 
-  /** The views' tabs, as the TUI sidebar's; with Changes, the number of files and the sync button. */
+  /** The views' icons, as the TUI sidebar's tabs, then the shown one's name; with Changes, the sync button. */
   header(t) {
-    const tab = (view, label) => div().id(`view-${view}`).h(26).px(10).flex().items_center().rounded(6)
-      .cursor_pointer().text_color(this.view === view ? t.foreground : t.muted).hover((s) => s.bg(t.hover))
-      .when(this.view === view, (e) => e.bg(t.selected).font_semibold()).on_click((_e, cx) => this.show(view, cx))
-      .child(label);
-    const changes = this.view === "changes";
-    return h_flex().h(42).flex_none().px(10).gap(4).items_center().border_b(1).border_color(t.border)
-      .child(tab("changes", "Changes")).child(tab("search", "Search"))
-      .when(changes, (e) => e.child(div().ml(4).px(5).py(1).rounded(4).border_1().border_color(t.border).text_size(10)
-        .text_color(t.muted).child(`${this.files.length} files`)))
+    const tab = (view, mark, label) => div().id(`view-${view}`).size(30).flex().items_center().justify_center()
+      .rounded(6).cursor_pointer().tooltip(label).text_size(15).bg(this.view === view ? t.selected : t.raised)
+      .text_color(this.view === view ? t.foreground : t.muted).hover((s) => s.bg(t.hover))
+      .on_click((_e, cx) => this.show(view, cx)).child(glyph(this.font, mark));
+    const changes = this.view === "changes", sync = syncLabel(this.status);
+    return h_flex().h(46).flex_none().px(10).gap(6).items_center().border_b(1).border_color(t.border)
+      .child(tab("search", this.m.search, "Search")).child(tab("changes", this.m.git, "Changes"))
+      .child(div().ml(4).font_semibold().child(changes ? "Changes" : "Search"))
       .child(div().flex_1())
-      .when(changes, (e) => e.child(button(t, "sync", syncLabel(this.status), this.ready, false,
+      .when(changes, (e) => e.child(button(t, "sync", h_flex().gap(6).items_center()
+        .child(glyph(this.font, this.m.refresh)).when(Boolean(sync), (e) => e.child(sync)), this.ready, false,
         (cx) => this.sync(cx))));
   }
 
@@ -452,6 +453,8 @@ export default class HerdrFold extends View {
   hits(t) {
     const row = (r) => r.kind === "file"
       ? h_flex().id(`found-${r.path}`).w_full().h(24).flex_none().px(10).gap(6).items_center().tooltip(r.path)
+        .when(Boolean(this.font), (e) => e.child(glyph(this.font, fileIcon(r.path.split("/").pop())).w(16)
+          .text_color(t.muted)))
         .child(div().font_semibold().child(r.path.split("/").pop()))
         .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim)
           .child(r.path.includes("/") ? r.path.slice(0, r.path.lastIndexOf("/")) : ""))
@@ -505,22 +508,23 @@ export default class HerdrFold extends View {
     const parts = path.split("/"), name = parts.pop(), key = shown(kind, path);
     const color = code === "A" || code === "?" ? t.ansi2 : code === "D" || code === "U" ? t.ansi1 : t.blocked;
     const asking = kind === "changes" && this.confirm === path;
-    return h_flex().id(`file-${key}`).h(28).flex_none().px(8).gap(8).items_center().rounded(7).cursor_pointer()
+    return h_flex().id(`file-${key}`).h(28).flex_none().px(8).gap(6).items_center().rounded(7).cursor_pointer()
       .when(this.open === key, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover)).tooltip(path)
       .on_click((_e, cx) => this.pick(key, cx))
-      .child(div().w(14).text_size(11).text_color(color).child(code === "?" ? "A" : code))
-      .child(h_flex().flex_1().min_w(0)
-        .child(div().text_color(t.dim).truncate().child(parts.length ? `${parts.join("/")}/` : ""))
-        .child(div().min_w(0).truncate().child(name)))
+      .when(Boolean(this.font), (e) => e.child(glyph(this.font, fileIcon(name)).w(16).text_color(t.muted)))
+      .child(h_flex().flex_1().min_w(0).gap(6).items_center()
+        .child(div().flex_none().child(name))
+        .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(parts.join("/"))))
       .when(asking, (e) => e.child(div().text_size(11).text_color(t.ansi1).child("Discard?"))
         .child(small(t, `${key}-cancel`, "Cancel", "Keep the change", this.ready, (cx) => {
           this.confirm = null;
           cx.notify();
         })))
       .children(rowActions(kind, code).map((action) => small(t, `${key}-${action}`,
-        asking && action === "discard" ? "Discard" : ICONS[action],
+        asking && action === "discard" ? "Discard" : glyph(this.font, this.m[action]),
         action === "discard" && code === "?" ? "Move to the Trash" : TIPS[action], this.ready,
-        (cx) => this.change(action, path, code, cx))));
+        (cx) => this.change(action, path, code, cx))))
+      .child(div().w(12).flex_none().text_right().text_size(11).text_color(color).child(letter(code)));
   }
 
   diff(t) {
@@ -545,7 +549,7 @@ export default class HerdrFold extends View {
         setShared(GRAPH, this.folded);
         cx.notify();
       })
-      .child(div().w(10).text_color(t.dim).child(this.folded ? "▸" : "▾"))
+      .child(glyph(this.font, this.folded ? this.m.closed : this.m.open).w(12).text_color(t.dim))
       .child(div().font_semibold().child("Graph"))
       .child(div().text_size(11).text_color(t.dim).child(String(this.commits.length)));
     const commit = ({ hash, subject, author, refs, head }) => {
@@ -570,28 +574,35 @@ export default class HerdrFold extends View {
       .children(Object.entries(MODES).map(([mode, label]) => h_flex().id(`mode-${mode}`).h(28).px(10).gap(8)
         .items_center().rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
         .on_click((_e, cx) => this.choose(mode, cx))
-        .child(div().w(12).text_color(t.accent).child(this.mode === mode ? "✓" : "")).child(label)));
+        .child(glyph(this.font, this.mode === mode ? this.m.check : "").w(14).text_color(t.accent)).child(label)));
   }
 
   /** On top, as the TUI sidebar has it: the message and its ✦, then Commit across, its arrow choosing the mode. */
   composer(t) {
     const commit = this.ready && Boolean(this.message.trim());
-    const label = this.busy ?? `${MODES[this.mode]}${this.asked ? " anyway" : ""}`;
+    const label = this.busy ?? h_flex().gap(8).items_center().child(glyph(this.font, this.m.check))
+      .child(`${MODES[this.mode]}${this.asked ? " anyway" : ""}`);
     return v_flex().flex_none().p(10).gap(8).border_b(1).border_color(t.border)
       .child(h_flex().gap(8)
         .child(div().id("message").flex_1().min_w(0).h(32).px(10).flex().items_center().rounded(8).border_1()
           .border_color(t.border).cursor_text()
           .child(Input.new(this.input).h_full().text_size(12).text_color(t.foreground)))
-        .child(button(t, "write", "✦", this.ready, false, (cx) => this.write(cx)).bg(t.selection)
-          .text_color(this.ready ? t.accent : t.muted)))
+        .child(button(t, "write", glyph(this.font, this.m.ai), this.ready, false, (cx) => this.write(cx))
+          .bg(t.selection).text_color(this.ready ? t.accent : t.muted)))
       .child(h_flex().gap(8)
         .child(button(t, "commit", label, commit, true, (cx) => this.commit(cx)).flex_1().justify_center())
-        .child(button(t, "mode", this.menu ? "▴" : "▾", this.ready, true, (cx) => {
+        .child(button(t, "mode", glyph(this.font, this.m.more), this.ready, true, (cx) => {
           this.menu = !this.menu;
           cx.notify();
         })))
       .when(Boolean(this.menu), (e) => e.child(this.modes(t)));
   }
+}
+
+/** A mark from icons.js, in FONT (a Nerd Font) when there is one. @param {string | null} font @param {string} mark */
+function glyph(font, mark) {
+  return div().flex_none().flex().items_center().justify_center().when(Boolean(font), (e) => e.font_family(font))
+    .child(mark);
 }
 
 /** A button: SOLID in the accent, as the TUI's Commit and its arrow, even while it cannot be pressed; the others

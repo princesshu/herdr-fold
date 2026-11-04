@@ -4,7 +4,8 @@ as an Action for the app."""
 import os
 from dataclasses import dataclass
 
-from screen import GIT_LETTER, GIT_ROLE, PLAIN, Canvas, Style, after, glyphs, icon, truncate
+from icons import GIT_LETTER, glyphs, icon
+from screen import GIT_ROLE, PLAIN, Canvas, Style, after, truncate
 from tree import Node
 from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, TextInput

@@ -3,6 +3,7 @@
 // on the space's machine (exec stops a program after 30 s; an AI may take minutes), the commit message writer's answer.
 
 import { JOB } from "./helper.js";
+import { BY_EXTENSION, BY_NAME, LETTER, NERD, PLAIN } from "./icons.js";
 
 /** @typedef {{ kind: string, number?: number, text: string }} Row */
 
@@ -135,10 +136,37 @@ export const lastLine = (out) => (out.stderr || out.stdout).trim().split("\n").p
 /** An error's message, or the thrown value as text. @param {unknown} e */
 export const said = (e) => String(e instanceof Error ? e.message : e);
 
-/** The sync button: how far the branch is from its upstream, as the TUI sidebar says it.
+/** The icons to draw: the TUI sidebar's Nerd Font glyphs with such a FONT installed, else its plain marks.
+ * @param {string | null} font */
+export const marks = (font) => (font ? NERD : PLAIN);
+
+/** A Nerd Font among FAMILIES (the app's fonts()), a one-cell Mono one first, as icons sit in a row; or null.
+ * @param {string[]} families */
+export function nerdFont(families) {
+  const nerd = families.filter((f) => f.includes("Nerd Font"));
+  return nerd.find((f) => f.startsWith("Symbols Nerd Font Mono")) ?? nerd.find((f) => f.endsWith(" Mono")) ??
+    nerd[0] ?? null;
+}
+
+/** A file's or folder's glyph, as core/icons.py's icon(): by the name's start, else its extension.
+ * @param {string} name @param {boolean} [isDir] @param {boolean} [expanded] */
+export function fileIcon(name, isDir = false, expanded = false) {
+  if (isDir) return NERD[expanded ? "folder_open" : "folder"];
+  const lower = name.toLowerCase(), dot = lower.lastIndexOf(".");
+  const named = BY_NAME.find(([, starts]) => starts.some((start) => lower.startsWith(start)));
+  if (named) return named[0];
+  /** @type {Record<string, string>} */
+  const byExtension = BY_EXTENSION;
+  return (dot > 0 ? byExtension[lower.slice(dot + 1)] : undefined) ?? NERD.file;
+}
+
+/** A change's letter as the TUI sidebar shows git's CODE (an untracked file U, a conflict !). @param {string} code */
+export const letter = (code) => /** @type {Record<string, string>} */ (LETTER)[code] ?? code;
+
+/** The sync button's words after its icon: how far the branch is from its upstream, as the TUI sidebar says it.
  * @param {{ upstream: string | null, ahead: number, behind: number } | null} status */
 export function syncLabel(status) {
-  return status?.upstream ? `↻ ${status.behind}↓ ${status.ahead}↑` : "↻";
+  return status?.upstream ? `${status.behind}↓ ${status.ahead}↑` : "";
 }
 
 /** The node of the layout tree NODE named ID, or null. @param {any} node @param {string} id @returns {any} */

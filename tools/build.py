@@ -1,6 +1,7 @@
-"""Writes the copies of core/, the shared data layer: into the TUI sidebar (src/plugins/sidebar/, which installs on its
-own) and into the Herdr app mod (helper.js: the source, run with Python's -c on the space's machine); and the app
-layout's theme, made from the TUI's. Edit those, then run this: tests/test_build.py fails while a copy differs."""
+"""Writes the copies of core/, the shared data layer: into the TUI sidebar (src/plugins/sidebar/) and into the Herdr app
+mod (helper.js, the source it runs with Python's -c on the space's machine; icons.js, the icons); and the app layout's
+theme, made from the TUI's. Edit those, then run this: tests/test_build.py fails while a copy differs."""
+import importlib.util
 import json
 import os
 import sys
@@ -13,6 +14,7 @@ HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"COMMIT_MESS
                                                                     "FILEOPS": "fileops.py", "GIT": "git.py",
                                                                     "JOB": "job.py", "SEARCH": "search.py"}}
 MOD_ONLY = {"job.py"}         # what only the mod runs (its background jobs): the sidebar gets no copy
+ICONS = os.path.join("app", "mods", "herdr-fold", "icons.js")       # core/icons.py's tables, for the mod to draw
 THEMES = os.path.join("app", "themes")      # the TUI's themes in the Herdr app: herdr-fold-ID.json for each, and
 THEME = os.path.join(THEMES, "herdr-fold.json")   # the herdr-fold layout's own (the package's, Catppuccin Mocha)
 
@@ -48,6 +50,19 @@ def literal(text):
     return "[\n  " + ",\n  ".join(rows) + ',\n].join("\\n")'
 
 
+def icons_js():
+    """core/icons.py's tables as the mod's icons.js: the sidebar's Nerd Font glyphs, its plain marks, a change's letter,
+    and each file type's glyph by extension and by the name's start."""
+    spec = importlib.util.spec_from_file_location("core_icons", os.path.join(ROOT, "core", "icons.py"))
+    icons = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(icons)
+    tables = {"NERD": icons.NERD_GLYPHS, "PLAIN": icons.PLAIN_GLYPHS, "LETTER": icons.GIT_LETTER,
+              "BY_EXTENSION": icons.BY_EXTENSION, "BY_NAME": [[glyph, list(starts)] for glyph, starts in icons.BY_NAME]}
+    lines = ["// @ts-check", f"// {note('icons.py')}."]
+    lines += [f"export const {name} = {json.dumps(table, indent=2)};" for name, table in tables.items()]
+    return "\n".join(lines) + "\n"
+
+
 def tui_themes():
     """The TUI's themes (src/themes/themes.js), and the package's own among them (the one its Ghostty config sets)."""
     sys.path.insert(0, os.path.join(ROOT, "src", "themes"))
@@ -81,6 +96,7 @@ def outputs():
         lines = js_note(list(sources.values()))
         lines += [f"export const {const} = {literal(core(name))};" for const, name in sources.items()]
         made[path] = "\n".join(lines) + "\n"
+    made[ICONS] = icons_js()
     themes, own = tui_themes()
     made.update({os.path.join(THEMES, f"herdr-fold-{theme['id']}.json"): app_theme(theme) for theme in themes})
     made[THEME] = app_theme(own)

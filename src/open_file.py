@@ -15,7 +15,8 @@ import panels  # noqa: E402
 import preview  # noqa: E402
 import statefile  # noqa: E402
 from i18n import line, t  # noqa: E402
-from screen import after, icon, icons_on  # noqa: E402
+from icons import icon  # noqa: E402
+from screen import after, icons_on  # noqa: E402
 from tui import (GRAY, INVERT, MARGIN, RESET, button_at, buttons, clicked, getkey, mouse, printable,  # noqa: E402
                  wait_and_exit)
 

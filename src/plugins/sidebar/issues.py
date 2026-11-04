@@ -6,7 +6,8 @@ import time
 from dataclasses import dataclass, replace
 
 from github import STATES, Query, ago
-from screen import Canvas, PLAIN, Style, glyphs, truncate, width
+from icons import glyphs
+from screen import Canvas, PLAIN, Style, truncate, width
 from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, TextInput
 

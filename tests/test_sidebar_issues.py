@@ -10,7 +10,8 @@ sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import github  # noqa: E402
 from github import Issue, Listing, Query  # noqa: E402
 from issues import Issues, priority, rank  # noqa: E402
-from screen import Canvas, glyphs  # noqa: E402
+from icons import glyphs  # noqa: E402
+from screen import Canvas  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
 from widgets import Action  # noqa: E402
 

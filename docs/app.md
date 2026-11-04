@@ -10,6 +10,9 @@ right opens it there, and so does Cmd + Shift + G. The layout is
 dark, in the TUI's own colors (its theme, `themes/herdr-fold.json`, is made from the TUI's), and its code is in Menlo,
 as VS Code's (on Linux and Windows the app's JetBrains Mono); the app's theme and font menus change them.
 
+Its icons are the TUI sidebar's, from the same table (`core/icons.py`): with a Nerd Font installed (the TUI environment
+installs JetBrainsMono Nerd Font), its Codicons and each file type's mark; without one, its plain marks.
+
 The TUI's themes come along, for any layout: Settings lists each under its file's name, in `themes/`.
 
 | File | The TUI's theme |
@@ -36,7 +39,7 @@ For the repository of the focused pane, top to bottom, as the TUI sidebar has it
 
 | Part | What it does |
 |---|---|
-| Header | the number of changed files, and the sync button with how far the branch is from its upstream (`↻ 1↓ 2↑`: one commit to pull, two to push); it pulls (fast-forward only) and pushes, and when that fails, a line under the diff says what to do, with nothing lost |
+| Header | the views' icons, as the TUI sidebar's tabs, the shown one's name, and the sync button with how far the branch is from its upstream (`1↓ 2↑`: one commit to pull, two to push); it pulls (fast-forward only) and pushes, and when that fails, a line under the diff says what to do, with nothing lost |
 | ✦ | with nothing staged, stages every change (never a file .gitignore names), and has Claude or Codex write the message for what the commit takes, as the TUI's ✦ and Cmd + Shift + C do: the same writer, rules and checks for anything private ([Commit and push](usage.md#commit-and-push)); within a minute or so the message fills the field, to read and change |
 | Commit | commits the staged changes, or every change with none staged, with the message (Enter in the field too); a file whose name looks like a secret's (`.env`, a key, a certificate) is asked about first: the button says Commit anyway, and pressing it again commits. Its arrow chooses Commit, Commit & Push or Commit & Sync, as the TUI's: after the commit, a push or a sync; the choice stays for the next commit |
 | Staged Changes, Changes | the changed files in two sections, as the TUI sidebar lists them; a row's + stages the file, − unstages it, ↶ undoes its change once Discard is pressed too, a new file sent to the system's Trash, never deleted (not a conflict's: that is settled in the file); a click shows a file's diff below, a new file's as all added; the first one's shows at once; the mouse resting on one shows its whole path in the repository |

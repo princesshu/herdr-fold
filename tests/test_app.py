@@ -1,8 +1,10 @@
 """Tests for herdr-fold's Herdr app mod (app/): its logic under Node, the mod as the app itself loads it (herdr-app
 check, on a copy), and the folder the app and its marketplace expect. Without Node or the app a part is skipped, as the
 PowerShell tests are without PowerShell."""
+import importlib.util
 import json
 import os
+import pathlib
 import re
 import shutil
 import subprocess
@@ -28,6 +30,23 @@ class Logic(unittest.TestCase):
         out = subprocess.run(["node", "--test", os.path.join("app", "tests")], cwd=PACKAGE, capture_output=True,
                              text=True, timeout=120)
         self.assertEqual(out.returncode, 0, out.stdout[-2000:] + out.stderr[-2000:])
+
+    @unittest.skipUnless(shutil.which("node"), "no Node")
+    def test_a_files_icon_is_the_sidebars(self):
+        """The mod picks a file's or folder's glyph as the sidebar does (core/icons.py's icon), from the tables
+        tools/build.py copies into it."""
+        spec = importlib.util.spec_from_file_location("core_icons", os.path.join(PACKAGE, "core", "icons.py"))
+        icons = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(icons)
+        names = ["app.py", "README.md", ".gitignore", ".env.local", "Dockerfile", "View.TSX", "archive.tar.gz",
+                 ".bashrc", "notes", "package.json", "Makefile", "photo.JPEG", "LICENSE", "data.unknown", "run.ps1"]
+        cases = [[name, False, False] for name in names] + [["src", True, False], ["src", True, True]]
+        script = (f"import {{ fileIcon }} from {json.dumps(pathlib.Path(MOD, 'logic.js').as_uri())};\n"
+                  f"console.log(JSON.stringify({json.dumps(cases)}.map(([n, d, e]) => fileIcon(n, d, e))));")
+        out = subprocess.run(["node", "--input-type=module", "-e", script], capture_output=True, text=True,
+                             timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr[-2000:])
+        self.assertEqual(json.loads(out.stdout), [icons.icon(*case) for case in cases])
 
 
 class Shape(unittest.TestCase):

@@ -6,7 +6,8 @@ from dataclasses import dataclass
 
 import panels
 from github import since
-from screen import Style, centered, glyphs, truncate, width
+from icons import glyphs
+from screen import Style, centered, truncate, width
 from vt import Key, Mouse
 from widgets import Action, ListView, Menu, TextInput
 

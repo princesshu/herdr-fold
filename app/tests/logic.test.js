@@ -7,8 +7,9 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterCommit, background, changedFiles, commitMode, commitRows, diffRows, excerpt, folderName, lastLine,
-  machineOf, marked, MODES, panelToggle, pythonCommand, rowActions, said, searchRows, searchSummary, secretQuestion,
-  strays, syncLabel, TERMINALS, terminalId, withoutTabs, withTerminal, written } from "../mods/herdr-fold/logic.js";
+  letter, machineOf, marked, marks, MODES, nerdFont, panelToggle, pythonCommand, rowActions, said, searchRows,
+  searchSummary, secretQuestion, strays, syncLabel, TERMINALS, terminalId, withoutTabs, withTerminal, written }
+  from "../mods/herdr-fold/logic.js";
 
 test("a diff's lines numbered once, old and new apart", () => {
   const rows = diffRows(["@@ -3,2 +3,3 @@", " same", "-old", "+new", "+more"]);
@@ -106,6 +107,17 @@ test("what a failed program said: its error's last line, else its output's, else
   assert.equal(said("plain"), "plain");
 });
 
+test("the icons: the TUI's Nerd Font glyphs with such a font installed, a one-cell Mono one first; else its marks",
+  () => {
+    assert.equal(nerdFont(["Menlo", "JetBrainsMono Nerd Font", "JetBrainsMono Nerd Font Mono"]),
+      "JetBrainsMono Nerd Font Mono");
+    assert.equal(nerdFont(["Hack Nerd Font", "Symbols Nerd Font Mono", "Hack Nerd Font Mono"]),
+      "Symbols Nerd Font Mono");
+    assert.equal(nerdFont(["Menlo", "JetBrains Mono"]), null);
+    assert.equal(marks("JetBrainsMono Nerd Font Mono").stage, "\uea60");
+    assert.equal(marks(null).stage, "+");
+  });
+
 test("a terminal's machine from its address: the name before the slash, none on this computer", () => {
   assert.equal(machineOf("lab/t7"), "lab");
   assert.equal(machineOf("t7"), null);
@@ -147,10 +159,14 @@ test("the commit modes, named as in the TUI sidebar, and what follows each commi
   assert.deepEqual(["commit", "push", "sync"].map(afterCommit), [null, "push", "sync"]);
 });
 
-test("the sync button says how far the branch is from its upstream, as the TUI sidebar does", () => {
-  assert.equal(syncLabel({ upstream: "origin/main", ahead: 2, behind: 1 }), "↻ 1↓ 2↑");
-  assert.equal(syncLabel({ upstream: null, ahead: 0, behind: 0 }), "↻");
-  assert.equal(syncLabel(null), "↻");
+test("the sync button says how far the branch is from its upstream, as the TUI sidebar does (after its icon)", () => {
+  assert.equal(syncLabel({ upstream: "origin/main", ahead: 2, behind: 1 }), "1↓ 2↑");
+  assert.equal(syncLabel({ upstream: null, ahead: 0, behind: 0 }), "");
+  assert.equal(syncLabel(null), "");
+});
+
+test("a change's letter as the TUI sidebar shows it: an untracked file U, a conflict !", () => {
+  assert.deepEqual(["?", "U", "M", "A", "D"].map(letter), ["U", "!", "M", "A", "D"]);
 });
 
 /** @param {string[]} argv @param {string} [cwd] */

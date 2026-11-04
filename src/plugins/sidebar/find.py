@@ -5,7 +5,8 @@ import os
 import time
 from dataclasses import dataclass
 
-from screen import Style, after, char_width, glyphs, icon, truncate, width
+from icons import glyphs, icon
+from screen import Style, after, char_width, truncate, width
 from search import Hit, Query, Result, pattern
 from vt import Key, Mouse
 from widgets import Action, ListView, TextInput
