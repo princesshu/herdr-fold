@@ -4,7 +4,7 @@
 
 Files, search, git and GitHub issues, AI sessions and conversations, AI commit messages and themes for Claude Code and
 Codex in herdr and Ghostty, on a Mac and on Linux, macOS and Windows machines over SSH. One installer sets up all of
-it; the sidebar and AI Sessions also install alone.
+it; the sidebar and AI Sessions also install alone; herdr's desktop app gets it as a mod, alone or beside the TUI.
 
 Created by [princesshu](https://github.com/princesshu).
 
@@ -37,6 +37,8 @@ above a terminal](docs/media/hero.webp)
   theme's colors. A status line with the model, effort, context with its window size and limits, the same for Claude
   and Codex.
 - Workspaces on Linux, macOS and Windows machines over SSH; the agents keep running there when the Mac sleeps.
+- In herdr's desktop app too: a mod with the sidebar's Changes and Search (the other views follow), on remote machines
+  alike, a dark layout in the TUI's colors, the twelve themes in its Settings: [The Herdr app](docs/app.md).
 
 ![An issue from the sidebar goes to Claude, which fixes it, and the message it writes closes the
 issue](docs/media/issue-to-agent.webp)
@@ -70,6 +72,8 @@ Security → **Open Anyway**. Enter always gives the default answer. When it is 
 and the **new** button under Spaces makes a workspace.
 
 The questions, what each one changes, and the switches: [Installation](docs/installation.md).
+
+The TUI only, the app only, or both: [Installation](docs/installation.md#the-tui-the-herdr-app-or-both).
 
 ## What it changes
 
@@ -159,7 +163,8 @@ More: [Troubleshooting](docs/troubleshooting.md).
 - [Remote machines](docs/remote-machines.md): Linux, macOS and Windows machines
 - [Themes](docs/themes.md): the twelve themes and the picker
 - [The sidebar](docs/sidebar.md): Files, Search, Changes and Issues, as herdr-fold uses them
-- [The Herdr app](docs/app.md): the sidebar's Changes view as a mod for herdr's desktop app
+- [The Herdr app](docs/app.md): the sidebar's Changes and Search views as a mod for herdr's desktop app, its layout
+  and themes
 - [Troubleshooting](docs/troubleshooting.md)
 - [Translating](docs/translating.md): the installer in another language
 - [How it is built](docs/architecture.md): the files and the installer's records

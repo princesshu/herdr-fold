@@ -11,6 +11,20 @@ older than 0.9.5, which herdr-fold needs: Homebrew's is upgraded after the same 
 installer is named with `herdr update`. During its run Homebrew cleans up nothing (old versions of your other
 programs, its downloads) and its analytics count nothing; your own Homebrew settings stay as they are.
 
+## The TUI, the Herdr app, or both
+
+herdr-fold comes for herdr's TUI (in Ghostty) and for herdr's desktop app, the Herdr app, as a mod, with the same
+views and the same remote machines in both. Each installs alone, or both together:
+
+| You want | How |
+|---|---|
+| the TUI only | `./install.sh` and no to `Set up herdr-fold in the Herdr app too?` (it asks only where the app is), or `herdr plugin install princesshu/herdr-fold` |
+| the Herdr app only | the mod, its layout and themes copied into the app: [The Herdr app](app.md#installing-it); the TUI is not needed |
+| both | `./install.sh` and yes to that question: the same remote machines in both |
+
+The two run side by side on one Mac, each with its own settings; an agent belongs to the one it was started in (herdr's
+own: the app and the TUI keep their agents apart).
+
 ## Requirements
 
 - A Mac with Apple silicon and macOS 15 or later: what Homebrew supports. Homebrew no longer supports Intel Macs: the
@@ -153,8 +167,9 @@ Only when you say yes, or when something is missing:
 - git's global commit author (`user.name`, `user.email`), only if none is set, and git's GitHub sign-in through `gh`;
 - `~/.claude.json`: the projects you let Claude trust, so the status line shows there;
 - in the Herdr app's home (`~/.config/herdr-app`, or `HERDR_APP_HOME`): herdr-fold's mod (`mods/herdr-fold`), its
-  layout (`layouts/herdr-fold.json`) and its keys (the `layout:herdr-fold` section of `keys.json`), when you say yes
-  to the Herdr app question; your own mods, layouts and keys stay.
+  layout (`layouts/herdr-fold.json`), its themes (`themes/herdr-fold*.json`: the layout's own and the TUI's twelve)
+  and its keys (the `layout:herdr-fold` section of `keys.json`), when you say yes to the Herdr app question; your own
+  mods, layouts, themes and keys stay.
 
 Everything it replaces is saved first, in `~/.local/state/herdr-fold/`:
 
