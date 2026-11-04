@@ -142,19 +142,19 @@ class View(unittest.TestCase):
                 self.assertEqual(star - button[0], button[-1] - star, (lines, roomy))
                 self.assertIn(f"line {min(lines, MESSAGE_ROWS) - 1}", self.shown(), (lines, roomy))
 
-    def test_the_button_shows_the_focus_only_once_the_keys_brought_it_there(self):
+    def test_the_button_looks_the_same_whether_the_keys_or_the_mouse_brought_the_focus(self):
         self.draw()
         label = self.rows_where(5, "button")[0]
         x = text(self.canvas, label).index("Commit")
-        self.assertEqual(self.bg(x, label), "button")                       # opened, or clicked: no mark
+        plain = self.canvas.rows[label][x][1]
+        self.assertEqual((plain.fg, plain.bg, plain.bold, plain.underline), ("button_text", "button", True, False))
         self.view.focus, self.view.list.index = "list", 0
         self.press("up")                                                    # from the list's top to the button
         self.draw()
-        mark = self.canvas.rows[label][x][1]
-        self.assertEqual((mark.fg, mark.bg, mark.underline), ("button_text", "button", True))   # underlined, in place
+        self.assertEqual(self.canvas.rows[label][x][1], plain)              # no mark of its own
         self.view.handle(Mouse("press", 2, label + 6, 0))
         self.draw()
-        self.assertEqual(self.bg(x, label), "button")
+        self.assertEqual(self.canvas.rows[label][x][1], plain)
 
     def test_a_nerd_font_icon_keeps_a_cell_of_air_before_the_name(self):
         self.view = Scm(icons=True)

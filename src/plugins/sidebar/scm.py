@@ -46,7 +46,6 @@ class Scm:
         self.graph_list = ListView(1)                 # the Graph, at the view's bottom
         self.focus = "button"                          # message, button, list or graph
         self.folded = set(folded) & {"staged", "changes", "graph"}     # the sections closed, kept by the app
-        self.keyed = False            # the keys moved last (not the mouse): the button then shows that it has the focus
         self.selecting = False        # the left button went down in the message and is held: a drag selects
         self.working = self.notice = self.menu = self.confirm = self.then = None     # then: the Action of the yes
         self.status, self.hover, self.canvas, self.top, self.height = None, None, None, 0, 1
@@ -195,9 +194,7 @@ class Scm:
             canvas.region(r, side, side + SIDE, "mode")
         fill = Style(fg="button_text", bg="button", bold=True)
         label = truncate(f" {marks['check']} {MODES[self.mode]} ", main - 4)
-        focused = self.focus == "button" and self.keyed    # the keys brought it here: its label underlined
-        canvas.put(row, 1 + max(0, (main - width(label)) // 2), label,
-                   Style(fg="button_text", bg="button", bold=True, underline=True) if focused else fill)
+        canvas.put(row, 1 + max(0, (main - width(label)) // 2), label, fill)
         canvas.put(row, centered(side, SIDE), marks["more"], fill)
         return taken
 
@@ -289,11 +286,9 @@ class Scm:
         if self.status is None or self.status.error:
             return None
         if isinstance(event, Mouse):
-            self.keyed = self.keyed and event.kind not in ("press", "release")
             return self.mouse(event)
         if not isinstance(event, Key):
             return None
-        self.keyed = True
         if self.confirm:
             return self.answer(self.confirm.handle(event))
         if self.menu:
