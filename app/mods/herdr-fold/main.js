@@ -401,11 +401,9 @@ export default class HerdrFold extends View {
       .bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13).child(this.header(t));
     if (this.view === "search") return frame.child(this.query(t)).child(this.hits(t)).when(Boolean(this.peek),
       (e) => e.child(this.lines(t)));
-    return frame.child(this.list(t)).child(this.diff(t)).child(this.graph(t))
+    return frame.child(this.composer(t)).child(this.list(t)).child(this.diff(t)).child(this.graph(t))
       .when(Boolean(this.note && this.root), (e) => e.child(div().px(10).py(6).text_size(11).text_color(t.ansi1)
-        .child(this.note)))
-      .when(Boolean(this.menu), (e) => e.child(this.modes(t)))
-      .child(this.footer(t));
+        .child(this.note)));
   }
 
   get ready() {
@@ -493,7 +491,7 @@ export default class HerdrFold extends View {
     const empty = this.loading ? "Loading changes…" : this.root ? "No uncommitted changes" : this.note || "No folder";
     const staged = this.status?.staged ?? [], changes = this.status?.changes ?? [];
     const rows = (staged.length ? 1 + staged.length : 0) + (changes.length ? 1 + changes.length : 0);
-    // as tall as its rows (240 at most), less when the panel is short: the commit row below always shows
+    // as tall as its rows (240 at most), less when the panel is short: the diff below keeps room
     return v_flex().id("changed").flex_grow(0).flex_shrink(1).flex_basis(Math.min(240, Math.max(44, rows * 28 + 12)))
       .min_h(44).overflow_y_scrollbar().p(6).border_b(1).border_color(t.border)
       .when(staged.length > 0, (e) => e.child(section(t, "Staged Changes", staged.length))
@@ -568,26 +566,30 @@ export default class HerdrFold extends View {
 
   /** The Commit button's modes, opened by its arrow: a choice is kept for the next commit. */
   modes(t) {
-    return v_flex().flex_none().p(6).gap(2).border_t(1).border_color(t.border).bg(t.raised)
+    return v_flex().flex_none().p(4).gap(2).rounded(8).border_1().border_color(t.border).bg(t.raised)
       .children(Object.entries(MODES).map(([mode, label]) => h_flex().id(`mode-${mode}`).h(28).px(10).gap(8)
         .items_center().rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
         .on_click((_e, cx) => this.choose(mode, cx))
         .child(div().w(12).text_color(t.accent).child(this.mode === mode ? "✓" : "")).child(label)));
   }
 
-  footer(t) {
+  /** On top, as the TUI sidebar has it: the message and its ✦, then Commit across, its arrow choosing the mode. */
+  composer(t) {
     const commit = this.ready && Boolean(this.message.trim());
-    const label = this.busy ?? (this.asked ? `${MODES[this.mode]} anyway` : MODES[this.mode]);
-    return h_flex().flex_none().p(10).gap(8).border_t(1).border_color(t.border)
-      .child(div().id("message").flex_1().min_w(0).h(32).px(10).flex().items_center().rounded(8).border_1()
-        .border_color(t.border).cursor_text()
-        .child(Input.new(this.input).h_full().text_size(12).text_color(t.foreground)))
-      .child(button(t, "write", "✦", this.ready, false, (cx) => this.write(cx)))
-      .child(button(t, "commit", label, commit, true, (cx) => this.commit(cx)))
-      .child(button(t, "mode", this.menu ? "▴" : "▾", this.ready, false, (cx) => {
-        this.menu = !this.menu;
-        cx.notify();
-      }));
+    const label = this.busy ?? `✓ ${MODES[this.mode]}${this.asked ? " anyway" : ""}`;
+    return v_flex().flex_none().p(10).gap(8).border_b(1).border_color(t.border)
+      .child(h_flex().gap(8)
+        .child(div().id("message").flex_1().min_w(0).h(32).px(10).flex().items_center().rounded(8).border_1()
+          .border_color(t.border).cursor_text()
+          .child(Input.new(this.input).h_full().text_size(12).text_color(t.foreground)))
+        .child(button(t, "write", "✦", this.ready, false, (cx) => this.write(cx))))
+      .child(h_flex().gap(8)
+        .child(button(t, "commit", label, commit, true, (cx) => this.commit(cx)).flex_1().justify_center())
+        .child(button(t, "mode", this.menu ? "▴" : "▾", this.ready, false, (cx) => {
+          this.menu = !this.menu;
+          cx.notify();
+        })))
+      .when(Boolean(this.menu), (e) => e.child(this.modes(t)));
   }
 }
 

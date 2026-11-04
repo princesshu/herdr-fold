@@ -32,15 +32,15 @@ and the Conversations column are not in the app yet.
 
 ## Changes
 
-For the repository of the focused pane, top to bottom:
+For the repository of the focused pane, top to bottom, as the TUI sidebar has it:
 
 | Part | What it does |
 |---|---|
 | Header | the number of changed files, and the sync button with how far the branch is from its upstream (`↻ 1↓ 2↑`: one commit to pull, two to push); it pulls (fast-forward only) and pushes, and when that fails, a line under the diff says what to do, with nothing lost |
-| Staged Changes, Changes | the changed files in two sections, as the TUI sidebar lists them; a row's + stages the file, − unstages it, ↶ undoes its change once Discard is pressed too, a new file sent to the system's Trash, never deleted (not a conflict's: that is settled in the file); a click shows a file's diff below, a new file's as all added; the first one's shows at once; the mouse resting on one shows its whole path in the repository |
-| Graph | the last 20 commits, the one checked out marked, each with its branches and tags; a click shows the commit's message and diff above, its author by name; its heading folds it and opens it again, and it stays so |
 | ✦ | with nothing staged, stages every change (never a file .gitignore names), and has Claude or Codex write the message for what the commit takes, as the TUI's ✦ and Cmd + Shift + C do: the same writer, rules and checks for anything private ([Commit and push](usage.md#commit-and-push)); within a minute or so the message fills the field, to read and change |
 | Commit | commits the staged changes, or every change with none staged, with the message (Enter in the field too); a file whose name looks like a secret's (`.env`, a key, a certificate) is asked about first: the button says Commit anyway, and pressing it again commits. Its arrow chooses Commit, Commit & Push or Commit & Sync, as the TUI's: after the commit, a push or a sync; the choice stays for the next commit |
+| Staged Changes, Changes | the changed files in two sections, as the TUI sidebar lists them; a row's + stages the file, − unstages it, ↶ undoes its change once Discard is pressed too, a new file sent to the system's Trash, never deleted (not a conflict's: that is settled in the file); a click shows a file's diff below, a new file's as all added; the first one's shows at once; the mouse resting on one shows its whole path in the repository |
+| Graph | the last 20 commits, the one checked out marked, each with its branches and tags; a click shows the commit's message and diff above, its author by name; its heading folds it and opens it again, and it stays so |
 
 The list follows the files: on this Mac a change shows at once, on another machine within ten seconds.
 
