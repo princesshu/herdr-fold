@@ -53,16 +53,6 @@ export function commitRows(text) {
   return rows;
 }
 
-/** Each changed file once from core/git.py's status, staged ones first, as git lists them.
- * @param {{ staged: { path: string, code: string }[], changes: { path: string, code: string }[] }} status */
-export function changedFiles(status) {
-  const seen = new Map();
-  for (const { path, code } of [...status.staged, ...status.changes]) {
-    if (!seen.has(path)) seen.set(path, { path, code });
-  }
-  return [...seen.values()];
-}
-
 /** A row's buttons, as the TUI sidebar's: a staged file unstages; a change stages and discards (a new file to the
  * Trash, never deleted), but a conflict's, which is settled in the file.
  * @param {"staged" | "changes"} kind @param {string} code @returns {string[]} */
@@ -70,6 +60,11 @@ export function rowActions(kind, code) {
   if (kind === "staged") return ["unstage"];
   return code === "U" ? ["stage"] : ["discard", "stage"];
 }
+
+/** The folded sections as KEPT, as the TUI sidebar keeps them (staged, changes, graph): a set, empty for anything
+ * else. @param {unknown} kept @returns {Set<string>} */
+export const foldedSections = (kept) => new Set(Array.isArray(kept)
+  ? kept.filter((kind) => ["staged", "changes", "graph"].includes(kind)) : []);
 
 /** The Commit button's modes, as the TUI sidebar names them. */
 export const MODES = { commit: "Commit", push: "Commit & Push", sync: "Commit & Sync" };

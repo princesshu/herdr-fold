@@ -6,7 +6,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterCommit, background, changedFiles, commitMode, commitRows, diffRows, excerpt, folderName, lastLine,
+import { afterCommit, background, commitMode, commitRows, diffRows, excerpt, foldedSections, folderName, lastLine,
   letter, machineOf, marked, marks, MODES, nerdFont, panelToggle, pythonCommand, rowActions, said, searchRows,
   searchSummary, secretQuestion, strays, syncLabel, TERMINALS, terminalId, withoutTabs, withTerminal, written }
   from "../mods/herdr-fold/logic.js";
@@ -136,13 +136,6 @@ test("a tab's id makes a layout id of letters, digits and dashes only", () => {
   assert.match(terminalId("lab/tb 1:x"), /^fold-terminal-[a-z0-9-]+$/);
 });
 
-test("each changed file once, staged or not, in the order git gives them", () => {
-  const status = { staged: [{ path: "b.txt", code: "A" }, { path: "a.txt", code: "M" }],
-    changes: [{ path: "a.txt", code: "M" }, { path: "new.txt", code: "?" }] };
-  assert.deepEqual(changedFiles(status), [{ path: "b.txt", code: "A" }, { path: "a.txt", code: "M" },
-    { path: "new.txt", code: "?" }]);
-});
-
 test("a row's buttons, as the TUI sidebar's: a staged file unstages, a change stages and discards", () => {
   assert.deepEqual(rowActions("staged", "M"), ["unstage"]);
   assert.deepEqual(rowActions("changes", "M"), ["discard", "stage"]);
@@ -163,6 +156,12 @@ test("the sync button says how far the branch is from its upstream, as the TUI s
   assert.equal(syncLabel({ upstream: "origin/main", ahead: 2, behind: 1 }), "1↓ 2↑");
   assert.equal(syncLabel({ upstream: null, ahead: 0, behind: 0 }), "");
   assert.equal(syncLabel(null), "");
+});
+
+test("the folded sections as kept, as the TUI sidebar keeps them: staged, changes, graph; nothing else", () => {
+  assert.deepEqual([...foldedSections(["graph", "staged", "x", 3])], ["graph", "staged"]);
+  assert.deepEqual([...foldedSections(true)], []);
+  assert.deepEqual([...foldedSections(undefined)], []);
 });
 
 test("a change's letter as the TUI sidebar shows it: an untracked file U, a conflict !", () => {

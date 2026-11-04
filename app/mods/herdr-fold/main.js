@@ -6,7 +6,7 @@ import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list } from "gp
 import { spaces, panes, focused, exec, hc, home, watchFolder, nextCommand, theme, settings, layout, props, closeOverlay,
   shared, setShared, readTextFile, fonts, run as command } from "herdr";
 import { COMMIT_MESSAGE, FILEOPS, GIT, SEARCH } from "./helper.js";
-import { afterCommit, background, changedFiles, commitMode, commitRows, diffRows, excerpt, fileIcon, lastLine, letter,
+import { afterCommit, background, commitMode, commitRows, diffRows, excerpt, fileIcon, foldedSections, lastLine, letter,
   marked, marks, MODES, nerdFont, panelToggle, pythonCommand, rowActions, said, searchRows, searchSummary,
   secretQuestion, syncLabel, written } from "./logic.js";
 import { TerminalHeader } from "./terminal.js";
@@ -15,7 +15,7 @@ const REFRESH = 10000;             // ms between two looks when no folder change
 const POLL = 1500;                 // ms between two looks at the message being written
 const WRITING = 6 * 60 * 1000;     // ms the message may take: both AIs, each asked twice
 const LINES = 1500;                // a diff's lines shown at most
-const MODE = "herdr-fold.commit_mode", GRAPH = "herdr-fold.graph_folded", VIEW = "herdr-fold.view";   // kept (shared)
+const MODE = "herdr-fold.commit_mode", FOLDED = "herdr-fold.folded", VIEW = "herdr-fold.view";   // kept (shared)
 const QUIET = 150;                 // ms after typing stops before the search runs (Enter: at once)
 const FOUND = 1000;                // the hits a search brings at most (the count goes on)
 const ABOVE = 12;                  // a hit's file shown from these lines above it
@@ -98,7 +98,7 @@ export default class HerdrFold extends View {
       return void cx.timer.every(REFRESH, (cx) => this.terminal.look(cx));
     }
     if ((this.blank = part === "none")) return;
-    this.files = []; this.rows = []; this.commits = []; this.status = null; this.message = "";
+    this.rows = []; this.commits = []; this.status = null; this.message = "";
     this.view = shared(VIEW) === "search" ? "search" : "changes";
     this.switches = { case: false, word: false, regex: false };
     this.found = null; this.results = []; this.peek = null; this.peekRows = []; this.asking = 0;
@@ -106,7 +106,7 @@ export default class HerdrFold extends View {
     this.find.on("change", (_e, cx) => this.later(cx));
     this.find.on("submit", (_e, cx) => this.search(cx));
     this.mode = commitMode(shared(MODE));
-    this.folded = shared(GRAPH) === true;
+    this.folded = foldedSections(shared(FOLDED));
     this.input = InputState.new({ placeholder: "Commit message" });
     this.input.on("change", (_e, cx) => {
       const had = Boolean(this.message.trim());
@@ -133,7 +133,7 @@ export default class HerdrFold extends View {
     if (this.loading || this.busy) return;
     const here = place(), key = JSON.stringify(here);
     if (key !== this.key) {
-      Object.assign(this, { key, root: null, files: [], rows: [], commits: [], status: null, open: null, note: null,
+      Object.assign(this, { key, root: null, rows: [], commits: [], status: null, open: null, note: null,
         asked: null, confirm: null });
     }
     if (!here.cwd) return;
@@ -146,7 +146,7 @@ export default class HerdrFold extends View {
         const root = top.stdout.trim(), status = await python(GIT, ["status", root], root, here.on);
         const { commits } = await python(GIT, ["graph", root], root, here.on);
         if (key !== this.key) return;
-        Object.assign(this, { root, on: here.on, status, commits, files: changedFiles(status) });
+        Object.assign(this, { root, on: here.on, status, commits });
         this.watch(cx);
         if (!this.showing(this.open)) this.open = this.first();
         if (this.open) await this.load(this.open, key);
@@ -236,20 +236,31 @@ export default class HerdrFold extends View {
     cx.notify();
   }
 
-  /** A row's button: stage or unstage PATH, or once asked (a second press of Discard) undo its change, a new file
-   * (CODE ?) sent to the Trash as the TUI sidebar does (core/fileops.py). @param {string} action @param {string} path
-   * @param {string} code */
-  change(action, path, code, cx) {
-    if (action === "discard" && this.confirm !== path) {
-      this.confirm = path;
+  /** A row's or section's button: stage or unstage FILES, or once ASKING (Discard pressed again) undo their changes,
+   * a new file sent to the Trash as the TUI sidebar does (core/fileops.py). @param {string} action
+   * @param {{ path: string, code: string }[]} files @param {string} asking */
+  change(action, files, asking, cx) {
+    if (action === "discard" && this.confirm !== asking) {
+      this.confirm = asking;
       return void cx.notify();
     }
     this.confirm = null;
     this.act(cx, BUSY[action], async () => {
-      if (action !== "discard" || code !== "?") return git(action, this.root, this.on, [path]);
-      const done = await python(FILEOPS, ["trash", this.root, path], this.root, this.on);
-      return done.ok ? null : done.advice;
+      if (action !== "discard") return git(action, this.root, this.on, files.map((f) => f.path));
+      for (const { path, code } of files) {
+        const advice = code !== "?" ? await git("discard", this.root, this.on, [path])
+          : await python(FILEOPS, ["trash", this.root, path], this.root, this.on).then((d) => (d.ok ? null : d.advice));
+        if (advice) return advice;
+      }
+      return null;
     });
+  }
+
+  /** The row or section KEY the mouse is on, or left: its buttons show only then, as in the TUI sidebar. */
+  hover(key, over, cx) {
+    if (over) this.hovered = key;
+    else if (this.hovered === key) this.hovered = null;
+    cx.notify();
   }
 
   /** The staged changes committed, or every change with none staged (core/git.py), then pushed or synced as the mode
@@ -391,6 +402,7 @@ export default class HerdrFold extends View {
   render(cx) {
     if (this.launcher || this.blank) return div();
     const t = theme();
+    if (this.guide) return styleguide(this.guide, t);
     if (this.terminal) {
       this.terminal.watch(cx);
       return this.terminal.render(t);
@@ -398,13 +410,30 @@ export default class HerdrFold extends View {
     if (JSON.stringify(place()) !== this.key) this.refresh(cx);
     this.font = nerdFont(fonts());                // the TUI's icons in a Nerd Font, else its plain marks
     this.m = marks(this.font);
+    return this.panel(t);
+  }
+
+  /** The view shown, in its frame: Changes or Search. */
+  panel(t) {
     const frame = v_flex().id("herdr-fold").size_full().min_h(0).rounded(10).overflow_hidden()
       .bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13).child(this.header(t));
     if (this.view === "search") return frame.child(this.query(t)).child(this.hits(t)).when(Boolean(this.peek),
       (e) => e.child(this.lines(t)));
     return frame.child(this.composer(t)).child(this.list(t)).child(this.diff(t)).child(this.graph(t))
-      .when(Boolean(this.note && this.root), (e) => e.child(div().px(10).py(6).text_size(11).text_color(t.ansi1)
-        .child(this.note)));
+      .when(Boolean(this.note && this.root), (e) => e.child(this.problem(t)));
+  }
+
+  /** What went wrong last (a sync, a commit), and what to do. */
+  problem(t) {
+    return div().px(10).py(6).text_size(11).text_color(t.ansi1).child(this.note ?? "");
+  }
+
+  /** Section KIND (staged, changes, graph) folded or opened again, and kept so, as the TUI sidebar keeps it.
+   * @param {string} kind */
+  fold(kind, cx) {
+    if (!this.folded.delete(kind)) this.folded.add(kind);
+    setShared(FOLDED, [...this.folded]);
+    cx.notify();
   }
 
   get ready() {
@@ -489,42 +518,67 @@ export default class HerdrFold extends View {
       .child(Scrollbar.vertical("lines").viewport_from_layout().absolute().inset_0());
   }
 
-  /** The changes in two sections, as the TUI sidebar lists them: Staged Changes, then Changes. */
+  /** The changes in two sections, as the TUI sidebar lists them: Staged changes, then Changes. */
   list(t) {
     const empty = this.loading ? "Loading changes…" : this.root ? "No uncommitted changes" : this.note || "No folder";
     const staged = this.status?.staged ?? [], changes = this.status?.changes ?? [];
-    const rows = (staged.length ? 1 + staged.length : 0) + (changes.length ? 1 + changes.length : 0);
+    const shownRows = (kind, files) => (files.length ? 1 + (this.folded.has(kind) ? 0 : files.length) : 0);
+    const rows = shownRows("staged", staged) + shownRows("changes", changes);
+    const part = (kind, title, files) => (e) => e.child(this.section(t, kind, title, files))
+      .when(!this.folded.has(kind), (e) => e.children(files.map((f) => this.file(t, kind, f))));
     // as tall as its rows (240 at most), less when the panel is short: the diff below keeps room
-    return v_flex().id("changed").flex_grow(0).flex_shrink(1).flex_basis(Math.min(240, Math.max(44, rows * 28 + 12)))
+    return v_flex().id("changed").flex_grow(0).flex_shrink(1).flex_basis(Math.min(240, Math.max(44, rows * 26 + 12)))
       .min_h(44).overflow_y_scrollbar().p(6).border_b(1).border_color(t.border)
-      .when(staged.length > 0, (e) => e.child(section(t, "Staged Changes", staged.length))
-        .children(staged.map((f) => this.file(t, "staged", f))))
-      .when(changes.length > 0, (e) => e.child(section(t, "Changes", changes.length))
-        .children(changes.map((f) => this.file(t, "changes", f))))
+      .when(staged.length > 0, part("staged", "Staged changes", staged))
+      .when(changes.length > 0, part("changes", "Changes", changes))
       .when(!rows, (e) => e.child(div().p(8).text_color(t.dim).child(empty)));
   }
 
+  /** A section's heading, as the TUI sidebar's: its chevron folds it, its count on a chip; with the mouse on it, what
+   * it does to all its FILES. @param {string} kind @param {string} title
+   * @param {{ path: string, code: string }[]} files */
+  section(t, kind, title, files) {
+    const key = `section-${kind}`, asking = this.confirm === key;
+    const actions = { staged: ["unstage"], changes: ["discard", "stage"] }[kind] ?? [];
+    return h_flex().id(key).h(26).flex_none().pl(6).pr(8).gap(6).items_center().rounded(6).cursor_pointer()
+      .hover((s) => s.bg(t.hover)).on_hover((over, cx) => this.hover(key, over, cx))
+      .on_click((_e, cx) => this.fold(kind, cx))
+      .child(glyph(this.font, this.folded.has(kind) ? this.m.closed : this.m.open).w(14).text_color(t.muted))
+      .child(div().flex_1().min_w(0).truncate().font_bold().child(title))
+      .when(asking, (e) => e.child(div().text_size(11).text_color(t.ansi1).child("Discard all?"))
+        .child(small(t, `${key}-cancel`, "Cancel", "Keep the changes", this.ready, (cx) => this.unask(cx))))
+      .when((this.hovered === key || asking) && files.length > 0, (e) => e.children(actions.map((action) =>
+        small(t, `${key}-${action}`, asking && action === "discard" ? "Discard" : glyph(this.font, this.m[action]),
+          `${TIPS[action]} (all)`, this.ready, (cx) => this.change(action, files, key, cx)))))
+      .when(files.length > 0, (e) => e.child(chip(t, String(files.length))));
+  }
+
+  /** A changed file's row, as the TUI sidebar's: under its section's name, its type's icon, its name (struck through
+   * when deleted) and folder; with the mouse on it, its buttons; its letter under the section's count. */
   file(t, kind, { path, code }) {
     const parts = path.split("/"), name = parts.pop(), key = shown(kind, path);
     const color = code === "A" || code === "?" ? t.ansi2 : code === "D" || code === "U" ? t.ansi1 : t.blocked;
-    const asking = kind === "changes" && this.confirm === path;
-    return h_flex().id(`file-${key}`).h(28).flex_none().px(8).gap(6).items_center().rounded(7).cursor_pointer()
+    const asking = this.confirm === key;
+    return h_flex().id(`file-${key}`).h(26).flex_none().pl(26).pr(8).gap(6).items_center().rounded(6).cursor_pointer()
       .when(this.open === key, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover)).tooltip(path)
-      .on_click((_e, cx) => this.pick(key, cx))
+      .on_hover((over, cx) => this.hover(key, over, cx)).on_click((_e, cx) => this.pick(key, cx))
       .when(Boolean(this.font), (e) => e.child(glyph(this.font, fileIcon(name)).w(16).text_color(t.muted)))
       .child(h_flex().flex_1().min_w(0).gap(6).items_center()
-        .child(div().flex_none().child(name))
+        .child(div().flex_none().when(code === "D", (e) => e.line_through()).child(name))
         .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(parts.join("/"))))
       .when(asking, (e) => e.child(div().text_size(11).text_color(t.ansi1).child("Discard?"))
-        .child(small(t, `${key}-cancel`, "Cancel", "Keep the change", this.ready, (cx) => {
-          this.confirm = null;
-          cx.notify();
-        })))
-      .children(rowActions(kind, code).map((action) => small(t, `${key}-${action}`,
-        asking && action === "discard" ? "Discard" : glyph(this.font, this.m[action]),
-        action === "discard" && code === "?" ? "Move to the Trash" : TIPS[action], this.ready,
-        (cx) => this.change(action, path, code, cx))))
-      .child(div().w(12).flex_none().text_right().text_size(11).text_color(color).child(letter(code)));
+        .child(small(t, `${key}-cancel`, "Cancel", "Keep the change", this.ready, (cx) => this.unask(cx))))
+      .when(this.hovered === key || asking, (e) => e.children(rowActions(kind, code).map((action) =>
+        small(t, `${key}-${action}`, asking && action === "discard" ? "Discard" : glyph(this.font, this.m[action]),
+          action === "discard" && code === "?" ? "Move to the Trash" : TIPS[action], this.ready,
+          (cx) => this.change(action, [{ path, code }], key, cx)))))
+      .child(div().w(12).mr(6).flex_none().text_right().text_size(11).text_color(color).child(letter(code)));
+  }
+
+  /** The question a Discard asked dropped: nothing undone. */
+  unask(cx) {
+    this.confirm = null;
+    cx.notify();
   }
 
   diff(t) {
@@ -540,30 +594,27 @@ export default class HerdrFold extends View {
       .child(Scrollbar.vertical("diff").viewport_from_layout().absolute().inset_0());
   }
 
-  /** The last commits, as the TUI sidebar's Graph: HEAD's marked, each with its branches and tags; a click shows its
-   * diff above. Folded and opened by its heading, kept so. */
+  /** The last commits, as the TUI sidebar's Graph: a section of its own, folded by its heading and kept so; each
+   * commit in the files' column, HEAD's marked, with its branches and tags and its author; a click shows its diff. */
   graph(t) {
-    const heading = h_flex().id("graph").h(28).flex_none().px(14).gap(6).items_center().cursor_pointer()
-      .hover((s) => s.bg(t.hover)).on_click((_e, cx) => {
-        this.folded = !this.folded;
-        setShared(GRAPH, this.folded);
-        cx.notify();
-      })
-      .child(glyph(this.font, this.folded ? this.m.closed : this.m.open).w(12).text_color(t.dim))
-      .child(div().font_semibold().child("Graph"))
-      .child(div().text_size(11).text_color(t.dim).child(String(this.commits.length)));
+    const folded = this.folded.has("graph");
+    const heading = h_flex().id("graph").h(26).flex_none().pl(12).pr(8).gap(6).items_center().cursor_pointer()
+      .hover((s) => s.bg(t.hover)).on_click((_e, cx) => this.fold("graph", cx))
+      .child(glyph(this.font, folded ? this.m.closed : this.m.open).w(14).text_color(t.muted))
+      .child(div().font_bold().child("Graph"));
     const commit = ({ hash, subject, author, refs, head }) => {
       const key = shown("commit", hash);
-      return h_flex().id(`commit-${hash}`).h(24).flex_none().px(8).gap(8).items_center().rounded(6).cursor_pointer()
-        .when(this.open === key, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover)).tooltip(`${hash} ${subject}`)
-        .on_click((_e, cx) => this.pick(key, cx))
-        .child(div().w(12).text_color(head ? t.accent : t.dim).child(head ? "◉" : "○"))
+      return h_flex().id(`commit-${hash}`).h(24).flex_none().pl(26).pr(8).gap(6).items_center().rounded(6)
+        .cursor_pointer().when(this.open === key, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover))
+        .tooltip(`${hash} ${subject}`).on_click((_e, cx) => this.pick(key, cx))
+        .child(div().w(14).flex_none().text_color(head ? t.accent : t.muted).child(head ? "◉" : "○"))
         .child(div().flex_1().min_w(0).truncate().child(subject))
-        .children(refs.map((ref) => div().px(5).rounded(4).text_size(10).bg(t.raised).text_color(t.accent).child(ref)))
-        .child(div().flex_none().text_size(11).text_color(t.dim).child(author));
+        .when(refs.length > 0, (e) => e.child(div().flex_none().text_size(11).text_color(t.accent)
+          .child(refs.join(" "))))
+        .child(div().flex_none().text_size(11).text_color(t.muted).child(author));
     };
-    return v_flex().flex_grow(0).flex_shrink(1).min_h(28).border_t(1).border_color(t.border).child(heading)
-      .when(!this.folded && this.commits.length > 0, (e) => e.child(v_flex().id("commits").flex_grow(0).flex_shrink(1)
+    return v_flex().flex_grow(0).flex_shrink(1).min_h(26).border_t(1).border_color(t.border).child(heading)
+      .when(!folded && this.commits.length > 0, (e) => e.child(v_flex().id("commits").flex_grow(0).flex_shrink(1)
         .flex_basis(Math.min(150, this.commits.length * 24 + 8)).min_h(0).overflow_y_scrollbar().px(6).pb(6)
         .children(this.commits.map(commit))));
   }
@@ -605,10 +656,10 @@ function glyph(font, mark) {
     .child(mark);
 }
 
-/** A button: SOLID in the accent, as the TUI's Commit and its arrow, even while it cannot be pressed; the others
- * faint then. */
+/** A button, its words bold as the TUI's: SOLID in the accent, as the TUI's Commit and its arrow, even while it
+ * cannot be pressed; the others faint then. */
 function button(t, id, label, enabled, solid, onClick) {
-  return div().id(id).h(32).px(12).flex().items_center().rounded(8).text_size(12).when(solid, (e) => e.font_semibold())
+  return div().id(id).h(32).px(12).flex().items_center().rounded(8).text_size(12).font_bold()
     .bg(solid ? t.solid : t.raised).text_color(solid ? t.solid_foreground : enabled ? t.foreground : t.dim)
     .when(enabled, (e) => e.cursor_pointer().on_click((_e, cx) => onClick(cx))).child(label);
 }
@@ -616,7 +667,7 @@ function button(t, id, label, enabled, solid, onClick) {
 /** A row's own small button, saying what it does when the mouse rests on it. */
 function small(t, id, label, tip, enabled, onClick) {
   return div().id(id).h(20).min_w(20).px(5).flex().items_center().justify_center().rounded(5).text_size(12)
-    .text_color(enabled ? t.muted : t.dim).tooltip(tip)
+    .font_semibold().text_color(enabled ? t.foreground : t.dim).tooltip(tip)
     .when(enabled, (e) => e.cursor_pointer().hover((s) => s.bg(t.raised).text_color(t.foreground))
       .on_click((_e, cx) => {
         cx.stop_propagation();                          // the row's own click (its diff) stays out of it
@@ -625,8 +676,8 @@ function small(t, id, label, tip, enabled, onClick) {
     .child(label);
 }
 
-/** A section's heading in the list, with how many files it holds. */
-function section(t, title, count) {
-  return h_flex().h(24).flex_none().px(8).gap(6).items_center().text_size(11).text_color(t.muted)
-    .child(div().font_semibold().child(title)).child(div().text_color(t.dim).child(String(count)));
+/** A count on a chip, as the TUI sidebar's sections show theirs. */
+function chip(t, text) {
+  return div().flex_none().px(6).rounded(5).text_size(11).font_semibold().bg(t.raised).text_color(t.foreground)
+    .child(text);
 }
