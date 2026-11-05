@@ -415,8 +415,10 @@ class Images(unittest.TestCase):
         texts = image_texts([rel for rel in publishable_files() if rel.lower().endswith(IMAGES)])
         self.assertTrue(any(texts.values()), "no text read off any image: the check would pass for nothing")
         words, (names, addresses) = private_words(), tailnet()
+        # all but the language: what OCR reads off a small, blurred thumbnail is no text (Cyrillic here, Latin
+        # Extended-A on another macOS, from the same frame)
         problems = [f"{rel} frame {frame}: {what}" for (rel, frame), text in texts.items()
-                    for _, what in findings(text, words, names, addresses)]
+                    for _, what in findings(text, words, names, addresses) if what != "non-English letters"]
         self.assertEqual(problems, [], "\n" + "\n".join(problems))
 
     def test_the_text_an_image_shows_is_read(self):

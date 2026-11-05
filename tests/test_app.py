@@ -27,8 +27,8 @@ def walk(node):
 class Logic(unittest.TestCase):
     @unittest.skipUnless(shutil.which("node"), "no Node")
     def test_the_mods_logic_passes_its_node_tests(self):
-        out = subprocess.run(["node", "--test", os.path.join("app", "tests")], cwd=PACKAGE, capture_output=True,
-                             text=True, timeout=120)
+        out = subprocess.run(["node", "--test"], cwd=os.path.join(PACKAGE, "app"), capture_output=True, text=True,
+                             timeout=120)                                    # its *.test.js, as every Node finds them
         self.assertEqual(out.returncode, 0, out.stdout[-2000:] + out.stderr[-2000:])
 
     @unittest.skipUnless(shutil.which("node"), "no Node")

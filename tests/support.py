@@ -21,6 +21,9 @@ SRC = os.path.join(PACKAGE, "src")
 # No test reaches the live herdr: its socket (the code's, and a real herdr command's a test may start) is looked for
 # where there is none, unless a test sets up a fake of its own (FakeHerdrSocket, set_env)
 os.environ["HERDR_SOCKET_PATH"] = os.path.join("/tmp", f"herdr-fold-tests-{os.getpid()}-none.sock")
+# git's own upkeep never runs in the background of a test's repository, as the test removes it
+os.environ.update(GIT_CONFIG_COUNT="2", GIT_CONFIG_KEY_0="maintenance.auto", GIT_CONFIG_VALUE_0="false",
+                  GIT_CONFIG_KEY_1="gc.auto", GIT_CONFIG_VALUE_1="0")
 sys.path.insert(0, SRC)
 # PowerShell 7 for the Windows scripts: the PWSH variable or pwsh on PATH; the tests that need it are skipped without
 PWSH = os.environ.get("PWSH") or shutil.which("pwsh")

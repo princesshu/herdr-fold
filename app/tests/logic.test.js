@@ -1,5 +1,5 @@
 // @ts-check
-// Tests for the mod's logic that needs no window: node --test app/tests (tests/test_app.py runs them, Node there).
+// Tests for the mod's logic that needs no window: node --test in app/ (tests/test_app.py runs them, Node there).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";

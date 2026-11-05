@@ -74,7 +74,7 @@ plugins of its own.
 | `app/layouts/herdr-fold.json` | the app's main layout with herdr-fold in the right panel, where the app's own Changes was: the Changes button and Cmd+Shift+G open it there; under it the `fold-terminals` stack, a block per tab's terminal, its header herdr-fold naming the one shown |
 | `app/themes/` | the TUI's themes as the app's, made by `tools/build.py` from `src/themes/themes.js`: `herdr-fold.json`, that layout's own (the package's, Catppuccin Mocha), and `herdr-fold-ID.json` for each of the TUI's, offered in the app's Settings for every layout |
 | `app/keys.json` | the keys, merged into the app's own: in that layout Cmd+Shift+G shows or hides herdr-fold, and Cmd+Shift+C has it write the message |
-| `app/tests/` | the mod's logic tested with Node (`logic.test.js`, `node --test app/tests`); `tests/test_app.py` runs them, and the app's own check of the mod |
+| `app/tests/` | the mod's logic tested with Node (`logic.test.js`, `node --test` in `app/`); `tests/test_app.py` runs them, and the app's own check of the mod |
 
 ### Remote machines
 

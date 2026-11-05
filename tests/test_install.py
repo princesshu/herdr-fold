@@ -43,7 +43,7 @@ class InstallCleanup(PackageHome, unittest.TestCase):
         self.pkg = copy_package(os.path.join(self.tmp, "pkg"))
         fakes = stubs(os.path.join(self.tmp, "stubs"), {"herdr": HERDR_STUB, "gh": GH_STUB, "defaults": DEFAULTS_STUB,
                                                        "brew": None, "open": None, "claude": None, "codex": None,
-                                                       "pgrep": None})                          # Ghostty is not open
+                                                       "tailscale": None, "pgrep": None})       # Ghostty is not open
         from_homebrew(fakes)
         self.gh_log = os.path.join(self.tmp, "gh-calls")
         self.herdr_log = os.path.join(self.tmp, "herdr-calls")

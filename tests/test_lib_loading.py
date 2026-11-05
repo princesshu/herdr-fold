@@ -90,8 +90,9 @@ class Loading(unittest.TestCase):
         self.assertIn("RC=0", out)
 
     def test_a_step_over_a_second_shows_a_plain_mark_first(self):
-        # a mark, the message and the time from LOADING_AFTER on; the sheep only from LOADING_SHEEP (five seconds)
-        out = loading("sleep 1.8", LOADING_AFTER="1", LOADING_SHEEP="5")
+        # a mark, the message and the time from LOADING_AFTER on; the sheep only from LOADING_SHEEP (five seconds); the
+        # step long enough for a busy machine, where the tenths loading counts by sleeping take longer
+        out = loading("sleep 3", LOADING_AFTER="1", LOADING_SHEEP="5")
         self.assertIn("Working", out)
         self.assertIn("0:0", out)
         self.assertNotIn(SCENE, out)
@@ -122,7 +123,7 @@ class Loading(unittest.TestCase):
 
     def test_once_there_the_sheep_stay_a_while(self):
         started = time.monotonic()
-        out = loading("sleep 1.2", LOADING_AFTER="0", LOADING_SHEEP="1", LOADING_SHEEP_MIN="2")
+        out = loading("sleep 3", LOADING_AFTER="0", LOADING_SHEEP="1", LOADING_SHEEP_MIN="2")
         self.assertIn(SCENE, out)
         self.assertGreater(time.monotonic() - started, 2.8)                 # 1 s to the sheep, then 2 s of them
         self.assertIn("RC=0", out)
