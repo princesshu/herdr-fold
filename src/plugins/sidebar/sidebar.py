@@ -45,12 +45,12 @@ EMPTY = git.Status()
 TAB = 5                       # the cells of a view's tab: its icon in the middle one
 TIP_DELAY = 0.5               # seconds the mouse rests on a control shown by an icon before it says what it does
 # what each such control does, by its target (a row's buttons by their kind)
-TIPS = {"suggest": "Write the message", "mode": "Commit mode", "sync": "Sync", "panels": "Panes",
-        "unlink": "Unlink the issue", "view:files": "Files", "view:search": "Search", "view:git": "Changes",
+TIPS = {"suggest": "Write message", "mode": "Commit mode", "sync": "Sync", "panels": "Panes",
+        "unlink": "Unlink issue", "view:files": "Files", "view:search": "Search", "view:git": "Changes",
         "view:issues": "Issues", "new_file": "New file", "new_folder": "New folder", "refresh": "Refresh",
         "collapse": "Collapse all", "case": "Match case", "word": "Whole word", "regex": "Regular expression",
         "clear": "Clear", "stage": "Stage", "unstage": "Unstage", "discard": "Discard changes", "diff": "Show diff",
-        "agent": "To the agent", "web": "Open in the browser"}
+        "agent": "To agent", "web": "Open in browser"}
 # the cells between the last view's tab and the ⋯ at least: the shown view's title (a cell of air on each side), the ⋯ a
 # group of its own
 APART = 1 + max(width(title) for title in VIEWS.values()) + 1

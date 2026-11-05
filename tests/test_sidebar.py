@@ -332,9 +332,9 @@ class Tips(Harness):
         self.term.type(Key("char", "3"))
         self.until(lambda s: "a.txt" in s)
         self.term.type(Mouse("move", *self.region(lambda target: target == "suggest")))
-        self.until(lambda s: " Write the message " in s, timeout=3)
+        self.until(lambda s: " Write message " in s, timeout=3)
         self.term.type(Key("char", "x", ctrl=True))
-        self.until(lambda s: "Write the message" not in s)
+        self.until(lambda s: "Write message" not in s)
 
     def test_a_files_icons_tell_what_they_do(self):
         self.term.type(Key("char", "3"))
