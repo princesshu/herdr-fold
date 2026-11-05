@@ -349,10 +349,9 @@ def settle(repo, seen, state=None):
 
 
 def main(argv):
-    """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: write REPO (the message for
-    its staged changes with the linked issue's Fixes line, who wrote it, why the others could not, the staged files),
-    secrets REPO (the staged files named like secrets), link REPO NUMBER TITLE, unlink REPO, settle REPO [SEEN] (the
-    linked issue, unless a commit after SEEN closed it, and the latest commit)."""
+    """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: write REPO (the message, its
+    writer, why the others could not, the staged files), secrets REPO (those named like secrets), link REPO NUMBER
+    TITLE, unlink REPO, settle REPO [SEEN] (the linked issue, unless a commit after SEEN closed it)."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     linking = command == "link" and len(args) == 3 and args[1].isdigit() and int(args[1]) > 0
     if linking or command == "unlink" and len(args) == 1:

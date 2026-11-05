@@ -44,8 +44,9 @@ def literal(text):
         pieces, piece = [], ""
         for ch in line:
             if len(json.dumps(piece + ch)) > WIDTH:
-                pieces.append(piece)
-                piece = ""
+                cut = piece.rfind(" ") + 1 or len(piece)          # after its last space: no word cut in two
+                pieces.append(piece[:cut])
+                piece = piece[cut:]
             piece += ch
         rows.append(" +\n    ".join(json.dumps(one) for one in pieces + [piece]))
     return "[\n  " + ",\n  ".join(rows) + ',\n].join("\\n")'

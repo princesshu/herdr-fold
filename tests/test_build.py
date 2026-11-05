@@ -4,6 +4,7 @@ import ast
 import importlib.util
 import json
 import os
+import re
 import sys
 import sysconfig
 import unittest
@@ -37,6 +38,17 @@ class Copies(unittest.TestCase):
                 self.assertEqual(os.path.join(sidebar, name) in build.outputs(), name not in build.MOD_ONLY, name)
         in_helpers = {name for sources in build.HELPERS.values() for name in sources.values()}
         self.assertLessEqual(build.MOD_ONLY, in_helpers)
+
+
+class Literal(unittest.TestCase):
+    def test_a_long_line_is_cut_between_words_and_joined_back_whole(self):
+        line = ("    commit, sync, push (whether each worked, else what to do). The arguments each takes: COMMANDS "
+                "and the usage line, then a few more words to make it long enough for two cuts at least.")
+        made = build.literal(line)
+        pieces = [json.loads(piece) for piece in re.findall(r'"(?:[^"\\]|\\.)*"', made)]
+        self.assertEqual("".join(pieces[:-1]), line)                     # the last is join()'s own "\\n"
+        self.assertTrue(all(piece.endswith(" ") for piece in pieces[:-2]), pieces)
+        self.assertTrue(all(len(row) <= 120 for row in made.split("\n")))
 
 
 class AppTheme(unittest.TestCase):
