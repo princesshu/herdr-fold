@@ -275,10 +275,10 @@ def since(then, now=None):
 
 
 def listed(issue):
-    """ISSUE as the app mod's list shows it: its fields, its priority's rank (None without one) and what says it, and
-    what a search finds it by."""
+    """ISSUE as the app mod's list shows it: its fields, its priority's rank (None without one) and what says it, what
+    a search finds it by, and how long ago it changed."""
     level, by = priority(issue)
-    return {**asdict(issue), "level": by and level, "ranked_by": by, "said": said(issue)}
+    return {**asdict(issue), "level": by and level, "ranked_by": by, "said": said(issue), "ago": ago(issue.updated)}
 
 
 def main(argv):
@@ -306,8 +306,9 @@ def main(argv):
         elif command == "prompt" and len(args) == 2:
             answer = {"prompt": prompt(args[0], Issue(number, ""))}
         elif command == "view" and len(args) == 2:
-            issue, error = view(args[0], number)
-            answer = {"issue": issue, "error": error}
+            issue, error = view(args[0], number)  # with how long ago it and its comments were written
+            answer = {"issue": issue, "error": error,
+                      "ago": [ago(issue["created"])] + [ago(c["created"]) for c in issue["comments"]] if issue else []}
         elif command == "reply" and len(args) == 2:
             answer = {"argv": comment_argv(args[0], number)}
         elif command == "create" and len(args) == 1:

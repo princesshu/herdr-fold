@@ -193,6 +193,7 @@ class CommandLine(CLI):
         self.assertEqual(github.matches(github.Issue(42, "Login fails on Safari", ("bug", "ui"), ("dev",)),
                                         ["safari"]), "safari" in answer["issues"][1]["said"])
         self.assertIn("@dev", answer["issues"][1]["said"])
+        self.assertEqual(answer["issues"][1]["ago"], github.ago("2026-10-22T10:00:00Z"))
 
     def test_an_issue_with_its_comments_for_its_preview(self):
         with open(self.answer, "w") as f:
@@ -208,11 +209,13 @@ class CommandLine(CLI):
             "url": "https://github.com/acme/app/issues/42", "created": "2026-10-20T10:00:00Z", "author": "ada",
             "labels": ["bug"], "assignees": ["dev"],
             "comments": [{"author": "lin", "body": "Same on iOS", "created": "2026-10-21T10:00:00Z"}]})
+        self.assertEqual(answer["ago"], [github.ago("2026-10-20T10:00:00Z"), github.ago("2026-10-21T10:00:00Z")])
         self.assertTrue(self.calls()[-1].startswith("issue view 42 -R acme/app --json "))
 
     def test_an_issue_that_cannot_be_read_says_why(self):
         set_env(self, GH_FAIL="HTTP 404: Not Found")
-        self.assertEqual(self.cli("view", "acme/app", "42"), (0, {"issue": None, "error": "HTTP 404: Not Found"}))
+        self.assertEqual(self.cli("view", "acme/app", "42"), (0, {"issue": None, "error": "HTTP 404: Not Found",
+                                                                  "ago": []}))
 
     def test_a_reply_and_a_new_issue_run_gh_in_a_terminal(self):
         self.assertEqual(self.cli("reply", "acme/app", "42")[1]["argv"][1:], ["issue", "comment", "42", "-R",

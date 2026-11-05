@@ -7,14 +7,15 @@ import os
 # wider than its cell, so the views' icons are equally wide and Issues' is GitHub's mark (the symmetric issue icon would
 # look off-center). The file types' marks below are the languages' own
 NERD_GLYPHS = {"closed": "\ueab6", "open": "\ueab4", "folder": "\uea83", "folder_open": "\ueaf7", "file": "\uea7b",
-               "new_file": "\uea7f", "new_folder": "\uea80", "refresh": "\ueb37", "collapse": "\ueac5",
-               "check": "\ueab2", "more": "\ueab4", "stage": "\uea60", "unstage": "\ueb3b", "discard": "\ueae2",
-               "diff": "\ueae1", "files": "\ueaf0", "search": "\uea6d", "git": "\uea68", "ai": "\uec10",
-               "issues": "\ueb00", "agent": "\uec0f", "web": "\ueb14", "fold": "\ueac7", "unfold": "\ueac7"}
-PLAIN_GLYPHS = {"closed": "▸", "open": "▾", "new_file": "+", "new_folder": "⊞", "refresh": "↻", "collapse": "⊟",
-                "check": "✓", "more": "⌄", "stage": "+", "unstage": "−", "discard": "↺", "diff": "⇄",
-                "files": "▤", "search": "⌕", "git": "⎇", "ai": "✦", "issues": "#", "agent": "»", "web": "↗",
-                "fold": "«", "unfold": "»"}
+               "new_file": "\uea7f", "new_issue": "\uea60", "new_folder": "\uea80", "refresh": "\ueb37",
+               "collapse": "\ueac5", "check": "\ueab2", "more": "\ueab4", "stage": "\uea60", "unstage": "\ueb3b",
+               "discard": "\ueae2", "diff": "\ueae1", "files": "\ueaf0", "search": "\uea6d", "git": "\uea68",
+               "ai": "\uec10", "issues": "\ueb00", "agent": "\uec0f", "web": "\ueb14", "fold": "\ueac7",
+               "unfold": "\ueac7"}
+PLAIN_GLYPHS = {"closed": "▸", "open": "▾", "new_file": "+", "new_issue": "+", "new_folder": "⊞", "refresh": "↻",
+                "collapse": "⊟", "check": "✓", "more": "⌄", "stage": "+", "unstage": "−", "discard": "↺",
+                "diff": "⇄", "files": "▤", "search": "⌕", "git": "⎇", "ai": "✦", "issues": "#", "agent": "»",
+                "web": "↗", "fold": "«", "unfold": "»"}
 EXTENSIONS = {"\ue73c": "py pyi", "\ue74e": "js mjs cjs", "\ue628": "ts", "\ue7ba": "jsx tsx", "\ue60b": "json jsonc",
               "\uf48a": "md markdown", "\ue736": "html htm", "\ue749": "css scss sass less",
               "\ue615": "toml yaml yml ini cfg conf", "\uf489": "sh bash zsh fish",
