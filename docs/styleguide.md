@@ -42,17 +42,18 @@ A section, and the Graph, slides open and shut: its height in 180 ms, easing out
 
 ### Iconography
 
-![The Codicons by name, and the plain marks that stand in for them](../assets/styleguide/icons.webp)
+![The mod's icons, Lucide's, by name](../assets/styleguide/icons.webp)
 
-![Each file type's icon](../assets/styleguide/file-types.webp)
+![Each file type's icon, Catppuccin Icons'](../assets/styleguide/file-types.webp)
 
-The icons are the TUI sidebar's, from one table both draw from (`core/icons.py`): Codicons and each file type's mark
-in a Nerd Font when one is installed (the TUI environment installs JetBrainsMono Nerd Font), otherwise the plain marks.
+The views' icons are Lucide's, drawn by `icon(name)` in the text's color; a file's is Catppuccin Icons' for its type,
+in its own colors (`fileMark`), the types told apart as the TUI sidebar tells them (`core/icons.py`). `tools/icons.py`
+fetches both from Iconify into `app/mods/herdr-fold/icons/`, `icons.js` names each once, and a test fails on an icon
+no view draws.
 
 ## Components
 
-States are named alike throughout: Default, Hover, Selected, Busy, Asking (a second press to confirm), Error, and how
-the part looks without a Nerd Font.
+States are named alike throughout: Default, Hover, Selected, Busy, Asking (a second press to confirm) and Error.
 
 ### Buttons
 
@@ -63,13 +64,17 @@ it cannot be pressed. A row's buttons show only with the mouse on the row.
 
 ### Commit
 
-![The message field with its ✦, Commit and its mode arrow, in each state, and the issue the next commit
+![The repository row, as VS Code's Repositories, in sync, behind and ahead, its ⋯ open, with no upstream and
+folded; the message field with its ✦, Commit and its mode arrow, in each state, and the issue the next commit
 fixes](../assets/styleguide/commit.webp)
 
-### View tabs and the search field
+### Panel tabs and the search field
 
-![The view tabs with the sync button, Issues among them on GitHub, and the search field with its
-switches](../assets/styleguide/tabs.webp)
+![The right panel's tabs, the shown one raised, Changes with its count, Issues on GitHub only; and the search field
+with its switches](../assets/styleguide/tabs.webp)
+
+The right panel is one of Adobe's panel groups: herdr-fold's views and the app's Files as its tabs, on the header of
+the stack that holds them. Two hover backgrounds side by side keep 4 apart (`GAP`), tabs and icon buttons alike.
 
 ### Section header and count chip
 
@@ -102,17 +107,28 @@ green; without one, the accent. Closing or reopening asks on the row first.
 
 ![An issue in the preview tab, with its comments](../assets/styleguide/preview-issue.webp)
 
+### Conversations
+
+![The left sidebar's Conversations: by space, the running ones marked in herdr's colors; filtered, a menu open, one
+renamed in its row, the archived shown, loading, none yet; folded to a rail, and the toggle left of the
+tabs](../assets/styleguide/conversations.webp)
+
+Folded, the sidebar is a dock, as Adobe's panels collapse to icons: each panel on a square (`iconTab`: 30 square,
+radius 6), its name under it, its most urgent state's dot at the corner; a press floats it beside the dock, a window
+its head drags and its × closes (`floatPanel`). The app's footer buttons sit centered at its foot, its toggle left of
+the tabs, where the window's buttons leave it room. Every icon button is `iconButton`: 26 square, radius 6.
+
 ### Search results
 
 ![Hits by file, one shown at its line below](../assets/styleguide/search.webp)
 
 ### The tab's terminal
 
-![The tab's terminal header: starting, shown, and when it could not start](../assets/styleguide/terminal.webp)
+![The tab's terminal when it could not start: why, in its place](../assets/styleguide/terminal.webp)
 
 ## Patterns
 
-![The Changes, Search and Issues panels, and Changes with the plain marks](../assets/styleguide/panels.webp)
+![The Changes, Search and Issues panels](../assets/styleguide/panels.webp)
 
 ## A new part
 

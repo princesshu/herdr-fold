@@ -12,11 +12,13 @@ SIDEBAR = os.path.join("src", "plugins", "sidebar")
 WIDTH = 110                   # a string literal's cells on a line of helper.js
 # the Herdr app mod's helper.js: the name it imports each module's source by, and the module
 HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"COMMIT_MESSAGE": "commit_message.py",
+                                                                    "CONVERSATIONS": "conversations.py",
                                                                     "FILEOPS": "fileops.py", "GIT": "git.py",
                                                                     "GITHUB": "github.py", "JOB": "job.py",
                                                                     "SEARCH": "search.py"}}
 MOD_ONLY = {"job.py"}         # what only the mod runs (its background jobs): the sidebar gets no copy
-ICONS = os.path.join("app", "mods", "herdr-fold", "icons.js")       # core/icons.py's tables, for the mod to draw
+ICONS = os.path.join("app", "mods", "herdr-fold", "icons.js")       # the mod's icons, by name, and the file types'
+SVGS = "mods/herdr-fold/icons"     # its icons as the app loads them: lucide/ the views', catppuccin/ a file's
 THEMES = os.path.join("app", "themes")      # the TUI's themes in the Herdr app: herdr-fold-ID.json for each, and
 THEME = os.path.join(THEMES, "herdr-fold.json")   # the herdr-fold layout's own (the package's, Catppuccin Mocha)
 
@@ -30,7 +32,7 @@ def runnable(name):
     """core/NAME's source as the mod runs it, with Python's -c on the space's machine: the core modules it imports made
     there first, each from its own source, so it runs alone."""
     source = core(name)
-    needed = [module for module in re.findall(r"^import (\w+)", source, re.M)
+    needed = [module for module in re.findall(r"^(?:import|from) (\w+)", source, re.M)
               if os.path.isfile(os.path.join(ROOT, "core", module + ".py"))]
     made = "".join(f"_sys.modules[{m!r}] = _types.ModuleType({m!r})\n"
                    f"exec({core(m + '.py')!r}, _sys.modules[{m!r}].__dict__)\n" for m in needed)
@@ -41,11 +43,11 @@ def note(name):
     return f"Generated from core/{name} by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py"
 
 
-def js_note(names):
+def js_note():
     """helper.js's opening comment: where it comes from, and what it is for."""
-    return ["// @ts-check", f"// Generated from core/ ({', '.join(names)}) by tools/build.py:",
-            "// change them there, then run it again. Each module's source, run with Python's -c on the space's "
-            "machine."]
+    return ["// @ts-check",
+            "// Generated from core/ by tools/build.py, each export a module's source: change them there,",
+            "// then run it again. Each runs with Python's -c on the space's machine."]
 
 
 def literal(text):
@@ -65,15 +67,22 @@ def literal(text):
 
 
 def icons_js():
-    """core/icons.py's tables as the mod's icons.js: the sidebar's Nerd Font glyphs, its plain marks, a change's letter,
-    and each file type's glyph by extension and by the name's start."""
+    """The mod's icons.js, by the path the app loads each: the views' (ICONS, the lucide/ folder's) and a file's by
+    its extension, by its name's start, and any other's (core/icons.py's), and a change's letter."""
     spec = importlib.util.spec_from_file_location("core_icons", os.path.join(ROOT, "core", "icons.py"))
     icons = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(icons)
-    tables = {"NERD": icons.NERD_GLYPHS, "PLAIN": icons.PLAIN_GLYPHS, "LETTER": icons.GIT_LETTER,
-              "BY_EXTENSION": icons.BY_EXTENSION, "BY_NAME": [[glyph, list(starts)] for glyph, starts in icons.BY_NAME]}
-    lines = ["// @ts-check", f"// {note('icons.py')}."]
+    file = lambda name: f"{SVGS}/catppuccin/{name}.svg"                                  # noqa: E731
+    views = sorted(name[:-len(".svg")] for name in os.listdir(os.path.join(ROOT, "app", SVGS, "lucide")))
+    tables = {"ICONS": {name: f"{SVGS}/lucide/{name}.svg" for name in views},
+              "BY_EXTENSION": {ext: file(name) for ext, (_glyph, name) in icons.BY_EXTENSION.items()},
+              "BY_NAME": [[file(name), list(starts)] for _glyph, name, starts in icons.BY_NAME],
+              "FILE": file(icons.FILE), "LETTER": icons.GIT_LETTER}
+    lines = ["// @ts-check",
+             "// Generated from core/icons.py and the icons/ folder by tools/build.py: change them there, then run",
+             "// /usr/bin/python3 tools/build.py. Each icon by the path the app loads it."]
     lines += [f"export const {name} = {json.dumps(table, indent=2)};" for name, table in tables.items()]
+    lines.append("/** @typedef {keyof typeof ICONS} IconName */")
     return "\n".join(lines) + "\n"
 
 
@@ -93,11 +102,14 @@ def app_theme(theme):
     panels = {"canvas": "sidebar_bg", "chrome": "sidebar_bg", "surface": "panel_bg", "popover": "panel_bg",
               "raised": "surface0", "hover": "surface0", "selected": "active_row_bg", "border": "surface0",
               "input": "overlay1", "foreground": "text", "muted": "subtext0", "dim": "overlay0", "accent": "accent",
-              "solid": "accent", "working": "blue", "blocked": "yellow", "done": "green", "idle": "overlay0",
-              "unknown": "overlay0"}
+              "solid": "accent"}
+    # an agent's state as the TUI's column marks it, its role's terminal color: blocked red, done cyan, working
+    # yellow, idle green, unknown faint
+    states = {"blocked": 1, "done": 6, "working": 3, "idle": 2, "unknown": 8}
     made = {"background": colors["background"], "foreground": colors["foreground"], "selection": selection,
             "cursor": colors["cursor"], "ansi": colors["palette"],
-            "colors": {**{name: frame[key] for name, key in panels.items()}, "selection": selection,
+            "colors": {**{name: frame[key] for name, key in panels.items()},
+                       **{state: colors["palette"][n] for state, n in states.items()}, "selection": selection,
                        "accent_foreground": colors["background"], "solid_foreground": colors["background"]}}
     return json.dumps(made, indent=2) + "\n"
 
@@ -107,7 +119,7 @@ def outputs():
     made = {os.path.join(SIDEBAR, name): f"# {note(name)}\n" + core(name)
             for name in sorted(os.listdir(os.path.join(ROOT, "core"))) if name.endswith(".py") and name not in MOD_ONLY}
     for path, sources in HELPERS.items():
-        lines = js_note(list(sources.values()))
+        lines = js_note()
         lines += [f"export const {const} = {literal(runnable(name))};" for const, name in sources.items()]
         made[path] = "\n".join(lines) + "\n"
     made[ICONS] = icons_js()

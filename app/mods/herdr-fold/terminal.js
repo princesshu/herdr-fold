@@ -1,13 +1,12 @@
 // @ts-check
 // The focused tab's own terminal under herdr-fold's views, as the TUI's right column has one per tab: the layout's
-// fold-terminals stack holds a block per tab, and its header (this part, always shown with it) picks and names it.
-import { div, svg, image } from "gpui-kit";
-import { h_flex } from "gpui-base";
-import { focused, spaces, terminals, machines, layout, hc, home, run as command } from "herdr";
-import { folderName, lastLine, machineOf, said, strays, TERMINALS, terminalId, withoutTabs, withTerminal }
-  from "./logic.js";
+// fold-terminals stack holds a block per tab; its header, 0 high and always shown with it, picks it (this part).
+import { div } from "gpui-kit";
+import { focused, spaces, terminals, machines, layout, hc, shared, setShared, run as command } from "herdr";
+import { lastLine, machineOf, said, strays, TERMINALS, terminalId, withoutTabs, withTerminal } from "./logic.js";
 
 const LABEL = "herdr-fold.tab";    // the core keeps a tab's terminal by this label, the tab's id its value
+const NOTE = "herdr-fold.terminal";      // why the focused tab has no terminal, for the stack's stand-in to say
 
 /** The live terminal at ADDRESS, if any. @param {string | null} address */
 const live = (address) => terminals().find((t) => t.address === address && t.state === "live");
@@ -32,16 +31,19 @@ async function terminalOf(tab, space) {
   return next;
 }
 
-export class TerminalHeader {
+export class TerminalFollower {
   constructor() {
     /** @type {string | null} the tab whose terminal shows */
     this.tab = null;
     /** @type {string | null} */
     this.address = null;
     this.starting = false;
-    /** @type {string | null} why the tab has no terminal */
-    this.note = null;
     this.due = false;
+  }
+
+  /** @returns {string | null} why the tab has no terminal */
+  get note() {
+    return /** @type {string | null} */ (shared(NOTE) ?? null);
   }
 
   /** From render: the focused tab's terminal followed once the render is over (that changes the layout and redraws);
@@ -77,11 +79,11 @@ export class TerminalHeader {
         if (next.changed) command("layout.set", { layout: next.tree });
         command("layout.select", { stack: TERMINALS, child: terminalId(tab) });
         this.address = address;
-        this.note = null;
+        if (this.note) setShared(NOTE, null);
       } catch (e) {
+        setShared(NOTE, `No terminal: ${said(e)}`);
         command("layout.select", { stack: TERMINALS, child: "fold-terminal-none" });
         this.address = null;
-        this.note = `No terminal: ${said(e)}`;
       } finally {
         this.starting = false;
         cx.notify();
@@ -106,22 +108,12 @@ export class TerminalHeader {
     const next = withoutTabs(layout(), tabs, reachable);
     if (next.gone.length) command("layout.set", { layout: next.tree });
   }
-
-  /** As the app's pane header: the program's icon and name, the folder of the terminal SHOWN; or what is happening
-   * instead. */
-  render(t, shown = this.starting ? null : live(this.address)) {
-    const program = shown?.program;
-    const icon = !program?.icon ? null : program.tint ? svg(program.icon).size(14).text_color(t.muted)
-      : image(program.icon).size(14);
-    const own = shown && !machineOf(shown.address) ? home() : null;
-    return h_flex().size_full().px(12).gap(8).items_center().border_b(1).border_color(t.border).text_size(12)
-      .when(Boolean(icon), (e) => e.child(/** @type {any} */ (icon)))
-      .when(Boolean(shown), (e) => e.child(div().flex_none().text_color(t.foreground).child(program?.name ?? ""))
-        .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(folderName(shown.cwd ?? null, own))))
-      .when(!shown, (e) => e.child(div().flex_1().min_w(0).truncate()
-        .text_color(this.note ? t.ansi1 : t.dim).child(this.note ?? "Starting this tab's terminal…")));
-  }
 }
+
+/** The stack's stand-in, shown while the focused tab has no terminal: why (NOTE), if it could not start.
+ * @param {string | null} [note] */
+export const standIn = (t, note = /** @type {string | null} */ (shared(NOTE) ?? null)) =>
+  div().size_full().p(12).text_size(12).text_color(t.ansi1).child(note ?? "");
 
 /** A terminal for TAB of SPACE, in its folder on its machine, with that machine's own shell; kept by the core (a lost
  * one gets a shell in its place) under herdr-fold's label. Its address, the machine's name and all.

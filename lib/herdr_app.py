@@ -12,6 +12,8 @@ MOD, LAYOUT, KEYS = os.path.join("mods", "herdr-fold"), os.path.join("layouts", 
 THEMES = "themes"              # herdr-fold.json (the layout's own) and the TUI's themes, herdr-fold-ID.json
 TITLE = "herdr-fold"            # the mod.json title that marks a mods/herdr-fold folder as herdr-fold's copy
 TERMINALS = "fold-terminals"    # the layout's stack of the tabs' terminals the mod started (app/mods/herdr-fold)
+SHARED = "shared.json"          # the app's shared values: the mod notes there the app's panel buttons it took off
+BEFORE, BUTTONS = "herdr-fold.app-panels", "workspace.panels"
 
 
 def cli():
@@ -90,12 +92,31 @@ def read_keys(path):
     return keys if isinstance(keys, dict) and all(isinstance(v, dict) for v in keys.values()) else None
 
 
-def write_keys(path, keys):
-    fd, temp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".keys.")
+def write_json(path, data):
+    fd, temp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".herdr-fold.")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump(keys, f, indent=2, ensure_ascii=False)
+        json.dump(data, f, indent=2, ensure_ascii=False)
         f.write("\n")
     os.replace(temp, path)
+
+
+def give_back(home):
+    """The app's own panel buttons as they were before the layout took them off, when the app stopped while showing
+    it (a running app's mod gives them back as the layout goes); the mod's note of them gone."""
+    path = os.path.join(home, SHARED)
+    try:
+        with open(path, encoding="utf-8") as f:
+            shared = json.load(f)
+    except (OSError, ValueError):
+        return
+    if not isinstance(shared, dict) or BEFORE not in shared:
+        return
+    before = shared.pop(BEFORE)
+    if isinstance(before, dict) and before.get("panels") is None:
+        shared.pop(BUTTONS, None)
+    elif isinstance(before, dict):
+        shared[BUTTONS] = before["panels"]
+    write_json(path, shared)
 
 
 def merge_keys(mine, added):
@@ -138,7 +159,7 @@ def install(package, home):
     mine = read_keys(os.path.join(home, KEYS))
     if mine is None:
         return 3
-    write_keys(os.path.join(home, KEYS), merge_keys(mine, package_keys(package)))
+    write_json(os.path.join(home, KEYS), merge_keys(mine, package_keys(package)))
     return 0
 
 
@@ -150,7 +171,8 @@ def uninstall(package, home):
             os.remove(os.path.join(home, rel))
     mine = read_keys(os.path.join(home, KEYS))
     if mine:
-        write_keys(os.path.join(home, KEYS), drop_keys(mine, package_keys(package)))
+        write_json(os.path.join(home, KEYS), drop_keys(mine, package_keys(package)))
+    give_back(home)
 
 
 def main(argv):

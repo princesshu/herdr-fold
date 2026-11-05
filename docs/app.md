@@ -5,14 +5,17 @@ TUI sidebar's counterpart in the app, with the same data layer underneath (`core
 the same in both. It installs on its own, without the TUI environment.
 
 It comes with a layout of its own, `herdr-fold`: the app's main layout, with herdr-fold in the right panel where the
-app's own Changes was, above the tab's own terminal, as the TUI's right column has them. The Changes button at the top
-right opens it there, and so does Cmd + Shift + G. The layout is
+app's own Changes was, above the tab's own terminal, as the TUI's right column has them, and its Conversations in the
+left sidebar, under Spaces, where the app's own Agents list was; a pane has no header, as in the TUI (the grip on its
+top edge still drags it). The toggle at the top right, where the app's Files and Changes buttons were, shows and hides
+it, and so does Cmd + Shift + G. The layout is
 dark, in the TUI's own colors (its theme, `themes/herdr-fold.json`, is made from the TUI's); its terminals and code are
 in Menlo, as VS Code's (on Linux and Windows the app's JetBrains Mono), at the TUI's size, 13; the app's theme and font
 menus change them.
 
-Its icons are the TUI sidebar's, from the same table (`core/icons.py`): with a Nerd Font installed (the TUI environment
-installs JetBrainsMono Nerd Font), its Codicons and each file type's mark; without one, its plain marks.
+Its icons are Lucide's, a file's Catppuccin Icons' for its type, as the TUI sidebar tells the types apart
+(`core/icons.py`); `tools/icons.py` fetches both from Iconify into `app/mods/herdr-fold/icons/`, and `icons.js` names
+each once, which every view draws them from. No Nerd Font is needed.
 
 The TUI's themes come along, for any layout: Settings lists each under its file's name, in `themes/`.
 
@@ -31,9 +34,12 @@ The TUI's themes come along, for any layout: Settings lists each under its file'
 | `herdr-fold-nord.json` | Nord |
 | `herdr-fold-solarized.json` | Solarized |
 
-Its views are Changes, Search and, for a repository on GitHub, Issues: the tabs at its top; it keeps the one shown. A
-diff, a commit or an issue opens in the space's preview tab, as in the TUI. Files and the Conversations column are not
-in the app yet.
+Its views are tabs of one panel group, as Adobe's panels are grouped, in VS Code's order: the app's own Files, then
+Search, Changes and, for a repository on GitHub, Issues; the shown one on a raised pad, Changes with its changed files'
+count in a round badge, as VS Code's; it keeps the one shown. × at the end of the tabs closes the panel, and the toggle
+at the tab bar's right end (or Cmd + Shift + G) opens it again: while this layout shows, the app's own Files and Changes
+buttons are off its tab bar, and back as it goes. A diff, a commit or an issue opens in the space's preview tab, as in
+the TUI. herdr-fold's own Files view is not in the app yet.
 
 ## Changes
 
@@ -41,7 +47,7 @@ For the repository of the focused pane, top to bottom, as the TUI sidebar has it
 
 | Part | What it does |
 |---|---|
-| Header | the views' icons, as the TUI sidebar's tabs, the shown one's name, and the sync button with how far the branch is from its upstream (`1↓ 2↑`: one commit to pull, two to push); it pulls (fast-forward only) and pushes, and when that fails, a line under the Graph says what to do, with nothing lost |
+| Repositories | as VS Code's: the repository's name, its branch (`*` with changes) and ↻, which syncs: it pulls (fast-forward only) and pushes, and says how far the branch is from its upstream when it is (`1↓ 2↑`: one commit to pull, two to push); ⋯ pulls or pushes alone, or opens the repository on GitHub. When a sync fails, a line under the Graph says what to do, with nothing lost; the heading folds it, and it stays so |
 | ✦ | with nothing staged, stages every change (never a file .gitignore names), and has Claude or Codex write the message for what the commit takes, as the TUI's ✦ and Cmd + Shift + C do: the same writer, rules and checks for anything private ([Commit and push](usage.md#commit-and-push)); within a minute or so the message fills the field, to read and change |
 | Commit | commits the staged changes, or every change with none staged, with the message (Enter in the field too); a file whose name looks like a secret's (`.env`, a key, a certificate) is asked about first: the button says Commit anyway, and pressing it again commits. Its arrow chooses Commit, Commit & Push or Commit & Sync, as the TUI's: after the commit, a push or a sync; the choice stays for the next commit |
 | Fixes | under Commit, the issue the next commit closes, once Issues handed it to the agent: the written message gets its `Fixes #42` line; × unlinks it, and a commit made anywhere that closes it does too |
@@ -69,7 +75,7 @@ For a repository on GitHub, its issues, as the TUI sidebar's Issues view lists t
 |---|---|
 | Field | the words an issue must hold, in its title, labels or assignee; + opens gh's own prompts for a new issue in a tab of its own; Filters: assigned to you, created by you, a priority, a label |
 | Open, Closed | which issues are listed; open ones by priority (GitHub's Priority field, else a label such as `priority: high` or `P1`), its color on each |
-| An issue | its number in its priority's color, its title; its priority, labels, assignee and how long ago it changed; a click opens it in the preview tab; with the mouse on it, To the agent and Open in the browser |
+| An issue | its number in its priority's color, its title; its priority, labels, assignee and how long ago it changed; a click opens it in the preview tab; with the mouse on it, To agent and Open in browser |
 | Its right click | Open, Open in the browser, To the agent, Reply (gh's prompts in a tab of its own), Assign to me, and Close… or Reopen…, asked again on the row before it is done |
 
 To the agent sends the tab's Claude or Codex the TUI's prompt for the issue (to read it with gh as a description of the
@@ -82,12 +88,34 @@ A space has one, as in the TUI: the first diff, commit or issue opened makes it,
 a removed line by the old file and the others by the new one, a thin rule where lines are left out; a commit shows its
 author, message and each file's diff; an issue its text and comments as markdown. Herdr-fold's panel stays beside it.
 
+## Conversations
+
+In the left sidebar, every conversation of this Mac's spaces, running or closed, as the TUI's Conversations column
+lists them:
+
+| Part | What it does |
+|---|---|
+| Filter | the words a conversation's name, space or folder holds, `archived` for the archived ones; Cmd + Shift + R from anywhere gives it the keys, Enter opens the first one |
+| A space | its most urgent agent's state mark, as the Spaces list has it, and its conversations, the active tab's first, then the newest; a click folds or opens it, the shown space open by itself |
+| A conversation | its state's mark in herdr's colors (a closed one's a faint dot), its name, its agent and how long ago it changed; a click goes to a running one, or reopens a closed one in a new tab of its space, its agent resuming it (`claude --resume`, `codex resume`) |
+| Its right click | Open, Copy conversation (all of it, as Markdown), Rename (in its row: Enter keeps it, as herdr's Rename pane names it) and, for a closed one, Archive or Unarchive; elsewhere in the list, Show or Hide archived |
+
+Folded, by its toggle or dragged as narrow, the sidebar is a dock, as Illustrator's and Photoshop's panels collapse to
+icons: Spaces and Conversations, each its icon and name, its most urgent state's dot at the corner, and at its foot the
+app's Settings and Add machine, centered. A press floats that panel beside the dock, as tall as its content and one at a
+time: dragged by its head, it stays where it is dropped, and opens there next time, until its × closes it. The toggle
+left of the tabs opens the sidebar again. Open, the edge between Spaces and Conversations drags, Spaces only as far as
+its list goes; Conversations takes the rest.
+
+The archived ones and the names are the TUI column's own, so either shows what the other changed. Unlike the TUI's,
+it copies a conversation as Markdown text, not formatted beside it, and archives one at a time.
+
 ## The tab's terminal
 
 Under herdr-fold, each tab has a terminal of its own, as in the TUI: it starts the first time the tab shows, in the
 space's folder on its machine, with that machine's shell, and switching tabs switches it. Like the tab's own terminals,
-it keeps running when the app quits, and ends when the tab closes; a shell that exits makes way for a new one. Its
-header names the program and the folder, as the app's pane header does; the edge above it resizes the two.
+it keeps running when the app quits, and ends when the tab closes; a shell that exits makes way for a new one. It has
+no header of its own; one that could not start says why in its place. The edge above it resizes the two.
 
 ## Installing it
 
@@ -129,13 +157,15 @@ In the herdr-fold layout:
 
 | Key | What it does |
 |---|---|
-| Cmd + Shift + G | shows the right panel at herdr-fold, as the Changes button does; again hides it |
+| Cmd + Shift + G | shows the right panel at Changes; again hides it |
 | Cmd + Shift + C | has Claude or Codex write the message, as the ✦ does; Enter commits |
 | Cmd + Shift + I | shows Issues, as in the TUI |
+| Cmd + Shift + R | gives Conversations' filter the keys, as in the TUI |
 
 The mod takes commands for keys of your own: `herdr-fold.write`, `herdr-fold.commit` and `herdr-fold.sync`, and
 `herdr-fold.changes`, `herdr-fold.search` and `herdr-fold.issues`, which show that view (Search with the keys in its
-field); they reach a herdr-fold that shows. `herdr-fold.styleguide` opens the mod's parts, each in each of its
+field), and `herdr-fold.conversations`, which gives Conversations' filter the keys; they reach a herdr-fold that
+shows. `herdr-fold.styleguide` opens the mod's parts, each in each of its
 states, in a tab: [Styleguide](styleguide.md).
 
 ## On another machine
@@ -162,5 +192,9 @@ not take it.
 - Issues runs gh on the space's machine, with that machine's sign-in; the Mac's never goes there. Anyone may write an
   issue: its text shows as markdown with no image fetched (a link in its place, so no address of yours reaches the
   image's host) and HTML as text.
+- Conversations reads the files Claude Code and Codex keep their conversations in on this Mac (`~/.claude/projects`,
+  `~/.codex/sessions`), and never writes them; a rename goes where herdr's Rename pane keeps names, the archived ones
+  beside the TUI column's settings. A closed one reopens only by an id that is one (letters, digits, `.`, `_`, `-`):
+  read from a file, it is never taken for an option or a control code.
 - The mod itself sends nothing anywhere; the sync talks to the repository's remote, gh to GitHub, the AI tool to its
   own service.

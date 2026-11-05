@@ -3,25 +3,31 @@
 // views' own code from made-up states whose clicks go nowhere. herdr-app do herdr-fold.styleguide opens it.
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState } from "gpui-base";
-import { home, terminals } from "herdr";
-import { BY_EXTENSION, NERD, PLAIN } from "./icons.js";
-import { commitRows, diffRows, foldedSections, marks, searchRows } from "./logic.js";
+import { BY_EXTENSION, BY_NAME, FILE, ICONS } from "./icons.js";
+import { commitRows, conversationRows, diffRows, foldedSections, searchRows } from "./logic.js";
+import { ConversationsView } from "./conversations.js";
 import { IssuesView } from "./issues.js";
-import { button, chip, glyph, small } from "./parts.js";
+import { button, chip, fileMark, icon, small } from "./parts.js";
+import { panelTabs, panelTrigger } from "./panel.js";
+import { menuPopup } from "./menus.js";
 import { Preview } from "./preview.js";
-import { TerminalHeader } from "./terminal.js";
+import { dock, floatPanel, sidebarTrigger, spacesFloat } from "./sidebar.js";
+import { standIn } from "./terminal.js";
 
 const PANEL = 368;                  // a specimen as wide as the right panel
 const TAB = 540;                    // a specimen of the preview tab, two side by side
+const SIDEBAR = 268;                // a specimen as wide as the left sidebar
 // what the views' clicks would do: nothing, here
 const INERT = ["act", "change", "choose", "commit", "fold", "later", "pick", "refresh", "reveal", "search", "show",
   "sync", "unask", "unlink", "watch", "write"];
 const INERT_ISSUES = ["act", "change", "filter", "load", "open", "terminal", "toAgent", "unask"];
+const INERT_CONVERSATIONS = ["ask", "copy", "load", "look", "open", "pick", "rename", "watch"];
 
 const STAGED = [{ path: "src/lumen/routes/books.py", code: "M" }];
 const CHANGES = [{ path: "docs/api.md", code: "M" }, { path: "src/lumen/pagination.py", code: "?" },
   { path: "src/lumen/store.py", code: "U" }, { path: "tests/test_shelves.py", code: "D" }];
-const STATUS = { upstream: "origin/main", ahead: 2, behind: 1, staged: STAGED, changes: CHANGES };
+const STATUS = { branch: "main", upstream: "origin/main", ahead: 2, behind: 1, staged: STAGED, changes: CHANGES };
+const CHANGED = STAGED.length + CHANGES.length;        // the count on the Changes tab
 const COMMITS = [
   { hash: "4f1c2ab", subject: "refactor(store): keep books in the order added", author: "Ada", refs: ["main"],
     head: true },
@@ -43,6 +49,23 @@ const LISTED = [
   level, ago]) => ({ number, title, labels, assignees, state: "OPEN", url: `https://example.com/issues/${number}`,
   level, ranked_by: level === null ? null : labels[0], said: String(title).toLowerCase(), ago }));
 const LISTING = { issues: LISTED, error: null };
+const TALKS = [
+  { agent: "claude", id: "s1", title: "Fix the page past the last one", folder: "/work/lumen-api", time: 6,
+    state: "working", pane: "t1", ago: "now" },
+  { agent: "codex", id: "s2", title: "Rate limit the public routes", folder: "/work/lumen-api", time: 5,
+    state: "blocked", pane: "t2", ago: "12m" },
+  { agent: "claude", id: "s3", title: "Document the error format", folder: "/work/lumen-api", time: 4, state: "",
+    pane: "", ago: "2h" },
+  { agent: "claude", id: "s4", title: "Login redirect fix", folder: "/work/lumen-api", time: 3, state: "", pane: "",
+    ago: "1d" },
+  { agent: "claude", id: "s9", title: "Shelves as tags, a spike", folder: "/work/lumen-api", time: 1, state: "",
+    pane: "", ago: "3w" },
+  { agent: "codex", id: "s5", title: "Harbor map tiles", folder: "/work/harbor-web", time: 2, state: "idle",
+    pane: "t5", ago: "5m" }];
+const PLACES = { "/work/lumen-api": "lumen-api", "/work/harbor-web": "harbor-web" };
+const SPACES = [{ id: "s1", name: "lumen-api", active: true, status: "blocked" },
+  { id: "s2", name: "harbor-web", active: false, status: "idle" },
+  { id: "s3", name: "notes", active: false, status: null }];
 const ISSUE = { ago: ["1d", "4h"], issue: { number: 42, title: LISTED[0].title, state: "OPEN", author: "noa-berg",
   labels: ["priority: high", "bug"], body: "Steps:\n\n1. Ask `GET /books?page=99`\n2. The answer is an empty page" +
     "\n\nExpected: the last page, as `pages` says.",
@@ -59,13 +82,13 @@ const MESSAGE = "fix(books): clamp the page number to the valid range";
 const SEARCHED = { cwd: "/work/lumen-api", on: null };
 
 /** A made-up state of the views, drawn by PROTO's code (the mod's view), FIELDS over a repository with changes.
- * @param {any} proto @param {string | null} font @param {Record<string, any>} fields */
-function made(proto, font, fields = {}) {
+ * @param {any} proto @param {Record<string, any>} fields */
+function made(proto, fields = {}) {
   const state = Object.assign(Object.create(proto), {
-    font, m: marks(font), view: "changes", root: "/work/lumen-api", on: null, key: "styleguide", status: STATUS,
+    view: "changes", root: "/work/lumen-api", on: null, key: "styleguide", status: STATUS,
     github: "lumenworks/lumen-api", linked: null, commits: COMMITS, message: "", busy: null, asked: null, confirm: null,
     open: null, hovered: null,
-    menu: false, mode: "commit", folded: foldedSections([]), note: null, loading: false, searching: false,
+    mode: "commit", folded: foldedSections([]), note: null, loading: false, searching: false,
     switches: { case: false, word: false, regex: false }, found: null, searched: null, results: [], peek: null,
     peekRows: [], input: InputState.new({ placeholder: "Commit message" }),
     find: InputState.new({ placeholder: "Search" }),
@@ -74,6 +97,21 @@ function made(proto, font, fields = {}) {
   if (state.message) state.input.set_value(state.message);
   state.issues = issuesOf(state, fields.issues ?? {});
   return state;
+}
+
+/** The Conversations block over TALKS with FIELDS (typed, a menu open, one renamed, the archived shown, loading). */
+function conversationsOf(fields = {}) {
+  const view = Object.assign(Object.create(ConversationsView.prototype), { items: TALKS, loaded: true, note: null,
+    archived: new Set(["claude:s9"]), typed: "", find: InputState.new({ placeholder: "Filter conversations" }),
+    opened: new Set(), closed: new Set(), picking: null, naming: null, programs: {} }, fields);
+  if (view.typed) view.find.set_value(view.typed);
+  view.naming?.input.set_value(view.naming.item.title);
+  view.showsArchived = () => fields.showArchived === true;
+  view.rows = () => conversationRows(view.items, ["lumen-api", "harbor-web"], PLACES, { typed: view.typed,
+    archived: view.archived, showArchived: view.showsArchived(), opened: view.opened, closed: view.closed,
+    here: "lumen-api", front: new Set(["t1"]), states: { "lumen-api": "blocked", "harbor-web": "idle" } });
+  for (const name of INERT_CONVERSATIONS) view[name] = () => {};
+  return view;
 }
 
 /** STATE's Issues view, listing LISTED, with FIELDS (filters, a row asked about, a menu open). */
@@ -89,21 +127,21 @@ function previewOf(fields) {
     fields);
 }
 
-/** The made-up states the components show, made once (what is typed in them stays), their icons in FONT (a Nerd
- * Font, or null). @param {any} proto @param {string | null} font */
-export function guide(proto, font) {
-  const at = (fields = {}, own = font) => made(proto, own, fields);
+/** The made-up states the components show, made once (what is typed in them stays). @param {any} proto */
+export function guide(proto) {
+  const at = (fields = {}) => made(proto, fields);
   const found = { total: 3, files: 2, hits: HITS, error: null };
   const nothing = { total: 0, files: 0, hits: [], error: null };
   return {
-    font,
     base: at(),
-    plain: at({}, null),
-    header: [["Changes selected", at()], ["Search selected", at({ view: "search" })],
-      ["Issues selected", at({ view: "issues" })], ["Not on GitHub", at({ github: null })],
-      ["No upstream", at({ status: { ...STATUS, upstream: null } })], ["Busy", at({ busy: "Syncing…" })]],
+    tabs: ["files", "search", "changes", "issues"].map((shown) => [`${shown[0].toUpperCase()}${shown.slice(1)} shown`,
+      { shown, github: true, changed: CHANGED }]).concat([["Not on GitHub", { shown: "changes", github: false,
+      changed: CHANGED }]]),
+    repository: [["In sync", at({ status: { ...STATUS, ahead: 0, behind: 0 } })], ["Behind and ahead", at()],
+      ["No upstream", at({ status: { ...STATUS, upstream: null } })],
+      ["Folded", at({ folded: foldedSections(["repositories"]) })]],
     composer: [["Empty", at()], ["Filled", at({ message: MESSAGE })], ["Busy", at({ busy: "Writing the message…" })],
-      ["Asking", at({ message: MESSAGE, asked: [".env"] })], ["Mode menu open", at({ message: MESSAGE, menu: true })],
+      ["Asking", at({ message: MESSAGE, asked: [".env"] })],
       ["Commit & Push", at({ message: MESSAGE, mode: "push" })],
       ["Fixes an issue", at({ message: MESSAGE, linked: [42, LISTED[0].title] })]],
     sections: [["Default", at()], ["Hover", at({ hovered: "section-changes" })],
@@ -112,8 +150,7 @@ export function guide(proto, font) {
       at({ hovered: "changes:docs/api.md" })], ["Selected", "staged", STAGED[0],
       at({ open: "staged:src/lumen/routes/books.py" })], ["Untracked", "changes", CHANGES[1], at()],
     ["Conflict", "changes", CHANGES[2], at()], ["Deleted", "changes", CHANGES[3], at()],
-    ["Asking", "changes", CHANGES[1], at({ confirm: "changes:src/lumen/pagination.py" })],
-    ["Plain marks", "changes", CHANGES[0], at({ hovered: "changes:docs/api.md" }, null)]],
+    ["Asking", "changes", CHANGES[1], at({ confirm: "changes:src/lumen/pagination.py" })]],
     graph: [["Default", at()], ["Selected", at({ open: "commit:9e8d7c6" })],
       // no commits, as it shows them: a slide is kept by its element's id, and the open ones' list has the same
       ["Folded", at({ folded: foldedSections(["graph"]), commits: [] })]],
@@ -128,8 +165,7 @@ export function guide(proto, font) {
     issueRows: [["Default", at(), LISTED[0]], ["Hover", at({ hovered: "issue-42" }), LISTED[0]],
       ["Selected", at({ issues: { chosen: 42 } }), LISTED[0]],
       ["Asking", at({ issues: { confirm: { number: 42, what: "close" } } }), LISTED[0]],
-      ["Closed", at(), { ...LISTED[0], state: "CLOSED" }], ["No priority", at(), LISTED[4]],
-      ["Plain marks", at({ hovered: "issue-42" }, null), LISTED[0]]],
+      ["Closed", at(), { ...LISTED[0], state: "CLOSED" }], ["No priority", at(), LISTED[4]]],
     issueList: [["Filters open", at({ issues: { menu: true, query: { state: "open", assigned: true, authored: false,
       label: "" } } }), 330], ["Right click's menu", at({ issues: { picking: 42 } }), 330],
     ["Loading", at({ issues: { listing: null, asked: "styleguide" } }), 120],
@@ -139,6 +175,12 @@ export function guide(proto, font) {
     preview: [["Diff", previewOf({ rows: DIFF }), 200], ["Commit", previewOf({ rows: COMMIT }), 200],
       ["Loading", previewOf({ loading: true }), 52], ["Error", previewOf({ note: "HTTP 404: Not Found" }), 52]],
     issue: previewOf({ issue: ISSUE }),
+    conversations: [["Default", conversationsOf()], ["Filtered", conversationsOf({ typed: "fix" })],
+      ["Right click's menu", conversationsOf({ picking: "claude:s4" })], ["Renaming", conversationsOf({
+        naming: { key: "claude:s4", item: TALKS[3], input: InputState.new({ placeholder: TALKS[3].title }) } })],
+      ["Archived shown", conversationsOf({ showArchived: true, opened: new Set(["harbor-web"]) })],
+      ["Loading", conversationsOf({ loaded: false, items: [] })], ["None yet", conversationsOf({ items: [] })]],
+    floating: conversationsOf({ overlay: "styleguide" }),
     problem: at({ note: "Sync stopped: pull first, nothing was lost" }),
     search: at({ view: "search", found, results: searchRows(HITS), searched: SEARCHED,
       peek: "src/lumen/routes/books.py:12", peekRows: PEEK }),
@@ -181,37 +223,44 @@ function specimen(t, id, name, content, { width = PANEL, spec = "", small = fals
 /** The page's parts, each [title, items], an item [id, groups]: the id names its picture. @param {ReturnType<typeof
  * guide>} g */
 function sections(g, t) {
-  const font = g.font, m = marks(font), b = g.base;
+  const b = g.base;
   const fixed = (h, content) => div().h(h).flex().flex_col().child(content);
-  const [codicons, plainMarks, fileTypes] = icons(t, font);
-  return [["Foundations", [["color", [colors(t)]], ["type", [type(t, font), shape(t)]],
-    ["icons", [codicons, plainMarks]], ["file-types", [fileTypes]]]], ["Components", [
+  // a view as the right panel's stack frames it, under the group's tabs
+  const stack = (shown, view) => fixed(600, v_flex().size_full().rounded(10).overflow_hidden().border_1()
+    .border_color(t.border).child(div().h(40).flex_none()
+      .child(panelTabs(t, { shown, github: true, changed: CHANGED }))).child(view));
+  const [lucide, fileTypes] = icons(t);
+  return [["Foundations", [["color", [colors(t)]], ["type", [type(t), shape(t)]],
+    ["icons", [lucide]], ["file-types", [fileTypes]]]], ["Components", [
     ["buttons", [
       group(t, "Buttons", [
         specimen(t, "b-primary", "Primary", button(t, "s-commit", h_flex().gap(8).items_center()
-          .child(glyph(font, m.check)).child("Commit"), true, true, () => {}), { width: 180, small: true,
+          .child(icon("check")).child("Commit"), true, true, () => {}), { width: 180, small: true,
           spec: "solid · h 32 · radius 8 · 12 bold" }),
         specimen(t, "b-primary-busy", "Primary, busy", button(t, "s-busy", "Committing…", false, true, () => {}),
           { width: 180, small: true, spec: "the work's name in place" }),
         specimen(t, "b-secondary", "Secondary", button(t, "s-sync", h_flex().gap(6).items_center()
-          .child(glyph(font, m.refresh)).child("1↓ 2↑"), true, false, () => {}), { width: 180, small: true,
+          .child(icon("refresh-cw")).child("1↓ 2↑"), true, false, () => {}), { width: 180, small: true,
           spec: "raised · h 32 · radius 8 · 12 bold" }),
         specimen(t, "b-disabled", "Secondary, disabled", button(t, "s-off", h_flex().gap(6).items_center()
-          .child(glyph(font, m.refresh)).child("1↓ 2↑"), false, false, () => {}), { width: 180, small: true,
+          .child(icon("refresh-cw")).child("1↓ 2↑"), false, false, () => {}), { width: 180, small: true,
           spec: "dim words, no pointer" }),
-        specimen(t, "b-icon", "Icon", button(t, "s-write", glyph(font, m.ai).text_size(15), true, false, () => {})
+        specimen(t, "b-icon", "Icon", button(t, "s-write", icon("sparkles", 15), true, false, () => {})
           .bg(t.selection).text_color(t.accent), { width: 180, small: true, spec: "selection · accent icon" }),
         specimen(t, "b-row", "Row buttons", h_flex().gap(4)
-          .child(small(t, "s-discard", glyph(font, m.discard), "Discard changes", true, () => {}))
-          .child(small(t, "s-stage", glyph(font, m.stage), "Stage", true, () => {}))
-          .child(small(t, "s-unstage", glyph(font, m.unstage), "Unstage", true, () => {}))
+          .child(small(t, "s-discard", icon("undo-2"), "Discard changes", true, () => {}))
+          .child(small(t, "s-stage", icon("plus"), "Stage", true, () => {}))
+          .child(small(t, "s-unstage", icon("minus"), "Unstage", true, () => {}))
           .child(small(t, "s-confirm", "Discard", "Discard changes", true, () => {})),
         { width: 180, small: true, spec: "h 20 · radius 5 · raised on hover" }),
       ])]],
-    ["commit", [group(t, "Commit", g.composer.map(([name, state], i) =>
-      specimen(t, `composer-${i}`, name, state.composer(t))))]],
-    ["tabs", [group(t, "View tabs and sync", g.header.map(([name, state], i) =>
-        specimen(t, `header-${i}`, name, state.header(t)))),
+    ["commit", [group(t, "Repository", g.repository.map(([name, state], i) => specimen(t, `repository-${i}`, name,
+        state.repository(t), { spec: i ? "" : "as VS Code's Repositories · h 26 · ⋯ its menu" }))),
+      group(t, "Commit", g.composer.map(([name, state], i) => specimen(t, `composer-${i}`, name, state.composer(t))))]],
+    ["tabs", [group(t, "Panel tabs", [...g.tabs.map(([name, state], i) => specimen(t, `tabs-${i}`, name,
+        div().h(40).child(panelTabs(t, state)), { spec: i ? "" : "h 28 · radius 6 · gap 4 · the shown one raised" })),
+      specimen(t, "panel-trigger", "Its toggle", div().w(36).h(42).child(panelTrigger(t)),
+        { width: 120, small: true, spec: "the tab bar's right end" })]),
       group(t, "Search field", g.query.map(([name, state], i) => specimen(t, `query-${i}`, name, state.query(t))))]],
     ["sections", [
       group(t, "Section header", g.sections.map(([name, state], i) => specimen(t, `section-${i}`, name,
@@ -223,7 +272,10 @@ function sections(g, t) {
         div().p(6).child(state.file(t, kind, file)), { spec: i ? "" : "h 26 · icon, name, folder, letter" })))]],
     ["graph", [group(t, "Graph", g.graph.map(([name, state], i) => specimen(t, `graph-${i}`, name,
         fixed(state.folded.has("graph") ? 26 : 32 + COMMITS.length * 24, state.graph(t))))),
-      group(t, "Mode menu", [specimen(t, "modes", "Open", div().p(10).child(b.modes(t)))])]],
+      group(t, "Menus", [["modes", "Commit's arrow", b.modes], ["remote", "The repository's ⋯", b.remote]]
+        .map(([id, name, items]) => specimen(t, `menu-${id}`, name, div().w(180).rounded(8).border_1()
+          .border_color(t.border).bg(t.popover ?? t.raised).child(menuPopup(t, "", items)),
+        { width: 220, small: true, spec: id === "modes" ? "a popup under its button, right-aligned" : "" })))]],
     ["content", [
       group(t, "Problem", [specimen(t, "problem", "Under the Graph, until the next try", g.problem.problem(t),
         { spec: "11 · ansi1" })]),
@@ -239,16 +291,25 @@ function sections(g, t) {
       fixed(h, preview.render(t, "Menlo")), { width: TAB, spec: i ? "" : "Menlo 13 · h 22 · numbered once" })))]],
     ["preview-issue", [group(t, "An issue in the preview tab", [specimen(t, "preview-issue", "Issue",
       fixed(330, g.issue.render(t, "Menlo")), { width: 2 * TAB + 24 })])]],
+    ["conversations", [group(t, "Conversations", [...g.conversations.map(([name, view], i) => specimen(t,
+      `conversations-${i}`, name, fixed(260, view.list(t, view.rows())), { width: SIDEBAR,
+        spec: i ? "" : "h 24 a row · a state's mark in herdr's colors" })),
+      specimen(t, "conversations-dock", "Folded", fixed(260, dock(t, SPACES.map((space) => space.status),
+        TALKS.map((talk) => talk.state), 300)), { width: 76 }),
+      specimen(t, "spaces-float", "Spaces, floating beside it", spacesFloat(t, "", 160, SPACES), { width: 300 }),
+      specimen(t, "conversations-float", "Conversations, floating beside it", floatPanel(t, "Conversations", "", 300,
+        [], g.floating.list(t, g.floating.rows())), { width: 300, spec: "its head drags it · × closes it" }),
+      specimen(t, "conversations-trigger", "Its toggle", div().w(40).h(42).child(sidebarTrigger(t)),
+        { width: 120, small: true, spec: "left of the tabs" })])]],
     ["search", [group(t, "Search results", [specimen(t, "hits", "Hits, one shown at its line",
       fixed(300, v_flex().size_full().child(g.search.hits(t)).child(g.search.lines(t))))])]],
-    ["terminal", [group(t, "The tab's terminal", terminalStates(t).map(([name, header], i) =>
-      specimen(t, `terminal-${i}`, name, div().h(30).child(header),
-        { spec: i ? "" : "h 30 · as the app's pane header" })))]]]],
+    ["terminal", [group(t, "The tab's terminal", [specimen(t, "terminal-none", "When it could not start",
+      div().h(60).child(standIn(t, "No terminal: the machine is not reachable")),
+      { spec: "12 · ansi1, in its place" })])]]]],
     ["Patterns", [["panels", [group(t, "Panels", [
-      specimen(t, "panel-changes", "Changes", fixed(600, g.changes.panel(t))),
-      specimen(t, "panel-search", "Search", fixed(600, g.search.panel(t))),
-      specimen(t, "panel-issues", "Issues", fixed(600, g.issues.panel(t))),
-      specimen(t, "panel-plain", "Changes, plain marks", fixed(600, g.plain.panel(t))),
+      specimen(t, "panel-changes", "Changes", stack("changes", g.changes.panel(t))),
+      specimen(t, "panel-search", "Search", stack("search", g.search.panel(t))),
+      specimen(t, "panel-issues", "Issues", stack("issues", g.issues.panel(t))),
     ])]]]],
   ];
 }
@@ -269,13 +330,12 @@ function colors(t) {
       .child(row("Text", [["foreground", "Body"], ["muted", "Icons, captions"], ["dim", "Folders, line numbers"]]))
       .child(row("Accent", [["accent", "Head, branches, the star"], ["solid", "Commit"],
         ["solid_foreground", "Words on solid"]])))
-    .child(row("State", [["ansi2", "Added, untracked"], ["blocked", "Modified"],
+    .child(row("State", [["ansi2", "Added, untracked"], ["ansi3", "Modified"],
       ["ansi1", "Deleted, conflict, errors"]]))]);
 }
 
-/** The type scale: each style's specimen and its size and weight. @param {string | null} font */
-function type(t, font) {
-  const m = marks(font);
+/** The type scale: each style's specimen and its size and weight, and the icons'. */
+function type(t) {
   const line = (sample, spec, style) => h_flex().gap(24).items_baseline()
     .child(div().w(220).flex_none().child(style(div().child(sample))))
     .child(div().text_size(11).text_color(t.dim).child(spec));
@@ -287,9 +347,8 @@ function type(t, font) {
     .child(line("src/lumen/routes", "Meta · 11 regular, dim", (e) => e.text_size(11).text_color(t.dim)))
     .child(line("PAGE = 20", "Code · Menlo 13, the preview tab", (e) => e.text_size(13).font_family("Menlo")))
     .child(line("PAGE = 20", "Code · Menlo 11, a hit's file", (e) => e.text_size(11).font_family("Menlo")))
-    .child(line([m.files, m.search, m.git, m.stage, m.ai].join("  "), font ? `Icons · ${font}, 13`
-      : "Icons · plain marks, without a Nerd Font", (e) => e.text_size(13).text_color(t.muted)
-      .when(Boolean(font), (e) => e.font_family(/** @type {string} */ (font)))))]);
+    .child(line(h_flex().gap(10).children(["refresh-cw", "plus", "sparkles", "check"].map((name) => icon(name))),
+      "Icons · Lucide 14, 15 on a tab", (e) => e.text_color(t.muted)))]);
 }
 
 /** Radii and heights, each shown at its size. */
@@ -303,38 +362,26 @@ function shape(t) {
   return group(t, "Shape and size", [
     h_flex().gap(16).children([[10, "Panel"], [8, "Control"], [6, "Row"], [5, "Chip"]].map(([px, use]) =>
       radius(/** @type {number} */ (px), /** @type {string} */ (use)))),
-    v_flex().gap(10).children([[48, "Issue"], [46, "Header"], [32, "Control"], [30, "Terminal header"],
-      [26, "Row"], [24, "Commit, hit"], [22, "Preview line"], [20, "A hit's file line"]].map(([px, use]) =>
+    v_flex().gap(10).children([[48, "Issue"], [40, "Panel tabs"], [32, "Control"], [28, "Tab"], [26, "Row"],
+      [24, "Commit, hit"], [22, "Preview line"], [20, "A hit's file line"]].map(([px, use]) =>
       height(/** @type {number} */ (px), /** @type {string} */ (use))))]);
 }
 
-/** The icons as icons.js has them: the Codicons by name in FONT, the plain marks, each file type's.
- * @param {string | null} font */
-function icons(t, font) {
-  const cell = (mark, name, inFont) => v_flex().w(88).h(68).flex_none().items_center().justify_center().gap(6)
-    .rounded(8).bg(t.background).border_1().border_color(t.border)
-    .child(div().text_size(18).when(Boolean(inFont), (e) => e.font_family(/** @type {string} */ (inFont))).child(mark))
+/** The icons as icons.js has them: the views' by name, Lucide's, and each file type's, Catppuccin Icons'. */
+function icons(t) {
+  const cell = (mark, name) => v_flex().w(88).h(68).flex_none().items_center().justify_center().gap(6)
+    .rounded(8).bg(t.background).border_1().border_color(t.border).child(mark)
     .child(div().w_full().px(4).text_size(10).text_color(t.dim).text_center().truncate().child(name));
   /** @type {Map<string, string[]>} */
   const types = new Map();
-  for (const [ext, glyph] of Object.entries(BY_EXTENSION)) types.set(glyph, [...(types.get(glyph) ?? []), ext]);
+  for (const [ext, path] of Object.entries(BY_EXTENSION)) types.set(path, [...(types.get(path) ?? []), ext]);
+  for (const [path, starts] of [...BY_NAME, [FILE, ["any other"]]]) types.set(path, [...(types.get(path) ?? []),
+    .../** @type {string[]} */ (starts)]);
   const grid = (cells) => h_flex().flex_wrap().gap(8).children(cells);
+  const names = /** @type {import("./icons.js").IconName[]} */ (Object.keys(ICONS));
   return [
-    group(t, font ? `Codicons · ${font}` : "Codicons · no Nerd Font installed", font
-      ? [grid(Object.entries(NERD).map(([name, mark]) => cell(mark, name, font)))]
-      : [div().text_color(t.dim).child("Install a Nerd Font to see them; the plain marks below stand in.")]),
-    group(t, "Plain marks", [grid(Object.entries(PLAIN).map(([name, mark]) => cell(mark, name, null)))]),
-    group(t, "File types", font ? [grid([...types].map(([mark, exts]) => cell(mark, exts.slice(0, 3).join(" "), font)))]
-      : []),
+    group(t, "Icons · Lucide", [grid(names.map((name) => cell(icon(name, 18), name)))]),
+    group(t, "File types · Catppuccin Icons", [grid([...types].map(([path, exts]) =>
+      cell(fileMark(path).size(22), exts.slice(0, 3).join(" "))))]),
   ];
-}
-
-/** The tab's terminal header in each state: starting, shown, could not start. */
-function terminalStates(t) {
-  const starting = Object.assign(new TerminalHeader(), { starting: true });
-  const failed = Object.assign(new TerminalHeader(), { note: "No terminal: the machine is not reachable" });
-  const program = terminals().find((x) => x.program?.icon)?.program ?? { name: "zsh", icon: null };
-  const shown = { address: "t1", program, cwd: `${home()}/work/lumen-api` };
-  return [["Starting", starting.render(t)], ["Shown", new TerminalHeader().render(t, shown)],
-    ["Error", failed.render(t)]];
 }

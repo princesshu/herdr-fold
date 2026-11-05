@@ -25,7 +25,7 @@
       "size": {
         "px": 268
       },
-      "min": 44,
+      "min": 76,
       "max": 480,
       "background": "chrome",
       "resizable": false,
@@ -44,6 +44,10 @@
         {
           "id": "sidebar-lists",
           "type": "column",
+          "divider": {
+            "width": 1,
+            "color": "border"
+          },
           "children": [
             {
               "id": "spaces",
@@ -57,14 +61,17 @@
               }
             },
             {
-              "id": "agents",
+              "id": "conversations",
               "type": "block",
               "size": {
                 "weight": 1
               },
               "min": 90,
               "content": {
-                "mod": "agents"
+                "mod": "herdr-fold",
+                "props": {
+                  "part": "conversations"
+                }
               }
             }
           ]
@@ -90,15 +97,53 @@
       "resizable": false,
       "children": [
         {
-          "id": "tabs",
-          "type": "block",
+          "id": "top",
+          "type": "row",
           "size": {
             "px": 42
           },
-          "window_drag": true,
-          "content": {
-            "mod": "tabs"
-          }
+          "children": [
+            {
+              "id": "sidebar-trigger",
+              "type": "block",
+              "size": {
+                "px": 40
+              },
+              "hidden": true,
+              "window_drag": true,
+              "content": {
+                "mod": "herdr-fold",
+                "props": {
+                  "part": "trigger"
+                }
+              }
+            },
+            {
+              "id": "tabs",
+              "type": "block",
+              "size": {
+                "weight": 1
+              },
+              "window_drag": true,
+              "content": {
+                "mod": "tabs"
+              }
+            },
+            {
+              "id": "panel-trigger",
+              "type": "block",
+              "size": {
+                "px": 36
+              },
+              "window_drag": true,
+              "content": {
+                "mod": "herdr-fold",
+                "props": {
+                  "part": "panel-trigger"
+                }
+              }
+            }
+          ]
         },
         {
           "id": "work-body",
@@ -123,20 +168,12 @@
                   "focus": {
                     "width": 1,
                     "color": "accent"
-                  },
-                  "header": {
-                    "content": {
-                      "mod": "pane"
-                    },
-                    "height": 30,
-                    "position": "top",
-                    "reveal": "always"
                   }
                 }
               }
             },
             {
-              "id": "panel",
+              "id": "fold-panel",
               "type": "column",
               "size": {
                 "px": 368
@@ -145,9 +182,24 @@
               "max": 900,
               "children": [
                 {
-                  "id": "panel-body",
+                  "id": "fold-panel-body",
                   "type": "stack",
                   "active": "changes",
+                  "background": "background",
+                  "border": {
+                    "width": 1,
+                    "color": "border"
+                  },
+                  "radius": 10,
+                  "header": {
+                    "content": {
+                      "mod": "herdr-fold",
+                      "props": {
+                        "part": "panel-tabs"
+                      }
+                    },
+                    "height": 40
+                  },
                   "children": [
                     {
                       "id": "files",
@@ -188,7 +240,7 @@
                         "part": "terminal"
                       }
                     },
-                    "height": 30
+                    "height": 0
                   },
                   "active": "fold-terminal-none",
                   "children": [

@@ -6,10 +6,13 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterCommit, background, commitMode, commitRows, diffRows, excerpt, foldedSections, folderName, issueAgent,
-  lastLine, letter, machineOf, marked, marks, MODES, nerdFont, panelToggle, previewName, previewTab, priorityColor,
-  pythonCommand, rowActions, safeMarkdown, said, searchRows, searchSummary, secretQuestion, strays, syncLabel,
-  TERMINALS, terminalId, withoutTabs, withTerminal, written } from "../mods/herdr-fold/logic.js";
+import { afterCommit, background, branchLabel, changeName, commitMode, commitRows, conversationChoices,
+  conversationRows, coreAgents, diffRows, excerpt, floatHeight, foldedSections, foldedWidth, folderSpaces, issueAgent,
+  lastLine, launcher, letter, machineOf, marked, MODES, PANEL, PANEL_BODY, panelShown, panelToggle, previewName,
+  previewTab, priorityColor, pythonCommand, railed, resumeArgv, rowActions, safeMarkdown, said, searchRows,
+  searchSummary, secretQuestion, shownTab, spacesHeight, strays, syncLabel, tabLabel, TALL, terminalId, TERMINALS,
+  urgent, withMax, withoutTabs, withTerminal, written }
+  from "../mods/herdr-fold/logic.js";
 
 test("a diff's lines numbered once, old and new apart; no hunk header, a gap between two hunks", () => {
   const rows = diffRows(["@@ -3,2 +3,3 @@ def index():", " same", "-old", "+new", "+more", "@@ -20 +21 @@", "-x",
@@ -62,7 +65,7 @@ test("the search's summary, in the TUI sidebar's words", () => {
 });
 
 /** A layout as herdr-fold's has it: the panel, its views above, its tabs' terminals below (the stand-in first). */
-const tree = () => ({ id: "root", children: [{ id: "panel", children: [{ id: "panel-body", children: [] },
+const tree = () => ({ id: "root", children: [{ id: PANEL, children: [{ id: PANEL_BODY, children: [] },
   { id: TERMINALS, active: "fold-terminal-none",
     children: [{ id: "fold-terminal-none", content: { mod: "x" } }] }] }] });
 
@@ -109,28 +112,9 @@ test("what a failed program said: its error's last line, else its output's, else
   assert.equal(said("plain"), "plain");
 });
 
-test("the icons: the TUI's Nerd Font glyphs with such a font installed, a one-cell Mono one first; else its marks",
-  () => {
-    assert.equal(nerdFont(["Menlo", "JetBrainsMono Nerd Font", "JetBrainsMono Nerd Font Mono"]),
-      "JetBrainsMono Nerd Font Mono");
-    assert.equal(nerdFont(["Hack Nerd Font", "Symbols Nerd Font Mono", "Hack Nerd Font Mono"]),
-      "Symbols Nerd Font Mono");
-    assert.equal(nerdFont(["Menlo", "JetBrains Mono"]), null);
-    assert.equal(marks("JetBrainsMono Nerd Font Mono").stage, "\uea60");
-    assert.equal(marks(null).stage, "+");
-  });
-
 test("a terminal's machine from its address: the name before the slash, none on this computer", () => {
   assert.equal(machineOf("lab/t7"), "lab");
   assert.equal(machineOf("t7"), null);
-});
-
-test("a terminal's folder as the app's pane header names it: under the home folder from ~", () => {
-  assert.equal(folderName("/Users/dev/work/api", "/Users/dev"), "~/work/api");
-  assert.equal(folderName("/Users/dev", "/Users/dev"), "~");
-  assert.equal(folderName("/Users/a_b/x", "/Users/a"), "/Users/a_b/x");
-  assert.equal(folderName("/srv/api", null), "/srv/api");
-  assert.equal(folderName(null, "/Users/dev"), "");
 });
 
 test("a tab's id makes a layout id of letters, digits and dashes only", () => {
@@ -154,14 +138,25 @@ test("the commit modes, named as in the TUI sidebar, and what follows each commi
   assert.deepEqual(["commit", "push", "sync"].map(afterCommit), [null, "push", "sync"]);
 });
 
-test("the sync button says how far the branch is from its upstream, as the TUI sidebar does (after its icon)", () => {
+test("the sync button says how far the branch is from its upstream, as VS Code's (its icon alone when even)", () => {
   assert.equal(syncLabel({ upstream: "origin/main", ahead: 2, behind: 1 }), "1↓ 2↑");
+  assert.equal(syncLabel({ upstream: "origin/main", ahead: 0, behind: 0 }), "");
   assert.equal(syncLabel({ upstream: null, ahead: 0, behind: 0 }), "");
   assert.equal(syncLabel(null), "");
 });
 
+test("the repository row's branch, as the TUI's footer names it: * with changes, detached without one", () => {
+  const status = (branch, staged, changes) => ({ branch, staged: Array(staged).fill({}),
+    changes: Array(changes).fill({}) });
+  assert.equal(branchLabel(status("main", 0, 0)), "main");
+  assert.equal(branchLabel(status("main", 1, 0)), "main*");
+  assert.equal(branchLabel(status(null, 0, 2)), "detached*");
+  assert.equal(branchLabel(null), "");
+});
+
 test("the folded sections as kept, as the TUI sidebar keeps them: staged, changes, graph; nothing else", () => {
-  assert.deepEqual([...foldedSections(["graph", "staged", "x", 3])], ["graph", "staged"]);
+  assert.deepEqual([...foldedSections(["graph", "staged", "x", 3, "repositories"])],
+    ["graph", "staged", "repositories"]);
   assert.deepEqual([...foldedSections(true)], []);
   assert.deepEqual([...foldedSections(undefined)], []);
 });
@@ -202,7 +197,7 @@ test("the preview tab named as the TUI sidebar names it: the file, the commit, t
   });
 
 test("a priority's color as the TUI sidebar's traffic light: urgent and high red, medium yellow, low green", () => {
-  const t = { ansi1: "red", blocked: "yellow", ansi2: "green", accent: "accent" };
+  const t = { ansi1: "red", ansi3: "yellow", ansi2: "green", blocked: "red", accent: "accent" };
   assert.deepEqual([0, 1, 2, 3, null, undefined].map((level) => priorityColor(t, level)),
     ["red", "red", "yellow", "green", "accent", "accent"]);
 });
@@ -316,10 +311,162 @@ test("files named like secrets are asked about before a commit, in the TUI sideb
 
 test("Cmd+Shift+G shows the right panel at herdr-fold, as the Changes button does, or hides it from there", () => {
   /** @param {boolean} hidden @param {string} active */
-  const tree = (hidden, active) => ({ id: "root", children: [{ id: "work", children: [{ id: "panel", hidden,
-    children: [{ id: "panel-body", type: "stack", active, children: [{ id: "files" }, { id: "changes" }] }] }] }] });
-  const show = [["layout.select", { stack: "panel-body", child: "changes" }], ["layout.show", { id: "panel" }]];
+  const tree = (hidden, active) => ({ id: "root", children: [{ id: "work", children: [{ id: PANEL, hidden,
+    children: [{ id: PANEL_BODY, type: "stack", active, children: [{ id: "files" }, { id: "changes" }] }] }] }] });
+  const show = [["layout.select", { stack: PANEL_BODY, child: "changes" }], ["layout.show", { id: PANEL }]];
   assert.deepEqual(panelToggle(tree(true, "changes")), show);
   assert.deepEqual(panelToggle(tree(false, "files")), show);
-  assert.deepEqual(panelToggle(tree(false, "changes")), [["layout.hide", { id: "panel" }]]);
+  assert.deepEqual(panelToggle(tree(false, "changes")), [["layout.hide", { id: PANEL }]]);
+  assert.deepEqual([PANEL, PANEL_BODY], ["fold-panel", "fold-panel-body"]);     // not the app's: its tab bar keeps out
+  assert.equal(panelShown(tree(false, "files")), true);
+  assert.equal(panelShown(tree(true, "changes")), false);
+  assert.equal(panelShown({ id: "root" }), false);
+});
+
+test("the right panel's tab shown: Files while the app's Files shows, else the view kept, Issues on GitHub", () => {
+  const tree = (active) => ({ id: "root", children: [{ id: PANEL, children: [{ id: PANEL_BODY, active }] }] });
+  assert.equal(shownTab(tree("files"), "search", true), "files");
+  assert.equal(shownTab(tree("changes"), "search", true), "search");
+  assert.equal(shownTab(tree("changes"), "issues", true), "issues");
+  assert.equal(shownTab(tree("changes"), "issues", false), "changes");
+  assert.equal(shownTab(tree("changes"), null, false), "changes");
+  assert.equal(shownTab(tree("changes"), "bogus", true), "changes");
+});
+
+test("a floating panel as tall as its content, up to TALL: Spaces' rows, Conversations' groups and open ones", () => {
+  assert.equal(floatHeight("spaces", 2), 36 + 2 * 29 + 8);
+  const group = (open, n) => ({ kind: "group", open, items: Array(n).fill({}) });
+  assert.equal(floatHeight("conversations", [group(true, 3), { kind: "row" }, group(false, 2)]),
+    36 + 38 + (26 + 3 * 24) + 26 + 8);
+  assert.equal(floatHeight("conversations", []), 36 + 38 + 28 + 8);       // "No conversations"
+  assert.equal(floatHeight("spaces", 40), TALL);
+});
+
+test("the app's Spaces list's height, as its own mod draws it: a machine's head once another machine is there", () => {
+  assert.equal(spacesHeight([{ machine: null }, { machine: null }], []), 31 + 2 * 30 + 14);
+  assert.equal(spacesHeight([{ machine: null }, { machine: "lab" }], ["lab", "mini"]), 31 + 2 * 30 + 3 * 26 + 14);
+});
+
+test("a layout node's max set in a copy of the tree, and whether that changed it", () => {
+  const tree = { id: "root", children: [{ id: "spaces", min: 90 }] };
+  const next = withMax(tree, "spaces", 150);
+  assert.equal(next.changed, true);
+  assert.equal(next.tree.children[0].max, 150);
+  assert.equal(tree.children[0].max, undefined);
+  assert.equal(withMax(next.tree, "spaces", 150).changed, false);
+  assert.equal(withMax(tree, "gone", 150).changed, false);
+  assert.equal(withMax(tree, "spaces", 40).tree.children[0].max, 90);         // never under its min
+});
+
+test("a change's letter named, as the mouse resting on it says it: git's code, the TUI's letter for it", () => {
+  assert.deepEqual(["M", "A", "D", "?", "U", "R"].map(changeName),
+    ["Modified", "Added", "Deleted", "Untracked", "Conflict", "Renamed"]);
+  assert.equal(changeName("X"), "X");
+});
+
+test("Cmd+Shift+G's launcher is the popup mod.open makes, not the mod's own (a folded sidebar's panel)", () => {
+  assert.equal(launcher({ overlay: "o1" }), "o1");
+  assert.equal(launcher({ overlay: "o2", part: "flyout", panel: "spaces" }), null);
+  assert.equal(launcher({ part: "conversations" }), null);
+  assert.equal(launcher(undefined), null);
+});
+
+const talk = (id, folder, time, state = "", pane = "") =>
+  ({ agent: "claude", id, title: `Talk ${id}`, folder, time, state, pane });
+const shown = (rows) => rows.map((r) => (r.kind === "group" ? `${r.name} ${r.items.length} ${r.open}` : r.item.id));
+const PLACE = { "/repo/shop": "shop", "/repo/api": "api" };
+
+test("the app's agents as core/conversations.py takes herdr's: Claude and Codex on this Mac, with their pane's folder",
+  () => {
+    const agents = [{ address: "t1", pane: "p1", space: "s1", status: "working", program: { key: "claude" } },
+      { address: "t2", pane: "p2", space: "s1", status: "idle", program: { key: "pi" } },
+      { address: "box/t3", pane: "p3", space: "s2", status: "blocked", program: { key: "codex" } }];
+    const panes = [{ pane: "p1", cwd: "/repo/app" }, { pane: "p3", cwd: "/srv" }];
+    assert.deepEqual(coreAgents(agents, panes, new Set(["s1"])),
+      [{ agent: "claude", agent_status: "working", pane_id: "t1", cwd: "/repo/app" }]);
+  });
+
+test("a folder is the first of this Mac's spaces with a pane there, as the TUI's column reads it", () => {
+  const spaces = [{ id: "s1", name: "shop", machine: null, tabs: [{ id: "a" }] },
+    { id: "s2", name: "api", machine: null, tabs: [{ id: "b" }] },
+    { id: "s3", name: "far", machine: "box", tabs: [{ id: "c" }] }];
+  const panes = [{ tab: "a", cwd: "/repo/shop" }, { tab: "b", cwd: "/repo/shop" }, { tab: "b", cwd: "/repo/api" },
+    { tab: "c", cwd: "/srv" }, { tab: "a", cwd: null }];
+  assert.deepEqual(folderSpaces(spaces, panes), { "/repo/shop": "shop", "/repo/api": "api" });
+});
+
+test("each space's conversations in the Spaces order, the front tab's first, then the newest; one elsewhere not",
+  () => {
+    const items = [talk("a", "/repo/shop", 300), talk("b", "/repo/shop", 100, "working", "t9"),
+      talk("x", "/elsewhere", 500), talk("d", "/repo/api", 200)];
+    const front = new Set(["t9"]);
+    assert.deepEqual(shown(conversationRows(items, ["shop", "api", "notes"], PLACE, { here: "shop", front })),
+      ["shop 2 true", "b", "a", "api 1 false", "notes 0 false"]);
+  });
+
+test("typing narrows every space and opens them; an archived one only while typed for or shown", () => {
+  const items = [talk("a", "/repo/shop", 300), talk("d", "/repo/api", 200)], archived = new Set(["claude:a"]);
+  const rows = (more) => shown(conversationRows(items, ["shop", "api"], PLACE, { here: "shop", archived, ...more }));
+  assert.deepEqual(rows({}), ["shop 0 true", "api 1 false"]);
+  assert.deepEqual(rows({ typed: "talk" }), ["shop 1 true", "a", "api 1 true", "d"]);
+  assert.deepEqual(rows({ typed: "API" }), ["api 1 true", "d"]);
+  assert.deepEqual(rows({ typed: "archived" }), ["shop 1 true", "a"]);
+  assert.deepEqual(rows({ showArchived: true }), ["shop 1 true", "a", "api 1 false"]);
+});
+
+test("a space's row has its most urgent agent's state, as the Spaces list marks it", () => {
+  const rows = conversationRows([], ["shop", "api"], PLACE, { states: { shop: "working" } });
+  assert.deepEqual(rows.map((r) => r.state), ["working", null]);
+});
+
+test("a space opened or closed by hand stays so, the one here open unless closed", () => {
+  const items = [talk("a", "/repo/shop", 300), talk("d", "/repo/api", 200)];
+  assert.deepEqual(shown(conversationRows(items, ["shop", "api"], PLACE,
+    { here: "shop", opened: new Set(["api"]), closed: new Set(["shop"]) })), ["shop 1 false", "api 1 true", "d"]);
+});
+
+test("a closed one reopens with its agent's resume, its id never an option, a space or a control code", () => {
+  assert.deepEqual(resumeArgv({ agent: "claude", id: "0a1b-2c" }), ["claude", "--resume", "0a1b-2c"]);
+  assert.deepEqual(resumeArgv({ agent: "codex", id: "019a.x_y" }), ["codex", "resume", "019a.x_y"]);
+  for (const id of ["--help", "-x", "a b", "a\u001b[2J", ""]) {
+    assert.throws(() => resumeArgv({ agent: "claude", id }), id);
+  }
+});
+
+test("a right click: Open, Copy conversation, Rename, then Archive or Unarchive; elsewhere the archived shown or not",
+  () => {
+    const archived = new Set(["claude:c"]), first = ["Open", "Copy conversation", "Rename"];
+    assert.deepEqual(conversationChoices(talk("r", "/x", 1, "working"), archived, false), first);
+    assert.deepEqual(conversationChoices(talk("o", "/x", 1), archived, false), [...first, "Archive"]);
+    assert.deepEqual(conversationChoices(talk("c", "/x", 1), archived, false), [...first, "Unarchive"]);
+    assert.deepEqual(conversationChoices(null, archived, false), ["Show archived"]);
+    assert.deepEqual(conversationChoices(null, archived, true), ["Hide archived"]);
+    assert.deepEqual(conversationChoices(null, new Set(), false), []);
+  });
+
+test("a reopened conversation's tab: its title, printable, no leading dash, cut at 24 with an ellipsis", () => {
+  assert.equal(tabLabel("- Fix\u001b the login"), "Fix the login");
+  assert.equal(tabLabel("A very long conversation title here"), "A very long conversatio…");
+});
+
+test("the sidebar is a rail narrower than 160 px, as the app's own mods draw it", () => {
+  const at = (px) => ({ id: "root", children: [{ id: "sidebar", size: { px } }] });
+  assert.equal(railed(at(76)), true);
+  assert.equal(railed(at(268)), false);
+  assert.equal(railed({ id: "root" }), false);
+});
+
+test("folded, the sidebar is as wide as the traffic lights on macOS; opened, the width it had", () => {
+  const at = (px) => ({ id: "root", children: [{ id: "sidebar", size: { px } }] });
+  assert.equal(foldedWidth(at(268), true, 300), 76);
+  assert.equal(foldedWidth(at(268), false, 300), 44);
+  assert.equal(foldedWidth(at(76), true, 300), 300);
+  assert.equal(foldedWidth(at(76), true, undefined), 268);
+});
+
+test("a panel's most urgent state, as the app orders a space's: blocked, done, working, then idle", () => {
+  assert.equal(urgent(["idle", "working", null, "blocked"]), "blocked");
+  assert.equal(urgent(["idle", "done", "working"]), "done");
+  assert.equal(urgent(["idle", ""]), "idle");
+  assert.equal(urgent([null, ""]), null);
 });

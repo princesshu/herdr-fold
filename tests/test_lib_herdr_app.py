@@ -26,6 +26,11 @@ def keys(home):
         return json.load(f)
 
 
+def shared(home):
+    with open(os.path.join(home, "shared.json"), encoding="utf-8") as f:
+        return json.load(f)
+
+
 class Install(unittest.TestCase):
     def setUp(self):
         self.home = tempfile.mkdtemp()
@@ -39,8 +44,9 @@ class Install(unittest.TestCase):
 
     def test_install_puts_the_mod_the_layout_and_the_keys(self):
         self.assertEqual(herdr_app.install(PACKAGE, self.home), 0)
-        for name in os.listdir(MOD):
-            self.assertEqual(read(os.path.join(self.home, "mods", "herdr-fold", name)), read(os.path.join(MOD, name)))
+        for root, _dirs, files in os.walk(MOD):
+            for rel in (os.path.relpath(os.path.join(root, name), MOD) for name in files):
+                self.assertEqual(read(os.path.join(self.home, "mods", "herdr-fold", rel)), read(os.path.join(MOD, rel)))
         themes = os.path.join(PACKAGE, "app", "themes")
         for rel in [("layouts", "herdr-fold.json")] + [("themes", name) for name in os.listdir(themes)]:
             self.assertEqual(read(os.path.join(self.home, *rel)), read(os.path.join(PACKAGE, "app", *rel)))
@@ -92,6 +98,25 @@ class Install(unittest.TestCase):
         self.assertEqual(sorted(os.listdir(os.path.join(self.home, "mods"))), ["other"])
         self.assertEqual(os.listdir(os.path.join(self.home, "layouts")), ["mine.json"])
         self.assertEqual(os.listdir(os.path.join(self.home, "themes")), ["mine.json"])
+
+    def test_uninstall_gives_the_apps_panel_buttons_back(self):
+        """An app that stopped while showing the layout kept its own panel buttons off (the layout's tabs are them):
+        uninstall puts back what they were, and the layout's note of it goes."""
+        self.write("shared.json", json.dumps({"workspace.panels": [], "frame.welcomed": True,
+                                              "herdr-fold.app-panels": {"panels": ["files"]}}))
+        herdr_app.uninstall(PACKAGE, self.home)
+        self.assertEqual(shared(self.home), {"workspace.panels": ["files"], "frame.welcomed": True})
+
+    def test_panel_buttons_never_chosen_are_left_to_the_apps_default(self):
+        self.write("shared.json", json.dumps({"workspace.panels": [], "herdr-fold.app-panels": {"panels": None}}))
+        herdr_app.uninstall(PACKAGE, self.home)
+        self.assertEqual(shared(self.home), {})
+
+    def test_shared_values_the_layout_took_nothing_from_stay_as_they_are(self):
+        text = json.dumps({"workspace.panels": []})
+        self.write("shared.json", text)
+        herdr_app.uninstall(PACKAGE, self.home)
+        self.assertEqual(read(os.path.join(self.home, "shared.json")), text.encode())
 
     def test_the_app_home_follows_herdr_app_home(self):
         set_env(self, HERDR_APP_HOME=self.home)

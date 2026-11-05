@@ -84,7 +84,7 @@ export class Preview {
 
   /** The issue, or the diff's or commit's rows in CODE (the code's font); else what is happening instead. */
   render(t, code) {
-    const frame = v_flex().size_full().min_h(0).bg(t.background).text_color(t.foreground).text_size(13);
+    const frame = v_flex().size_full().min_h(0).text_color(t.foreground).text_size(13);   // on the pane's own fill
     if (this.issue) return frame.child(this.issueView(t));
     if (this.rows.length) return frame.child(this.diff(t, code));
     const line = this.loading ? "Loading…" : this.note ?? (this.what ? "" : "Nothing chosen to preview");

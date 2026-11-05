@@ -2,11 +2,11 @@
 // The Issues view, as the TUI sidebar's: GitHub's issues by priority with its filters; a click opens one in the preview
 // tab, its buttons and right click's menu hand it to the tab's agent, the browser, a reply, assign, close or reopen.
 import { div } from "gpui-kit";
-import { v_flex, h_flex, InputState, Input } from "gpui-base";
+import { v_flex, h_flex, InputState } from "gpui-base";
 import { agents, focused, hc, run as command } from "herdr";
 import { COMMIT_MESSAGE, GITHUB } from "./helper.js";
 import { issueAgent, priorityColor, said } from "./logic.js";
-import { button, glyph, small } from "./parts.js";
+import { button, checked, field, GAP, icon, small } from "./parts.js";
 import { showPreview } from "./preview.js";
 
 const LEVELS = ["Urgent", "High", "Medium", "Low"];      // GitHub's Priority field's options, core/github.py's ranks
@@ -18,8 +18,8 @@ const DONE = { close: "Closed", reopen: "Reopened", assign: "Assigned to you:" }
  * level: number | null, ranked_by: string | null, said: string, ago: string }} Listed */
 
 export class IssuesView {
-  /** HOST: the view it shows in, for the repository (root, on, github), its core calls (core), icons (font, m), the
-   * row the mouse is on (hovered, hover) and the Changes' link (linked). @param {any} host */
+  /** HOST: the view it shows in, for the repository (root, on, github), its core calls (core), the row the mouse is
+   * on (hovered, hover) and the Changes' link (linked). @param {any} host */
   constructor(host) {
     this.host = host;
     this.query = { state: "open", assigned: false, authored: false, label: "" };
@@ -181,25 +181,32 @@ export class IssuesView {
 
   /** The search field, the new issue's button and the filters', as the TUI sidebar has them on one line. */
   field(t) {
-    const q = this.query, on = [this.level !== null && LEVELS[this.level], q.assigned && "me", q.authored && "by me",
-      q.label].filter(Boolean);
-    return h_flex().flex_none().p(10).pb(6).gap(6).items_center()
-      .child(div().id("issue-search").flex_1().min_w(0).h(32).px(10).flex().items_center().rounded(8).border_1()
-        .border_color(t.border).cursor_text().child(Input.new(this.find).h_full().text_size(12)))
-      .child(button(t, "issue-new", glyph(this.host.font, this.host.m.new_issue).text_size(15),
-        Boolean(this.host.github), false, (cx) => this.terminal(["create"], cx)).tooltip("New issue"))
-      .child(button(t, "issue-filters", h_flex().gap(6).items_center().child(on.length ? on.join(" · ") : "Filters")
-        .child(glyph(this.host.font, this.host.m.more)), true, false, (cx) => {
+    const q = this.query;
+    // as the TUI sidebar's, in the field: what is on (the priority in its color), else Filters, then ▾
+    const on = [...(this.level !== null ? [[`● ${LEVELS[this.level]}`, priorityColor(t, this.level)]] : []),
+      ...[["me", q.assigned], ["by me", q.authored], [q.label, q.label]].filter(([, is]) => is)
+        .map(([word]) => [word, t.foreground])];
+    const shown = on.length ? on : [["Filters", t.muted]];
+    const filters = h_flex().id("issue-filters").h(24).px(8).gap(4).flex_none().items_center().rounded(5)
+      .text_size(12).cursor_pointer().when(Boolean(this.menu), (e) => e.bg(t.hover)).hover((s) => s.bg(t.hover))
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => {
         this.menu = !this.menu;
         cx.notify();
-      }).when(on.length > 0, (e) => e.text_color(t.accent)));
+      })
+      .children(shown.flatMap(([word, color], i) => [...(i ? [div().text_color(t.muted).child("·")] : []),
+        div().text_color(color).child(String(word))]))
+      .child(icon("chevron-down", 12).text_color(t.muted));
+    return h_flex().flex_none().p(10).pb(6).gap(6).items_center()
+      .child(field(t, "issue-search", this.find, filters).flex_1().min_w(0))
+      .child(button(t, "issue-new", icon("plus", 15), Boolean(this.host.github), false,
+        (cx) => this.terminal(["create"], cx)).tooltip("New issue"));
   }
 
   /** The filters: each one, a check on the ones on; the labels those of the issues listed, the chosen one too. */
   filters(t) {
-    const q = this.query, check = (on) => glyph(this.host.font, on ? this.host.m.check : "").w(14).text_color(t.accent);
+    const q = this.query;
     const item = (id, on, label, pick, color = t.foreground) => h_flex().id(id).h(26).px(8).gap(8).items_center()
-      .rounded(6).cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => pick(cx)).child(check(on))
+      .rounded(6).cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => pick(cx)).child(checked(t, on))
       .child(div().text_color(color).child(label));
     const listed = (this.listing?.issues ?? []).flatMap((i) => i.labels);
     const labels = [...new Set([...listed, ...(q.label ? [q.label] : [])])]
@@ -268,15 +275,14 @@ export class IssuesView {
           .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child([labels, people].filter(Boolean)
             .join("  ")))
           .child(div().flex_none().text_color(t.dim).child(issue.ago))))
-      .when(Boolean(asking), (e) => e.child(h_flex().flex_none().gap(2).pr(6).items_center()
+      .when(Boolean(asking), (e) => e.child(h_flex().flex_none().gap(GAP).pr(6).items_center()
         .child(div().text_size(11).text_color(t.ansi1).child(`${verb}?`))
         .child(small(t, `${key}-yes`, verb, `${verb} #${issue.number} on GitHub`, !this.busy,
           (cx) => this.change(issue, /** @type {"close" | "reopen"} */ (asking), cx)))
         .child(small(t, `${key}-cancel`, "Cancel", "Leave it as it is", true, (cx) => this.unask(cx)))))
-      .when(!asking && this.host.hovered === key, (e) => e.child(h_flex().flex_none().gap(2).pr(6)
-        .child(small(t, `${key}-agent`, glyph(this.host.font, this.host.m.agent), "To the agent", !this.busy,
-          (cx) => this.toAgent(issue, cx)))
-        .child(small(t, `${key}-web`, glyph(this.host.font, this.host.m.web), "Open in the browser", true,
+      .when(!asking && this.host.hovered === key, (e) => e.child(h_flex().flex_none().gap(GAP).pr(6)
+        .child(small(t, `${key}-agent`, icon("bot"), "To agent", !this.busy, (cx) => this.toAgent(issue, cx)))
+        .child(small(t, `${key}-web`, icon("external-link"), "Open in browser", true,
           (cx) => cx.open_url(issue.url)))));
   }
 
@@ -306,8 +312,8 @@ export class IssuesView {
 
 /** The issue NUMBER's Fixes line, as the TUI sidebar shows it under Commit: the next commit closes it; × unlinks it.
  * @param {[number, string]} linked @param {(cx: any) => void} unlink */
-export function fixesLine(t, linked, font, m, unlink) {
+export function fixesLine(t, linked, unlink) {
   return h_flex().flex_none().px(10).pb(8).gap(6).items_center().text_size(12)
     .child(div().flex_1().min_w(0).truncate().text_color(t.accent).child(`Fixes #${linked[0]} ${linked[1]}`))
-    .child(small(t, "unlink", glyph(font, "×"), "The next commit fixes no issue", true, unlink));
+    .child(small(t, "unlink", icon("x"), "Next commit fixes no issue", true, unlink));
 }

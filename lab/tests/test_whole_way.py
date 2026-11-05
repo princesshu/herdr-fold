@@ -83,8 +83,8 @@ class WholeWay(unittest.TestCase):
         # the right panel shown at herdr-fold, as mod.open does from a hidden one (again it would hide it): a hidden
         # copy gets no commands
         for args in (["space.new", "--machine", "lab", "--folder", root], ["layout.switch", "--name", "herdr-fold"],
-                     ["layout.select", "--stack", "panel-body", "--child", "changes"],
-                     ["layout.show", "--id", "panel"]):
+                     ["layout.select", "--stack", "fold-panel-body", "--child", "changes"],
+                     ["layout.show", "--id", "fold-panel"]):
             out = self.run_here(app, "do", *args)
             self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         deadline, asked, listed = time.monotonic() + 180, 0.0, False

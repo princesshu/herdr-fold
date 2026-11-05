@@ -3,7 +3,7 @@
 // on the space's machine (exec stops a program after 30 s; an AI may take minutes), the commit message writer's answer.
 
 import { JOB } from "./helper.js";
-import { BY_EXTENSION, BY_NAME, LETTER, NERD, PLAIN } from "./icons.js";
+import { BY_EXTENSION, BY_NAME, FILE, LETTER } from "./icons.js";
 
 /** @typedef {{ kind: string, number?: number, text: string }} Row */
 
@@ -63,7 +63,7 @@ export function rowActions(kind, code) {
 /** The folded sections as KEPT, as the TUI sidebar keeps them (staged, changes, graph): a set, empty for anything
  * else. @param {unknown} kept @returns {Set<string>} */
 export const foldedSections = (kept) => new Set(Array.isArray(kept)
-  ? kept.filter((kind) => ["staged", "changes", "graph"].includes(kind)) : []);
+  ? kept.filter((kind) => ["repositories", "staged", "changes", "graph"].includes(kind)) : []);
 
 /** The Commit button's modes, as the TUI sidebar names them. */
 export const MODES = { commit: "Commit", push: "Commit & Push", sync: "Commit & Sync" };
@@ -130,32 +130,25 @@ export const lastLine = (out) => (out.stderr || out.stdout).trim().split("\n").p
 /** An error's message, or the thrown value as text. @param {unknown} e */
 export const said = (e) => String(e instanceof Error ? e.message : e);
 
-/** The icons to draw: the TUI sidebar's Nerd Font glyphs with such a FONT installed, else its plain marks.
- * @param {string | null} font */
-export const marks = (font) => (font ? NERD : PLAIN);
-
-/** A Nerd Font among FAMILIES (the app's fonts()), a one-cell Mono one first, as icons sit in a row; or null.
- * @param {string[]} families */
-export function nerdFont(families) {
-  const nerd = families.filter((f) => f.includes("Nerd Font"));
-  return nerd.find((f) => f.startsWith("Symbols Nerd Font Mono")) ?? nerd.find((f) => f.endsWith(" Mono")) ??
-    nerd[0] ?? null;
-}
-
-/** A file's or folder's glyph, as core/icons.py's icon(): by the name's start, else its extension.
- * @param {string} name @param {boolean} [isDir] @param {boolean} [expanded] */
-export function fileIcon(name, isDir = false, expanded = false) {
-  if (isDir) return NERD[expanded ? "folder_open" : "folder"];
+/** A file's icon, Catppuccin Icons' by the path the app loads it, as core/icons.py's file_type(): by the name's
+ * start, else its extension. @param {string} name */
+export function fileIcon(name) {
   const lower = name.toLowerCase(), dot = lower.lastIndexOf(".");
   const named = BY_NAME.find(([, starts]) => starts.some((start) => lower.startsWith(start)));
   if (named) return named[0];
   /** @type {Record<string, string>} */
   const byExtension = BY_EXTENSION;
-  return (dot > 0 ? byExtension[lower.slice(dot + 1)] : undefined) ?? NERD.file;
+  return (dot > 0 ? byExtension[lower.slice(dot + 1)] : undefined) ?? FILE;
 }
 
 /** A change's letter as the TUI sidebar shows git's CODE (an untracked file U, a conflict !). @param {string} code */
 export const letter = (code) => /** @type {Record<string, string>} */ (LETTER)[code] ?? code;
+
+const CHANGES = { M: "Modified", A: "Added", D: "Deleted", "?": "Untracked", U: "Conflict", R: "Renamed", C: "Copied",
+  T: "Type changed" };
+
+/** What git's CODE says of a change, as the mouse resting on its letter says it. @param {string} code */
+export const changeName = (code) => /** @type {Record<string, string>} */ (CHANGES)[code] ?? code;
 
 /** An issue's MARKDOWN as its preview shows it. Anyone may write an issue: an unseen word joiner splits each "![" and
  * each tag's "<", in code or not (no guess at where code is), so an image is a link, never fetched (that would tell its
@@ -165,12 +158,98 @@ export const safeMarkdown = (markdown) => markdown.replace(/!\[/g, "!⁠[").repl
 /** A priority's color by its rank (LEVEL, core/github.py's: Urgent 0 to Low 3), as the TUI sidebar's traffic light;
  * the accent without one. @param {Record<string, string>} t @param {number | null | undefined} level */
 export const priorityColor = (t, level) => (level === null || level === undefined ? t.accent
-  : [t.ansi1, t.ansi1, t.blocked, t.ansi2][level]);
+  : [t.ansi1, t.ansi1, t.ansi3, t.ansi2][level]);
 
 /** The focused TAB's own Claude or Codex among AGENTS (the app's agents()), to hand an issue to; or null.
  * @param {{ tab: string, program?: { key: string } }[]} agents @param {string | undefined} tab */
 export const issueAgent = (agents, tab) =>
   agents.find((a) => a.tab === tab && ["claude", "codex"].includes(a.program?.key ?? "")) ?? null;
+
+/** A conversation as core/conversations.py lists it: a running one's STATE (herdr's) and PANE (its terminal) set.
+ * @typedef {{ agent: string, id: string, title: string, folder: string, time: number, state: string,
+ *   pane: string }} Conversation */
+
+/** The app's AGENTS as core/conversations.py takes herdr's: Claude and Codex in this Mac's spaces (LOCAL, their ids),
+ * each with its pane's folder (from PANES), its terminal for its pane.
+ * @param {any[]} agents @param {any[]} panes @param {Set<string>} local */
+export const coreAgents = (agents, panes, local) => agents
+  .filter((a) => local.has(a.space) && ["claude", "codex"].includes(a.program?.key ?? ""))
+  .map((a) => ({ agent: a.program.key, agent_status: a.status, pane_id: a.address,
+    cwd: panes.find((p) => p.pane === a.pane)?.cwd ?? null }));
+
+/** {folder: space name}: each folder a pane of this Mac's SPACES is in, the first such pane's space, as the TUI's
+ * column reads herdr's panes. @param {any[]} spaces @param {any[]} panes */
+export function folderSpaces(spaces, panes) {
+  const of = new Map(spaces.filter((s) => s.machine === null).flatMap((s) => s.tabs.map((t) => [t.id, s.name])));
+  /** @type {Record<string, string>} */
+  const folders = {};
+  for (const pane of panes) {
+    const space = of.get(pane.tab);
+    if (pane.cwd && space && !(pane.cwd in folders)) folders[pane.cwd] = space;
+  }
+  return folders;
+}
+
+const URGENCY = ["blocked", "done", "working", "idle"];      // as the app orders a space's agents
+
+/** The most urgent of STATES, as the app's SpaceInfo.status has it; null when none is an agent's.
+ * @param {(string | null | undefined)[]} states */
+export const urgent = (states) => URGENCY.find((state) => states.includes(state)) ?? null;
+
+/** ITEM's key among the archived, as the TUI's column keeps it. @param {Conversation} item */
+export const archiveKey = (item) => `${item.agent}:${item.id}`;
+
+/** The rows: each space of ORDER, its STATES' state, with its ITEMS (PLACE: {folder: space}) that match TYPED, FRONT's
+ * panes first, then the newest; archived ones only typed or shown; HERE open unless CLOSED, others OPENED or typed.
+ * @param {Conversation[]} items @param {string[]} order @param {Record<string, string>} place @param {any} how */
+export function conversationRows(items, order, place, how) {
+  const { typed = "", archived = new Set(), showArchived = false, opened = new Set(), closed = new Set(), here = null,
+    front = new Set(), states = {} } = how;
+  const word = typed.toLowerCase();
+  const matches = (item) => !word || [item.title, place[item.folder] ?? "", item.folder,
+    archived.has(archiveKey(item)) ? "archived" : ""].some((part) => part.toLowerCase().includes(word));
+  const open = (name) => Boolean(word) || opened.has(name) || (!closed.has(name) && name === here);
+  return order.flatMap((name) => {
+    const found = items.filter((item) => place[item.folder] === name && matches(item)
+      && (!archived.has(archiveKey(item)) || Boolean(word) || showArchived))
+      .sort((a, b) => Number(front.has(b.pane)) - Number(front.has(a.pane)) || b.time - a.time);
+    if (word && !found.length) return [];
+    const group = { kind: "group", name, items: found, open: open(name), here: name === here,
+      state: states[name] ?? null };
+    const under = group.open ? found.map((item, n) => ({ kind: "item", item, last: n === found.length - 1 })) : [];
+    return [group, ...under];
+  });
+}
+
+/** A conversation's id as claude --resume and codex resume take it: from a file's content, so never an option, a space
+ * or a control code. */
+const SESSION = /^[0-9A-Za-z][0-9A-Za-z._-]*$/;
+
+/** The command that reopens ITEM, a closed conversation: its agent resuming it. @param {Conversation} item */
+export function resumeArgv(item) {
+  if (!SESSION.test(item.id) || !["claude", "codex"].includes(item.agent)) throw new Error("not a conversation's id");
+  return item.agent === "claude" ? ["claude", "--resume", item.id] : ["codex", "resume", item.id];
+}
+
+const CHOICES = ["Open", "Copy conversation", "Rename"];
+
+/** The right click's menu on ITEM: Archive for a closed one, Unarchive for an archived one; on none (null), Show or
+ * Hide archived while any is. @param {Conversation | null} item @param {Set<string>} archived
+ * @param {boolean} showArchived */
+export function conversationChoices(item, archived, showArchived) {
+  if (!item) return archived.size ? [showArchived ? "Hide archived" : "Show archived"] : [];
+  if (archived.has(archiveKey(item))) return [...CHOICES, "Unarchive"];
+  return item.state ? CHOICES : [...CHOICES, "Archive"];
+}
+
+const TAB_NAME = 24;          // a conversation's name on its tab, as the TUI's column (AI Sessions') puts it there
+
+/** TITLE as a reopened conversation's tab name: printable characters only, no leading dash, cut with "…".
+ * @param {string} title */
+export function tabLabel(title) {
+  const name = [...title].filter((ch) => ch === " " || !/[\p{C}\p{Z}]/u.test(ch)).join("").replace(/^[- ]+/, "");
+  return name.length <= TAB_NAME ? name : `${name.slice(0, TAB_NAME - 1)}…`;
+}
 
 /** An issue as its preview shows it, with its priority as the list ranked it.
  * @typedef {{ kind: "issue", github: string, number: number, title: string, level?: number | null,
@@ -201,7 +280,14 @@ export const previewTab = (space, panes) => space?.tabs?.find((t) => t.name.star
 /** The sync button's words after its icon: how far the branch is from its upstream, as the TUI sidebar says it.
  * @param {{ upstream: string | null, ahead: number, behind: number } | null} status */
 export function syncLabel(status) {
-  return status?.upstream ? `${status.behind}↓ ${status.ahead}↑` : "";
+  return status?.upstream && (status.behind || status.ahead) ? `${status.behind}↓ ${status.ahead}↑` : "";
+}
+
+/** The repository row's branch, as the TUI sidebar's footer names it: * after it with changes; detached without one.
+ * @param {any} status */
+export function branchLabel(status) {
+  if (!status) return "";
+  return `${status.branch ?? "detached"}${status.staged.length || status.changes.length ? "*" : ""}`;
 }
 
 /** The node of the layout tree NODE named ID, or null. @param {any} node @param {string} id @returns {any} */
@@ -214,12 +300,77 @@ function find(node, id) {
   return null;
 }
 
-/** What Cmd+Shift+G runs in layout ROOT: the right panel shown at herdr-fold, as the Changes button does, or hidden
- * when it shows that already. @param {any} root */
+const RAIL_BELOW = 160;       // px: a sidebar narrower draws its mods as a rail, as the app's own mods do
+
+/** Layout ROOT's sidebar's width in px, or null. @param {any} root @returns {number | null} */
+export const sidebarPx = (root) => find(root, "sidebar")?.size?.px ?? null;
+
+/** Whether layout ROOT's sidebar is folded to a rail. @param {any} root */
+export const railed = (root) => (sidebarPx(root) ?? Infinity) < RAIL_BELOW;
+
+/** The width layout ROOT's sidebar takes when its toggle is pressed, as the app's own toggle has it: folded, as wide
+ * as the traffic lights on macOS (MACOS); opened, KEPT, the width it had, else 268.
+ * @param {any} root @param {boolean} macos @param {number | undefined} kept */
+export const foldedWidth = (root, macos, kept) => (railed(root) ? kept ?? 268 : macos ? 76 : 44);
+
+// the layout's right panel and the stack of its views: herdr-fold's own ids, so the app's tab bar, which shows and
+// hides a panel by space under the app's ids, leaves it alone
+export const PANEL = "fold-panel", PANEL_BODY = "fold-panel-body";
+
+export const TALL = 440;          // a panel floating beside the folded sidebar, at most
+
+/** A floating panel as tall as its content, up to TALL: its head, then Spaces' SHOWN rows (a count), or the
+ * Conversations filter and SHOWN (conversationRows'), each group's head and an open one's conversations.
+ * @param {string} panel @param {any} shown */
+export function floatHeight(panel, shown) {
+  const groups = panel === "spaces" ? [] : shown.filter((row) => row.kind === "group");
+  const body = panel === "spaces" ? 29 * shown + 8
+    : 38 + (groups.length ? groups.reduce((h, g) => h + 26 + (g.open ? 24 * g.items.length : 0), 0) : 28) + 8;
+  return Math.min(TALL, 36 + body);
+}
+
+/** The app's Spaces list's height for LIST (spaces()) with MACHINES (the other machines' names), as its own mod
+ * draws it: its head (31), a row each (30), a machine's head (26) once another machine is there, its foot (14).
+ * @param {{ machine: string | null }[]} list @param {string[]} machines */
+export function spacesHeight(list, machines) {
+  const remote = new Set([...list.map((s) => s.machine).filter(Boolean), ...machines]);
+  return 31 + 30 * list.length + (remote.size ? 26 * (remote.size + 1) : 0) + 14;
+}
+
+/** TREE (a layout) with node ID's max at PX, never under its min: a copy, and whether it differs from TREE (else
+ * nothing to write). @param {any} tree @param {string} id @param {number} px */
+export function withMax(tree, id, px) {
+  const node = find(tree, id), max = Math.max(node?.min ?? 0, px);
+  if (!node || node.max === max) return { tree, changed: false };
+  const copy = JSON.parse(JSON.stringify(tree));
+  find(copy, id).max = max;
+  return { tree: copy, changed: true };
+}
+
+/** Whether layout ROOT shows the right panel. @param {any} root */
+export function panelShown(root) {
+  const panel = find(root, PANEL);
+  return Boolean(panel && !panel.hidden);
+}
+
+/** The right panel's tab shown in layout ROOT: Files while the app's Files block shows, else VIEW (the view kept),
+ * Issues only for a repository on GitHub (GITHUB), else Changes. @param {any} root @param {unknown} view
+ * @param {boolean} github @returns {"changes" | "search" | "issues" | "files"} */
+export function shownTab(root, view, github) {
+  if (find(root, PANEL_BODY)?.active === "files") return "files";
+  return view === "search" || (view === "issues" && github) ? view : "changes";
+}
+
+/** The popup Cmd+Shift+G's mod.open made, if this copy (PROPS) is it: the mod's own popups name their part.
+ * @param {any} props @returns {string | null} */
+export const launcher = (props) => (props?.overlay && !props.part ? props.overlay : null);
+
+/** What Cmd+Shift+G runs in layout ROOT: the right panel shown at Changes, or hidden when it shows that already.
+ * @param {any} root */
 export function panelToggle(root) {
-  const panel = find(root, "panel"), body = find(root, "panel-body");
-  return panel && !panel.hidden && body?.active === "changes" ? [["layout.hide", { id: "panel" }]]
-    : [["layout.select", { stack: "panel-body", child: "changes" }], ["layout.show", { id: "panel" }]];
+  const panel = find(root, PANEL), body = find(root, PANEL_BODY);
+  return panel && !panel.hidden && body?.active === "changes" ? [["layout.hide", { id: PANEL }]]
+    : [["layout.select", { stack: PANEL_BODY, child: "changes" }], ["layout.show", { id: PANEL }]];
 }
 
 /** The stack under the panel's views showing the focused tab's own terminal, as the TUI's right column does; its
@@ -232,13 +383,6 @@ export const terminalId = (tab) => PREFIX + tab.toLowerCase().replace(/[^a-z0-9-
 
 /** A terminal's machine, from its address (`lab/t7`): null for this computer's. @param {string} address */
 export const machineOf = (address) => (address.includes("/") ? address.split("/")[0] : null);
-
-/** CWD as the app's pane header names a folder: from ~ under HOME (this computer's). @param {string | null} cwd
- * @param {string | null} home */
-export function folderName(cwd, home) {
-  if (!cwd) return "";
-  return home && (cwd === home || cwd.startsWith(home + "/")) ? "~" + cwd.slice(home.length) : cwd;
-}
 
 /** TREE (a layout) with TAB's terminal, at ADDRESS, in the TERMINALS stack (which draws its frame): a copy, and
  * whether it differs from TREE (else nothing to write).

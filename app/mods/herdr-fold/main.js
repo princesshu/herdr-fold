@@ -4,28 +4,34 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list } from "gpui-base";
 import { spaces, panes, focused, exec, hc, home, watchFolder, nextCommand, theme, settings, layout, props, closeOverlay,
-  shared, setShared, readTextFile, fonts, run as command } from "herdr";
+  shared, setShared, readTextFile, run as command } from "herdr";
 import { COMMIT_MESSAGE, FILEOPS, GIT, SEARCH } from "./helper.js";
-import { afterCommit, background, commitMode, excerpt, fileIcon, foldedSections, lastLine, letter, marked, marks, MODES,
-  nerdFont, panelToggle, pythonCommand, rowActions, said, searchRows, searchSummary, secretQuestion, syncLabel,
-  written } from "./logic.js";
-import { button, chip, glyph, small } from "./parts.js";
+import { afterCommit, background, branchLabel, changeName, commitMode, excerpt, fileIcon, foldedSections, lastLine,
+  launcher, letter, marked, MODES, panelToggle, pythonCommand, rowActions, said, searchRows, searchSummary,
+  secretQuestion, syncLabel, written } from "./logic.js";
+import { button, chip, END, field, fileMark, GAP, icon, SLIDE, small } from "./parts.js";
+import { menuPopup, openMenu } from "./menus.js";
+import { giveBack, liveTabs, panelTrigger, TABS, takeAppButtons, VIEW } from "./panel.js";
+import { ConversationsView } from "./conversations.js";
+import { floatPanel, sidebarTrigger, spacesFloat } from "./sidebar.js";
 import { IssuesView, fixesLine } from "./issues.js";
 import { Preview, showPreview } from "./preview.js";
 import { guide, styleguide } from "./styleguide.js";
-import { TerminalHeader } from "./terminal.js";
+import { standIn, TerminalFollower } from "./terminal.js";
 
 const REFRESH = 10000;             // ms between two looks when no folder change says so (another machine's space)
 const POLL = 1500;                 // ms between two looks at the message being written
 const WRITING = 6 * 60 * 1000;     // ms the message may take: both AIs, each asked twice
 const LINES = 1500;                // a hit's file's lines shown at most
-const MODE = "herdr-fold.commit_mode", FOLDED = "herdr-fold.folded", VIEW = "herdr-fold.view";   // kept (shared)
+const MODE = "herdr-fold.commit_mode", FOLDED = "herdr-fold.folded";   // kept (shared)
 const QUIET = 150;                 // ms after typing stops before the search runs (Enter: at once)
 const FOUND = 1000;                // the hits a search brings at most (the count goes on)
 const ABOVE = 12;                  // a hit's file shown from these lines above it
 const BUSY = { stage: "Staging…", unstage: "Unstaging…", discard: "Discarding…" };
-const SLIDE = { duration: 180, easing: "ease-out" };   // a section folding or opening, drawn by the app itself
 const TIPS = { stage: "Stage", unstage: "Unstage", discard: "Discard changes" };
+const REMOTE = { sync: "Syncing…", pull: "Pulling…", push: "Pushing…" };
+/** @type {Record<string, import("./icons.js").IconName>} */
+const ACTION_ICONS = { stage: "plus", unstage: "minus", discard: "undo-2" };
 
 /** The focused pane's folder, and the machine its space is on (null: this one). */
 function place() {
@@ -93,20 +99,39 @@ async function stage(root, on) {
 
 export default class HerdrFold extends View {
   init(_props, cx) {
-    if ((this.launcher = props()?.overlay)) {     // Cmd+Shift+G (mod.open): the right panel at herdr-fold, then gone
+    if ((this.launcher = launcher(props()))) {    // Cmd+Shift+G (mod.open): the right panel at herdr-fold, then gone
       for (const [name, args] of panelToggle(layout())) command(name, args);
       return void closeOverlay(this.launcher);
     }
     const part = props()?.part;                   // the layout's terminal stack: its header, its stand-in
     if (part === "terminal") {
-      this.terminal = new TerminalHeader();
+      this.terminal = new TerminalFollower();
       return void cx.timer.every(REFRESH, (cx) => this.terminal.look(cx));
     }
     if ((this.blank = part === "none")) return;
+    if ((this.tabs = part === "panel-tabs")) return;     // the right panel's stack: its header, the group's tabs
+    if (part === "menu") return void (this.popup = { overlay: props().overlay, items: props().items });
+    if ((this.toggle = part === "panel-trigger")) return void takeAppButtons();   // the tab bar's right end
     if (part === "preview") return void (this.preview = new Preview(props().space, python));
+    if ((this.trigger = part === "trigger")) return;    // left of the tabs: the folded sidebar's toggle
+    if (part === "float") {                       // a folded sidebar's panel, floating beside its dock
+      this.float = { panel: props().panel, overlay: props().overlay, height: props().height };
+      const { panel, overlay } = this.float;
+      if (panel === "conversations") this.conversations = new ConversationsView(python, cx, overlay);
+      return;
+    }
+    if (part === "conversations") {               // the left sidebar's block: Cmd+Shift+R gives its filter the keys
+      this.conversations = new ConversationsView(python, cx);
+      return void cx.spawn(async () => {
+        for (;;) {
+          const asked = await nextCommand();
+          if (asked === "conversations") this.conversations.focus();
+        }
+      });
+    }
     if (part === "styleguide") {                  // all of it, or its section props().section names (a picture of it)
       this.only = props()?.section ?? null;
-      return void (this.guide = guide(HerdrFold.prototype, nerdFont(fonts())));
+      return void (this.guide = guide(HerdrFold.prototype));
     }
     this.commits = []; this.status = null; this.message = "";
     this.view = ["search", "issues"].includes(shared(VIEW)) ? shared(VIEW) : "changes";
@@ -133,7 +158,8 @@ export default class HerdrFold extends View {
         const asked = await nextCommand();
         if (asked === "write") this.write(cx);
         else if (asked === "commit") this.commit(cx);
-        else if (asked === "sync") this.sync(cx);
+        else if (asked === "sync" || asked === "pull" || asked === "push") this.sync(cx, asked);
+        else if (asked.startsWith("mode-")) this.choose(asked.slice("mode-".length), cx);    // its menu's choice
         else if (asked === "changes" || asked === "search" || asked === "issues") this.show(asked, cx);
         else if (asked === "styleguide") command("tab.new", { mod: "herdr-fold", props: { part: "styleguide" } });
       }
@@ -149,6 +175,7 @@ export default class HerdrFold extends View {
       Object.assign(this, { key, root: null, commits: [], status: null, open: null, note: null,
         asked: null, confirm: null, github: null, linked: null, head: null });
       this.issues.reset();
+      this.publish();
     }
     if (!here.cwd) return;
     this.loading = true;
@@ -172,8 +199,27 @@ export default class HerdrFold extends View {
         if (key === this.key) this.note = said(e);
       } finally {
         this.loading = false;
+        this.publish();
         cx.notify();
       }
+    });
+  }
+
+  /** What the panel's tabs (panel.js, another copy) show of it: Issues or not, and the changed files' count. */
+  publish() {
+    const told = { github: Boolean(this.github),
+      changed: (this.status?.staged?.length ?? 0) + (this.status?.changes?.length ?? 0) };
+    if (JSON.stringify(shared(TABS)) !== JSON.stringify(told)) setShared(TABS, told);
+  }
+
+  /** The view the panel's tabs picked (VIEW, set in another copy) shown, once the render is over. */
+  follow(cx) {
+    const asked = shared(VIEW);
+    if (this.due || !asked || asked === this.view) return;
+    this.due = true;
+    cx.timer.after(0, (cx) => {
+      this.due = false;
+      this.show(/** @type {string} */ (asked), cx);
     });
   }
 
@@ -309,8 +355,10 @@ export default class HerdrFold extends View {
     });
   }
 
-  sync(cx) {
-    this.act(cx, "Syncing…", () => git("sync", this.root, this.on));
+  /** The branch synced with its upstream (pulled, fast-forward only, then pushed), or only pulled or pushed (the
+   * repository row's ⋯), as core/git.py does it. @param {"sync" | "pull" | "push"} [how] */
+  sync(cx, how = "sync") {
+    this.act(cx, REMOTE[how], () => git(how, this.root, this.on));
   }
 
   /** The view shown, kept for the next start; Search takes the keys. @param {string} view */
@@ -398,37 +446,50 @@ export default class HerdrFold extends View {
   /** @param {string} mode */
   choose(mode, cx) {
     this.mode = commitMode(mode);
-    this.menu = false;
     setShared(MODE, this.mode);
     cx.notify();
   }
 
+  /** As the layout goes (another shown, the app quitting): the app's own panel buttons back as they were. */
+  async close() {
+    if (this.toggle) giveBack();
+  }
+
   render(cx) {
-    if (this.launcher || this.blank) return div();
-    const t = theme();
-    if (this.guide) return styleguide(this.guide, t, this.only);
     if (this.terminal) {
       this.terminal.watch(cx);
-      return this.terminal.render(t);
+      return div();
     }
+    if (this.launcher) return div();
+    const t = theme();
+    if (this.blank) return standIn(t);
+    if (this.tabs) return liveTabs(t);
+    if (this.popup) return menuPopup(t, this.popup.overlay, this.popup.items);
+    if (this.toggle) return panelTrigger(t);
+    if (this.guide) return styleguide(this.guide, t, this.only);
     if (this.preview) {
       this.preview.watch(cx);
       return this.preview.render(t, codeFont());
     }
+    const float = this.float;
+    if (float?.panel === "spaces") return spacesFloat(t, float.overlay, float.height);
+    if (float) return floatPanel(t, "Conversations", float.overlay, float.height, [], this.conversations.render(t, cx));
+    if (this.conversations) return this.conversations.render(t, cx);
+    if (this.trigger) return sidebarTrigger(t);
     if (JSON.stringify(place()) !== this.key) this.refresh(cx);
-    this.font = nerdFont(fonts());                // the TUI's icons in a Nerd Font, else its plain marks
-    this.m = marks(this.font);
+    this.follow(cx);
     return this.panel(t);
   }
 
-  /** The view shown, in its frame: Changes, Search, or Issues for a repository on GitHub (else Changes). */
+  /** The view shown, under the stack's tabs (panel.js): Changes, Search, or Issues for a repository on GitHub (else
+   * Changes). */
   panel(t) {
-    const frame = v_flex().id("herdr-fold").size_full().min_h(0).rounded(10).overflow_hidden()
-      .bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13).child(this.header(t));
+    const frame = v_flex().id("herdr-fold").size_full().min_h(0).text_color(t.foreground).text_size(13);
     if (this.view === "issues" && this.github) return frame.child(this.issues.render(t));
     if (this.view === "search") return frame.child(this.query(t)).child(this.hits(t)).when(Boolean(this.peek),
       (e) => e.child(this.lines(t)));
-    return frame.child(this.composer(t)).child(v_flex().flex_1().min_h(0).child(this.list(t)).child(this.graph(t)))
+    return frame.child(this.repository(t)).child(this.composer(t))
+      .child(v_flex().flex_1().min_h(0).child(this.list(t)).child(this.graph(t)))
       .when(Boolean(this.note && this.root), (e) => e.child(this.problem(t)));
   }
 
@@ -449,23 +510,6 @@ export default class HerdrFold extends View {
     return Boolean(this.root && !this.busy && !this.loading);
   }
 
-  /** The views' icons, as the TUI sidebar's tabs, then the shown one's name; with Changes, the sync button. */
-  header(t) {
-    const tab = (view, mark, label) => div().id(`view-${view}`).size(30).flex().items_center().justify_center()
-      .rounded(6).cursor_pointer().tooltip(label).text_size(15).bg(this.view === view ? t.selected : t.raised)
-      .text_color(this.view === view ? t.foreground : t.muted).hover((s) => s.bg(t.hover))
-      .on_click((_e, cx) => this.show(view, cx)).child(glyph(this.font, mark));
-    const changes = this.view === "changes", sync = syncLabel(this.status);
-    return h_flex().h(46).flex_none().px(10).gap(6).items_center().border_b(1).border_color(t.border)
-      .child(tab("search", this.m.search, "Search")).child(tab("changes", this.m.git, "Changes"))
-      .when(Boolean(this.github), (e) => e.child(tab("issues", this.m.issues, "Issues")))
-      .child(div().ml(4).font_semibold().child({ changes: "Changes", search: "Search", issues: "Issues" }[this.view]))
-      .child(div().flex_1())
-      .when(changes, (e) => e.child(button(t, "sync", h_flex().gap(6).items_center()
-        .child(glyph(this.font, this.m.refresh)).when(Boolean(sync), (e) => e.child(sync)), this.ready, false,
-        (cx) => this.sync(cx))));
-  }
-
   /** The search field with its switches (Aa, ab, .*), then the folder searched or what the search found. */
   query(t) {
     const toggle = (name, label, tip) => div().id(`switch-${name}`).h(24).px(6).flex().items_center().rounded(5)
@@ -480,11 +524,8 @@ export default class HerdrFold extends View {
     const folder = (this.found ? this.searched?.cwd : place().cwd)?.split(/[\\/]/).pop() ?? "";
     const status = this.searching ? "Searching…" : this.found ? searchSummary(this.found) : `in ${folder}`;
     return v_flex().flex_none().p(10).gap(6).border_b(1).border_color(t.border)
-      .child(h_flex().id("search").h(32).pl(10).pr(4).gap(2).items_center().rounded(8).border_1()
-        .border_color(t.border).cursor_text()
-        .child(Input.new(this.find).flex_1().h_full().text_size(12).text_color(t.foreground))
-        .child(toggle("case", "Aa", "Match case")).child(toggle("word", "ab", "Whole word"))
-        .child(toggle("regex", ".*", "Regular expression")))
+      .child(field(t, "search", this.find, toggle("case", "Aa", "Match case"), toggle("word", "ab", "Whole word"),
+        toggle("regex", ".*", "Regular expression")))
       .child(div().text_size(11).text_color(this.found?.error ? t.ansi1 : t.dim).truncate().child(status));
   }
 
@@ -492,8 +533,7 @@ export default class HerdrFold extends View {
   hits(t) {
     const row = (r) => r.kind === "file"
       ? h_flex().id(`found-${r.path}`).w_full().h(24).flex_none().px(10).gap(6).items_center().tooltip(r.path)
-        .when(Boolean(this.font), (e) => e.child(glyph(this.font, fileIcon(r.path.split("/").pop())).w(16)
-          .text_color(t.muted)))
+        .child(fileMark(fileIcon(r.path.split("/").pop())))
         .child(div().font_semibold().child(r.path.split("/").pop()))
         .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim)
           .child(r.path.includes("/") ? r.path.slice(0, r.path.lastIndexOf("/")) : ""))
@@ -558,37 +598,44 @@ export default class HerdrFold extends View {
     return h_flex().id(key).h(26).flex_none().pl(6).pr(8).gap(6).items_center().rounded(6).cursor_pointer()
       .hover((s) => s.bg(t.hover)).on_hover((over, cx) => this.hover(key, over, cx))
       .on_click((_e, cx) => this.fold(kind, cx))
-      .child(glyph(this.font, this.folded.has(kind) ? this.m.closed : this.m.open).w(14).text_color(t.muted))
+      .child(icon(this.folded.has(kind) ? "chevron-right" : "chevron-down").text_color(t.muted))
       .child(div().flex_1().min_w(0).truncate().font_bold().child(title))
-      .when(asking, (e) => e.child(div().text_size(11).text_color(t.ansi1).child("Discard all?"))
-        .child(small(t, `${key}-cancel`, "Cancel", "Keep the changes", this.ready, (cx) => this.unask(cx))))
-      .when((this.hovered === key || asking) && files.length > 0, (e) => e.children(actions.map((action) =>
-        small(t, `${key}-${action}`, asking && action === "discard" ? "Discard" : glyph(this.font, this.m[action]),
-          `${TIPS[action]} (all)`, this.ready, (cx) => this.change(action, files, key, cx)))))
-      .when(files.length > 0, (e) => e.child(chip(t, String(files.length))));
+      .when(asking, (e) => e.child(div().text_size(11).text_color(t.ansi1).child("Discard all?")))
+      .when((this.hovered === key || asking) && files.length > 0, (e) => e.child(h_flex().gap(GAP)
+        .when(asking, (e) => e.child(small(t, `${key}-cancel`, "Cancel", "Keep changes", this.ready,
+          (cx) => this.unask(cx))))
+        .children(actions.map((action) => small(t, `${key}-${action}`,
+          asking && action === "discard" ? "Discard" : icon(ACTION_ICONS[action]), `${TIPS[action]} (all)`, this.ready,
+          (cx) => this.change(action, files, key, cx))))))
+      .when(files.length > 0, (e) => e.child(div().w(END).flex_none().flex().justify_center()
+        .child(chip(t, String(files.length)))));
   }
 
   /** A changed file's row, as the TUI sidebar's: under its section's name, its type's icon, its name (struck through
    * when deleted) and folder; with the mouse on it, its buttons; its letter under the section's count. */
   file(t, kind, { path, code }) {
     const parts = path.split("/"), name = parts.pop(), key = shown(kind, path);
-    const color = code === "A" || code === "?" ? t.ansi2 : code === "D" || code === "U" ? t.ansi1 : t.blocked;
+    const color = code === "A" || code === "?" ? t.ansi2 : code === "D" || code === "U" ? t.ansi1 : t.ansi3;
     const asking = this.confirm === key;
     return h_flex().id(`file-${key}`).h(26).flex_none().pl(26).pr(8).gap(6).items_center().rounded(6).cursor_pointer()
       .when(this.open === key, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover)).tooltip(path)
       .on_hover((over, cx) => this.hover(key, over, cx))
       .on_click((_e, cx) => this.pick(key, { kind: "diff", path }, cx))
-      .when(Boolean(this.font), (e) => e.child(glyph(this.font, fileIcon(name)).w(16).text_color(t.muted)))
+      .child(fileMark(fileIcon(name)))
       .child(h_flex().flex_1().min_w(0).gap(6).items_center()
         .child(div().flex_none().when(code === "D", (e) => e.line_through()).child(name))
         .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(parts.join("/"))))
-      .when(asking, (e) => e.child(div().text_size(11).text_color(t.ansi1).child("Discard?"))
-        .child(small(t, `${key}-cancel`, "Cancel", "Keep the change", this.ready, (cx) => this.unask(cx))))
-      .when(this.hovered === key || asking, (e) => e.children(rowActions(kind, code).map((action) =>
-        small(t, `${key}-${action}`, asking && action === "discard" ? "Discard" : glyph(this.font, this.m[action]),
-          action === "discard" && code === "?" ? "Move to the Trash" : TIPS[action], this.ready,
-          (cx) => this.change(action, [{ path, code }], key, cx)))))
-      .child(div().w(12).mr(6).flex_none().text_right().text_size(11).text_color(color).child(letter(code)));
+      .when(asking, (e) => e.child(div().text_size(11).text_color(t.ansi1).child("Discard?")))
+      .when(this.hovered === key || asking, (e) => e.child(h_flex().gap(GAP)
+        .when(asking, (e) => e.child(small(t, `${key}-cancel`, "Cancel", "Keep change", this.ready,
+          (cx) => this.unask(cx))))
+        .children(rowActions(kind, code)
+        .map((action) => small(t, `${key}-${action}`,
+          asking && action === "discard" ? "Discard" : icon(ACTION_ICONS[action]),
+          action === "discard" && code === "?" ? "Move to Trash" : TIPS[action], this.ready,
+          (cx) => this.change(action, [{ path, code }], key, cx))))))
+      .child(div().id(`${key}-letter`).w(END).flex_none().text_center().text_size(11).text_color(color)
+        .tooltip(changeName(code)).child(letter(code)));
   }
 
   /** The question a Discard asked dropped: nothing undone. */
@@ -603,7 +650,7 @@ export default class HerdrFold extends View {
     const folded = this.folded.has("graph");
     const heading = h_flex().id("graph").h(26).flex_none().pl(12).pr(8).gap(6).items_center().cursor_pointer()
       .border_t(1).border_color(t.border).hover((s) => s.bg(t.hover)).on_click((_e, cx) => this.fold("graph", cx))
-      .child(glyph(this.font, folded ? this.m.closed : this.m.open).w(14).text_color(t.muted))
+      .child(icon(folded ? "chevron-right" : "chevron-down").text_color(t.muted))
       .child(div().font_bold().child("Graph"));
     const commit = ({ hash, subject, author, refs, head }) => {
       const key = shown("commit", hash);
@@ -623,35 +670,54 @@ export default class HerdrFold extends View {
         .px(6).children(this.commits.map(commit)).child(div().h(6).flex_none())));
   }
 
-  /** The Commit button's modes, opened by its arrow: a choice is kept for the next commit. */
-  modes(t) {
-    return v_flex().flex_none().p(4).gap(2).rounded(8).border_1().border_color(t.border).bg(t.raised)
-      .children(Object.entries(MODES).map(([mode, label]) => h_flex().id(`mode-${mode}`).h(28).px(10).gap(8)
-        .items_center().rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
-        .on_click((_e, cx) => this.choose(mode, cx))
-        .child(glyph(this.font, this.mode === mode ? this.m.check : "").w(14).text_color(t.accent)).child(label)));
+  /** The Commit button's modes, its arrow's menu: a choice is kept for the next commit. */
+  get modes() {
+    return Object.entries(MODES).map(([mode, label]) => ({ label, command: `mode-${mode}`, on: this.mode === mode }));
   }
 
-  /** On top, as the TUI sidebar has it: the message and its ✦, then Commit across, its arrow choosing the mode. */
+  /** The repository row's ⋯: pull or push alone, and its page on GitHub. */
+  get remote() {
+    return [{ label: "Pull", command: "pull" }, { label: "Push", command: "push" },
+      ...(this.github ? [{ label: "Open on GitHub", url: `https://github.com/${this.github}` }] : [])];
+  }
+
+  /** On top, as VS Code's Repositories: the repository's name, ⎇ its branch, the sync (how far the branch is from its
+   * upstream, when it is) and ⋯ its other ways to the remote; its heading folds it. */
+  repository(t) {
+    const sync = syncLabel(this.status), name = this.root?.split(/[\\/]/).pop() ?? "";
+    const row = h_flex().id("repository").h(26).flex_none().pl(26).pr(8).gap(6).items_center().rounded(6)
+      .hover((s) => s.bg(t.hover)).tooltip(this.root ?? "")
+      .child(icon("book-marked").text_color(t.muted)).child(div().flex_1().min_w(0).truncate().font_semibold()
+        .child(name))
+      .child(h_flex().flex_none().gap(4).items_center().text_size(12).text_color(t.muted).child(icon("git-branch", 13))
+        .child(branchLabel(this.status)))
+      .child(h_flex().flex_none().gap(GAP)
+        .child(small(t, "repository-sync", h_flex().gap(4).items_center().child(icon("refresh-cw"))
+          .when(Boolean(sync), (e) => e.child(sync)), "Sync", this.ready, (cx) => this.sync(cx)))
+        .child(small(t, "repository-more", icon("ellipsis"), "More actions", this.ready,
+          () => openMenu(this.remote, this.pressed)).on_mouse_down("left", (e) => (this.pressed = e.bounds))));
+    const folded = this.folded.has("repositories");
+    return v_flex().flex_none().px(6).pt(6).child(this.section(t, "repositories", "Repositories", []))
+      .when(!folded && Boolean(this.root), (e) => e.child(row));
+  }
+
+  /** Under the repository, as the TUI sidebar has it: the message and its ✦, then Commit across, its arrow choosing
+   * the mode. */
   composer(t) {
     const commit = this.ready && Boolean(this.message.trim());
-    const label = this.busy ?? h_flex().gap(8).items_center().child(glyph(this.font, this.m.check))
+    const label = this.busy ?? h_flex().gap(8).items_center().child(icon("check"))
       .child(`${MODES[this.mode]}${this.asked ? " anyway" : ""}`);
     return v_flex().flex_none().p(10).gap(8).border_b(1).border_color(t.border)
       .child(h_flex().gap(8)
         .child(div().id("message").flex_1().min_w(0).h(32).px(10).flex().items_center().rounded(8).border_1()
           .border_color(t.border).cursor_text()
           .child(Input.new(this.input).h_full().text_size(12).text_color(t.foreground)))
-        .child(button(t, "write", glyph(this.font, this.m.ai).text_size(15), this.ready, false, (cx) => this.write(cx))
-          .bg(t.selection).text_color(this.ready ? t.accent : t.muted)))
+        .child(button(t, "write", icon("sparkles", 15), this.ready, false, (cx) => this.write(cx))
+          .bg(t.selection).text_color(this.ready ? t.accent : t.muted).tooltip("Write message")))
       .child(h_flex().gap(8)
         .child(button(t, "commit", label, commit, true, (cx) => this.commit(cx)).flex_1().justify_center())
-        .child(button(t, "mode", glyph(this.font, this.m.more), this.ready, true, (cx) => {
-          this.menu = !this.menu;
-          cx.notify();
-        })))
-      .when(Boolean(this.menu), (e) => e.child(this.modes(t)))
-      .when(Boolean(this.linked), (e) => e.child(fixesLine(t, this.linked, this.font, this.m,
-        (cx) => this.unlink(cx))));
+        .child(button(t, "mode", icon("chevron-down"), this.ready, true, () => openMenu(this.modes, this.pressed))
+          .on_mouse_down("left", (e) => (this.pressed = e.bounds)).tooltip("Commit mode")))
+      .when(Boolean(this.linked), (e) => e.child(fixesLine(t, this.linked, (cx) => this.unlink(cx))));
   }
 }

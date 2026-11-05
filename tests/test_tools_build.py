@@ -90,6 +90,18 @@ class AppTheme(unittest.TestCase):
         themes = {rel for rel in build.outputs() if rel.startswith(os.path.join("app", "themes", ""))}
         self.assertEqual(len(themes), len(self.themes) + 1)        # each theme, and the layout's own
 
+    def test_an_agents_state_wears_the_tuis_color(self):
+        # as the TUI's column marks it: the state's role (conversation_list.py), the role's palette color (theme.py)
+        sys.path.insert(0, os.path.join(PACKAGE, "src", "plugins", "sidebar"))
+        import conversation_list
+        import theme
+        for tui in self.themes:
+            with self.subTest(tui["id"]):
+                made, palette = self.made(f"herdr-fold-{tui['id']}.json")["colors"], tui["colors"]["palette"]
+                for state, role in conversation_list.STATE_ROLE.items():
+                    code = int(theme.PALETTE_FG[role])                  # 31-37, or 90-97 the bright ones
+                    self.assertEqual(made[state], palette[code - 30 if code < 90 else code - 82], state)
+
     def test_the_layout_wears_the_tuis_default_catppuccin(self):
         self.assertEqual(self.default, "catppuccin")
         self.assertEqual(self.made("herdr-fold.json"), self.made("herdr-fold-catppuccin.json"))

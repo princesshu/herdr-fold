@@ -33,20 +33,21 @@ class Logic(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("node"), "no Node")
     def test_a_files_icon_is_the_sidebars(self):
-        """The mod picks a file's or folder's glyph as the sidebar does (core/icons.py's icon), from the tables
-        tools/build.py copies into it."""
+        """The mod picks a file's icon as the sidebar picks its glyph (core/icons.py's file_type, icon), from the tables
+        tools/build.py copies into it: Catppuccin Icons' file, which tools/icons.py fetched."""
         spec = importlib.util.spec_from_file_location("core_icons", os.path.join(PACKAGE, "core", "icons.py"))
         icons = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(icons)
         names = ["app.py", "README.md", ".gitignore", ".env.local", "Dockerfile", "View.TSX", "archive.tar.gz",
                  ".bashrc", "notes", "package.json", "Makefile", "photo.JPEG", "LICENSE", "data.unknown", "run.ps1"]
-        cases = [[name, False, False] for name in names] + [["src", True, False], ["src", True, True]]
         script = (f"import {{ fileIcon }} from {json.dumps(pathlib.Path(MOD, 'logic.js').as_uri())};\n"
-                  f"console.log(JSON.stringify({json.dumps(cases)}.map(([n, d, e]) => fileIcon(n, d, e))));")
+                  f"console.log(JSON.stringify({json.dumps(names)}.map((name) => fileIcon(name))));")
         out = subprocess.run(["node", "--input-type=module", "-e", script], capture_output=True, text=True,
                              timeout=60)
         self.assertEqual(out.returncode, 0, out.stderr[-2000:])
-        self.assertEqual(json.loads(out.stdout), [icons.icon(*case) for case in cases])
+        paths = [f"mods/herdr-fold/icons/catppuccin/{icons.file_type(name)}.svg" for name in names]
+        self.assertEqual(json.loads(out.stdout), paths)
+        self.assertTrue(all(os.path.isfile(os.path.join(APP, path)) for path in paths))
 
 
 class Shape(unittest.TestCase):
@@ -63,11 +64,12 @@ class Shape(unittest.TestCase):
         self.assertEqual(root.get("font_size"), size)
 
     def test_the_layout_is_the_apps_own_with_herdr_fold_where_changes_was(self):
-        """layouts/herdr-fold.json is the app's main layout, the right panel's Changes block showing herdr-fold: the
-        Changes button and Cmd+Shift+G open it there."""
+        """layouts/herdr-fold.json is the app's main layout, the right panel's Changes block showing herdr-fold, under
+        ids of its own, so the app's tab bar, which shows and hides its panel by space, leaves it alone."""
         with open(os.path.join(APP, "layouts", "herdr-fold.json"), encoding="utf-8") as f:
             nodes = list(walk(json.load(f)))
-        stack = next(n for n in nodes if n.get("id") == "panel-body")
+        self.assertEqual({"panel", "panel-body"} & {n.get("id") for n in nodes}, set())
+        stack = next(n for n in nodes if n.get("id") == "fold-panel-body")
         self.assertEqual([c["id"] for c in stack["children"]], ["files", "changes"])
         self.assertEqual(stack["children"][1]["content"], {"mod": "herdr-fold"})
         self.assertNotIn("changes", [n.get("content", {}).get("mod") for n in nodes])
@@ -80,6 +82,18 @@ class Shape(unittest.TestCase):
         self.assertTrue(actions)
         stray = [a for a in actions if a != "mod.open:herdr-fold" and a.removeprefix("herdr-fold.") not in taken]
         self.assertEqual(stray, [])
+
+    def test_the_icons_are_the_ones_the_mod_draws(self):
+        """icons/ holds each icon the mod's views name (icon("name"), or its name passed on to it) and no other; the
+        styleguide shows them all, so it names none."""
+        names = {name.removesuffix(".svg") for name in os.listdir(os.path.join(MOD, "icons", "lucide"))}
+        code = ""
+        for name in os.listdir(MOD):
+            if name.endswith(".js") and name not in ("icons.js", "styleguide.js"):
+                with open(os.path.join(MOD, name), encoding="utf-8") as f:
+                    code += f.read()
+        self.assertEqual(names - set(re.findall(r'"([\w-]+)"', code)), set(), "not drawn: delete it")
+        self.assertEqual(set(re.findall(r'\bicon\("([^"]+)"', code)) - names, set(), "no such file in icons/")
 
     def test_every_script_has_its_types_checked(self):
         # the app loads JavaScript only; // @ts-check has an editor (and tsc) check it against the app's own types

@@ -1,149 +1,116 @@
 // @ts-check
-// Generated from core/icons.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py.
-export const NERD = {
-  "closed": "\ueab6",
-  "open": "\ueab4",
-  "folder": "\uea83",
-  "folder_open": "\ueaf7",
-  "file": "\uea7b",
-  "new_file": "\uea7f",
-  "new_issue": "\uea60",
-  "new_folder": "\uea80",
-  "refresh": "\ueb37",
-  "collapse": "\ueac5",
-  "check": "\ueab2",
-  "more": "\ueab4",
-  "stage": "\uea60",
-  "unstage": "\ueb3b",
-  "discard": "\ueae2",
-  "diff": "\ueae1",
-  "files": "\ueaf0",
-  "search": "\uea6d",
-  "git": "\uea68",
-  "ai": "\uec10",
-  "issues": "\ueb00",
-  "agent": "\uec0f",
-  "web": "\ueb14",
-  "fold": "\ueac7",
-  "unfold": "\ueac7"
-};
-export const PLAIN = {
-  "closed": "\u25b8",
-  "open": "\u25be",
-  "new_file": "+",
-  "new_issue": "+",
-  "new_folder": "\u229e",
-  "refresh": "\u21bb",
-  "collapse": "\u229f",
-  "check": "\u2713",
-  "more": "\u2304",
-  "stage": "+",
-  "unstage": "\u2212",
-  "discard": "\u21ba",
-  "diff": "\u21c4",
-  "files": "\u25a4",
-  "search": "\u2315",
-  "git": "\u2387",
-  "ai": "\u2726",
-  "issues": "#",
-  "agent": "\u00bb",
-  "web": "\u2197",
-  "fold": "\u00ab",
-  "unfold": "\u00bb"
-};
-export const LETTER = {
-  "?": "U",
-  "U": "!"
+// Generated from core/icons.py and the icons/ folder by tools/build.py: change them there, then run
+// /usr/bin/python3 tools/build.py. Each icon by the path the app loads it.
+export const ICONS = {
+  "book-marked": "mods/herdr-fold/icons/lucide/book-marked.svg",
+  "bot": "mods/herdr-fold/icons/lucide/bot.svg",
+  "check": "mods/herdr-fold/icons/lucide/check.svg",
+  "chevron-down": "mods/herdr-fold/icons/lucide/chevron-down.svg",
+  "chevron-right": "mods/herdr-fold/icons/lucide/chevron-right.svg",
+  "ellipsis": "mods/herdr-fold/icons/lucide/ellipsis.svg",
+  "external-link": "mods/herdr-fold/icons/lucide/external-link.svg",
+  "git-branch": "mods/herdr-fold/icons/lucide/git-branch.svg",
+  "layers": "mods/herdr-fold/icons/lucide/layers.svg",
+  "message-square": "mods/herdr-fold/icons/lucide/message-square.svg",
+  "minus": "mods/herdr-fold/icons/lucide/minus.svg",
+  "panel-left": "mods/herdr-fold/icons/lucide/panel-left.svg",
+  "panel-right": "mods/herdr-fold/icons/lucide/panel-right.svg",
+  "plus": "mods/herdr-fold/icons/lucide/plus.svg",
+  "refresh-cw": "mods/herdr-fold/icons/lucide/refresh-cw.svg",
+  "settings": "mods/herdr-fold/icons/lucide/settings.svg",
+  "sparkles": "mods/herdr-fold/icons/lucide/sparkles.svg",
+  "undo-2": "mods/herdr-fold/icons/lucide/undo-2.svg",
+  "x": "mods/herdr-fold/icons/lucide/x.svg"
 };
 export const BY_EXTENSION = {
-  "py": "\ue73c",
-  "pyi": "\ue73c",
-  "js": "\ue74e",
-  "mjs": "\ue74e",
-  "cjs": "\ue74e",
-  "ts": "\ue628",
-  "jsx": "\ue7ba",
-  "tsx": "\ue7ba",
-  "json": "\ue60b",
-  "jsonc": "\ue60b",
-  "md": "\uf48a",
-  "markdown": "\uf48a",
-  "html": "\ue736",
-  "htm": "\ue736",
-  "css": "\ue749",
-  "scss": "\ue749",
-  "sass": "\ue749",
-  "less": "\ue749",
-  "toml": "\ue615",
-  "yaml": "\ue615",
-  "yml": "\ue615",
-  "ini": "\ue615",
-  "cfg": "\ue615",
-  "conf": "\ue615",
-  "sh": "\uf489",
-  "bash": "\uf489",
-  "zsh": "\uf489",
-  "fish": "\uf489",
-  "ps1": "\udb82\ude0a",
-  "psm1": "\udb82\ude0a",
-  "psd1": "\udb82\ude0a",
-  "bat": "\udb82\ude0a",
-  "cmd": "\udb82\ude0a",
-  "c": "\ue61d",
-  "h": "\ue61d",
-  "cpp": "\ue61d",
-  "cc": "\ue61d",
-  "cxx": "\ue61d",
-  "hpp": "\ue61d",
-  "go": "\ue627",
-  "rs": "\ue7a8",
-  "rb": "\ue791",
-  "java": "\ue738",
-  "swift": "\ue755",
-  "lua": "\ue620",
-  "sql": "\ue706",
-  "db": "\ue706",
-  "sqlite": "\ue706",
-  "csv": "\uf1c3",
-  "tsv": "\uf1c3",
-  "txt": "\uf15c",
-  "log": "\uf15c",
-  "pdf": "\uf1c1",
-  "png": "\uf1c5",
-  "jpg": "\uf1c5",
-  "jpeg": "\uf1c5",
-  "gif": "\uf1c5",
-  "webp": "\uf1c5",
-  "bmp": "\uf1c5",
-  "ico": "\uf1c5",
-  "svg": "\uf1c5",
-  "tiff": "\uf1c5",
-  "mp3": "\uf1c7",
-  "wav": "\uf1c7",
-  "flac": "\uf1c7",
-  "ogg": "\uf1c7",
-  "mp4": "\uf1c8",
-  "mkv": "\uf1c8",
-  "avi": "\uf1c8",
-  "mov": "\uf1c8",
-  "webm": "\uf1c8",
-  "zip": "\uf1c6",
-  "tar": "\uf1c6",
-  "gz": "\uf1c6",
-  "tgz": "\uf1c6",
-  "bz2": "\uf1c6",
-  "xz": "\uf1c6",
-  "7z": "\uf1c6",
-  "rar": "\uf1c6",
-  "lock": "\uf023",
-  "ttf": "\uf031",
-  "otf": "\uf031",
-  "woff": "\uf031",
-  "woff2": "\uf031"
+  "py": "mods/herdr-fold/icons/catppuccin/python.svg",
+  "pyi": "mods/herdr-fold/icons/catppuccin/python.svg",
+  "js": "mods/herdr-fold/icons/catppuccin/javascript.svg",
+  "mjs": "mods/herdr-fold/icons/catppuccin/javascript.svg",
+  "cjs": "mods/herdr-fold/icons/catppuccin/javascript.svg",
+  "ts": "mods/herdr-fold/icons/catppuccin/typescript.svg",
+  "jsx": "mods/herdr-fold/icons/catppuccin/javascript-react.svg",
+  "tsx": "mods/herdr-fold/icons/catppuccin/typescript-react.svg",
+  "json": "mods/herdr-fold/icons/catppuccin/json.svg",
+  "jsonc": "mods/herdr-fold/icons/catppuccin/json.svg",
+  "md": "mods/herdr-fold/icons/catppuccin/markdown.svg",
+  "markdown": "mods/herdr-fold/icons/catppuccin/markdown.svg",
+  "html": "mods/herdr-fold/icons/catppuccin/html.svg",
+  "htm": "mods/herdr-fold/icons/catppuccin/html.svg",
+  "css": "mods/herdr-fold/icons/catppuccin/css.svg",
+  "scss": "mods/herdr-fold/icons/catppuccin/sass.svg",
+  "sass": "mods/herdr-fold/icons/catppuccin/sass.svg",
+  "less": "mods/herdr-fold/icons/catppuccin/less.svg",
+  "toml": "mods/herdr-fold/icons/catppuccin/toml.svg",
+  "yaml": "mods/herdr-fold/icons/catppuccin/yaml.svg",
+  "yml": "mods/herdr-fold/icons/catppuccin/yaml.svg",
+  "ini": "mods/herdr-fold/icons/catppuccin/config.svg",
+  "cfg": "mods/herdr-fold/icons/catppuccin/config.svg",
+  "conf": "mods/herdr-fold/icons/catppuccin/config.svg",
+  "sh": "mods/herdr-fold/icons/catppuccin/bash.svg",
+  "bash": "mods/herdr-fold/icons/catppuccin/bash.svg",
+  "zsh": "mods/herdr-fold/icons/catppuccin/bash.svg",
+  "fish": "mods/herdr-fold/icons/catppuccin/bash.svg",
+  "ps1": "mods/herdr-fold/icons/catppuccin/powershell.svg",
+  "psm1": "mods/herdr-fold/icons/catppuccin/powershell.svg",
+  "psd1": "mods/herdr-fold/icons/catppuccin/powershell.svg",
+  "bat": "mods/herdr-fold/icons/catppuccin/batch.svg",
+  "cmd": "mods/herdr-fold/icons/catppuccin/batch.svg",
+  "c": "mods/herdr-fold/icons/catppuccin/c.svg",
+  "h": "mods/herdr-fold/icons/catppuccin/c-header.svg",
+  "cpp": "mods/herdr-fold/icons/catppuccin/cpp.svg",
+  "cc": "mods/herdr-fold/icons/catppuccin/cpp.svg",
+  "cxx": "mods/herdr-fold/icons/catppuccin/cpp.svg",
+  "hpp": "mods/herdr-fold/icons/catppuccin/cpp.svg",
+  "go": "mods/herdr-fold/icons/catppuccin/go.svg",
+  "rs": "mods/herdr-fold/icons/catppuccin/rust.svg",
+  "rb": "mods/herdr-fold/icons/catppuccin/ruby.svg",
+  "java": "mods/herdr-fold/icons/catppuccin/java.svg",
+  "swift": "mods/herdr-fold/icons/catppuccin/swift.svg",
+  "lua": "mods/herdr-fold/icons/catppuccin/lua.svg",
+  "sql": "mods/herdr-fold/icons/catppuccin/database.svg",
+  "db": "mods/herdr-fold/icons/catppuccin/database.svg",
+  "sqlite": "mods/herdr-fold/icons/catppuccin/database.svg",
+  "csv": "mods/herdr-fold/icons/catppuccin/csv.svg",
+  "tsv": "mods/herdr-fold/icons/catppuccin/csv.svg",
+  "txt": "mods/herdr-fold/icons/catppuccin/text.svg",
+  "log": "mods/herdr-fold/icons/catppuccin/log.svg",
+  "pdf": "mods/herdr-fold/icons/catppuccin/pdf.svg",
+  "png": "mods/herdr-fold/icons/catppuccin/image.svg",
+  "jpg": "mods/herdr-fold/icons/catppuccin/image.svg",
+  "jpeg": "mods/herdr-fold/icons/catppuccin/image.svg",
+  "gif": "mods/herdr-fold/icons/catppuccin/image.svg",
+  "webp": "mods/herdr-fold/icons/catppuccin/image.svg",
+  "bmp": "mods/herdr-fold/icons/catppuccin/image.svg",
+  "ico": "mods/herdr-fold/icons/catppuccin/image.svg",
+  "tiff": "mods/herdr-fold/icons/catppuccin/image.svg",
+  "svg": "mods/herdr-fold/icons/catppuccin/svg.svg",
+  "mp3": "mods/herdr-fold/icons/catppuccin/audio.svg",
+  "wav": "mods/herdr-fold/icons/catppuccin/audio.svg",
+  "flac": "mods/herdr-fold/icons/catppuccin/audio.svg",
+  "ogg": "mods/herdr-fold/icons/catppuccin/audio.svg",
+  "mp4": "mods/herdr-fold/icons/catppuccin/video.svg",
+  "mkv": "mods/herdr-fold/icons/catppuccin/video.svg",
+  "avi": "mods/herdr-fold/icons/catppuccin/video.svg",
+  "mov": "mods/herdr-fold/icons/catppuccin/video.svg",
+  "webm": "mods/herdr-fold/icons/catppuccin/video.svg",
+  "zip": "mods/herdr-fold/icons/catppuccin/zip.svg",
+  "tar": "mods/herdr-fold/icons/catppuccin/zip.svg",
+  "gz": "mods/herdr-fold/icons/catppuccin/zip.svg",
+  "tgz": "mods/herdr-fold/icons/catppuccin/zip.svg",
+  "bz2": "mods/herdr-fold/icons/catppuccin/zip.svg",
+  "xz": "mods/herdr-fold/icons/catppuccin/zip.svg",
+  "7z": "mods/herdr-fold/icons/catppuccin/zip.svg",
+  "rar": "mods/herdr-fold/icons/catppuccin/zip.svg",
+  "lock": "mods/herdr-fold/icons/catppuccin/lock.svg",
+  "ttf": "mods/herdr-fold/icons/catppuccin/font.svg",
+  "otf": "mods/herdr-fold/icons/catppuccin/font.svg",
+  "woff": "mods/herdr-fold/icons/catppuccin/font.svg",
+  "woff2": "mods/herdr-fold/icons/catppuccin/font.svg"
 };
 export const BY_NAME = [
   [
-    "\ue702",
+    "mods/herdr-fold/icons/catppuccin/git.svg",
     [
       ".gitignore",
       ".gitattributes",
@@ -151,44 +118,65 @@ export const BY_NAME = [
     ]
   ],
   [
-    "\uf308",
+    "mods/herdr-fold/icons/catppuccin/docker.svg",
     [
       "dockerfile",
       "docker-compose"
     ]
   ],
   [
-    "\uf02d",
+    "mods/herdr-fold/icons/catppuccin/readme.svg",
     [
       "readme"
     ]
   ],
   [
-    "\uf24e",
+    "mods/herdr-fold/icons/catppuccin/license.svg",
     [
       "license",
       "copying"
     ]
   ],
   [
-    "\uf084",
+    "mods/herdr-fold/icons/catppuccin/env.svg",
     [
       ".env"
     ]
   ],
   [
-    "\uf487",
+    "mods/herdr-fold/icons/catppuccin/package-json.svg",
     [
-      "package.json",
-      "pyproject.toml",
-      "cargo.toml",
+      "package.json"
+    ]
+  ],
+  [
+    "mods/herdr-fold/icons/catppuccin/python-config.svg",
+    [
+      "pyproject.toml"
+    ]
+  ],
+  [
+    "mods/herdr-fold/icons/catppuccin/cargo.svg",
+    [
+      "cargo.toml"
+    ]
+  ],
+  [
+    "mods/herdr-fold/icons/catppuccin/go-mod.svg",
+    [
       "go.mod"
     ]
   ],
   [
-    "\uf0ad",
+    "mods/herdr-fold/icons/catppuccin/makefile.svg",
     [
       "makefile"
     ]
   ]
 ];
+export const FILE = "mods/herdr-fold/icons/catppuccin/file.svg";
+export const LETTER = {
+  "?": "U",
+  "U": "!"
+};
+/** @typedef {keyof typeof ICONS} IconName */
