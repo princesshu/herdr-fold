@@ -157,6 +157,7 @@ class App(Loop):
         root, with_graph, started = self.root, self.view == "git", self.clock()
         settings = os.path.join(self.state_dir, "settings.json")
         place = self.looked = self.chosen_folder()
+        known, seen = self.repo, self.head                  # the latest commit seen in the repository shown
 
         def work():
             own = git.top(root)
@@ -165,15 +166,17 @@ class App(Loop):
             status = git.status(repo) if repo else git.Status(error=git.status(root).error or "not a git repository")
             graph = git.graph(repo) if repo and with_graph and not status.error else None
             name = git.github_name(repo) if repo else None
-            linked = load_settings(settings)["linked"]           # every tab's sidebar links: another one's may be new
-            latest = git.head(repo) if repo and linked.get(repo) else (None, "")
+            # unlinked once a commit made anywhere (the commit window, a terminal, the agent) closed the issue
+            settled = commit_message.settle(repo, seen if repo == known else None, self.state_dir) if repo else \
+                (None, None)
+            linked = load_settings(settings)["linked"]      # every tab's sidebar and the app mod link: one may be new
             return (repo, name, status, git_marks(status, repo or root, root), graph, started, self.clock(), linked,
-                    latest, own)
+                    settled, own)
 
         self.job("status", work, self.got_status)
 
     def got_status(self, answer):
-        repo, self.github, self.status, marks, graph, started, finished, linked, (head, message), self.own = answer
+        repo, self.github, self.status, marks, graph, started, finished, linked, (issue, head), self.own = answer
         if narrowest(self.tabs()) != self.needs:                # Issues came or went: the header's width with it
             self.needs = narrowest(self.tabs())
             self.job("need", lambda cells=self.needs: self.need(cells))
@@ -183,11 +186,7 @@ class App(Loop):
             self.watcher.git_dir = git.git_dir(repo) if repo else None
             self.head = None
         self.settings["linked"] = linked
-        issue = self.linked()
-        if issue and head and self.head not in (None, head) and commit_message.fixes(message, issue[0]):
-            self.do_unlink()  # a commit made anywhere (the commit window, a terminal, the agent) closed it
-        else:
-            self.views["git"].linked = issue
+        self.views["git"].linked = issue
         self.head = head or self.head
         if self.view not in self.tabs():                # the repository left GitHub (or git)
             self.view = "files"

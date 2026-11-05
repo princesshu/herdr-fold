@@ -70,15 +70,6 @@ def top(path):
     return out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else None
 
 
-def head(root):
-    """The latest commit: (its hash, its message), or (None, "") without one."""
-    out = run(root, "log", "-1", "--format=%H%n%B")
-    if out.returncode != 0 or not out.stdout.strip():
-        return None, ""
-    sha, _, message = out.stdout.partition("\n")
-    return sha.strip(), message
-
-
 def git_dir(path):
     """The repository's own folder (.git, or where a worktree's .git file points), or None outside a repository."""
     out = run(path, "rev-parse", "--absolute-git-dir")
@@ -305,19 +296,20 @@ def graph(root, n=20):
 
 
 # what the Herdr app mod asks for: the arguments each command takes after ROOT, at least and at most (None: any number)
-COMMANDS = {"status": (0, 0), "diff": (1, 1), "show": (1, 1), "graph": (0, 0), "stage": (0, None),
-            "unstage": (1, None), "discard": (1, 1), "commit": (1, 1), "sync": (0, 0), "push": (0, 0)}
+COMMANDS = {"status": (0, 0), "diff": (1, 1), "show": (1, 1), "graph": (0, 0), "github": (0, 0),
+            "stage": (0, None), "unstage": (1, None), "discard": (1, 1), "commit": (1, 1), "sync": (0, 0),
+            "push": (0, 0)}
 
 
 def main(argv):
-    """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: status, graph; diff, show
-    (the text, else why there is none); stage (no PATH: every change), unstage, discard, commit, sync, push (whether
-    each worked, else what to do). The arguments each takes: COMMANDS and the usage line."""
+    """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: status, graph, github (its
+    name on GitHub); diff, show (the text, else why there is none); stage (no PATH: every change), unstage, discard,
+    commit, sync, push (whether each worked, else what to do). The arguments each takes: COMMANDS and the usage line."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     least, most = COMMANDS.get(command, (0, -1))                # an unknown command: no count fits
     given = len(args) - 1                                        # after ROOT
     if not args or given < least or (most is not None and given > most):
-        print("usage: git.py status|graph|sync|push ROOT, git.py diff|discard ROOT PATH, git.py show ROOT HASH, "
+        print("usage: git.py status|graph|github|sync|push ROOT, git.py diff|discard ROOT PATH, git.py show ROOT HASH, "
               "git.py stage ROOT [PATH…], git.py unstage ROOT PATH…, git.py commit ROOT MESSAGE", file=sys.stderr)
         return 2
     root, rest = args[0], args[1:]
@@ -329,6 +321,8 @@ def main(argv):
         answer = {"text": text, "error": error}
     elif command == "graph":
         answer = {"commits": [dict(asdict(c), refs=list(c.refs)) for c in graph(root)]}
+    elif command == "github":
+        answer = {"name": github_name(root)}
     else:
         if command in ("unstage", "discard") or (command == "stage" and rest):     # named files: None, or the error
             error = {"stage": stage, "unstage": unstage}[command](root, rest) if command != "discard" \

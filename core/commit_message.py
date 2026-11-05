@@ -334,20 +334,39 @@ def link(repo, issue, state=None):
     os.replace(temp, path)
 
 
+def settle(repo, seen, state=None):
+    """REPO's linked issue, unlinked once a commit newer than SEEN (the latest one seen before; None: none yet) closes
+    it, wherever it was made: (the issue or None, the latest commit's hash; neither without a link)."""
+    issue = linked_issue(repo, state)
+    if not issue:
+        return None, None
+    sha, _, message = git(repo, "log", "-1", "--format=%H%n%B").partition("\n")
+    sha = sha.strip() or None
+    if seen and sha and sha != seen and fixes(message, issue[0]):
+        link(repo, None, state)
+        return None, sha
+    return issue, sha
+
+
 def main(argv):
     """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: write REPO (the message for
     its staged changes with the linked issue's Fixes line, who wrote it, why the others could not, the staged files),
-    secrets REPO (the staged files named like secrets), linked|unlink REPO and link REPO NUMBER TITLE."""
+    secrets REPO (the staged files named like secrets), link REPO NUMBER TITLE, unlink REPO, settle REPO [SEEN] (the
+    linked issue, unless a commit after SEEN closed it, and the latest commit)."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     linking = command == "link" and len(args) == 3 and args[1].isdigit() and int(args[1]) > 0
-    if linking or command in ("unlink", "linked") and len(args) == 1:
-        if command != "linked":
-            link(args[0], (int(args[1]), args[2]) if linking else None)
+    if linking or command == "unlink" and len(args) == 1:
+        link(args[0], (int(args[1]), args[2]) if linking else None)
         found = linked_issue(args[0])
         print(json.dumps({"linked": list(found) if found else None}))
         return 0
+    if command == "settle" and len(args) in (1, 2):
+        found, head = settle(args[0], args[1] if len(args) == 2 else None)
+        print(json.dumps({"linked": list(found) if found else None, "head": head}))
+        return 0
     if command not in ("write", "secrets") or len(args) != 1:
-        print("usage: commit_message.py write|secrets|linked|unlink REPO | link REPO NUMBER TITLE", file=sys.stderr)
+        print("usage: commit_message.py write|secrets|unlink REPO | link REPO NUMBER TITLE | settle REPO [SEEN]",
+              file=sys.stderr)
         return 2
     if argv[1] == "secrets":
         print(json.dumps({"secret_looking": [path for path in staged(argv[2]) if secret_looking(path)]}))

@@ -164,15 +164,14 @@ class ForeignConfig(Repo):
         self.assertEqual([os.path.basename(m) for m in marks if os.path.exists(m)], [])
 
     def test_a_signed_commit_does_not_start_the_repositorys_signature_check(self):
-        """The Graph and the linked issue's check read the log: a downloaded folder's log.showSignature must not
-        start the signature program its config names."""
+        """The Graph reads the log: a downloaded folder's log.showSignature must not start the signature program its
+        config names."""
         self.write("a.txt")
         self.commit_all()
         sign_head(self.root)
         self.run_git("config", "log.showSignature", "true")
         mark = trap(self.root, "gpg.program", self.folder())
         git.graph(self.root)
-        git.head(self.root)
         self.assertFalse(os.path.exists(mark))
 
 
@@ -517,6 +516,15 @@ class GitHubName(unittest.TestCase):
 
     def remotes(self):
         return subprocess.run(["git", "-C", self.root, "remote"], capture_output=True, text=True).stdout.split()
+
+    def test_the_app_mod_asks_for_it_on_the_repositorys_machine(self):
+        def cli():
+            out = subprocess.run([sys.executable, "-B", git.__file__, "github", self.root], capture_output=True,
+                                 text=True, timeout=60)
+            return json.loads(out.stdout)
+        self.assertEqual(cli(), {"name": None})
+        self.git("remote", "add", "origin", "git@github.com:acme/app.git")
+        self.assertEqual(cli(), {"name": "acme/app"})
 
     def test_origin_wins_over_another_github_remote(self):
         self.git("remote", "add", "fork", "https://github.com/someone/app.git")

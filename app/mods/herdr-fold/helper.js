@@ -396,23 +396,44 @@ export const COMMIT_MESSAGE = [
   "    os.replace(temp, path)",
   "",
   "",
+  "def settle(repo, seen, state=None):",
+  "    \"\"\"REPO's linked issue, unlinked once a commit newer than SEEN (the latest one seen before; None: non" +
+    "e yet) closes",
+  "    it, wherever it was made: (the issue or None, the latest commit's hash; neither without a link).\"\"\"",
+  "    issue = linked_issue(repo, state)",
+  "    if not issue:",
+  "        return None, None",
+  "    sha, _, message = git(repo, \"log\", \"-1\", \"--format=%H%n%B\").partition(\"\\n\")",
+  "    sha = sha.strip() or None",
+  "    if seen and sha and sha != seen and fixes(message, issue[0]):",
+  "        link(repo, None, state)",
+  "        return None, sha",
+  "    return issue, sha",
+  "",
+  "",
   "def main(argv):",
   "    \"\"\"herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: write REPO (t" +
     "he message for",
   "    its staged changes with the linked issue's Fixes line, who wrote it, why the others could not, the stage" +
     "d files),",
-  "    secrets REPO (the staged files named like secrets), linked|unlink REPO and link REPO NUMBER TITLE.\"\"\"",
+  "    secrets REPO (the staged files named like secrets), link REPO NUMBER TITLE, unlink REPO, settle REPO [SE" +
+    "EN] (the",
+  "    linked issue, unless a commit after SEEN closed it, and the latest commit).\"\"\"",
   "    command, args = (argv[1], argv[2:]) if len(argv) > 1 else (\"\", [])",
   "    linking = command == \"link\" and len(args) == 3 and args[1].isdigit() and int(args[1]) > 0",
-  "    if linking or command in (\"unlink\", \"linked\") and len(args) == 1:",
-  "        if command != \"linked\":",
-  "            link(args[0], (int(args[1]), args[2]) if linking else None)",
+  "    if linking or command == \"unlink\" and len(args) == 1:",
+  "        link(args[0], (int(args[1]), args[2]) if linking else None)",
   "        found = linked_issue(args[0])",
   "        print(json.dumps({\"linked\": list(found) if found else None}))",
   "        return 0",
+  "    if command == \"settle\" and len(args) in (1, 2):",
+  "        found, head = settle(args[0], args[1] if len(args) == 2 else None)",
+  "        print(json.dumps({\"linked\": list(found) if found else None, \"head\": head}))",
+  "        return 0",
   "    if command not in (\"write\", \"secrets\") or len(args) != 1:",
-  "        print(\"usage: commit_message.py write|secrets|linked|unlink REPO | link REPO NUMBER TITLE\", file=s" +
-    "ys.stderr)",
+  "        print(\"usage: commit_message.py write|secrets|unlink REPO | link REPO NUMBER TITLE | settle REPO [S" +
+    "EEN]\",",
+  "              file=sys.stderr)",
   "        return 2",
   "    if argv[1] == \"secrets\":",
   "        print(json.dumps({\"secret_looking\": [path for path in staged(argv[2]) if secret_looking(path)]}))",
@@ -738,15 +759,6 @@ export const GIT = [
   "    return out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else None",
   "",
   "",
-  "def head(root):",
-  "    \"\"\"The latest commit: (its hash, its message), or (None, \"\") without one.\"\"\"",
-  "    out = run(root, \"log\", \"-1\", \"--format=%H%n%B\")",
-  "    if out.returncode != 0 or not out.stdout.strip():",
-  "        return None, \"\"",
-  "    sha, _, message = out.stdout.partition(\"\\n\")",
-  "    return sha.strip(), message",
-  "",
-  "",
   "def git_dir(path):",
   "    \"\"\"The repository's own folder (.git, or where a worktree's .git file points), or None outside a repo" +
     "sitory.\"\"\"",
@@ -996,23 +1008,25 @@ export const GIT = [
   "",
   "# what the Herdr app mod asks for: the arguments each command takes after ROOT, at least and at most (None: " +
     "any number)",
-  "COMMANDS = {\"status\": (0, 0), \"diff\": (1, 1), \"show\": (1, 1), \"graph\": (0, 0), \"stage\": (0, None),",
-  "            \"unstage\": (1, None), \"discard\": (1, 1), \"commit\": (1, 1), \"sync\": (0, 0), \"push\": (0," +
-    " 0)}",
+  "COMMANDS = {\"status\": (0, 0), \"diff\": (1, 1), \"show\": (1, 1), \"graph\": (0, 0), \"github\": (0, 0),",
+  "            \"stage\": (0, None), \"unstage\": (1, None), \"discard\": (1, 1), \"commit\": (1, 1), \"sync\":" +
+    " (0, 0),",
+  "            \"push\": (0, 0)}",
   "",
   "",
   "def main(argv):",
   "    \"\"\"herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: status, graph" +
-    "; diff, show",
-  "    (the text, else why there is none); stage (no PATH: every change), unstage, discard, commit, sync, push " +
-    "(whether",
-  "    each worked, else what to do). The arguments each takes: COMMANDS and the usage line.\"\"\"",
+    ", github (its",
+  "    name on GitHub); diff, show (the text, else why there is none); stage (no PATH: every change), unstage, " +
+    "discard,",
+  "    commit, sync, push (whether each worked, else what to do). The arguments each takes: COMMANDS and the us" +
+    "age line.\"\"\"",
   "    command, args = (argv[1], argv[2:]) if len(argv) > 1 else (\"\", [])",
   "    least, most = COMMANDS.get(command, (0, -1))                # an unknown command: no count fits",
   "    given = len(args) - 1                                        # after ROOT",
   "    if not args or given < least or (most is not None and given > most):",
-  "        print(\"usage: git.py status|graph|sync|push ROOT, git.py diff|discard ROOT PATH, git.py show ROOT H" +
-    "ASH, \"",
+  "        print(\"usage: git.py status|graph|github|sync|push ROOT, git.py diff|discard ROOT PATH, git.py show" +
+    " ROOT HASH, \"",
   "              \"git.py stage ROOT [PATH\u2026], git.py unstage ROOT PATH\u2026, git.py commit ROOT MESSAGE\"" +
     ", file=sys.stderr)",
   "        return 2",
@@ -1025,6 +1039,8 @@ export const GIT = [
   "        answer = {\"text\": text, \"error\": error}",
   "    elif command == \"graph\":",
   "        answer = {\"commits\": [dict(asdict(c), refs=list(c.refs)) for c in graph(root)]}",
+  "    elif command == \"github\":",
+  "        answer = {\"name\": github_name(root)}",
   "    else:",
   "        if command in (\"unstage\", \"discard\") or (command == \"stage\" and rest):     # named files: None" +
     ", or the error",

@@ -10,7 +10,7 @@ import sys
 import tempfile
 import unittest
 
-from support import PACKAGE, set_attrs, set_env, stubs, trap
+from support import PACKAGE, set_attrs, set_env, sign_head, stubs, trap
 
 sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import commit_message as cm  # noqa: E402
@@ -405,10 +405,56 @@ class Link(unittest.TestCase):
             return code, (json.loads(out.getvalue()) if out.getvalue() else None)
 
         self.assertEqual(cli("link", "/srv/app", "42", "Login fails"), (0, {"linked": [42, "Login fails"]}))
-        self.assertEqual(cli("linked", "/srv/app"), (0, {"linked": [42, "Login fails"]}))
+        self.assertEqual(cli("settle", "/srv/app"), (0, {"linked": [42, "Login fails"], "head": None}))
         self.assertEqual(cli("unlink", "/srv/app"), (0, {"linked": None}))
-        self.assertEqual(cli("linked", "/srv/app"), (0, {"linked": None}))
+        self.assertEqual(cli("settle", "/srv/app"), (0, {"linked": None, "head": None}))
         self.assertEqual(cli("link", "/srv/app", "x", "Login fails")[0], 2)
+
+
+class Settle(unittest.TestCase):
+    """A linked issue goes once a commit newer than the one seen before closes it, wherever that commit was made."""
+
+    def setUp(self):
+        self.tmp = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.repo, self.state = os.path.join(self.tmp, "app"), os.path.join(self.tmp, "state")
+        set_env(self, GIT_CONFIG_GLOBAL=os.devnull)
+        subprocess.run(["git", "init", "-q", self.repo], check=True)
+        self.commit("feat: start")
+
+    def commit(self, message):
+        subprocess.run(["git", "-C", self.repo, "-c", "user.name=dev", "-c", "user.email=dev@example.com", "commit",
+                        "-q", "--allow-empty", "-m", message], check=True)
+
+    def test_a_newer_commit_that_closes_it_unlinks_it(self):
+        cm.link(self.repo, (42, "Login fails"), self.state)
+        issue, seen = cm.settle(self.repo, None, self.state)
+        self.assertEqual(issue, (42, "Login fails"))
+        self.commit("fix: login\n\nFixes #42")
+        issue, head = cm.settle(self.repo, seen, self.state)
+        self.assertEqual((issue, cm.linked_issue(self.repo, self.state)), (None, None))
+        self.assertNotEqual(head, seen)
+
+    def test_the_commit_seen_before_or_one_that_closes_another_leaves_it(self):
+        self.commit("fix: login\n\nFixes #42")
+        cm.link(self.repo, (42, "Login fails"), self.state)
+        issue, seen = cm.settle(self.repo, None, self.state)          # closed before it was linked: not this one
+        self.assertEqual(issue, (42, "Login fails"))
+        self.assertEqual(cm.settle(self.repo, seen, self.state), ((42, "Login fails"), seen))
+        self.commit("fix: signup\n\nFixes #7")
+        self.assertEqual(cm.settle(self.repo, seen, self.state)[0], (42, "Login fails"))
+
+    def test_without_a_link_it_looks_no_further(self):
+        self.assertEqual(cm.settle(self.repo, None, self.state), (None, None))
+
+    def test_reading_the_log_starts_no_signature_program(self):
+        # a downloaded folder's config can turn log.showSignature on and name the program
+        sign_head(self.repo)
+        subprocess.run(["git", "-C", self.repo, "config", "log.showSignature", "true"], check=True)
+        mark = trap(self.repo, "gpg.program", os.path.join(self.tmp, "trap"))
+        cm.link(self.repo, (42, "Login fails"), self.state)
+        cm.settle(self.repo, None, self.state)
+        self.assertFalse(os.path.exists(mark))
 
 
 if __name__ == "__main__":
