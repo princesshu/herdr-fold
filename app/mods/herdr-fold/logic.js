@@ -157,14 +157,10 @@ export function fileIcon(name, isDir = false, expanded = false) {
 /** A change's letter as the TUI sidebar shows git's CODE (an untracked file U, a conflict !). @param {string} code */
 export const letter = (code) => /** @type {Record<string, string>} */ (LETTER)[code] ?? code;
 
-/** An issue's MARKDOWN as its preview shows it. Anyone may write an issue: an image there is a link to it, never
- * fetched (that would tell its host the viewer's address), and HTML shows as text; code stays as written.
- * @param {string} markdown */
-export function safeMarkdown(markdown) {
-  return markdown.split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/).map((part, i) => (i % 2 ? part
-    : part.replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g, (_m, alt, url) => `[${alt || "image"}](${url})`)
-      .replace(/!\[([^\]]*)\]\[/g, "[$1][").replace(/</g, "&lt;"))).join("");
-}
+/** An issue's MARKDOWN as its preview shows it. Anyone may write an issue: an unseen word joiner splits each "![" and
+ * each tag's "<", in code or not (no guess at where code is), so an image is a link, never fetched (that would tell its
+ * host the viewer's address), and HTML shows as text. @param {string} markdown */
+export const safeMarkdown = (markdown) => markdown.replace(/!\[/g, "!⁠[").replace(/<(?=[A-Za-z/!?])/g, "<⁠");
 
 /** A priority's color by its rank (LEVEL, core/github.py's: Urgent 0 to Low 3), as the TUI sidebar's traffic light;
  * the accent without one. @param {Record<string, string>} t @param {number | null | undefined} level */

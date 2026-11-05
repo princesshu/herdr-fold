@@ -166,15 +166,20 @@ test("the folded sections as kept, as the TUI sidebar keeps them: staged, change
   assert.deepEqual([...foldedSections(undefined)], []);
 });
 
-test("an issue's text shows no image to fetch and no HTML, its code as written", () => {
-  assert.equal(safeMarkdown('See ![shot](https://x.example/a.png "t") here'),
-    "See [shot](https://x.example/a.png) here");
-  assert.equal(safeMarkdown("![](https://x.example/p.gif)"), "[image](https://x.example/p.gif)");
-  assert.equal(safeMarkdown("![logo][1]\n\n[1]: https://x.example/l.png"), "[logo][1]\n\n[1]: https://x.example/l.png");
-  assert.equal(safeMarkdown('<img src="https://x.example/t.gif"> <b>hi</b>'),
-    '&lt;img src="https://x.example/t.gif"> &lt;b>hi&lt;/b>');
-  assert.equal(safeMarkdown("```html\n<img src=x>\n```"), "```html\n<img src=x>\n```");
-  assert.equal(safeMarkdown("use `<div>` here"), "use `<div>` here");
+test("an issue's text has no image to fetch and no HTML, in code or not, and reads as written", () => {
+  // what a parser may take as code where a filter would not (an escaped or unmatched backtick, an open fence)
+  const written = ['See ![shot](https://x.example/a.png "t") here', "![](https://x.example/p.gif)",
+    "![logo][1]\n\n[1]: https://x.example/l.png", "![logo]\n\n[logo]: https://x.example/l.png",
+    "![a [b] c](https://x.example/n.png)", "\\`![x](https://x.example/e.png)\\`", "`![x](https://x.example/u.png)``",
+    "text ```![x](https://x.example/f.png)", '<img src="https://x.example/t.gif"> <b>hi</b>', "<IMG SRC=x>",
+    "</b><!-- c --><?x?>", "\\`<img src=x>\\`", "```html\n<img src=x>\n```", "use `<div>` here"];
+  for (const markdown of written) {
+    const safe = safeMarkdown(markdown);
+    assert.doesNotMatch(safe, /!\[|<[A-Za-z/!?]/, markdown);
+    assert.equal(safe.replaceAll("\u2060", ""), markdown);
+  }
+  const plain = "a < b, x <3, see [docs](https://x.example)";
+  assert.equal(safeMarkdown(plain), plain);
 });
 
 test("an issue goes to the focused tab's own Claude or Codex, not another tab's nor another program", () => {
