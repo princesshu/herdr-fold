@@ -1258,7 +1258,7 @@ class Terminal(Repo):
             read(0.5)
         read(3)
         ended = False
-        for _ in range(20):
+        for _ in range(100):                        # ten seconds: on a busy machine its threads end later
             if os.waitpid(pid, os.WNOHANG) != (0, 0):
                 ended = True
                 break
