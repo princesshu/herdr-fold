@@ -93,10 +93,6 @@ class Tabs(unittest.TestCase):
         self.assertTrue(os.path.isabs(spec["pipeline"][0][0]))
         self.assertTrue(spec["env"]["GH_FORCE_TTY"])
 
-    def test_new_issue_and_comment_run_gh_s_own_prompts(self):
-        self.assertEqual(issue_work.create_argv("acme/app")[1:], ["issue", "create", "-R", "acme/app"])
-        self.assertEqual(issue_work.comment_argv("acme/app", 42)[1:], ["issue", "comment", "42", "-R", "acme/app"])
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -312,12 +312,42 @@ def linked_issue(repo, state=None):
         return None
 
 
+def link(repo, issue, state=None):
+    """ISSUE ((number, title), or None) as the one REPO's next commit fixes, whichever client links it: that entry of
+    the sidebar's settings in STATE (its state folder by default) changed, every other setting as it was."""
+    folder = state or SIDEBAR_STATE
+    path = os.path.join(folder, "settings.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            settings = json.load(f)
+    except (OSError, ValueError):
+        settings = {}
+    settings = settings if isinstance(settings, dict) else {}
+    linked = settings.get("linked") if isinstance(settings.get("linked"), dict) else {}
+    settings["linked"] = {key: value for key, value in linked.items() if key != repo}
+    if issue:
+        settings["linked"][repo] = [int(issue[0]), str(issue[1])]
+    os.makedirs(folder, exist_ok=True)
+    fd, temp = tempfile.mkstemp(dir=folder, prefix=".settings.")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(settings, f, indent=2)
+    os.replace(temp, path)
+
+
 def main(argv):
     """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: write REPO (the message for
     its staged changes with the linked issue's Fixes line, who wrote it, why the others could not, the staged files),
-    secrets REPO (the staged files named like secrets, asked before a commit)."""
-    if len(argv) != 3 or argv[1] not in ("write", "secrets"):
-        print("usage: commit_message.py write|secrets REPO", file=sys.stderr)
+    secrets REPO (the staged files named like secrets), linked|unlink REPO and link REPO NUMBER TITLE."""
+    command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
+    linking = command == "link" and len(args) == 3 and args[1].isdigit() and int(args[1]) > 0
+    if linking or command in ("unlink", "linked") and len(args) == 1:
+        if command != "linked":
+            link(args[0], (int(args[1]), args[2]) if linking else None)
+        found = linked_issue(args[0])
+        print(json.dumps({"linked": list(found) if found else None}))
+        return 0
+    if command not in ("write", "secrets") or len(args) != 1:
+        print("usage: commit_message.py write|secrets|linked|unlink REPO | link REPO NUMBER TITLE", file=sys.stderr)
         return 2
     if argv[1] == "secrets":
         print(json.dumps({"secret_looking": [path for path in staged(argv[2]) if secret_looking(path)]}))

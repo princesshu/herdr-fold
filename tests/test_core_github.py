@@ -15,7 +15,7 @@ from support import PACKAGE, set_env, stubs
 
 sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import github  # noqa: E402
-from github import Query  # noqa: E402
+from github import Issue, Query  # noqa: E402
 
 ISSUES = [{"number": 42, "title": "Login fails on Safari", "state": "OPEN", "updatedAt": "2026-10-22T10:00:00Z",
            "url": "https://github.com/acme/app/issues/42",
@@ -181,10 +181,92 @@ class CommandLine(CLI):
         code, answer = self.cli("prompt", "acme/app", "42")
         self.assertEqual(answer["prompt"], github.prompt("acme/app", github.Issue(42, "")))
 
+    def test_the_open_issues_come_ranked_with_their_priority_and_the_words_a_search_finds_them_by(self):
+        fields = os.path.join(self.tmp, "fields")
+        with open(fields, "w") as f:
+            json.dump({"data": {"repository": {"i42": {"issueFieldValues": {"nodes": []}}, "i38": {
+                "issueFieldValues": {"nodes": [{"name": "High", "field": {"name": "Priority"}}]}}}}}, f)
+        set_env(self, GH_FIELDS=fields)
+        code, answer = self.cli("issues", "acme/app", json.dumps({"state": "open"}))
+        self.assertEqual([(i["number"], i["level"], i["ranked_by"]) for i in answer["issues"]],
+                         [(38, 1, "High"), (42, None, None)])
+        self.assertEqual(github.matches(github.Issue(42, "Login fails on Safari", ("bug", "ui"), ("dev",)),
+                                        ["safari"]), "safari" in answer["issues"][1]["said"])
+        self.assertIn("@dev", answer["issues"][1]["said"])
+
+    def test_an_issue_with_its_comments_for_its_preview(self):
+        with open(self.answer, "w") as f:
+            json.dump({"number": 42, "title": "Login fails on Safari", "body": "Steps:\n\n1. Open it", "state": "OPEN",
+                       "url": "https://github.com/acme/app/issues/42", "createdAt": "2026-10-20T10:00:00Z",
+                       "author": {"login": "ada"}, "labels": [{"name": "bug"}], "assignees": [{"login": "dev"}],
+                       "comments": [{"author": {"login": "lin"}, "body": "Same on iOS", "createdAt":
+                                     "2026-10-21T10:00:00Z"}]}, f)
+        code, answer = self.cli("view", "acme/app", "42")
+        self.assertEqual((code, answer["error"]), (0, None))
+        self.assertEqual(answer["issue"], {
+            "number": 42, "title": "Login fails on Safari", "body": "Steps:\n\n1. Open it", "state": "OPEN",
+            "url": "https://github.com/acme/app/issues/42", "created": "2026-10-20T10:00:00Z", "author": "ada",
+            "labels": ["bug"], "assignees": ["dev"],
+            "comments": [{"author": "lin", "body": "Same on iOS", "created": "2026-10-21T10:00:00Z"}]})
+        self.assertTrue(self.calls()[-1].startswith("issue view 42 -R acme/app --json "))
+
+    def test_an_issue_that_cannot_be_read_says_why(self):
+        set_env(self, GH_FAIL="HTTP 404: Not Found")
+        self.assertEqual(self.cli("view", "acme/app", "42"), (0, {"issue": None, "error": "HTTP 404: Not Found"}))
+
+    def test_a_reply_and_a_new_issue_run_gh_in_a_terminal(self):
+        self.assertEqual(self.cli("reply", "acme/app", "42")[1]["argv"][1:], ["issue", "comment", "42", "-R",
+                                                                              "acme/app"])
+        self.assertEqual(self.cli("create", "acme/app")[1]["argv"][1:], ["issue", "create", "-R", "acme/app"])
+
     def test_anything_else_is_a_usage_error(self):
         for args in (("issues", "acme/app", "{\"state\": \"all\"}"), ("issues", "acme/app", "open"),
-                     ("change", "acme/app", "42", "delete"), ("change", "acme/app", "x", "close"), ("list",)):
+                     ("change", "acme/app", "42", "delete"), ("change", "acme/app", "x", "close"), ("list",),
+                     ("view", "acme/app", "x"), ("reply", "acme/app", "-1"), ("create",)):
             self.assertEqual(self.cli(*args), (2, None), args)
+
+
+class Priority(unittest.TestCase):
+    """The priority an issue is ranked by, the TUI sidebar's and the app mod's alike: GitHub's Priority field, else a
+    priority label, a severity label or a word alone."""
+
+    def test_priority_labels_written_other_ways(self):
+        for label, level in (("🔥 High", 1), ("priority: 1", 1), ("Prio-3", 3), ("P2 · medium", 2), ("prio:1-high", 1),
+                             ("prio:2-medium", 2), ("prio:3-low", 3), ("P1 - Urgent", 0), ("P4: Low", 3),
+                             ("P4", 3), ("P5", 3), ("pri: low", 3), ("priority-low", 3),
+                             ("Priority: Highest", 0), ("Priority: Lowest", 3),                    # Jira's
+                             ("priority/critical-urgent", 0), ("priority/important-soon", 1),      # Kubernetes'
+                             ("priority/important-longterm", 2), ("priority/backlog", 3),
+                             ("priority/awaiting-more-evidence", 3),
+                             ("blocker", 0), ("showstopper", 0), ("important", 1), ("trivial", 3),
+                             ("nice to have", 3), ("priority: minor", 3), ("priority: normal", 2),
+                             ("severity: high", 1), ("severity: major", 1), ("Severity/Minor", 3), ("sev1", 0),
+                             ("sev 2", 1), ("SEV-3", 2), ("sev4", 3), ("severity: 1", 0)):
+            self.assertEqual(github.rank(label), level, label)
+
+    def test_a_word_with_another_meaning_counts_only_when_named(self):
+        # minor and major are release labels too, backlog a state, s3 a storage: alone they are no priority
+        for label in ("minor", "major", "backlog", "normal", "S1", "s3", "p2p", "sprint 3", "primary", "seven"):
+            self.assertIsNone(github.rank(label), label)
+
+    def test_a_priority_label_comes_before_a_severity_one_and_that_before_a_word(self):
+        def first(*labels):
+            return github.priority(Issue(9, "Something", labels, (), "2026-10-22T10:00:00Z", "OPEN", ""))
+        self.assertEqual(first("urgent", "severity: low", "priority: low"), (3, "priority: low"))
+        self.assertEqual(first("urgent", "severity: low"), (3, "severity: low"))
+        self.assertEqual(first("urgent", "low"), (0, "urgent"))                  # among equals: the most pressing
+
+    def test_open_issues_come_by_priority_then_in_gh_order(self):
+        found = (Issue(1, "a", ("low",)), Issue(2, "b"), Issue(3, "c", ("P0",)),
+                 Issue(4, "d", (), (), "", "OPEN", "", "High"), Issue(5, "e", ("bug",)))
+        self.assertEqual([issue.number for issue in github.ranked(found)], [3, 4, 1, 2, 5])
+
+    def test_an_issue_is_found_by_its_number_title_labels_assignees_and_priority(self):
+        issue = Issue(42, "Login fails on Safari", ("bug",), ("dev",), "", "OPEN", "", "High")
+        for words in (["#42"], ["safari", "login"], ["bug"], ["@dev"], ["high"], []):
+            self.assertTrue(github.matches(issue, words), words)
+        self.assertFalse(github.matches(issue, ["chrome"]))
+        self.assertFalse(github.matches(issue, ["login", "chrome"]))
 
 
 class Words(unittest.TestCase):

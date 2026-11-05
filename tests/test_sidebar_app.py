@@ -656,6 +656,20 @@ class IssuesTab(Harness):
             f.write("more\n")
         self.until(lambda s: "Fixes #42" in s, timeout=20)
 
+    def test_a_setting_saved_here_keeps_a_link_another_client_made(self):
+        # the Herdr app mod links through core/commit_message.py's link() between this sidebar's own saves
+        self.on_github()
+        self.start()
+        self.term.type(Key("f11"))
+        self.until(lambda s: "Changes" in s)
+        self.linked_in_settings([42, "Login fails on Safari"])
+        self.term.type(Key("f9"))                                        # a view chosen: the settings saved
+        self.until(lambda s: "Files" in s and "Commit" not in s)
+        with open(os.path.join(self.state, "settings.json")) as f:
+            settings = json.load(f)
+        self.assertEqual((settings["view"], list(settings["linked"].values())),
+                         ("files", [[42, "Login fails on Safari"]]))
+
     def test_x_closes_an_issue_after_a_question(self):
         self.on_github()
         self.start()

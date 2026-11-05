@@ -1,5 +1,7 @@
 """Tests for the commit message writer (core/commit_message.py: the sidebar's, Cmd+Shift+C's and the Herdr app mod's):
 fallback models, a detailed body, nothing private or from secret-like files, tool-less AIs run outside the pane."""
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -366,6 +368,48 @@ class Fixes(unittest.TestCase):
         self.assertEqual(cm.linked_issue("/srv/app", state), (42, "Login fails"))
         self.assertIsNone(cm.linked_issue("/srv/other", state))
         self.assertIsNone(cm.linked_issue("/srv/none", state))
+
+class Link(unittest.TestCase):
+    """The issue a repository's next commit fixes, linked from the TUI sidebar or the Herdr app mod alike: one entry of
+    the sidebar's settings on that machine, every other one as it was."""
+
+    def setUp(self):
+        self.state = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.state)
+
+    def settings(self):
+        with open(os.path.join(self.state, "settings.json")) as f:
+            return json.load(f)
+
+    def test_a_link_changes_only_its_repositorys_entry(self):
+        with open(os.path.join(self.state, "settings.json"), "w") as f:
+            json.dump({"view": "git", "linked": {"/srv/other": [7, "Other"]}}, f)
+        cm.link("/srv/app", (42, "Login fails"), self.state)
+        self.assertEqual(self.settings(), {"view": "git", "linked": {"/srv/other": [7, "Other"],
+                                                                     "/srv/app": [42, "Login fails"]}})
+        cm.link("/srv/app", None, self.state)
+        self.assertEqual(self.settings(), {"view": "git", "linked": {"/srv/other": [7, "Other"]}})
+
+    def test_the_first_link_makes_the_settings(self):
+        state = os.path.join(self.state, "new")
+        cm.link("/srv/app", (42, "Login fails"), state)
+        self.assertEqual(cm.linked_issue("/srv/app", state), (42, "Login fails"))
+
+    def test_the_command_line_links_and_unlinks(self):
+        set_attrs(self, cm, SIDEBAR_STATE=self.state)
+
+        def cli(*args):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                code = cm.main(["commit_message.py", *args])
+            return code, (json.loads(out.getvalue()) if out.getvalue() else None)
+
+        self.assertEqual(cli("link", "/srv/app", "42", "Login fails"), (0, {"linked": [42, "Login fails"]}))
+        self.assertEqual(cli("linked", "/srv/app"), (0, {"linked": [42, "Login fails"]}))
+        self.assertEqual(cli("unlink", "/srv/app"), (0, {"linked": None}))
+        self.assertEqual(cli("linked", "/srv/app"), (0, {"linked": None}))
+        self.assertEqual(cli("link", "/srv/app", "x", "Login fails")[0], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

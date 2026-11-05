@@ -9,7 +9,7 @@ from support import SRC
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import github  # noqa: E402
 from github import Issue, Listing, Query  # noqa: E402
-from issues import Issues, priority, rank  # noqa: E402
+from issues import Issues  # noqa: E402
 from icons import glyphs  # noqa: E402
 from screen import Canvas  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
@@ -109,32 +109,6 @@ class View(unittest.TestCase):
             self.shown(Listing((Issue(9, "Something", (label,), (), "2026-10-22T10:00:00Z", "OPEN", ""),)))
             y = self.row_of("#9 ")
             self.assertEqual((self.canvas.rows[y][0][1].fg, self.canvas.rows[y][1][1].fg), (role, role), label)
-
-    def test_priority_labels_written_other_ways(self):
-        for label, level in (("🔥 High", 1), ("priority: 1", 1), ("Prio-3", 3), ("P2 · medium", 2), ("prio:1-high", 1),
-                             ("prio:2-medium", 2), ("prio:3-low", 3), ("P1 - Urgent", 0), ("P4: Low", 3),
-                             ("P4", 3), ("P5", 3), ("pri: low", 3), ("priority-low", 3),
-                             ("Priority: Highest", 0), ("Priority: Lowest", 3),                    # Jira's
-                             ("priority/critical-urgent", 0), ("priority/important-soon", 1),      # Kubernetes'
-                             ("priority/important-longterm", 2), ("priority/backlog", 3),
-                             ("priority/awaiting-more-evidence", 3),
-                             ("blocker", 0), ("showstopper", 0), ("important", 1), ("trivial", 3),
-                             ("nice to have", 3), ("priority: minor", 3), ("priority: normal", 2),
-                             ("severity: high", 1), ("severity: major", 1), ("Severity/Minor", 3), ("sev1", 0),
-                             ("sev 2", 1), ("SEV-3", 2), ("sev4", 3), ("severity: 1", 0)):
-            self.assertEqual(rank(label), level, label)
-
-    def test_a_word_with_another_meaning_counts_only_when_named(self):
-        # minor and major are release labels too, backlog a state, s3 a storage: alone they are no priority
-        for label in ("minor", "major", "backlog", "normal", "S1", "s3", "p2p", "sprint 3", "primary", "seven"):
-            self.assertIsNone(rank(label), label)
-
-    def test_a_priority_label_comes_before_a_severity_one_and_that_before_a_word(self):
-        def first(*labels):
-            return priority(Issue(9, "Something", labels, (), "2026-10-22T10:00:00Z", "OPEN", ""))
-        self.assertEqual(first("urgent", "severity: low", "priority: low"), (3, "priority: low"))
-        self.assertEqual(first("urgent", "severity: low"), (3, "severity: low"))
-        self.assertEqual(first("urgent", "low"), (0, "urgent"))                  # among equals: the most pressing
 
     def test_githubs_priority_field_comes_before_the_labels(self):
         # an organization's Priority field (Urgent, High, Medium, Low) is GitHub's own: it ranks the issue even over a

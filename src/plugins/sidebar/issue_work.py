@@ -67,11 +67,3 @@ def view_spec(repo, issue):
     return {"title": f"#{issue.number} {truncate(issue.title, TAB_TITLE)}", "line": None, "file": None,
             "pipeline": [[binary, "issue", "view", str(issue.number), "-R", repo, "--comments"]],
             "env": {"GH_FORCE_TTY": "100", "GH_PROMPT_DISABLED": "1", "GH_NO_UPDATE_NOTIFIER": "1"}}
-
-
-def create_argv(repo):
-    return [shutil.which("gh") or "gh", "issue", "create", "-R", repo]
-
-
-def comment_argv(repo, number):
-    return [shutil.which("gh") or "gh", "issue", "comment", str(number), "-R", repo]

@@ -333,8 +333,10 @@ class App(Loop):
 
     def save(self, **changes):
         self.settings.update(changes)
+        path = os.path.join(self.state_dir, "settings.json")
+        self.settings["linked"] = load_settings(path)["linked"]      # commit_message.link() writes them, the app too
         try:
-            statefile.write(os.path.join(self.state_dir, "settings.json"), self.settings, indent=2)
+            statefile.write(path, self.settings, indent=2)
         except OSError as err:
             self.error = f"settings not saved: {err}"
 
@@ -553,10 +555,10 @@ class App(Loop):
         self.job("issue", lambda: github.open_in_browser(name, issue.number), then)
 
     def do_issue_comment(self, issue):
-        self.open_tab(f"issue: #{issue.number}", issue_work.comment_argv(self.github, issue.number))
+        self.open_tab(f"issue: #{issue.number}", github.comment_argv(self.github, issue.number))
 
     def do_new_issue(self):
-        self.open_tab("issue: new", issue_work.create_argv(self.github))
+        self.open_tab("issue: new", github.create_argv(self.github))
 
     def do_issue_change(self, issue, what):
         name, done = self.github, {"close": "Closed", "reopen": "Reopened", "assign": "Assigned to you:"}[what]
@@ -588,7 +590,7 @@ class App(Loop):
         def then(error):
             self.error = error
             if not error:
-                self.link(issue.number, issue.title)
+                self.link((issue.number, issue.title))
 
         self.job("agent", work, then)
 
@@ -597,15 +599,18 @@ class App(Loop):
         found = self.settings["linked"].get(self.repo) if self.repo else None
         return (int(found[0]), str(found[1])) if isinstance(found, list) and len(found) == 2 else None
 
-    def link(self, number, title):
-        linked = {**self.settings["linked"], self.repo: [number, title]}
-        self.views["git"].linked = (number, title)
-        self.save(linked=linked)
-
     def do_unlink(self):
-        linked = {repo: issue for repo, issue in self.settings["linked"].items() if repo != self.repo}
-        self.views["git"].linked = None
-        self.save(linked=linked)
+        self.link(None)
+
+    def link(self, issue):
+        """ISSUE ((number, title), or None) as the one this repository's next commit fixes, as the app mod links it."""
+        try:
+            commit_message.link(self.repo, issue, self.state_dir)
+        except OSError as err:
+            self.error = f"settings not saved: {err}"
+            return
+        self.settings["linked"] = load_settings(os.path.join(self.state_dir, "settings.json"))["linked"]
+        self.views["git"].linked = issue
 
     def do_new_file(self, folder, name):
         self.file_op(lambda: self.ops.new_file(folder, name), folder)

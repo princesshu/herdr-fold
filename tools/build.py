@@ -12,7 +12,8 @@ WIDTH = 110                   # a string literal's cells on a line of helper.js
 # the Herdr app mod's helper.js: the name it imports each module's source by, and the module
 HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"COMMIT_MESSAGE": "commit_message.py",
                                                                     "FILEOPS": "fileops.py", "GIT": "git.py",
-                                                                    "JOB": "job.py", "SEARCH": "search.py"}}
+                                                                    "GITHUB": "github.py", "JOB": "job.py",
+                                                                    "SEARCH": "search.py"}}
 MOD_ONLY = {"job.py"}         # what only the mod runs (its background jobs): the sidebar gets no copy
 ICONS = os.path.join("app", "mods", "herdr-fold", "icons.js")       # core/icons.py's tables, for the mod to draw
 THEMES = os.path.join("app", "themes")      # the TUI's themes in the Herdr app: herdr-fold-ID.json for each, and
