@@ -37,13 +37,14 @@ path. `tests/test_lab.py` checks the lab itself without a machine, in the usual 
 
 ## On GitHub's runners
 
-`.github/workflows/lab.yml` runs the lab where this Mac cannot: a clean Mac, Linux on x86_64 and Windows. It runs only
-when started by hand (`gh workflow run lab`, or Run workflow under Actions), on GitHub's own runners, with a token that
-only reads and no secrets:
+`.github/workflows/lab.yml` runs the lab where this Mac cannot: a clean Mac, Linux on x86_64 and Windows, and the unit
+tests on a clean Mac, at the end of a larger piece of work. It runs only when started by hand (`gh workflow run lab`, or
+Run workflow under Actions), on GitHub's own runners, with a token that only reads and no secrets:
 
 | Job | What it does |
 |---|---|
 | `mac` | the Herdr app from its installer, `./install.sh` as a person runs it (Homebrew installs what is missing), then `ci/mac_machine.py` and `python3 lab/lab.py test`: the whole way to the runner itself as `dev`, the app's window included; when it fails, a picture of the window, kept a day |
+| `unit` | `tests/`, the unit tests, as on the maintainer's Mac: with the Herdr app from its installer for its check of the mod, PowerShell (the runner's) for the Windows scripts, the whole history for the privacy test |
 | `linux`, `windows` | `ci/machine_side.py`: the payload `machines.sh` sends, its prepare script, the mod's core through a commit and a push, and the prepare script taking it off |
 
 `ci/mac_machine.py` and `ci/machine_side.py` stop at once anywhere else: they add a user, start a server as root or

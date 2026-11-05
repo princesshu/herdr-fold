@@ -1,6 +1,6 @@
-# For the maintainer, run by hand: herdr-fold's lab on GitHub's own runners (lab/README.md). The Mac installs it as a
-# person does and reaches itself as a second user over SSH, the whole remote way; Linux and Windows run a machine's
-# side as machines.sh does over SSH. No secrets: the token only reads.
+# For the maintainer, run by hand: herdr-fold's lab on GitHub's own runners (lab/README.md). A Mac installs it as a
+# person does and reaches itself as a second user over SSH, another runs the unit tests; Linux and Windows run a
+# machine's side as machines.sh does over SSH. No secrets: the token only reads.
 name: Lab
 
 on:
@@ -41,6 +41,26 @@ jobs:
           path: ${{ runner.temp }}/lab-artifacts
           retention-days: 1
           if-no-files-found: ignore
+
+  unit:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      DO_NOT_TRACK: "1"
+      HERDR_TELEMETRY: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0                                    # the privacy test reads every commit, tag and branch
+      - name: The Herdr app, for its own check of the mod
+        run: |
+          curl -fsSL https://releases.herdr.dev/app/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: The unit tests, PowerShell's for the Windows scripts too
+        run: /usr/bin/python3 -m unittest discover -s tests
+        env:
+          GH_TOKEN: ${{ github.token }}                     # the privacy test reads the repository's About with it
 
   linux:
     runs-on: ubuntu-latest
