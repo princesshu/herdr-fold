@@ -234,9 +234,10 @@ def comment_argv(repo, number):
     return [shutil.which("gh") or "gh", "issue", "comment", str(number), "-R", repo]
 
 
-def open_in_browser(repo, number):
-    """Issue NUMBER in the browser of the machine the sidebar runs on: None when it opened, else why not."""
-    done = gh("issue", "view", str(number), "-R", repo, "--web")
+def open_in_browser(repo, number=None):
+    """Issue NUMBER of REPO, or without one REPO's own page, in the browser of the machine the sidebar runs on: None
+    when it opened, else why not."""
+    done = gh("issue", "view", str(number), "-R", repo, "--web") if number else gh("repo", "view", repo, "--web")
     return None if done is not None and done.returncode == 0 else failure(done)
 
 

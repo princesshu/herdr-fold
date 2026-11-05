@@ -15,6 +15,7 @@ from dataclasses import asdict, dataclass, replace
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 import statefile  # noqa: E402
+from github import since  # noqa: E402
 
 INDEX = "conversation-index.json"     # what was read of each file, and where it stopped
 SETTINGS = "conversations.json"       # the column's settings, the archived conversations among them
@@ -452,8 +453,8 @@ def state_folder():
 
 def main(argv):
     """herdr-fold's Herdr app mod runs this on the Mac, answering in JSON: list AGENTS RESUMED (herdr's agents and
-    {pane: id}, as JSON: the running ones marked), rename SESSION NAME, archive|unarchive KEY… ("<agent>:<id>") and
-    markdown AGENT ID (the whole conversation, for Copy conversation)."""
+    {pane: id}, as JSON: the running ones marked, how long ago each changed), rename SESSION NAME, archive|unarchive
+    KEY… ("<agent>:<id>") and markdown AGENT ID (the whole conversation, for Copy conversation)."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     state = state_folder()
     try:
@@ -461,7 +462,8 @@ def main(argv):
             agents, resumed = json.loads(args[0]), json.loads(args[1])
             if not isinstance(agents, list) or not isinstance(resumed, dict):
                 raise ValueError("not a list")
-            answer = {"conversations": [asdict(item) for item in local(state, agents, resumed)],
+            listed = local(state, agents, resumed)
+            answer = {"conversations": [{**asdict(item), "ago": since(item.time)} for item in listed],
                       "archived": sorted(archived(state))}
         elif command == "rename" and len(args) == 2:
             try:

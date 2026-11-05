@@ -8,6 +8,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 import unittest
 
 from support import PACKAGE, finished, jsonl, set_env
@@ -257,6 +258,10 @@ class CommandLine(Conversations):
         self.assertEqual([(c["id"], c["state"], c["pane"]) for c in answer["conversations"]],
                          [("s2", "working", "p1"), ("s1", "", "")])            # the newest in the folder runs
         self.assertEqual(answer["archived"], ["claude:s1"])
+
+    def test_the_list_says_how_long_ago_each_changed(self):
+        self.claude("s1", prompt("Fix the login"), changed=time.time() - 2 * 3600)
+        self.assertEqual([c["ago"] for c in self.cli("list", "[]", "{}")[1]["conversations"]], ["2h"])
 
     def test_one_is_archived_and_brought_back(self):
         self.assertEqual(self.cli("archive", "claude:s1", "codex:c2"), (0, {"ok": True}))

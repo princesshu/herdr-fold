@@ -147,6 +147,8 @@ class CLI(unittest.TestCase):
             pass
         self.assertIsNone(github.open_in_browser("acme/app", 42))
         self.assertEqual(logged(self.log)[-1], "issue view 42 -R acme/app --web")
+        self.assertIsNone(github.open_in_browser("acme/app"))                 # no issue: the repository's own page
+        self.assertEqual(logged(self.log)[-1], "repo view acme/app --web")
         set_env(self, GH_FAIL="exec: xdg-open: not found")
         self.assertEqual(github.open_in_browser("acme/app", 42), "exec: xdg-open: not found")
 

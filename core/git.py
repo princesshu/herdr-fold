@@ -297,19 +297,20 @@ def graph(root, n=20):
 # what the Herdr app mod asks for: the arguments each command takes after ROOT, at least and at most (None: any number)
 COMMANDS = {"status": (0, 0), "diff": (1, 1), "show": (1, 1), "graph": (0, 0), "github": (0, 0),
             "stage": (0, None), "unstage": (1, None), "discard": (1, 1), "commit": (1, 1), "sync": (0, 0),
-            "push": (0, 0)}
+            "push": (0, 0), "pull": (0, 0)}
 
 
 def main(argv):
     """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: status, graph, github (its
     name on GitHub); diff, show (the text, else why there is none); stage (no PATH: every change), unstage, discard,
-    commit, sync, push (whether each worked, else what to do). The arguments each takes: COMMANDS and the usage line."""
+    commit, sync, push, pull (whether each worked, else what to do). COMMANDS and the usage line: their arguments."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     least, most = COMMANDS.get(command, (0, -1))                # an unknown command: no count fits
     given = len(args) - 1                                        # after ROOT
     if not args or given < least or (most is not None and given > most):
-        print("usage: git.py status|graph|github|sync|push ROOT, git.py diff|discard ROOT PATH, git.py show ROOT HASH, "
-              "git.py stage ROOT [PATH…], git.py unstage ROOT PATH…, git.py commit ROOT MESSAGE", file=sys.stderr)
+        print("usage: git.py status|graph|github|sync|push|pull ROOT, git.py diff|discard ROOT PATH, "
+              "git.py show ROOT HASH, git.py stage ROOT [PATH…], git.py unstage ROOT PATH…, "
+              "git.py commit ROOT MESSAGE", file=sys.stderr)
         return 2
     root, rest = args[0], args[1:]
     if command == "status":
@@ -328,7 +329,8 @@ def main(argv):
                 else discard(root, rest[0])
             ok, line = error is None, error or ""
         else:
-            ok, line = {"stage": stage_all, "commit": commit, "sync": sync, "push": push}[command](root, *rest)
+            act = {"stage": stage_all, "commit": commit, "sync": sync, "push": push, "pull": pull}[command]
+            ok, line = act(root, *rest)
         answer = {"ok": ok, "advice": None if ok else advice(line)}
     print(json.dumps(answer))
     return 0

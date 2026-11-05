@@ -221,6 +221,7 @@ class CommandLine(Repo):
         self.run_git("remote", "add", "origin", remote)
         self.assertEqual(self.cli("push", self.root), {"ok": True, "advice": None})
         self.assertEqual(self.cli("status", self.root)["upstream"], "origin/main")
+        self.assertEqual(self.cli("pull", self.root), {"ok": True, "advice": None})     # the repository row's ⋯
 
     def test_named_files_staged_and_unstaged_the_rest_left(self):
         self.write("a.txt")
