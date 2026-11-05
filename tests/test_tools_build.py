@@ -5,8 +5,10 @@ import importlib.util
 import json
 import os
 import re
+import subprocess
 import sys
 import sysconfig
+import tempfile
 import unittest
 
 from support import PACKAGE
@@ -49,6 +51,20 @@ class Literal(unittest.TestCase):
         self.assertEqual("".join(pieces[:-1]), line)                     # the last is join()'s own "\\n"
         self.assertTrue(all(piece.endswith(" ") for piece in pieces[:-2]), pieces)
         self.assertTrue(all(len(row) <= 120 for row in made.split("\n")))
+
+
+class Runnable(unittest.TestCase):
+    def test_a_module_that_imports_another_runs_alone_as_the_mod_runs_it(self):
+        # one source given to Python's -c on the space's machine: the core modules it imports defined there first
+        with tempfile.TemporaryDirectory() as home:
+            done = subprocess.run(["/usr/bin/python3", "-I", "-c", build.runnable("conversations.py"), "list", "[]",
+                                   "{}"], env={"HOME": home, "PATH": "/usr/bin:/bin"}, capture_output=True, text=True,
+                                  timeout=30)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(json.loads(done.stdout), {"conversations": [], "archived": []})
+
+    def test_a_module_that_imports_none_is_its_source(self):
+        self.assertEqual(build.runnable("git.py"), build.core("git.py"))
 
 
 class AppTheme(unittest.TestCase):

@@ -4,6 +4,7 @@ theme, made from the TUI's. Edit those, then run this: tests/test_tools_build.py
 import importlib.util
 import json
 import os
+import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -23,6 +24,17 @@ THEME = os.path.join(THEMES, "herdr-fold.json")   # the herdr-fold layout's own 
 def core(name):
     with open(os.path.join(ROOT, "core", name), encoding="utf-8") as f:
         return f.read()
+
+
+def runnable(name):
+    """core/NAME's source as the mod runs it, with Python's -c on the space's machine: the core modules it imports made
+    there first, each from its own source, so it runs alone."""
+    source = core(name)
+    needed = [module for module in re.findall(r"^import (\w+)", source, re.M)
+              if os.path.isfile(os.path.join(ROOT, "core", module + ".py"))]
+    made = "".join(f"_sys.modules[{m!r}] = _types.ModuleType({m!r})\n"
+                   f"exec({core(m + '.py')!r}, _sys.modules[{m!r}].__dict__)\n" for m in needed)
+    return f"import sys as _sys, types as _types\n{made}{source}" if needed else source
 
 
 def note(name):
@@ -96,7 +108,7 @@ def outputs():
             for name in sorted(os.listdir(os.path.join(ROOT, "core"))) if name.endswith(".py") and name not in MOD_ONLY}
     for path, sources in HELPERS.items():
         lines = js_note(list(sources.values()))
-        lines += [f"export const {const} = {literal(core(name))};" for const, name in sources.items()]
+        lines += [f"export const {const} = {literal(runnable(name))};" for const, name in sources.items()]
         made[path] = "\n".join(lines) + "\n"
     made[ICONS] = icons_js()
     themes, own = tui_themes()
