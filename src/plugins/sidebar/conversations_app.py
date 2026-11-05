@@ -97,7 +97,7 @@ class ConversationsApp(Loop):
             untold = {agent.get("pane_id") for agent in agents if not (agent.get("agent_session") or {}).get("value")}
             if set(reopened) - untold:
                 reopened = {pane: id for pane, id in reopened.items() if pane in untold}
-                conversations_pane.keep(self.state_dir, resumed=reopened)
+                conversations.keep(self.state_dir, resumed=reopened)
         names = {space["workspace_id"]: space.get("label") or space["workspace_id"] for space in spaces}
         folders = {}
         for pane in panes:
@@ -111,7 +111,7 @@ class ConversationsApp(Loop):
                 "order": [names[s["workspace_id"]] for s in spaces], "front": front, "tab": tab,
                 "states": {names[s["workspace_id"]]: s.get("agent_status") for s in spaces},
                 "icons": icons_on(self.state_dir),
-                "archived": conversations_pane.archived(self.state_dir), "missing": missing if tab else set()}
+                "archived": conversations.archived(self.state_dir), "missing": missing if tab else set()}
 
     def got(self, seen):
         names, self.folders, self.tab = seen["names"], seen["folders"], seen["tab"]
@@ -171,7 +171,7 @@ class ConversationsApp(Loop):
         if self.view.collapsed:
             return right, RAIL + frame, frame
         before = whole - right
-        mine = (1 - (column.saved(self.state_dir, conversations_pane.FILE) or conversations_pane.RATIO)) * before
+        mine = (1 - (column.saved(self.state_dir, conversations.SETTINGS) or conversations_pane.RATIO)) * before
         least = conversations_pane.MIN_OPEN if opening else conversations_pane.COLLAPSE_BELOW
         if mine - frame < least:                                # opened from a rail: never as squeezed as it was
             mine = max((1 - conversations_pane.RATIO) * before, min(least + frame, before / 2))
@@ -220,7 +220,7 @@ class ConversationsApp(Loop):
             self.unsaved = False
             column.spread(self.state_dir, pane, right=right / whole,
                           agent=None if self.view.collapsed else 1 - mine / (whole - right),
-                          file=conversations_pane.FILE)
+                          file=conversations.SETTINGS)
         return None
 
     def dragged(self, result):
@@ -307,14 +307,14 @@ class ConversationsApp(Loop):
 
     def do_show_archived(self, shown):
         """The archived conversations in sight (SHOWN) or out of it, in every tab."""
-        conversations_pane.keep(self.state_dir, show_archived=shown)
+        conversations.keep(self.state_dir, show_archived=shown)
         self.view.show_archived = shown
         self.view.rebuild()
 
     def file(self, items, off):
         """ITEMS off the list (OFF) or back on it, in every tab; their files as they were."""
         keys = {self.view.archive_key(item) for item in items}
-        conversations_pane.archive(self.state_dir, keys, off)
+        conversations.archive(self.state_dir, keys, off)
         self.view.archived = (self.view.archived | keys) if off else (self.view.archived - keys)
         self.view.rebuild()
 

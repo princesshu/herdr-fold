@@ -149,14 +149,14 @@ class Column(AppScreen, unittest.TestCase):
         self.start()
         self.choose("Price list", "Archive")
         self.until(lambda s: "Price list" not in s and "Archived" in s)
-        self.assertEqual(conversations_pane.archived(self.state), {"claude:s2"})
+        self.assertEqual(conversations.archived(self.state), {"claude:s2"})
         with open(os.path.join(self.home, ".claude", "projects", "-repo-app", "s2.jsonl"), encoding="utf-8") as f:
             self.assertIn("Price list", f.read())                  # its file as it was: resumable as before
         self.term.type(*[Key("char", ch) for ch in "archived"])
         self.until(lambda s: "Price list" in s)
         self.choose("Price list", "Unarchive")
         self.until(lambda s: "Back in the list" in s)
-        self.assertEqual(conversations_pane.archived(self.state), set())
+        self.assertEqual(conversations.archived(self.state), set())
 
     def test_the_marked_ones_are_archived_together(self):
         self.claude("s4", "/repo/app", "Draft notes", time.time() - 7200)
@@ -168,7 +168,7 @@ class Column(AppScreen, unittest.TestCase):
         self.until(lambda s: "Archive 2 conversations" in s.splitlines()[y + 1])
         self.term.type(Mouse("press", 14, y + 1, 0))
         self.until(lambda s: "Price list" not in s and "Draft notes" not in s and "2 archived" in s)
-        self.assertEqual(conversations_pane.archived(self.state), {"claude:s2", "claude:s4"})
+        self.assertEqual(conversations.archived(self.state), {"claude:s2", "claude:s4"})
 
     def names(self):
         with open(os.path.join(self.home, ".local", "state", "herdr", "plugins", "herdr-fold.sessions-view",
@@ -209,7 +209,7 @@ class Column(AppScreen, unittest.TestCase):
 
     def test_show_archived_in_one_tab_shows_them_in_every_tab(self):
         self.start()
-        conversations_pane.archive(self.state, {"claude:s2"})                 # archived in another tab
+        conversations.archive(self.state, {"claude:s2"})                 # archived in another tab
         self.until(lambda s: "Fix the login" in s and "Price list" not in s)
         conversations_pane.keep(self.state, show_archived=True)               # Show archived in another tab
         self.until(lambda s: "Price list" in s and "archived" in s)
@@ -359,7 +359,7 @@ class Width(unittest.TestCase):
                 if method == "layout.set_split_ratio"]
 
     def remember(self, ratio):
-        with open(os.path.join(self.state, conversations_pane.FILE), "w") as f:
+        with open(os.path.join(self.state, conversations.SETTINGS), "w") as f:
             json.dump({"ratio": ratio}, f)
 
     def test_collapsed_a_rail_the_agent_taking_the_room_the_right_column_kept(self):
@@ -413,7 +413,7 @@ class Width(unittest.TestCase):
             self.term.cols = round(width * 0.25)
             self.assertIsNone(self.app.drag("w1:p4"), width)
             self.assertEqual(column.cells(column.read("w1:p4")), (width // 2, width // 4, width // 4), width)
-        self.assertEqual([name for name in ("column.json", conversations_pane.FILE)
+        self.assertEqual([name for name in ("column.json", conversations.SETTINGS)
                           if os.path.exists(os.path.join(self.state, name))], [])
 
     def test_open_the_agents_border_moves_only_this_column(self):
@@ -421,14 +421,14 @@ class Width(unittest.TestCase):
         self.layout(0.4, 0.5)                                    # dragged: the agent 80, the two others 60 each
         self.assertIsNone(self.app.drag("w1:p4"))
         self.assertEqual(self.sets(), [([True], 0.5833)])        # this column 70, the right column 50 as it was
-        self.assertEqual((self.saved("column.json"), self.saved(conversations_pane.FILE)), (0.75, 0.5333))
+        self.assertEqual((self.saved("column.json"), self.saved(conversations.SETTINGS)), (0.75, 0.5333))
 
     def test_open_the_right_columns_border_widens_it_this_column_moving_with_it(self):
         self.app.view.collapsed, self.app.placed, self.app.last = False, True, (90, 60, 50)
         self.layout(0.45, 0.4545)                                # dragged into this column: it 50, the right one 60
         self.assertIsNone(self.app.drag("w1:p4"))
         self.assertEqual(self.sets(), [([], 0.4), ([True], 0.5)])   # this column 60 again, the agent 80
-        self.assertEqual((self.saved("column.json"), self.saved(conversations_pane.FILE)), (0.7, 0.5714))
+        self.assertEqual((self.saved("column.json"), self.saved(conversations.SETTINGS)), (0.7, 0.5714))
 
     def test_the_right_column_keeps_room_for_the_sidebars_buttons(self):
         self.app.view.collapsed, self.app.placed, self.app.last = False, True, (90, 60, 50)
@@ -458,7 +458,7 @@ class Width(unittest.TestCase):
         self.app.view.collapsed, self.app.placed, self.app.last = False, True, (90, 60, 50)
         self.layout(0.65, 0.2857)                                # the agent 130: this column 20
         self.assertIsNone(self.app.drag("w1:p4"))
-        self.assertEqual(self.saved(conversations_pane.FILE), 0.8667)
+        self.assertEqual(self.saved(conversations.SETTINGS), 0.8667)
         self.app.place("w1:p4")                                  # started again: as it was left
         self.assertEqual(column.cells(column.read("w1:p4")), (130, 20, 50))
 

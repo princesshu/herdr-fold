@@ -12,6 +12,7 @@ from unittest import mock
 from support import SRC, set_env, stubs
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
+import conversations  # noqa: E402
 import conversations_pane as pane  # noqa: E402
 import panels  # noqa: E402
 
@@ -73,7 +74,7 @@ class Place(unittest.TestCase):
         self.state = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.state)
 
-    def write(self, data, name=pane.FILE):
+    def write(self, data, name=conversations.SETTINGS):
         with open(os.path.join(self.state, name), "w") as f:
             json.dump(data, f)
 
@@ -82,18 +83,19 @@ class Place(unittest.TestCase):
         self.write({"ratio": 0.65})
         pane.collapse(self.state, True)
         self.assertTrue(pane.is_collapsed(self.state))
-        with open(os.path.join(self.state, pane.FILE)) as f:
+        with open(os.path.join(self.state, conversations.SETTINGS)) as f:
             self.assertEqual(json.load(f), {"ratio": 0.65, "collapsed": True})
 
     def test_archived_ones_are_kept_with_the_rest(self):
         self.write({"ratio": 0.65, "collapsed": True})
-        pane.archive(self.state, {"claude:s1", "claude:s2"})
-        pane.archive(self.state, {"codex:c1"})
-        pane.archive(self.state, {"claude:s1", "claude:s2"}, False)
-        self.assertEqual(pane.archived(self.state), {"codex:c1"})
-        self.assertEqual(pane.setting(self.state), {"ratio": 0.65, "collapsed": True, "archived": ["codex:c1"]})
+        conversations.archive(self.state, {"claude:s1", "claude:s2"})
+        conversations.archive(self.state, {"codex:c1"})
+        conversations.archive(self.state, {"claude:s1", "claude:s2"}, False)
+        self.assertEqual(conversations.archived(self.state), {"codex:c1"})
+        self.assertEqual(conversations.setting(self.state),
+                         {"ratio": 0.65, "collapsed": True, "archived": ["codex:c1"]})
         self.assertFalse(pane.shows_archived(self.state))
-        pane.keep(self.state, show_archived=True)
+        conversations.keep(self.state, show_archived=True)
         self.assertTrue(pane.shows_archived(self.state))
 
     def test_the_panes_reopening_a_conversation_are_kept_with_the_rest(self):

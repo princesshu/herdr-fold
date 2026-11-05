@@ -64,7 +64,7 @@ class OwnerOnly(unittest.TestCase):
         conversations_pane.keep(self.state, collapsed=True)
         panels.note(self.state, {"w1:t1": {"sidebar"}})
         column.keep(self.state, {"ratio": 0.7})
-        self.assert_owner_only(conversations.INDEX, conversations_pane.FILE, panels.FILE, column.FILE)
+        self.assert_owner_only(conversations.INDEX, conversations.SETTINGS, panels.FILE, column.FILE)
 
     def test_a_handover_and_the_settings_are_their_owners_only(self):
         set_env(self, **{loop.RESUME_ENV: ""})

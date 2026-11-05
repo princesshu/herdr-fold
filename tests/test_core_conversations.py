@@ -1,6 +1,8 @@
 """Tests for core/conversations.py in a temporary HOME: the Claude Code and Codex conversations with title, folder,
 time and state; a file read again only where it grew, unreadable files and damaged lines skipped, none of their files
 written."""
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -235,6 +237,45 @@ class Conversations(unittest.TestCase):
             for root, _, files in os.walk(os.path.join(self.home, top)):
                 for name in files:
                     self.assertIn(os.path.join(root, name), paths)
+
+
+class CommandLine(Conversations):
+    """The app mod's: its answers as JSON on stdout, in the same state folder as the TUI's column."""
+
+    def cli(self, *args):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            code = conversations.main(["conversations.py", *args])
+        return code, json.loads(out.getvalue()) if code == 0 else None
+
+    def test_the_list_marks_the_running_ones_and_names_the_archived(self):
+        self.claude("s1", prompt("Fix the login"), changed=100)
+        self.claude("s2", prompt("Price list"), changed=200)
+        conversations.archive(self.state, {"claude:s1"})
+        agents = [{"agent": "claude", "agent_status": "working", "pane_id": "p1", "cwd": "/repo/app"}]
+        code, answer = self.cli("list", json.dumps(agents), "{}")
+        self.assertEqual([(c["id"], c["state"], c["pane"]) for c in answer["conversations"]],
+                         [("s2", "working", "p1"), ("s1", "", "")])            # the newest in the folder runs
+        self.assertEqual(answer["archived"], ["claude:s1"])
+
+    def test_one_is_archived_and_brought_back(self):
+        self.assertEqual(self.cli("archive", "claude:s1", "codex:c2"), (0, {"ok": True}))
+        self.cli("unarchive", "claude:s1")
+        self.assertEqual(conversations.archived(self.state), {"codex:c2"})
+
+    def test_a_rename_is_kept_with_herdrs_names(self):
+        self.claude("s1", prompt("Fix the login"))
+        self.assertEqual(self.cli("rename", "s1", "Login fix"), (0, {"ok": True, "advice": None}))
+        self.assertEqual(self.listed()["s1"].title, "Login fix")
+
+    def test_the_markdown_is_the_whole_conversation_or_none(self):
+        self.claude("s1", prompt("Fix the login"))
+        self.assertTrue(self.cli("markdown", "claude", "s1")[1]["markdown"].startswith("# Fix the login"))
+        self.assertEqual(self.cli("markdown", "claude", "gone"), (0, {"markdown": None}))
+
+    def test_anything_else_is_a_usage_error(self):
+        for args in ((), ("list",), ("list", "{}", "{}"), ("rename", "s1"), ("archive",), ("eat",)):
+            self.assertEqual(self.cli(*args)[0], 2, args)
 
 
 class Readers(unittest.TestCase):

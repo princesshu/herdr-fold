@@ -1,7 +1,6 @@
 """The Conversations column's pane in every tab with a right column: --toggle collapses or opens it, --restore brings
 back the tab's panes closed by hand, --closed shows the closed-pane tip once, --find opens it here with the keys.
 Usage: python3 conversations_pane.py --toggle | --restore | --closed | --find | --bring TAB KIND…"""
-import json
 import os
 import shlex
 import subprocess
@@ -12,11 +11,9 @@ sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import column  # noqa: E402
 import panels  # noqa: E402
-import statefile  # noqa: E402
-from conversations import state_folder  # noqa: E402
+from conversations import SETTINGS, keep, setting, state_folder  # noqa: E402
 from preview import Herdr, quote_powershell  # noqa: E402
 
-FILE = "conversations.json"
 NAME = column.CONVERSATIONS
 RATIO = 0.7                   # the agent's share of what is before the right column until the column is dragged
 MIN_OPEN = 32                 # the cells it opens to at least, from a rail
@@ -54,15 +51,6 @@ def sidebar_command(windows=os.name == "nt"):
     return f"{typed(sys.executable, False)} -B {typed(SIDEBAR, False)}"
 
 
-def setting(state_dir):
-    try:
-        with open(os.path.join(state_dir, FILE), encoding="utf-8") as f:
-            kept = json.load(f)
-    except (OSError, ValueError):
-        return {}
-    return kept if isinstance(kept, dict) else {}
-
-
 def is_collapsed(state_dir):
     return setting(state_dir).get("collapsed") is True
 
@@ -71,28 +59,9 @@ def shows_archived(state_dir):
     return setting(state_dir).get("show_archived") is True
 
 
-def keep(state_dir, **values):
-    """VALUES kept in FILE, whatever else it keeps staying."""
-    try:
-        statefile.write(os.path.join(state_dir, FILE), {**setting(state_dir), **values})
-    except OSError:
-        pass
-
-
 def collapse(state_dir, collapsed):
     """COLLAPSED kept for every tab's column."""
     keep(state_dir, collapsed=collapsed)
-
-
-def archived(state_dir):
-    """The conversations taken off the list, as "<agent>:<id>"."""
-    kept = setting(state_dir).get("archived")
-    return {key for key in kept if isinstance(key, str)} if isinstance(kept, list) else set()
-
-
-def archive(state_dir, keys, off=True):
-    """The conversations KEYS ("<agent>:<id>") off the list (OFF), or back on it; their files stay as they are."""
-    keep(state_dir, archived=sorted(archived(state_dir) | keys if off else archived(state_dir) - keys))
 
 
 def resumed(state_dir):
@@ -112,7 +81,7 @@ def build(call, pane, cwd, state_dir, run=None, sidebar_run=None, scope=""):
     SIDEBAR_RUN: the panes' commands (else this plugin's)."""
     where = ["--cwd", cwd] if cwd else []
     before = column.saved(state_dir) or column.RIGHT              # the share before the right column
-    agent = column.saved(state_dir, FILE) or RATIO
+    agent = column.saved(state_dir, SETTINGS) or RATIO
     mine = before * (1 - agent)
     made = call("pane", "split", "--pane", pane, "--direction", "right", "--ratio", f"{before * agent:.4g}", *where,
                 "--no-focus")["pane"]
@@ -145,7 +114,7 @@ def insert(call, sidebar, cwd, state_dir, run=None, sidebar_run=None, scope=""):
             height = shown[sidebar]["height"] / max(1, shown[sidebar]["height"] + shown[below]["height"])
         call("pane", "close", sidebar)
     anchor = below or sidebar
-    agent = column.saved(state_dir, FILE) or RATIO
+    agent = column.saved(state_dir, SETTINGS) or RATIO
     before = column.saved(state_dir) or column.RIGHT
     mine = before * (1 - agent)
     made = call("pane", "split", "--pane", anchor, "--direction", "right", "--ratio",
@@ -209,7 +178,7 @@ def bring(call, tab, kinds, state_dir, run=None, sidebar_run=None, scope=""):
     brought = set()
     if not side and not term and wanted & {"sidebar", "terminal"} and (conv or others):
         before = column.saved(state_dir) or column.RIGHT
-        agent = column.saved(state_dir, FILE) or RATIO
+        agent = column.saved(state_dir, SETTINGS) or RATIO
         share = before * (1 - agent) / (before * (1 - agent) + 1 - before) if conv else before
         side = panels.show_column(call, conv or others[0], cwd, runs[1], share)
         brought |= {"sidebar", "terminal"}

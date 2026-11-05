@@ -8,12 +8,15 @@ import json
 import os
 import re
 import stat
+import sys
 import unicodedata
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 
-import statefile
+sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
+import statefile  # noqa: E402
 
 INDEX = "conversation-index.json"     # what was read of each file, and where it stopped
+SETTINGS = "conversations.json"       # the column's settings, the archived conversations among them
 INDEX_VERSION = 2                     # another version's index (its shape, its types) is not read: the files are
 PROMPT = 200                          # characters of a first prompt the index keeps: more than a row can ever show
 FIRST_LINE = 1 << 20                  # bytes of a Codex file's first line read for its folder (some 23 KB in use)
@@ -412,6 +415,75 @@ def local(state_dir, agents=(), resumed=None):
     return running(sorted(found, key=lambda item: item.time, reverse=True), agents, resumed)
 
 
+def setting(state_dir):
+    """The column's settings, {} when there are none or they cannot be read."""
+    try:
+        with open(os.path.join(state_dir, SETTINGS), encoding="utf-8") as f:
+            kept = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return kept if isinstance(kept, dict) else {}
+
+
+def keep(state_dir, **values):
+    """VALUES kept in SETTINGS, whatever else it keeps staying."""
+    try:
+        statefile.write(os.path.join(state_dir, SETTINGS), {**setting(state_dir), **values})
+    except OSError:
+        pass
+
+
+def archived(state_dir):
+    """The conversations taken off the list, as "<agent>:<id>"."""
+    kept = setting(state_dir).get("archived")
+    return {key for key in kept if isinstance(key, str)} if isinstance(kept, list) else set()
+
+
+def archive(state_dir, keys, off=True):
+    """The conversations KEYS ("<agent>:<id>") off the list (OFF), or back on it; their files stay as they are."""
+    keep(state_dir, archived=sorted(archived(state_dir) | keys if off else archived(state_dir) - keys))
+
+
 def state_folder():
     return os.environ.get("HERDR_PLUGIN_STATE_DIR") or os.path.join(os.path.expanduser("~"), ".local", "state",
                                                                     "herdr", "plugins", "herdr-fold.sidebar")
+
+
+def main(argv):
+    """herdr-fold's Herdr app mod runs this on the Mac, answering in JSON: list AGENTS RESUMED (herdr's agents and
+    {pane: id}, as JSON: the running ones marked), rename SESSION NAME, archive|unarchive KEY… ("<agent>:<id>") and
+    markdown AGENT ID (the whole conversation, for Copy conversation)."""
+    command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
+    state = state_folder()
+    try:
+        if command == "list" and len(args) == 2:
+            agents, resumed = json.loads(args[0]), json.loads(args[1])
+            if not isinstance(agents, list) or not isinstance(resumed, dict):
+                raise ValueError("not a list")
+            answer = {"conversations": [asdict(item) for item in local(state, agents, resumed)],
+                      "archived": sorted(archived(state))}
+        elif command == "rename" and len(args) == 2:
+            try:
+                name_session(args[0], args[1])
+                answer = {"ok": True, "advice": None}
+            except OSError as err:
+                answer = {"ok": False, "advice": f"The name could not be kept: {err.strerror or err}"}
+        elif command in ("archive", "unarchive") and args:
+            archive(state, set(args), command == "archive")
+            answer = {"ok": True}
+        elif command == "markdown" and len(args) == 2:
+            item = next((c for c in local(state) if (c.agent, c.id) == tuple(args)), None)
+            paths = session_files(*args) if item else []
+            answer = {"markdown": markdown(item, paths[0]) if paths else None}
+        else:
+            raise ValueError("unknown command")
+    except (ValueError, TypeError, AttributeError):
+        print("usage: conversations.py list AGENTS RESUMED | rename SESSION NAME | archive|unarchive KEY… | markdown "
+              "AGENT ID", file=sys.stderr)
+        return 2
+    print(json.dumps(answer))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
