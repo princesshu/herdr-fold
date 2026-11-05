@@ -31,21 +31,17 @@ class Restore(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.state)
         set_attrs(self, herdrlib, PLUGIN_STATE=self.state)
 
-    def restore(self, panes, agents=None, cwd=None, startup=False, refused=(), space="app"):
+    def restore(self, panes, agents=None, cwd=None, startup=False, space="app"):
         """panes: (tab, label, foreground programs, comma-separated) per pane of workspace w1, all in folder CWD;
-        agents: {pane: name or None} — the agents herdr reports (a name: one herdr-fold started); refused: the panes
-        herdr will not close; space: the workspace's name. Returns the herdr calls; what it printed is in self.out."""
+        agents: {pane: name or None} — the agents herdr reports (a name: one herdr-fold started); space: the
+        workspace's name. Returns the herdr calls; what it printed is in self.out."""
         module, calls, agents = load(), [], agents or {}
         listed = [{"pane_id": f"w1:p{n}", "tab_id": tab, "label": label, **({"cwd": cwd} if cwd else {})}
                   for n, (tab, label, _) in enumerate(panes, 1)]
         programs = {f"w1:p{n}": program for n, (_, _, program) in enumerate(panes, 1)}
 
-        def herdr(*args, check=True):
+        def herdr(*args, **_):
             calls.append(args)
-            if args[:2] == ("pane", "close") and args[2] in refused:
-                if check:
-                    raise RuntimeError("pane is busy")
-                return {}
             if args[:2] == ("workspace", "list"):
                 return {"workspaces": [{"workspace_id": "w1", "label": space}]}
             if args[:2] == ("pane", "list"):

@@ -26,10 +26,11 @@ if [ -n "$in_git" ]; then
   section "$(t sync.changes)"
   git -C "$DOT" status --short
 fi
-# the files' privacy check (tests/test_privacy.py), its findings one per line: path:line: what
-if [ ! -f "$DOT/tests/test_privacy.py" ]; then
+# the files' privacy check (tests/test_repo_privacy.py), its findings one per line: path:line: what
+check=test_repo_privacy.Privacy.test_no_file_holds_personal_data
+if [ ! -f "$DOT/tests/test_repo_privacy.py" ]; then
   warn "$(t sync.private_unchecked)"
-elif out=$(cd "$DOT/tests" && python3 -B -m unittest test_privacy.Privacy.test_no_file_holds_personal_data 2>&1); then
+elif out=$(cd "$DOT/tests" && python3 -B -m unittest "$check" 2>&1); then
   ok "$(t sync.private_clean)"
 else
   warn "$(t sync.private_found)"

@@ -4,7 +4,7 @@ import os
 import sys
 import unittest
 
-from support import SRC
+from support import SRC, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 from find import DELAY, Find  # noqa: E402
@@ -20,10 +20,6 @@ LONG = "a/very/deep/folder/with-a-long-file-name.py"
 def content(canvas, y):
     """Row Y's text without the trailing blanks."""
     return text(canvas, y).rstrip()
-
-
-def text(canvas, y):
-    return "".join(ch for ch, _ in canvas.rows[y])
 
 
 def three():

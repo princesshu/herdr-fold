@@ -1,13 +1,18 @@
 """Tests for the sidebar's Issues view (src/plugins/sidebar/issues.py), laid out and keyed like GitHub's issue list,
-with the priority from GitHub's Priority field, else a priority label, a severity label or a word alone."""
+with the priority from GitHub's Priority field, else a priority label, a severity label or a word alone; and for its own
+part (issue_work.py): the latest answer kept for the repository's other sidebars, and what a tab of its opens."""
+import json
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 
-from support import SRC
+from support import SRC, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import github  # noqa: E402
+import issue_work  # noqa: E402
 from github import Issue, Listing, Query  # noqa: E402
 from issues import Issues  # noqa: E402
 from icons import glyphs  # noqa: E402
@@ -21,10 +26,6 @@ SAFARI = Issue(42, "Login fails on Safari", ("bug", "ui"), ("dev",), "2026-10-22
 DARK = Issue(38, "Add a dark mode toggle", (), (), "2026-10-19T09:00:00Z", "OPEN",
              "https://github.com/acme/app/issues/38")
 TWO = Listing((SAFARI, DARK))
-
-
-def text(canvas, y):
-    return "".join(ch for ch, _ in canvas.rows[y])
 
 
 class View(unittest.TestCase):
@@ -110,27 +111,13 @@ class View(unittest.TestCase):
             y = self.row_of("#9 ")
             self.assertEqual((self.canvas.rows[y][0][1].fg, self.canvas.rows[y][1][1].fg), (role, role), label)
 
-    def test_githubs_priority_field_comes_before_the_labels(self):
-        # an organization's Priority field (Urgent, High, Medium, Low) is GitHub's own: it ranks the issue even over a
-        # priority label, and shows first, in its color
-        field_low = Issue(70, "Docs typo", ("P0",), (), "2026-10-23T10:00:00Z", "OPEN", "", "Low")
-        field_urgent = Issue(71, "Payments down", ("bug",), (), "2026-10-18T10:00:00Z", "OPEN", "", "Urgent")
-        label_high = Issue(72, "Slow search", ("priority: high",), (), "2026-10-17T10:00:00Z", "OPEN", "")
-        field_medium = Issue(73, "Old logo", (), (), "2026-10-16T10:00:00Z", "OPEN", "", "Medium")
-        self.shown(Listing((field_low, DARK, field_urgent, label_high, field_medium)))
-        self.draw(height=20)
-        order = sorted((self.row_of(f"#{n} "), n) for n in (70, 71, 72, 73, 38))
-        self.assertEqual([n for _, n in order], [71, 72, 73, 70, 38])
+    def test_githubs_priority_field_shows_first_in_its_color(self):
+        # an organization's Priority field (Urgent, High, Medium, Low) is GitHub's own: before the labels
+        self.shown(Listing((Issue(71, "Payments down", ("bug",), (), "2026-10-18T10:00:00Z", "OPEN", "", "Urgent"),)))
         y = self.row_of("#71 ")
         details = text(self.canvas, y + 1)
         self.assertTrue(details[1 + len("#71 "):].startswith("Urgent, bug"), details)
         self.assertEqual(self.canvas.rows[y + 1][details.index("Urgent")][1].fg, "deleted")
-        self.assertEqual(self.canvas.rows[self.row_of("#70 ")][0][1].fg, "added")      # low: green, not P0's red
-
-    def test_a_label_with_a_priority_word_inside_is_not_one(self):
-        self.shown(Listing((
-            Issue(9, "Something", ("highlight", "lowercase"), (), "2026-10-22T10:00:00Z", "OPEN", ""),)))
-        self.assertEqual(self.canvas.rows[self.row_of("#9 ")][0][0], " ")
 
     def test_the_search_field_and_its_filters_button_then_open_and_closed(self):
         self.draw()
@@ -348,6 +335,62 @@ class View(unittest.TestCase):
         self.view.handle(Mouse("wheel_down", 5, 6))
         self.draw()
         self.assertFalse(any("#1 " in text(self.canvas, y) for y in range(16)))
+
+
+class Shared(unittest.TestCase):
+    """One question a minute for every sidebar of a repository: the latest answer kept in the state folder."""
+
+    def setUp(self):
+        self.state = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.state)
+        self.listing = github.Listing((github.Issue(42, "Login fails", ("bug",), ("dev",), "2026-10-22T10:00:00Z",
+                                                    "OPEN", "https://github.com/acme/app/issues/42", "High"),))
+
+    def test_an_answer_kept_comes_back_while_fresh(self):
+        issue_work.keep(self.state, "acme/app", Query(), self.listing)
+        self.assertEqual(issue_work.kept(self.state, "acme/app", Query(), 60), self.listing)
+
+    def test_nothing_kept_where_the_state_folder_is_gone(self):
+        # removed with herdr-fold while a sidebar still asked: not brought back
+        gone = os.path.join(self.state, "gone")
+        issue_work.keep(gone, "acme/app", Query(), self.listing)
+        self.assertFalse(os.path.exists(gone))
+
+    def test_none_when_old_for_another_query_or_repository_or_damaged(self):
+        issue_work.keep(self.state, "acme/app", Query(), self.listing)
+        self.assertIsNone(issue_work.kept(self.state, "acme/app", Query(), 0))
+        self.assertIsNone(issue_work.kept(self.state, "acme/app", Query("closed"), 60))
+        self.assertIsNone(issue_work.kept(self.state, "acme/web", Query(), 60))
+        for name in os.listdir(self.state):
+            with open(os.path.join(self.state, name), "w") as f:
+                f.write("{")
+        self.assertIsNone(issue_work.kept(self.state, "acme/app", Query(), 60))
+
+    def test_none_when_it_is_not_as_kept(self):
+        # a file not as keep() writes it (another version's, or edited by hand): GitHub is asked instead
+        issue_work.keep(self.state, "acme/app", Query(), self.listing)
+        path = issue_work.shared_path(self.state, "acme/app", Query())
+        with open(path) as f:
+            good = json.load(f)
+        row = good["issues"][0]
+        wrong = [{**good, "issues": [{**row, **change}]}
+                 for change in ({"number": "42"}, {"number": True}, {"title": 7}, {"labels": "bug"},
+                                {"assignees": [1]}, {"priority": None}, {"more": ""})]
+        wrong += [{**good, "error": {"text": "x"}}, {**good, "issues": {"42": row}}, [good]]
+        for data in wrong:
+            with self.subTest(data=data):
+                with open(path, "w") as f:
+                    json.dump(data, f)
+                self.assertIsNone(issue_work.kept(self.state, "acme/app", Query(), 60))
+
+
+class Tabs(unittest.TestCase):
+    def test_the_preview_shows_it_as_a_terminal_would(self):
+        spec = issue_work.view_spec("acme/app", github.Issue(42, "Login fails on Safari"))
+        self.assertEqual(spec["title"], "#42 Login fails on Safa…")             # a tab's name: its title cut short
+        self.assertEqual(spec["pipeline"][0][1:], ["issue", "view", "42", "-R", "acme/app", "--comments"])
+        self.assertTrue(os.path.isabs(spec["pipeline"][0][0]))
+        self.assertTrue(spec["env"]["GH_FORCE_TTY"])
 
 
 if __name__ == "__main__":

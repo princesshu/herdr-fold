@@ -3,13 +3,11 @@ with the app on the Mac, one question puts herdr-fold's mod, layout and keys int
 import json
 import os
 import shutil
-import subprocess
 import tempfile
 import unittest
 
-from support import catalog_text, copy_package, from_homebrew, run_in_terminal, stubs
-from test_app_install import with_tab_terminals
-from test_install_cleanup import DEFAULTS_STUB, GH_STUB, STUB
+from support import (DEFAULTS_STUB, GH_STUB, HERDR_STUB, PackageHome, catalog_text, copy_package, from_homebrew,
+                     run_in_terminal, stubs)
 
 # the app's command line: logs each call; running (status answers) only with STUB_APP_RUNNING, on STUB_APP_LAYOUT
 APP = """#!/bin/sh
@@ -21,16 +19,16 @@ exit 0
 """
 
 
-class InstallApp(unittest.TestCase):
+class InstallApp(PackageHome, unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp)
         self.home = os.path.join(self.tmp, "home")
         os.makedirs(self.home)
         self.pkg = copy_package(os.path.join(self.tmp, "pkg"))
-        self.fakes = stubs(os.path.join(self.tmp, "stubs"), {"herdr": STUB, "gh": GH_STUB, "defaults": DEFAULTS_STUB,
-                                                             "brew": None, "open": None, "claude": None, "codex": None,
-                                                             "pgrep": None})
+        self.fakes = stubs(os.path.join(self.tmp, "stubs"), {"herdr": HERDR_STUB, "gh": GH_STUB,
+                                                             "defaults": DEFAULTS_STUB, "brew": None, "open": None,
+                                                             "claude": None, "codex": None, "pgrep": None})
         from_homebrew(self.fakes)
         plugins = os.path.join(self.tmp, "plugins.json")
         with open(plugins, "w") as f:
@@ -46,12 +44,6 @@ class InstallApp(unittest.TestCase):
         stubs(self.fakes, {"herdr-app": APP})
         if running:
             self.env.update(STUB_APP_RUNNING="1", STUB_APP_LAYOUT=layout)
-
-    def run_script(self, name):
-        done = subprocess.run(["bash", os.path.join(self.pkg, name)], env=self.env, stdin=subprocess.DEVNULL,
-                              capture_output=True, text=True, timeout=300)
-        self.assertEqual(done.returncode, 0, done.stdout[-2000:] + done.stderr[-2000:])
-        return done.stdout
 
     def app_calls(self):
         if not os.path.exists(self.app_log):
@@ -81,10 +73,7 @@ class InstallApp(unittest.TestCase):
     def test_with_the_app_it_is_set_up(self):
         self.with_app()
         out = self.run_script("install.sh")
-        self.assertTrue(self.in_app("mods/herdr-fold/main.js"))
-        self.assertTrue(self.in_app("layouts/herdr-fold.json"))
-        with open(os.path.join(self.app_home, "keys.json")) as f:
-            self.assertIn("layout:herdr-fold", json.load(f))
+        self.assertTrue(self.in_app("mods/herdr-fold/main.js"))           # what it puts there: test_lib_herdr_app
         self.assertIn("herdr-fold.app", self.recorded())
         self.assertIn(f"herdr-app check {self.app_home}/mods/herdr-fold", self.app_calls())
         self.assertIn(catalog_text("install.app_done"), out)
@@ -108,17 +97,9 @@ class InstallApp(unittest.TestCase):
 
     def test_uninstall_takes_the_app_part_off(self):
         self.with_app(running=True, layout="herdr-fold")
-        hc_log = os.path.join(self.tmp, "hc-calls")
-        stubs(self.fakes, {"herdr-core": f'#!/bin/sh\necho "hc $*" >> {hc_log}\n'})
         self.run_script("install.sh")
-        with_tab_terminals(self.app_home, "t2", "lab/t5")
         out = self.run_script("uninstall.sh")
-        with open(hc_log) as f:
-            self.assertEqual(f.read().splitlines(), ["hc kill -- t2", "hc kill -- lab/t5"])
-        self.assertFalse(self.in_app("mods/herdr-fold"))
-        self.assertFalse(self.in_app("layouts/herdr-fold.json"))
-        with open(os.path.join(self.app_home, "keys.json")) as f:
-            self.assertNotIn("layout:herdr-fold", json.load(f))
+        self.assertFalse(self.in_app("mods/herdr-fold"))                   # what it takes off: test_lib_herdr_app
         self.assertIn("herdr-app do layout.switch --name main", self.app_calls())
         self.assertIn(catalog_text("uninstall.app_off"), out)
 

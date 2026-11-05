@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from support import PACKAGE, set_env, stubs
+from support import PACKAGE, logged, set_env, stubs
 
 sys.path.insert(0, os.path.join(PACKAGE, "lab"))
 import lab  # noqa: E402
@@ -33,16 +33,12 @@ class Harness(unittest.TestCase):
         set_env(self, PATH=f"{fakes}:/usr/bin:/bin", LAB_LOG=self.log)
         self.home = os.path.join(self.tmp, "lab home")
 
-    def calls(self):
-        with open(self.log) as f:
-            return f.read().splitlines()
-
     def test_a_start_that_fails_still_takes_its_machine_down(self):
         machine = lab.Lab(self.home, wait=0.5)
         with self.assertRaises(lab.LabError):
             machine.up()                                          # nothing answers SSH at its port
-        self.assertIn(f"container stop {lab.NAME}", self.calls())
-        self.assertIn(f"container rm {lab.NAME}", self.calls())
+        self.assertIn(f"container stop {lab.NAME}", logged(self.log))
+        self.assertIn(f"container rm {lab.NAME}", logged(self.log))
 
     def test_ssh_reads_only_the_labs_own_settings(self):
         machine = lab.Lab(self.home, wait=0.5)

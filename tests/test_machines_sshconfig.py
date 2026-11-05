@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import unittest
 
-from support import PACKAGE, catalog_text, copy_package, run_in_terminal, stubs
+from support import FAKE_TAILSCALE, PACKAGE, catalog_text, copy_package, run_in_terminal, stubs
 SSH_CONFIG = """Host *
   AddKeysToAgent yes
 
@@ -89,14 +89,6 @@ class SshConfigMachines(unittest.TestCase):
         self.assertEqual(listed(self.home), [("beta", "beta", "linux")])          # the one imported earlier stays
 
 
-TAILSCALE = """#!/bin/sh
-cat <<'JSON'
-{"Peer": {
-  "a": {"DNSName": "mac-mini.tail0000.ts.net.", "OS": "macOS", "Online": true, "TailscaleIPs": ["100.115.92.5"]},
-  "b": {"DNSName": "server.tail0000.ts.net.", "OS": "linux", "Online": true, "TailscaleIPs": ["100.115.92.6"]}
-}}
-JSON
-"""
 SSH_ANSWERS = "#!/bin/sh\nexit 0\n"         # every machine answers
 
 
@@ -106,7 +98,7 @@ class TailscaleAfterSshConfig(unittest.TestCase):
         self.pkg = os.path.join(self.tmp, "pkg")
         copy_package(self.pkg)
         add_to_list(self.tmp, "mac-mini         | mac-mini | macos\n")          # from ~/.ssh/config, by its alias
-        stubs(os.path.join(self.tmp, "stubs"), {"tailscale": TAILSCALE, "ssh": SSH_ANSWERS})
+        stubs(os.path.join(self.tmp, "stubs"), {"tailscale": FAKE_TAILSCALE, "ssh": SSH_ANSWERS})
         self.env = {"HOME": self.tmp, "PATH": f"{self.tmp}/stubs:/usr/bin:/bin", "HERDR_FOLD_YES": "1", "TERM": "dumb"}
 
     def tearDown(self):
@@ -144,7 +136,7 @@ class SshConfigLeavesTailnetMachinesToTheTailscaleStep(unittest.TestCase):
         os.makedirs(os.path.join(self.home, ".ssh"))
         with open(os.path.join(self.home, ".ssh", "config"), "w") as f:
             f.write(TAILNET_CONFIG)
-        stubs(os.path.join(self.tmp, "stubs"), {"ssh": FAKE_SSH, "tailscale": TAILSCALE})
+        stubs(os.path.join(self.tmp, "stubs"), {"ssh": FAKE_SSH, "tailscale": FAKE_TAILSCALE})
         self.env = {"HOME": self.home, "PATH": f"{self.tmp}/stubs:/usr/bin:/bin", "HERDR_FOLD_YES": "1", "TERM": "dumb"}
 
     def tearDown(self):

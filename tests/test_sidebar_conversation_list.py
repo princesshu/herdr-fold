@@ -5,7 +5,7 @@ import re
 import sys
 import unittest
 
-from support import SRC
+from support import SRC, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import sidebar  # noqa: E402
@@ -26,10 +26,6 @@ DRAFT = Conversation("claude", "s5", "Draft the README", "/repo/shop", NOW - 900
 PLACES = {"/repo/shop": "shop", "/repo/api": "api", "/notes": "notes"}
 SPACES = ["notes", "shop", "api", "empty"]                   # as the Spaces list has them
 HEADER = 3                                                   # the filter and the button, tall as the sidebar's buttons
-
-
-def text(canvas, y):
-    return "".join(ch for ch, _ in canvas.rows[y])
 
 
 class List(unittest.TestCase):

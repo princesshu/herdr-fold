@@ -7,7 +7,7 @@ import sys
 import tempfile
 import unittest
 
-from support import SRC, finished, set_env
+from support import SRC, finished, jsonl, set_env
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import conversations  # noqa: E402
@@ -18,12 +18,8 @@ def read(path):
         return f.read()
 
 
-def line(entry):
-    return json.dumps(entry, separators=(",", ":")) + "\n"          # the way Claude and Codex write their lines
-
-
 def prompt(text, sidechain=False):
-    return line({"type": "user", "isSidechain": sidechain, "cwd": "/repo/app", "message": {"content": text}})
+    return jsonl({"type": "user", "isSidechain": sidechain, "cwd": "/repo/app", "message": {"content": text}})
 
 
 class Conversations(unittest.TestCase):
@@ -46,7 +42,7 @@ class Conversations(unittest.TestCase):
         path = os.path.join(self.home, ".codex", "sessions", "2026", "10", "26", f"rollout-{name}.jsonl")
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "a", encoding="utf-8") as f:
-            f.write(line({"type": "session_meta", "payload": meta}) + "".join(lines))
+            f.write(jsonl({"type": "session_meta", "payload": meta}) + "".join(lines))
         if changed:
             os.utime(path, (changed, changed))
         return path
@@ -56,9 +52,9 @@ class Conversations(unittest.TestCase):
 
     def test_a_claude_conversation_goes_by_its_rename_its_ai_title_or_its_first_prompt(self):
         self.claude("s1", prompt("Fix the login"))
-        self.claude("s2", prompt("Fix the login"), line({"type": "ai-title", "aiTitle": "Login redirect fix"}))
-        self.claude("s3", prompt("Fix the login"), line({"type": "ai-title", "aiTitle": "Login redirect fix"}),
-                    line({"type": "custom-title", "customTitle": "safari"}))
+        self.claude("s2", prompt("Fix the login"), jsonl({"type": "ai-title", "aiTitle": "Login redirect fix"}))
+        self.claude("s3", prompt("Fix the login"), jsonl({"type": "ai-title", "aiTitle": "Login redirect fix"}),
+                    jsonl({"type": "custom-title", "customTitle": "safari"}))
         found = self.listed()
         self.assertEqual({k: c.title for k, c in found.items()},
                          {"s1": "Fix the login", "s2": "Login redirect fix", "s3": "safari"})
@@ -79,25 +75,25 @@ class Conversations(unittest.TestCase):
 
     def test_a_codex_conversation_goes_by_its_thread_name_or_its_first_prompt(self):
         self.codex("a", {"id": "c1", "cwd": "/repo/app"},
-                   line({"payload": {"type": "message", "role": "user",
+                   jsonl({"payload": {"type": "message", "role": "user",
                                      "content": [{"type": "input_text", "text": "<environment_context>x"}]}}),
-                   line({"payload": {"type": "message", "role": "user",
+                   jsonl({"payload": {"type": "message", "role": "user",
                                      "content": [{"type": "input_text", "text": "Price list\nmore"}]}}))
         self.codex("b", {"id": "c2", "cwd": "/repo/app"},
-                   line({"payload": {"type": "message", "role": "user",
+                   jsonl({"payload": {"type": "message", "role": "user",
                                      "content": [{"type": "input_text", "text": "Old prompt"}]}}))
         self.codex("c", {"id": "c3", "cwd": "/repo/app", "source": {"subagent": {"other": "guardian"}}},
-                   line({"payload": {"type": "message", "role": "user",
+                   jsonl({"payload": {"type": "message", "role": "user",
                                      "content": [{"type": "input_text", "text": "Review this"}]}}))
         index = os.path.join(self.home, ".codex", "session_index.jsonl")
         with open(index, "w") as f:
-            f.write(line({"id": "c2", "thread_name": "Invoices"}))
+            f.write(jsonl({"id": "c2", "thread_name": "Invoices"}))
         found = self.listed()
         self.assertEqual({k: (c.agent, c.title) for k, c in found.items()},
                          {"c1": ("codex", "Price list"), "c2": ("codex", "Invoices")})      # no helper (subagent)
 
     def test_a_name_given_in_herdr_wins(self):
-        self.claude("s1", prompt("Fix the login"), line({"type": "custom-title", "customTitle": "safari"}))
+        self.claude("s1", prompt("Fix the login"), jsonl({"type": "custom-title", "customTitle": "safari"}))
         names = os.path.join(self.home, ".local", "state", "herdr", "plugins", "herdr-fold.sessions-view")
         os.makedirs(names)
         with open(os.path.join(names, "names.json"), "w") as f:
@@ -138,7 +134,7 @@ class Conversations(unittest.TestCase):
         self.claude("s1", prompt("Fix the login"))
         self.claude("s2", prompt("Old one"))
         self.codex("a", {"id": "c1", "cwd": "/repo/app"},
-                   line({"payload": {"type": "message", "role": "user",
+                   jsonl({"payload": {"type": "message", "role": "user",
                                      "content": [{"type": "input_text", "text": "Price list"}]}}))
         agents = [{"pane_id": "w1:p1", "agent": "claude", "agent_status": "working", "cwd": "/repo/app",
                    "agent_session": {"value": "s1"}},
@@ -163,7 +159,7 @@ class Conversations(unittest.TestCase):
         with open(os.path.join(self.state, conversations.INDEX)) as f:
             read = json.load(f)["files"][path]["offset"]
         self.assertEqual(read, os.path.getsize(path))
-        self.claude("s1", line({"type": "custom-title", "customTitle": "safari"}))
+        self.claude("s1", jsonl({"type": "custom-title", "customTitle": "safari"}))
         with open(path, "r+b") as f:                     # what was read already: changed, never read again
             f.write(b"X")
         self.assertEqual(self.listed()["s1"].title, "safari")
@@ -201,17 +197,17 @@ class Conversations(unittest.TestCase):
 
     def test_fields_of_another_type_are_passed_over(self):
         # a file of another version, or damaged: where a text belongs, a number, a list or an object
-        self.claude("s1", line({"type": "custom-title", "customTitle": {"x": 1}}),
-                    line({"type": "ai-title", "aiTitle": 7}),
-                    line({"type": "user", "isSidechain": False, "message": "a text, not an object", "cwd": 5}),
-                    line({"type": "user", "isSidechain": False, "message": {"content": 5}}),
-                    line({"type": "user", "isSidechain": False, "message": {"content": {"text": "x"}}}),
+        self.claude("s1", jsonl({"type": "custom-title", "customTitle": {"x": 1}}),
+                    jsonl({"type": "ai-title", "aiTitle": 7}),
+                    jsonl({"type": "user", "isSidechain": False, "message": "a text, not an object", "cwd": 5}),
+                    jsonl({"type": "user", "isSidechain": False, "message": {"content": 5}}),
+                    jsonl({"type": "user", "isSidechain": False, "message": {"content": {"text": "x"}}}),
                     prompt("Fix the login"))
         self.codex("a", ["not", "an", "object"])
         self.codex("b", {"id": 5, "cwd": ["/repo"]})
         self.codex("c", {"id": "c1", "cwd": "/repo/app"},
-                   line({"payload": {"type": "message", "role": "user", "content": "text, not parts"}}),
-                   line({"payload": {"type": "message", "role": "user",
+                   jsonl({"payload": {"type": "message", "role": "user", "content": "text, not parts"}}),
+                   jsonl({"payload": {"type": "message", "role": "user",
                                      "content": [{"type": "input_text", "text": "Fix the logout"}]}}))
         found = finished(self, self.listed)
         self.assertEqual({k: (c.title, c.folder) for k, c in found.items()},
@@ -315,7 +311,7 @@ class Transcript(unittest.TestCase):
     def write(self, name, *entries):
         path = os.path.join(self.dir, name)
         with open(path, "w", encoding="utf-8") as f:
-            f.write("".join(line(entry) for entry in entries))
+            f.write("".join(jsonl(entry) for entry in entries))
         return path
 
     def test_claude_the_prompts_and_replies_without_tools_helpers_or_system_text(self):

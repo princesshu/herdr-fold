@@ -1,5 +1,6 @@
 """Tests for the Claude status line (src/statusline.py) and statusline_setup.py, which puts it into Claude Code's
-settings.json: an existing status line is backed up first, a damaged file left alone, a symlink kept a link."""
+settings.json: an existing status line is backed up first, a damaged file left alone, a symlink kept a link; the setup
+runs without termios too, as on Windows."""
 import gc
 import glob
 import importlib.util
@@ -304,6 +305,19 @@ class Apply(unittest.TestCase):
         said, settings = self.run_apply("{}", '{"permissions": ')
         self.assertEqual(settings, '{"permissions": ')
         self.assertNotIn(catalog_text("status.claude_unreadable", ""), said)
+
+    def test_it_runs_where_termios_is_missing(self):
+        with tempfile.TemporaryDirectory() as home:
+            blocker = os.path.join(home, "block")
+            os.makedirs(blocker)
+            for name in ("termios", "tty"):                # as on Windows: these modules do not exist
+                with open(os.path.join(blocker, name + ".py"), "w") as f:
+                    f.write("raise ImportError('not available on this system')\n")
+            done = subprocess.run(["/usr/bin/python3", os.path.join(PACKAGE, "src", "statusline_setup.py"), "--apply"],
+                                  env={"HOME": home, "PYTHONPATH": blocker, "PATH": "/usr/bin:/bin"},
+                                  capture_output=True, text=True, timeout=30)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertTrue(os.path.exists(os.path.join(home, ".config", "herdr-fold", "statusline.json")))
 
 
 class Checkboxes(unittest.TestCase):

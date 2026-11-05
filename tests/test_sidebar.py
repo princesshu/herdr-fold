@@ -15,7 +15,7 @@ import time
 import unittest
 from unittest import mock
 
-from support import SRC, FakeHerdrSocket, FakeTerminal, set_env, stubs
+from support import SRC, AppScreen, FakeHerdrSocket, FakeTerminal, logged, set_env, stubs
 
 PLUGIN = os.path.join(SRC, "plugins", "sidebar")
 sys.path.insert(0, PLUGIN)
@@ -93,7 +93,7 @@ class Repo(unittest.TestCase):
             f.write(body)
 
 
-class Harness(Repo):
+class Harness(AppScreen, Repo):
     """The app on its own thread with the stand-in terminal, and ways to wait for what it shows."""
 
     def start(self, cols=45, rows=30):
@@ -110,25 +110,6 @@ class Harness(Repo):
         for thread in threading.enumerate():    # a job still asking (gh, git) writes in the state folder: done first
             if thread.name.startswith("sidebar-") and thread is not threading.current_thread():
                 thread.join(5)
-
-    def screen(self):
-        canvas = self.app.canvas
-        return "\n".join("".join(ch for ch, _ in row) for row in canvas.rows) if canvas else ""
-
-    def until(self, condition, timeout=5.0):
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            if condition(self.screen()):
-                return
-            time.sleep(0.05)
-        self.fail(f"not shown within {timeout} s:\n{self.screen()}")
-
-    def logged(self):
-        try:
-            with open(self.log) as f:
-                return f.read().splitlines()
-        except OSError:
-            return []
 
     def row(self, part):
         return next((line for line in self.screen().splitlines() if part in line), "")
@@ -220,9 +201,9 @@ class Running(Harness):
         y = next(i for i, row in enumerate(rows) if "new.txt" in row)
         self.term.type(Mouse("press", rows[y].index("new.txt"), y, 0))
         deadline = time.monotonic() + 5
-        while time.monotonic() < deadline and not any(line.startswith("pane run") for line in self.logged()):
+        while time.monotonic() < deadline and not any(line.startswith("pane run") for line in logged(self.log)):
             time.sleep(0.05)
-        create = next(line for line in self.logged() if line.startswith("tab create"))
+        create = next(line for line in logged(self.log) if line.startswith("tab create"))
         with open(create.split("HERDR_FOLD_SPEC_FILE=")[1].split()[0]) as f:
             spec = json.load(f)
         self.assertTrue(json.dumps(spec).count("new.txt"))
@@ -257,9 +238,9 @@ class Running(Harness):
         y = next(i for i, row in enumerate(rows) if "a.txt" in row)
         self.term.type(Mouse("press", rows[y].index("a.txt"), y, 0))
         deadline = time.monotonic() + 5
-        while time.monotonic() < deadline and not any(line.startswith("pane run") for line in self.logged()):
+        while time.monotonic() < deadline and not any(line.startswith("pane run") for line in logged(self.log)):
             time.sleep(0.05)
-        calls = self.logged()
+        calls = logged(self.log)
         root = os.path.realpath(self.root)
         create = next(line for line in calls if line.startswith("tab create"))
         self.assertTrue(create.startswith(f"tab create --workspace w1 --cwd {root} --label preview: a.txt --env "),
@@ -437,7 +418,7 @@ class PreviewTab(Harness):
             self.until(lambda s: "a needle here" in s)
             self.term.type(Key("tab"), Key("down"), Key("enter"))                  # its hit
             deadline = time.monotonic() + 5
-            while time.monotonic() < deadline and not any(line.startswith("pane run") for line in self.logged()):
+            while time.monotonic() < deadline and not any(line.startswith("pane run") for line in logged(self.log)):
                 time.sleep(0.05)
         self.assertEqual(bring.call_args.args[1:3], ("w1:t3", {"sidebar"}))
         with open(os.path.join(self.state, "seed-w1-t3.json")) as f:
@@ -600,7 +581,8 @@ class IssuesTab(Harness):
         self.term.type(Key("f12"))
         self.until(lambda s: "#42 Login" in s)
         self.term.type(Key("enter"))
-        self.until(lambda s: any("--label preview: #42 Login fails on Safa… --env " in call for call in self.logged()))
+        self.until(lambda s: any("--label preview: #42 Login fails on Safa… --env " in call
+                                 for call in logged(self.log)))
 
     def test_an_issue_handed_to_the_agent_is_linked_to_the_next_commit(self):
         self.on_github()
@@ -608,8 +590,8 @@ class IssuesTab(Harness):
         self.term.type(Key("f12"))
         self.until(lambda s: "#42 Login" in s)
         self.term.type(Key("char", "t"))                                 # to the agent
-        self.until(lambda s: "agent focus w1:p1" in self.logged())
-        sent = next(call for call in self.logged() if call.startswith("pane send-text"))
+        self.until(lambda s: "agent focus w1:p1" in logged(self.log))
+        sent = next(call for call in logged(self.log) if call.startswith("pane send-text"))
         self.assertTrue(sent.startswith("pane send-text w1:p1 Work on GitHub issue #42 of acme/app: read it with "
                                         "`gh issue view 42 -R acme/app --comments`"), sent)
         subprocess.run(["git", "-C", self.root, "add", "a.txt"], check=True)
@@ -885,7 +867,20 @@ class PaneMenu(unittest.TestCase):
         self.assertIsNone(self.app.menu)
 
 
-class NewVersion(unittest.TestCase):
+class Ticks:
+    """For a test that moves the sidebar's clock (self.now) and loop (self.app) on."""
+
+    def later(self):
+        """Five seconds on, the jobs started meanwhile answered first, as the loop collects them before each tick."""
+        for thread in threading.enumerate():
+            if thread.name.startswith("sidebar-"):
+                thread.join(5)
+        self.app.collect()
+        self.now += 5
+        self.app.tick()
+
+
+class NewVersion(Ticks, unittest.TestCase):
     """An update puts a new version of the sidebar's code in place: the running one hands over to it once the files are
     still and nothing would be cut short, and the new one comes back where the old one was."""
 
@@ -918,15 +913,6 @@ class NewVersion(unittest.TestCase):
             f.write("y = 2\n")
         mtime = os.stat(path).st_mtime_ns + 1_000_000_000                  # newer, however coarse the file system
         os.utime(path, ns=(mtime, mtime))
-
-    def later(self, seconds=5):
-        """SECONDS on, the jobs started meanwhile answered first, as the loop collects them before each tick."""
-        for thread in threading.enumerate():
-            if thread.name.startswith("sidebar-"):
-                thread.join(5)
-        self.app.collect()
-        self.now += seconds
-        self.app.tick()
 
     def test_the_changes_views_place_is_handed_over(self):
         self.app.views["git"].focus = "graph"
@@ -1142,7 +1128,7 @@ class NewVersion(unittest.TestCase):
         call.assert_called_once_with([sys.executable, "-B", script, "/some/folder"])
 
 
-class FollowsItsFolder(unittest.TestCase):
+class FollowsItsFolder(Ticks, unittest.TestCase):
     """Its folder renamed or moved while it runs: it comes back on the folder's new place, where it was (a renamed
     folder keeps its identity); a deleted one leaves it as it is."""
 
@@ -1159,14 +1145,6 @@ class FollowsItsFolder(unittest.TestCase):
         self.now = 1000.0
         self.app = sidebar.App(self.root, FakeTerminal(), preview.Herdr("/usr/bin/false"), self.state,
                                clock=lambda: self.now)
-
-    def later(self):
-        for thread in threading.enumerate():
-            if thread.name.startswith("sidebar-"):
-                thread.join(5)
-        self.app.collect()
-        self.now += 5
-        self.app.tick()
 
     def test_a_renamed_folder_brings_it_back_on_the_new_name_where_it_was(self):
         self.app.tree.expanded.add(os.path.join(self.app.root, "src"))
@@ -1380,14 +1358,7 @@ class Actions(Repo):
         os.remove(self.log)
         out = self.action("select-all", HERDR_TAB_ID="w1:t1", HERDR_PANE_ID="w1:p1")                  # the agent's
         self.assertEqual((out.returncode, out.stderr), (0, ""))
-        self.assertFalse(any("send-keys" in line for line in self.logged_lines()))
-
-    def logged_lines(self):
-        try:
-            with open(self.log) as f:
-                return f.read().splitlines()
-        except OSError:
-            return []
+        self.assertFalse(any("send-keys" in line for line in logged(self.log)))
 
     def test_no_sidebar_in_the_tab_says_so(self):
         out = self.action("show-files", HERDR_ACTIVE_TAB_ID="w1:t9")

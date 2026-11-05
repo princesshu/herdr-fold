@@ -9,12 +9,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 import unittest
 from unittest import mock
 
-from support import SRC, set_env, sign_head, stubs, trap
+from support import SRC, finished, logged, set_env, sign_head, stubs, trap
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import pager  # noqa: E402
@@ -189,13 +188,9 @@ class Tabs(unittest.TestCase):
         self.herdr = preview.Herdr(os.path.join(stubs(os.path.join(self.tmp, "bin"), {"herdr": FAKE_HERDR}), "herdr"))
         self.laid = []
 
-    def calls(self):
-        with open(self.log) as f:
-            return f.read().splitlines()
-
     def show(self, spec=SPEC, here=None):
         def lay_out(tab):
-            self.laid.append((tab, len(self.calls())))
+            self.laid.append((tab, len(logged(self.log))))
         preview.open_preview(self.herdr, "w1", "/repo", spec, self.tmp, lay_out, here)
 
     def test_the_preview_tabs_pager_takes_up_the_next_one(self):
@@ -206,7 +201,7 @@ class Tabs(unittest.TestCase):
         self.show()
         with open(preview.spec_file(self.tmp, "w1")) as f:
             self.assertEqual(json.load(f), SPEC)
-        calls = self.calls()
+        calls = logged(self.log)
         self.assertEqual(calls[-2:], ["tab rename w1:t2 preview: a.py", "tab focus w1:t2"])
         self.assertFalse([call for call in calls if call.startswith(("tab create", "tab close", "pane run"))])
 
@@ -214,12 +209,12 @@ class Tabs(unittest.TestCase):
         # one started before this version (it watches no file), or one whose file is gone: it would show nothing new
         os.environ["PAGING"] = "1"
         self.show()
-        self.assertEqual(self.calls()[-1], "tab close w1:t2")
-        self.assertIn("pane rename w1:p9 preview", self.calls())
+        self.assertEqual(logged(self.log)[-1], "tab close w1:t2")
+        self.assertIn("pane rename w1:p9 preview", logged(self.log))
 
     def test_a_preview_tab_whose_pager_no_longer_runs_is_replaced_after_the_new_one_is_laid_out(self):
         self.show(here="w1:t1")
-        calls, path = self.calls(), preview.spec_file(self.tmp, "w1")
+        calls, path = logged(self.log), preview.spec_file(self.tmp, "w1")
         self.assertIn(f"tab create --workspace w1 --cwd /repo --label preview: a.py --env HERDR_FOLD_PYTHON="
                       f"{sys.executable} --env HERDR_FOLD_PAGER={preview.PAGER} --env HERDR_FOLD_SPEC_FILE={path} "
                       "--focus", calls)
@@ -235,14 +230,14 @@ class Tabs(unittest.TestCase):
     def test_the_asking_panes_own_tab_closes_last(self):
         # a sidebar in the old preview tab asks: closing that tab ends it, so nothing may come after
         self.show(here="w1:t2")
-        self.assertEqual(self.calls()[-1], "tab close w1:t2")
+        self.assertEqual(logged(self.log)[-1], "tab close w1:t2")
 
     def test_a_failing_layout_still_starts_the_pager_and_closes_the_old_tab(self):
         def broken(tab):
             raise RuntimeError("herdr said no")
         with self.assertRaises(RuntimeError):
             preview.open_preview(self.herdr, "w1", "/repo", SPEC, self.tmp, broken, "w1:t1")
-        calls = self.calls()
+        calls = logged(self.log)
         self.assertTrue([call for call in calls if call.startswith("pane run w1:p9")])
         self.assertEqual(calls[-1], "tab close w1:t2")
 
@@ -252,7 +247,7 @@ class Tabs(unittest.TestCase):
         self.addCleanup(os.environ.pop, "CREATE", None)
         with self.assertRaises(RuntimeError):
             self.show(here="w1:t1")
-        self.assertFalse([call for call in self.calls() if call.startswith("tab close")])
+        self.assertFalse([call for call in logged(self.log) if call.startswith("tab close")])
 
     def test_an_answer_of_another_shape_is_no_pager(self):
         class Odd:
@@ -266,13 +261,13 @@ class Tabs(unittest.TestCase):
 
     def test_the_label_holds_no_control_characters(self):
         self.show({**SPEC, "title": "a\x1b]0;x\x07b.md"})
-        create = next(call for call in self.calls() if call.startswith("tab create"))
+        create = next(call for call in logged(self.log) if call.startswith("tab create"))
         self.assertIn("--label preview: a]0;xb.md --env", create)
 
     def test_a_tab_of_its_own_leaves_the_others_open(self):
         # gh's own prompts (a new issue, a comment) in a tab: nothing being typed in another one is closed
         preview.open_tab(self.herdr, "w1", "/repo", "issue: new", preview.Launch("gh issue create", {}))
-        calls = self.calls()
+        calls = logged(self.log)
         self.assertFalse([call for call in calls if call.startswith("tab close")])
         self.assertIn("tab create --workspace w1 --cwd /repo --label issue: new --focus", calls)
         self.assertEqual(calls[-2:], ["pane rename w1:p9 issue", "pane run w1:p9 gh issue create"])
@@ -293,23 +288,14 @@ class Lines(unittest.TestCase):
             f.write(data)
         return {"title": "file", "line": None, "file": path, "pipeline": []}
 
-    def load_in_time(self, spec, seconds=10):
-        """pager.load(SPEC), failing the test if it does not return within SECONDS."""
-        found = []
-        worker = threading.Thread(target=lambda: found.append(pager.load(spec)), daemon=True)
-        worker.start()
-        worker.join(seconds)
-        self.assertTrue(found, "the pager waited for good")
-        return found[0]
-
     @unittest.skipIf(os.name == "nt", "no named pipes here on Windows")
     def test_a_pipe_or_a_device_is_not_read(self):
         # a downloaded folder's pipe, or a link to a terminal: read, it would never end, and q would not work
         os.mkfifo(os.path.join(self.tmp, "pipe"))
         os.symlink("/dev/tty", os.path.join(self.tmp, "tty"))
         def shown(name):
-            return self.load_in_time({"title": name, "line": None, "file": os.path.join(self.tmp, name),
-                                      "pipeline": []})
+            return finished(self, lambda: pager.load({"title": name, "line": None,
+                                                      "file": os.path.join(self.tmp, name), "pipeline": []}), 10)
         self.assertEqual(shown("pipe"), ["not a plain file: a pipe or a device is not shown"])
         self.assertEqual(len(shown("tty")), 1)              # said at once (here a test has no terminal to open)
 
@@ -318,7 +304,7 @@ class Lines(unittest.TestCase):
                 "pipeline": [[sys.executable, "-c", "print('first', flush=True); import time; time.sleep(60)"]]}
         with mock.patch.object(pager, "WAIT", 1):
             started = time.monotonic()
-            shown = self.load_in_time(spec)
+            shown = finished(self, lambda: pager.load(spec), 10)
         self.assertLess(time.monotonic() - started, 8)
         self.assertEqual(shown[0], "first")
 
@@ -329,7 +315,7 @@ class Lines(unittest.TestCase):
         spec = {"title": "slow", "line": None, "file": None, "pipeline": [[sys.executable, "-c", code]]}
         with mock.patch.object(pager, "WAIT", 1):
             started = time.monotonic()
-            shown = self.load_in_time(spec)
+            shown = finished(self, lambda: pager.load(spec), 10)
         self.assertLess(time.monotonic() - started, 8)
         self.assertEqual(shown[0], "first")
 

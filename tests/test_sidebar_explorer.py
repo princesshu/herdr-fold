@@ -8,7 +8,7 @@ import time
 import unittest
 from unittest import mock
 
-from support import SRC
+from support import SRC, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import explorer  # noqa: E402
@@ -25,10 +25,6 @@ LONG = "a-very-long-file-name-that-does-not-fit.txt"
 
 def key(name):
     return Key("char", name) if len(name) == 1 else Key(name)
-
-
-def text(canvas, y):
-    return "".join(ch for ch, _ in canvas.rows[y])
 
 
 class View(unittest.TestCase):

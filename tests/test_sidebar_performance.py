@@ -9,13 +9,12 @@ import threading
 import time
 import unittest
 
-from support import SRC, set_env
+from support import SRC, FakeTerminal, set_env
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import preview  # noqa: E402
 import sidebar  # noqa: E402
 from search import Query  # noqa: E402
-from test_sidebar_app import FakeTerminal  # noqa: E402
 from vt import Key  # noqa: E402
 
 

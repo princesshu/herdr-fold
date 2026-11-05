@@ -59,9 +59,9 @@ class Column(unittest.TestCase):
         self.addCleanup(self.fake.server.close)
         return self.fake
 
-    def write_saved(self, ratio, name=column.FILE):
+    def write_saved(self, ratio):
         os.makedirs(self.state, exist_ok=True)
-        with open(os.path.join(self.state, name), "w") as f:
+        with open(os.path.join(self.state, column.FILE), "w") as f:
             json.dump({"ratio": ratio}, f)
 
     def sets(self):

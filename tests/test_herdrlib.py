@@ -1,5 +1,5 @@
-"""Tests for herdrlib.py's shared helpers: shell-only panes, a pane's agent name, herdr's agents and machines, and
-whether an agent holds a conversation. herdr is a fake (a recorded call list).
+"""Tests for herdrlib.py's shared helpers: shell-only panes, a pane's agent name, herdr's agents and machines, whether
+an agent holds a conversation, and the sidebar's launcher for a folder's system. herdr is a fake (a recorded call list).
 """
 import unittest
 
@@ -57,3 +57,17 @@ class Listing(unittest.TestCase):
         h, calls = self.fake(**{"machine list": [{"label": "box", "enabled": True}]})
         self.assertEqual(herdrlib.machines(h), [{"label": "box", "enabled": True}])
         self.assertEqual(calls, [("machine", "list", "--json")])
+
+
+class SidebarCommand(unittest.TestCase):
+    def test_windows_folder_gets_the_powershell_launcher(self):
+        self.assertIn("sidebar.ps1", herdrlib.sidebar_command("C:\\Users\\dev\\project"))
+        self.assertIn("powershell", herdrlib.sidebar_command("D:/projects"))
+
+    def test_unix_folder_gets_the_bash_launcher(self):
+        self.assertEqual(herdrlib.sidebar_command("/home/dev/project"), "bash ~/.config/herdr-fold/sidebar.sh")
+        self.assertEqual(herdrlib.sidebar_command(None), "bash ~/.config/herdr-fold/sidebar.sh")
+
+
+if __name__ == "__main__":
+    unittest.main()

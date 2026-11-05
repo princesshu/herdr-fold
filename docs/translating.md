@@ -16,7 +16,7 @@ windows in herdr (commit, close, the folder and theme pickers). A new language i
    every file of `src/lang/` in place on the Mac, and `machines.sh` copies them to the remote machines.
 3. **Run the check:**
    ```bash
-   /usr/bin/python3 -m unittest tests.test_i18n
+   /usr/bin/python3 -m unittest tests.test_repo_i18n
    ```
    It fails when a key is missing, extra or duplicated, or when a line is not in `key = text` form. A missing key does
    not fall back to English: it prints an empty line.

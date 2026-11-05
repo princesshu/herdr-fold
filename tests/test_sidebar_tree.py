@@ -14,11 +14,11 @@ from tree import Tree  # noqa: E402
 from watch import Watcher  # noqa: E402
 
 
-def make(root, rel, text="x\n"):
+def make(root, rel):
     path = os.path.join(root, rel)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
-        f.write(text)
+        f.write("x\n")
 
 
 class Trees(unittest.TestCase):

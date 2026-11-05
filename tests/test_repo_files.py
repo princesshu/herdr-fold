@@ -9,7 +9,7 @@ import re
 import subprocess
 import unittest
 
-from support import PACKAGE, PNG_SIGNATURE, catalog_text, is_webp, publishable_files
+from support import PACKAGE, PNG_SIGNATURE, catalog_text, is_webp, package_text, publishable_files
 
 # what must never reach the repository: system and editor clutter, caches, secrets and keys, backups, the files of AI
 # tools, and the per-machine state that lives in the user's config folder
@@ -276,33 +276,29 @@ class Credits(unittest.TestCase):
 
     AUTHOR = "https://github.com/princesshu"
 
-    def read(self, rel):
-        with open(os.path.join(PACKAGE, rel), encoding="utf-8") as f:
-            return f.read()
-
     def test_the_author_is_named_with_a_link(self):
         missing = [rel for rel in ("LICENSE", "README.md", "THIRD_PARTY_NOTICES.md", "CONTRIBUTING.md", "SECURITY.md")
-                   if self.AUTHOR not in self.read(rel)]
+                   if self.AUTHOR not in package_text(rel)]
         self.assertEqual(missing, [])
 
     def test_the_readme_tells_the_authors_work_from_the_programs_it_builds_on(self):
-        readme = self.read("README.md")
+        readme = package_text("README.md")
         self.assertIn(f"[princesshu]({self.AUTHOR})", readme)
         self.assertIn("https://github.com/herdrdev/herdr", readme)
 
     def test_each_plugin_carries_the_license_and_names_its_author(self):
-        license_text, problems = self.read("LICENSE"), []
+        license_text, problems = package_text("LICENSE"), []
         installed = listed("files.txt")[0], listed(os.path.join("remote", "files.txt"))[0]
         for plugin in sorted(os.listdir(os.path.join(PACKAGE, "src", "plugins"))):
             folder = os.path.join("src", "plugins", plugin)
             if not os.path.isfile(os.path.join(PACKAGE, folder, "herdr-plugin.toml")):
                 continue
             own = os.path.join(folder, "LICENSE")
-            if not os.path.isfile(os.path.join(PACKAGE, own)) or self.read(own) != license_text:
+            if not os.path.isfile(os.path.join(PACKAGE, own)) or package_text(own) != license_text:
                 problems.append(own + ": not the package's license")
             problems += [f"{own}: not installed by {name}" for name, files in zip(("files.txt", "remote"), installed)
                          if os.path.isfile(os.path.join(PACKAGE, own)) and own not in files]
-            if self.AUTHOR not in self.read(os.path.join(folder, "README.md")):
+            if self.AUTHOR not in package_text(os.path.join(folder, "README.md")):
                 problems.append(os.path.join(folder, "README.md") + ": no author")
         self.assertEqual(problems, [])
 
@@ -315,15 +311,15 @@ class Credits(unittest.TestCase):
             manifest = os.path.join("src", "plugins", plugin, "herdr-plugin.toml")
             if not os.path.isfile(os.path.join(PACKAGE, manifest)):
                 continue
-            head = self.read(manifest).split("\n[", 1)[0]                     # before its actions and panes
+            head = package_text(manifest).split("\n[", 1)[0]                     # before its actions and panes
             top = dict(re.findall(r'^(id|name) = "(.*)"$', head, re.MULTILINE))
             if top.get("id") != "herdr-fold." + plugin:
                 problems.append(f"{manifest}: id {top.get('id')}")
             if not top.get("name") or "herdr-fold" in top["name"]:
                 problems.append(f"{manifest}: name {top.get('name')}")
-            elif self.read(os.path.join("src", "plugins", plugin, "README.md")).split("\n", 1)[0] != "# " + top["name"]:
+            elif package_text(f"src/plugins/{plugin}/README.md").split("\n", 1)[0] != "# " + top["name"]:
                 problems.append(f"{plugin}: its README's title is not its name, the one the marketplace shows")
-        tab_layout = self.read(os.path.join("src", "plugins", "tab-layout", "herdr-plugin.toml"))
+        tab_layout = package_text(os.path.join("src", "plugins", "tab-layout", "herdr-plugin.toml"))
         if "herdr-fold's installer" not in tab_layout.split("\n[", 1)[0]:
             problems.append("tab-layout: its description does not name herdr-fold's installer")
         self.assertEqual(problems, [])
@@ -335,12 +331,12 @@ class Credits(unittest.TestCase):
         self.assertEqual(found, ["herdr-plugin.toml"] + [f"src/plugins/{plugin}/herdr-plugin.toml"
                                                           for plugin in ("sessions-view", "sidebar", "tab-layout")])
         for rel in found:
-            head = self.read(rel).split("\n[", 1)[0]
+            head = package_text(rel).split("\n[", 1)[0]
             self.assertEqual([key for key in ("id", "name", "version", "min_herdr_version")
                               if not re.search(rf'^{key} = "[^"]+"$', head, re.MULTILINE)], [], rel)
 
     def test_the_whole_environment_offers_the_installer_on_a_mac(self):
-        manifest = self.read("herdr-plugin.toml")
+        manifest = package_text("herdr-plugin.toml")
         head = manifest.split("\n[", 1)[0]
         self.assertEqual(dict(re.findall(r'^(id|name|version|min_herdr_version) = "(.*)"$', head, re.MULTILINE)),
                          {"id": "herdr-fold", "name": "Full Setup", "version": "0.2.0",

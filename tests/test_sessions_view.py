@@ -45,8 +45,8 @@ class SyncNames(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as f:
             f.write("".join(json.dumps(line) + "\n" for line in lines))
 
-    def agent(self, pane, title, kind="claude", session="s1", tab="w1:t2"):
-        return {"pane_id": pane, "tab_id": tab, "agent": kind, "terminal_title_stripped": title,
+    def agent(self, pane, title, kind="claude", session="s1"):
+        return {"pane_id": pane, "tab_id": "w1:t2", "agent": kind, "terminal_title_stripped": title,
                 "agent_session": {"value": session}}
 
     def tab(self, label, number=2):

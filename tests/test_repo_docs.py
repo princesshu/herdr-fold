@@ -7,15 +7,10 @@ import re
 import sys
 import unittest
 
-from support import PACKAGE, SRC, catalog_text, publishable_files
+from support import PACKAGE, SRC, catalog_text, package_text, publishable_files
 
 sys.path.insert(0, os.path.join(SRC, "themes"))
 import apply  # noqa: E402
-
-
-def read(rel):
-    with open(os.path.join(PACKAGE, rel), encoding="utf-8") as f:
-        return f.read()
 
 
 # what a script asks: `ask "$(t key …)" y|n`, `prompt "$(t key …)" [default]`, and `wanted <id> "$(t key)"` (a plugin
@@ -30,7 +25,7 @@ def questions():
     """(script, key, default) for every question: default "y" / "n", a literal value, or None (a computed one)."""
     found = []
     for rel in SCRIPTS:
-        for line in read(rel).splitlines():
+        for line in package_text(rel).splitlines():
             for m in QUESTION.finditer(line):
                 after = re.search(r'\)" ([\w-]+)(?=\s|$)', line[m.end():])
                 default = "y" if m.group(1).startswith("wanted") else after.group(1) if after else None
@@ -49,14 +44,14 @@ class InstallerQuestions(unittest.TestCase):
 
     def test_every_question_is_in_its_guide(self):
         missing = [f"{rel}: {key}" for rel, key, _ in questions()
-                   if not asked(key).search(read(GUIDES.get(rel, "docs/installation.md")))]
+                   if not asked(key).search(package_text(GUIDES.get(rel, "docs/installation.md")))]
         self.assertEqual(missing, [])
 
     def test_every_default_in_the_tables_is_the_codes(self):
         said = {"y": "yes", "n": "no"}
         wrong = []
         for rel, key, default in questions():
-            rows = [row for row in read(GUIDES.get(rel, "docs/installation.md")).splitlines()
+            rows = [row for row in package_text(GUIDES.get(rel, "docs/installation.md")).splitlines()
                     if row.startswith("| ") and any(asked(key).fullmatch(span) for span in re.findall(r"`[^`]+`", row))]
             if default and rows and not any(said.get(default, default) in row.split("|")[-2] for row in rows):
                 wrong.append(f"{rel}: {key} defaults to {default}")
@@ -81,7 +76,7 @@ class Switches(unittest.TestCase):
             with open(os.path.join(PACKAGE, rel), "rb") as f:
                 used |= set(SWITCH.findall(f.read().decode("utf-8", "replace")))
         documented = {s for page in glob.glob(os.path.join(PACKAGE, "docs", "*.md"))
-                      for s in SWITCH.findall(read(os.path.relpath(page, PACKAGE)))}
+                      for s in SWITCH.findall(package_text(os.path.relpath(page, PACKAGE)))}
         self.assertEqual(sorted(used - INTERNAL - documented), [])
 
 
@@ -124,7 +119,7 @@ def sent(action):
 def ghostty_keys():
     """The Cmd keys of the package's Ghostty settings, as the docs write them; Cmd + 1…9 as one row."""
     keys = set()
-    for chord, _ in KEYBIND.findall(read("config/ghostty/config")):
+    for chord, _ in KEYBIND.findall(package_text("config/ghostty/config")):
         if not chord.startswith("super+"):
             continue
         if re.fullmatch(r"super\+(?:digit_)?[1-9]", chord):
@@ -136,8 +131,8 @@ def ghostty_keys():
 
 def herdr_keys():
     """herdr-fold's herdr keys that no Cmd key of Ghostty sends: the [[keys.command]] keys and the [keys] chords."""
-    from_ghostty = {sent(action) for _, action in KEYBIND.findall(read("config/ghostty/config"))}
-    config = read("config/herdr/config.toml")
+    from_ghostty = {sent(action) for _, action in KEYBIND.findall(package_text("config/ghostty/config"))}
+    config = package_text("config/herdr/config.toml")
     chords = [m for block in config.split("[[keys.command]]")[1:]
               for m in re.findall(r'^key = "([^"]+)"', block.split("\n[")[0], re.M)]
     table = config.split("\n[keys]\n", 1)[1].split("\n[", 1)[0]
@@ -155,17 +150,17 @@ def key_cells(text):
 
 class Keys(unittest.TestCase):
     def test_every_cmd_key_has_its_own_row(self):
-        self.assertEqual(sorted(ghostty_keys() - key_cells(read("docs/keybindings.md"))), [])
+        self.assertEqual(sorted(ghostty_keys() - key_cells(package_text("docs/keybindings.md"))), [])
 
     def test_every_herdr_key_herdr_fold_binds_is_in_the_reference(self):
-        reference = read("docs/keybindings.md")
+        reference = package_text("docs/keybindings.md")
         self.assertEqual(sorted(k for k in herdr_keys() if not re.search(r"(?<![\w+])" + re.escape(k) + r"(?!\w)",
                                                                          reference)), [])
 
     def test_cmd_arrows_step_the_workspaces_and_the_panes(self):
         # herdr's own, two keys each: previous / next workspace, previous / next pane of the tab; both wrap around.
         # Not Ctrl+Tab: a Tab still held once Ctrl is up runs the shell's completion
-        bound = dict(KEYBIND.findall(read("config/ghostty/config")))
+        bound = dict(KEYBIND.findall(package_text("config/ghostty/config")))
         self.assertEqual([sent(bound[chord]) for chord in ("super+up", "super+down", "super+left", "super+right")],
                          ["prefix+up", "prefix+down", "prefix+shift+tab", "prefix+tab"])
         self.assertNotIn("ctrl+tab", bound)
@@ -186,7 +181,7 @@ HERDR_STATES = ["working", "blocked", "done", "idle"]
 
 class Sessions(unittest.TestCase):
     def test_the_guide_names_herdrs_states(self):
-        text = read("docs/usage.md").split("\n## Sessions\n", 1)[1].split("\n## ", 1)[0]
+        text = package_text("docs/usage.md").split("\n## Sessions\n", 1)[1].split("\n## ", 1)[0]
         self.assertEqual([s for s in HERDR_STATES if not re.search(rf"\b{s}\b", text)], [])
 
 
@@ -198,8 +193,9 @@ INSTALLER_FOLDERS = (".config/herdr-fold", ".local/state/herdr-fold")
 
 class Changes(unittest.TestCase):
     def test_every_place_the_installer_writes_is_listed(self):
-        section = read("docs/installation.md").split("## What changes on your Mac", 1)[1].split("\n## ", 1)[0]
-        places = {path.rstrip(".") for rel in WRITERS for m in HOME_PATH.findall(read(rel)) for path in m if path}
+        section = package_text("docs/installation.md").split("## What changes on your Mac", 1)[1].split("\n## ", 1)[0]
+        places = {path.rstrip(".") for rel in WRITERS for m in HOME_PATH.findall(package_text(rel)) for path in m
+                  if path}
         self.assertEqual(sorted(p for p in places
                                 if not p.startswith(INSTALLER_FOLDERS) and "~/" + p not in section), [])
 
@@ -208,7 +204,7 @@ def installed():
     """Every path files.txt and remote/files.txt put on a machine, relative to its home folder."""
     found = set()
     for listing in ("files.txt", "remote/files.txt"):
-        for line in read(listing).splitlines():
+        for line in package_text(listing).splitlines():
             if not line.strip() or line.lstrip().startswith("#"):
                 continue
             src, dest = (p.strip() for p in line.split("|")[:2])      # remote/files.txt adds the platforms
@@ -228,16 +224,17 @@ class Commands(unittest.TestCase):
 
     def test_every_installed_file_named_exists(self):
         targets = installed()
-        self.assertEqual([f"{page}: ~/{rel}" for page in PAGES for rel in INSTALLED.findall(read(page))
+        self.assertEqual([f"{page}: ~/{rel}" for page in PAGES for rel in INSTALLED.findall(package_text(page))
                           if rel not in targets], [])
 
     def test_every_script_named_exists(self):
-        self.assertEqual([f"{page}: ./{rel}" for page in PAGES for rel in SCRIPT.findall(read(page))
+        self.assertEqual([f"{page}: ./{rel}" for page in PAGES for rel in SCRIPT.findall(package_text(page))
                           if not os.path.isfile(os.path.join(PACKAGE, rel))], [])
 
     def test_every_machines_command_exists(self):
-        commands = {c for alts in re.findall(r"^  ([\w|-]+)\)", read("machines.sh"), re.M) for c in alts.split("|")}
-        self.assertEqual([f"{page}: {c}" for page in PAGES for c in MACHINES.findall(read(page))
+        commands = {c for alts in re.findall(r"^  ([\w|-]+)\)", package_text("machines.sh"), re.M)
+                    for c in alts.split("|")}
+        self.assertEqual([f"{page}: {c}" for page in PAGES for c in MACHINES.findall(package_text(page))
                           if c not in commands], [])
 
 
@@ -260,12 +257,12 @@ class Style(unittest.TestCase):
     def test_house_style(self):
         problems = []
         for rel in MARKDOWN:
-            body = prose(read(rel))
+            body = prose(package_text(rel))
             problems += [f"{rel}: emoji in a heading or as a bullet: {line}" for line in body.splitlines()
                          if re.match(r"\s*(#{1,6} |[-*] )", line) and EMOJI.search(line)]
             problems += [f"{rel}: 01/02/03 numbering" for _ in NUMBERED.findall(body)]
             problems += [f"{rel}: italics: {m}" for m in ITALIC.findall(body)]
-        if len(BADGE.findall(read("README.md"))) > 3:
+        if len(BADGE.findall(package_text("README.md"))) > 3:
             problems.append("README.md: more than three badges")
         self.assertEqual(problems, [])
 
@@ -273,7 +270,7 @@ class Style(unittest.TestCase):
         """The package stands on its own: no "VS Code-like" anywhere, in the docs, the settings or the comments."""
         found = []
         for rel in publishable_files():
-            if rel == "tests/test_docs.py":
+            if rel == "tests/test_repo_docs.py":
                 continue
             with open(os.path.join(PACKAGE, rel), "rb") as f:
                 text = f.read().decode("utf-8", "replace")
@@ -281,7 +278,7 @@ class Style(unittest.TestCase):
         self.assertEqual(found, [])
 
     def test_the_readme_is_a_front_page(self):
-        self.assertLessEqual(len(read("README.md").splitlines()), 200)
+        self.assertLessEqual(len(package_text("README.md").splitlines()), 200)
 
 
 LINK = re.compile(r"\]\(([^)\s]+)\)")
@@ -293,14 +290,14 @@ def slug(heading):
 
 
 def anchors(rel):
-    return {slug(h) for h in re.findall(r"^#{1,6} (.+)$", CODE_BLOCK.sub("", read(rel)), re.M)}
+    return {slug(h) for h in re.findall(r"^#{1,6} (.+)$", CODE_BLOCK.sub("", package_text(rel)), re.M)}
 
 
 class Links(unittest.TestCase):
     def test_every_relative_link_resolves(self):
         broken = []
         for rel in MARKDOWN:
-            for target in LINK.findall(CODE_BLOCK.sub("", read(rel))):
+            for target in LINK.findall(CODE_BLOCK.sub("", package_text(rel))):
                 if re.match(r"[a-z]+:", target):
                     continue                                       # https:, mailto:
                 path, _, anchor = target.partition("#")
@@ -318,11 +315,11 @@ class Links(unittest.TestCase):
 
 class Notices(unittest.TestCase):
     def test_every_theme_names_its_source(self):
-        notices = read("THIRD_PARTY_NOTICES.md")
+        notices = package_text("THIRD_PARTY_NOTICES.md")
         self.assertEqual([t["name"] for t in apply.load_themes() if t["name"] not in notices], [])
 
     def test_the_license_is_mit(self):
-        self.assertTrue(read("LICENSE").startswith(
+        self.assertTrue(package_text("LICENSE").startswith(
             "MIT License\n\nCopyright (c) 2026 princesshu (https://github.com/princesshu)\n"))
 
 
@@ -330,7 +327,7 @@ def manifests():
     """Each plugin of the package: its manifest's id, version, min_herdr_version and name, and its folder."""
     for path in sorted(glob.glob(os.path.join(PACKAGE, "src", "plugins", "*", "herdr-plugin.toml"))):
         folder = os.path.relpath(os.path.dirname(path), PACKAGE)
-        text = read(os.path.join(folder, "herdr-plugin.toml"))
+        text = package_text(os.path.join(folder, "herdr-plugin.toml"))
         plugin = {key: re.search(rf'^{key} = "([^"]+)"', text, re.M).group(1)
                   for key in ("id", "version", "min_herdr_version", "name")}
         yield {**plugin, "folder": folder}
@@ -338,14 +335,14 @@ def manifests():
 
 class Changelog(unittest.TestCase):
     def test_every_plugin_version_is_in_the_changelog(self):
-        changelog = read("CHANGELOG.md")
+        changelog = package_text("CHANGELOG.md")
         listed = [f"{p['id']} {p['version']}" for p in manifests()]
         self.assertEqual([entry for entry in listed if entry not in changelog], [])
 
     def test_the_whole_environment_is_in_the_changelog(self):
-        root = read("herdr-plugin.toml")
+        root = package_text("herdr-plugin.toml")
         entry = " ".join(re.search(rf'^{key} = "([^"]+)"', root, re.M).group(1) for key in ("id", "version"))
-        self.assertIn(f"`{entry}`", read("CHANGELOG.md"))
+        self.assertIn(f"`{entry}`", package_text("CHANGELOG.md"))
 
 
 class PluginReadmes(unittest.TestCase):
@@ -358,8 +355,8 @@ class PluginReadmes(unittest.TestCase):
             readme = os.path.join(plugin["folder"], "README.md")
             if not os.path.exists(os.path.join(PACKAGE, readme)):
                 problems.append(f"{plugin['folder']}: no README.md")
-            elif (not read(readme).startswith(f"# {plugin['name']}\n")
-                  or plugin["min_herdr_version"] not in read(readme)):
+            elif (not package_text(readme).startswith(f"# {plugin['name']}\n")
+                  or plugin["min_herdr_version"] not in package_text(readme)):
                 problems.append(f"{readme}: its title is not {plugin['name']!r}, or it does not name herdr "
                                 f"{plugin['min_herdr_version']}")
         self.assertEqual(problems, [])
@@ -372,19 +369,19 @@ class Pictures(unittest.TestCase):
     def test_a_plugin_installed_alone_shows_itself(self):
         for plugin in ("sidebar", "sessions-view"):
             pictures = re.findall(r"\]\((\.\./\.\./\.\./assets/screenshots/[\w-]+\.webp)\)",
-                                  read(f"src/plugins/{plugin}/README.md"))
+                                  package_text(f"src/plugins/{plugin}/README.md"))
             self.assertTrue(pictures, plugin)
             for rel in pictures:
                 path = os.path.normpath(os.path.join(PACKAGE, "src", "plugins", plugin, rel))
                 self.assertTrue(os.path.isfile(path), rel)
 
     def test_the_readmes_list_shows_the_sidebar(self):
-        what_you_get = read("README.md").split("## What you get", 1)[1].split("\n## ", 1)[0]
+        what_you_get = package_text("README.md").split("## What you get", 1)[1].split("\n## ", 1)[0]
         self.assertIn("(assets/screenshots/sidebar.webp)", what_you_get)
 
     def test_the_readme_opens_with_the_logo_and_says_it_is_the_sheep(self):
         # under the title: above it, GitHub's rule below the title would run through the logo
-        readme = read("README.md")
+        readme = package_text("README.md")
         logo = re.match(r'# herdr-fold\n\n<img src="(src/themes/logo\.svg)" alt="herdr-fold\'s logo[^"]*" width="\d+" '
                         r'align="right">\n', readme)
         self.assertIsNotNone(logo, readme[:200])
@@ -395,7 +392,7 @@ class Pictures(unittest.TestCase):
 
 class Templates(unittest.TestCase):
     def test_a_bug_report_asks_for_secrets_to_be_removed_first(self):
-        form = read(".github/ISSUE_TEMPLATE/bug_report.yml")
+        form = package_text(".github/ISSUE_TEMPLATE/bug_report.yml")
         self.assertIn("type: checkboxes", form)
         checkbox = form.split("type: checkboxes", 1)[1]
         self.assertIn("required: true", checkbox)
@@ -404,14 +401,14 @@ class Templates(unittest.TestCase):
     def test_every_issue_form_asks_that_a_person_wrote_it(self):
         # one written by an AI tool, or naming one as its author or co-author, is deleted (CONTRIBUTING.md)
         for name in ("bug_report.yml", "feature_request.yml"):
-            form = read(f".github/ISSUE_TEMPLATE/{name}")
+            form = package_text(f".github/ISSUE_TEMPLATE/{name}")
             checks = form.split("type: checkboxes", 1)[1] if "type: checkboxes" in form else ""
             self.assertIn("I wrote this myself", checks, name)
             self.assertEqual(checks.count("- label:"), checks.count("required: true"), name)
-        self.assertIn("written by an AI tool", read("CONTRIBUTING.md"))
+        self.assertIn("written by an AI tool", package_text("CONTRIBUTING.md"))
 
     def test_blank_issues_point_to_the_forms_and_security_reports_stay_private(self):
-        config = read(".github/ISSUE_TEMPLATE/config.yml")
+        config = package_text(".github/ISSUE_TEMPLATE/config.yml")
         self.assertIn("blank_issues_enabled: false", config)
         self.assertIn("/security/advisories/new", config)
 

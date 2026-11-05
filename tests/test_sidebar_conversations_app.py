@@ -9,7 +9,7 @@ import threading
 import time
 import unittest
 
-from support import SRC, FakeHerdrSocket, FakeTerminal, set_attrs, set_env, stubs
+from support import SRC, AppScreen, FakeHerdrSocket, FakeTerminal, jsonl, logged, set_attrs, set_env, stubs
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import column  # noqa: E402
@@ -42,11 +42,7 @@ esac
 LOOKS = ("agent list", "workspace list", "pane list")                # the app's look every second
 
 
-def line(entry):
-    return json.dumps(entry, separators=(",", ":")) + "\n"
-
-
-class Column(unittest.TestCase):
+class Column(AppScreen, unittest.TestCase):
     def setUp(self):
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp)
@@ -64,7 +60,7 @@ class Column(unittest.TestCase):
         path = os.path.join(self.home, ".claude", "projects", folder.replace("/", "-"), f"{session}.jsonl")
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as f:
-            f.write(line({"type": "user", "isSidechain": False, "cwd": folder, "message": {"content": text}}))
+            f.write(jsonl({"type": "user", "isSidechain": False, "cwd": folder, "message": {"content": text}}))
         os.utime(path, (changed, changed))
 
     def start(self):
@@ -79,36 +75,17 @@ class Column(unittest.TestCase):
         self.addCleanup(stop)
         self.until(lambda s: "Price list" in s)
 
-    def screen(self):
-        canvas = self.app.canvas
-        return "\n".join("".join(ch for ch, _ in row) for row in canvas.rows) if canvas else ""
-
-    def until(self, condition, timeout=5.0):
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            if condition(self.screen()):
-                return
-            time.sleep(0.05)
-        self.fail(f"not shown within {timeout} s:\n{self.screen()}")
-
-    def logged(self):
-        try:
-            with open(self.log) as f:
-                return f.read().splitlines()
-        except OSError:
-            return []
-
     def calls_after(self, first):
         """The herdr calls from the first one starting FIRST on, waited for until the tab or workspace is focused; the
         LOOKS left out."""
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
-            calls = [call for call in self.logged() if not call.startswith(LOOKS)]
+            calls = [call for call in logged(self.log) if not call.startswith(LOOKS)]
             starts = [n for n, call in enumerate(calls) if call.startswith(first)]
             if starts and any(call.startswith("tab focus") for call in calls[starts[0]:]):
                 return calls[starts[0]:]
             time.sleep(0.05)
-        self.fail(f"no {first} call: {self.logged()}")
+        self.fail(f"no {first} call: {logged(self.log)}")
 
     def test_the_spaces_in_their_order_their_conversations_under_them(self):
         self.start()
@@ -124,9 +101,9 @@ class Column(unittest.TestCase):
         self.start()
         self.term.type(Key("down"), Key("enter"))
         deadline = time.monotonic() + 5
-        while "agent focus w1:p1" not in self.logged() and time.monotonic() < deadline:
+        while "agent focus w1:p1" not in logged(self.log) and time.monotonic() < deadline:
             time.sleep(0.05)
-        self.assertIn("agent focus w1:p1", self.logged())
+        self.assertIn("agent focus w1:p1", logged(self.log))
 
     def test_the_conversation_of_the_active_tab_leads_though_another_was_written_to_later(self):
         self.claude("s2", "/repo/app", "Price list", time.time())             # reopened and closed a moment ago
@@ -137,9 +114,9 @@ class Column(unittest.TestCase):
         set_env(self, HERDR_PANE_ID="w1:p4")                     # herdr's own menu would offer Close pane
         self.start()
         deadline = time.monotonic() + 5
-        while "pane input w1:p4 --right-click pane" not in self.logged() and time.monotonic() < deadline:
+        while "pane input w1:p4 --right-click pane" not in logged(self.log) and time.monotonic() < deadline:
             time.sleep(0.05)
-        self.assertIn("pane input w1:p4 --right-click pane", self.logged())
+        self.assertIn("pane input w1:p4 --right-click pane", logged(self.log))
 
     def test_a_note_goes_by_itself_or_on_a_click_an_error_stays(self):
         now = [100.0]
@@ -159,7 +136,7 @@ class Column(unittest.TestCase):
     def test_copy_conversation_puts_the_whole_conversation_on_the_clipboard(self):
         path = os.path.join(self.home, ".claude", "projects", "-repo-app", "s2.jsonl")
         with open(path, "a") as f:
-            f.write(line({"type": "assistant", "message": {"content": [{"type": "text", "text": "**Done.**"}]}}))
+            f.write(jsonl({"type": "assistant", "message": {"content": [{"type": "text", "text": "**Done.**"}]}}))
         app, copied = ConversationsApp(FakeTerminal(40, 24), preview.Herdr(), self.state), []
         app.clipboard = lambda text: copied.append(text) or True
         set_attrs(self, sys.modules["richtext"], copy_rich=lambda markdown, plain: copied.append("formatted"))
@@ -203,8 +180,8 @@ class Column(unittest.TestCase):
         self.choose("Fix the login", "Rename")
         self.term.type(*[Key("backspace")] * len("login"), *[Key("char", ch) for ch in "signup"], Key("enter"))
         self.until(lambda s: "Fix the signup" in s and "Renamed" in s)
-        self.assertIn("pane rename w1:p1 Fix the signup", self.logged())       # AI Sessions shows it too
-        self.assertIn("tab rename w1:t1 Fix the signup", self.logged())        # the tab it has to itself
+        self.assertIn("pane rename w1:p1 Fix the signup", logged(self.log))       # AI Sessions shows it too
+        self.assertIn("tab rename w1:t1 Fix the signup", logged(self.log))        # the tab it has to itself
         self.assertEqual(self.names(), {"s1": {"name": "Fix the signup", "given": False}})
 
     def test_own_tab_is_the_tab_a_conversation_has_to_itself(self):
@@ -228,7 +205,7 @@ class Column(unittest.TestCase):
         self.term.type(*[Key("char", ch) for ch in " 2027"], Key("enter"))
         self.until(lambda s: "Price list 2027" in s)
         self.assertEqual(self.names(), {"s2": {"name": "Price list 2027", "given": False}})
-        self.assertEqual([call for call in self.logged() if call.startswith("pane rename")], [])
+        self.assertEqual([call for call in logged(self.log) if call.startswith("pane rename")], [])
 
     def test_show_archived_in_one_tab_shows_them_in_every_tab(self):
         self.start()

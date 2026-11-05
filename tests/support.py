@@ -29,6 +29,8 @@ PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 def is_webp(data):
     return data[:4] == b"RIFF" and data[8:12] == b"WEBP"
+
+
 ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 # [Y/n] in any language's letters, a prompt, "press Enter to start…", "press any key."
 QUESTION_END = re.compile(r"(\[\w+/\w+\]|:|cancel\.|exit\.)$")
@@ -58,6 +60,46 @@ FORGET_PLUGIN = """/usr/bin/python3 -c 'import json, sys
 listed = json.load(open(sys.argv[1]))
 listed["result"]["plugins"] = [p for p in listed["result"]["plugins"] if p.get("plugin_id") != sys.argv[2]]
 json.dump(listed, open(sys.argv[1], "w"))'"""
+# herdr as install.sh and uninstall.sh meet it: its calls logged in $STUB_HERDR_LOG, its answers the STUB_* files
+HERDR_STUB = """#!/bin/sh
+echo "herdr $*" >> "$STUB_HERDR_LOG"
+case "$*" in
+  "plugin uninstall "*" "*) echo "usage: herdr plugin uninstall <plugin_id|owner/repo[/subdir...]>" >&2; exit 2 ;;
+  "plugin list --json") cat "$STUB_PLUGINS" ;;
+  "agent list"*) cat "$STUB_AGENTS" 2>/dev/null ;;
+  status) cat "$STUB_STATUS" 2>/dev/null ;;
+  --version) echo "herdr ${STUB_HERDR_VERSION:-0.9.6}" ;;
+  "workspace list"*) cat "$STUB_WORKSPACES" 2>/dev/null ;;
+  "pane list"*) cat "$STUB_PANES" 2>/dev/null ;;
+  "pane process-info --pane "*) for pane in "$@"; do :; done
+    printf '{"result":{"process_info":{"foreground_processes":[{"name":"%s"}]}}}\n' \
+      "$(sed -n "s/^$pane //p" "$STUB_PROGRAMS" 2>/dev/null)" ;;
+esac
+exit 0
+"""
+# Ghostty's bundle id where STUB_GHOSTTY points; nothing else is set or found
+DEFAULTS_STUB = """#!/bin/sh
+[ -n "$STUB_GHOSTTY" ] && [ "$*" = "read $STUB_GHOSTTY/Contents/Info CFBundleIdentifier" ] || exit 1
+echo com.mitchellh.ghostty
+"""
+GH_STUB = """#!/bin/sh
+echo "gh $*" >> "$GH_STUB_LOG"
+case "$*" in
+  "auth status"*) [ "$GH_STUB_STATE" = in ] && exit 0 || exit 1 ;;
+  "api user --jq .id") echo 1234567 ;;
+  "api user"*) echo testuser ;;
+esac
+exit 0
+"""
+# Tailscale's status: two machines of the tailnet, online
+FAKE_TAILSCALE = """#!/bin/sh
+cat <<'JSON'
+{"Peer": {
+  "a": {"DNSName": "mac-mini.tail0000.ts.net.", "OS": "macOS", "Online": true, "TailscaleIPs": ["100.115.92.5"]},
+  "b": {"DNSName": "server.tail0000.ts.net.", "OS": "linux", "Online": true, "TailscaleIPs": ["100.115.92.6"]}
+}}
+JSON
+"""
 
 
 def catalog_text(key, *args):
@@ -147,13 +189,13 @@ def stubs(folder, programs):
     return folder
 
 
-def from_homebrew(folder, name="herdr", version="0.9.6"):
-    """FOLDER's fake NAME moved where Homebrew keeps a program (FOLDER/../Cellar/NAME/VERSION/bin) and linked back onto
+def from_homebrew(folder):
+    """FOLDER's fake herdr moved where Homebrew keeps a program (FOLDER/../Cellar/herdr/0.9.6/bin) and linked back onto
     PATH from there, as Homebrew links it: the installer takes it for Homebrew's."""
-    kept = os.path.join(os.path.dirname(folder), "Cellar", name, version, "bin")
+    kept = os.path.join(os.path.dirname(folder), "Cellar", "herdr", "0.9.6", "bin")
     os.makedirs(kept, exist_ok=True)
-    os.replace(os.path.join(folder, name), os.path.join(kept, name))
-    os.symlink(os.path.join(kept, name), os.path.join(folder, name))
+    os.replace(os.path.join(folder, "herdr"), os.path.join(kept, "herdr"))
+    os.symlink(os.path.join(kept, "herdr"), os.path.join(folder, "herdr"))
 
 
 def trap(repo, key, folder):
@@ -253,6 +295,29 @@ def finished(test, fn, seconds=5):
     if "error" in result:
         raise result["error"]
     return result.get("value")
+
+
+def text(canvas, y):
+    """Row Y of a canvas the sidebar drew, as text."""
+    return "".join(ch for ch, _ in canvas.rows[y])
+
+
+def logged(path):
+    """The lines a fake program wrote to PATH, none before it wrote one."""
+    try:
+        with open(path) as f:
+            return f.read().splitlines()
+    except OSError:
+        return []
+
+
+def package_text(rel):
+    with open(os.path.join(PACKAGE, rel), encoding="utf-8") as f:
+        return f.read()
+
+
+def jsonl(entry):
+    return json.dumps(entry, separators=(",", ":")) + "\n"          # the way Claude and Codex write their lines
 
 
 def waits_for_an_answer(shown):
@@ -375,3 +440,41 @@ class FakeHerdrSocket:
                 self.calls.append((request["method"], request["params"]))
                 reply = {"id": request["id"], "result": self.answer(request["method"], request["params"])}
                 conn.sendall((json.dumps(reply) + "\n").encode())
+
+
+class PackageHome:
+    """For a test with a temporary home (self.home) and a copy of the package (self.pkg) it runs with self.env."""
+
+    def path(self, rel):
+        return os.path.join(self.home, rel)
+
+    def write(self, rel, text):
+        os.makedirs(os.path.dirname(self.path(rel)), exist_ok=True)
+        with open(self.path(rel), "w") as f:
+            f.write(text)
+
+    def read(self, rel):
+        with open(self.path(rel)) as f:
+            return f.read()
+
+    def run_script(self, name):
+        done = subprocess.run(["bash", os.path.join(self.pkg, name)], env=self.env, stdin=subprocess.DEVNULL,
+                              capture_output=True, text=True, timeout=300)
+        self.assertEqual(done.returncode, 0, done.stdout[-2000:] + done.stderr[-2000:])
+        return done.stdout
+
+
+class AppScreen:
+    """For a test running a sidebar app (self.app) on a FakeTerminal."""
+
+    def screen(self):
+        canvas = self.app.canvas
+        return "\n".join("".join(ch for ch, _ in row) for row in canvas.rows) if canvas else ""
+
+    def until(self, condition, timeout=5.0):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if condition(self.screen()):
+                return
+            time.sleep(0.05)
+        self.fail(f"not shown within {timeout} s:\n{self.screen()}")

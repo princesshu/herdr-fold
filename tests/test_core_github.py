@@ -6,12 +6,11 @@ import io
 import json
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
 
-from support import PACKAGE, set_env, stubs
+from support import PACKAGE, logged, set_env, stubs
 
 sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import github  # noqa: E402
@@ -51,10 +50,6 @@ class CLI(unittest.TestCase):
         set_env(self, PATH=f"{bin_dir}:/usr/bin:/bin", GH_LOG=self.log, GH_ANSWER=self.answer, GH_FAIL=None,
                 GH_FIELDS=None, GH_FIELDS_RC=None)
 
-    def calls(self):
-        with open(self.log) as f:
-            return f.read().splitlines()
-
     def test_the_open_issues_of_the_repository(self):
         listing = github.issues("acme/app", Query())
         self.assertIsNone(listing.error)
@@ -62,7 +57,7 @@ class CLI(unittest.TestCase):
         self.assertEqual((first.number, first.title, first.labels, first.assignees, first.state),
                          (42, "Login fails on Safari", ("bug", "ui"), ("dev",), "OPEN"))
         self.assertEqual(listing.issues[1].labels, ())
-        call = self.calls()[0]
+        call = logged(self.log)[0]
         self.assertIn("issue list -R acme/app", call)
         self.assertIn("--state open", call)
         self.assertNotIn("--assignee", call)
@@ -80,7 +75,7 @@ class CLI(unittest.TestCase):
         for query in (Query(), Query(assigned=True)):
             listing = github.issues("acme/app", query)
             self.assertEqual([(issue.number, issue.priority) for issue in listing.issues], [(42, "High"), (38, "")])
-            asked = self.calls()[-1]
+            asked = logged(self.log)[-1]
             self.assertTrue(asked.startswith("api graphql"), asked)
             self.assertIn("owner=acme", asked)
             self.assertIn("name=app", asked)
@@ -96,7 +91,7 @@ class CLI(unittest.TestCase):
     def test_closed_ones_ask_for_no_priority(self):
         self.fields(FIELDS)
         github.issues("acme/app", Query("closed"))
-        self.assertEqual([call for call in self.calls() if call.startswith("api ")], [])
+        self.assertEqual([call for call in logged(self.log) if call.startswith("api ")], [])
 
     def test_without_issue_fields_the_labels_are_left(self):
         # an owner without them (a personal account, an older GitHub), or an answer that cannot be read: no priority
@@ -112,13 +107,13 @@ class CLI(unittest.TestCase):
 
     def test_githubs_own_filters_assigned_to_me_created_by_me_a_label(self):
         github.issues("acme/app", Query(assigned=True))
-        self.assertIn("--state open --assignee @me", self.calls()[-2])
+        self.assertIn("--state open --assignee @me", logged(self.log)[-2])
         github.issues("acme/app", Query("closed", authored=True, label="good first issue"))
-        self.assertIn("--state closed --author @me --label=good first issue", self.calls()[-1])
+        self.assertIn("--state closed --author @me --label=good first issue", logged(self.log)[-1])
 
     def test_closed_ones(self):
         github.issues("acme/app", Query("closed"))
-        self.assertIn("--state closed", self.calls()[0])
+        self.assertIn("--state closed", logged(self.log)[0])
 
     def test_without_gh_it_says_what_is_needed(self):
         set_env(self, PATH="/usr/bin:/bin")
@@ -143,7 +138,7 @@ class CLI(unittest.TestCase):
         for what, args in (("close", "issue close 42 -R acme/app"), ("reopen", "issue reopen 42 -R acme/app"),
                            ("assign", "issue edit 42 -R acme/app --add-assignee @me")):
             self.assertIsNone(github.change("acme/app", 42, what))
-            self.assertEqual(self.calls()[-1], args)
+            self.assertEqual(logged(self.log)[-1], args)
         set_env(self, GH_FAIL="GraphQL: Resource not accessible by integration")
         self.assertEqual(github.change("acme/app", 42, "close"), "GraphQL: Resource not accessible by integration")
 
@@ -151,7 +146,7 @@ class CLI(unittest.TestCase):
         with open(self.answer, "w"):
             pass
         self.assertIsNone(github.open_in_browser("acme/app", 42))
-        self.assertEqual(self.calls()[-1], "issue view 42 -R acme/app --web")
+        self.assertEqual(logged(self.log)[-1], "issue view 42 -R acme/app --web")
         set_env(self, GH_FAIL="exec: xdg-open: not found")
         self.assertEqual(github.open_in_browser("acme/app", 42), "exec: xdg-open: not found")
 
@@ -171,13 +166,13 @@ class CommandLine(CLI):
         self.assertEqual((code, answer["error"]), (0, None))
         self.assertEqual([(i["number"], i["title"], i["labels"]) for i in answer["issues"]],
                          [(42, "Login fails on Safari", ["bug", "ui"]), (38, "Add a dark mode toggle", [])])
-        self.assertIn("issue list -R acme/app --state open", self.calls()[0])
+        self.assertIn("issue list -R acme/app --state open", logged(self.log)[0])
 
     def test_a_change_and_the_prompt(self):
         with open(self.answer, "w"):
             pass
         self.assertEqual(self.cli("change", "acme/app", "42", "close"), (0, {"ok": True, "advice": None}))
-        self.assertEqual(self.calls()[-1], "issue close 42 -R acme/app")
+        self.assertEqual(logged(self.log)[-1], "issue close 42 -R acme/app")
         code, answer = self.cli("prompt", "acme/app", "42")
         self.assertEqual(answer["prompt"], github.prompt("acme/app", github.Issue(42, "")))
 
@@ -210,7 +205,7 @@ class CommandLine(CLI):
             "labels": ["bug"], "assignees": ["dev"],
             "comments": [{"author": "lin", "body": "Same on iOS", "created": "2026-10-21T10:00:00Z"}]})
         self.assertEqual(answer["ago"], [github.ago("2026-10-20T10:00:00Z"), github.ago("2026-10-21T10:00:00Z")])
-        self.assertTrue(self.calls()[-1].startswith("issue view 42 -R acme/app --json "))
+        self.assertTrue(logged(self.log)[-1].startswith("issue view 42 -R acme/app --json "))
 
     def test_an_issue_that_cannot_be_read_says_why(self):
         set_env(self, GH_FAIL="HTTP 404: Not Found")
@@ -248,13 +243,16 @@ class Priority(unittest.TestCase):
             self.assertEqual(github.rank(label), level, label)
 
     def test_a_word_with_another_meaning_counts_only_when_named(self):
-        # minor and major are release labels too, backlog a state, s3 a storage: alone they are no priority
-        for label in ("minor", "major", "backlog", "normal", "S1", "s3", "p2p", "sprint 3", "primary", "seven"):
+        # minor and major are release labels too, backlog a state, s3 a storage: alone they are no priority; nor a word
+        # with one inside
+        for label in ("minor", "major", "backlog", "normal", "S1", "s3", "p2p", "sprint 3", "primary", "seven",
+                      "highlight", "lowercase"):
             self.assertIsNone(github.rank(label), label)
 
-    def test_a_priority_label_comes_before_a_severity_one_and_that_before_a_word(self):
-        def first(*labels):
-            return github.priority(Issue(9, "Something", labels, (), "2026-10-22T10:00:00Z", "OPEN", ""))
+    def test_githubs_field_comes_first_then_a_priority_label_a_severity_one_and_a_word(self):
+        def first(*labels, field=""):
+            return github.priority(Issue(9, "Something", labels, (), "2026-10-22T10:00:00Z", "OPEN", "", field))
+        self.assertEqual(first("P0", field="Low"), (3, "Low"))                  # an organization's own, GitHub's
         self.assertEqual(first("urgent", "severity: low", "priority: low"), (3, "priority: low"))
         self.assertEqual(first("urgent", "severity: low"), (3, "severity: low"))
         self.assertEqual(first("urgent", "low"), (0, "urgent"))                  # among equals: the most pressing

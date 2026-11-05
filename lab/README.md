@@ -33,7 +33,7 @@ machine's key, and `ssh_config` with `bin/ssh` and `bin/scp`, which use only the
 `-F`, herdr's, as options: they write nothing), never `~/.ssh`. The machine listens on `127.0.0.1` alone, at a port
 of its own each time. A whole-way run makes its demo home in that folder too and removes it afterwards: its herdr
 and the app's core keep their sockets there (`XDG_RUNTIME_DIR`), within the 104 bytes macOS allows a socket's
-path. `tests/test_lab_harness.py` checks the lab itself without a machine, in the usual test run.
+path. `tests/test_lab.py` checks the lab itself without a machine, in the usual test run.
 
 ## On GitHub's runners
 

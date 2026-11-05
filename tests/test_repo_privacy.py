@@ -428,10 +428,10 @@ class Images(unittest.TestCase):
         self.assertEqual([what for text in texts.values() for _, what in findings(text)], ["home folder path"])
 
 
-def github_about(root=PACKAGE):
+def github_about():
     """(OWNER/NAME, its About as GitHub shows it: the description, the homepage, the topics), or (None, the reason
     it cannot be read: no remote on GitHub, no gh, no answer)."""
-    remote = git("remote", "get-url", "origin") if root == PACKAGE else None
+    remote = git("remote", "get-url", "origin")
     match = re.search(r"github\.com[:/]([\w.-]+/[\w.-]+?)(?:\.git)?/?$", (remote or "").strip())
     if not match:
         return None, "the repository is on no GitHub remote"
@@ -472,7 +472,7 @@ class Hooks(unittest.TestCase):
         hook = os.path.join(PACKAGE, ".githooks", "pre-commit")
         self.assertTrue(os.access(hook, os.X_OK))
         with open(hook, encoding="utf-8") as f:
-            self.assertIn("-p test_privacy.py", f.read())
+            self.assertIn("-p test_repo_privacy.py", f.read())
 
 
 class GitHub(unittest.TestCase):

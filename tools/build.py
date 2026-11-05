@@ -1,6 +1,6 @@
 """Writes the copies of core/, the shared data layer: into the TUI sidebar (src/plugins/sidebar/) and into the Herdr app
 mod (helper.js, the source it runs with Python's -c on the space's machine; icons.js, the icons); and the app layout's
-theme, made from the TUI's. Edit those, then run this: tests/test_build.py fails while a copy differs."""
+theme, made from the TUI's. Edit those, then run this: tests/test_tools_build.py fails while a copy differs."""
 import importlib.util
 import json
 import os

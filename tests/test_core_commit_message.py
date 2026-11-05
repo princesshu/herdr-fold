@@ -10,7 +10,7 @@ import sys
 import tempfile
 import unittest
 
-from support import PACKAGE, set_attrs, set_env, sign_head, stubs, trap
+from support import PACKAGE, logged, set_attrs, set_env, sign_head, stubs, trap
 
 sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import commit_message as cm  # noqa: E402
@@ -50,10 +50,6 @@ class Writer(unittest.TestCase):
     def which(self, name):
         return os.path.join(self.bin, name)
 
-    def calls(self):
-        with open(self.log) as f:
-            return f.read().splitlines()
-
     def write(self, order=None):
         return cm.write(self.req, order=order, which=self.which)
 
@@ -65,8 +61,8 @@ class Writer(unittest.TestCase):
     def test_a_squashed_message_is_asked_for_again_once(self):
         self.answers_are(SHORT, GOOD)
         self.assertEqual(self.write().message, GOOD)
-        self.assertEqual(len(self.calls()), 2)
-        self.assertIn("too short", self.calls()[1])
+        self.assertEqual(len(logged(self.log)), 2)
+        self.assertIn("too short", logged(self.log)[1])
 
     def test_still_short_then_the_other_ai(self):
         self.answers_are(SHORT, SHORT, GOOD)
@@ -77,33 +73,33 @@ class Writer(unittest.TestCase):
     def test_small_models_and_codex_falls_back_to_its_own(self):
         self.answers_are("", GOOD)                                      # the small model fails, Codex's own works
         self.write(order=["codex"])
-        first, second = self.calls()
+        first, second = logged(self.log)
         self.assertIn("[-m][gpt-6-luna]", first)
         self.assertIn('[-c][model_reasoning_effort="low"]', first)
         self.assertNotIn("[-m]", second)
         self.answers_are(GOOD)
         self.write(order=["claude"])
-        self.assertIn("[--model][haiku]", self.calls()[-1])
+        self.assertIn("[--model][haiku]", logged(self.log)[-1])
 
     def test_claude_runs_without_tools_or_mcp_servers(self):
         self.answers_are(GOOD)
         self.write(order=["claude"])
-        self.assertIn("[--tools][]", self.calls()[0])
-        self.assertIn("[--strict-mcp-config]", self.calls()[0])
+        self.assertIn("[--tools][]", logged(self.log)[0])
+        self.assertIn("[--strict-mcp-config]", logged(self.log)[0])
 
     def test_claude_has_none_of_the_users_instructions_memories_or_hooks(self):
         """A diff can carry instructions: Claude must hold nothing private it could copy into the message."""
         self.answers_are(GOOD)
         self.write(order=["claude"])
-        self.assertIn("[--setting-sources][]", self.calls()[0])
-        self.assertIn("NO_CLAUDE_MD=1 NO_MEMORY=1", self.calls()[0])
+        self.assertIn("[--setting-sources][]", logged(self.log)[0])
+        self.assertIn("NO_CLAUDE_MD=1 NO_MEMORY=1", logged(self.log)[0])
 
     def test_codex_has_no_tool_to_read_or_send_anything(self):
         """A diff can carry instructions: Codex, its own model too, runs with no shell, no image reading, no apps,
         plugins or browser, no web search, no MCP servers and no memories."""
         self.answers_are("", GOOD)
         self.write(order=["codex"])
-        for call in self.calls():
+        for call in logged(self.log):
             for feature in ("shell_tool", "view_image", "apps", "plugins", "browser_use", "in_app_browser",
                             "computer_use", "memories"):
                 self.assertIn(f"[--disable][{feature}]", call)
@@ -113,7 +109,7 @@ class Writer(unittest.TestCase):
     def test_the_agents_do_not_run_as_the_pane(self):
         self.answers_are(SHORT, GOOD)
         self.write()
-        self.assertTrue(all(call.endswith("PANE=none") for call in self.calls()))
+        self.assertTrue(all(call.endswith("PANE=none") for call in logged(self.log)))
 
     def test_something_private_the_changes_do_not_hold_goes_to_the_other_ai(self):
         self.answers_are("feat: add a\n\n- Add a.txt for someone@mail.example\n- Add b.txt", GOOD)

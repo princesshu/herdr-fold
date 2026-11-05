@@ -5,11 +5,10 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import tempfile
 import unittest
 
-from support import FORGET_PLUGIN, PACKAGE, catalog_text, copy_package, from_homebrew, stubs
+from support import FORGET_PLUGIN, PACKAGE, PackageHome, catalog_text, copy_package, from_homebrew, logged, stubs
 
 HERDR = """#!/bin/sh
 printf '%s\\n' "herdr $*" >> "$STUB_HERDR_LOG"
@@ -30,7 +29,7 @@ THEIRS = {"type": "command", "command": "printf mine"}
 THEIR_CONFIG = '# mine\n[keys]\nnext_agent = ["ctrl+n"]\n'
 
 
-class Uninstall(unittest.TestCase):
+class Uninstall(PackageHome, unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp)
@@ -57,24 +56,6 @@ class Uninstall(unittest.TestCase):
     def set_integrations(self, text):
         with open(self.integrations, "w") as f:
             f.write(text)
-
-    def path(self, rel):
-        return os.path.join(self.home, rel)
-
-    def write(self, rel, text):
-        os.makedirs(os.path.dirname(self.path(rel)), exist_ok=True)
-        with open(self.path(rel), "w") as f:
-            f.write(text)
-
-    def read(self, rel):
-        with open(self.path(rel)) as f:
-            return f.read()
-
-    def run_script(self, name):
-        done = subprocess.run(["bash", os.path.join(self.pkg, name)], env=self.env, stdin=subprocess.DEVNULL,
-                              capture_output=True, text=True, timeout=300)
-        self.assertEqual(done.returncode, 0, done.stdout[-2000:] + done.stderr[-2000:])
-        return done.stdout
 
     def install_and_uninstall(self, between=None):
         self.run_script("install.sh")
@@ -151,7 +132,7 @@ class Uninstall(unittest.TestCase):
     def test_plugins_it_put_there_are_taken_out(self):
         _, out = self.install_and_uninstall(
             between=lambda: self.linked("herdr-fold.sessions-view", "herdr-fold.tab-layout", "herdr-fold.sidebar"))
-        calls = self.calls()
+        calls = logged(self.log)
         for plugin in ("herdr-fold.sessions-view", "herdr-fold.tab-layout", "herdr-fold.sidebar"):
             self.assertIn("herdr plugin unlink " + plugin, calls)
             self.assertIn(catalog_text("uninstall.plugin_removed", plugin), out)
@@ -163,7 +144,7 @@ class Uninstall(unittest.TestCase):
             self.linked("herdr-fold", "herdr-fold.sidebar")
             self.write(".local/state/herdr/plugins/herdr-fold/offered-123", "")
         _, out = self.install_and_uninstall(between=from_the_marketplace)
-        self.assertIn("herdr plugin uninstall herdr-fold", self.calls())
+        self.assertIn("herdr plugin uninstall herdr-fold", logged(self.log))
         self.assertIn(catalog_text("uninstall.plugin_removed", "herdr-fold"), out)
         self.assertFalse(os.path.exists(self.path(".local/state/herdr/plugins/herdr-fold")), out)
 
@@ -253,17 +234,13 @@ class Uninstall(unittest.TestCase):
 
     def test_a_plugin_herdr_no_longer_has_is_left_alone(self):
         _, out = self.install_and_uninstall(between=lambda: self.linked("herdr-fold.sidebar"))
-        self.assertNotIn("herdr plugin unlink herdr-fold.tab-layout", self.calls())
+        self.assertNotIn("herdr plugin unlink herdr-fold.tab-layout", logged(self.log))
         self.assertNotIn(catalog_text("uninstall.plugin_removed", "herdr-fold.tab-layout"), out)
-
-    def calls(self):
-        with open(self.log) as f:
-            return f.read().splitlines()
 
     def test_the_integrations_it_put_there_are_taken_out(self):
         self.install_and_uninstall()
-        self.assertIn("herdr integration uninstall claude", self.calls())
-        self.assertIn("herdr integration uninstall codex", self.calls())
+        self.assertIn("herdr integration uninstall claude", logged(self.log))
+        self.assertIn("herdr integration uninstall codex", logged(self.log))
 
     def test_an_integration_herdr_did_not_take_off_is_named_with_its_command(self):
         self.env["STUB_INTEGRATION_FAILS"] = "1"
@@ -274,8 +251,8 @@ class Uninstall(unittest.TestCase):
     def test_an_integration_that_was_there_before_stays(self):
         self.set_integrations("claude: installed (x)\ncodex: not installed (x)\n")
         self.install_and_uninstall()
-        self.assertNotIn("herdr integration uninstall claude", self.calls())
-        self.assertIn("herdr integration uninstall codex", self.calls())
+        self.assertNotIn("herdr integration uninstall claude", logged(self.log))
+        self.assertIn("herdr integration uninstall codex", logged(self.log))
 
     def test_claudes_earlier_status_line_comes_back(self):
         self.install_and_uninstall()

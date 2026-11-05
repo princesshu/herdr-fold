@@ -6,7 +6,7 @@ import sys
 import time
 import unittest
 
-from support import SRC
+from support import SRC, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 from git import Change, Commit, Status  # noqa: E402
@@ -15,10 +15,6 @@ from icons import glyphs  # noqa: E402
 from screen import Canvas  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
 from widgets import Action  # noqa: E402
-
-
-def text(canvas, y):
-    return "".join(ch for ch, _ in canvas.rows[y])
 
 
 def key(name, **mods):
@@ -31,9 +27,9 @@ def changes():
                            Change("draft.md", "?")])
 
 
-def history(n=20):
+def history():
     return [Commit(f"{i:07x}", f"commit number {i}", "dev", ("main", "origin/main") if i == 0 else (), i == 0)
-            for i in range(n)]
+            for i in range(20)]
 
 
 class View(unittest.TestCase):

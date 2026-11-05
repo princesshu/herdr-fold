@@ -18,8 +18,8 @@ HIDE, SHOW = b"\x1b[?25l", b"\x1b[?25h"
 MOUSE_ON, MOUSE_OFF = b"\x1b[?1000h\x1b[?1006h", b"\x1b[?1006l\x1b[?1000l"
 
 
-def read_until(fd, done, timeout=5.0):
-    shown, end = b"", time.monotonic() + timeout
+def read_until(fd, done):
+    shown, end = b"", time.monotonic() + 5
     while time.monotonic() < end and not done(shown):
         if select.select([fd], [], [], 0.1)[0]:
             try:

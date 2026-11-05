@@ -6,7 +6,7 @@ import shutil
 import tempfile
 import unittest
 
-from support import copy_package, run_in_terminal, stubs
+from support import FAKE_TAILSCALE, copy_package, run_in_terminal, stubs
 
 SSH_CONFIG = """Host alpha
   HostName alpha.example
@@ -25,14 +25,6 @@ case "$*" in
   *"uname -s"*) case "$*" in *mac-mini*) echo Darwin ;; *) echo Linux ;; esac ;;
 esac
 exit 0
-"""
-TAILSCALE = """#!/bin/sh
-cat <<'JSON'
-{"Peer": {
-  "a": {"DNSName": "mac-mini.tail0000.ts.net.", "OS": "macOS", "Online": true, "TailscaleIPs": ["100.115.92.5"]},
-  "b": {"DNSName": "server.tail0000.ts.net.", "OS": "linux", "Online": true, "TailscaleIPs": ["100.115.92.6"]}
-}}
-JSON
 """
 # a machine typed in by hand: its key is not known yet, and its fingerprint is shown before the first connection. Like
 # the real one, it answers with every key type unless asked for some (-t), one line each
@@ -67,8 +59,9 @@ class Step8(unittest.TestCase):
         with open(os.path.join(self.home, ".config", "herdr-fold", "machines.txt"), "w") as f:
             f.write("beta | beta | linux\n")                     # imported by an earlier run
         self.pkg = copy_package(os.path.join(self.tmp, "pkg"))
-        self.stubs = stubs(os.path.join(self.tmp, "stubs"), {"ssh": FAKE_SSH, "tailscale": TAILSCALE, "herdr": HERDR,
-                                                              "ssh-keyscan": SSH_KEYSCAN, "ssh-keygen": SSH_KEYGEN})
+        self.stubs = stubs(os.path.join(self.tmp, "stubs"), {"ssh": FAKE_SSH, "tailscale": FAKE_TAILSCALE,
+                                                              "herdr": HERDR, "ssh-keyscan": SSH_KEYSCAN,
+                                                              "ssh-keygen": SSH_KEYGEN})
 
     def run_questions(self, answers, command="pick"):
         """The questions of ./machines.sh COMMAND (step 8: pick), answered in order; returns the questions it asked —

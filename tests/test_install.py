@@ -1,7 +1,6 @@
 """Tests for install.sh: what an earlier install left but the package dropped goes (or the original comes back), three
 dated backups stay, plus the GitHub step, zshrc line, in-herdr warning and AI-session guard. herdr, brew, open faked.
 """
-import glob
 import json
 import os
 import pathlib
@@ -14,25 +13,10 @@ import tempfile
 import time
 import unittest
 
-from support import PACKAGE, catalog_text, copy_package, from_homebrew, run_in_terminal, stubs
+from support import (DEFAULTS_STUB, GH_STUB, HERDR_STUB, PACKAGE, PackageHome, catalog_text, copy_package,
+                     from_homebrew, run_in_terminal, stubs)
 
 
-STUB = """#!/bin/sh
-echo "herdr $*" >> "$STUB_HERDR_LOG"
-case "$*" in
-  "plugin uninstall "*" "*) echo "usage: herdr plugin uninstall <plugin_id|owner/repo[/subdir...]>" >&2; exit 2 ;;
-  "plugin list --json") cat "$STUB_PLUGINS" ;;
-  "agent list"*) cat "$STUB_AGENTS" 2>/dev/null ;;
-  status) cat "$STUB_STATUS" 2>/dev/null ;;
-  --version) echo "herdr ${STUB_HERDR_VERSION:-0.9.6}" ;;
-  "workspace list"*) cat "$STUB_WORKSPACES" 2>/dev/null ;;
-  "pane list"*) cat "$STUB_PANES" 2>/dev/null ;;
-  "pane process-info --pane "*) for pane in "$@"; do :; done
-    printf '{"result":{"process_info":{"foreground_processes":[{"name":"%s"}]}}}\n' \
-      "$(sed -n "s/^$pane //p" "$STUB_PROGRAMS" 2>/dev/null)" ;;
-esac
-exit 0
-"""
 # herdr-sidebar as herdr lists it: it listens to tab.created too (its --ensure hook)
 SIDEBAR = {"plugin_id": "herdr-sidebar", "version": "0.15.0", "events": [{"on": "tab.created"}], "plugin_root": ""}
 # someone's own herdr settings: a key of theirs, and herdr-fold's key chord (prefix+f) bound to a command of theirs
@@ -46,32 +30,18 @@ type = "shell"
 command = "my-finder"
 description = "my finder"
 """
-# Ghostty's bundle id where STUB_GHOSTTY points; nothing else is set or found
-DEFAULTS_STUB = """#!/bin/sh
-[ -n "$STUB_GHOSTTY" ] && [ "$*" = "read $STUB_GHOSTTY/Contents/Info CFBundleIdentifier" ] || exit 1
-echo com.mitchellh.ghostty
-"""
 # a Python that writes its cache next to the module (Homebrew's, Linux's), not into ~/Library/Caches as the Mac's own
 IN_PLACE_PYTHON = '#!/bin/sh\nexec /usr/bin/python3 -X pycache_prefix= "$@"\n'
-GH_STUB = """#!/bin/sh
-echo "gh $*" >> "$GH_STUB_LOG"
-case "$*" in
-  "auth status"*) [ "$GH_STUB_STATE" = in ] && exit 0 || exit 1 ;;
-  "api user --jq .id") echo 1234567 ;;
-  "api user"*) echo testuser ;;
-esac
-exit 0
-"""
 
 
-class InstallCleanup(unittest.TestCase):
+class InstallCleanup(PackageHome, unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp)
         self.home = os.path.join(self.tmp, "home")
         os.makedirs(self.home)
         self.pkg = copy_package(os.path.join(self.tmp, "pkg"))
-        fakes = stubs(os.path.join(self.tmp, "stubs"), {"herdr": STUB, "gh": GH_STUB, "defaults": DEFAULTS_STUB,
+        fakes = stubs(os.path.join(self.tmp, "stubs"), {"herdr": HERDR_STUB, "gh": GH_STUB, "defaults": DEFAULTS_STUB,
                                                        "brew": None, "open": None, "claude": None, "codex": None,
                                                        "pgrep": None})                          # Ghostty is not open
         from_homebrew(fakes)
@@ -91,39 +61,11 @@ class InstallCleanup(unittest.TestCase):
         with open(self.plugins, "w") as f:
             json.dump({"result": {"plugins": list(plugins)}}, f)
 
-    def running_panes(self, panes, agents):
-        """What herdr lists in its one workspace w1, in one tab: {pane: (name, foreground program)}; agents:
-        {pane: name}."""
-        files = {name: os.path.join(self.tmp, name) for name in ("workspaces", "panes", "programs", "agents.json")}
-        with open(files["workspaces"], "w") as f:
-            json.dump({"result": {"workspaces": [{"workspace_id": "w1", "label": "app"}]}}, f)
-        with open(files["panes"], "w") as f:
-            json.dump({"result": {"panes": [{"pane_id": p, "tab_id": "w1:t1", "label": name}
-                                            for p, (name, _) in panes.items()]}}, f)
-        with open(files["programs"], "w") as f:
-            f.write("".join(f"{p} {program}\n" for p, (_, program) in panes.items()))
-        with open(files["agents.json"], "w") as f:
-            json.dump({"result": {"agents": [{"pane_id": p, "agent": "claude", "name": n} for p, n in agents.items()]}},
-                      f)
-        self.env.update(STUB_WORKSPACES=files["workspaces"], STUB_PANES=files["panes"], STUB_PROGRAMS=files["programs"])
-
     def herdr_calls(self):
         if not os.path.exists(self.herdr_log):
             return []
         with open(self.herdr_log) as f:
             return f.read().splitlines()
-
-    def path(self, rel):
-        return os.path.join(self.home, rel)
-
-    def write(self, rel, text):
-        os.makedirs(os.path.dirname(self.path(rel)), exist_ok=True)
-        with open(self.path(rel), "w") as f:
-            f.write(text)
-
-    def read(self, rel):
-        with open(self.path(rel)) as f:
-            return f.read()
 
     def install(self):
         done = subprocess.run(["bash", os.path.join(self.pkg, "install.sh")], env=self.env, stdin=subprocess.DEVNULL,
@@ -147,9 +89,6 @@ class InstallCleanup(unittest.TestCase):
         with open(files, "w") as f:
             f.writelines(lines)
 
-    def last_line(self, output):
-        return output.rstrip().splitlines()[-1].strip()
-
     def lines_of(self, output, step):
         """The lines step STEP (its heading's catalog key) printed, up to the next step's heading."""
         body = output.split("== " + catalog_text(step), 1)[1].split("\n== ", 1)[0]
@@ -159,7 +98,7 @@ class InstallCleanup(unittest.TestCase):
         """herdr from its own installer (curl … | sh puts it in ~/.local/bin), or from FOLDER, not from Homebrew."""
         folder = folder or self.path(".local/bin")
         os.remove(os.path.join(self.tmp, "stubs", "herdr"))
-        stubs(folder, {"herdr": STUB})
+        stubs(folder, {"herdr": HERDR_STUB})
         self.env.update(PATH=folder + ":" + self.env["PATH"], STUB_HERDR_VERSION=version)
 
     def on_the_mac(self, *programs):
@@ -266,14 +205,14 @@ class InstallCleanup(unittest.TestCase):
         # mise keeps a folder per version, gone after mise upgrade: the shim stays
         mise = os.path.join(self.tmp, "mise")
         self.herdr_of_its_own(os.path.join(mise, "installs", "herdr", "0.9.6", "bin"))
-        stubs(os.path.join(mise, "shims"), {"herdr": STUB})
+        stubs(os.path.join(mise, "shims"), {"herdr": HERDR_STUB})
         said = next(line for line in self.install().splitlines() if "Ghostty looks for herdr" in line)
         self.assertIn(f'ln -s "{os.path.join(mise, "shims", "herdr")}"', said)
 
     def test_two_herdrs_name_the_one_ghostty_starts(self):
         # herdr's own installer's first on PATH, a Homebrew one too: Ghostty looks in Homebrew's folders first
         folder = self.path(".local/bin")
-        stubs(folder, {"herdr": STUB})
+        stubs(folder, {"herdr": HERDR_STUB})
         self.env["PATH"] = folder + ":" + self.env["PATH"]
         out = self.install()
         self.assertIn(catalog_text("install.herdr_twice", os.path.join(self.tmp, "stubs", "herdr"),
@@ -282,7 +221,7 @@ class InstallCleanup(unittest.TestCase):
     def test_in_herdrs_tab_the_herdr_running_it_is_the_one_checked(self):
         # HERDR_BIN_PATH, not the PATH's first: here a download Ghostty would not find
         folder = os.path.join(self.tmp, "my tools", "bin")
-        stubs(folder, {"herdr": STUB})
+        stubs(folder, {"herdr": HERDR_STUB})
         self.env["HERDR_BIN_PATH"] = os.path.join(folder, "herdr")
         said = next(line for line in self.install().splitlines() if "Ghostty looks for herdr" in line)
         self.assertIn(os.path.join(folder, "herdr"), said)
@@ -416,8 +355,8 @@ class InstallCleanup(unittest.TestCase):
 
     def test_the_theme_step_shows_the_sheep_in_the_chosen_themes_colors(self):
         # a theme step that takes a while (herdr slow to reload): the sheep walk meanwhile, in the new theme's colors
-        stubs(os.path.join(self.tmp, "stubs"),
-              {"herdr": STUB.replace("#!/bin/sh\n", '#!/bin/sh\n[ "$*" = "server reload-config" ] && sleep 2\n', 1)})
+        slow = HERDR_STUB.replace("#!/bin/sh\n", '#!/bin/sh\n[ "$*" = "server reload-config" ] && sleep 2\n', 1)
+        stubs(os.path.join(self.tmp, "stubs"), {"herdr": slow})
         self.env.update(TERM="xterm-256color", LOADING_AFTER="0", LOADING_SHEEP="0")
         shown = self.install_answering({catalog_text("install.theme_ask").strip(): "2"}, keep_colors=True)
         step = shown.split(catalog_text("install.theme_setting"), 1)
@@ -445,7 +384,7 @@ class InstallCleanup(unittest.TestCase):
         os.makedirs(os.path.join(project, ".git"))                       # a git repository's root
         agents = json.dumps({"result": {"agents": [{"pane_id": "w1:p1", "agent": "claude", "cwd": project}]}})
         with open(os.path.join(self.tmp, "stubs", "herdr"), "w") as f:
-            f.write(STUB.replace('case "$*" in', f'case "$*" in\n  "agent list"*) echo \'{agents}\' ;;'))
+            f.write(HERDR_STUB.replace('case "$*" in', f'case "$*" in\n  "agent list"*) echo \'{agents}\' ;;'))
         out = self.install()
         self.assertIn("Claude shows the status line only in projects it trusts", out)
         self.assertIn("~/Documents/my-repo", out)                     # under ~, as ~/…

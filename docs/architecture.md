@@ -94,7 +94,7 @@ plugins of its own.
 | `src/i18n.py` | looks the texts up for the Python scripts |
 | `docs/` | the guides |
 | `assets/` | the pictures the README and the guides show: the screenshots and the animation (`screenshots/`), the styleguide's (`styleguide/`) |
-| `tests/` | the tests: `/usr/bin/python3 -m unittest discover -s tests` |
+| `tests/` | the tests (`/usr/bin/python3 -m unittest discover -s tests`), a file named after where what it tests lives: `test_core_git.py` for `core/git.py`, `test_sidebar_scm.py` for the sidebar's `scm.py`, `test_close_tab.py` for `src/close_tab.py`; `test_lib_*`, `test_tools_*`, `test_remote_*` and `test_lab.py` for those folders, `test_install*`, `test_uninstall.py` and `test_machines_*` for the scripts, `test_app.py` for the app mod, `test_repo_*` for what holds for the whole repository (docs, privacy, files); what more than one file needs is in `support.py`, and a test imports from there, never from another test |
 | `lab/` | the test lab: a Linux machine in a container reached over SSH as a remote machine, run only when called (`python3 lab/lab.py test`); `lab.py`, the machine in `linux/` (`Containerfile`, `sshd.conf`, a stand-in `claude`), its tests in `tests/`, the mod's way through a change in `walk.py`, what GitHub's runners run in `ci/` ([its README](../lab/README.md)) |
 | `tools/sync.sh` | copies this Mac's settings back into the package (not over a file edited there and not committed), then checks the files for private data |
 | `tools/build.py` | copies `core/` into the TUI sidebar (`src/plugins/sidebar/`, all but the mod's own `job.py`) and into the app mod (`app/mods/herdr-fold/helper.js`, and `icons.js` from `core/icons.py`); a test fails while a copy differs |

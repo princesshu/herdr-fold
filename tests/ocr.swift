@@ -1,5 +1,5 @@
 // The text in every frame of each image named on the command line (an animation's frames one by one), as JSON lines:
-// {"file": …, "frame": n, "text": …}, by macOS's own text recognition (Vision). test_privacy.py compiles and runs it.
+// {"file": …, "frame": n, "text": …}, by macOS's own text recognition (Vision), built and run by test_repo_privacy.py.
 // --draw TEXT FILE: TEXT drawn on a white PNG, for the test that the recognition reads what an image shows.
 import AppKit
 import Foundation
