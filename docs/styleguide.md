@@ -32,8 +32,13 @@ colors are the layout's theme, Catppuccin Mocha, as in the TUI.
 
 ![The type scale, the radii and the heights](../assets/styleguide/type.webp)
 
-Body text is 13, a button's words 12 bold, a folder or a caption 11; code (a diff, a hit) is Menlo 11. Panels are
-rounded 10, controls 8, rows 6 and chips 5.
+Body text is 13, a button's words 12 bold, a folder or a caption 11; code is Menlo, 13 in the preview tab and 11 for
+a hit's file. Panels are rounded 10, controls 8, rows 6 and chips 5.
+
+### Motion
+
+A section, and the Graph, slides open and shut: its height in 180 ms, easing out, animated by the app itself
+(`transition`), never by the mod's own timer.
 
 ### Iconography
 
@@ -58,11 +63,13 @@ it cannot be pressed. A row's buttons show only with the mouse on the row.
 
 ### Commit
 
-![The message field with its ✦, Commit and its mode arrow, in each state](../assets/styleguide/commit.webp)
+![The message field with its ✦, Commit and its mode arrow, in each state, and the issue the next commit
+fixes](../assets/styleguide/commit.webp)
 
 ### View tabs and the search field
 
-![The view tabs with the sync button, and the search field with its switches](../assets/styleguide/tabs.webp)
+![The view tabs with the sync button, Issues among them on GitHub, and the search field with its
+switches](../assets/styleguide/tabs.webp)
 
 ### Section header and count chip
 
@@ -76,9 +83,24 @@ it cannot be pressed. A row's buttons show only with the mouse on the row.
 
 ![The Graph open, a commit chosen, folded; the Commit button's modes](../assets/styleguide/graph.webp)
 
-### Diff, problems and empty states
+### Problems and empty states
 
-![A diff with a problem under it, and the list's empty states](../assets/styleguide/content.webp)
+![A sync's problem, and the list's empty states](../assets/styleguide/content.webp)
+
+### Issues
+
+![An issue's row in each state](../assets/styleguide/issues.webp)
+
+![The list with its filters, an issue's menu, loading, busy, none and an error](../assets/styleguide/issue-list.webp)
+
+An issue's number takes its priority's color, as the TUI's traffic light: urgent and high red, medium yellow, low
+green; without one, the accent. Closing or reopening asks on the row first.
+
+### The preview tab
+
+![The preview tab with a diff, a commit, loading and an error](../assets/styleguide/preview.webp)
+
+![An issue in the preview tab, with its comments](../assets/styleguide/preview-issue.webp)
 
 ### Search results
 
@@ -90,7 +112,7 @@ it cannot be pressed. A row's buttons show only with the mouse on the row.
 
 ## Patterns
 
-![The Changes and Search panels, and Changes with the plain marks](../assets/styleguide/panels.webp)
+![The Changes, Search and Issues panels, and Changes with the plain marks](../assets/styleguide/panels.webp)
 
 ## A new part
 

@@ -7,17 +7,16 @@ import { BY_EXTENSION, BY_NAME, LETTER, NERD, PLAIN } from "./icons.js";
 
 /** @typedef {{ kind: string, number?: number, text: string }} Row */
 
-/** A diff's lines as rows, each numbered once: removed ones by the old file, the others by the new one.
- * @param {string[]} lines
- * @returns {Row[]} */
+/** A diff's lines as rows, each numbered once: removed ones by the old file, the others by the new one; no hunk
+ * header (the numbers say where), a gap between two hunks instead. @param {string[]} lines @returns {Row[]} */
 export function diffRows(lines) {
-  let old = 0, next = 0;
-  return lines.map((line) => {
+  let old = 0, next = 0, hunks = 0;
+  return lines.flatMap((line) => {
     const hunk = /^@@ -(\d+)(?:,\d+)? \+(\d+)/.exec(line);
     if (hunk) {
       old = Number(hunk[1]);
       next = Number(hunk[2]);
-      return { kind: "@", text: line };
+      return hunks++ ? [{ kind: "gap", text: "" }] : [];
     }
     const kind = line[0], text = line.slice(1) || " ";
     if (kind === "-") return { kind, number: old++, text };
@@ -157,6 +156,51 @@ export function fileIcon(name, isDir = false, expanded = false) {
 
 /** A change's letter as the TUI sidebar shows git's CODE (an untracked file U, a conflict !). @param {string} code */
 export const letter = (code) => /** @type {Record<string, string>} */ (LETTER)[code] ?? code;
+
+/** An issue's MARKDOWN as its preview shows it. Anyone may write an issue: an image there is a link to it, never
+ * fetched (that would tell its host the viewer's address), and HTML shows as text; code stays as written.
+ * @param {string} markdown */
+export function safeMarkdown(markdown) {
+  return markdown.split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/).map((part, i) => (i % 2 ? part
+    : part.replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g, (_m, alt, url) => `[${alt || "image"}](${url})`)
+      .replace(/!\[([^\]]*)\]\[/g, "[$1][").replace(/</g, "&lt;"))).join("");
+}
+
+/** A priority's color by its rank (LEVEL, core/github.py's: Urgent 0 to Low 3), as the TUI sidebar's traffic light;
+ * the accent without one. @param {Record<string, string>} t @param {number | null | undefined} level */
+export const priorityColor = (t, level) => (level === null || level === undefined ? t.accent
+  : [t.ansi1, t.ansi1, t.blocked, t.ansi2][level]);
+
+/** The focused TAB's own Claude or Codex among AGENTS (the app's agents()), to hand an issue to; or null.
+ * @param {{ tab: string, program?: { key: string } }[]} agents @param {string | undefined} tab */
+export const issueAgent = (agents, tab) =>
+  agents.find((a) => a.tab === tab && ["claude", "codex"].includes(a.program?.key ?? "")) ?? null;
+
+/** An issue as its preview shows it, with its priority as the list ranked it.
+ * @typedef {{ kind: "issue", github: string, number: number, title: string, level?: number | null,
+ *   ranked_by?: string | null }} ShownIssue */
+/** What a preview shows, where (ROOT on machine ON): a change's diff (a new file's as all added), a commit or an issue.
+ * @typedef {{ root: string, on: string | null } & ({ kind: "diff", path: string } | { kind: "commit", hash: string }
+ *   | ShownIssue)} Shown */
+
+/** A preview tab's name starts so, as the TUI sidebar's: what it shows follows. */
+const PREVIEWED = "preview: ";
+const TAB_TITLE = 20;              // characters of an issue's title in its preview tab's name, as the TUI sidebar's
+
+/** WHAT's preview tab name, as the TUI sidebar's: the file, the commit, or the issue's number and its title's start.
+ * @param {Shown} what */
+export function previewName(what) {
+  if (what.kind === "diff") return PREVIEWED + what.path;
+  if (what.kind === "commit") return PREVIEWED + what.hash;
+  const title = what.title.length > TAB_TITLE ? `${what.title.slice(0, TAB_TITLE - 1).trimEnd()}…` : what.title;
+  return `${PREVIEWED}#${what.number} ${title}`;
+}
+
+/** SPACE's preview tab: a tab named as one with herdr-fold as its pane (PANES, the app's panes()); or null.
+ * @param {{ tabs?: { id: string, name: string }[] } | undefined} space
+ * @param {{ tab: string, mod?: string }[]} panes */
+export const previewTab = (space, panes) => space?.tabs?.find((t) => t.name.startsWith(PREVIEWED) &&
+  panes.some((p) => p.tab === t.id && p.mod === "herdr-fold")) ?? null;
 
 /** The sync button's words after its icon: how far the branch is from its upstream, as the TUI sidebar says it.
  * @param {{ upstream: string | null, ahead: number, behind: number } | null} status */

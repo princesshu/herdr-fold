@@ -12,8 +12,11 @@ All notable changes to this project are listed here. The format follows
   to it after leaving it; again on a marked one takes the mark off. See [Sessions](docs/usage.md#sessions).
 - herdr-fold in herdr's desktop app: a mod with the sidebar's Changes view (the changed files, staged by file or all at
   once, a change discarded (a new file into the Trash), a file's diff, the message Claude or Codex writes, Commit,
-  Commit & Push or Commit & Sync, sync, and the Graph of the last commits with each one's diff) and Search (the space's
-  folder, with the TUI's switches, a hit's file shown at its line), for a space on this Mac or on another machine
+  Commit & Push or Commit & Sync, sync, and the Graph of the last commits with each one's diff), Search (the space's
+  folder, with the TUI's switches, a hit's file shown at its line) and Issues (by priority, with the TUI's filters; an
+  issue handed to the tab's Claude or Codex and linked to the next commit, a reply, Assign to me, close or reopen;
+  Cmd + Shift + I); a diff, a commit or an issue opens in the space's preview tab, as in the TUI; for a space on this
+  Mac or on another machine
   (Linux, macOS or Windows), with the TUI's data layer underneath; a layout of its own puts it in the right panel, where
   the app's Changes was (Cmd + Shift + G), dark in the TUI's colors (Catppuccin Mocha), its terminals and code in Menlo
   as VS Code's, at the TUI's size; the TUI's twelve themes come along in the app's Settings; under it, each tab's own

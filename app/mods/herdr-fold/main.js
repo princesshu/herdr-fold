@@ -1,27 +1,30 @@
 // @ts-check
-// herdr-fold for the Herdr app, the TUI sidebar's Changes and Search: staging, the message Claude or Codex writes, a
-// commit, the last commits; a search of the folder. It runs on the space's machine, with core/'s code (helper.js).
+// herdr-fold for the Herdr app, the TUI sidebar's Changes, Search and Issues; a diff, a commit or an issue opens in the
+// space's preview tab (preview.js). It runs on the space's machine, with core/'s code (helper.js).
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list } from "gpui-base";
 import { spaces, panes, focused, exec, hc, home, watchFolder, nextCommand, theme, settings, layout, props, closeOverlay,
   shared, setShared, readTextFile, fonts, run as command } from "herdr";
 import { COMMIT_MESSAGE, FILEOPS, GIT, SEARCH } from "./helper.js";
-import { afterCommit, background, commitMode, commitRows, diffRows, excerpt, fileIcon, foldedSections, lastLine, letter,
-  marked, marks, MODES, nerdFont, panelToggle, pythonCommand, rowActions, said, searchRows, searchSummary,
-  secretQuestion, syncLabel, written } from "./logic.js";
+import { afterCommit, background, commitMode, excerpt, fileIcon, foldedSections, lastLine, letter, marked, marks, MODES,
+  nerdFont, panelToggle, pythonCommand, rowActions, said, searchRows, searchSummary, secretQuestion, syncLabel,
+  written } from "./logic.js";
 import { button, chip, glyph, small } from "./parts.js";
+import { IssuesView, fixesLine } from "./issues.js";
+import { Preview, showPreview } from "./preview.js";
 import { guide, styleguide } from "./styleguide.js";
 import { TerminalHeader } from "./terminal.js";
 
 const REFRESH = 10000;             // ms between two looks when no folder change says so (another machine's space)
 const POLL = 1500;                 // ms between two looks at the message being written
 const WRITING = 6 * 60 * 1000;     // ms the message may take: both AIs, each asked twice
-const LINES = 1500;                // a diff's lines shown at most
+const LINES = 1500;                // a hit's file's lines shown at most
 const MODE = "herdr-fold.commit_mode", FOLDED = "herdr-fold.folded", VIEW = "herdr-fold.view";   // kept (shared)
 const QUIET = 150;                 // ms after typing stops before the search runs (Enter: at once)
 const FOUND = 1000;                // the hits a search brings at most (the count goes on)
 const ABOVE = 12;                  // a hit's file shown from these lines above it
 const BUSY = { stage: "Staging…", unstage: "Unstaging…", discard: "Discarding…" };
+const SLIDE = { duration: 180, easing: "ease-out" };   // a section folding or opening, drawn by the app itself
 const TIPS = { stage: "Stage", unstage: "Unstage", discard: "Discard changes" };
 
 /** The focused pane's folder, and the machine its space is on (null: this one). */
@@ -34,7 +37,7 @@ function place() {
 /** The code's font: the layout's (herdr-fold's is Menlo, as VS Code's), else the person's, else Menlo. */
 const codeFont = () => /** @type {any} */ (layout())?.font ?? settings().font_family ?? "Menlo";
 
-/** What the diff below shows, as a key: "staged:PATH", "changes:PATH" or "commit:HASH". @param {string} kind
+/** A row's key, the one chosen marked: "staged:PATH", "changes:PATH" or "commit:HASH". @param {string} kind
  * @param {string} id */
 const shown = (kind, id) => `${kind}:${id}`;
 
@@ -100,12 +103,15 @@ export default class HerdrFold extends View {
       return void cx.timer.every(REFRESH, (cx) => this.terminal.look(cx));
     }
     if ((this.blank = part === "none")) return;
+    if (part === "preview") return void (this.preview = new Preview(props().space, python));
     if (part === "styleguide") {                  // all of it, or its section props().section names (a picture of it)
       this.only = props()?.section ?? null;
       return void (this.guide = guide(HerdrFold.prototype, nerdFont(fonts())));
     }
-    this.rows = []; this.commits = []; this.status = null; this.message = "";
-    this.view = shared(VIEW) === "search" ? "search" : "changes";
+    this.commits = []; this.status = null; this.message = "";
+    this.view = ["search", "issues"].includes(shared(VIEW)) ? shared(VIEW) : "changes";
+    this.core = python;                           // the Issues view asks core/ through it
+    this.issues = new IssuesView(this);
     this.switches = { case: false, word: false, regex: false };
     this.found = null; this.results = []; this.peek = null; this.peekRows = []; this.asking = 0;
     this.find = InputState.new({ placeholder: "Search" });
@@ -128,7 +134,7 @@ export default class HerdrFold extends View {
         if (asked === "write") this.write(cx);
         else if (asked === "commit") this.commit(cx);
         else if (asked === "sync") this.sync(cx);
-        else if (asked === "changes" || asked === "search") this.show(asked, cx);
+        else if (asked === "changes" || asked === "search" || asked === "issues") this.show(asked, cx);
         else if (asked === "styleguide") command("tab.new", { mod: "herdr-fold", props: { part: "styleguide" } });
       }
     });
@@ -140,8 +146,9 @@ export default class HerdrFold extends View {
     if (this.loading || this.busy) return;
     const here = place(), key = JSON.stringify(here);
     if (key !== this.key) {
-      Object.assign(this, { key, root: null, rows: [], commits: [], status: null, open: null, note: null,
-        asked: null, confirm: null });
+      Object.assign(this, { key, root: null, commits: [], status: null, open: null, note: null,
+        asked: null, confirm: null, github: null, linked: null, head: null });
+      this.issues.reset();
     }
     if (!here.cwd) return;
     this.loading = true;
@@ -152,11 +159,15 @@ export default class HerdrFold extends View {
         if (top.code !== 0) return void (this.note = "Not a git repository");
         const root = top.stdout.trim(), status = await python(GIT, ["status", root], root, here.on);
         const { commits } = await python(GIT, ["graph", root], root, here.on);
+        const github = this.root === root ? this.github : (await python(GIT, ["github", root], root, here.on)).name;
+        // the issue the next commit fixes, unlinked once a commit made anywhere closed it (core/commit_message.py)
+        const settled = github ? await python(COMMIT_MESSAGE, ["settle", root, ...(this.head ? [this.head] : [])],
+          root, here.on) : { linked: null, head: null };
         if (key !== this.key) return;
-        Object.assign(this, { root, on: here.on, status, commits });
+        Object.assign(this, { root, on: here.on, status, commits, github, linked: settled.linked,
+          head: settled.head ?? this.head });
+        if (this.view === "issues" && github && !this.issues.listing && !this.issues.asked) this.issues.load(cx);
         this.watch(cx);
-        if (!this.showing(this.open)) this.open = this.first();
-        if (this.open) await this.load(this.open, key);
       } catch (e) {
         if (key === this.key) this.note = said(e);
       } finally {
@@ -164,21 +175,6 @@ export default class HerdrFold extends View {
         cx.notify();
       }
     });
-  }
-
-  /** Whether OPEN is still there to show: a change of the kind it was, or one of the last commits.
-   * @param {string | null} open */
-  showing(open) {
-    if (!open || !this.status) return false;
-    const at = open.indexOf(":"), kind = open.slice(0, at), id = open.slice(at + 1);
-    if (kind === "commit") return this.commits.some((c) => c.hash === id);
-    return (kind === "staged" ? this.status.staged : this.status.changes).some((f) => f.path === id);
-  }
-
-  /** The first change's key, a staged one before the rest, or null. */
-  first() {
-    const staged = this.status?.staged[0], change = this.status?.changes[0];
-    return staged ? shown("staged", staged.path) : change ? shown("changes", change.path) : null;
   }
 
   /** A folder change on this machine looks again at once (another machine's space waits for REFRESH). */
@@ -197,28 +193,11 @@ export default class HerdrFold extends View {
     });
   }
 
-  /** OPEN's diff, a file's or a commit's, from core/git.py: shown unasked, it runs nothing the repository's config
-   * names. @param {string} open @param {string} key */
-  async load(open, key) {
-    const at = open.indexOf(":"), kind = open.slice(0, at), id = open.slice(at + 1);
-    const { text, error } = await python(GIT, [kind === "commit" ? "show" : "diff", this.root, id], this.root, this.on);
-    if (key !== this.key || open !== this.open) return;
-    if (kind === "commit") return void (this.rows = error ? diffRows([error]) : commitRows(text).slice(0, LINES));
-    const lines = text.replace(/\n$/, "").split("\n"), hunk = lines.findIndex((l) => l.startsWith("@@"));
-    this.rows = diffRows(hunk < 0 ? [error ?? "No text diff"] : lines.slice(hunk, hunk + LINES));
-  }
-
-  /** @param {string} open */
-  pick(open, cx) {
-    this.open = open;
-    this.rows = [];
-    const key = this.key;
-    cx.spawn(async (cx) => {
-      await this.load(open, key).catch((e) => {
-        if (key === this.key) this.note = said(e);
-      });
-      cx.notify();
-    });
+  /** The row KEY chosen, and WHAT it is (a change's diff, a commit) shown in the space's preview tab, as the TUI
+   * sidebar opens it. @param {string} key @param {any} what */
+  pick(key, what, cx) {
+    this.open = key;
+    showPreview({ ...what, root: this.root, on: this.on });
     cx.notify();
   }
 
@@ -336,9 +315,27 @@ export default class HerdrFold extends View {
 
   /** The view shown, kept for the next start; Search takes the keys. @param {string} view */
   show(view, cx) {
-    this.view = view === "search" ? "search" : "changes";
+    this.view = ["search", "issues"].includes(view) ? view : "changes";
     setShared(VIEW, this.view);
     if (this.view === "search") this.find.focus();
+    if (this.view === "issues" && !this.issues.listing) this.issues.load(cx);
+    cx.notify();
+  }
+
+  /** The issue the next commit would fix, unlinked by its line's ×: the next commit fixes none. */
+  unlink(cx) {
+    const { root, on } = this;
+    if (!root) return;
+    this.linked = null;
+    cx.spawn(async (cx) => {
+      try {
+        await python(COMMIT_MESSAGE, ["unlink", root], root, on);
+      } catch (e) {
+        this.note = said(e);
+      } finally {
+        cx.notify();
+      }
+    });
     cx.notify();
   }
 
@@ -414,19 +411,24 @@ export default class HerdrFold extends View {
       this.terminal.watch(cx);
       return this.terminal.render(t);
     }
+    if (this.preview) {
+      this.preview.watch(cx);
+      return this.preview.render(t, codeFont());
+    }
     if (JSON.stringify(place()) !== this.key) this.refresh(cx);
     this.font = nerdFont(fonts());                // the TUI's icons in a Nerd Font, else its plain marks
     this.m = marks(this.font);
     return this.panel(t);
   }
 
-  /** The view shown, in its frame: Changes or Search. */
+  /** The view shown, in its frame: Changes, Search, or Issues for a repository on GitHub (else Changes). */
   panel(t) {
     const frame = v_flex().id("herdr-fold").size_full().min_h(0).rounded(10).overflow_hidden()
       .bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13).child(this.header(t));
+    if (this.view === "issues" && this.github) return frame.child(this.issues.render(t));
     if (this.view === "search") return frame.child(this.query(t)).child(this.hits(t)).when(Boolean(this.peek),
       (e) => e.child(this.lines(t)));
-    return frame.child(this.composer(t)).child(this.list(t)).child(this.diff(t)).child(this.graph(t))
+    return frame.child(this.composer(t)).child(v_flex().flex_1().min_h(0).child(this.list(t)).child(this.graph(t)))
       .when(Boolean(this.note && this.root), (e) => e.child(this.problem(t)));
   }
 
@@ -456,7 +458,8 @@ export default class HerdrFold extends View {
     const changes = this.view === "changes", sync = syncLabel(this.status);
     return h_flex().h(46).flex_none().px(10).gap(6).items_center().border_b(1).border_color(t.border)
       .child(tab("search", this.m.search, "Search")).child(tab("changes", this.m.git, "Changes"))
-      .child(div().ml(4).font_semibold().child(changes ? "Changes" : "Search"))
+      .when(Boolean(this.github), (e) => e.child(tab("issues", this.m.issues, "Issues")))
+      .child(div().ml(4).font_semibold().child({ changes: "Changes", search: "Search", issues: "Issues" }[this.view]))
       .child(div().flex_1())
       .when(changes, (e) => e.child(button(t, "sync", h_flex().gap(6).items_center()
         .child(glyph(this.font, this.m.refresh)).when(Boolean(sync), (e) => e.child(sync)), this.ready, false,
@@ -536,10 +539,11 @@ export default class HerdrFold extends View {
     const shownRows = (kind, files) => (files.length ? 1 + (this.folded.has(kind) ? 0 : files.length) : 0);
     const rows = shownRows("staged", staged) + shownRows("changes", changes);
     const part = (kind, title, files) => (e) => e.child(this.section(t, kind, title, files))
-      .when(!this.folded.has(kind), (e) => e.children(files.map((f) => this.file(t, kind, f))));
-    // as tall as its rows (240 at most), less when the panel is short: the diff below keeps room
-    return v_flex().id("changed").flex_grow(0).flex_shrink(1).flex_basis(Math.min(240, Math.max(44, rows * 26 + 12)))
-      .min_h(44).overflow_y_scrollbar().p(6).border_b(1).border_color(t.border)
+      .child(v_flex().id(`${kind}-files`).flex_none().overflow_hidden().h(this.folded.has(kind) ? 0 : files.length * 26)
+        .transition("height", SLIDE).children(files.map((f) => this.file(t, kind, f))));
+    // as tall as its rows, less when the panel is short: the open Graph below keeps a third
+    return v_flex().id("changed").flex_grow(0).flex_shrink(1).h(Math.max(44, rows * 26 + 12))
+      .transition("height", SLIDE).min_h(44).overflow_y_scrollbar().p(6)
       .when(staged.length > 0, part("staged", "Staged changes", staged))
       .when(changes.length > 0, part("changes", "Changes", changes))
       .when(!rows, (e) => e.child(div().p(8).text_color(t.dim).child(empty)));
@@ -572,7 +576,8 @@ export default class HerdrFold extends View {
     const asking = this.confirm === key;
     return h_flex().id(`file-${key}`).h(26).flex_none().pl(26).pr(8).gap(6).items_center().rounded(6).cursor_pointer()
       .when(this.open === key, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover)).tooltip(path)
-      .on_hover((over, cx) => this.hover(key, over, cx)).on_click((_e, cx) => this.pick(key, cx))
+      .on_hover((over, cx) => this.hover(key, over, cx))
+      .on_click((_e, cx) => this.pick(key, { kind: "diff", path }, cx))
       .when(Boolean(this.font), (e) => e.child(glyph(this.font, fileIcon(name)).w(16).text_color(t.muted)))
       .child(h_flex().flex_1().min_w(0).gap(6).items_center()
         .child(div().flex_none().when(code === "D", (e) => e.line_through()).child(name))
@@ -592,42 +597,30 @@ export default class HerdrFold extends View {
     cx.notify();
   }
 
-  diff(t) {
-    const row = ({ kind, number, text }) => kind === "@"
-      ? div().w_full().px(12).h(20).flex_none().truncate().bg(t.raised).text_color(t.dim).child(text)
-      : h_flex().w_full().h(20).flex_none().gap(10)
-        .when(kind === "+", (e) => e.bg(t.ansi2 + "18")).when(kind === "-", (e) => e.bg(t.ansi1 + "18"))
-        .child(div().w(30).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
-        .child(div().flex_1().min_w(0).truncate().child(text));
-    return div().flex_1().min_h(120).relative().font_family(codeFont()).text_size(11)
-      .child(v_virtual_list("diff", this.rows.length, 20, (i) => String(i),
-        (range) => this.rows.slice(range.start, range.end).map(row)).size_full())
-      .child(Scrollbar.vertical("diff").viewport_from_layout().absolute().inset_0());
-  }
-
-  /** The last commits, as the TUI sidebar's Graph: a section of its own, folded by its heading and kept so; each
-   * commit in the files' column, HEAD's marked, with its branches and tags and its author; a click shows its diff. */
+  /** The last commits, as the TUI sidebar's Graph: at the panel's bottom, folded by its heading and kept so; each
+   * commit in the files' column, HEAD's marked, with its branches and tags and its author; a click previews it. */
   graph(t) {
     const folded = this.folded.has("graph");
     const heading = h_flex().id("graph").h(26).flex_none().pl(12).pr(8).gap(6).items_center().cursor_pointer()
-      .hover((s) => s.bg(t.hover)).on_click((_e, cx) => this.fold("graph", cx))
+      .border_t(1).border_color(t.border).hover((s) => s.bg(t.hover)).on_click((_e, cx) => this.fold("graph", cx))
       .child(glyph(this.font, folded ? this.m.closed : this.m.open).w(14).text_color(t.muted))
       .child(div().font_bold().child("Graph"));
     const commit = ({ hash, subject, author, refs, head }) => {
       const key = shown("commit", hash);
       return h_flex().id(`commit-${hash}`).h(24).flex_none().pl(26).pr(8).gap(6).items_center().rounded(6)
         .cursor_pointer().when(this.open === key, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover))
-        .tooltip(`${hash} ${subject}`).on_click((_e, cx) => this.pick(key, cx))
+        .tooltip(`${hash} ${subject}`).on_click((_e, cx) => this.pick(key, { kind: "commit", hash }, cx))
         .child(div().w(14).flex_none().text_color(head ? t.accent : t.muted).child(head ? "◉" : "○"))
         .child(div().flex_1().min_w(0).truncate().child(subject))
         .when(refs.length > 0, (e) => e.child(div().flex_none().text_size(11).text_color(t.accent)
           .child(refs.join(" "))))
         .child(div().flex_none().text_size(11).text_color(t.muted).child(author));
     };
-    return v_flex().flex_grow(0).flex_shrink(1).min_h(26).border_t(1).border_color(t.border).child(heading)
-      .when(!folded && this.commits.length > 0, (e) => e.child(v_flex().id("commits").flex_grow(0).flex_shrink(1)
-        .flex_basis(Math.min(150, this.commits.length * 24 + 8)).min_h(0).overflow_y_scrollbar().px(6).pb(6)
-        .children(this.commits.map(commit))));
+    // at the bottom, as the TUI sidebar's: the room the changes leave, a third at least when open, its heading on top
+    return v_flex().flex_grow(1).flex_shrink(0).flex_basis(folded ? 26 : "33%").min_h(26).justify_end().child(heading)
+      .when(this.commits.length > 0, (e) => e.child(v_flex().id("commits").flex_grow(0).flex_shrink(1)
+        .h(folded ? 0 : this.commits.length * 24 + 6).transition("height", SLIDE).min_h(0).overflow_y_scrollbar()
+        .px(6).children(this.commits.map(commit)).child(div().h(6).flex_none())));
   }
 
   /** The Commit button's modes, opened by its arrow: a choice is kept for the next commit. */
@@ -657,6 +650,8 @@ export default class HerdrFold extends View {
           this.menu = !this.menu;
           cx.notify();
         })))
-      .when(Boolean(this.menu), (e) => e.child(this.modes(t)));
+      .when(Boolean(this.menu), (e) => e.child(this.modes(t)))
+      .when(Boolean(this.linked), (e) => e.child(fixesLine(t, this.linked, this.font, this.m,
+        (cx) => this.unlink(cx))));
   }
 }

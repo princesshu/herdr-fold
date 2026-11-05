@@ -6,14 +6,16 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterCommit, background, commitMode, commitRows, diffRows, excerpt, foldedSections, folderName, lastLine,
-  letter, machineOf, marked, marks, MODES, nerdFont, panelToggle, pythonCommand, rowActions, said, searchRows,
-  searchSummary, secretQuestion, strays, syncLabel, TERMINALS, terminalId, withoutTabs, withTerminal, written }
-  from "../mods/herdr-fold/logic.js";
+import { afterCommit, background, commitMode, commitRows, diffRows, excerpt, foldedSections, folderName, issueAgent,
+  lastLine, letter, machineOf, marked, marks, MODES, nerdFont, panelToggle, previewName, previewTab, priorityColor,
+  pythonCommand, rowActions, safeMarkdown, said, searchRows, searchSummary, secretQuestion, strays, syncLabel,
+  TERMINALS, terminalId, withoutTabs, withTerminal, written } from "../mods/herdr-fold/logic.js";
 
-test("a diff's lines numbered once, old and new apart", () => {
-  const rows = diffRows(["@@ -3,2 +3,3 @@", " same", "-old", "+new", "+more"]);
-  assert.deepEqual(rows.map((r) => [r.kind, r.number ?? null]), [["@", null], [" ", 3], ["-", 4], ["+", 4], ["+", 5]]);
+test("a diff's lines numbered once, old and new apart; no hunk header, a gap between two hunks", () => {
+  const rows = diffRows(["@@ -3,2 +3,3 @@ def index():", " same", "-old", "+new", "+more", "@@ -20 +21 @@", "-x",
+    "+y"]);
+  assert.deepEqual(rows.map((r) => [r.kind, r.number ?? null]),
+    [[" ", 3], ["-", 4], ["+", 4], ["+", 5], ["gap", null], ["-", 20], ["+", 21]]);
 });
 
 test("a commit's diff: its header as it is, each file's name a heading, its hunks numbered, its own lines left out",
@@ -24,7 +26,7 @@ test("a commit's diff: its header as it is, each file's name a heading, its hunk
       .join("\n"));
     assert.deepEqual(rows.map((r) => [r.kind, r.number ?? null, r.text]), [
       ["", null, "abc1234  dev  2 days ago"], ["", null, ""], ["", null, "fix: two files"], ["", null, ""],
-      ["@", null, "a.txt"], ["@", null, "@@ -1 +1 @@"], ["-", 1, "1"], ["+", 1, "2"],
+      ["@", null, "a.txt"], ["-", 1, "1"], ["+", 1, "2"],
       ["@", null, "new.png"], ["", null, "Binary files /dev/null and b/new.png differ"]]);
   });
 
@@ -162,6 +164,51 @@ test("the folded sections as kept, as the TUI sidebar keeps them: staged, change
   assert.deepEqual([...foldedSections(["graph", "staged", "x", 3])], ["graph", "staged"]);
   assert.deepEqual([...foldedSections(true)], []);
   assert.deepEqual([...foldedSections(undefined)], []);
+});
+
+test("an issue's text shows no image to fetch and no HTML, its code as written", () => {
+  assert.equal(safeMarkdown('See ![shot](https://x.example/a.png "t") here'),
+    "See [shot](https://x.example/a.png) here");
+  assert.equal(safeMarkdown("![](https://x.example/p.gif)"), "[image](https://x.example/p.gif)");
+  assert.equal(safeMarkdown("![logo][1]\n\n[1]: https://x.example/l.png"), "[logo][1]\n\n[1]: https://x.example/l.png");
+  assert.equal(safeMarkdown('<img src="https://x.example/t.gif"> <b>hi</b>'),
+    '&lt;img src="https://x.example/t.gif"> &lt;b>hi&lt;/b>');
+  assert.equal(safeMarkdown("```html\n<img src=x>\n```"), "```html\n<img src=x>\n```");
+  assert.equal(safeMarkdown("use `<div>` here"), "use `<div>` here");
+});
+
+test("an issue goes to the focused tab's own Claude or Codex, not another tab's nor another program", () => {
+  const agents = [{ tab: "t1", address: "t3", program: { key: "claude" } },
+    { tab: "t2", address: "t4", program: { key: "codex" } }, { tab: "t2", address: "t5", program: { key: "pi" } }];
+  assert.equal(issueAgent(agents, "t1")?.address, "t3");
+  assert.equal(issueAgent(agents, "t2")?.address, "t4");
+  assert.equal(issueAgent(agents, "t9"), null);
+});
+
+test("the preview tab named as the TUI sidebar names it: the file, the commit, the issue's number and title's start",
+  () => {
+    const at = { root: "/r", on: null };
+    assert.equal(previewName({ ...at, kind: "diff", path: "src/app.py" }), "preview: src/app.py");
+    assert.equal(previewName({ ...at, kind: "commit", hash: "abc1234" }), "preview: abc1234");
+    assert.equal(previewName({ ...at, kind: "issue", github: "o/r", number: 42, title: "Login fails" }),
+      "preview: #42 Login fails");
+    assert.equal(previewName({ ...at, kind: "issue", github: "o/r", number: 7, title: "Pagination returns an empty" }),
+      "preview: #7 Pagination returns…");
+  });
+
+test("a priority's color as the TUI sidebar's traffic light: urgent and high red, medium yellow, low green", () => {
+  const t = { ansi1: "red", blocked: "yellow", ansi2: "green", accent: "accent" };
+  assert.deepEqual([0, 1, 2, 3, null, undefined].map((level) => priorityColor(t, level)),
+    ["red", "red", "yellow", "green", "accent", "accent"]);
+});
+
+test("a space's preview tab: named as one, herdr-fold its pane; another tab so named is not it", () => {
+  const space = { tabs: [{ id: "t1", name: "1" }, { id: "t2", name: "preview: notes" },
+    { id: "t3", name: "preview: a" }] };
+  const panes = [{ tab: "t1", mod: undefined }, { tab: "t2", mod: undefined }, { tab: "t3", mod: "herdr-fold" }];
+  assert.equal(previewTab(space, panes)?.id, "t3");
+  assert.equal(previewTab(space, panes.slice(0, 2)), null);
+  assert.equal(previewTab(undefined, panes), null);
 });
 
 test("a change's letter as the TUI sidebar shows it: an untracked file U, a conflict !", () => {

@@ -5,14 +5,18 @@ import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState } from "gpui-base";
 import { home, terminals } from "herdr";
 import { BY_EXTENSION, NERD, PLAIN } from "./icons.js";
-import { diffRows, foldedSections, marks, searchRows } from "./logic.js";
+import { commitRows, diffRows, foldedSections, marks, searchRows } from "./logic.js";
+import { IssuesView } from "./issues.js";
 import { button, chip, glyph, small } from "./parts.js";
+import { Preview } from "./preview.js";
 import { TerminalHeader } from "./terminal.js";
 
 const PANEL = 368;                  // a specimen as wide as the right panel
+const TAB = 540;                    // a specimen of the preview tab, two side by side
 // what the views' clicks would do: nothing, here
-const INERT = ["act", "change", "choose", "commit", "fold", "later", "load", "pick", "refresh", "reveal", "search",
-  "show", "sync", "unask", "watch", "write"];
+const INERT = ["act", "change", "choose", "commit", "fold", "later", "pick", "refresh", "reveal", "search", "show",
+  "sync", "unask", "unlink", "watch", "write"];
+const INERT_ISSUES = ["act", "change", "filter", "load", "open", "terminal", "toAgent", "unask"];
 
 const STAGED = [{ path: "src/lumen/routes/books.py", code: "M" }];
 const CHANGES = [{ path: "docs/api.md", code: "M" }, { path: "src/lumen/pagination.py", code: "?" },
@@ -25,7 +29,24 @@ const COMMITS = [
     head: false },
   { hash: "1a2b3c4", subject: "fix(errors): answer with problem details", author: "Lin", refs: [], head: false }];
 const DIFF = diffRows(["@@ -1,4 +1,5 @@", ' """GET /books: the books, by title."""', "-PAGE = 10", "+PAGE = 20",
-  "+LAST = None", " from .. import store"]);
+  "+LAST = None", " from .. import store", "@@ -30,2 +31,2 @@", "-    return books[start:]",
+  "+    return books[start:end]"]);
+const COMMIT = commitRows(["4f1c2ab  Ada  2 hours ago", "", "refactor(store): keep books in the order added", "",
+  "diff --git a/src/lumen/store.py b/src/lumen/store.py", "index 1..2 100644", "--- a/src/lumen/store.py",
+  "+++ b/src/lumen/store.py", "@@ -4,2 +4,2 @@", "-books = set()", "+books = []", " def add(book):"].join("\n"));
+const LISTED = [
+  [42, "Pagination returns an empty page past the last one", ["priority: high", "bug"], ["mira-quillon"], 1, "2h"],
+  [35, "Rate limit the public routes", ["priority: high", "enhancement", "security"], [], 1, "1w"],
+  [41, "Add a /search route for titles and authors", ["priority: medium", "enhancement"], ["mira-quillon"], 2, "1d"],
+  [39, "Shelf names are case-sensitive", ["priority: low", "bug"], [], 3, "3d"],
+  [37, "Document the error format", ["docs"], ["mira-quillon"], null, "5d"]].map(([number, title, labels, assignees,
+  level, ago]) => ({ number, title, labels, assignees, state: "OPEN", url: `https://example.com/issues/${number}`,
+  level, ranked_by: level === null ? null : labels[0], said: String(title).toLowerCase(), ago }));
+const LISTING = { issues: LISTED, error: null };
+const ISSUE = { ago: ["1d", "4h"], issue: { number: 42, title: LISTED[0].title, state: "OPEN", author: "noa-berg",
+  labels: ["priority: high", "bug"], body: "Steps:\n\n1. Ask `GET /books?page=99`\n2. The answer is an empty page" +
+    "\n\nExpected: the last page, as `pages` says.",
+  comments: [{ author: "tomasz-kowal", body: "Same with `page=0`." }] } };
 const HITS = [
   { path: "src/lumen/routes/books.py", line: 12, text: "    page = min(max(1, page), last)",
     spans: [[4, 8], [22, 26]] },
@@ -42,7 +63,8 @@ const SEARCHED = { cwd: "/work/lumen-api", on: null };
 function made(proto, font, fields = {}) {
   const state = Object.assign(Object.create(proto), {
     font, m: marks(font), view: "changes", root: "/work/lumen-api", on: null, key: "styleguide", status: STATUS,
-    rows: DIFF, commits: COMMITS, message: "", busy: null, asked: null, confirm: null, open: null, hovered: null,
+    github: "lumenworks/lumen-api", linked: null, commits: COMMITS, message: "", busy: null, asked: null, confirm: null,
+    open: null, hovered: null,
     menu: false, mode: "commit", folded: foldedSections([]), note: null, loading: false, searching: false,
     switches: { case: false, word: false, regex: false }, found: null, searched: null, results: [], peek: null,
     peekRows: [], input: InputState.new({ placeholder: "Commit message" }),
@@ -50,7 +72,21 @@ function made(proto, font, fields = {}) {
   }, fields);
   for (const name of INERT) state[name] = () => {};
   if (state.message) state.input.set_value(state.message);
+  state.issues = issuesOf(state, fields.issues ?? {});
   return state;
+}
+
+/** STATE's Issues view, listing LISTED, with FIELDS (filters, a row asked about, a menu open). */
+function issuesOf(state, fields) {
+  const issues = Object.assign(new IssuesView(state), { listing: LISTING }, fields);
+  for (const name of INERT_ISSUES) issues[name] = () => {};
+  return issues;
+}
+
+/** The preview tab with FIELDS: what it shows, loading, or why nothing. */
+function previewOf(fields) {
+  return Object.assign(new Preview("styleguide", null), { what: { n: 0, level: 1, ranked_by: "priority: high" } },
+    fields);
 }
 
 /** The made-up states the components show, made once (what is typed in them stays), their icons in FONT (a Nerd
@@ -64,10 +100,12 @@ export function guide(proto, font) {
     base: at(),
     plain: at({}, null),
     header: [["Changes selected", at()], ["Search selected", at({ view: "search" })],
+      ["Issues selected", at({ view: "issues" })], ["Not on GitHub", at({ github: null })],
       ["No upstream", at({ status: { ...STATUS, upstream: null } })], ["Busy", at({ busy: "Syncing…" })]],
     composer: [["Empty", at()], ["Filled", at({ message: MESSAGE })], ["Busy", at({ busy: "Writing the message…" })],
       ["Asking", at({ message: MESSAGE, asked: [".env"] })], ["Mode menu open", at({ message: MESSAGE, menu: true })],
-      ["Commit & Push", at({ message: MESSAGE, mode: "push" })]],
+      ["Commit & Push", at({ message: MESSAGE, mode: "push" })],
+      ["Fixes an issue", at({ message: MESSAGE, linked: [42, LISTED[0].title] })]],
     sections: [["Default", at()], ["Hover", at({ hovered: "section-changes" })],
       ["Asking", at({ confirm: "section-changes" })], ["Folded", at({ folded: foldedSections(["changes"]) })]],
     rows: [["Default", "changes", CHANGES[0], at()], ["Hover", "changes", CHANGES[0],
@@ -77,7 +115,8 @@ export function guide(proto, font) {
     ["Asking", "changes", CHANGES[1], at({ confirm: "changes:src/lumen/pagination.py" })],
     ["Plain marks", "changes", CHANGES[0], at({ hovered: "changes:docs/api.md" }, null)]],
     graph: [["Default", at()], ["Selected", at({ open: "commit:9e8d7c6" })],
-      ["Folded", at({ folded: foldedSections(["graph"]) })]],
+      // no commits, as it shows them: a slide is kept by its element's id, and the open ones' list has the same
+      ["Folded", at({ folded: foldedSections(["graph"]), commits: [] })]],
     empty: [["Loading", at({ status: null, loading: true })],
       ["Nothing to commit", at({ status: { ...STATUS, staged: [], changes: [] } })],
       ["Not a repository", at({ root: null, status: null, note: "Not a git repository" })]],
@@ -86,10 +125,25 @@ export function guide(proto, font) {
         switches: { case: true, word: true, regex: false } })],
       ["No results", at({ view: "search", found: nothing, searched: SEARCHED })],
       ["Error", at({ view: "search", found: { ...nothing, error: "invalid regex: (" }, searched: SEARCHED })]],
+    issueRows: [["Default", at(), LISTED[0]], ["Hover", at({ hovered: "issue-42" }), LISTED[0]],
+      ["Selected", at({ issues: { chosen: 42 } }), LISTED[0]],
+      ["Asking", at({ issues: { confirm: { number: 42, what: "close" } } }), LISTED[0]],
+      ["Closed", at(), { ...LISTED[0], state: "CLOSED" }], ["No priority", at(), LISTED[4]],
+      ["Plain marks", at({ hovered: "issue-42" }, null), LISTED[0]]],
+    issueList: [["Filters open", at({ issues: { menu: true, query: { state: "open", assigned: true, authored: false,
+      label: "" } } }), 330], ["Right click's menu", at({ issues: { picking: 42 } }), 330],
+    ["Loading", at({ issues: { listing: null, asked: "styleguide" } }), 120],
+    ["Busy", at({ issues: { busy: "Sending…" } }), 120], ["Closed, none", at({ issues: { listing: { issues: [],
+      error: null }, query: { state: "closed", assigned: false, authored: false, label: "" } } }), 120],
+    ["Error", at({ issues: { listing: { issues: [], error: "gh is not signed in: run gh auth login" } } }), 120]],
+    preview: [["Diff", previewOf({ rows: DIFF }), 200], ["Commit", previewOf({ rows: COMMIT }), 200],
+      ["Loading", previewOf({ loading: true }), 52], ["Error", previewOf({ note: "HTTP 404: Not Found" }), 52]],
+    issue: previewOf({ issue: ISSUE }),
     problem: at({ note: "Sync stopped: pull first, nothing was lost" }),
     search: at({ view: "search", found, results: searchRows(HITS), searched: SEARCHED,
       peek: "src/lumen/routes/books.py:12", peekRows: PEEK }),
     changes: at({ message: MESSAGE, open: "staged:src/lumen/routes/books.py", hovered: "changes:docs/api.md" }),
+    issues: at({ view: "issues", hovered: "issue-41", issues: { chosen: 42 } }),
   };
 }
 
@@ -167,13 +221,24 @@ function sections(g, t) {
         { width: 180, small: true, spec: "raised · radius 5 · 11 semibold" })])]],
     ["rows", [group(t, "File row", g.rows.map(([name, kind, file, state], i) => specimen(t, `row-${i}`, name,
         div().p(6).child(state.file(t, kind, file)), { spec: i ? "" : "h 26 · icon, name, folder, letter" })))]],
-    ["graph", [group(t, "Graph", g.graph.map(([name, state], i) => specimen(t, `graph-${i}`, name, state.graph(t)))),
+    ["graph", [group(t, "Graph", g.graph.map(([name, state], i) => specimen(t, `graph-${i}`, name,
+        fixed(state.folded.has("graph") ? 26 : 32 + COMMITS.length * 24, state.graph(t))))),
       group(t, "Mode menu", [specimen(t, "modes", "Open", div().p(10).child(b.modes(t)))])]],
     ["content", [
-      group(t, "Diff and problem", [specimen(t, "diff", "Hunk, removed, added, context; a problem under it",
-        fixed(176, v_flex().size_full().child(b.diff(t)).child(g.problem.problem(t))), { spec: "Menlo 11 · h 20" })]),
+      group(t, "Problem", [specimen(t, "problem", "Under the Graph, until the next try", g.problem.problem(t),
+        { spec: "11 · ansi1" })]),
       group(t, "Empty states", g.empty.map(([name, state], i) => specimen(t, `empty-${i}`, name,
         fixed(56, state.list(t)))))]],
+    ["issues", [
+      group(t, "Issue row", g.issueRows.map(([name, state, issue], i) => specimen(t, `issue-row-${i}`, name,
+        div().p(6).child(state.issues.row(t, issue)),
+        { spec: i ? "" : "h 48 · priority bar 3 · number in its color" })))]],
+    ["issue-list", [group(t, "Issue list", g.issueList.map(([name, state, h], i) => specimen(t, `issue-list-${i}`,
+      name, fixed(h, state.issues.render(t)))))]],
+    ["preview", [group(t, "Preview tab", g.preview.map(([name, preview, h], i) => specimen(t, `preview-${i}`, name,
+      fixed(h, preview.render(t, "Menlo")), { width: TAB, spec: i ? "" : "Menlo 13 · h 22 · numbered once" })))]],
+    ["preview-issue", [group(t, "An issue in the preview tab", [specimen(t, "preview-issue", "Issue",
+      fixed(330, g.issue.render(t, "Menlo")), { width: 2 * TAB + 24 })])]],
     ["search", [group(t, "Search results", [specimen(t, "hits", "Hits, one shown at its line",
       fixed(300, v_flex().size_full().child(g.search.hits(t)).child(g.search.lines(t))))])]],
     ["terminal", [group(t, "The tab's terminal", terminalStates(t).map(([name, header], i) =>
@@ -182,6 +247,7 @@ function sections(g, t) {
     ["Patterns", [["panels", [group(t, "Panels", [
       specimen(t, "panel-changes", "Changes", fixed(600, g.changes.panel(t))),
       specimen(t, "panel-search", "Search", fixed(600, g.search.panel(t))),
+      specimen(t, "panel-issues", "Issues", fixed(600, g.issues.panel(t))),
       specimen(t, "panel-plain", "Changes, plain marks", fixed(600, g.plain.panel(t))),
     ])]]]],
   ];
@@ -219,7 +285,8 @@ function type(t, font) {
     .child(line("books.py", "Body · 13 regular", (e) => e.text_size(13)))
     .child(line("Commit", "Button · 12 bold", (e) => e.text_size(12).font_bold()))
     .child(line("src/lumen/routes", "Meta · 11 regular, dim", (e) => e.text_size(11).text_color(t.dim)))
-    .child(line("PAGE = 20", "Code · Menlo 11", (e) => e.text_size(11).font_family("Menlo")))
+    .child(line("PAGE = 20", "Code · Menlo 13, the preview tab", (e) => e.text_size(13).font_family("Menlo")))
+    .child(line("PAGE = 20", "Code · Menlo 11, a hit's file", (e) => e.text_size(11).font_family("Menlo")))
     .child(line([m.files, m.search, m.git, m.stage, m.ai].join("  "), font ? `Icons · ${font}, 13`
       : "Icons · plain marks, without a Nerd Font", (e) => e.text_size(13).text_color(t.muted)
       .when(Boolean(font), (e) => e.font_family(/** @type {string} */ (font)))))]);
@@ -236,8 +303,8 @@ function shape(t) {
   return group(t, "Shape and size", [
     h_flex().gap(16).children([[10, "Panel"], [8, "Control"], [6, "Row"], [5, "Chip"]].map(([px, use]) =>
       radius(/** @type {number} */ (px), /** @type {string} */ (use)))),
-    v_flex().gap(10).children([[46, "Header"], [32, "Control"], [30, "Terminal header"], [26, "Row"],
-      [24, "Commit, hit"], [20, "Diff line"]].map(([px, use]) =>
+    v_flex().gap(10).children([[48, "Issue"], [46, "Header"], [32, "Control"], [30, "Terminal header"],
+      [26, "Row"], [24, "Commit, hit"], [22, "Preview line"], [20, "A hit's file line"]].map(([px, use]) =>
       height(/** @type {number} */ (px), /** @type {string} */ (use))))]);
 }
 

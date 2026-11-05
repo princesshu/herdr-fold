@@ -1,0 +1,313 @@
+// @ts-check
+// The Issues view, as the TUI sidebar's: GitHub's issues by priority with its filters; a click opens one in the preview
+// tab, its buttons and right click's menu hand it to the tab's agent, the browser, a reply, assign, close or reopen.
+import { div } from "gpui-kit";
+import { v_flex, h_flex, InputState, Input } from "gpui-base";
+import { agents, focused, hc, run as command } from "herdr";
+import { COMMIT_MESSAGE, GITHUB } from "./helper.js";
+import { issueAgent, priorityColor, said } from "./logic.js";
+import { button, glyph, small } from "./parts.js";
+import { showPreview } from "./preview.js";
+
+const LEVELS = ["Urgent", "High", "Medium", "Low"];      // GitHub's Priority field's options, core/github.py's ranks
+const STATES = { open: "Open", closed: "Closed" };
+const BUSY = { close: "Closing…", reopen: "Reopening…", assign: "Assigning…" };
+const DONE = { close: "Closed", reopen: "Reopened", assign: "Assigned to you:" };
+
+/** @typedef {{ number: number, title: string, labels: string[], assignees: string[], state: string, url: string,
+ * level: number | null, ranked_by: string | null, said: string, ago: string }} Listed */
+
+export class IssuesView {
+  /** HOST: the view it shows in, for the repository (root, on, github), its core calls (core), icons (font, m), the
+   * row the mouse is on (hovered, hover) and the Changes' link (linked). @param {any} host */
+  constructor(host) {
+    this.host = host;
+    this.query = { state: "open", assigned: false, authored: false, label: "" };
+    /** @type {number | null} the priority shown (its rank), or all */
+    this.level = null;
+    /** @type {{ issues: Listed[], error: string | null } | null} */
+    this.listing = null;
+    this.asked = null;
+    this.find = InputState.new({ placeholder: "Search issues" });
+    this.words = [];
+    this.find.on("change", (_e, cx) => {
+      this.words = this.find.value().toLowerCase().split(/\s+/).filter(Boolean);
+      cx.notify();
+    });
+    /** @type {number | null} the issue last opened, marked */
+    this.chosen = null;
+    this.menu = false;
+    /** @type {number | null} the issue whose right click's menu is open */
+    this.picking = null;
+    /** @type {{ number: number, what: string } | null} the close or reopen asked about first */
+    this.confirm = null;
+    this.note = null; this.busy = null;
+  }
+
+  /** Another repository's: nothing of this one's listed or chosen (the filters stay, as in the TUI sidebar). */
+  reset() {
+    Object.assign(this, { listing: null, asked: null, chosen: null, menu: false, picking: null, confirm: null,
+      note: null });
+  }
+
+  /** The issues of QUERY (the one chosen by default) asked of GitHub again; an answer for another query is dropped. */
+  load(cx, query = this.query) {
+    const { root, on, github } = this.host;
+    if (!github) return;
+    const key = JSON.stringify([github, query]);
+    this.query = query;
+    this.asked = key;
+    cx.spawn(async (cx) => {
+      try {
+        const answer = await this.host.core(GITHUB, ["issues", github, JSON.stringify(query)], root, on);
+        if (this.asked === key) this.listing = answer;
+      } catch (e) {
+        if (this.asked === key) this.listing = { issues: [], error: said(e) };
+      } finally {
+        if (this.asked === key) this.asked = null;
+        cx.notify();
+      }
+    });
+    cx.notify();
+  }
+
+  /** The issues shown: the answer's of the chosen priority that hold every word typed. @returns {Listed[]} */
+  shown() {
+    return (this.listing?.issues ?? []).filter((issue) => this.words.every((w) => issue.said.includes(w)) &&
+      (this.level === null || issue.level === this.level));
+  }
+
+  /** ISSUE in the space's preview tab, its text and comments, as the TUI sidebar's o and Enter.
+   * @param {Listed} issue */
+  open(issue, cx) {
+    const { root, on, github } = this.host;
+    this.chosen = issue.number;
+    showPreview({ kind: "issue", root, on, github, number: issue.number, title: issue.title, level: issue.level,
+      ranked_by: issue.ranked_by });
+    cx.notify();
+  }
+
+  /** WORK with LABEL showing meanwhile; its answer (a line to show, or null), then the list asked again. */
+  act(cx, label, work) {
+    if (this.busy) return;
+    this.busy = label;
+    this.note = null;
+    cx.spawn(async (cx) => {
+      try {
+        this.note = await work(cx);
+      } catch (e) {
+        this.note = said(e);
+      } finally {
+        this.busy = null;
+        this.load(cx);
+        cx.notify();
+      }
+    });
+    cx.notify();
+  }
+
+  /** ISSUE to the focused tab's Claude or Codex with core/github.py's prompt for it, and linked to the next commit (its
+   * Fixes line in Changes), as the TUI sidebar's t does. @param {Listed} issue */
+  toAgent(issue, cx) {
+    const agent = issueAgent(agents(), focused()?.tab);
+    if (!agent) return void ((this.note = "No Claude or Codex in this tab to hand the issue to"), cx.notify());
+    this.act(cx, "Sending…", async () => {
+      const { root, on, github } = this.host;
+      const { prompt } = await this.host.core(GITHUB, ["prompt", github, String(issue.number)], root, on);
+      const sent = await hc(["send", agent.address, prompt]);
+      if (sent.code !== 0) return (sent.stderr || sent.stdout).trim() || "not sent";
+      command("agent.focus", { terminal: agent.address });
+      const answer = await this.host.core(COMMIT_MESSAGE, ["link", root, String(issue.number), issue.title], root, on);
+      this.host.linked = answer.linked;
+      return `Sent to ${agent.program?.name ?? "the agent"}: #${issue.number}`;
+    });
+  }
+
+  /** WHAT (close, reopen, assign) done to ISSUE on GitHub; closing and reopening asked first, as in the TUI sidebar.
+   * @param {Listed} issue @param {"close" | "reopen" | "assign"} what */
+  change(issue, what, cx) {
+    if (what !== "assign" && (this.confirm?.number !== issue.number || this.confirm.what !== what)) {
+      this.confirm = { number: issue.number, what };
+      return void cx.notify();
+    }
+    this.confirm = null;
+    const { root, on, github } = this.host;
+    this.act(cx, BUSY[what], async () => {
+      const answer = await this.host.core(GITHUB, ["change", github, String(issue.number), what], root, on);
+      return answer.ok ? `${DONE[what]} #${issue.number}` : answer.advice;
+    });
+  }
+
+  /** The close or reopen asked about dropped: nothing done. */
+  unask(cx) {
+    this.confirm = null;
+    cx.notify();
+  }
+
+  /** gh's own prompts for a reply to ISSUE, or a new issue, in a tab of their own on the space's machine.
+   * @param {string[]} args */
+  terminal(args, cx) {
+    const { root, on, github } = this.host;
+    this.act(cx, "Opening…", async () => {
+      const answer = await this.host.core(GITHUB, [args[0], github, ...args.slice(1)], root, on);
+      command("tab.new", { argv: answer.argv, folder: root });
+      return null;
+    });
+  }
+
+  /** The filter FIELD turned on or off, or set to VALUE (a label, a priority), and asked of GitHub again (but the
+   * priority, picked from what is listed). @param {string} field @param {any} [value] */
+  filter(field, value, cx) {
+    this.menu = false;
+    if (field === "level") {
+      this.level = value;
+      return void cx.notify();
+    }
+    const q = this.query;
+    this.load(cx, { ...q, [field]: field === "label" ? value : !q[field] });
+  }
+
+  render(t) {
+    const shown = this.shown();
+    return v_flex().size_full().min_h(0)
+      .child(this.field(t))
+      .when(this.menu, (e) => e.child(this.filters(t)))
+      .child(this.states(t))
+      .when(Boolean(this.line(shown)), (e) => e.child(this.status(t, shown)))
+      .child(v_flex().id("issues").flex_1().min_h(0).overflow_y_scrollbar().px(6).pb(6)
+        .children(shown.flatMap((issue) => [this.row(t, issue),
+          ...(this.picking === issue.number ? [this.picks(t, issue)] : [])])));
+  }
+
+  /** The search field, the new issue's button and the filters', as the TUI sidebar has them on one line. */
+  field(t) {
+    const q = this.query, on = [this.level !== null && LEVELS[this.level], q.assigned && "me", q.authored && "by me",
+      q.label].filter(Boolean);
+    return h_flex().flex_none().p(10).pb(6).gap(6).items_center()
+      .child(div().id("issue-search").flex_1().min_w(0).h(32).px(10).flex().items_center().rounded(8).border_1()
+        .border_color(t.border).cursor_text().child(Input.new(this.find).h_full().text_size(12)))
+      .child(button(t, "issue-new", glyph(this.host.font, this.host.m.new_issue).text_size(15),
+        Boolean(this.host.github), false, (cx) => this.terminal(["create"], cx)).tooltip("New issue"))
+      .child(button(t, "issue-filters", h_flex().gap(6).items_center().child(on.length ? on.join(" · ") : "Filters")
+        .child(glyph(this.host.font, this.host.m.more)), true, false, (cx) => {
+        this.menu = !this.menu;
+        cx.notify();
+      }).when(on.length > 0, (e) => e.text_color(t.accent)));
+  }
+
+  /** The filters: each one, a check on the ones on; the labels those of the issues listed, the chosen one too. */
+  filters(t) {
+    const q = this.query, check = (on) => glyph(this.host.font, on ? this.host.m.check : "").w(14).text_color(t.accent);
+    const item = (id, on, label, pick, color = t.foreground) => h_flex().id(id).h(26).px(8).gap(8).items_center()
+      .rounded(6).cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => pick(cx)).child(check(on))
+      .child(div().text_color(color).child(label));
+    const listed = (this.listing?.issues ?? []).flatMap((i) => i.labels);
+    const labels = [...new Set([...listed, ...(q.label ? [q.label] : [])])]
+      .sort((a, b) => a.localeCompare(b));
+    return v_flex().flex_none().mx(10).mb(6).p(4).gap(1).rounded(8).border_1().border_color(t.border).bg(t.raised)
+      .text_size(12)
+      .child(item("f-me", q.assigned, "Assigned to me", (cx) => this.filter("assigned", null, cx)))
+      .child(item("f-by", q.authored, "Created by me", (cx) => this.filter("authored", null, cx)))
+      .child(item("f-any-level", this.level === null, "Any priority", (cx) => this.filter("level", null, cx)))
+      .children(LEVELS.map((name, n) => item(`f-level-${n}`, this.level === n, `● ${name}`,
+        (cx) => this.filter("level", n, cx), priorityColor(t, n))))
+      .child(item("f-any-label", !q.label, "Any label", (cx) => this.filter("label", "", cx)))
+      .children(labels.map((label) => item(`f-label-${label}`, q.label === label, label,
+        (cx) => this.filter("label", label, cx))));
+  }
+
+  /** Open and Closed, as GitHub's list has them: the chosen one filled. */
+  states(t) {
+    return h_flex().flex_none().px(10).pb(8).gap(6).children(Object.entries(STATES).map(([state, label]) =>
+      div().id(`issues-${state}`).h(24).px(8).flex().items_center().rounded(6).text_size(12).cursor_pointer()
+        .when(this.query.state === state, (e) => e.bg(t.solid).text_color(t.solid_foreground).font_bold())
+        .when(this.query.state !== state, (e) => e.text_color(t.muted).hover((s) => s.bg(t.hover)))
+        .on_click((_e, cx) => state !== this.query.state && this.load(cx, { ...this.query, state })).child(label)));
+  }
+
+  /** What to say above the list: busy, asking, a failure, nothing found, or what was done. @param {Listed[]} shown */
+  line(shown) {
+    if (this.busy) return [this.busy, "dim"];
+    if (this.note) return [this.note, "dim"];
+    if (this.asked) return ["Loading issues…", "dim"];
+    if (!this.listing) return null;
+    if (this.listing.error) return [this.listing.error, "ansi1"];
+    if (shown.length) return null;
+    const q = this.query, filtered = q.assigned || q.authored || q.label || this.level !== null || this.words.length;
+    return [filtered ? "No issues match" : `No ${q.state} issues`, "dim"];
+  }
+
+  status(t, shown) {
+    const [text, role] = /** @type {[string, string]} */ (this.line(shown));
+    return div().flex_none().px(12).pb(6).text_size(11).truncate().text_color(t[role]).child(text);
+  }
+
+  /** An issue's two rows, as the TUI sidebar's: its priority's bar, its number in that color and its title; then its
+   * priority, labels, assignee and how long ago it changed; with the mouse on it, to the agent and the browser; a close
+   * or reopen asked about in its place. @param {Listed} issue */
+  row(t, issue) {
+    const key = `issue-${issue.number}`, color = issue.state === "CLOSED" ? t.muted : priorityColor(t, issue.level);
+    const labels = issue.labels.filter((label) => label !== issue.ranked_by).join(", ");
+    const people = issue.assignees.length ? `@${issue.assignees[0]}${issue.assignees.length > 1
+      ? ` +${issue.assignees.length - 1}` : ""}` : "";
+    const asking = this.confirm?.number === issue.number ? this.confirm.what : null;
+    const verb = asking === "close" ? "Close" : "Reopen";
+    return h_flex().id(key).h(48).flex_none().gap(8).items_center().rounded(6).cursor_pointer()
+      .when(this.chosen === issue.number, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover))
+      .on_hover((over, cx) => this.host.hover(key, over, cx)).on_click((_e, cx) => this.open(issue, cx))
+      .on_mouse_down("right", (_e, cx) => {
+        this.picking = this.picking === issue.number ? null : issue.number;
+        cx.notify();
+      })
+      .child(div().w(3).h(36).flex_none().rounded(2).when(issue.level !== null, (e) => e.bg(color)))
+      .child(v_flex().flex_1().min_w(0).gap(2)
+        .child(h_flex().gap(6).min_w(0).child(div().flex_none().font_bold().text_color(color).child(`#${issue.number}`))
+          .child(div().flex_1().min_w(0).truncate().child(issue.title)))
+        .child(h_flex().gap(6).min_w(0).text_size(11)
+          .when(Boolean(issue.ranked_by), (e) => e.child(div().flex_none().text_color(color).child(issue.ranked_by)))
+          .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child([labels, people].filter(Boolean)
+            .join("  ")))
+          .child(div().flex_none().text_color(t.dim).child(issue.ago))))
+      .when(Boolean(asking), (e) => e.child(h_flex().flex_none().gap(2).pr(6).items_center()
+        .child(div().text_size(11).text_color(t.ansi1).child(`${verb}?`))
+        .child(small(t, `${key}-yes`, verb, `${verb} #${issue.number} on GitHub`, !this.busy,
+          (cx) => this.change(issue, /** @type {"close" | "reopen"} */ (asking), cx)))
+        .child(small(t, `${key}-cancel`, "Cancel", "Leave it as it is", true, (cx) => this.unask(cx)))))
+      .when(!asking && this.host.hovered === key, (e) => e.child(h_flex().flex_none().gap(2).pr(6)
+        .child(small(t, `${key}-agent`, glyph(this.host.font, this.host.m.agent), "To the agent", !this.busy,
+          (cx) => this.toAgent(issue, cx)))
+        .child(small(t, `${key}-web`, glyph(this.host.font, this.host.m.web), "Open in the browser", true,
+          (cx) => cx.open_url(issue.url)))));
+  }
+
+  /** The right click's menu on ISSUE, as the TUI sidebar's: all its keys do with it, and Assign to me; a press
+   * elsewhere closes it. @param {Listed} issue */
+  picks(t, issue) {
+    const verb = issue.state === "CLOSED" ? "reopen" : "close";
+    const item = (id, label, pick) => h_flex().id(`pick-${issue.number}-${id}`).h(26).px(8).items_center()
+      .rounded(6).cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => {
+        this.picking = null;
+        pick(cx);
+        cx.notify();
+      }).child(label);
+    return v_flex().flex_none().ml(14).mr(6).mb(4).p(4).gap(1).rounded(8).border_1().border_color(t.border)
+      .bg(t.raised).text_size(12).on_mouse_down_out((_e, cx) => {
+        this.picking = null;
+        cx.notify();
+      })
+      .child(item("open", "Open", (cx) => this.open(issue, cx)))
+      .child(item("web", "Open in the browser", (cx) => cx.open_url(issue.url)))
+      .child(item("agent", "To the agent", (cx) => this.toAgent(issue, cx)))
+      .child(item("reply", "Reply", (cx) => this.terminal(["reply", String(issue.number)], cx)))
+      .child(item("assign", "Assign to me", (cx) => this.change(issue, "assign", cx)))
+      .child(item(verb, verb === "close" ? "Close…" : "Reopen…", (cx) => this.change(issue, verb, cx)));
+  }
+}
+
+/** The issue NUMBER's Fixes line, as the TUI sidebar shows it under Commit: the next commit closes it; × unlinks it.
+ * @param {[number, string]} linked @param {(cx: any) => void} unlink */
+export function fixesLine(t, linked, font, m, unlink) {
+  return h_flex().flex_none().px(10).pb(8).gap(6).items_center().text_size(12)
+    .child(div().flex_1().min_w(0).truncate().text_color(t.accent).child(`Fixes #${linked[0]} ${linked[1]}`))
+    .child(small(t, "unlink", glyph(font, "×"), "The next commit fixes no issue", true, unlink));
+}
