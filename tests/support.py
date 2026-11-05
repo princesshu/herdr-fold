@@ -375,12 +375,12 @@ def run_in_terminal(argv, env, answer, timeout=120, idle=0.5, keep_colors=False)
 
 
 class FakeHerdrSocket:
-    """A stand-in for herdr's socket API at PATH serving TABS {tab_id: (layout tree, zoomed)}, each WIDTH cells wide;
-    pane.current is in the first tab, and a split's first side is round(width x ratio) cells, as herdr gives it.
+    """A stand-in for herdr's socket API at PATH serving TABS {tab_id: (layout tree, zoomed)}, each .width cells wide
+    (200); pane.current is in the first tab, and a split's first side is round(width x ratio) cells, as herdr gives it.
     Every call is recorded in .calls; close it with .server.close()."""
 
-    def __init__(self, path, tabs, width=200):
-        self.tabs, self.calls, self.width = {tab: list(value) for tab, value in tabs.items()}, [], width
+    def __init__(self, path, tabs):
+        self.tabs, self.calls, self.width = {tab: list(value) for tab, value in tabs.items()}, [], 200
         self.server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.server.bind(path)
         self.server.listen()
