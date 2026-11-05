@@ -33,8 +33,8 @@ from](../assets/screenshots/preview.webp)
 It runs in a plain herdr pane named `sidebar`, started by `src/sidebar.sh` (`src/sidebar.ps1` on Windows) with the
 system Python: the workspace builder, the tab-layout plugin and `restore_panes.py` run it. In your home folder it opens
 `~/Documents` instead. In a workspace whose folder is no repository itself (your home folder, a folder of projects),
-Changes shows the repository of the folder or file chosen in Files, however deep, its name before the branch in the
-status bar: its changes, commit and sync, Files' marks and the Issues view follow it. Quitting it (`q`) leaves a
+Changes shows the repository of the folder or file chosen in Files, however deep, its name in the repository row
+above the message: its changes, commit and sync, Files' marks and the Issues view follow it. Quitting it (`q`) leaves a
 shell; `python3 ~/.config/herdr-fold/restore_panes.py` starts it there again. After an update it starts its new version
 by itself, where it was, and so it does on its folder's new place when the folder is renamed or moved.
 
@@ -48,7 +48,7 @@ Cmd + Shift + G (Changes), Cmd + Shift + I (Issues), Cmd + Shift + E and Cmd + S
 [Keys](keybindings.md#panes-and-tabs). Cmd + Shift + L opens a file the focused pane's output names in its preview,
 at that line ([Opening a file the agent named](usage.md#opening-a-file-the-agent-named)).
 
-The ⋯ at the header's right edge (or a right click on them, the header or the status bar) closes or shows back the
+The ⋯ at the header's right edge (or a right click on them or the header) closes or shows back the
 tab's other panes, one by one (Close Conversations, Show terminal…), and offers Restore panels while any is closed. The
 keys inside the sidebar are in its README.
 

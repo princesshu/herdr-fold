@@ -66,6 +66,36 @@ class View(unittest.TestCase):
     def target(self, name):
         return next((x0, y) for y, x0, _, target in self.canvas.regions if target == name)
 
+    def test_the_repository_row_stands_above_the_message_as_vs_codes(self):
+        """Its heading folds it; under it the repository's name, ⎇ its branch (* with changes), ↻ with how far it is
+        from its upstream, and ⋯; nothing of it without a repository."""
+        self.draw()
+        self.assertNotIn("Repositories", self.shown())
+        self.view.repo, self.view.github = "/work/lumen-api", "acme/lumen-api"
+        self.draw()
+        self.assertEqual(self.row_of("▾ Repositories"), 0)
+        row = text(self.canvas, 1)
+        self.assertEqual(row.split(), ["▣", "lumen-api", "⎇", "main*", "↻", "0↓", "1↑", "⋯"])
+        self.assertLess(1, min(self.rows_where(5, "input")))                 # the message under it
+        self.assertIn("Graph", text(self.canvas, self.canvas.height - 1 - len(self.graph)))   # still at the bottom
+        self.assertEqual(self.click("Repositories"), Action("remember_folded", (["repositories"],)))
+        self.draw()
+        self.assertNotIn("lumen-api", self.shown())
+
+    def test_the_repository_rows_menu_pulls_pushes_and_opens_its_page(self):
+        self.view.repo, self.view.github = "/work/lumen-api", "acme/lumen-api"
+        self.draw()
+        self.click("⋯")
+        self.draw()
+        self.assertEqual(self.view.menu.choices, ["Pull", "Push", "Open on GitHub"])
+        self.assertEqual(self.click("Push"), Action("sync", ("push",)))
+        self.click("⋯")
+        self.draw()
+        self.assertEqual(self.click("Open on GitHub"), Action("repo_web", ()))
+        self.view.github = None
+        self.click("⋯")
+        self.assertEqual(self.view.menu.choices, ["Pull", "Push"])
+
     def test_the_list_follows_the_buttons_edge_and_its_sections_stand_apart(self):
         self.draw()
         rows = self.rows()

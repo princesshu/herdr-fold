@@ -120,13 +120,13 @@ class Running(Harness):
         super().setUp()
         self.start()
 
-    def test_it_starts_on_the_files_with_the_status_bar(self):
-        self.until(lambda s: "project" in s and "⎇ main*" in s and "a.txt" in s)
+    def test_it_starts_on_the_files(self):
+        self.until(lambda s: "project" in s and "a.txt" in s)
         self.assertNotIn(".hidden", self.screen())
         self.until(lambda s: self.row("a.txt").rstrip().endswith("M"))   # the temporary folder is behind a symlink
 
-    def test_the_switcher_marks_the_view_and_the_footer_is_a_bar(self):
-        self.until(lambda s: "project" in s and "⎇ main" in s)
+    def test_the_switcher_marks_the_view_and_no_footer_takes_a_row(self):
+        self.until(lambda s: "project" in s and "a.txt" in s)
         canvas = self.app.canvas
         top, middle = ("".join(ch for ch, _ in canvas.rows[y]) for y in (0, 1))
         self.assertEqual(middle.index("Files"), 1 + 3 * (sidebar.TAB + 1))      # the title right after the tabs
@@ -134,7 +134,7 @@ class Running(Harness):
         self.assertEqual(len(lit), 5)                                            # the shown view's tab, lit
         self.assertEqual(len([1 for _, style in canvas.rows[1] if style.bg == "badge"]), 15)   # the other two, ⋯
         self.assertTrue(top.startswith(" " + "▄" * 5 + " " + "▄" * 5))         # each a square shape
-        self.assertEqual({style.bg for _, style in canvas.rows[-1]}, {"badge"})  # the footer is one bar
+        self.assertNotIn("badge", {style.bg for _, style in canvas.rows[-1]})   # the repository is Changes' now
 
     def test_the_title_is_in_the_accent_one_line_even_at_the_narrowest_and_a_tab_under_the_mouse_lights_up(self):
         self.until(lambda s: "project" in s)
@@ -741,9 +741,8 @@ class ChosenInFiles(Harness):
     def test_the_repository_of_the_folder_chosen_in_files_shows(self):
         self.choose_lib()
         self.term.type(Key("char", "3"))
-        self.until(lambda s: "lib.txt" in s and "lib" in self.row("⎇"), timeout=10)
+        self.until(lambda s: "lib.txt" in s and "lib" in self.row("⎇"), timeout=10)     # the repository row
         self.assertNotIn("app.txt", self.screen())
-        self.assertNotIn("Repositories", self.screen())
 
     def test_its_commit_goes_into_that_repository(self):
         self.choose_lib()

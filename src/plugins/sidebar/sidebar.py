@@ -40,7 +40,8 @@ VIEW_KEYS = {"1": "files", "2": "search", "3": "git", "4": "issues", "f9": "file
 # linked: the issue each repository's next commit fixes, {repository: [number, title]}
 DEFAULTS = {"hidden": False, "icons": True, "commit_mode": "commit", "view": "files", "linked": {}, "folded": []}
 STALE = 60.0                  # seconds: the issues shown or listed here asked for again (a new one shows up)
-BUSY = {"commit": "Committing…", "sync": "Syncing…", "suggest": "Writing the message…"}   # the first running shows
+BUSY = {"commit": "Committing…", "sync": "Syncing…", "pull": "Pulling…", "push": "Pushing…",
+        "suggest": "Writing the message…"}   # the first running shows
 EMPTY = git.Status()
 TAB = 5                       # the cells of a view's tab: its icon in the middle one
 TIP_DELAY = 0.5               # seconds the mouse rests on a control shown by an icon before it says what it does
@@ -50,7 +51,7 @@ TIPS = {"suggest": "Write message", "mode": "Commit mode", "sync": "Sync", "pane
         "view:issues": "Issues", "new_file": "New file", "new_folder": "New folder", "refresh": "Refresh",
         "collapse": "Collapse all", "case": "Match case", "word": "Whole word", "regex": "Regular expression",
         "clear": "Clear", "stage": "Stage", "unstage": "Unstage", "discard": "Discard changes", "diff": "Show diff",
-        "agent": "To agent", "web": "Open in browser"}
+        "agent": "To agent", "web": "Open in browser", "remote": "More actions"}
 # the cells between the last view's tab and the ⋯ at least: the shown view's title (a cell of air on each side), the ⋯ a
 # group of its own
 APART = 1 + max(width(title) for title in VIEWS.values()) + 1
@@ -187,6 +188,7 @@ class App(Loop):
             self.head = None
         self.settings["linked"] = linked
         self.views["git"].linked = issue
+        self.views["git"].repo, self.views["git"].github = repo, self.github
         self.head = head or self.head
         if self.view not in self.tabs():                # the repository left GitHub (or git)
             self.view = "files"
@@ -743,7 +745,7 @@ class App(Loop):
         self.refresh()                                  # what was staged for it
 
     def do_commit(self, message, mode, paths):
-        if "commit" in self.running or "sync" in self.running:
+        if self.running & {"commit", "sync", "pull", "push"}:
             self.note = "A commit or sync is still running"
             return
         self.suggesting = None                          # a message still being written is for changes now committed
@@ -774,15 +776,24 @@ class App(Loop):
     def do_remember_folded(self, folded):
         self.save(folded=folded)
 
-    def do_sync(self):
-        if not self.repo or "sync" in self.running:
+    def do_sync(self, how="sync"):
+        """The branch synced with its upstream, or only pulled or pushed (HOW), as the repository row asks."""
+        if not self.repo or self.running & {"sync", "pull", "push"}:
             return
 
         def work():
-            ok, line = git.sync(self.repo)
+            ok, line = getattr(git, how)(self.repo)
             return None if ok else git.advice(line)
 
-        self.git_job("sync", work)
+        self.git_job(how, work)
+
+    def do_repo_web(self):
+        name = self.github
+
+        def then(error):
+            if error:
+                self.error = error
+        self.job("repo", lambda: github.open_in_browser(name), then)
 
     # --- drawing
 
@@ -792,7 +803,7 @@ class App(Loop):
         roomy = rows >= ROOMY                            # the tabs and the view's controls alike
         top = self.switcher(canvas, roomy)
         line = self.error or self.note
-        height = max(2, rows - top - 1 - bool(line))     # the view, the status bar below it
+        height = max(2, rows - top - bool(line))         # the view, what went wrong below it
         view = self.views[self.view]
         self.views["git"].busy(next((text for kind, text in BUSY.items() if kind in self.running), None))
         if self.view == "files":
@@ -802,10 +813,9 @@ class App(Loop):
         else:
             view.draw(canvas, top, height, self.status, self.graph, roomy)
         if line:
-            canvas.put(rows - 2, 0, " " * cells)
-            canvas.put(rows - 2, 1, truncate(line, cells - 2), Style(fg="deleted" if self.error else "muted"))
-        self.status_bar(canvas, rows - 1)
-        for y in (*range(top), rows - 1):                  # the header and the status bar: the pane's own menu
+            canvas.put(rows - 1, 0, " " * cells)
+            canvas.put(rows - 1, 1, truncate(line, cells - 2), Style(fg="deleted" if self.error else "muted"))
+        for y in range(top):                               # the header: the pane's own menu
             canvas.backdrop(y, 0, cells, "pane")
         if self.menu:
             menu, y, x = self.menu[:3]
@@ -840,20 +850,6 @@ class App(Loop):
             x += cells + 1
         canvas.put(row, x, truncate(VIEWS[self.view], more - 1 - x), Style(fg="accent", bold=True))   # as herdr's
         return taken + (0 if roomy else 1)
-
-    def status_bar(self, canvas, y):
-        status = self.status
-        canvas.put(y, 0, " " * canvas.width, Style(bg="badge"))     # the footer: one bar, the branch and its sync
-        if not self.repo or status is None or status.error:
-            return
-        dirty = "*" if status.staged or status.changes else ""
-        name = "" if self.own else os.path.basename(self.repo) + " "     # one chosen in Files: which one
-        branch = truncate(f"{name}⎇ {status.branch or 'detached'}{dirty}", canvas.width - 13)
-        x = canvas.put(y, 1, branch, Style(fg="text", bg="badge"))
-        sync = f"↻ {status.behind}↓ {status.ahead}↑" if status.upstream else "↻"
-        syncing = "sync" in self.running or "commit" in self.running
-        end = canvas.put(y, x + 3, sync, Style(fg="accent" if syncing else "muted", bg="badge"))
-        canvas.region(y, x + 2, end + 1, "sync")
 
 
 def main(argv):

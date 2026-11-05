@@ -1,6 +1,6 @@
-"""The sidebar's Changes view: the commit message with ✦ to have it written, the Commit button and its mode menu, the
-issue the commit fixes, Staged Changes, Changes and the Graph. A staged file whose name looks like a secret's is
-committed only after a question. The view only asks: every git command comes back as an Action for the app."""
+"""The sidebar's Changes view: the repository row (VS Code's Repositories), the message with ✦, Commit and its modes,
+the issue the commit fixes, Staged Changes, Changes and the Graph. A staged file named like a secret is committed only
+after a question. The view only asks: every git command comes back as an Action for the app."""
 import os
 from dataclasses import dataclass
 
@@ -12,6 +12,7 @@ from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, TextInput
 
 MODES = {"commit": "Commit", "push": "Commit & Push", "sync": "Commit & Sync"}
+REMOTE = {"Pull": "pull", "Push": "push"}       # the repository row's ⋯, with Open on GitHub for a repository there
 MESSAGE_ROWS = 7              # the message field grows with its text up to this many rows (odd: see draw())
 SIDE = 5                      # the cells of the AI's button beside the message, and of the mode's under it
 
@@ -45,9 +46,11 @@ class Scm:
         self.list = ListView(1)                       # the changes
         self.graph_list = ListView(1)                 # the Graph, at the view's bottom
         self.focus = "button"                          # message, button, list or graph
-        self.folded = set(folded) & {"staged", "changes", "graph"}     # the sections closed, kept by the app
+        self.folded = set(folded) & {"repositories", "staged", "changes", "graph"}   # the sections closed, kept
+        self.repo = self.github = None            # the repository's folder and its name on GitHub, the app's
         self.selecting = False        # the left button went down in the message and is held: a drag selects
         self.working = self.notice = self.menu = self.confirm = self.then = None     # then: the Action of the yes
+        self.menu_at = None           # the row the repository's ⋯ opened its menu under (None: the mode's)
         self.status, self.hover, self.canvas, self.top, self.height = None, None, None, 0, 1
         self.shown = None             # what the rows were built from: a mouse move must not rebuild 50 000 of them
         self.linked = None            # (number, title) of the issue the next commit fixes
@@ -123,6 +126,8 @@ class Scm:
             canvas.put(top, 1, truncate(line, cells - 2), Style(fg="muted"))
             return
         self.sync(status, graph)
+        below_repository = self.repository(canvas, top, status)
+        top, height = below_repository, height - (below_repository - top)       # the rest of the view under it
         side = cells - SIDE - 1                           # the AI's and the mode's buttons, a cell in from the edge
         main = side - 2                                   # the message and the commit button: a cell of air before
         inner = main - 4                                  # the text, two cells in from the shape's ends
@@ -168,9 +173,40 @@ class Scm:
                 self.row(canvas, y0 + row, index, graph)
         if self.menu:
             wide = min(cells, self.menu.width())
-            self.menu.draw(canvas, below + tall, max(0, cells - 1 - wide), wide)
+            self.menu.draw(canvas, below + tall if self.menu_at is None else self.menu_at, max(0, cells - 1 - wide),
+                           wide)
         if self.confirm:
             self.draw_confirm(canvas)
+
+    def repository(self, canvas, y, status):
+        """On top, as VS Code's Repositories: its heading (its chevron folds it), then the repository's name, ⎇ its
+        branch (* with changes), ↻ the sync (how far it is from its upstream, when it is) and ⋯ pull, push or its page
+        on GitHub. Returns the row after them."""
+        cells, marks = canvas.width, glyphs(self.icons)
+        if not self.repo:
+            return y
+        folded = "repositories" in self.folded
+        x = canvas.put(y, 1, marks["closed" if folded else "open"] + after(self.icons), Style(fg="muted"))
+        canvas.put(y, x, "Repositories", Style(fg="text", bold=True))
+        canvas.region(y, 0, cells, "repositories")
+        if folded:
+            return y + 2
+        y += 1
+        end = cells - 2
+        canvas.put(y, end, "⋯", Style(fg="muted"))
+        canvas.region(y, end - 1, cells, "remote")
+        counts = f" {status.behind}↓ {status.ahead}↑" if status.upstream and (status.behind or status.ahead) else ""
+        sync = marks["refresh"] + counts
+        end -= width(sync) + 2
+        canvas.put(y, end, sync, Style(fg="accent" if self.working else "muted"))
+        canvas.region(y, end - 1, end + width(sync) + 1, "sync")
+        branch = f"⎇ {status.branch or 'detached'}{'*' if status.staged or status.changes else ''}"
+        end -= width(branch) + 2
+        canvas.put(y, max(0, end), truncate(branch, max(1, cells - end)), Style(fg="muted"))
+        x = 2 + len(after(self.icons))                    # under the heading's name, as a change's row
+        x = canvas.put(y, x, marks["repo"] + after(self.icons), Style(fg="muted"))
+        canvas.put(y, x, truncate(os.path.basename(self.repo.rstrip(os.sep)), max(1, end - x - 1)), Style(fg="text"))
+        return y + 2
 
     def side(self, canvas, top, rows, roomy):
         """The AI's own button beside the message, as tall as it, its star in the middle."""
@@ -318,7 +354,7 @@ class Scm:
         elif name == "up":
             self.focus = "message"
         elif name == "right":
-            self.menu = Menu(MODES.values())
+            self.menu, self.menu_at = Menu(MODES.values()), None
         else:
             return self.common_key(event)
         return None
@@ -389,7 +425,7 @@ class Scm:
             return self.answer(target == "confirm:yes") if target in ("confirm:yes", "confirm:no") else None
         if self.menu:
             if str(target).startswith("menu:"):
-                return self.choose(list(MODES.values())[int(target[5:])])
+                return self.choose(self.menu.choices[int(target[5:])])
             self.menu = None
             return None
         self.notice = None
@@ -402,7 +438,13 @@ class Scm:
             self.focus = "button"
             return self.commit()
         elif target == "mode":
-            self.menu = Menu(MODES.values())
+            self.menu, self.menu_at = Menu(MODES.values()), None
+        elif target == "remote":
+            self.menu = Menu([*REMOTE, *(["Open on GitHub"] if self.github else [])])
+            self.menu_at = event.y + 1
+        elif target == "repositories":
+            self.folded.symmetric_difference_update({"repositories"})
+            return Action("remember_folded", (sorted(self.folded),))
         elif target == "unlink":
             return Action("unlink", ())
         elif isinstance(target, tuple) and target[0] == "graph":
@@ -454,6 +496,10 @@ class Scm:
         if label is None:
             return None
         self.menu = None
+        if label in REMOTE:
+            return Action("sync", (REMOTE[label],))
+        if label == "Open on GitHub":
+            return Action("repo_web", ())
         mode = next((mode for mode, text in MODES.items() if text == label), None)
         if mode is None:
             return None

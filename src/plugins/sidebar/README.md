@@ -15,15 +15,16 @@ Claude wrote, the issue it fixes and the Graph, Issues by priority](../../../ass
   narrows nothing); the field's × or Esc clears the text and it, until Search is shown again and takes the choice in
   Files anew. A search stops after 60 s and says so. In a folder that is no repository, each repository in it is
   searched as git sees it: its ignored files (node_modules, build output) are neither hits nor read.
-- **Changes** (git): in a folder that is no repository itself, the repository of the folder or file chosen in Files,
-  as Search searches there, its name before the branch in the status bar; the staged and unstaged changes, staging,
-  unstaging and discarding them, none of them needed: with nothing staged, the message and the commit take every
-  change shown, as GitHub Desktop does (never a file .gitignore names, even one tracked before, nor a repository
-  inside; a file come after the commit was asked for waits for the next one); a
-  commit message written by Claude or Codex from what the commit takes (a file whose name looks like a secret's, such
-  as `.env` or a key, by its name only); Commit, Commit & Push or Commit & Sync, after a question when such a file goes
-  in; the last 20 commits in the Graph, kept at the view's bottom while the changes scroll above it; each file's
-  letter under its section's count.
+- **Changes** (git): on top, as VS Code's Repositories, the repository's row: its name, ⎇ its branch, ↻ the sync (how
+  far the branch is from its upstream, when it is) and ⋯ to pull or push alone, or open it on GitHub; in a folder that
+  is no repository itself, the repository of the folder or file chosen in Files, as Search searches there; the staged
+  and unstaged changes, staging, unstaging and discarding them, none of them needed: with nothing staged, the message
+  and the commit take every change shown, as GitHub Desktop does (never a file .gitignore names, even one tracked
+  before, nor a repository inside; a file come after the commit was asked for waits for the next one); a commit message
+  written by Claude or Codex from what the commit takes (a file whose name looks like a secret's, such as `.env` or a
+  key, by its name only); Commit, Commit & Push or Commit & Sync, after a question when such a file goes in; the last 20
+  commits in the Graph, kept at the view's bottom while the changes scroll above it; each file's letter under its
+  section's count.
 - **Issues** (for a repository on GitHub), laid out and keyed as GitHub's own issue list: the search field with the
   filters button (assigned to me, created by me, a label, the priority), Open and Closed. While shown, the list is asked
   for every minute; while it holds any, behind another view too, so an issue made on GitHub or in another tab shows up
@@ -125,7 +126,7 @@ Alt + Enter commits from the message there too.
   pane reopens (until herdr knows its session), and whether the one-time note on a pane closed by hand was shown are in
   `conversations.json` there. What each tab has had is in `panels.json` there: a pane closed by hand stays closed until
   it is brought back: its key, Restore panels (`conversations_pane.py --restore`, Cmd+Shift+O in herdr-fold), or the
-  sidebar's ⋯ menu (a right click on its header or status bar too) and a right click in the Conversations column outside
+  sidebar's ⋯ menu (a right click on its header too) and a right click in the Conversations column outside
   a conversation (each other pane closed or shown back one by one, Restore panels). Copy conversation puts one on the
   clipboard (`pbcopy` and, on a Mac, `osascript` for the formatted version). herdr's command line lists the running
   agents, goes to one (`herdr agent focus`), and reopens a closed conversation (`herdr tab create`, `herdr pane split`,

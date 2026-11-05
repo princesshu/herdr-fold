@@ -36,6 +36,9 @@ All notable changes to this project are listed here. The format follows
 
 ### Changed
 
+- The sidebar's Changes view puts the repository on top, as VS Code's Repositories: its name, branch, sync and a
+  ⋯ that pulls or pushes alone or opens it on GitHub; the status bar at the sidebar's bottom is gone, its branch
+  and sync with it. See [The sidebar](docs/sidebar.md).
 - Committing needs no staging, as in GitHub Desktop: with nothing staged, a commit and its written message take every
   change, in the sidebar and in the Herdr app mod; a file .gitignore names is never one of them, nor shows in Changes,
   even if it was tracked before. The sidebar commits exactly the changes it showed (and asked about, for files named
