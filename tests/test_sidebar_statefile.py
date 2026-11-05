@@ -1,4 +1,4 @@
-"""Tests for the sidebar plugin's statefile.py and its writers: every state file and its folder are the owner's only,
+"""Tests for core/statefile.py and the sidebar plugin's writers: every state file and its folder are the owner's only,
 whatever the umask, and each is written through its own temporary file, so a planted link is never followed."""
 import json
 import os

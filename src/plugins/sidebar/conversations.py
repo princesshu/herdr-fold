@@ -1,3 +1,4 @@
+# Generated from core/conversations.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
 """This machine's Claude Code and Codex conversations, running or not, for the Conversations column and herdr-fold's
 formatted copy; nothing of Claude's, Codex's or herdr's is ever written. The files are large: each is read once, then
 only where it grew (INDEX, shared by every pane). An unreadable file is left out, a field of a wrong type as missing."""

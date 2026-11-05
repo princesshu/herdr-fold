@@ -96,8 +96,13 @@ class Core(unittest.TestCase):
                 self.assertEqual(sorted(m for m in imported - own if not standard(m)), [])
 
 
+WINDOWS_ONLY = {"msvcrt", "winreg"}          # Python's own on Windows, so find_spec finds them only there
+
+
 def standard(module):
-    """Whether MODULE comes with Python itself (built in, or from its own library folder)."""
+    """Whether MODULE comes with Python itself (built in, or from its own library folder), here or on Windows."""
+    if module in WINDOWS_ONLY:
+        return True
     spec = importlib.util.find_spec(module)
     return bool(spec) and (spec.origin in ("built-in", "frozen")
                            or (spec.origin or "").startswith(sysconfig.get_paths()["stdlib"]))

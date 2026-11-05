@@ -1,5 +1,6 @@
-"""Tests for conversations.py in a temporary HOME: the Claude Code and Codex conversations with title, folder, time and
-state; a file read again only where it grew, unreadable files and damaged lines skipped, none of their files written."""
+"""Tests for core/conversations.py in a temporary HOME: the Claude Code and Codex conversations with title, folder,
+time and state; a file read again only where it grew, unreadable files and damaged lines skipped, none of their files
+written."""
 import json
 import os
 import shutil
@@ -7,9 +8,9 @@ import sys
 import tempfile
 import unittest
 
-from support import SRC, finished, jsonl, set_env
+from support import PACKAGE, finished, jsonl, set_env
 
-sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
+sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import conversations  # noqa: E402
 
 

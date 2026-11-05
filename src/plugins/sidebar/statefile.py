@@ -1,3 +1,4 @@
+# Generated from core/statefile.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
 """The plugin's state files, its owner's only whatever the umask: they hold every conversation's folder and title and a
 private repository's issues. Each is written whole to a temporary file beside it, then put in place: writers never mix,
 a reader sees the old file or the new, and a link planted under a predictable name is never followed."""
