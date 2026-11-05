@@ -537,6 +537,18 @@ class IconEars(unittest.TestCase):
 
 
 @unittest.skipUnless(sys.platform == "darwin" and shutil.which("swiftc"), "needs a Mac with Swift")
+def pixels_apart(first, second, folder):
+    """How many pixels of two SVGs, as CoreSVG draws them (sips, as the Dock and Finder do), differ by more than a
+    shade of antialiasing."""
+    rows = []
+    for n, svg in enumerate((first, second)):
+        png = os.path.join(folder, f"apart-{n}.png")
+        subprocess.run(["/usr/bin/sips", "-s", "format", "png", svg, "--out", png], check=True, capture_output=True)
+        rows.append(png_rgba(png))
+    return sum(1 for a, b in zip(*rows) if a != b for i in range(0, len(a), 4)
+               if max(abs(x - y) for x, y in zip(a[i:i + 4], b[i:i + 4])) > 48)
+
+
 class GhosttyIconDrawing(unittest.TestCase):
     """The real drawer (tools/logo.swift) compiled and run, its SVG read through sips (CoreSVG, as the Dock and Finder
     read it): Apple's app icon grid (an 824-pixel rounded square), the sheep lifted off the screen like a Liquid Glass
@@ -698,11 +710,14 @@ class GhosttyIconDrawing(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
 
     def test_the_logo_is_the_drawers(self):
+        # the picture, not its bytes: Core Graphics' unions and strokes come out as other curves on another macOS
         sys.path.insert(0, os.path.join(PACKAGE, "tools"))
         import preview_colors
-        with open(apply.LOGO, encoding="utf-8") as f:
-            self.assertEqual(f.read(), preview_colors.logo(self.drawer), "out of date: /usr/bin/python3 "
-                                                                         "tools/preview_colors.py")
+        now = os.path.join(self.tmp, "now.svg")
+        with open(now, "w", encoding="utf-8") as f:
+            f.write(preview_colors.logo(self.drawer))
+        self.assertLess(pixels_apart(apply.LOGO, now, self.tmp), 500,
+                        "out of date: /usr/bin/python3 tools/preview_colors.py")
 
 
 if __name__ == "__main__":
