@@ -7,8 +7,9 @@ the same in both. It installs on its own, without the TUI environment.
 It comes with a layout of its own, `herdr-fold`: the app's main layout, with herdr-fold in the right panel where the
 app's own Changes was, above the tab's own terminal, as the TUI's right column has them. The Changes button at the top
 right opens it there, and so does Cmd + Shift + G. The layout is
-dark, in the TUI's own colors (its theme, `themes/herdr-fold.json`, is made from the TUI's), and its code is in Menlo,
-as VS Code's (on Linux and Windows the app's JetBrains Mono); the app's theme and font menus change them.
+dark, in the TUI's own colors (its theme, `themes/herdr-fold.json`, is made from the TUI's); its terminals and code are
+in Menlo, as VS Code's (on Linux and Windows the app's JetBrains Mono), at the TUI's size, 13; the app's theme and font
+menus change them.
 
 Its icons are the TUI sidebar's, from the same table (`core/icons.py`): with a Nerd Font installed (the TUI environment
 installs JetBrainsMono Nerd Font), its Codicons and each file type's mark; without one, its plain marks.

@@ -55,6 +55,13 @@ class Shape(unittest.TestCase):
             self.assertIn(json.load(f).get("place"), ("right", "left", "top", "bottom", "none"))
         self.assertTrue(os.path.isfile(os.path.join(MOD, "main.js")))
 
+    def test_the_layouts_terminals_are_the_tuis_size(self):
+        with open(os.path.join(APP, "layouts", "herdr-fold.json"), encoding="utf-8") as f:
+            root = json.load(f)
+        with open(os.path.join(PACKAGE, "config", "ghostty", "config"), encoding="utf-8") as f:
+            size = int(re.search(r"^font-size = (\d+)$", f.read(), re.M).group(1))
+        self.assertEqual(root.get("font_size"), size)
+
     def test_the_layout_is_the_apps_own_with_herdr_fold_where_changes_was(self):
         """layouts/herdr-fold.json is the app's main layout, the right panel's Changes block showing herdr-fold: the
         Changes button and Cmd+Shift+G open it there."""
