@@ -17,7 +17,7 @@ MEDIA_TOOL = os.path.join(os.path.dirname(ROOT), "media", "tools", "overview.py"
 sys.dont_write_bytecode = True
 sys.path[:0] = [os.path.join(ROOT, "src", "themes"), os.path.join(ROOT, "src", "plugins", "sidebar")]
 import apply  # noqa: E402
-from screen import glyphs  # noqa: E402
+from icons import glyphs  # noqa: E402
 
 
 def sheep():
