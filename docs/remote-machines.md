@@ -5,14 +5,17 @@ remote machine keeps running after you close the Mac.
 
 ## What the installer does on a machine
 
-1. installs starship if it is missing, and git and Python: on Linux as root (with apt, dnf or yum) and on Windows (with
-   winget); elsewhere a missing one is reported. Then it puts the settings in place;
-2. connects the machine to herdr, which installs herdr there (a single file, no admin rights);
-3. installs the herdr integrations for Claude and Codex, names a herdr-sidebar of the machine's own, and links
-   AI Sessions and the tab layout; the sidebar comes with the settings, in the Mac's theme colors (a theme picked
-   later reaches a machine with its next update), and runs with the machine's Python;
-4. with herdr-fold set up in the Herdr app too ([The Herdr app](app.md)): adds the machine to the app, whose core
-   (herdr-core) copies itself there, a single file as herdr's; a machine the app has already is left as it is.
+It prepares each machine for the parts installed on the Mac, the TUI, the Herdr app or both:
+
+1. installs git and Python if they are missing: on Linux as root (with apt, dnf or yum) and on Windows (with winget);
+   elsewhere a missing one is reported. With the TUI, starship too, and the prompt in herdr's panes. Then it puts the
+   settings in place (with the Herdr app alone, only the status line's);
+2. with the TUI: connects the machine to herdr, which installs herdr there (a single file, no admin rights);
+3. with the TUI: installs the herdr integrations for Claude and Codex, names a herdr-sidebar of the machine's own, and
+   links AI Sessions and the tab layout; the sidebar comes with the settings, in the Mac's theme colors (a theme
+   picked later reaches a machine with its next update), and runs with the machine's Python;
+4. with the Herdr app ([The Herdr app](app.md)): adds the machine to the app, whose core (herdr-core) copies itself
+   there, a single file as herdr's; a machine the app has already is left as it is.
 
 It does not install Claude Code or Codex or sign them in: do that once on each machine.
 

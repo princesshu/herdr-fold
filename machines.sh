@@ -45,6 +45,7 @@ LIST
 take_over_connected() {
   local name target os
   [ -f "$MACHINE_LIST" ] && return 0
+  of_parts tui $(installed_parts) || return 0                        # herdr's machines: the TUI's
   while IFS='|' read -r name target <&3; do
     machines | cut -d'|' -f1 | grep -qxF "$name" && continue
     os=$(remote_os "$target")
@@ -122,7 +123,8 @@ cmd_status() {
     any=1
     echo "== $(t machines.heading "$name" "$target" "$os")"
     reachable "$target" || continue
-    if [ -n "$(machine_field "$name" id)" ]; then ok "$(t machines.connected)"
+    if ! of_parts tui $(installed_parts); then :
+    elif [ -n "$(machine_field "$name" id)" ]; then ok "$(t machines.connected)"
     else note "$(t machines.not_connected "$name")"; fi
     note "$(tools_line "$target" "$os")"
   done 3< <(machines "$@")
@@ -456,17 +458,17 @@ exit $unpacked'
 
 # Copies the payload (staged in TMP) to the machine and runs its prepare script there; the loading line shows the
 # sending, then the machine's sections
-copy_and_prepare() {   # copy_and_prepare <tmp> <target> <os> <lang> [remove]
-  local tmp=$1 target=$2 os=$3 lang=$4 mode=${5:-}
+copy_and_prepare() {   # copy_and_prepare <tmp> <target> <os> <lang> [remove]: the installed parts' (tui, app)
+  local tmp=$1 target=$2 os=$3 lang=$4 mode=${5:-} parts; parts=$(installed_parts | xargs)
   loading_phase "$(t machines.phase_sending)"
   if [ "$os" = windows ]; then
     stage_payload "$tmp/payload" prepare-windows.ps1 "$mode"
+    local args="$lang -Parts ${parts// /,}"; [ "$mode" = remove ] && args+=" -Remove"
     (                     # pipefail: the exit status is the prepare script's, not the filters'
       set -o pipefail
       win_put "$target" "$tmp/payload" "$tmp/ssh" \
         && ssh "${SSH_OPTS[@]}" -- "$target" 'powershell -NoProfile -ExecutionPolicy Bypass' \
-             '-File .herdr-fold\prepare-windows.ps1 '"$lang$([ "$mode" = remove ] && echo ' -Remove')" \
-             </dev/null | tr -d '\r' | machine_phases
+             "-File .herdr-fold\\prepare-windows.ps1 $args" </dev/null | tr -d '\r' | machine_phases
     )
   else
     stage_payload "$tmp" prepare-unix.sh "$mode"
@@ -476,7 +478,8 @@ copy_and_prepare() {   # copy_and_prepare <tmp> <target> <os> <lang> [remove]
       && (                # pipefail: the exit status is the prepare script's, not the filter's
         set -o pipefail
         ssh "${SSH_OPTS[@]}" -- "$target" \
-          "HERDR_FOLD_LANG=$lang bash ~/.herdr-fold/prepare-unix.sh${mode:+ --$mode}" </dev/null | machine_phases
+          "HERDR_FOLD_LANG=$lang HERDR_FOLD_PARTS='$parts' bash ~/.herdr-fold/prepare-unix.sh${mode:+ --$mode}" \
+          </dev/null | machine_phases
       )
   fi
 }
@@ -560,11 +563,10 @@ link_plugins() {
   python3 "$HOME/.config/herdr-fold/restore_panes.py" --machine "$name"
 }
 
-# add_to_app NAME TARGET — with the Herdr app part installed (install.sh's question), the machine joins the app's
-# core too, which copies itself there; one the app has already is left as it is, and not recorded
+# add_to_app NAME TARGET — the machine joins the Herdr app's core too (cmd_add, with the app's part installed), which
+# copies itself there; one the app has already is left as it is, and not recorded
 add_to_app() {
   local hc out
-  grep -qxF herdr-fold.app "$HOME/.local/state/herdr-fold/plugins.txt" 2>/dev/null || return 0
   hc=$(hc_bin) || { warn "$(t machines.app_no_hc "$1")"; return 0; }
   if "$hc" machine ls --json 2>/dev/null | python3 -c '
 import json, sys
@@ -585,12 +587,13 @@ sys.exit(0 if any(isinstance(m, dict) and m.get("name") == sys.argv[1] for m in 
 }
 
 cmd_add() {
-  local failed=0
+  local failed=0 parts; parts=$(installed_parts | xargs)
   while IFS='|' read -r name target os <&3; do
     step "$(t machines.heading "$name" "$target" "$os")"
     reachable "$target" || { failed=1; continue; }
     prepare_files "$target" "$os" || { failed=1; continue; }
-    if [ -n "$(machine_field "$name" id)" ]; then
+    if ! of_parts tui $parts; then :                                  # herdr's connection: the TUI's
+    elif [ -n "$(machine_field "$name" id)" ]; then
       verbose && have "$(t machines.already_connected)"
     else
       note "$(t machines.herdr_asks_install)"
@@ -598,8 +601,8 @@ cmd_add() {
       herdr machine add "$target" --label "$name" </dev/tty \
         || { warn "$(t machines.connect_failed)"; failed=1; continue; }
     fi
-    finish_machine "$name" "$target" "$os"
-    add_to_app "$name" "$target"
+    ! of_parts tui $parts || finish_machine "$name" "$target" "$os"
+    ! of_parts app $parts || add_to_app "$name" "$target"
   done 3< <(machines "$@")
   return $failed
 }
@@ -609,7 +612,7 @@ cmd_prepare() {
     step "$(t machines.heading "$name" "$target" "$os")"
     reachable "$target" || continue
     prepare_files "$target" "$os" || continue
-    [ -n "$(machine_field "$name" id)" ] && finish_machine "$name" "$target" "$os"
+    of_parts tui $(installed_parts) && [ -n "$(machine_field "$name" id)" ] && finish_machine "$name" "$target" "$os"
   done 3< <(machines "$@")
 }
 
@@ -622,7 +625,7 @@ cmd_remove() {
   step "$(t machines.heading "$name" "$target" "$os")"
   reachable "$target" || return 1
   prepare_files "$target" "$os" remove || return 1
-  id=$(machine_field "$name" id)
+  id=; ! of_parts tui $(installed_parts) || id=$(machine_field "$name" id)
   if [ -n "$id" ]; then
     herdr machine remove "$id" >/dev/null 2>&1 && ok "$(t machines.disconnected "$name")" \
       || warn "$(t machines.disconnect_failed "$name" "$id")"

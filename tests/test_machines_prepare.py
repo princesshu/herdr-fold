@@ -721,6 +721,31 @@ class AppMachines(Prepare, unittest.TestCase):
         self.assertFalse([call for call in self.hc_calls() if call.startswith("hc machine add")])
         self.assertEqual(self.recorded(), [])
 
+    def app_alone(self):
+        with open(os.path.join(self.state, "plugins.txt"), "w") as f:
+            f.write("herdr-fold.app\n")
+
+    def herdr_logged(self):
+        return logged(os.path.join(self.profile, "herdr-calls"))
+
+    def test_the_app_alone_prepares_and_adds_to_the_app_only(self):
+        self.app_alone()
+        self.add()
+        self.assertEqual([call for call in self.herdr_logged() if "machine add" in call or "plugin" in call], [])
+        self.assertIn("hc machine add box --name box --install", self.hc_calls())
+
+    def test_a_machine_for_the_app_alone_gets_no_starship(self):
+        self.app_alone()
+        self.env["HERDR_FOLD_VERBOSE"] = "1"                                  # every item its line
+        shown = self.prepare()
+        self.assertIn("git", shown)
+        self.assertNotIn("starship", shown)
+
+    def test_a_machine_for_the_tui_gets_starship(self):
+        self.app_part()
+        self.env["HERDR_FOLD_VERBOSE"] = "1"
+        self.assertIn("starship", self.prepare())
+
     def test_remove_takes_off_only_what_herdr_fold_added(self):
         self.app_part()
         self.add()

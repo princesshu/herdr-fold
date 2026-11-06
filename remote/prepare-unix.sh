@@ -1,9 +1,10 @@
 #!/bin/bash
 # Prepares a remote Linux / macOS machine for herdr: the central Mac's installer copies it to ~/.herdr-fold and runs it
-# over SSH before connecting. Adds git, python3, starship and herdr-fold's settings (prompt and ~/.local/bin in herdr
-# panes only); --remove (machines.sh remove) brings the machine's own back. Safe to rerun.
+# over SSH before connecting. Adds git, python3 and herdr-fold's settings; with the TUI (HERDR_FOLD_PARTS) starship and
+# the prompt and ~/.local/bin in herdr panes; --remove (machines.sh remove) brings the machine's own back. Rerunnable.
 set -u
 remove=; [ "${1:-}" = --remove ] && remove=1
+tui=; case " ${HERDR_FOLD_PARTS:-tui} " in *" tui "*) tui=1 ;; esac
 HERE=$(cd "$(dirname "$0")" && pwd)
 F="$HERE/files"
 BIN="$HOME/.local/bin"
@@ -42,8 +43,9 @@ if [ -z "$remove" ]; then
     if has "$p"; then ok "$p"; else warn "$(t prepare.unix.package_missing "$p")"; fi
   done
 
-  # the prompt: Homebrew's on a Mac that has it, else a pinned release, checksum-verified, into ~/.local/bin
-  if has starship; then have starship
+  # the prompt, the TUI's: Homebrew's on a Mac that has it, else a pinned release, checksum-verified, into ~/.local/bin
+  if [ -z "$tui" ]; then :
+  elif has starship; then have starship
   elif [ "$os" = macos ] && has brew && HOMEBREW_NO_ANALYTICS=1 brew install -q starship >/dev/null 2>&1; then
     ok "$(t prepare.unix.installed_brew starship)"
   elif bash "$HERE/fetch-tool.sh" starship "$ss" "$BIN"; then ok starship
@@ -130,14 +132,16 @@ if [ -z "$remove" ] && [ -z "$own" ]; then
   # gets them in its own settings)
   python3 "$HOME/.config/herdr-fold/statusline_setup.py" --apply
 
-  # Prompt and apps in herdr panes, for the login shell: one marked block, replaced on every run
-  case "$(basename "${SHELL:-bash}")" in zsh) rc="$HOME/.zshrc"; sh=zsh ;; *) rc="$HOME/.bashrc"; sh=bash ;; esac
-  before=$(mktemp); cp "$rc" "$before" 2>/dev/null
-  marked_block "$rc" "# only inside herdr panes (other logins on the machine are unaffected)" \
-    'if [ -n "${HERDR_ENV:-}" ]; then' '  export PATH="$HOME/.local/bin:$PATH"' \
-    "  command -v starship >/dev/null 2>&1 && eval \"\$(starship init $sh)\"" 'fi'
-  cmp -s "$rc" "$before" || ok "$(t prepare.unix.prompt_added "${rc#$HOME/}")"
-  rm -f "$before"
+  # Prompt and apps in herdr panes (the TUI's), for the login shell: one marked block, replaced on every run
+  if [ -n "$tui" ]; then
+    case "$(basename "${SHELL:-bash}")" in zsh) rc="$HOME/.zshrc"; sh=zsh ;; *) rc="$HOME/.bashrc"; sh=bash ;; esac
+    before=$(mktemp); cp "$rc" "$before" 2>/dev/null
+    marked_block "$rc" "# only inside herdr panes (other logins on the machine are unaffected)" \
+      'if [ -n "${HERDR_ENV:-}" ]; then' '  export PATH="$HOME/.local/bin:$PATH"' \
+      "  command -v starship >/dev/null 2>&1 && eval \"\$(starship init $sh)\"" 'fi'
+    cmp -s "$rc" "$before" || ok "$(t prepare.unix.prompt_added "${rc#$HOME/}")"
+    rm -f "$before"
+  fi
 elif [ -n "$remove" ] && [ -z "$own" ]; then
   for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do remove_marked_block "$rc"; done
   # herdr-fold's plugins, and the empty folders herdr keeps of them (the conversation names stay)

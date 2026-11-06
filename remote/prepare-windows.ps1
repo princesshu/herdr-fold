@@ -1,7 +1,9 @@
 ﻿# Prepares a remote Windows machine (x86_64, PowerShell 5.1 too) for herdr: machines.sh unpacks it into
-# %USERPROFILE%\.herdr-fold and runs it over SSH before connecting. Adds starship, git, Python (winget, which often
-# fails over SSH, else python.org) and herdr-fold's settings; -Remove takes them off. Safe to rerun.
-param([string]$Lang = $(if ($env:HERDR_FOLD_LANG) { $env:HERDR_FOLD_LANG } else { 'en' }), [switch]$Remove)
+# %USERPROFILE%\.herdr-fold and runs it over SSH before connecting. Adds git, Python (winget, which often fails over
+# SSH, else python.org), herdr-fold's settings and, with the TUI (-Parts), starship; -Remove takes them off. Rerunnable.
+param([string]$Lang = $(if ($env:HERDR_FOLD_LANG) { $env:HERDR_FOLD_LANG } else { 'en' }), [string]$Parts = 'tui',
+      [switch]$Remove)
+$Tui = ($Parts -split ',') -contains 'tui'           # the parts herdr-fold has on the Mac: the prompt, the TUI's
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
@@ -262,8 +264,9 @@ if (-not (($userPath -split ';') -contains $Bin)) {
     Line ok (T 'prepare.win.on_path' $Bin)
 }
 
-# the prompt: a pinned release, checksum-verified
-if (Test-Command starship) { Line have starship }
+# the prompt, the TUI's: a pinned release, checksum-verified
+if (-not $Tui) { }
+elseif (Test-Command starship) { Line have starship }
 else {
     try {
         Get-Verified `
@@ -364,7 +367,8 @@ if (Test-Path $Backup) { Line saved (T 'prepare.win.backup' $Backup) }
 
 # Starship prompt inside herdr panes (PowerShell profile; other logins on the machine are unaffected): one marked block,
 # replaced on every run
-if ($Blocked) {
+if (-not $Tui) { }
+elseif ($Blocked) {
     Line skip (T 'prepare.win.profiles_blocked' (Get-ExecutionPolicy))
 } else {
     $block = @'

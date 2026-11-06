@@ -15,6 +15,9 @@ All notable changes to this project are listed here. The format follows
   [Installation](docs/installation.md#the-tui-the-herdr-app-or-both).
 - One theme for both parts: the installer and the TUI's theme picker set herdr-fold's layout in the Herdr app too, and
   a running app switches at once; an update keeps the theme there is. See [Themes](docs/themes.md).
+- A remote machine is prepared for the parts installed on the Mac: with the Herdr app alone it gets git, Python and
+  the status line, joins the app's core and nothing of herdr's or starship's. See
+  [Remote machines](docs/remote-machines.md).
 - Cmd + Shift + U marks the focused agent unread: its workspace says `waiting` again, from then, until you come back
   to it after leaving it; again on a marked one takes the mark off. See [Sessions](docs/usage.md#sessions).
 - herdr-fold in herdr's desktop app: a mod with the sidebar's Changes view (the changed files, staged by file or all at
