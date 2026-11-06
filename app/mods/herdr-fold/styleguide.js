@@ -94,10 +94,10 @@ const BAR = [{ id: "t1", name: "Claude", active: true, status: "working", icon: 
   { id: "t2", name: "Codex", active: false, status: "blocked", icon: ICONS.bot, tint: true },
   { id: "t3", name: "Terminal", active: false, status: null, icon: null, tint: false },
   { id: "t4", name: "notes Z", active: false, status: "done", icon: null, tint: false }];
-/** The tab bar as its view draws BAR, BUTTONS the window's own (null: macOS, the traffic lights' instead).
- * @param {any} buttons */
-const tabBar = (t, buttons) => Object.assign(Object.create(TabsView.prototype), { pressed: null }).draw(t, BAR, "s1",
-  { lights: 12, end: 12, buttons });
+/** The tab bar as its view draws BAR, BUTTONS the window's own (null: macOS, the traffic lights' instead), the
+ * pointer on HOVERED's tab. @param {any} buttons @param {string | null} hovered */
+const tabBar = (t, buttons, hovered) => Object.assign(Object.create(TabsView.prototype), { pressed: null, hovered })
+  .draw(t, BAR, "s1", { lights: 12, end: 12, buttons });
 const ISSUE = { ago: ["1d", "4h"], issue: { number: 42, title: LISTED[0].title, state: "OPEN", author: "noa-berg",
   labels: ["priority: high", "bug"], body: "Steps:\n\n1. Ask `GET /books?page=99`\n2. The answer is an empty page" +
     "\n\nExpected: the last page, as `pages` says.",
@@ -332,11 +332,11 @@ function sections(g, t) {
         state.repository(t), { spec: i ? "" : "as VS Code's Repositories · h 26 · ⋯ its menu" }))),
       group(t, "Commit", g.composer.map(([name, state], i) => specimen(t, `composer-${i}`, name, state.composer(t))))]],
     ["tabs", [group(t, "Tab bar", [
-      specimen(t, "tab-bar", "The space's tabs: an agent working, one waiting, a shell, one done and zoomed",
-        div().h(42).child(tabBar(t, null)),
-        { width: 2 * PANEL, spec: "h 28 · px 12, 8 by the × · radius 6 · gap 4, 6 inside · the shown one raised" }),
+      specimen(t, "tab-bar", "The space's tabs: an agent working, one waiting, a shell under the pointer, one done",
+        div().h(42).child(tabBar(t, null, "t3")),
+        { width: 2 * PANEL, spec: "h 28 · px 12, 8 by the × · radius 6 · gap 4, 6 inside · × shown and on hover" }),
       specimen(t, "tab-bar-buttons", "Off macOS: the window's buttons",
-        div().h(42).child(tabBar(t, { maximized: false })),
+        div().h(42).child(tabBar(t, { maximized: false }, null)),
         { width: 2 * PANEL, spec: "+ New tab, the panel's toggle, the window's own · each its tip and the hand" })]),
       group(t, "Panel tabs", [...g.tabs.map(([name, state], i) => specimen(t, `tabs-${i}`, name,
         div().h(40).child(panelTabs(t, state)), { spec: i ? "" : "h 28 · radius 6 · gap 4 · the shown one raised" }))]),

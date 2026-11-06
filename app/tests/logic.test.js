@@ -16,7 +16,7 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom }
   from "../mods/herdr-fold/logic.js";
 
-test("a tab the app named after its program, an agent's first, else Terminal; its own name kept, zoomed marked", () => {
+test("a tab the app named after its program, an agent's first, else Terminal; an agent's icon; zoomed marked", () => {
   const space = { tabs: [{ id: "t1", name: "tb1", active: true, status: "working" }, { id: "t2", name: "tb2" },
     { id: "t3", name: "notes", zoomed: true, status: "done" }] };
   const panes = [{ tab: "t1", program: { name: "zsh" } }, { tab: "t1", program: { name: "Claude", agent: true,
@@ -24,7 +24,7 @@ test("a tab the app named after its program, an agent's first, else Terminal; it
   assert.deepEqual(tabRows(space, panes), [
     { id: "t1", name: "Claude", active: true, status: "working", icon: "claude.svg", tint: true },
     { id: "t2", name: "Terminal", active: false, status: null, icon: null, tint: false },
-    { id: "t3", name: "notes Z", active: false, status: "done", icon: "vim.png", tint: false }]);
+    { id: "t3", name: "notes Z", active: false, status: "done", icon: null, tint: false }]);
   assert.deepEqual(tabRows(undefined, panes), []);
 });
 

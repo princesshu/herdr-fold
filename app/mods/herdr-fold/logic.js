@@ -360,15 +360,16 @@ export const railed = (root) => (sidebarPx(root) ?? Infinity) < RAIL_BELOW;
 export const foldedWidth = (root, macos, kept) => (railed(root) ? kept ?? 268 : macos ? RAIL : 44);
 
 /** SPACE's tabs as the tab bar draws them, as the app's own does: a name the app gave (tbN) is its program's, an
- * agent's first, else Terminal; the program's icon (TINT: drawn in the text's color), its state, zoomed marked Z.
- * @param {any} space @param {any[]} panes */
+ * agent's first, else Terminal; an agent's icon (TINT: drawn in the text's color; a shell's says nothing), its state,
+ * zoomed marked Z. @param {any} space @param {any[]} panes */
 export function tabRows(space, panes) {
   return (space?.tabs ?? []).map((/** @type {any} */ c) => {
     const program = panes.find((p) => p.tab === c.id && p.program?.agent)?.program
       ?? panes.find((p) => p.tab === c.id)?.program;
     const name = /^tb\d+$/.test(c.name) ? program?.name ?? "Terminal" : c.name;
+    const agent = program?.agent ? program : null;
     return { id: c.id, name: c.zoomed ? `${name} Z` : name, active: Boolean(c.active), status: c.status ?? null,
-      icon: program?.icon ?? null, tint: Boolean(program?.tint) };
+      icon: agent?.icon ?? null, tint: Boolean(agent?.tint) };
   });
 }
 

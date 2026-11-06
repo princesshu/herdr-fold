@@ -4,7 +4,7 @@
 import { div, image, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { layout, openOverlay, panes, settings, spaces, window, run as command } from "herdr";
-import { lightsRoom, tabRows, toggleRoom } from "./logic.js";
+import { hovering, lightsRoom, tabRows, toggleRoom } from "./logic.js";
 import { panelToggle } from "./panel.js";
 import { BUTTON, GAP, icon, iconButton } from "./parts.js";
 
@@ -16,6 +16,8 @@ export class TabsView {
   constructor() {
     /** @type {number | null} the tab pressed, while it may be dropped on another */
     this.pressed = null;
+    /** @type {string | null} the tab the pointer is on (hovering's): its × shown */
+    this.hovered = null;
   }
 
   render(t) {
@@ -45,14 +47,15 @@ export class TabsView {
         .child(iconButton(t, "window-close", "x", "Close", () => command("window.close")))));
   }
 
-  /** A tab's pill, as the panel's tabs: its program's icon, its name, a working agent's spinner or a state's dot,
-   * the shown one's × (its glyph sits inside its square: closer, so it looks as far as the icon at the start).
-   * @param {Tab} r @param {number} i @param {Tab[]} rows @param {string | null} space */
+  /** A tab's pill, as the panel's tabs: an agent's icon, its name, a working agent's spinner or a state's dot, and
+   * the place of its ×, shown on the shown tab and under the pointer (its glyph sits inside its square: closer, so it
+   * looks as far as the start's). @param {Tab} r @param {number} i @param {Tab[]} rows @param {string | null} space */
   tab(t, r, i, rows, space) {
-    return h_flex().id(`tab-${r.id}`).h(28).pl(12).pr(r.active ? 8 : 12).gap(2).rounded(6).items_center().flex_none()
-      .text_size(13)
+    const closing = r.active || this.hovered === r.id;
+    return h_flex().id(`tab-${r.id}`).h(28).pl(12).pr(8).gap(2).rounded(6).items_center().flex_none().text_size(13)
       .border_1().border_color(r.active ? t.border : t.chrome).bg(r.active ? t.raised : t.chrome)
-      .text_color(r.active ? t.foreground : t.muted).cursor_pointer().hover((s) => s.bg(t.hover))
+      .text_color(r.active ? t.foreground : t.muted).cursor_pointer().on_hover(hovering(this, r.id))
+      .hover((s) => s.bg(t.hover).border_color(r.active ? t.border : t.hover))
       .on_mouse_down("left", (e, cx) => {
         cx.stop_propagation();                    // the tab's press, never the window's drag
         this.pressed = i;
@@ -75,14 +78,14 @@ export class TabsView {
         .when(r.status === "working", (e) => e.child(icon("loader-circle", 12).text_color(t.working).spin(900)))
         .when(r.status === "blocked" || r.status === "done", (e) => e.child(div().size(6).rounded_full()
           .bg(t[String(r.status)]))))
-      .when(r.active, (e) => e.child(div().id(`close-${r.id}`).size(16).flex_none().flex().items_center()
-        .justify_center().rounded(4).text_color(t.dim).cursor_pointer().tooltip("Close tab")
+      .child(div().id(`close-${r.id}`).size(16).flex_none().flex().items_center().justify_center().rounded(4)
+        .when(!closing, (s) => s.invisible()).text_color(t.dim).cursor_pointer().tooltip("Close tab")
         .hover((s) => s.bg(t.hover).text_color(t.foreground))
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click((_e, cx) => {
           cx.stop_propagation();
           command("tab.close", { id: r.id });
         })
-        .child(icon("x", 12))));
+        .child(icon("x", 12)));
   }
 }
