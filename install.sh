@@ -182,8 +182,6 @@ case $parts in
 esac
 case $kept in *tui*) note "$(t install.parts_kept_tui)" ;; esac
 case $kept in *app*) note "$(t install.parts_kept_app)" ;; esac
-# chosen PART: this run sets PART up, each step doing only what the chosen parts need
-chosen() { case " $parts " in *" $1 "*) true ;; *) false ;; esac; }
 
 step "$(t install.step_prerequisites)"
 # what is there, in one line; what is missing, a line each under it
@@ -203,7 +201,7 @@ fi
 # The Herdr app, its part chosen and not on this Mac: its own installer (releases.herdr.dev: the app in ~/Applications,
 # herdr-app in ~/.local/bin), after a yes in a terminal; a no, or no terminal, names it for later and goes on
 APP_INSTALLER=https://releases.herdr.dev/app/install.sh
-if [ -z "$app" ] && chosen app; then
+if [ -z "$app" ] && of_parts app $parts; then
   warn "$(t install.app_missing)"
   if interactive && ask "$(t install.app_install_ask)" y; then
     /bin/sh -c "$(curl -fsSL "$APP_INSTALLER")" </dev/tty
@@ -263,7 +261,7 @@ sys.exit(0 if have < need else 1)' "$version" "$HERDR_MIN"
 }
 # Ghostty finds a herdr not from Homebrew only in ~/.local/bin, elsewhere it is named (mise's by its shim, which
 # outlives a version's folder); Homebrew's, if there too, it finds first
-foreign=; ! chosen tui || foreign=$(foreign_herdr)
+foreign=; ! of_parts tui $parts || foreign=$(foreign_herdr)
 if [ -n "$foreign" ]; then
   link=$foreign shim=${foreign%%/installs/*}/shims/herdr
   case "$foreign" in */mise/installs/*) [ -x "$shim" ] && link=$shim ;; esac
@@ -286,7 +284,7 @@ else
     apps+=("$name")
     case $kind in cask) casks+=("$name") ;; *) formulae+=("$name") ;; esac
   done < <(brew_lines $parts)
-  chosen tui && [ -z "$foreign" ] && command -v herdr >/dev/null 2>&1 && herdr_too_old && upgrade=1
+  of_parts tui $parts && [ -z "$foreign" ] && command -v herdr >/dev/null 2>&1 && herdr_too_old && upgrade=1
   if [ ${#apps[@]} = 0 ] && [ -z "$upgrade" ]; then
     have "$(t install.apps_there)"
   else
@@ -351,8 +349,8 @@ keep_installed() {
 # herdr-fold's to theirs (marked, every line of theirs stays), or replace theirs (kept, back on uninstall). Added once:
 # not asked again.
 herdr_config="$HOME/.config/herdr/config.toml"; config_mode=package
-facts=; ! chosen tui || facts=$(plugin_facts)
-if chosen tui && [ -f "$herdr_config" ] && ! grep -qxF .config/herdr/config.toml "$record" 2>/dev/null; then
+facts=; ! of_parts tui $parts || facts=$(plugin_facts)
+if of_parts tui $parts && [ -f "$herdr_config" ] && ! grep -qxF .config/herdr/config.toml "$record" 2>/dev/null; then
   if grep -qxF '# >>> herdr-fold >>>' "$herdr_config"; then
     config_mode=add
   else
@@ -397,7 +395,7 @@ package_files $parts | while IFS='|' read -r src rel; do
 done
 verbose || ok "$(t install.files_in_place "$(grep -c . "$record.new")")"
 # Where this package is: the TUI's Ctrl+B, Shift+M (add_machine.py) runs its machines.sh
-! chosen tui || printf '%s\n' "$DOT" > "$HOME/.config/herdr-fold/setup-folder"
+! of_parts tui $parts || printf '%s\n' "$DOT" > "$HOME/.config/herdr-fold/setup-folder"
 # Put in place by an earlier install but no longer in the package: delete it, or restore the machine's original. An
 # empty new record (an unreadable file list) deletes nothing: the earlier record stays.
 [ -s "$record.new" ] || { rm -f "$record.new"; cp "$record" "$record.new" 2>/dev/null || : > "$record.new"; }
@@ -461,7 +459,7 @@ fi
 step "$(t install.step_prompt)"
 # The herdr panes' environment (pane-env.sh), in herdr panes only: one marked block in ~/.zshrc, replaced on every run.
 # An if, so a shell outside herdr (or without the file) ends it with a success status, not a red first prompt.
-if chosen tui; then
+if of_parts tui $parts; then
   before=$(mktemp); cp "$HOME/.zshrc" "$before" 2>/dev/null
   pane_env='if [ -n "$HERDR_PANE_ID" ] && [ -f "$HOME/.config/herdr-fold/pane-env.sh" ]; '
   pane_env+='then . "$HOME/.config/herdr-fold/pane-env.sh"; fi'
@@ -490,7 +488,7 @@ else
 fi
 # Claude runs the status line only in projects it trusts: offer to trust those of this Mac's Claude panes it does not
 # (never the home folder or above), each shown under ~ and without control characters; a yes trusts exactly those shown
-untrusted=; ! chosen tui || untrusted=$(python3 "$HOME/.config/herdr-fold/claude_trust.py" list 2>/dev/null)
+untrusted=; ! of_parts tui $parts || untrusted=$(python3 "$HOME/.config/herdr-fold/claude_trust.py" list 2>/dev/null)
 if [ -n "$untrusted" ] && ! updating; then
   note "$(t install.trust_intro)"
   while IFS= read -r folder; do note "$(shown "$folder" | LC_ALL=C tr -d '\000-\037\177')"; done <<< "$untrusted"
@@ -509,7 +507,7 @@ plugins="$state/plugins.txt"; : > "$plugins.new"
 grep '^taken:' "$plugins" >> "$plugins.new" 2>/dev/null       # an earlier run's take-over stays on the record
 linked=() hooked=()                           # said in one line each at the end of the step
 # herdr's own part, with the TUI only: herdr-fold's plugins, then herdr's hooks into Claude and Codex
-if chosen tui; then
+if of_parts tui $parts; then
   # herdr-sidebar of your own: it does what herdr-fold's sidebar does, so it is named, and left as it is
   printf '%s\n' "$facts" | grep -q '^herdr-sidebar|' && warn "$(t install.herdr_sidebar_too)"
   take_over herdr-fold.sidebar "$HOME/.config/herdr-fold/plugins/sidebar"
@@ -583,7 +581,7 @@ fi
 # herdr-fold in the Herdr app (herdr's desktop app), its part chosen: its mod, layout and keys; a running app shows
 # the layout at once. An update of the TUI alone, the app on this Mac and never asked about: asked once
 app_wanted() {
-  chosen app && return 0
+  of_parts app $parts && return 0
   if updating && ! grep -qxF declined:herdr-fold.app "$plugins" 2>/dev/null && ask "$(t install.app_ask)" y; then
     parts="$parts app"; return 0
   fi
@@ -610,7 +608,7 @@ mv "$plugins.new" "$plugins"
 
 # Tabs left without the right-hand column (e.g. a workspace's first tab) get it now, if herdr is running; the remote
 # machines' tabs in step 8
-! chosen tui || python3 "$HOME/.config/herdr-fold/restore_panes.py" 2>/dev/null
+! of_parts tui $parts || python3 "$HOME/.config/herdr-fold/restore_panes.py" 2>/dev/null
 
 step "$(t install.step_github)"
 # To push (the sidebar's Sync / push, Cmd+Shift+C) the machine has to be signed in to GitHub. The installer never asks
@@ -667,16 +665,16 @@ fi
 
 step "$(t install.step_done)"
 # a herdr upgraded by this run (or earlier) while the background one keeps the old version: hand over, never stop
-versions=; ! chosen tui || versions=$(herdr status 2>/dev/null | awk '/^client:/ { s = "c" } /^server:/ { s = "s" }
-  /^  status:/ { up = $2 } /^  version:/ { v[s] = $2 }
+versions=; ! of_parts tui $parts || versions=$(herdr status 2>/dev/null | awk '
+  /^client:/ { s = "c" } /^server:/ { s = "s" } /^  status:/ { up = $2 } /^  version:/ { v[s] = $2 }
   END { if (up == "running" && v["c"] != v["s"]) print v["c"], v["s"] }')
 if [ -n "$versions" ]; then set -- $versions; warn "$(t install.handoff "$1" "$2")"; fi
 warnings=$(grep -c . "$HERDR_FOLD_WARNINGS")
 if [ "$warnings" = 0 ]; then ok "$(t install.finished)"
 else warn "$(t install.finished_warnings "$warnings")"; fi
 # what to do next: open Ghostty, or reopen it (started from it, or it is open) for the settings, the theme, its icon
-if chosen tui; then
+if of_parts tui $parts; then
   if ghostty_open; then note "$(t install.reopen_ghostty)"; else note "$(t install.open_ghostty)"; fi
   note "$(t install.next_steps)"
 fi
-! chosen app || [ -z "$app" ] || "$app" status >/dev/null 2>&1 || note "$(t install.open_app)"
+! of_parts app $parts || [ -z "$app" ] || "$app" status >/dev/null 2>&1 || note "$(t install.open_app)"
