@@ -17,19 +17,20 @@ All notable changes to this project are listed here. The format follows
   one's diff), Search (the space's folder, with the TUI's switches, a hit's file shown at its line) and Issues (by
   priority, with the TUI's filters; an issue handed to the tab's Claude or Codex and linked to the next commit, a reply,
   Assign to me, close or reopen; Cmd + Shift + I); a diff, a commit or an issue opens in the space's preview tab, as in
-  the TUI; its own Spaces list, as the app's, with the TUI's waits (`waiting 12m`, Cmd + Shift + U); Conversations in
-  the left sidebar (this Mac's conversations by space, a closed one reopened in a new tab, Rename, Copy conversation,
-  Archive; Cmd + Shift + R), the archived ones and the names shared with the TUI's column, and folded, the sidebar a
-  dock of icons, as Illustrator's panels, and so the right panel (its toggle, Cmd + Shift + G or a drag), each view and
-  the tab's terminal floating beside its rail; the right panel one panel group, its views as its tabs, Files among them
-  (the TUI's, where the app's own was: Catppuccin Icons' files and folders, git's marks, a file in the preview tab, New
-  File, New Folder, Rename, Copy Path, Move to Trash, New Workspace); for a space on this Mac or on another machine
-  (Linux, macOS or Windows), with the TUI's data layer underneath; a layout of its own puts it in the right panel, where
-  the app's Changes was (Cmd + Shift + G), dark in the TUI's colors (Catppuccin Mocha), its terminals and code in Menlo
-  as VS Code's, at the TUI's size; the TUI's twelve themes come along in the app's Settings; under it, each tab's own
-  terminal, as the TUI's right column has it, on the space's machine; Lucide's icons, and a file's Catppuccin Icons' for
-  its type. Where the Herdr app is on the Mac, `install.sh` asks once and sets it all up, the remote machines in the app
-  too; `uninstall.sh` takes it off. See [The Herdr app](docs/app.md).
+  the TUI; its own Spaces list, as the app's, with the TUI's waits (`waiting 12m`, Cmd + Shift + U), and its own tab
+  bar, as the app's, each button saying what it does; Conversations in the left sidebar (this Mac's conversations by
+  space, a closed one reopened in a new tab, Rename, Copy conversation, Archive; Cmd + Shift + R), the archived ones and
+  the names shared with the TUI's column, and folded, the sidebar a dock of icons, as Illustrator's panels, and so the
+  right panel (its toggle, Cmd + Shift + G or a drag), each view and the tab's terminal floating beside its rail; the
+  right panel one panel group, its views as its tabs, Files among them (the TUI's, where the app's own was: Catppuccin
+  Icons' files and folders, git's marks, a file in the preview tab, New File, New Folder, Rename, Copy Path, Move to
+  Trash, New Workspace); for a space on this Mac or on another machine (Linux, macOS or Windows), with the TUI's data
+  layer underneath; a layout of its own puts it in the right panel, where the app's Changes was (Cmd + Shift + G), dark
+  in the TUI's colors (Catppuccin Mocha), its terminals and code in Menlo as VS Code's, at the TUI's size; the TUI's
+  twelve themes come along in the app's Settings; under it, each tab's own terminal, as the TUI's right column has it,
+  on the space's machine; Lucide's icons, and a file's Catppuccin Icons' for its type. Where the Herdr app is on the
+  Mac, `install.sh` asks once and sets it all up, the remote machines in the app too; `uninstall.sh` takes it off. See
+  [The Herdr app](docs/app.md).
 - A styleguide for the Herdr app mod: its colors, type, sizes and icons, each part in each of its states and the
   panels they make, drawn by the views' own code; `herdr-app do herdr-fold.styleguide` opens it, and
   [Styleguide](docs/styleguide.md) shows it on GitHub.

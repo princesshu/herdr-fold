@@ -102,20 +102,7 @@ class Install(unittest.TestCase):
         self.assertEqual(os.listdir(os.path.join(self.home, "layouts")), ["mine.json"])
         self.assertEqual(os.listdir(os.path.join(self.home, "themes")), ["mine.json"])
 
-    def test_uninstall_gives_the_apps_panel_buttons_back(self):
-        """An app that stopped while showing the layout kept its own panel buttons off (the layout's tabs are them):
-        uninstall puts back what they were, and the layout's note of it goes."""
-        self.write("shared.json", json.dumps({"workspace.panels": [], "frame.welcomed": True,
-                                              "herdr-fold.app-panels": {"panels": ["files"]}}))
-        herdr_app.uninstall(PACKAGE, self.home, self.state)
-        self.assertEqual(shared(self.home), {"workspace.panels": ["files"], "frame.welcomed": True})
-
-    def test_panel_buttons_never_chosen_are_left_to_the_apps_default(self):
-        self.write("shared.json", json.dumps({"workspace.panels": [], "herdr-fold.app-panels": {"panels": None}}))
-        herdr_app.uninstall(PACKAGE, self.home, self.state)
-        self.assertEqual(shared(self.home), {})
-
-    def test_shared_values_the_layout_took_nothing_from_stay_as_they_are(self):
+    def test_the_apps_own_shared_values_stay_as_they_are(self):
         text = json.dumps({"workspace.panels": []})
         self.write("shared.json", text)
         herdr_app.uninstall(PACKAGE, self.home, self.state)
@@ -176,7 +163,7 @@ class Install(unittest.TestCase):
 
     def test_a_running_apps_shared_values_are_left_to_it(self):
         """A running app holds them and writes them all back on its next change: a file written meanwhile is lost."""
-        text = json.dumps({"herdr-fold.graph_folded": True, "herdr-fold.app-panels": {"panels": None}})
+        text = json.dumps({"herdr-fold.graph_folded": True, "herdr-fold.view": "changes"})
         self.write("shared.json", text)
         herdr_app.install(PACKAGE, self.home, self.state, app_running=True)
         herdr_app.uninstall(PACKAGE, self.home, self.state, app_running=True)

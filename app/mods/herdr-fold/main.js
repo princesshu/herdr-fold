@@ -12,13 +12,14 @@ import { activeTerminal, afterCommit, background, branchLabel, changeColor, chan
   from "./logic.js";
 import { button, chip, END, field, fileMark, GAP, icon, SLIDE, small } from "./parts.js";
 import { Menus, menuPopup } from "./menus.js";
-import { followFolder, giveBack, keptWidth, liveTabs, openRail, panelTrigger, rail, runPanel, TABS, tabsState,
-  takeAppButtons, VIEW, VIEW_NAMES } from "./panel.js";
+import { followFolder, keptWidth, liveTabs, openRail, panelTrigger, rail, runPanel, TABS, tabsState, VIEW, VIEW_NAMES }
+  from "./panel.js";
 import { ConversationsView } from "./conversations.js";
 import { FilesView } from "./files.js";
 import { floatHead, floatPanel, sidebarTrigger, spacesFloat } from "./sidebar.js";
 import { IssuesView, fixesLine } from "./issues.js";
 import { markUnread, SpacesView } from "./spaces.js";
+import { TabsView } from "./tabs.js";
 import { Preview, showPreview } from "./preview.js";
 import { guide, styleguide } from "./styleguide.js";
 import { standIn, TerminalFollower } from "./terminal.js";
@@ -119,7 +120,8 @@ export default class HerdrFold extends View {
     if ((this.blank = part === "none")) return;
     if ((this.tabs = part === "panel-tabs")) return;     // the right panel's stack: its header, the group's tabs
     if (part === "menu") return void (this.popup = { overlay: props().overlay, items: props().items });
-    if ((this.toggle = part === "panel-trigger")) return void takeAppButtons();   // the tab bar's right end
+    if ((this.toggle = part === "panel-trigger")) return;    // the tab bar's right end
+    if (part === "tabs") return void (this.bar = new TabsView());    // the tab bar, where the app's own was
     if (part === "preview") return void (this.preview = new Preview(props().space, python));
     if ((this.trigger = part === "trigger")) return;    // left of the tabs: the folded sidebar's toggle
     if ((this.rail = part === "rail")) return;          // the right panel folded: its rail
@@ -502,11 +504,6 @@ export default class HerdrFold extends View {
     cx.notify();
   }
 
-  /** As the layout goes (another shown, the app quitting): the app's own panel buttons back as they were. */
-  async close() {
-    if (this.toggle) giveBack();
-  }
-
   render(cx) {
     if (this.terminal) {
       this.terminal.watch(cx);
@@ -537,6 +534,7 @@ export default class HerdrFold extends View {
     if (this.conversations) return float ? floatPanel(t, "Conversations", float.overlay, float.height, [],
       this.conversations.render(t, cx)) : this.conversations.render(t, cx);
     if (this.spaces) return this.spaces.render(t, cx);
+    if (this.bar) return this.bar.render(t);
     if (this.files) return float ? floatPanel(t, "Files", float.overlay, undefined, [], this.files.render(t, cx))
       : this.files.render(t, cx);
     if (this.trigger) return sidebarTrigger(t);

@@ -129,7 +129,10 @@
               },
               "window_drag": true,
               "content": {
-                "mod": "tabs"
+                "mod": "herdr-fold",
+                "props": {
+                  "part": "tabs"
+                }
               }
             },
             {

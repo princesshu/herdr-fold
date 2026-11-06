@@ -10,8 +10,6 @@ import { badge, GAP, icon, iconButton, iconTab } from "./parts.js";
 export const VIEW = "herdr-fold.view";        // the view shown, kept: changes, search or issues
 export const TABS = "herdr-fold.tabs";        // what the views tell the tabs: { github, changed }
 export const VIEW_NAMES = { changes: "Changes", search: "Search", issues: "Issues", files: "Files" };
-const BUTTONS = "workspace.panels";           // the app's: the panels its tab bar has a button for
-const BEFORE = "herdr-fold.app-panels";       // those before this layout took them off, given back as it goes
 const KEPT = "herdr-fold.panel-width";        // the right panel's width while open, which its rail opens to again
 const FLOAT_H = 0.85;                         // a view floating beside the rail: this share of the window high
 /** @type {[string, import("./icons.js").IconName, string][]} the rail's views: the panel, its icon, its label */
@@ -126,17 +124,3 @@ export function openRail(panel, bounds, terminal, then) {
     { id: "rail-terminal-body", type: "block", content: { terminal } }] } });
 }
 
-/** The app's own panel buttons off its tab bar while this layout shows (the panel's tabs are them), what they were
- * kept for giveBack. */
-export function takeAppButtons() {
-  if (!shared(BEFORE)) setShared(BEFORE, { panels: shared(BUTTONS) ?? null });
-  setShared(BUTTONS, []);
-}
-
-/** The app's panel buttons as they were, as the layout goes (lib/herdr_app.py does it for an app that stopped). */
-export function giveBack() {
-  const before = /** @type {{ panels: unknown } | null} */ (shared(BEFORE));
-  if (!before) return;
-  setShared(BUTTONS, before.panels);
-  setShared(BEFORE, null);
-}

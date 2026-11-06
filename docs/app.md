@@ -41,9 +41,10 @@ to a rail, as the left sidebar folds, and opens it again as wide as it was; drag
 The rail, as Adobe's collapsed panels: Files, Search, Changes with its count, Issues on GitHub and the tab's Terminal,
 each a square with its name under it; a press floats that view beside the rail, nearly as tall as the window, one at a
 time, its head dragging it and its × closing it; a key of a view's (Cmd + Shift + C, Cmd + Shift + I) floats it too. ×
-at the end of the tabs hides the panel, and the toggle shows it again. While this layout shows, the app's own Files and
-Changes buttons are off its tab bar, and back as it goes. A file, a diff, a commit or an issue opens in the space's
-preview tab, as in the TUI.
+at the end of the tabs hides the panel, and the toggle shows it again. The tab bar is herdr-fold's, drawn as the app's
+own: the space's tabs, dragged into order, a double click renaming one, a right click the app's menu, the wheel
+stepping through them; its + (New tab) starts a terminal or an agent, and every button there says what it does. A
+file, a diff, a commit or an issue opens in the space's preview tab, as in the TUI.
 
 ## Files
 

@@ -9,6 +9,7 @@ export const ICONS = {
   "chevron-right": "mods/herdr-fold/icons/lucide/chevron-right.svg",
   "chevrons-down-up": "mods/herdr-fold/icons/lucide/chevrons-down-up.svg",
   "circle-dot": "mods/herdr-fold/icons/lucide/circle-dot.svg",
+  "copy": "mods/herdr-fold/icons/lucide/copy.svg",
   "ellipsis": "mods/herdr-fold/icons/lucide/ellipsis.svg",
   "external-link": "mods/herdr-fold/icons/lucide/external-link.svg",
   "eye": "mods/herdr-fold/icons/lucide/eye.svg",
@@ -18,6 +19,7 @@ export const ICONS = {
   "folder-plus": "mods/herdr-fold/icons/lucide/folder-plus.svg",
   "git-branch": "mods/herdr-fold/icons/lucide/git-branch.svg",
   "layers": "mods/herdr-fold/icons/lucide/layers.svg",
+  "loader-circle": "mods/herdr-fold/icons/lucide/loader-circle.svg",
   "message-square": "mods/herdr-fold/icons/lucide/message-square.svg",
   "minus": "mods/herdr-fold/icons/lucide/minus.svg",
   "monitor": "mods/herdr-fold/icons/lucide/monitor.svg",
@@ -29,6 +31,7 @@ export const ICONS = {
   "server": "mods/herdr-fold/icons/lucide/server.svg",
   "settings": "mods/herdr-fold/icons/lucide/settings.svg",
   "sparkles": "mods/herdr-fold/icons/lucide/sparkles.svg",
+  "square": "mods/herdr-fold/icons/lucide/square.svg",
   "square-terminal": "mods/herdr-fold/icons/lucide/square-terminal.svg",
   "undo-2": "mods/herdr-fold/icons/lucide/undo-2.svg",
   "x": "mods/herdr-fold/icons/lucide/x.svg"

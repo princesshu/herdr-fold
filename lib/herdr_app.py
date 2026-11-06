@@ -20,7 +20,6 @@ TITLE = "herdr-fold"            # the mod.json title that marks a mods/herdr-fol
 TERMINALS = "fold-terminals"    # the layout's stack of the tabs' terminals the mod started (app/mods/herdr-fold)
 SHARED = "shared.json"          # the app's shared values, the mod's named herdr-fold.*; a running app holds them all
 PREFIX = "herdr-fold."
-BEFORE, BUTTONS = "herdr-fold.app-panels", "workspace.panels"
 RECORD = "app-keys.json"        # in the installer's state folder: what the last install put in keys.json
 CLOSING = 10                    # seconds a running app may take to close
 ANSWER = 30                     # seconds the app's command line may take to answer
@@ -143,8 +142,8 @@ def write_json(path, data):
 
 
 def tidy(home, keep=None):
-    """herdr-fold's shared values in HOME gone but those in KEEP; with none kept, the app's panel buttons as they were
-    before the layout took them off. Never with the app running: it holds them all and writes them back."""
+    """herdr-fold's shared values in HOME gone but those in KEEP. Never with the app running: it holds them all and
+    writes them back."""
     path = os.path.join(home, SHARED)
     try:
         with open(path, encoding="utf-8") as f:
@@ -154,11 +153,6 @@ def tidy(home, keep=None):
     if not isinstance(shared, dict):
         return
     tidied = {key: value for key, value in shared.items() if not key.startswith(PREFIX) or key in (keep or ())}
-    before = shared.get(BEFORE) if keep is None else None
-    if isinstance(before, dict) and before.get("panels") is None:
-        tidied.pop(BUTTONS, None)
-    elif isinstance(before, dict):
-        tidied[BUTTONS] = before["panels"]
     if tidied != shared:
         write_json(path, tidied)
 

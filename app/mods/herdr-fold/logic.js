@@ -359,8 +359,30 @@ export const railed = (root) => (sidebarPx(root) ?? Infinity) < RAIL_BELOW;
  * @param {any} root @param {boolean} macos @param {number | undefined} kept */
 export const foldedWidth = (root, macos, kept) => (railed(root) ? kept ?? 268 : macos ? RAIL : 44);
 
-// the layout's right panel and the stack of its views: herdr-fold's own ids, so the app's tab bar, which shows and
-// hides a panel by space under the app's ids, leaves it alone
+/** SPACE's tabs as the tab bar draws them, as the app's own does: a name the app gave (tbN) is its program's, an
+ * agent's first, else Terminal; the program's icon (TINT: drawn in the text's color), its state, zoomed marked Z.
+ * @param {any} space @param {any[]} panes */
+export function tabRows(space, panes) {
+  return (space?.tabs ?? []).map((/** @type {any} */ c) => {
+    const program = panes.find((p) => p.tab === c.id && p.program?.agent)?.program
+      ?? panes.find((p) => p.tab === c.id)?.program;
+    const name = /^tb\d+$/.test(c.name) ? program?.name ?? "Terminal" : c.name;
+    return { id: c.id, name: c.zoomed ? `${name} Z` : name, active: Boolean(c.active), status: c.status ?? null,
+      icon: program?.icon ?? null, tint: Boolean(program?.tint) };
+  });
+}
+
+/** The room the tab bar leaves at its start for the traffic lights of window W (macOS, no title bar, not full
+ * screen): what the sidebar and its toggle beside them leave of them at ZOOM, 10 px at least, as the app's own.
+ * @param {any} root @param {any} w @param {number} zoom */
+export function lightsRoom(root, w, zoom) {
+  if (w?.platform !== "macos" || w.titlebar !== "none" || w.fullscreen || !root?.traffic_lights) return 10;
+  const width = (/** @type {string} */ id) => (find(root, id)?.hidden ? 0 : find(root, id)?.size?.px ?? 0);
+  return Math.max(10, (root.traffic_lights[0] + 64) / zoom - width("sidebar") - width("sidebar-trigger"));
+}
+
+// the layout's right panel and the stack of its views: herdr-fold's own ids, so the app's Settings, which shows and
+// hides a panel under the app's ids, leaves it alone
 export const PANEL = "fold-panel", PANEL_BODY = "fold-panel-body";
 export const RAIL_BLOCK = "panel-rail";      // the right panel's block while it is folded to its rail
 export const RAIL = 76;                      // px: the right panel folded to its rail, as the left sidebar folds

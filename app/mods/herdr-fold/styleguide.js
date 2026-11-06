@@ -15,6 +15,7 @@ import { Preview } from "./preview.js";
 import { dock, floatHead, floatPanel, sidebarTrigger, spacesFloat } from "./sidebar.js";
 import { FilesView } from "./files.js";
 import { SpacesView } from "./spaces.js";
+import { TabsView } from "./tabs.js";
 import { standIn } from "./terminal.js";
 
 const PANEL = 368;                  // a specimen as wide as the right panel
@@ -88,6 +89,14 @@ const MACHINES = [LOCAL,
 /** The Spaces list as its view draws GROUPS, MORE its drag. @param {any[]} groups */
 const spacesList = (t, groups, more = {}) => Object.assign(Object.create(SpacesView.prototype),
   { pressed: null, over: null, machines: [], mending: new Set(), ...more }).draw(t, groups);
+// the tab bar's tabs: an agent working (its icon tinted), one waiting on you, a shell, one done and zoomed
+const BAR = [{ id: "t1", name: "Claude", active: true, status: "working", icon: ICONS.bot, tint: true },
+  { id: "t2", name: "Codex", active: false, status: "blocked", icon: ICONS.bot, tint: true },
+  { id: "t3", name: "Terminal", active: false, status: null, icon: null, tint: false },
+  { id: "t4", name: "notes Z", active: false, status: "done", icon: null, tint: false }];
+/** The tab bar as its view draws BAR, W its window's buttons (null: macOS, the traffic lights' instead).
+ * @param {any} w */
+const tabBar = (t, w) => Object.assign(Object.create(TabsView.prototype), { pressed: null }).draw(t, BAR, "s1", 10, w);
 const ISSUE = { ago: ["1d", "4h"], issue: { number: 42, title: LISTED[0].title, state: "OPEN", author: "noa-berg",
   labels: ["priority: high", "bug"], body: "Steps:\n\n1. Ask `GET /books?page=99`\n2. The answer is an empty page" +
     "\n\nExpected: the last page, as `pages` says.",
@@ -321,7 +330,14 @@ function sections(g, t) {
     ["commit", [group(t, "Repository", g.repository.map(([name, state], i) => specimen(t, `repository-${i}`, name,
         state.repository(t), { spec: i ? "" : "as VS Code's Repositories · h 26 · ⋯ its menu" }))),
       group(t, "Commit", g.composer.map(([name, state], i) => specimen(t, `composer-${i}`, name, state.composer(t))))]],
-    ["tabs", [group(t, "Panel tabs", [...g.tabs.map(([name, state], i) => specimen(t, `tabs-${i}`, name,
+    ["tabs", [group(t, "Tab bar", [
+      specimen(t, "tab-bar", "The space's tabs: an agent working, one waiting, a shell, one done and zoomed",
+        div().h(42).child(tabBar(t, null)),
+        { width: 2 * PANEL, spec: "h 29 · radius 7 · the shown one raised, its ×" }),
+      specimen(t, "tab-bar-buttons", "Off macOS: the window's buttons",
+        div().h(42).child(tabBar(t, { maximized: false })),
+        { width: 2 * PANEL, spec: "+ New tab · each button its tip and the hand" })]),
+      group(t, "Panel tabs", [...g.tabs.map(([name, state], i) => specimen(t, `tabs-${i}`, name,
         div().h(40).child(panelTabs(t, state)), { spec: i ? "" : "h 28 · radius 6 · gap 4 · the shown one raised" })),
       specimen(t, "panel-trigger", "Its toggle", div().w(RAIL + 8).h(42).child(panelTrigger(t)),
         { width: 120, small: true, spec: "the tab bar's right end, over the rail's middle" })]),

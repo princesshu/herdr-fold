@@ -13,8 +13,31 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   safeMarkdown, said, searchRows, searchSummary, secretQuestion, shownTab, strays, syncLabel, tabLabel, TALL,
   terminalId, TERMINALS, urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread,
   spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow,
-  railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering }
+  railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom }
   from "../mods/herdr-fold/logic.js";
+
+test("a tab the app named after its program, an agent's first, else Terminal; its own name kept, zoomed marked", () => {
+  const space = { tabs: [{ id: "t1", name: "tb1", active: true, status: "working" }, { id: "t2", name: "tb2" },
+    { id: "t3", name: "notes", zoomed: true, status: "done" }] };
+  const panes = [{ tab: "t1", program: { name: "zsh" } }, { tab: "t1", program: { name: "Claude", agent: true,
+    icon: "claude.svg", tint: true } }, { tab: "t3", program: { name: "vim", icon: "vim.png" } }];
+  assert.deepEqual(tabRows(space, panes), [
+    { id: "t1", name: "Claude", active: true, status: "working", icon: "claude.svg", tint: true },
+    { id: "t2", name: "Terminal", active: false, status: null, icon: null, tint: false },
+    { id: "t3", name: "notes Z", active: false, status: "done", icon: "vim.png", tint: false }]);
+  assert.deepEqual(tabRows(undefined, panes), []);
+});
+
+test("the tab bar's room for the traffic lights: what the sidebar beside them leaves, 10 at least, macOS only", () => {
+  const root = (sidebar, trigger) => ({ traffic_lights: [12, 16], children: [{ id: "sidebar", size: { px: sidebar } },
+    { id: "sidebar-trigger", size: { px: 40 }, hidden: !trigger }] });
+  const mac = { platform: "macos", titlebar: "none", fullscreen: false };
+  assert.equal(lightsRoom(root(268, false), mac, 1), 10);
+  assert.equal(lightsRoom(root(0, true), mac, 1), 36);
+  assert.equal(lightsRoom(root(0, true), mac, 2), 10);
+  assert.equal(lightsRoom(root(0, true), { ...mac, fullscreen: true }, 1), 10);
+  assert.equal(lightsRoom(root(0, true), { ...mac, platform: "linux" }, 1), 10);
+});
 
 test("a row hovered: its key while the pointer is over it, let go only by its own leaving", () => {
   const holder = { hovered: null }, drawn = [], cx = { notify: () => drawn.push(holder.hovered) };

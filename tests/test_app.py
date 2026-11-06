@@ -65,7 +65,7 @@ class Shape(unittest.TestCase):
 
     def test_the_layout_is_the_apps_own_with_herdr_fold_where_changes_was(self):
         """layouts/herdr-fold.json is the app's main layout, the right panel's Changes block showing herdr-fold, under
-        ids of its own, so the app's tab bar, which shows and hides its panel by space, leaves it alone."""
+        ids of its own, so the app's Settings, which shows and hides its panel, leaves it alone."""
         with open(os.path.join(APP, "layouts", "herdr-fold.json"), encoding="utf-8") as f:
             nodes = list(walk(json.load(f)))
         self.assertEqual({"panel", "panel-body"} & {n.get("id") for n in nodes}, set())
@@ -74,21 +74,26 @@ class Shape(unittest.TestCase):
         self.assertEqual(stack["children"][1]["content"], {"mod": "herdr-fold"})
         self.assertNotIn("changes", [n.get("content", {}).get("mod") for n in nodes])
 
-    def rail(self):
+    def nodes(self):
         """The layout's nodes by id, and the right panel's rail's width (logic.js's RAIL)."""
         with open(os.path.join(APP, "layouts", "herdr-fold.json"), encoding="utf-8") as f:
             nodes = {n.get("id"): n for n in walk(json.load(f))}
         with open(os.path.join(MOD, "logic.js"), encoding="utf-8") as f:
             return nodes, int(re.search(r"^export const RAIL = (\d+);", f.read(), re.M).group(1))
 
+    def test_the_tab_bar_is_herdr_folds(self):
+        # the app's own tab bar's + has no tip and no hand; herdr-fold's draws the same bar with them
+        nodes, _rail = self.nodes()
+        self.assertEqual(nodes["tabs"]["content"], {"mod": "herdr-fold", "props": {"part": "tabs"}})
+
     def test_the_panel_rail_is_as_wide_as_the_folded_sidebar(self):
-        nodes, rail = self.rail()
+        nodes, rail = self.nodes()
         self.assertEqual((nodes["fold-panel"]["min"], rail), (nodes["sidebar"]["min"], nodes["sidebar"]["min"]))
 
     def test_the_panel_toggle_sits_over_the_rails_middle(self):
         """The top row's panel toggle block is as wide as the rail and the work body's padding, so the toggle,
         centered over the rail's width of it, is level with the folded panel's icons."""
-        nodes, rail = self.rail()
+        nodes, rail = self.nodes()
         self.assertEqual(nodes["panel-trigger"]["size"]["px"], rail + nodes["work-body"]["padding"])
 
     def test_every_key_reaches_a_command_the_mod_takes(self):
