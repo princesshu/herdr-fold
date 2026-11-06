@@ -28,6 +28,7 @@ export class ConversationsView {
   constructor(core, cx, overlay = null) {
     this.core = core;
     this.overlay = overlay;
+    this.slides = "";            // its slides' ids' prefix: a slide is kept by its element's id (the styleguide's own)
     /** @type {Listed[]} */
     this.items = [];
     /** @type {Set<string>} archiveKey's */
@@ -268,7 +269,7 @@ export class ConversationsView {
 
   /** ROW's conversations under it, sliding open and shut as the Changes' sections do. */
   members(t, row) {
-    return v_flex().id(`members-${row.name}`).flex_none().overflow_hidden()
+    return v_flex().id(`members-${this.slides}${row.name}`).flex_none().overflow_hidden()
       .h(row.open ? row.items.length * 24 : 0).transition("height", SLIDE)
       .children(row.items.map((item) => this.row(t, item)));
   }

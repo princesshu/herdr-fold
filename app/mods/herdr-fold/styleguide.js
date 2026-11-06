@@ -163,11 +163,14 @@ function typing(action, path, typed) {
   return { action, path, input };
 }
 
+let conversationViews = 0;            // each drawn list's own slides (ConversationsView.slides)
+
 /** The Conversations block over TALKS with FIELDS (typed, a menu open, one renamed, the archived shown, loading). */
 function conversationsOf(fields = {}) {
-  const view = Object.assign(Object.create(ConversationsView.prototype), { items: TALKS, loaded: true, note: null,
-    archived: new Set(["claude:s9"]), typed: "", find: InputState.new({ placeholder: "Filter conversations" }),
-    opened: new Set(), closed: new Set(), naming: null, programs: {} }, fields);
+  const view = Object.assign(Object.create(ConversationsView.prototype), { slides: `${++conversationViews}-`,
+    items: TALKS, loaded: true, note: null, archived: new Set(["claude:s9"]), typed: "",
+    find: InputState.new({ placeholder: "Filter conversations" }), opened: new Set(), closed: new Set(), naming: null,
+    programs: {} }, fields);
   if (view.typed) view.find.set_value(view.typed);
   view.naming?.input.set_value(view.naming.item.title);
   view.showsArchived = () => fields.showArchived === true;
@@ -240,12 +243,13 @@ export function guide(proto) {
       ["Loading", previewOf({ loading: true }), 52], ["Error", previewOf({ note: "HTTP 404: Not Found" }), 52]],
     issue: previewOf({ issue: ISSUE }),
     files: [["Default", filesOf()], ["A file chosen", filesOf({ picked: "src/lumen/app.py" })],
-      ["A new file", filesOf({ naming: typing("new-file", "src/lumen", "client.py") })],
-      ["Renamed in its row", filesOf({ naming: typing("rename", "src/lumen/store.py", "storage.py") })],
-      ["Move to Trash asked", filesOf({ asking: "src/lumen/pagination.py" })],
       ["A full folder", filesOf({ open: new Set(["src", "src/lumen", "src/lumen/routes"]) })],
       ["Hidden files shown", filesOf({ hidden: true, folders: HIDDEN_FOLDERS, open: new Set() })],
-      ["A name taken", filesOf({ note: "already there: app.py" })], ["No folder", filesOf({ root: null })]],
+      ["No folder", filesOf({ root: null })]],
+    fileEdits: [["A new file", filesOf({ naming: typing("new-file", "src/lumen", "client.py") })],
+      ["Renamed in its row", filesOf({ naming: typing("rename", "src/lumen/store.py", "storage.py") })],
+      ["A name taken", filesOf({ note: "already there: app.py" })],
+      ["Move to Trash asked", filesOf({ asking: "src/lumen/pagination.py" })]],
     conversations: [["Default", conversationsOf()], ["Filtered", conversationsOf({ typed: "fix" })],
       ["Renaming", conversationsOf({
         naming: { key: "claude:s4", item: TALKS[3], input: InputState.new({ placeholder: TALKS[3].title }) } })],
@@ -300,8 +304,10 @@ function sections(g, t) {
   const stack = (shown, view) => fixed(600, v_flex().size_full().rounded(10).overflow_hidden().border_1()
     .border_color(t.border).child(div().h(40).flex_none()
       .child(panelTabs(t, { shown, github: true, changed: CHANGED }))).child(view));
+  const trees = (id, list, spec) => list.map(([name, view], i) => specimen(t, `${id}-${i}`, name,
+    fixed(320, view.draw(t)), { spec: i ? "" : spec }));
   const [lucide, fileTypes] = icons(t);
-  return [["Foundations", [["color", [colors(t)]], ["type", [type(t), spacing(t), shape(t)]],
+  return [["Foundations", [["color", [colors(t)]], ["type", [type(t)]], ["shape", [spacing(t), shape(t)]],
     ["icons", [lucide]], ["file-types", [fileTypes]]]], ["Components", [
     ["buttons", [
       group(t, "Buttons", [
@@ -325,29 +331,32 @@ function sections(g, t) {
           .child(small(t, "s-confirm", "Discard", "Discard changes", true, () => {})),
         { width: 180, small: true, spec: "h 20 · px 6 · radius 4 · raised on hover" }),
       ])]],
-    ["files", [group(t, "Files", g.files.map(([name, view], i) => specimen(t, `files-${i}`, name,
-      fixed(320, view.draw(t)), { spec: i ? "" : "h 26 a row · 12 a level · Catppuccin Icons' · git's colors" })))
-    ]],
-    ["commit", [group(t, "Repository", g.repository.map(([name, state], i) => specimen(t, `repository-${i}`, name,
-        state.repository(t), { spec: i ? "" : "as VS Code's Repositories · h 26 · ⋯ its menu" }))),
-      group(t, "Commit", g.composer.map(([name, state], i) => specimen(t, `composer-${i}`, name, state.composer(t))))]],
-    ["tabs", [group(t, "Tab bar", [
+    ["files", [group(t, "Files", trees("files", g.files,
+      "h 26 a row · 12 a level · Catppuccin Icons' · git's colors"))]],
+    ["file-edits", [group(t, "Files: a name typed in its row, Move to Trash asked", trees("file-edits", g.fileEdits,
+      "typed in its row, as VS Code's · ⏎ makes it, esc drops it"))]],
+    ["repository", [group(t, "Repository", g.repository.map(([name, state], i) => specimen(t, `repository-${i}`,
+      name, state.repository(t), { spec: i ? "" : "as VS Code's Repositories · h 26 · ⋯ its menu" })))]],
+    ["commit", [group(t, "Commit", g.composer.map(([name, state], i) => specimen(t, `composer-${i}`, name,
+      state.composer(t))))]],
+    ["tab-bar", [group(t, "Tab bar", [
       specimen(t, "tab-bar", "The space's tabs: an agent working, one waiting, a shell under the pointer, one done",
         div().h(42).child(tabBar(t, null, "t3")),
         { width: 2 * PANEL, spec: "h 28 · px 12, 8 by the × · radius 6 · gap 4, 6 inside · × shown and on hover" }),
       specimen(t, "tab-bar-buttons", "Off macOS: the window's buttons",
         div().h(42).child(tabBar(t, { maximized: false }, null)),
-        { width: 2 * PANEL, spec: "+ after the last tab · the panel's toggle, the window's own: tips to the left" })]),
-      group(t, "Panel tabs", [...g.tabs.map(([name, state], i) => specimen(t, `tabs-${i}`, name,
+        { width: 2 * PANEL, spec: "+ after the last tab · the panel's toggle, the window's own: tips to the left" }),
+    ])]],
+    ["tabs", [group(t, "Panel tabs", [...g.tabs.map(([name, state], i) => specimen(t, `tabs-${i}`, name,
         div().h(40).child(panelTabs(t, state)), { spec: i ? "" : "h 28 · radius 6 · gap 4 · the shown one raised" }))]),
-      group(t, "The panel folded to its rail", [
+      group(t, "Search field", g.query.map(([name, state], i) => specimen(t, `query-${i}`, name, state.query(t))))]],
+    ["rail", [group(t, "The panel folded to its rail", [
         specimen(t, "rail-github", "On GitHub, with changes", div().w(RAIL).h(330).child(rail(t,
           { github: true, changed: 6 }, "t1")), { width: 120, spec: `w ${RAIL} · as the left sidebar folded` }),
         specimen(t, "rail-plain", "No GitHub, no terminal yet", div().w(RAIL).h(330).child(rail(t,
           { github: false, changed: 0 }, null)), { width: 120 }),
         specimen(t, "rail-float", "A view floating beside it", div().w(PANEL).child(floatHead(t, "Changes", "", [])),
-          { spec: "as wide as the panel · its head drags it" })]),
-      group(t, "Search field", g.query.map(([name, state], i) => specimen(t, `query-${i}`, name, state.query(t))))]],
+          { spec: "as wide as the panel · its head drags it" })])]],
     ["sections", [
       group(t, "Section header", g.sections.map(([name, state], i) => specimen(t, `section-${i}`, name,
         div().p(6).child(state.section(t, "changes", "Changes", CHANGES)),
@@ -362,9 +371,10 @@ function sections(g, t) {
       ["Issues' filters", g.issues.issues.filters(t)], ["An issue's right click", b.issues.picks(LISTED[0])],
       ["A conversation's right click", g.conversations[0][1].choices(TALKS[3])],
       ["The list's right click", g.conversations[0][1].choices(null)]]
-      .map(([name, items], i) => specimen(t, `menu-${i}`, name, div().w(180).h(items.length * 30 + 8).rounded(8)
-        .border_1().border_color(t.border).bg(t.popover ?? t.raised).child(menuPopup(t, "", items)),
-      { width: 220, small: true, spec: i ? "" : "a popup under its button, right-aligned; a right click's at it" })))]],
+      .map(([name, items], i) => specimen(t, `menu-${i}`, name, div().p(20).child(div().w(180)
+        .h(items.length * 30 + 8).rounded(8).border_1().border_color(t.border).bg(t.popover ?? t.raised)
+        .child(menuPopup(t, "", items))),
+      { width: 220, spec: i ? "" : "a popup under its button, right-aligned; a right click's at it" })))]],
     ["content", [
       group(t, "Problem", [specimen(t, "problem", "Under the Graph, until the next try", g.problem.problem(t),
         { spec: "11 · ansi1" })]),
@@ -392,8 +402,9 @@ function sections(g, t) {
         spacesList(t, [{ ...GROUP, machine: null, rows: [], loading: true }])), { width: SIDEBAR })])]],
     ["conversations", [group(t, "Conversations", [...g.conversations.map(([name, view], i) => specimen(t,
       `conversations-${i}`, name, fixed(260, view.list(t, view.rows())), { width: SIDEBAR,
-        spec: i ? "" : "h 24 a row · a state's mark in herdr's colors" })),
-      specimen(t, "conversations-dock", "Folded", fixed(260, dock(t, SPACES.map((space) => space.status),
+        spec: i ? "" : "h 24 a row · a state's mark in herdr's colors" }))])]],
+    ["sidebar-folded", [group(t, "The sidebar folded", [
+      specimen(t, "conversations-dock", "A dock of its panels", fixed(260, dock(t, SPACES.map((space) => space.status),
         TALKS.map((talk) => talk.state), 300)), { width: 76 }),
       specimen(t, "spaces-float", "Spaces, floating beside it", spacesFloat(t, "", 160, SPACES, COLORS, WAITING),
         { width: 300 }),
