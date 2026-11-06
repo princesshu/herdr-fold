@@ -184,6 +184,12 @@ class CommandLine(Files):
             self.assertEqual((code, answer["ok"]), (0, False), args)
             self.assertTrue(answer["advice"], args)
 
+    def test_a_path_goes_on_the_clipboard_of_the_machine_it_runs_on(self):
+        copied = []
+        with mock.patch.object(fileops, "system_clipboard", lambda system: lambda text: copied.append(text) or True):
+            self.assertEqual(self.cli("copy", "/work/lumen-api/src/a.py"), (0, {"ok": True}))
+        self.assertEqual(copied, ["/work/lumen-api/src/a.py"])
+
     def test_anything_else_is_a_usage_error(self):
         self.assertEqual(self.cli("rename", self.root, "README.md"), (2, None))
         self.assertEqual(self.cli("trash", self.root), (2, None))

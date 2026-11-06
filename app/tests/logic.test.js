@@ -6,13 +6,13 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterCommit, background, branchLabel, changeName, commitMode, commitRows, conversationChoices,
-  conversationRows, coreAgents, diffRows, excerpt, floatHeight, foldedSections, foldedWidth, folderSpaces, issueAgent,
-  lastLine, launcher, letter, machineOf, marked, MODES, PANEL, PANEL_BODY, panelShown, panelToggle, previewName,
-  previewTab, priorityColor, pushOffer, pythonCommand, railed, resumeArgv, rowActions, safeMarkdown, said, searchRows,
-  searchSummary, secretQuestion, shownTab, strays, syncLabel, tabLabel, TALL, terminalId, TERMINALS,
-  urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread, spaceWaits, placeLabel, nested,
-  spaceColors, avatarFill, MARK, listBody, listHeight }
+import { afterCommit, background, branchLabel, changeColor, changeName, commitMode, commitRows, conversationChoices,
+  conversationRows, coreAgents, diffRows, excerpt, fileRows, floatHeight, folderIcon, foldedSections, foldedWidth,
+  folderSpaces, issueAgent, lastLine, launcher, letter, machineOf, marked, MODES, PANEL, PANEL_BODY, panelShown,
+  panelToggle, previewName, previewTab, priorityColor, pushOffer, pythonCommand, railed, resumeArgv, rowActions,
+  safeMarkdown, said, searchRows, searchSummary, secretQuestion, shownTab, strays, syncLabel, tabLabel, TALL,
+  terminalId, TERMINALS, urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread,
+  spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight }
   from "../mods/herdr-fold/logic.js";
 
 test("a diff's lines numbered once, old and new apart; no hunk header, a gap between two hunks", () => {
@@ -201,10 +201,36 @@ test("the preview tab named as the TUI sidebar names it: the file, the commit, t
     const at = { root: "/r", on: null };
     assert.equal(previewName({ ...at, kind: "diff", path: "src/app.py" }), "preview: src/app.py");
     assert.equal(previewName({ ...at, kind: "commit", hash: "abc1234" }), "preview: abc1234");
+    assert.equal(previewName({ ...at, kind: "file", path: "README.md" }), "preview: README.md");
     assert.equal(previewName({ ...at, kind: "issue", github: "o/r", number: 42, title: "Login fails" }),
       "preview: #42 Login fails");
     assert.equal(previewName({ ...at, kind: "issue", github: "o/r", number: 7, title: "Pagination returns an empty" }),
       "preview: #7 Pagination returns…");
+  });
+
+test("a change's color, as the TUI's: new green, deleted or in conflict red, any other change yellow", () => {
+  const t = { ansi1: "red", ansi2: "green", ansi3: "yellow" };
+  assert.deepEqual(["A", "?", "D", "U", "M", "R"].map((code) => changeColor(t, code)),
+    ["green", "green", "red", "red", "yellow", "yellow"]);
+});
+
+test("a folder's icon, Catppuccin Icons' closed or open", () => {
+  assert.equal(folderIcon(false), "mods/herdr-fold/icons/catppuccin/folder.svg");
+  assert.equal(folderIcon(true), "mods/herdr-fold/icons/catppuccin/folder-open.svg");
+});
+
+test("the Files tree's rows as the TUI's: an open folder's entries under it, a very full one's count of the rest last",
+  () => {
+    const entry = (name, dir = false, mark = null) => ({ name, dir, mark, ignored: false });
+    const folders = { "": { entries: [entry("src", true, "M"), entry("a.txt")], more: 0 },
+      src: { entries: [entry("app.py", false, "M")], more: 2 } };
+    assert.deepEqual(fileRows(folders, new Set()).map((r) => r.path), ["src", "a.txt"]);
+    const open = fileRows(folders, new Set(["src"]));
+    assert.deepEqual(open.map((r) => [r.path, r.depth]), [["src", 0], ["src/app.py", 1], [null, 1], ["a.txt", 0]]);
+    assert.equal(open[0].open, true);
+    assert.equal(open[2].more, 2);
+    assert.deepEqual(fileRows({ "": folders[""] }, new Set(["src"])).map((r) => r.path), ["src", "a.txt"]);
+    assert.deepEqual(fileRows({}, new Set()), []);
   });
 
 test("a priority's color as the TUI sidebar's traffic light: urgent and high red, medium yellow, low green", () => {

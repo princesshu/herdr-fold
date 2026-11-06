@@ -73,7 +73,7 @@ fixes](../assets/styleguide/commit.webp)
 ![The right panel's tabs, the shown one raised, Changes with its count, Issues on GitHub only; and the search field
 with its switches](../assets/styleguide/tabs.webp)
 
-The right panel is one of Adobe's panel groups: herdr-fold's views and the app's Files as its tabs, on the header of
+The right panel is one of Adobe's panel groups: herdr-fold's views, Files among them, as its tabs, on the header of
 the stack that holds them. Two hover backgrounds side by side keep 4 apart (`GAP`), tabs and icon buttons alike.
 
 ### Section header and count chip

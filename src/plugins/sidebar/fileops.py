@@ -192,12 +192,16 @@ class Ops:
 
 def main(argv):
     """herdr-fold's Herdr app mod runs this on the space's machine, paths from ROOT: trash ROOT PATH, new-file or
-    new-folder ROOT FOLDER NAME, rename ROOT PATH NAME; JSON: where it went or what it made, else why not."""
+    new-folder ROOT FOLDER NAME, rename ROOT PATH NAME; and on its own, copy TEXT onto its clipboard. JSON: what it
+    made or where it went, else why not."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
-    if {"trash": 2, "new-file": 3, "new-folder": 3, "rename": 3}.get(command) != len(args):
-        print("usage: fileops.py trash ROOT PATH | new-file|new-folder ROOT FOLDER NAME | rename ROOT PATH NAME",
-              file=sys.stderr)
+    if {"trash": 2, "new-file": 3, "new-folder": 3, "rename": 3, "copy": 1}.get(command) != len(args):
+        print("usage: fileops.py trash ROOT PATH | new-file|new-folder ROOT FOLDER NAME | rename ROOT PATH NAME"
+              " | copy TEXT", file=sys.stderr)
         return 2
+    if command == "copy":
+        print(json.dumps({"ok": system_clipboard(sys.platform)(args[0])}))
+        return 0
     ops, at = Ops(args[0]), os.path.join(args[0], args[1])
     try:
         if command == "trash":

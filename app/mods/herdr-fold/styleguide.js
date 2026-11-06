@@ -9,9 +9,10 @@ import { ConversationsView } from "./conversations.js";
 import { IssuesView } from "./issues.js";
 import { button, chip, fileMark, icon, small } from "./parts.js";
 import { panelTabs, panelTrigger } from "./panel.js";
-import { menuPopup } from "./menus.js";
+import { Menus, menuPopup } from "./menus.js";
 import { Preview } from "./preview.js";
 import { dock, floatPanel, sidebarTrigger, spacesFloat } from "./sidebar.js";
+import { FilesView } from "./files.js";
 import { SpacesView } from "./spaces.js";
 import { standIn } from "./terminal.js";
 
@@ -119,6 +120,38 @@ function made(proto, fields = {}) {
   return state;
 }
 
+const INERT_FILES = ["ask", "collapse", "copy", "drop", "look", "make", "name", "pick", "toggle", "toggleHidden",
+  "trash", "workspace"];
+/** An entry as core/tree.py lists it. @param {string} name @param {boolean} [dir] @param {string | null} [mark]
+ * @param {boolean} [ignored] */
+const entry = (name, dir = false, mark = null, ignored = false) => ({ name, dir, mark, ignored });
+const FOLDERS = {
+  "": { more: 0, entries: [entry("build", true, null, true), entry("docs", true, "M"), entry("src", true, "?"),
+    entry("tests", true, "M"), entry("pyproject.toml"), entry("README.md")] },
+  src: { more: 0, entries: [entry("lumen", true, "?")] },
+  "src/lumen": { more: 0, entries: [entry("routes", true, "M"), entry("app.py", false, "M"),
+    entry("pagination.py", false, "?"), entry("store.py")] },
+  "src/lumen/routes": { more: 1846, entries: [entry("authors.py"), entry("books.py", false, "M")] } };
+const HIDDEN_FOLDERS = { ...FOLDERS, "": { more: 0, entries: [entry(".git", true), ...FOLDERS[""].entries.slice(0, 4),
+  entry(".env", false, null, true), entry(".gitignore"), ...FOLDERS[""].entries.slice(4)] } };
+
+/** The Files view over FOLDERS with FIELDS (a file chosen, a name typed, a question asked, hidden files shown). */
+function filesOf(fields = {}) {
+  const view = Object.assign(Object.create(FilesView.prototype), { key: "styleguide", root: "/work/lumen-api",
+    on: null, folders: FOLDERS, open: new Set(["src", "src/lumen"]), picked: null, naming: null, asking: null,
+    note: null, hidden: false, loading: false, menus: new Menus() }, fields);
+  for (const name of INERT_FILES) view[name] = () => {};
+  return view;
+}
+
+/** A name being typed in Files: ACTION's, for PATH, TYPED so far. @param {string} action @param {string} path
+ * @param {string} typed */
+function typing(action, path, typed) {
+  const input = InputState.new({ placeholder: action === "rename" ? "New name" : "File name" });
+  input.set_value(typed);
+  return { action, path, input };
+}
+
 /** The Conversations block over TALKS with FIELDS (typed, a menu open, one renamed, the archived shown, loading). */
 function conversationsOf(fields = {}) {
   const view = Object.assign(Object.create(ConversationsView.prototype), { items: TALKS, loaded: true, note: null,
@@ -195,6 +228,13 @@ export function guide(proto) {
     preview: [["Diff", previewOf({ rows: DIFF }), 200], ["Commit", previewOf({ rows: COMMIT }), 200],
       ["Loading", previewOf({ loading: true }), 52], ["Error", previewOf({ note: "HTTP 404: Not Found" }), 52]],
     issue: previewOf({ issue: ISSUE }),
+    files: [["Default", filesOf()], ["A file chosen", filesOf({ picked: "src/lumen/app.py" })],
+      ["A new file", filesOf({ naming: typing("new-file", "src/lumen", "client.py") })],
+      ["Renamed in its row", filesOf({ naming: typing("rename", "src/lumen/store.py", "storage.py") })],
+      ["Move to Trash asked", filesOf({ asking: "src/lumen/pagination.py" })],
+      ["A full folder", filesOf({ open: new Set(["src", "src/lumen", "src/lumen/routes"]) })],
+      ["Hidden files shown", filesOf({ hidden: true, folders: HIDDEN_FOLDERS, open: new Set() })],
+      ["A name taken", filesOf({ note: "already there: app.py" })], ["No folder", filesOf({ root: null })]],
     conversations: [["Default", conversationsOf()], ["Filtered", conversationsOf({ typed: "fix" })],
       ["Renaming", conversationsOf({
         naming: { key: "claude:s4", item: TALKS[3], input: InputState.new({ placeholder: TALKS[3].title }) } })],
@@ -274,6 +314,9 @@ function sections(g, t) {
           .child(small(t, "s-confirm", "Discard", "Discard changes", true, () => {})),
         { width: 180, small: true, spec: "h 20 · radius 5 · raised on hover" }),
       ])]],
+    ["files", [group(t, "Files", g.files.map(([name, view], i) => specimen(t, `files-${i}`, name,
+      fixed(320, view.draw(t)), { spec: i ? "" : "h 26 a row · 12 a level · Catppuccin Icons' · git's colors" })))
+    ]],
     ["commit", [group(t, "Repository", g.repository.map(([name, state], i) => specimen(t, `repository-${i}`, name,
         state.repository(t), { spec: i ? "" : "as VS Code's Repositories · h 26 · ⋯ its menu" }))),
       group(t, "Commit", g.composer.map(([name, state], i) => specimen(t, `composer-${i}`, name, state.composer(t))))]],

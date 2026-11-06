@@ -3,16 +3,17 @@
 // space's preview tab (preview.js). It runs on the space's machine, with core/'s code (helper.js).
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list } from "gpui-base";
-import { spaces, panes, focused, exec, hc, home, watchFolder, nextCommand, theme, settings, layout, props, closeOverlay,
+import { spaces, panes, focused, exec, hc, home, nextCommand, theme, settings, layout, props, closeOverlay,
   shared, setShared, readTextFile, run as command } from "herdr";
 import { COMMIT_MESSAGE, FILEOPS, GIT, SEARCH } from "./helper.js";
-import { afterCommit, background, branchLabel, changeName, commitMode, excerpt, fileIcon, foldedSections, lastLine,
-  launcher, letter, marked, MODES, panelToggle, pushOffer, pythonCommand, rowActions, said, searchRows, searchSummary,
-  secretQuestion, syncLabel, written } from "./logic.js";
+import { afterCommit, background, branchLabel, changeColor, changeName, commitMode, excerpt, fileIcon, foldedSections,
+  lastLine, launcher, letter, marked, MODES, panelToggle, pushOffer, pythonCommand, rowActions, said, searchRows,
+  searchSummary, secretQuestion, syncLabel, written } from "./logic.js";
 import { button, chip, END, field, fileMark, GAP, icon, SLIDE, small } from "./parts.js";
 import { Menus, menuPopup } from "./menus.js";
-import { giveBack, liveTabs, panelTrigger, TABS, takeAppButtons, VIEW } from "./panel.js";
+import { followFolder, giveBack, liveTabs, panelTrigger, TABS, takeAppButtons, VIEW } from "./panel.js";
 import { ConversationsView } from "./conversations.js";
+import { FilesView } from "./files.js";
 import { floatPanel, sidebarTrigger, spacesFloat } from "./sidebar.js";
 import { IssuesView, fixesLine } from "./issues.js";
 import { markUnread, SpacesView } from "./spaces.js";
@@ -138,6 +139,12 @@ export default class HerdrFold extends View {
       });
     }
     if (part === "spaces") return void (this.spaces = new SpacesView(python, cx));    // the sidebar's, the app's place
+    if (part === "files") {                       // the right panel's Files, where the app's own was
+      this.files = new FilesView(python, cx);
+      return void cx.spawn(async (cx) => {
+        for (;;) this.files.menus.answer(await nextCommand(), cx);              // its right click's choices
+      });
+    }
     if (part === "styleguide") {                  // all of it, or its section props().section names (a picture of it)
       this.only = props()?.section ?? null;
       return void (this.guide = guide(HerdrFold.prototype));
@@ -209,7 +216,7 @@ export default class HerdrFold extends View {
         Object.assign(this, { root, on: here.on, status, commits, github, linked: settled.linked,
           head: settled.head ?? this.head, offer: this.offer && pushOffer(status) });   // asked anew: pushed, changed
         if (this.view === "issues" && github && !this.issues.listing && !this.issues.asked) this.issues.load(cx);
-        this.watch(cx);
+        followFolder(this, (cx) => this.refresh(cx), cx);   // another machine's space waits for REFRESH
       } catch (e) {
         if (key === this.key) this.note = said(e);
       } finally {
@@ -234,22 +241,6 @@ export default class HerdrFold extends View {
     cx.timer.after(0, (cx) => {
       this.due = false;
       this.show(/** @type {string} */ (asked), cx);
-    });
-  }
-
-  /** A folder change on this machine looks again at once (another machine's space waits for REFRESH). */
-  watch(cx) {
-    if (this.on || this.watched === this.root) return;
-    const root = this.watched = this.root;
-    cx.spawn(async (cx) => {
-      try {
-        while (this.watched === root) {
-          await watchFolder(root);
-          if (this.watched === root) this.refresh(cx);
-        }
-      } catch {
-        this.watched = null;
-      }
     });
   }
 
@@ -523,6 +514,7 @@ export default class HerdrFold extends View {
     if (float) return floatPanel(t, "Conversations", float.overlay, float.height, [], this.conversations.render(t, cx));
     if (this.conversations) return this.conversations.render(t, cx);
     if (this.spaces) return this.spaces.render(t, cx);
+    if (this.files) return this.files.render(t, cx);
     if (this.trigger) return sidebarTrigger(t);
     if (JSON.stringify(place()) !== this.key) this.refresh(cx);
     this.follow(cx);
@@ -668,7 +660,7 @@ export default class HerdrFold extends View {
    * when deleted) and folder; with the mouse on it, its buttons; its letter under the section's count. */
   file(t, kind, { path, code }) {
     const parts = path.split("/"), name = parts.pop(), key = shown(kind, path);
-    const color = code === "A" || code === "?" ? t.ansi2 : code === "D" || code === "U" ? t.ansi1 : t.ansi3;
+    const color = changeColor(t, code);
     const asking = this.confirm === key;
     return h_flex().id(`file-${key}`).h(26).flex_none().pl(26).pr(8).gap(6).items_center().rounded(6).cursor_pointer()
       .when(this.open === key, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover)).tooltip(path)

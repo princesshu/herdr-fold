@@ -17,9 +17,9 @@ API = "https://api.iconify.design"
 WIDTH = 120                   # a line's cells, as every file keeps to
 SVG = "http://www.w3.org/2000/svg"
 # the views' icons, Lucide's names: the mod draws each with icon(name), and tests/test_app.py fails on one it does not
-UI = ("book-marked", "bot", "check", "chevron-down", "chevron-right", "ellipsis", "external-link", "git-branch",
-      "layers", "message-square", "minus", "monitor", "panel-left", "panel-right", "plus", "refresh-cw", "server",
-      "settings", "sparkles", "undo-2", "x")
+UI = ("book-marked", "bot", "check", "chevron-down", "chevron-right", "chevrons-down-up", "ellipsis", "external-link",
+      "eye", "eye-off", "file-plus", "folder-plus", "git-branch", "layers", "message-square", "minus", "monitor",
+      "panel-left", "panel-right", "plus", "refresh-cw", "server", "settings", "sparkles", "undo-2", "x")
 
 
 def file_types():
@@ -27,7 +27,8 @@ def file_types():
     spec = importlib.util.spec_from_file_location("core_icons", os.path.join(ROOT, "core", "icons.py"))
     icons = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(icons)
-    return tuple(sorted({name for _glyph, name, _ in icons.FILE_TYPES + icons.BY_NAME} | {icons.FILE}))
+    return tuple(sorted({name for _glyph, name, _ in icons.FILE_TYPES + icons.BY_NAME} | {icons.FILE}
+                        | set(icons.FOLDER.values())))
 
 
 def sets():

@@ -3,7 +3,7 @@
 // on the space's machine (exec stops a program after 30 s; an AI may take minutes), the commit message writer's answer.
 
 import { JOB } from "./helper.js";
-import { BY_EXTENSION, BY_NAME, FILE, LETTER } from "./icons.js";
+import { BY_EXTENSION, BY_NAME, FILE, FOLDER, LETTER } from "./icons.js";
 
 /** @typedef {{ kind: string, number?: number, text: string }} Row */
 
@@ -130,6 +130,37 @@ export const lastLine = (out) => (out.stderr || out.stdout).trim().split("\n").p
 /** An error's message, or the thrown value as text. @param {unknown} e */
 export const said = (e) => String(e instanceof Error ? e.message : e);
 
+/** A folder's icon, Catppuccin Icons' closed or OPEN. @param {boolean} open */
+export const folderIcon = (open) => (open ? FOLDER.open : FOLDER.closed);
+
+/** A change's color, as the TUI's: new green, deleted or in conflict red, any other change yellow.
+ * @param {any} t @param {string} code */
+export const changeColor = (t, code) => (code === "A" || code === "?" ? t.ansi2
+  : code === "D" || code === "U" ? t.ansi1 : t.ansi3);
+
+/** An entry of a folder, as core/tree.py lists it. @typedef {{ name: string, dir: boolean, mark: string | null,
+ *   ignored: boolean }} Entry */
+/** A row of the Files tree: an entry, its path from the root, how deep and whether open; or a full folder's rest.
+ * @typedef {(Entry & { path: string, depth: number, open: boolean }) | { path: null, more: number, depth: number }}
+ *   FileRow */
+
+/** The Files tree's rows as the TUI's: each read folder's entries in order, an open folder's under it, a very full
+ * one's count of the rest last. @param {Record<string, { entries: Entry[], more: number }>} folders
+ * @param {Set<string>} open @param {string} [folder] @param {number} [depth] @returns {FileRow[]} */
+export function fileRows(folders, open, folder = "", depth = 0) {
+  const read = folders[folder];
+  if (!read) return [];
+  /** @type {FileRow[]} */
+  const rows = [];
+  for (const entry of read.entries) {
+    const path = folder ? `${folder}/${entry.name}` : entry.name, opened = entry.dir && open.has(path);
+    rows.push({ ...entry, path, depth, open: opened });
+    if (opened) rows.push(...fileRows(folders, open, path, depth + 1));
+  }
+  if (read.more) rows.push({ path: null, more: read.more, depth });
+  return rows;
+}
+
 /** A file's icon, Catppuccin Icons' by the path the app loads it, as core/icons.py's file_type(): by the name's
  * start, else its extension. @param {string} name */
 export function fileIcon(name) {
@@ -254,9 +285,9 @@ export function tabLabel(title) {
 /** An issue as its preview shows it, with its priority as the list ranked it.
  * @typedef {{ kind: "issue", github: string, number: number, title: string, level?: number | null,
  *   ranked_by?: string | null }} ShownIssue */
-/** What a preview shows, where (ROOT on machine ON): a change's diff (a new file's as all added), a commit or an issue.
- * @typedef {{ root: string, on: string | null } & ({ kind: "diff", path: string } | { kind: "commit", hash: string }
- *   | ShownIssue)} Shown */
+/** What a preview shows, where (ROOT on machine ON): a change's diff (a new file's as all added), a file, a commit or
+ * an issue. @typedef {{ root: string, on: string | null } & ({ kind: "diff" | "file", path: string }
+ *   | { kind: "commit", hash: string } | ShownIssue)} Shown */
 
 /** A preview tab's name starts so, as the TUI sidebar's: what it shows follows. */
 const PREVIEWED = "preview: ";
@@ -265,7 +296,7 @@ const TAB_TITLE = 20;              // characters of an issue's title in its prev
 /** WHAT's preview tab name, as the TUI sidebar's: the file, the commit, or the issue's number and its title's start.
  * @param {Shown} what */
 export function previewName(what) {
-  if (what.kind === "diff") return PREVIEWED + what.path;
+  if (what.kind === "diff" || what.kind === "file") return PREVIEWED + what.path;
   if (what.kind === "commit") return PREVIEWED + what.hash;
   const title = what.title.length > TAB_TITLE ? `${what.title.slice(0, TAB_TITLE - 1).trimEnd()}…` : what.title;
   return `${PREVIEWED}#${what.number} ${title}`;

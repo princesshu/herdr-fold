@@ -1,15 +1,15 @@
 // @ts-check
-// The preview tab, as the TUI sidebar's: one a space, showing what Changes, the Graph or Issues opened in it (a
-// change's diff, a commit, an issue with its comments), while herdr-fold's panel stays beside it.
+// The preview tab, as the TUI sidebar's: one a space, showing what Files, Changes, the Graph or Issues opened in it (a
+// file, a change's diff, a commit, an issue with its comments), while herdr-fold's panel stays beside it.
 import { div } from "gpui-kit";
 import { v_flex, h_flex, Scrollbar, TextView, v_virtual_list } from "gpui-base";
-import { panes, setShared, shared, spaces, run as command } from "herdr";
+import { panes, readTextFile, setShared, shared, spaces, run as command } from "herdr";
 import { GIT, GITHUB } from "./helper.js";
 import { commitRows, diffRows, previewName, previewTab, priorityColor, said, safeMarkdown } from "./logic.js";
 import { chip } from "./parts.js";
 
 const PREVIEWS = "herdr-fold.previews";   // what each space's preview tab shows, by the space's id (shared)
-const LINES = 1500;                       // a diff's lines shown at most
+const LINES = 1500;                       // a diff's or a file's lines shown at most
 
 /** WHAT in the shown space's preview tab, as the TUI sidebar opens it: that tab named for it and shown, else a new
  * one. @param {import("./logic.js").Shown} what */
@@ -53,11 +53,18 @@ export class Preview {
     cx.timer.after(0, (cx) => this.load(what, cx));
   }
 
-  /** WHAT from core/ on its repository's machine: a diff, a commit or an issue; an answer for an older one dropped. */
+  /** WHAT from its machine: a file, or from core/ a diff, a commit or an issue; an answer for an older one dropped. */
   load(what, cx) {
     Object.assign(this, { what, rows: [], issue: null, loading: true, note: null });
     cx.spawn(async (cx) => {
       try {
+        if (what.kind === "file") {
+          const text = await readTextFile(`${what.root}/${what.path}`, { on: what.on });
+          if (what.n !== this.n) return;
+          if (text === null) return void (this.note = "This file is no longer there");
+          return void (this.rows = text.replace(/\n$/, "").split("\n").slice(0, LINES)
+            .map((line, i) => ({ kind: " ", number: i + 1, text: line })));
+        }
         if (what.kind === "issue") {
           const answer = await this.core(GITHUB, ["view", what.github, String(what.number)], what.root, what.on);
           if (what.n === this.n) Object.assign(this, { issue: answer.issue ? answer : null, note: answer.error });
@@ -82,7 +89,7 @@ export class Preview {
     cx.notify();
   }
 
-  /** The issue, or the diff's or commit's rows in CODE (the code's font); else what is happening instead. */
+  /** The issue, or the file's, diff's or commit's rows in CODE (the code's font); else what is happening instead. */
   render(t, code) {
     const frame = v_flex().size_full().min_h(0).text_color(t.foreground).text_size(13);   // on the pane's own fill
     if (this.issue) return frame.child(this.issueView(t));

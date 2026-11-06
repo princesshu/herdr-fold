@@ -41,6 +41,7 @@ BY_NAME = (("\ue702", "git", (".gitignore", ".gitattributes", ".gitmodules")),
            ("\uf487", "cargo", ("cargo.toml",)), ("\uf487", "go-mod", ("go.mod",)),
            ("\uf0ad", "makefile", ("makefile",)))
 FILE = "file"                   # Catppuccin Icons' name for any other file
+FOLDER = {"closed": "folder", "open": "folder-open"}      # and for a folder, closed and open
 
 
 def glyphs(icons):

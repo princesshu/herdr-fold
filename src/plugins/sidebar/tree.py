@@ -1,7 +1,7 @@
 # Generated from core/tree.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
 """The file tree of the TUI sidebar's Files and the Herdr app mod's: folders first, then files, by name; links listed,
 not followed; a folder read only when open (an ignored or closed one never walked); a very full one ends in … N more.
-Usage: tree.py list ROOT [--hidden] FOLDER... (paths from ROOT, "" itself): each one's entries, as JSON."""
+Usage: tree.py list ROOT [--hidden] [--limit N] FOLDER... (paths from ROOT, "" itself): each one's entries, as JSON."""
 import json
 import os
 import sys
@@ -134,13 +134,13 @@ class Tree:
         return [self.root] + sorted(self.expanded)
 
 
-def listing(root, folders, hidden=False):
+def listing(root, folders, hidden=False, limit=5000):
     """FOLDERS (paths from ROOT, "" itself) as the Herdr app mod's Files shows them: each entry with git's mark (a
     folder's, its strongest change's) and whether git ignores it, and how many a very full one leaves out."""
     root = os.path.realpath(root)
     repo = git.top(root)
     marks, folder_marks, ignored = git_marks(git.status(repo), repo, root) if repo else ({}, {}, set())
-    tree, answer = Tree(root, ignored, hidden), {}
+    tree, answer = Tree(root, ignored, hidden, limit), {}
     for rel in folders:
         folder = os.path.realpath(os.path.join(root, rel))
         if folder != root and not folder.startswith(root + os.sep):
@@ -153,14 +153,19 @@ def listing(root, folders, hidden=False):
 
 
 def main(argv):
-    args = argv[2:]
-    hidden = "--hidden" in args
-    args = [arg for arg in args if arg != "--hidden"]
-    if argv[1:2] != ["list"] or len(args) < 2:
-        print("usage: tree.py list ROOT [--hidden] FOLDER...", file=sys.stderr)
+    args, options = argv[2:], {"hidden": False, "limit": 5000}
+    if "--hidden" in args:
+        args.remove("--hidden")
+        options["hidden"] = True
+    if "--limit" in args[:-1]:
+        at = args.index("--limit")
+        options["limit"] = int(args[at + 1]) if args[at + 1].isdigit() else 0
+        del args[at:at + 2]
+    if argv[1:2] != ["list"] or len(args) < 2 or not options["limit"]:
+        print("usage: tree.py list ROOT [--hidden] [--limit N] FOLDER...", file=sys.stderr)
         return 2
     try:
-        print(json.dumps({"folders": listing(args[0], args[1:], hidden)}))
+        print(json.dumps({"folders": listing(args[0], args[1:], **options)}))
     except ValueError as err:
         print(err, file=sys.stderr)
         return 2

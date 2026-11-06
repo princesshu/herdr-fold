@@ -77,7 +77,8 @@ def icons_js():
     tables = {"ICONS": {name: f"{SVGS}/lucide/{name}.svg" for name in views},
               "BY_EXTENSION": {ext: file(name) for ext, (_glyph, name) in icons.BY_EXTENSION.items()},
               "BY_NAME": [[file(name), list(starts)] for _glyph, name, starts in icons.BY_NAME],
-              "FILE": file(icons.FILE), "LETTER": icons.GIT_LETTER}
+              "FILE": file(icons.FILE), "FOLDER": {state: file(name) for state, name in icons.FOLDER.items()},
+              "LETTER": icons.GIT_LETTER}
     lines = ["// @ts-check",
              "// Generated from core/icons.py and the icons/ folder by tools/build.py: change them there, then run",
              "// /usr/bin/python3 tools/build.py. Each icon by the path the app loads it."]

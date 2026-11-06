@@ -33,12 +33,26 @@ The TUI's themes come along, for any layout: Settings lists each under its file'
 | `herdr-fold-nord.json` | Nord |
 | `herdr-fold-solarized.json` | Solarized |
 
-Its views are tabs of one panel group, as Adobe's panels are grouped, in VS Code's order: the app's own Files, then
-Search, Changes and, for a repository on GitHub, Issues; the shown one on a raised pad, Changes with its changed files'
-count in a round badge, as VS Code's; it keeps the one shown. × at the end of the tabs closes the panel, and the toggle
-at the tab bar's right end (or Cmd + Shift + G) opens it again: while this layout shows, the app's own Files and Changes
-buttons are off its tab bar, and back as it goes. A diff, a commit or an issue opens in the space's preview tab, as in
-the TUI. herdr-fold's own Files view is not in the app yet.
+Its views are tabs of one panel group, as Adobe's panels are grouped, in VS Code's order: Files, Search, Changes and,
+for a repository on GitHub, Issues; the shown one on a raised pad, Changes with its changed files' count in a round
+badge, as VS Code's; it keeps the one shown. × at the end of the tabs closes the panel, and the toggle at the tab bar's
+right end (or Cmd + Shift + G) opens it again: while this layout shows, the app's own Files and Changes buttons are off
+its tab bar, and back as it goes. A file, a diff, a commit or an issue opens in the space's preview tab, as in the TUI.
+
+## Files
+
+The space's folder, read on the space's machine, as the TUI sidebar's Files shows it, where the app's own Files was:
+
+| Part | What it does |
+|---|---|
+| The tree | folders first, then files, by name; a folder read only once opened, a very full one ending in `… N more`; what git ignores faint and never read |
+| Icons | Catppuccin Icons' for each file type and for a folder, closed or open, as the Changes view's |
+| Marks | git's letter on each changed file and a dot on a folder holding changes, in git's colors, as in the TUI |
+| A click | a file opens in the space's preview tab, its lines numbered; a folder opens or closes |
+| Right click | New File, New Folder, Rename (the name typed in its row; Enter makes it, Esc gives it up), Copy Path (the path on its machine, onto this computer's clipboard), Move to Trash (asked on its row first), and on a folder New Workspace there |
+| The toolbar | New File and New Folder at the top, Refresh, Collapse Folders, and hidden files shown or not, kept for the next start |
+
+It follows the folder as it changes; a folder on another machine is looked at again every ten seconds.
 
 ## Changes
 
@@ -82,10 +96,11 @@ problem, never as instructions), shows the agent, and links the issue to the nex
 
 ## The preview tab
 
-A space has one, as in the TUI: the first diff, commit or issue opened makes it, named after what it shows
-(`preview: src/app.py`, `preview: #42 Pagination retur…`), and the next one shows there again. A diff is numbered once,
-a removed line by the old file and the others by the new one, a thin rule where lines are left out; a commit shows its
-author, message and each file's diff; an issue its text and comments as markdown. Herdr-fold's panel stays beside it.
+A space has one, as in the TUI: the first file, diff, commit or issue opened makes it, named after what it shows
+(`preview: src/app.py`, `preview: #42 Pagination retur…`), and the next one shows there again. A file's lines are
+numbered from the first; a diff is numbered once, a removed line by the old file and the others by the new one, a thin
+rule where lines are left out; a commit shows its author, message and each file's diff; an issue its text and comments
+as markdown. Herdr-fold's panel stays beside it.
 
 ## Spaces
 

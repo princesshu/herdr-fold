@@ -1,9 +1,9 @@
 // @ts-check
-// The right panel as one of Adobe's panel groups: herdr-fold's views and the app's Files as its tabs, on the header of
+// The right panel as one of Adobe's panel groups: herdr-fold's views, Files among them, as its tabs, on the header of
 // the stack that holds them, so they stay while Files shows; its toggle at the tab bar's right end.
 import { div } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { layout, setShared, shared, run as command } from "herdr";
+import { layout, setShared, shared, watchFolder, run as command } from "herdr";
 import { PANEL, PANEL_BODY, panelShown, shownTab } from "./logic.js";
 import { GAP, iconButton } from "./parts.js";
 
@@ -39,10 +39,28 @@ export function liveTabs(t) {
   return panelTabs(t, { shown: shownTab(layout(), shared(VIEW), github), github, changed: told.changed ?? 0 });
 }
 
-/** Tab ID picked: Files is the app's own block; a view is herdr-fold's, which shows it (main.js follows VIEW). */
+/** Tab ID picked: Files is a block of its own; another view is the Changes block's, which shows it (main.js follows
+ * VIEW). */
 function pick(id) {
   if (id !== "files") setShared(VIEW, id);
   command("layout.select", { stack: PANEL_BODY, child: id === "files" ? "files" : "changes" });
+}
+
+/** HOLDER's folder (its root, on this computer) followed while it is the one watched: AGAIN once it changes; another
+ * machine's has no watch (its view looks again on a timer). */
+export function followFolder(holder, again, cx) {
+  if (holder.on || holder.watched === holder.root) return;
+  const root = (holder.watched = holder.root);
+  cx.spawn(async (cx) => {
+    try {
+      while (holder.watched === root) {
+        await watchFolder(root);
+        if (holder.watched === root) again(cx);
+      }
+    } catch {
+      holder.watched = null;
+    }
+  });
 }
 
 /** The tab bar's right end: the right panel's toggle, where the app's Files and Changes buttons were. */

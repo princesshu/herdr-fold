@@ -108,7 +108,8 @@ class Marks(unittest.TestCase):
 
 
 class CommandLine(unittest.TestCase):
-    """tree.py list ROOT [--hidden] FOLDER...: the folders the Herdr app mod shows, read on the space's machine."""
+    """tree.py list ROOT [--hidden] [--limit N] FOLDER...: the folders the Herdr app mod shows, read on the space's
+    machine."""
 
     def setUp(self):
         self.root = os.path.realpath(tempfile.mkdtemp())
@@ -149,6 +150,12 @@ class CommandLine(unittest.TestCase):
         folders = self.list("", "src")
         self.assertEqual(self.rows(folders["src"]), [("b.py", False, None, False), ("c.py", False, "?", False)])
         self.assertEqual(folders["src"]["more"], 0)
+
+    def test_a_limit_counts_the_rest(self):
+        for name in ("d.txt", "e.txt", "f.txt"):
+            make(self.root, f"src/{name}")
+        src = self.list("--limit", "3", "src")["src"]
+        self.assertEqual(([e["name"] for e in src["entries"]], src["more"]), (["b.py", "c.py", "d.txt"], 2))
 
     def test_outside_a_repository_nothing_is_marked(self):
         plain = os.path.realpath(tempfile.mkdtemp())
