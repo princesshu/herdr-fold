@@ -56,6 +56,21 @@ class Install(unittest.TestCase):
         with open(os.path.join(PACKAGE, "app", "keys.json"), encoding="utf-8") as f:
             self.assertEqual(keys(self.home), json.load(f))
 
+    def layout_theme(self):
+        with open(os.path.join(self.home, "layouts", "herdr-fold.json"), encoding="utf-8") as f:
+            return json.load(f)["theme"]
+
+    def test_the_layout_takes_the_theme_chosen(self):
+        self.assertEqual(herdr_app.install(PACKAGE, self.home, self.state, theme="nord"), 0)
+        self.assertEqual(self.layout_theme(), "herdr-fold-nord")
+        herdr_app.install(PACKAGE, self.home, self.state, theme="9")                 # by its number, as asked
+        self.assertEqual(self.layout_theme(), "herdr-fold-dracula")
+
+    def test_an_update_keeps_the_theme_in_the_layout(self):
+        herdr_app.install(PACKAGE, self.home, self.state, theme="nord")
+        herdr_app.install(PACKAGE, self.home, self.state)
+        self.assertEqual(self.layout_theme(), "herdr-fold-nord")
+
     def test_an_earlier_copy_is_replaced_whole(self):
         self.write("mods/herdr-fold/mod.json", '{ "place": "none", "title": "herdr-fold" }\n')
         self.write("mods/herdr-fold/old.js", "// an earlier version's\n")

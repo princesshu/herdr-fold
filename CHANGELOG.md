@@ -13,6 +13,8 @@ All notable changes to this project are listed here. The format follows
   app alone installs nothing of the TUI's and runs no herdr. The other part is added later by running it again. With
   the Herdr app chosen and not on this Mac, it offers the app's own installer. See
   [Installation](docs/installation.md#the-tui-the-herdr-app-or-both).
+- One theme for both parts: the installer and the TUI's theme picker set herdr-fold's layout in the Herdr app too, and
+  a running app switches at once; an update keeps the theme there is. See [Themes](docs/themes.md).
 - Cmd + Shift + U marks the focused agent unread: its workspace says `waiting` again, from then, until you come back
   to it after leaving it; again on a marked one takes the mark off. See [Sessions](docs/usage.md#sessions).
 - herdr-fold in herdr's desktop app: a mod with the sidebar's Changes view (the changed files, staged by file or all at

@@ -1,6 +1,6 @@
-"""Sets one of themes.js's themes in Ghostty, herdr, starship, the sidebar and the loading animation at once, and on a
-Mac Ghostty's app icon in its colors; only the "# --- theme: …" sections of the configs change. With no argument it
-lists the themes. herdr reloads on its own, Ghostty on Cmd+Shift+,."""
+"""Sets one of themes.js's themes in herdr-fold's installed parts at once: the TUI's Ghostty, herdr, starship, sidebar,
+loading animation and Mac app icon (only the "# --- theme: …" sections of the configs change), the Herdr app's
+herdr-fold layout. With no argument it lists the themes. herdr reloads on its own, Ghostty on Cmd+Shift+,."""
 import hashlib
 import json
 import os
@@ -14,8 +14,9 @@ import textwrap
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))     # i18n.py (the texts) is one folder up
+sys.path.insert(0, os.path.dirname(HERE))     # i18n.py (the texts) and parts.py are one folder up
 from i18n import line, t  # noqa: E402
+from parts import app_home, installed  # noqa: E402
 
 HOME = os.path.expanduser("~")
 GHOSTTY = os.path.join(HOME, ".config", "ghostty", "config")
@@ -23,6 +24,8 @@ HERDR = os.path.join(HOME, ".config", "herdr", "config.toml")
 STARSHIP = os.path.join(HOME, ".config", "starship.toml")
 SIDEBAR_COLORS = os.path.join(HOME, ".local", "state", "herdr", "plugins", "herdr-fold.sidebar", "colors.json")
 LOADING_COLORS = os.path.join(HOME, ".local", "state", "herdr-fold", "loading-colors.txt")   # lib/loading.sh reads it
+APP_LAYOUT = os.path.join(app_home(), "layouts", "herdr-fold.json")   # the Herdr app's, its theme one of themes/
+APP_THEME = "herdr-fold-"                           # app/themes/herdr-fold-ID.json: each of themes.js's in the app
 GHOSTTY_ICON = os.path.join(HOME, ".config", "ghostty", "herdr-fold-icon")     # the Ghostty config includes it
 ICONS = os.path.join(HOME, ".local", "state", "herdr-fold", "ghostty-icon")    # the theme in use's app icon
 LOGO = os.path.join(HERE, "logo.svg")               # herdr-fold's logo, in the package's own theme (tools/logo.swift)
@@ -48,6 +51,46 @@ def load_themes():
         text = f.read()
     # a long text is split into parts joined by + at the end of a line (JavaScript), which JSON does not have
     return json.loads(re.sub(r'" *\+\n *"', "", text.split("\nconst THEMES = ", 1)[1].rsplit(";", 1)[0]))
+
+
+def layout_theme(layout=None):
+    """The theme herdr-fold's LAYOUT (the Herdr app's) names, or None (missing, not JSON, someone else's)."""
+    data = herdr_folds_layout(layout or APP_LAYOUT)
+    return data.get("theme") if data else None
+
+
+def herdr_folds_layout(layout):
+    """LAYOUT's data where it is herdr-fold's (a block shows its mod), else None."""
+    try:
+        with open(layout, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    def nodes(node):
+        yield node
+        for child in node.get("children") or []:
+            if isinstance(child, dict):
+                yield from nodes(child)
+    if not isinstance(data, dict) or not any((n.get("content") or {}).get("mod") == "herdr-fold" for n in nodes(data)):
+        return None
+    return data
+
+
+def set_layout_theme(layout, name):
+    """herdr-fold's LAYOUT names the theme NAME; False where it is missing, not JSON or someone else's."""
+    data = herdr_folds_layout(layout)
+    if data is None:
+        return False
+    if data.get("theme") != name:
+        write_whole(layout, json.dumps({**data, "theme": name}, indent=2) + "\n")
+    return True
+
+
+def current():
+    """The theme in use: the TUI's (Ghostty's config), else the one the Herdr app's herdr-fold layout names (the
+    package's own, herdr-fold, names none: the installer's default), else None."""
+    name = layout_theme() or ""
+    return current_id(GHOSTTY) or (name[len(APP_THEME):] if name.startswith(APP_THEME) else None)
 
 
 def current_id(path=GHOSTTY):
@@ -356,10 +399,14 @@ def icon_line(icon):
     return line("skip", t("theme.ghostty_icon_kept")) if MAC else None
 
 
-def apply(theme):
-    """Writes the theme into the Ghostty, herdr and starship configs and gives Ghostty its app icon: (herdr themed,
-    the running herdr reloaded it, the icon's path or None). herdr's config without herdr-fold's theme section keeps its
-    own theme (someone's own config, the installer's "add" mode)."""
+def apply(theme, parts=None):
+    """The theme in PARTS (the installed ones unless named): with the TUI, the Ghostty, herdr and starship configs and
+    Ghostty's app icon; with the app, herdr-fold's layout: (herdr themed, the running herdr reloaded it, the icon's path
+    or None, the app's layout themed). herdr's config without herdr-fold's theme section keeps its own theme."""
+    parts = installed() if parts is None else parts
+    app_themed = "app" in parts and set_layout_theme(APP_LAYOUT, APP_THEME + theme["id"])
+    if "tui" not in parts:
+        return False, False, None, app_themed
     replace_block(GHOSTTY, ghostty_block(theme))
     try:
         icon = write_ghostty_icon(theme)
@@ -383,13 +430,13 @@ def apply(theme):
     herdr_bin = os.environ.get("HERDR_BIN_PATH") or shutil.which("herdr")
     reloaded = bool(herdr_bin) and subprocess.run([herdr_bin, "server", "reload-config"],
                                                   capture_output=True).returncode == 0
-    return herdr_themed, reloaded, icon
+    return herdr_themed, reloaded, icon, app_themed
 
 
 def main():
     themes, args = load_themes(), sys.argv[1:]
-    if args[:1] == ["--current"]:
-        tid = current_id(args[1] if len(args) > 1 else GHOSTTY)
+    if args[:1] == ["--current"]:                   # the theme in use, or the one a Ghostty config (PATH) sets
+        tid = current_id(args[1]) if len(args) > 1 else current()
         number = next((n for n, t in enumerate(themes, 1) if t["id"] == tid), None)
         if number:
             print(number)
@@ -410,7 +457,7 @@ def main():
         write_loading_colors(theme)
         return
     if not args:
-        now = current_id()
+        now = current()
         for n, theme in enumerate(themes, 1):
             mark = "   " + t("theme.current") if theme["id"] == now else ""
             print(f"  {n:2}. {theme['name']} — {theme['tag']}{mark}")
@@ -418,10 +465,15 @@ def main():
     theme = find(themes, args[0])
     if not theme:
         raise SystemExit(line("fail", t("theme.no_such", args[0], len(themes))))
+    parts = set(args[1:]) or installed()          # the parts named after it (the installer's), else the installed
     try:
-        herdr_themed, reloaded, icon = apply(theme)
+        herdr_themed, reloaded, icon, app_themed = apply(theme, parts)
     except ThemeError as err:
         raise SystemExit(line("fail", t("theme.no_section", err)))
+    if app_themed:
+        print(line("ok", t("theme.app")))
+    if "tui" not in parts:
+        return
     print(line("ok", t("theme.ghostty", theme["ghostty"]["theme"])))
     note = icon_line(icon)
     if note:

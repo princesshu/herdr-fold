@@ -90,11 +90,13 @@ def main():
             return
     theme = themes[chosen]
     try:
-        herdr_themed, reloaded, icon = apply.apply(theme)
+        herdr_themed, reloaded, icon, app_themed = apply.apply(theme)
     except apply.ThemeError as err:
         print("\n\n" + line("fail", t("theme.no_section", err)))
         wait_and_exit(1)
     print("\n\n" + line("ok", t("theme.picked", theme["name"])))
+    if app_themed:
+        print(line("ok", t("theme.app")))
     note = apply.icon_line(icon)
     if note:
         print(note)

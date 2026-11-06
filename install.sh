@@ -308,11 +308,11 @@ else
 fi
 
 step "$(t install.step_theme)"
-# The choice sets the colors of Ghostty, herdr and starship (src/themes/apply.py). Default: the machine's
-# current theme, or the package's on a new machine.
+# The choice sets the colors of the chosen parts: Ghostty, herdr and starship; herdr-fold's layout in the Herdr app
+# (src/themes/apply.py). Default: the theme in use here (the TUI's, else the app's), or the package's.
 THEMES="$DOT/src/themes"
 theme_of() { python3 "$THEMES/apply.py" --current "$1" 2>/dev/null; }
-current=$(theme_of "$HOME/.config/ghostty/config"); theme=${current:-$(theme_of "$DOT/config/ghostty/config")}
+current=$(python3 "$THEMES/apply.py" --current 2>/dev/null); theme=${current:-$(theme_of "$DOT/config/ghostty/config")}
 # the preview in the browser (every theme with its app icon, this Mac's marked) and the list; once a theme is chosen,
 # they and the question give way to its line. An update keeps the theme there is
 if ! updating || [ -z "$current" ]; then
@@ -447,8 +447,7 @@ if [ "$config_mode" = add ]; then
     printf '%s\n' "$out" | summarize "$(t install.config_added)"
   else warn "$(t install.config_left "$out")"; fi
 fi
-if ! chosen tui; then :
-elif out=$(loading "$(t install.theme_setting)" python3 "$HOME/.config/herdr-fold/themes/apply.py" "$theme"); then
+if out=$(loading "$(t install.theme_setting)" python3 "$HOME/.config/herdr-fold/themes/apply.py" "$theme" $parts); then
   printf '%s\n' "$out" | summarize ""                      # step 3 named the theme: only what needs attention shows
 else
   printf '%s\n' "$out"; warn "$(t install.theme_failed)"
@@ -592,7 +591,7 @@ app_wanted() {
   return 1
 }
 if [ -n "$app" ] && app_wanted; then
-  python3 "$DOT/lib/herdr_app.py" install "$DOT"; rc=$?
+  python3 "$DOT/lib/herdr_app.py" install "$DOT" "$theme"; rc=$?
   app_home=$(python3 "$DOT/lib/herdr_app.py" home)
   case $rc in
     0|3)

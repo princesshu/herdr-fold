@@ -1,6 +1,6 @@
 """herdr-fold in the Herdr app: the mod, its layout, themes and keys into the app's home and off again, the tabs'
-terminals it started ended. Usage: herdr_app.py cli | core | home | install PACKAGE (0; 3: keys.json unreadable, left as
-it is; 4: a mods/herdr-fold not herdr-fold's) | uninstall PACKAGE | end-terminals | close | open"""
+terminals it started ended. Usage: herdr_app.py cli | core | home | install PACKAGE [THEME] (0; 3: keys.json unreadable,
+left as it is; 4: a mods/herdr-fold not herdr-fold's) | uninstall PACKAGE | end-terminals | close | open"""
 import json
 import os
 import re
@@ -13,6 +13,7 @@ import time
 sys.dont_write_bytecode = True  # no __pycache__ beside the package's scripts
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 from parts import app_home  # noqa: E402
+from themes import apply  # noqa: E402
 
 MOD, LAYOUT, KEYS = os.path.join("mods", "herdr-fold"), os.path.join("layouts", "herdr-fold.json"), "keys.json"
 THEMES = "themes"              # herdr-fold.json (the layout's own) and the TUI's themes, herdr-fold-ID.json
@@ -204,11 +205,13 @@ def package_keys(package):
         return json.load(f)
 
 
-def install(package, home, state, app_running=False):
-    """PACKAGE's mod, layout and keys into the app's HOME, what an earlier version put there and this one does not have
-    taken off: the exit code (0, 3 or 4) the usage names; a running app's shared values are left to it."""
+def install(package, home, state, app_running=False, theme=None):
+    """PACKAGE's mod, layout (in THEME, a number or name of themes.js's; none: the one it had) and keys into the app's
+    HOME, what an earlier version put there and this one does not have taken off: the exit code (0, 3 or 4) the usage
+    names; a running app's shared values are left to it."""
     if os.path.lexists(os.path.join(home, MOD)) and not herdr_folds(os.path.join(home, MOD)):
         return 4
+    had = apply.layout_theme(os.path.join(home, LAYOUT))
     replace(os.path.join(home, MOD), os.path.join(package, "app", MOD))
     brought = themes(os.path.join(package, "app"))
     for rel in set(themes(home)) - set(brought):
@@ -216,6 +219,10 @@ def install(package, home, state, app_running=False):
     for rel in (LAYOUT, *brought):
         os.makedirs(os.path.join(home, os.path.dirname(rel)), exist_ok=True)
         shutil.copyfile(os.path.join(package, "app", rel), os.path.join(home, rel))
+    chosen = apply.find(apply.load_themes(), theme) if theme else None
+    name = apply.APP_THEME + chosen["id"] if chosen else had
+    if name:
+        apply.set_layout_theme(os.path.join(home, LAYOUT), name)
     if not app_running:
         tidy(home, named(package))
     mine = read_keys(os.path.join(home, KEYS))
@@ -263,11 +270,12 @@ def main(argv):
     if command == "home" and not args:
         print(app_home())
         return 0
-    if command in ("install", "uninstall") and len(args) == 1:
+    if command == "install" and len(args) in (1, 2):
         app = cli()
-        done = (install if command == "install" else uninstall)(args[0], app_home(), state_dir(),
-                                                                 bool(app) and running(app))
-        return done or 0
+        return install(args[0], app_home(), state_dir(), bool(app) and running(app), *args[1:])
+    if command == "uninstall" and len(args) == 1:
+        app = cli()
+        return uninstall(args[0], app_home(), state_dir(), bool(app) and running(app)) or 0
     if command == "close" and not args:
         app = cli()
         return 0 if app and close(app) else 1

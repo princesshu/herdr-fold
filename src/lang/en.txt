@@ -70,7 +70,7 @@ install.dropped_folder = %s (%s files)
 install.dropped_ask = Remove? A copy is kept first
 install.dropped_removed = removed — the copy: %s
 install.dropped_kept = kept — the next install asks again
-install.theme_setting = setting the theme and Ghostty's icon in its colors
+install.theme_setting = setting the theme
 install.theme_set = theme: %s
 install.theme_failed = setting the theme failed — later: python3 ~/.config/herdr-fold/themes/apply.py
 
@@ -352,6 +352,7 @@ status.claude_unreadable = Claude Code status line not set: %s cannot be read (f
 theme.current = ← current
 theme.no_such = No such theme: %s (number 1–%s or name, see: apply.py)
 theme.no_section = No theme section in: %s (the installer's fresh configs provide it: ./install.sh)
+theme.app = Herdr app: herdr-fold's layout
 theme.ghostty = Ghostty: %s
 theme.ghostty_icon = Ghostty's app icon in the theme's colors
 theme.ghostty_icon_kept = Ghostty keeps its own app icon (this one could not be written)

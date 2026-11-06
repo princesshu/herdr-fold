@@ -66,7 +66,8 @@ class Themed(unittest.TestCase):
                   SIDEBAR_COLORS=os.path.join(self.tmp, "state", "herdr-fold.sidebar", "colors.json"),
                   LOADING_COLORS=os.path.join(self.tmp, "state", "herdr-fold", "loading-colors.txt"),
                   GHOSTTY_ICON=os.path.join(self.tmp, "herdr-fold-icon"),
-                  ICONS=os.path.join(self.tmp, "state", "herdr-fold", "ghostty-icon"), MAC=True)
+                  ICONS=os.path.join(self.tmp, "state", "herdr-fold", "ghostty-icon"), MAC=True,
+                  APP_LAYOUT=os.path.join(self.tmp, "app", "layouts", "herdr-fold.json"))
         set_env(self, HERDR_BIN_PATH="/usr/bin/true")
         with open(apply.GHOSTTY, "w", encoding="utf-8") as f:
             f.write(CONFIG)
@@ -91,6 +92,63 @@ class Apply(Themed):
         home = [name for name, value in vars(apply).items() if isinstance(value, str) and not name.startswith("__")
                 and value.startswith(apply.HOME + os.sep) and not value.startswith(PACKAGE + os.sep)]
         self.assertEqual([name for name in home if not getattr(apply, name).startswith(self.tmp + os.sep)], [])
+
+
+class AppTheme(Themed):
+    """One theme for both parts: the Herdr app's herdr-fold layout named for it, where the app's part is there; the
+    layout left as it is where it is missing, not JSON or someone else's, and no traceback."""
+
+    def setUp(self):
+        super().setUp()
+        self.nord = apply.find(apply.load_themes(), "nord")
+        with open(apply.HERDR, "w", encoding="utf-8") as f:
+            f.write("")
+
+    def layout(self, data):
+        os.makedirs(os.path.dirname(apply.APP_LAYOUT), exist_ok=True)
+        with open(apply.APP_LAYOUT, "w", encoding="utf-8") as f:
+            f.write(data if isinstance(data, str) else json.dumps(data))
+
+    def named(self):
+        with open(apply.APP_LAYOUT, encoding="utf-8") as f:
+            return f.read()
+
+    OURS = {"id": "root", "theme": "herdr-fold", "children": [{"id": "spaces", "content": {"mod": "herdr-fold"}}]}
+
+    def test_the_app_takes_the_theme_too(self):
+        self.layout(self.OURS)
+        self.assertTrue(apply.apply(self.nord, {"tui", "app"})[3])
+        self.assertEqual(json.loads(self.named())["theme"], "herdr-fold-nord")
+        self.assertEqual(apply.current_id(apply.GHOSTTY), "nord")
+
+    def test_the_app_alone_leaves_the_tuis_files(self):
+        self.layout(self.OURS)
+        apply.apply(self.nord, {"app"})
+        with open(apply.GHOSTTY, encoding="utf-8") as f:
+            self.assertEqual(f.read(), CONFIG)
+        self.assertEqual(json.loads(self.named())["theme"], "herdr-fold-nord")
+
+    def test_without_the_app_its_layout_is_untouched(self):
+        self.layout(self.OURS)
+        before = self.named()
+        self.assertFalse(apply.apply(self.nord, {"tui"})[3])
+        self.assertEqual(self.named(), before)
+
+    def test_the_theme_there_is_comes_from_the_app_without_the_tui(self):
+        os.remove(apply.GHOSTTY)
+        self.layout({**self.OURS, "theme": "herdr-fold-dracula"})
+        self.assertEqual(apply.current(), "dracula")
+        self.layout(self.OURS)                      # the package's own: none named, the installer's default then
+        self.assertIsNone(apply.current())
+
+    def test_a_broken_or_foreign_layout_is_left_alone(self):
+        self.assertFalse(apply.apply(self.nord, {"tui", "app"})[3])           # missing
+        for data in ("{not json", {"id": "root", "theme": "graphite", "children": []}, ["a", "list"]):
+            with self.subTest(data=data):
+                self.layout(data)
+                before = self.named()
+                self.assertFalse(apply.apply(self.nord, {"tui", "app"})[3])
+                self.assertEqual(self.named(), before)
 
 
 class WrittenBeside(Themed):
