@@ -1,6 +1,6 @@
 // @ts-check
-// The Spaces list where the app's own was, drawn as it draws one: by machine, a worktree under its checkout, the
-// repository and branch where unusual, dragged into order, the app's menu on a right click; and how long agents wait.
+// The Spaces list where the app's own was, drawn as it draws one: by machine, a worktree under its checkout, each
+// space's branch, dragged into order, the app's menu on a right click; and how long agents wait, as the TUI's.
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { agents, focused, hc, layout, machines, openOverlay, panes, setShared, shared, spaces, watchFolder, window,
@@ -388,18 +388,17 @@ export class SpacesView {
       .child(icon(g.folded ? "chevron-right" : "chevron-down", 11).flex_none());
   }
 
-  /** A space's row: its avatar (a worktree its branch under its checkout), name, what is unusual of its place, how
-   * far from its upstream, how long it waits on you; pressed, selected; dragged, reordered; a right click, the app's
-   * menu. @param {Row} r @param {Row[]} rows its group's */
+  /** A space's row: avatar (a worktree its branch under its checkout), name, branch, how far from its upstream, how
+   * long it waits on you; its highlight 2 in from its edges, a drag's line in the gap between two; a right click, the
+   * app's menu. @param {Row} r @param {Row[]} rows its group's */
   row(t, r, rows) {
     const from = rows.findIndex((x) => x.id === this.pressed), at = rows.findIndex((x) => x.id === r.id);
     const mine = () => rows.some((x) => x.id === this.pressed);        // a drag stays within its machine's spaces
-    return v_flex().relative().id(`space-${r.id}`).px(8).h(r.tree ? LIST.tree : LIST.row).flex_none().justify_center()
-      .rounded(8).when(r.active, (e) => e.bg(t.selected)).when(!r.active, (e) => e.hover((s) => s.bg(t.hover)))
+    return v_flex().relative().id(`space-${r.id}`).py(2).h(r.tree ? LIST.tree : LIST.row).flex_none()
       .when(this.pressed === r.id && this.over !== r.id, (e) => e.opacity(0.5))
       .when(this.pressed !== null && this.over === r.id && this.pressed !== r.id, (e) => e.child(div().absolute()
-        .left(0).right(0).h(2).bg(t.accent).when(from < at, (line) => line.bottom(0))
-        .when(from > at, (line) => line.top(0))))
+        .left(8).right(8).h(2).rounded_full().bg(t.accent).when(from < at, (line) => line.bottom(-1))
+        .when(from > at, (line) => line.top(-1))))
       .on_mouse_down("left", () => {
         this.pressed = this.over = r.id;
       })
@@ -421,17 +420,19 @@ export class SpacesView {
       })
       .on_mouse_down("right", () => openOverlay({ mod: "menu", kind: "popup", width: 200, height: 260,
         props: { tab: "space", target: { id: r.id } } }))
-      .child(h_flex().gap(8).items_center()
-        .when(r.tree, (e) => e.pl(18 + 8).child(icon("git-branch", 13).text_color(t.dim)))  // under the checkout's name
-        .when(!r.tree, (e) => e.child(h_flex().size(18).flex_none().rounded(4).bg(avatarFill(r.color, t))
-          .items_center().justify_center().text_size(11).font_bold().text_color("#ffffff")
-          .child([...r.name][0]?.toUpperCase() ?? "?")))
-        .child(div().flex_shrink(0).max_w(150).truncate().text_color(t.foreground).child(r.name))
-        .child(h_flex().flex_1().min_w(0).gap(6).justify_end().items_center().text_size(11).text_color(t.dim)
-          .when(Boolean(r.label), (e) => e.child(div().min_w(0).truncate().child(r.label)))
-          .when(r.ahead > 0, (e) => e.child(div().flex_none().text_color(t.ansi2).child(`↑${r.ahead}`)))
-          .when(r.behind > 0, (e) => e.child(div().flex_none().text_color(t.ansi1).child(`↓${r.behind}`)))
-          .when(Boolean(r.wait), (e) => e.child(div().flex_none().text_color(t.ansi3).child(r.wait)))));
+      .child(v_flex().flex_1().px(8).justify_center().rounded(8).when(r.active, (e) => e.bg(t.selected))
+        .when(!r.active, (e) => e.hover((s) => s.bg(t.hover)))
+        .child(h_flex().gap(8).items_center()
+          .when(r.tree, (e) => e.pl(18 + 8).child(icon("git-branch", 13).text_color(t.dim)))  // under its checkout
+          .when(!r.tree, (e) => e.child(h_flex().size(18).flex_none().rounded(4).bg(avatarFill(r.color, t))
+            .items_center().justify_center().text_size(11).font_bold().text_color("#ffffff")
+            .child([...r.name][0]?.toUpperCase() ?? "?")))
+          .child(div().flex_shrink(0).max_w(150).truncate().text_color(t.foreground).child(r.name))
+          .child(h_flex().flex_1().min_w(0).gap(6).justify_end().items_center().text_size(11).text_color(t.dim)
+            .when(Boolean(r.label), (e) => e.child(div().min_w(0).truncate().child(r.label)))
+            .when(r.ahead > 0, (e) => e.child(div().flex_none().text_color(t.ansi2).child(`↑${r.ahead}`)))
+            .when(r.behind > 0, (e) => e.child(div().flex_none().text_color(t.ansi1).child(`↓${r.behind}`)))
+            .when(Boolean(r.wait), (e) => e.child(div().flex_none().text_color(t.ansi3).child(r.wait))))));
   }
 
   /** @param {Group} g */

@@ -460,13 +460,12 @@ export function spaceWaits(waits, agents) {
   return first;
 }
 
-/** What a Space row says after its NAME, as the app's own list: its PLACE's repository and branch, each only where
- * unusual (not the name, nor main or master), a worktree's (TREE, under its checkout) never its repository.
+/** What a Space row says after its NAME: its PLACE's branch, main too, as the TUI's, and its repository where that
+ * is not the name; neither when it is the name again; a worktree's (TREE, under its checkout) never its repository.
  * @param {{ name: string, branch: string | null }} place @param {boolean} tree @param {string} name */
 export function placeLabel(place, tree, name) {
   const same = (text) => text.toLowerCase() === name.toLowerCase(), raw = place.branch ?? "detached";
-  const branch = same(raw) || raw === "main" || raw === "master" ? "" : raw;
-  return [tree || same(place.name) ? "" : place.name, branch].filter(Boolean).join(" · ");
+  return [tree || same(place.name) ? "" : place.name, same(raw) ? "" : raw].filter(Boolean).join(" · ");
 }
 
 /** ROWS ({ w: a space, g: its place }) in order, each worktree under the first space of its checkout, TREE marking it;

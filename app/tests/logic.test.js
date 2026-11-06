@@ -624,8 +624,9 @@ test("a space's wait is its longest: since when its first agent waits", () => {
   assert.deepEqual(spaceWaits({ a: { since: 300 }, b: { since: 100 } }, agents), { s1: 100 });
 });
 
-test("after a space's name, only what is unusual: the repository, the branch, never main or a name it has", () => {
-  assert.equal(placeLabel({ name: "lumen-api", branch: "main" }, false, "lumen-api"), "");
+test("after a space's name its branch, main too, as the TUI's; its repository where unusual; never the name", () => {
+  assert.equal(placeLabel({ name: "lumen-api", branch: "main" }, false, "lumen-api"), "main");
+  assert.equal(placeLabel({ name: "lumen-api", branch: "master" }, false, "lumen-api"), "master");
   assert.equal(placeLabel({ name: "lumen-api", branch: "fix-login" }, false, "api"), "lumen-api · fix-login");
   assert.equal(placeLabel({ name: "lumen-api", branch: "fix-login" }, true, "fix-login"), "");
   assert.equal(placeLabel({ name: "lumen-api", branch: null }, false, "lumen-api"), "detached");

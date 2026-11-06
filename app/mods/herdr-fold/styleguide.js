@@ -76,9 +76,9 @@ const WAITING = { s1: Date.now() - 12 * 60000 };
 // one rebuilt
 const GROUP = { connected: true, state: "connected", rebuilt: false, error: null, busy: false, folded: false,
   wait: null, loading: false };
-const ROW = { active: false, color: "ansi6", tree: false, label: "", ahead: 0, behind: 0, wait: null };
+const ROW = { active: false, color: "ansi6", tree: false, label: "main", ahead: 0, behind: 0, wait: null };
 const LOCAL = { ...GROUP, machine: null, rows: [{ ...ROW, id: "s1", name: "lumen-api", active: true, ahead: 2 },
-  { ...ROW, id: "s4", name: "fix-login", tree: true, wait: "waiting 12m" },
+  { ...ROW, id: "s4", name: "fix-login", tree: true, label: "", wait: "waiting 12m" },
   { ...ROW, id: "s2", name: "harbor-web", color: "ansi3", label: "spike", behind: 1, wait: "waiting 3m" },
   { ...ROW, id: "s3", name: "notes", color: "ansi4" }] };
 const MACHINES = [LOCAL,
@@ -386,8 +386,8 @@ function sections(g, t) {
         { width: SIDEBAR, spec: "h 32 a row · 28 a worktree's and a machine's · + on its hover · ansi3" }),
       specimen(t, "spaces-local", "This computer only", fixed(listHeight([LOCAL]), spacesList(t, [LOCAL])),
         { width: SIDEBAR }),
-      specimen(t, "spaces-drag", "A space dragged", fixed(listHeight([LOCAL]), spacesList(t, [LOCAL],
-        { pressed: "s3", over: "s1" })), { width: SIDEBAR, spec: "the line where it goes" }),
+      specimen(t, "spaces-drag", "notes dragged over harbor-web", fixed(listHeight([LOCAL]), spacesList(t, [LOCAL],
+        { pressed: "s3", over: "s2" })), { width: SIDEBAR, spec: "the line where it goes, between two rows" }),
       specimen(t, "spaces-loading", "Loading", fixed(listHeight([{ ...GROUP, machine: null, rows: [], loading: true }]),
         spacesList(t, [{ ...GROUP, machine: null, rows: [], loading: true }])), { width: SIDEBAR })])]],
     ["conversations", [group(t, "Conversations", [...g.conversations.map(([name, view], i) => specimen(t,
