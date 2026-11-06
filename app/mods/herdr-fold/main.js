@@ -7,8 +7,9 @@ import { spaces, panes, focused, exec, hc, home, nextCommand, theme, settings, l
   shared, setShared, readTextFile, run as command } from "herdr";
 import { COMMIT_MESSAGE, FILEOPS, GIT, SEARCH } from "./helper.js";
 import { activeTerminal, afterCommit, background, branchLabel, changeColor, changeName, commitMode, excerpt, fileIcon,
-  foldedSections, lastLine, launcher, letter, marked, MODES, panelRailed, panelToggle, pushOffer, pythonCommand,
-  railFollow, rowActions, said, searchRows, searchSummary, secretQuestion, syncLabel, written } from "./logic.js";
+  foldedSections, hovering, lastLine, launcher, letter, marked, MODES, panelRailed, panelToggle, pushOffer,
+  pythonCommand, railFollow, rowActions, said, searchRows, searchSummary, secretQuestion, syncLabel, written }
+  from "./logic.js";
 import { button, chip, END, field, fileMark, GAP, icon, SLIDE, small } from "./parts.js";
 import { Menus, menuPopup } from "./menus.js";
 import { followFolder, giveBack, keptWidth, liveTabs, openRail, panelTrigger, rail, runPanel, TABS, tabsState,
@@ -173,6 +174,8 @@ export default class HerdrFold extends View {
     /** @type {string | null} Cmd + Shift + C's question with nothing to commit: a push of the commits ahead */
     this.offer = null;
     this.folded = foldedSections(shared(FOLDED));
+    /** @type {string | null} the row or section the pointer is on (hovering's): its buttons shown */
+    this.hovered = null;
     this.input = InputState.new({ placeholder: "Commit message" });
     this.input.on("change", (_e, cx) => {
       const had = Boolean(this.message.trim());
@@ -309,13 +312,6 @@ export default class HerdrFold extends View {
       }
       return null;
     });
-  }
-
-  /** The row or section KEY the mouse is on, or left: its buttons show only then, as in the TUI sidebar. */
-  hover(key, over, cx) {
-    if (over) this.hovered = key;
-    else if (this.hovered === key) this.hovered = null;
-    cx.notify();
   }
 
   /** The staged changes committed, or every change with none staged (core/git.py), then pushed or synced as the mode
@@ -688,7 +684,7 @@ export default class HerdrFold extends View {
     const key = `section-${kind}`, asking = this.confirm === key;
     const actions = { staged: ["unstage"], changes: ["discard", "stage"] }[kind] ?? [];
     return h_flex().id(key).h(26).flex_none().pl(6).pr(8).gap(6).items_center().rounded(6).cursor_pointer()
-      .hover((s) => s.bg(t.hover)).on_hover((over, cx) => this.hover(key, over, cx))
+      .hover((s) => s.bg(t.hover)).on_hover(hovering(this, key))
       .on_click((_e, cx) => this.fold(kind, cx))
       .child(icon(this.folded.has(kind) ? "chevron-right" : "chevron-down").text_color(t.muted))
       .child(div().flex_1().min_w(0).truncate().font_bold().child(title))
@@ -711,7 +707,7 @@ export default class HerdrFold extends View {
     const asking = this.confirm === key;
     return h_flex().id(`file-${key}`).h(26).flex_none().pl(26).pr(8).gap(6).items_center().rounded(6).cursor_pointer()
       .when(this.open === key, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover)).tooltip(path)
-      .on_hover((over, cx) => this.hover(key, over, cx))
+      .on_hover(hovering(this, key))
       .on_click((_e, cx) => this.pick(key, { kind: "diff", path }, cx))
       .child(fileMark(fileIcon(name)))
       .child(h_flex().flex_1().min_w(0).gap(6).items_center()

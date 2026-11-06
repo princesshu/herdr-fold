@@ -365,8 +365,9 @@ function sections(g, t) {
     ["preview-issue", [group(t, "An issue in the preview tab", [specimen(t, "preview-issue", "Issue",
       fixed(330, g.issue.render(t, "Menlo")), { width: 2 * TAB + 24 })])]],
     ["spaces", [group(t, "Spaces", [
-      specimen(t, "spaces-machines", "By machine, the waits beside the branch", fixed(listHeight(MACHINES),
-        spacesList(t, MACHINES)), { width: SIDEBAR, spec: "h 30 a row · 28 a worktree's · 26 a machine's · ansi3" }),
+      specimen(t, "spaces-machines", "By machine, the waits beside the branch, lab's head hovered",
+        fixed(listHeight(MACHINES), spacesList(t, MACHINES, { hovered: "lab" })),
+        { width: SIDEBAR, spec: "h 30 a row · 28 a worktree's · 26 a machine's · + on its hover · ansi3" }),
       specimen(t, "spaces-local", "This computer only", fixed(listHeight([LOCAL]), spacesList(t, [LOCAL])),
         { width: SIDEBAR }),
       specimen(t, "spaces-drag", "A space dragged", fixed(listHeight([LOCAL]), spacesList(t, [LOCAL],

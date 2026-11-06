@@ -5,7 +5,7 @@ import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState } from "gpui-base";
 import { agents, focused, hc, run as command } from "herdr";
 import { COMMIT_MESSAGE, GITHUB } from "./helper.js";
-import { issueAgent, priorityColor, said } from "./logic.js";
+import { hovering, issueAgent, priorityColor, said } from "./logic.js";
 import { button, field, GAP, icon, small } from "./parts.js";
 import { showPreview } from "./preview.js";
 
@@ -19,7 +19,7 @@ const DONE = { close: "Closed", reopen: "Reopened", assign: "Assigned to you:" }
 
 export class IssuesView {
   /** HOST: the view it shows in, for the repository (root, on, github), its core calls (core), the row the mouse is
-   * on (hovered, hover) and the Changes' link (linked). @param {any} host */
+   * on (hovered) and the Changes' link (linked). @param {any} host */
   constructor(host) {
     this.host = host;
     this.query = { state: "open", assigned: false, authored: false, label: "" };
@@ -248,7 +248,7 @@ export class IssuesView {
     const verb = asking === "close" ? "Close" : "Reopen";
     return h_flex().id(key).h(48).flex_none().gap(8).items_center().rounded(6).cursor_pointer()
       .when(this.chosen === issue.number, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover))
-      .on_hover((over, cx) => this.host.hover(key, over, cx)).on_click((_e, cx) => this.open(issue, cx))
+      .on_hover(hovering(this.host, key)).on_click((_e, cx) => this.open(issue, cx))
       .on_mouse_down("right", () => this.host.menus.open(this.picks(issue)))
       .child(div().w(3).h(36).flex_none().rounded(2).when(issue.level !== null, (e) => e.bg(color)))
       .child(v_flex().flex_1().min_w(0).gap(2)

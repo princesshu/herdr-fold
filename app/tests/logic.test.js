@@ -13,8 +13,18 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   safeMarkdown, said, searchRows, searchSummary, secretQuestion, shownTab, strays, syncLabel, tabLabel, TALL,
   terminalId, TERMINALS, urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread,
   spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow,
-  railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal }
+  railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering }
   from "../mods/herdr-fold/logic.js";
+
+test("a row hovered: its key while the pointer is over it, let go only by its own leaving", () => {
+  const holder = { hovered: null }, drawn = [], cx = { notify: () => drawn.push(holder.hovered) };
+  hovering(holder, "a")(true, cx);
+  hovering(holder, "b")(true, cx);
+  hovering(holder, "a")(false, cx);
+  assert.equal(holder.hovered, "b");
+  hovering(holder, "b")(false, cx);
+  assert.deepEqual(drawn, ["a", "b", "b", null]);
+});
 
 test("a diff's lines numbered once, old and new apart; no hunk header, a gap between two hunks", () => {
   const rows = diffRows(["@@ -3,2 +3,3 @@ def index():", " same", "-old", "+new", "+more", "@@ -20 +21 @@", "-x",

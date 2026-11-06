@@ -60,6 +60,14 @@ export function rowActions(kind, code) {
   return code === "U" ? ["stage"] : ["discard", "stage"];
 }
 
+/** A row's on_hover: HOLDER.hovered is KEY while the pointer is over it, so its buttons show only then.
+ * @param {{ hovered: string | null }} holder @param {string} key */
+export const hovering = (holder, key) => (/** @type {boolean} */ over, /** @type {any} */ cx) => {
+  if (over) holder.hovered = key;
+  else if (holder.hovered === key) holder.hovered = null;
+  cx.notify();
+};
+
 /** The folded sections as KEPT, as the TUI sidebar keeps them (staged, changes, graph): a set, empty for anything
  * else. @param {unknown} kept @returns {Set<string>} */
 export const foldedSections = (kept) => new Set(Array.isArray(kept)

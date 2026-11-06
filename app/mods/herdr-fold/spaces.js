@@ -7,7 +7,7 @@ import { agents, focused, hc, layout, machines, openOverlay, panes, setShared, s
   run as command } from "herdr";
 import { GIT } from "./helper.js";
 import { avatarFill, headed, LIST, listBody, listHeight, nested, nextWaits, placeLabel, spaceColors, spaceWaits,
-  toggleUnread, waited, withMax } from "./logic.js";
+  toggleUnread, hovering, waited, withMax } from "./logic.js";
 import { icon } from "./parts.js";
 
 const WAITS = "herdr-fold.waits";                  // each agent waiting on you: since when, and Cmd + Shift + U's mark
@@ -76,6 +76,8 @@ export class SpacesView {
     this.pressed = null;
     /** @type {string | null} */
     this.over = null;
+    /** @type {string | null} the machine head the pointer is on (hovering's): its + shown */
+    this.hovered = null;
     /** @type {any[]} hc's machines, with their state */
     this.machines = [];
     /** @type {any} */
@@ -351,12 +353,12 @@ export class SpacesView {
           empty: [this.emptyRow(t, g)] }[listBody(g, heads)]])));
   }
 
-  /** A machine's head: its name, how it is, + for a space there, its dot, its chevron folding its spaces; folded,
-   * its longest wait. @param {Group} g */
+  /** A machine's head: its name, how it is, + for a space there (its place kept, shown on hover: the list's head has
+   * one too), its dot, its chevron folding its spaces; folded, its longest wait. @param {Group} g */
   head(t, g) {
     const m = g.machine, id = m ?? "local";
     return h_flex().id(`machine-${id}`).h(LIST.machine).flex_none().px(8).gap(7).items_center().text_size(11)
-      .text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover))
+      .text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover)).on_hover(hovering(this, id))
       .on_click((_e, cx) => {
         const folded = new Set(/** @type {any[]} */ (shared(FOLDED) ?? []));
         if (folded.has(m)) folded.delete(m);
@@ -379,12 +381,13 @@ export class SpacesView {
           })
           .child(g.busy ? "Connecting…" : "Connect"))))
       .when(g.folded && Boolean(g.wait), (e) => e.child(div().flex_none().text_color(t.ansi3).child(g.wait)))
-      .when(g.connected, (e) => e.child(div().id(`machine-add-${id}`).flex_none().px(4).rounded(4)
+      .when(g.connected, (e) => e.child(div().id(`machine-add-${id}`).size(18).flex_none().flex().items_center()
+        .justify_center().rounded(4).when(this.hovered !== id, (s) => s.invisible())
         .hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip("New space there")
         .on_click((_e, cx) => {
           cx.stop_propagation();
           command("space.new", { machine: m ?? "" });
-        }).child("+")))
+        }).child(icon("plus", 12))))
       .child(div().size(6).rounded(3).flex_none().bg(g.connected ? t.ansi2 : t.dim))
       .child(icon(g.folded ? "chevron-right" : "chevron-down", 11).flex_none());
   }

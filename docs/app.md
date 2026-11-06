@@ -116,7 +116,7 @@ an agent in a space waits on you, as the TUI's Space rows do:
 | Part | What it does |
 |---|---|
 | A space | its avatar in the color every app mod gives it (a worktree's, the branch icon, under its checkout's space), its name, then only what is unusual of its place: the repository and the branch (never main or master, nor what its name says already), ↑ the commits to push and ↓ to pull; and `waiting 12m` in yellow while an agent there waits on you, blocked or done and not seen yet, the longest wait when several do. A click shows it, a drag puts it elsewhere among its machine's spaces, a right click opens the app's own menu for it |
-| A machine | once another machine is known, a head for each: this computer first, then the others by name, how each is (asleep, unreachable…), + for a new space there, its dot green while connected; a click folds its spaces away, and folded, it says their longest wait. A machine rebuilt or replaced says so, and Connect adds it again the way it was added |
+| A machine | once another machine is known, a head for each: this computer first, then the others by name, how each is (asleep, unreachable…), + for a new space there on its hover, its dot green while connected; a click folds its spaces away, and folded, it says their longest wait. A machine rebuilt or replaced says so, and Connect adds it again the way it was added |
 | + | a new space |
 
 Cmd + Shift + U marks the focused agent unread, as in the TUI: its space says `waiting` again, from then, until you come
