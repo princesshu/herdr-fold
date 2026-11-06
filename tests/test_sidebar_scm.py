@@ -76,7 +76,8 @@ class View(unittest.TestCase):
         self.assertEqual(self.row_of("▾ Repositories"), 0)
         row = text(self.canvas, 1)
         self.assertEqual(row.split(), ["▣", "lumen-api", "⎇", "main*", "↻", "0↓", "1↑", "⋯"])
-        self.assertLess(1, min(self.rows_where(5, "input")))                 # the message under it
+        self.assertTrue(text(self.canvas, 2).startswith(" ▄▄▄"))              # the message's edge right under it
+        self.assertEqual(min(self.rows_where(5, "input")), 3)
         self.assertIn("Graph", text(self.canvas, self.canvas.height - 1 - len(self.graph)))   # still at the bottom
         self.assertEqual(self.click("Repositories"), Action("remember_folded", (["repositories"],)))
         self.draw()

@@ -126,7 +126,7 @@ class Scm:
             canvas.put(top, 1, truncate(line, cells - 2), Style(fg="muted"))
             return
         self.sync(status, graph)
-        below_repository = self.repository(canvas, top, status)
+        below_repository = self.repository(canvas, top, status, roomy)
         top, height = below_repository, height - (below_repository - top)       # the rest of the view under it
         side = cells - SIDE - 1                           # the AI's and the mode's buttons, a cell in from the edge
         main = side - 2                                   # the message and the commit button: a cell of air before
@@ -178,10 +178,10 @@ class Scm:
         if self.confirm:
             self.draw_confirm(canvas)
 
-    def repository(self, canvas, y, status):
+    def repository(self, canvas, y, status, roomy):
         """On top, as VS Code's Repositories: its heading (its chevron folds it), then the repository's name, ⎇ its
-        branch (* with changes), ↻ the sync (how far it is from its upstream, when it is) and ⋯ pull, push or its page
-        on GitHub. Returns the row after them."""
+        branch (* with changes), ↻ the sync (when it is behind or ahead) and ⋯ pull, push or its page on GitHub.
+        Returns the row the message starts on: right under them in a ROOMY pane (its edge their air), else one below."""
         cells, marks = canvas.width, glyphs(self.icons)
         if not self.repo:
             return y
@@ -189,8 +189,9 @@ class Scm:
         x = canvas.put(y, 1, marks["closed" if folded else "open"] + after(self.icons), Style(fg="muted"))
         canvas.put(y, x, "Repositories", Style(fg="text", bold=True))
         canvas.region(y, 0, cells, "repositories")
+        air = 1 if roomy else 2
         if folded:
-            return y + 2
+            return y + air
         y += 1
         end = cells - 2
         canvas.put(y, end, "⋯", Style(fg="muted"))
@@ -206,7 +207,7 @@ class Scm:
         x = 2 + len(after(self.icons))                    # under the heading's name, as a change's row
         x = canvas.put(y, x, marks["repo"] + after(self.icons), Style(fg="muted"))
         canvas.put(y, x, truncate(os.path.basename(self.repo.rstrip(os.sep)), max(1, end - x - 1)), Style(fg="text"))
-        return y + 2
+        return y + air
 
     def side(self, canvas, top, rows, roomy):
         """The AI's own button beside the message, as tall as it, its star in the middle."""
