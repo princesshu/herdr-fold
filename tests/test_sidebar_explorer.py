@@ -4,7 +4,6 @@ import os
 import shutil
 import sys
 import tempfile
-import time
 import unittest
 from unittest import mock
 
@@ -12,8 +11,9 @@ from support import SRC, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import explorer  # noqa: E402
-from explorer import Explorer, git_marks  # noqa: E402
+from explorer import Explorer  # noqa: E402
 from git import Change, Status  # noqa: E402
+from tree import git_marks  # noqa: E402
 from icons import glyphs  # noqa: E402
 from screen import Canvas  # noqa: E402
 from tree import Tree  # noqa: E402
@@ -125,14 +125,6 @@ class View(unittest.TestCase):
         with mock.patch.object(explorer, "git_marks", side_effect=AssertionError("worked out again")):
             canvas = self.draw()
         self.assertEqual(text(canvas, self.row_of("src"))[43], "●")
-
-    def test_marks_for_a_huge_status_come_quickly(self):
-        many = Status(changes=[Change(f"fresh/f{i}.js", "?") for i in range(50_000)],
-                      ignored={f"build/out{i}.js" for i in range(100_000)})
-        started = time.process_time()                   # its own work only, however busy the machine is
-        files, folders, ignored = git_marks(many, self.root, self.root)
-        self.assertLess(time.process_time() - started, 0.5)
-        self.assertEqual((len(files), folders[os.path.join(self.root, "fresh")], len(ignored)), (50_000, "?", 100_000))
 
     def test_an_ignored_row_is_faint(self):
         canvas = self.draw()

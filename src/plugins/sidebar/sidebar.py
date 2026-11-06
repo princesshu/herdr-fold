@@ -21,7 +21,7 @@ import panels  # noqa: E402
 import preview  # noqa: E402
 import search  # noqa: E402
 import statefile  # noqa: E402
-from explorer import Explorer, git_marks  # noqa: E402
+from explorer import Explorer  # noqa: E402
 from fileops import Ops  # noqa: E402
 from find import Find  # noqa: E402
 from issues import Issues  # noqa: E402
@@ -29,7 +29,7 @@ from loop import CODE, Loop  # noqa: E402
 from scm import Scm  # noqa: E402
 from icons import glyphs  # noqa: E402
 from screen import ROOMY, Canvas, Style, centered, truncate, width  # noqa: E402
-from tree import Tree  # noqa: E402
+from tree import Tree, git_marks  # noqa: E402
 from vt import Focus, Key, Mouse, Resize  # noqa: E402
 from widgets import Menu, wrap  # noqa: E402
 import watch  # noqa: E402

@@ -190,14 +190,20 @@ class Ops:
 
 
 def main(argv):
-    """herdr-fold's Herdr app mod runs this on the repository's machine: trash ROOT PATH sends PATH (from ROOT) to the
-    system's Trash, as the TUI sidebar does a new file it discards; JSON: where it went, else why not."""
-    if argv[1:2] != ["trash"] or len(argv) != 4:
-        print("usage: fileops.py trash ROOT PATH", file=sys.stderr)
+    """herdr-fold's Herdr app mod runs this on the space's machine, paths from ROOT: trash ROOT PATH, new-file or
+    new-folder ROOT FOLDER NAME, rename ROOT PATH NAME; JSON: where it went or what it made, else why not."""
+    command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
+    if {"trash": 2, "new-file": 3, "new-folder": 3, "rename": 3}.get(command) != len(args):
+        print("usage: fileops.py trash ROOT PATH | new-file|new-folder ROOT FOLDER NAME | rename ROOT PATH NAME",
+              file=sys.stderr)
         return 2
-    root, path = argv[2], argv[3]
+    ops, at = Ops(args[0]), os.path.join(args[0], args[1])
     try:
-        answer = {"ok": True, "where": Ops(root).trash(os.path.join(root, path))}
+        if command == "trash":
+            answer = {"ok": True, "where": ops.trash(at)}
+        else:
+            made = {"new-file": ops.new_file, "new-folder": ops.new_folder, "rename": ops.rename}[command](at, args[2])
+            answer = {"ok": True, "path": os.path.relpath(os.path.realpath(made), ops.root).replace(os.sep, "/")}
     except OSError as err:                              # Refused too: the line to show
         answer = {"ok": False, "advice": str(err)}
     print(json.dumps(answer))

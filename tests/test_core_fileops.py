@@ -134,8 +134,9 @@ class Files(unittest.TestCase):
 
 
 class CommandLine(Files):
-    """The Herdr app mod sends a new file to the Trash on the repository's machine: python3 fileops.py trash ROOT PATH,
-    answering in JSON; the system's Trash (macOS, Windows) through a stand-in, Linux's under the temporary home."""
+    """The Herdr app mod's Files and Changes on the space's machine: python3 fileops.py trash, new-file, new-folder or
+    rename, paths from ROOT, answering in JSON; the system's Trash through a stand-in, Linux's under the temporary
+    home."""
 
     def cli(self, *args):
         trashed = os.path.join(self.tmp, "trashed")
@@ -161,6 +162,27 @@ class CommandLine(Files):
             self.assertEqual((code, answer["ok"]), (0, False))
             self.assertIn("outside", answer["advice"])
         self.assertTrue(os.path.exists(os.path.join(self.home, "kept.txt")))
+
+    def test_a_new_file_and_a_new_folder_in_a_folder(self):
+        self.write("notes/a.txt")
+        self.assertEqual(self.cli("new-file", self.root, "notes", "b.txt"), (0, {"ok": True, "path": "notes/b.txt"}))
+        self.assertEqual(self.cli("new-folder", self.root, "", "docs"), (0, {"ok": True, "path": "docs"}))
+        self.assertTrue(os.path.isfile(os.path.join(self.root, "notes", "b.txt")))
+        self.assertTrue(os.path.isdir(os.path.join(self.root, "docs")))
+
+    def test_a_rename_in_its_folder(self):
+        self.write("notes/a.txt")
+        self.assertEqual(self.cli("rename", self.root, "notes/a.txt", "c.txt"),
+                         (0, {"ok": True, "path": "notes/c.txt"}))
+        self.assertTrue(os.path.isfile(os.path.join(self.root, "notes", "c.txt")))
+
+    def test_a_name_taken_or_no_name_says_why(self):
+        self.write("notes/a.txt")
+        for args in (("new-file", self.root, "notes", "a.txt"), ("new-folder", self.root, "notes", "../x"),
+                     ("rename", self.root, "notes/a.txt", ""), ("new-file", self.root, "..", "x.txt")):
+            code, answer = self.cli(*args)
+            self.assertEqual((code, answer["ok"]), (0, False), args)
+            self.assertTrue(answer["advice"], args)
 
     def test_anything_else_is_a_usage_error(self):
         self.assertEqual(self.cli("rename", self.root, "README.md"), (2, None))

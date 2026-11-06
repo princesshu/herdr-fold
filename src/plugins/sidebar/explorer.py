@@ -6,44 +6,12 @@ from dataclasses import dataclass
 
 from icons import GIT_LETTER, glyphs, icon
 from screen import GIT_ROLE, PLAIN, Canvas, Style, after, truncate
-from tree import Node
+from tree import Node, git_marks
 from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, Popup, TextInput
 
-RANK = "UDARM?"               # the stronger change gives a file's, or a folder's, mark
 LIST = 1                      # the tree's first row: right under the header
 MENU = ("New File", "New Folder", "Rename", "Copy Path", "Move to Trash")
-
-
-def stronger(code, other):
-    return other if code is None or RANK.index(other) < RANK.index(code) else code
-
-
-def git_marks(status, repo, root):
-    """Git's marks for the tree under ROOT, from a STATUS of the repository at REPO: (each changed file's mark, each
-    folder's above one, the ignored paths from the root with a folder ending in "/"). The app works them out on the
-    status job's thread: a status of 50 000 untracked files must not stall the view."""
-    marks, folders, ignored = {}, {}, set()
-    for change in [*status.staged, *status.changes]:
-        path = os.path.normpath(os.path.join(repo, change.path))
-        marks[path] = stronger(marks.get(path), change.code)
-    for path, code in marks.items():
-        folder = os.path.dirname(path)
-        while folder.startswith(root + os.sep):
-            if folders.get(folder) == stronger(folders.get(folder), code):
-                break                                   # this folder, and every one above it, has as strong a mark
-            folders[folder] = code
-            folder = os.path.dirname(folder)
-    if os.path.normcase(repo) == os.path.normcase(root):
-        return marks, folders, set(status.ignored)      # git's paths are the root's own
-    for entry in status.ignored:
-        try:
-            rel = os.path.relpath(os.path.join(repo, entry), root).replace(os.sep, "/")
-        except ValueError:                              # another drive (Windows)
-            continue
-        if rel != "." and not rel.startswith("../"):
-            ignored.add(rel + "/" if entry.endswith("/") else rel)
-    return marks, folders, ignored
 
 
 @dataclass
