@@ -34,7 +34,7 @@ from vt import Focus, Key, Mouse, Resize  # noqa: E402
 from widgets import Menu, wrap  # noqa: E402
 import watch  # noqa: E402
 
-VIEWS = {"files": "Files", "search": "Search", "git": "Changes", "issues": "Issues"}     # each with its title, a word
+VIEWS = {"files": "files", "search": "search", "git": "changes", "issues": "issues"}     # each one's title, as herdr's
 VIEW_KEYS = {"1": "files", "2": "search", "3": "git", "4": "issues", "f9": "files", "f10": "search", "f11": "git",
              "f12": "issues"}
 # linked: the issue each repository's next commit fixes, {repository: [number, title]}
@@ -47,8 +47,8 @@ TAB = 5                       # the cells of a view's tab: its icon in the middl
 TIP_DELAY = 0.5               # seconds the mouse rests on a control shown by an icon before it says what it does
 # what each such control does, by its target (a row's buttons by their kind)
 TIPS = {"suggest": "Write message", "mode": "Commit mode", "sync": "Sync", "panels": "Panes",
-        "unlink": "Unlink issue", "view:files": "Files", "view:search": "Search", "view:git": "Changes",
-        "view:issues": "Issues", "new_file": "New file", "new_folder": "New folder", "refresh": "Refresh",
+        "unlink": "Unlink issue", **{f"view:{view}": title for view, title in VIEWS.items()},
+        "new_file": "New file", "new_folder": "New folder", "refresh": "Refresh",
         "collapse": "Collapse all", "case": "Match case", "word": "Whole word", "regex": "Regular expression",
         "clear": "Clear", "stage": "Stage", "unstage": "Unstage", "discard": "Discard changes", "diff": "Show diff",
         "agent": "To agent", "web": "Open in browser", "remote": "More actions"}

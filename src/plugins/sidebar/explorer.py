@@ -8,7 +8,7 @@ from icons import GIT_LETTER, glyphs, icon
 from screen import GIT_ROLE, PLAIN, Canvas, Style, after, truncate
 from tree import Node
 from vt import Key, Mouse
-from widgets import Action, Confirm, ListView, Menu, TextInput
+from widgets import Action, Confirm, ListView, Menu, Popup, TextInput
 
 RANK = "UDARM?"               # the stronger change gives a file's, or a folder's, mark
 LIST = 1                      # the tree's first row: right under the header
@@ -53,14 +53,6 @@ class Naming:
     field: TextInput
     back: str = None          # the path chosen before, chosen again when the naming ends
     node: Node = None         # a new entry's row
-
-
-@dataclass
-class Popup:
-    menu: Menu
-    node: Node                # None: the menu of the root's empty space
-    y: int
-    x: int
 
 
 class Explorer:
@@ -386,7 +378,7 @@ class Explorer:
         self.menu = None
 
     def pick(self, choice):
-        node = self.menu.node if self.menu else None
+        node = self.menu.on if self.menu else None
         self.menu = None
         if choice in ("New File", "New Folder"):
             self.new("new_file" if choice == "New File" else "new_folder", self.folder(node))

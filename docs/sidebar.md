@@ -49,7 +49,7 @@ Cmd + Shift + G (Changes), Cmd + Shift + I (Issues), Cmd + Shift + E and Cmd + S
 at that line ([Opening a file the agent named](usage.md#opening-a-file-the-agent-named)).
 
 The ⋯ at the header's right edge (or a right click on them or the header) closes or shows back the
-tab's other panes, one by one (Close Conversations, Show terminal…), and offers Restore panels while any is closed. The
+tab's other panes, one by one (Close conversations, Show terminal…), and offers Restore panels while any is closed. The
 keys inside the sidebar are in its README.
 
 ## Colors and icons

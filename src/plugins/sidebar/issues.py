@@ -2,26 +2,18 @@
 most pressing at the top: GitHub's Priority field where the organization has it, else a priority label, a severity
 label or a word alone. The view only asks: gh runs in the app's jobs."""
 import time
-from dataclasses import dataclass, replace
+from dataclasses import replace
 
 from github import LEVELS, STATES, Query, ago, matches, priority, ranked
 from icons import glyphs
 from screen import Canvas, PLAIN, Style, truncate, width
 from vt import Key, Mouse
-from widgets import Action, Confirm, ListView, Menu, TextInput
+from widgets import Action, Confirm, ListView, Menu, Popup, TextInput
 
 KEYS = {"t": "issue_to_agent", "b": "issue_web", "r": "issue_comment", "o": "preview_issue", "enter": "preview_issue"}
 HOVER = ("agent", "web")                  # the buttons an issue shows on hover, in this order
 # a priority's traffic-light color role, by its rank (core/github.py's LEVELS)
 PRIORITY_ROLE = ("deleted", "deleted", "modified", "added")
-
-
-@dataclass
-class Popup:
-    menu: Menu
-    picks: dict               # each choice: what it does
-    y: int
-    x: int
 
 
 class Issues:
@@ -299,7 +291,7 @@ class Issues:
     def pick(self, choice):
         """CHOICE of a menu: a filter turned on or off (asked of GitHub again, but the priority), or what to do with
         the issue the menu was opened on."""
-        picks, self.menu = self.menu.picks, None
+        picks, self.menu = self.menu.on, None
         what, value = picks[choice]
         q = self.query
         if what == "assignee":

@@ -9,7 +9,7 @@ from github import since
 from icons import glyphs
 from screen import Style, centered, truncate, width
 from vt import Key, Mouse
-from widgets import Action, ListView, Menu, TextInput
+from widgets import Action, ListView, Menu, Popup, TextInput
 
 # herdr's states, as its Spaces list and AI Sessions mark and color them (unknown: its overlay0, the sidebar's
 # "ignored"); a closed conversation, which herdr has no state for, "·" in the faint guide color
@@ -35,14 +35,6 @@ def mark(state):
 class Naming:
     item: object              # the conversation renamed
     field: TextInput          # its new name, the old one to start with
-
-
-@dataclass
-class Popup:
-    menu: Menu
-    item: object              # the conversation it was opened on
-    y: int
-    x: int
 
 
 class ConversationList:
@@ -386,7 +378,7 @@ class ConversationList:
         return set(panels.KINDS) - set(self.missing)
 
     def pick(self, choice):
-        item, self.menu = self.menu.item, None
+        item, self.menu = self.menu.on, None
         bulk = self.bulk()
         if choice in bulk:
             action, items = bulk[choice]

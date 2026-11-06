@@ -56,7 +56,7 @@ class Record(unittest.TestCase):
 class Menu(unittest.TestCase):
     def test_each_other_pane_closed_or_shown_back_in_screen_order(self):
         every = {"conversations", "sidebar", "terminal"}
-        self.assertEqual(panels.menu(every, "sidebar"), ["Close Conversations", "Close terminal"])
+        self.assertEqual(panels.menu(every, "sidebar"), ["Close conversations", "Close terminal"])
         self.assertEqual(panels.menu({"conversations"}, "conversations"),
                          ["Show sidebar", "Show terminal", "Restore panels"])
         self.assertEqual(panels.chosen("Close terminal", every), ("close", "terminal"))

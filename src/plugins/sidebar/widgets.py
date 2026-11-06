@@ -344,6 +344,16 @@ class Menu:
         return self.height()
 
 
+@dataclass
+class Popup:
+    """A Menu open at Y, X over a view, and what it was opened ON: a row's item, a tree's node (None: its empty space)
+    or what each choice does."""
+    menu: Menu
+    on: object
+    y: int
+    x: int
+
+
 class Confirm:
     """A question with a yes button and Cancel; Enter presses the chosen one, which is Cancel until Tab or ← →
     chooses the other."""

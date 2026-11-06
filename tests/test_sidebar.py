@@ -129,7 +129,7 @@ class Running(Harness):
         self.until(lambda s: "project" in s and "a.txt" in s)
         canvas = self.app.canvas
         top, middle = ("".join(ch for ch, _ in canvas.rows[y]) for y in (0, 1))
-        self.assertEqual(middle.index("Files"), 1 + 3 * (sidebar.TAB + 1))      # the title right after the tabs
+        self.assertEqual(middle.index("files"), 1 + 3 * (sidebar.TAB + 1))      # the title right after the tabs
         lit = [x for x, (_, style) in enumerate(canvas.rows[1]) if style.bg == "selection"]
         self.assertEqual(len(lit), 5)                                            # the shown view's tab, lit
         self.assertEqual(len([1 for _, style in canvas.rows[1] if style.bg == "badge"]), 15)   # the other two, ⋯
@@ -140,14 +140,14 @@ class Running(Harness):
         self.until(lambda s: "project" in s)
         canvas = self.app.canvas
         middle = "".join(ch for ch, _ in canvas.rows[1])
-        title = canvas.rows[1][middle.index("Files")][1]
-        self.assertEqual((title.fg, title.bold), ("accent", True))              # as herdr's own "sessions"
+        title = canvas.rows[1][middle.index("files")][1]
+        self.assertEqual((title.fg, title.bold), ("accent", True))              # as herdr's own "spaces", lowercase
         narrow = sidebar.App(self.root, FakeTerminal(sidebar.narrowest(self.app.tabs()), 30), preview.Herdr(),
                              self.state)                                 # as narrow as it goes: no room for one
         narrow.show("git")
         narrow.draw()
         middle = "".join(ch for ch, _ in narrow.canvas.rows[1])                     # in the tabs' middle
-        self.assertEqual(middle[1 + 3 * (sidebar.TAB + 1):].split()[0], "Changes")
+        self.assertEqual(middle[1 + 3 * (sidebar.TAB + 1):].split()[0], "changes")
         search_x = 1 + sidebar.TAB + 1 + sidebar.TAB // 2                      # the second tab's icon
         self.assertEqual(canvas.rows[1][search_x][1].fg, "muted")
         self.term.type(Mouse("move", search_x, 1, 3))
@@ -646,7 +646,7 @@ class IssuesTab(Harness):
         self.until(lambda s: "Changes" in s)
         self.linked_in_settings([42, "Login fails on Safari"])
         self.term.type(Key("f9"))                                        # a view chosen: the settings saved
-        self.until(lambda s: "Files" in s and "Commit" not in s)
+        self.until(lambda s: "files" in s and "Commit" not in s)
         with open(os.path.join(self.state, "settings.json")) as f:
             settings = json.load(f)
         self.assertEqual((settings["view"], list(settings["linked"].values())),
@@ -786,7 +786,7 @@ class PaneMenu(unittest.TestCase):
     def test_it_offers_the_other_panes_and_brings_the_one_chosen(self):
         self.app.draw()
         self.app.handle(Mouse("press", 40, 0, 2))                        # the header, past the view buttons
-        self.assertEqual(self.app.menu[0].choices, ["Show Conversations", "Show terminal", "Restore panels"])
+        self.assertEqual(self.app.menu[0].choices, ["Show conversations", "Show terminal", "Restore panels"])
         self.app.draw()
         with mock.patch.object(sidebar.conversations_pane, "bring_apart",
                                lambda tab, kinds: self.brought.append((tab, set(kinds)))):
@@ -804,7 +804,7 @@ class PaneMenu(unittest.TestCase):
         self.app.draw()
         dots = "".join(ch for ch, _ in self.app.canvas.rows[1]).index("⋯")
         self.app.handle(Mouse("press", dots, 1, 0))                         # a left click
-        self.assertEqual(self.menu_rows(), ["Show Conversations", "Show terminal", "Restore panels"])
+        self.assertEqual(self.menu_rows(), ["Show conversations", "Show terminal", "Restore panels"])
         rows = ["".join(ch for ch, _ in row) for row in self.app.canvas.rows]
         top = next(y for y, row in enumerate(rows) if "┌" in row)
         self.assertEqual(top, 3)                                           # right under the ⋯ (three rows tall)
@@ -856,7 +856,7 @@ class PaneMenu(unittest.TestCase):
         self.app.herdr = mock.Mock(call=call)
         self.app.draw()
         self.app.handle(Mouse("press", 40, 0, 2))
-        self.assertEqual(self.menu_rows(), ["Close Conversations", "Close terminal"])     # not itself
+        self.assertEqual(self.menu_rows(), ["Close conversations", "Close terminal"])     # not itself
         self.app.handle(Key("down"))
         self.app.handle(Key("enter"))
         deadline = time.monotonic() + 5

@@ -9,14 +9,13 @@ import statefile
 FILE = "panels.json"
 KINDS = ("sidebar", "terminal", "conversations")
 ORDER = ("conversations", "sidebar", "terminal")        # as on screen: left to right, top to bottom
-NAMES = {"conversations": "Conversations", "sidebar": "sidebar", "terminal": "terminal"}
 RESTORE = "Restore panels"
 
 
 def menu(present, own):
     """The panes' own menus' lines for a tab with the PRESENT kinds, in the menu of the pane of kind OWN: each other
     pane closed, or shown back, in screen order; Restore panels while any is closed."""
-    lines = [f"{'Close' if kind in present else 'Show'} {NAMES[kind]}" for kind in ORDER if kind != own]
+    lines = [f"{'Close' if kind in present else 'Show'} {kind}" for kind in ORDER if kind != own]   # herdr's name
     return lines + ([RESTORE] if set(ORDER) - set(present) else [])
 
 
@@ -26,7 +25,7 @@ def chosen(line, present):
     if line == RESTORE:
         return "show", set(ORDER) - set(present)
     what, _, name = line.partition(" ")
-    kind = next((kind for kind, shown in NAMES.items() if shown == name), None)
+    kind = name if name in KINDS else None
     if what == "Close" and kind:
         return "close", kind
     return ("show", {kind}) if what == "Show" and kind else None
