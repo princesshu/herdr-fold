@@ -1,7 +1,7 @@
 // @ts-check
 // herdr-fold's own parts, which its views and its styleguide draw with: an icon, a button, a row's button, a chip.
 import { div, image, svg } from "gpui-kit";
-import { h_flex, Input } from "gpui-base";
+import { h_flex, HoverCard, Input } from "gpui-base";
 import { ICONS } from "./icons.js";
 import { LIST } from "./logic.js";
 
@@ -19,15 +19,21 @@ export const icon = (name, size = 14) => svg(ICONS[name]).size(size).flex_none()
 /** A file's icon (logic.js's fileIcon, a path), 16 square, in its own colors. @param {string} path */
 export const fileMark = (path) => image(path).size(16).flex_none();
 
-/** A button that is an icon (NAME), 26 square, saying TIP while the mouse rests on it; its press never drags what it
- * sits on (the window, a floating panel). @param {import("./icons.js").IconName} name @param {string} tip
- * @param {(cx: any) => void} act */
 export const BUTTON = 26;          // an icon button's square
 export const INDENT = 6 + 14 + 6;  // a row's content under its section's name: the head's padding, chevron and gap
-export const iconButton = (t, id, name, tip, act, { size = 14, color = t.muted } = {}) =>
-  div().id(id).relative().size(BUTTON).flex_none().flex().items_center().justify_center().rounded(6).text_color(color)
-    .cursor_pointer().tooltip(tip).hover((s) => s.bg(t.hover).text_color(t.foreground))
+
+/** A button that is an icon (NAME), 26 square, saying TIP while the mouse rests on it (LEFT: to its left, as the
+ * tab bar's end has them all, where the app's own tooltip picks its side itself); its press never drags what it sits
+ * on. @param {import("./icons.js").IconName} name @param {string} tip @param {(cx: any) => void} act */
+export const iconButton = (t, id, name, tip, act, { size = 14, color = t.muted, left = false } = {}) => {
+  const button = div().id(id).relative().size(BUTTON).flex_none().flex().items_center().justify_center().rounded(6)
+    .text_color(color).cursor_pointer().when(!left, (e) => e.tooltip(tip))
+    .hover((s) => s.bg(t.hover).text_color(t.foreground))
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => act(cx)).child(icon(name, size));
+  return left ? HoverCard.new(`${id}-tip`).anchor("top_right").open_delay(500).close_delay(0).trigger(button)
+    .content(div().mt(4).px(8).py(2).rounded(6).border_1().border_color(t.border).bg(t.popover ?? t.raised)
+      .text_size(12).text_color(t.foreground).child(tip)) : button;
+};
 
 /** A list's or a floating panel's NAME, as the app's lists: 11, medium, dim. @param {string} name */
 export const listName = (t, name) => div().text_size(11).font_medium().text_color(t.dim).child(name);

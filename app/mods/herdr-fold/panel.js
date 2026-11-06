@@ -84,7 +84,7 @@ export function runPanel(commands) {
 export function panelToggle(t) {
   const root = layout(), open = panelShown(root) && !panelRailed(root);
   return iconButton(t, "panel-open", "panel-right", open ? "Fold panel" : "Open panel",
-    () => runPanel(railToggle(layout(), keptWidth())), { size: 15 });
+    () => runPanel(railToggle(layout(), keptWidth())), { size: 15, left: true });
 }
 
 /** The right panel folded to its rail, as the left sidebar's: its views on squares, a label under each, Changes with

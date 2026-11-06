@@ -43,8 +43,8 @@ each a square with its name under it; a press floats that view beside the rail, 
 time, its head dragging it and its × closing it; a key of a view's (Cmd + Shift + C, Cmd + Shift + I) floats it too. ×
 at the end of the tabs hides the panel, and the toggle shows it again. The tab bar is herdr-fold's, drawn as the app's
 own: the space's tabs, dragged into order, a double click renaming one, a right click the app's menu, the wheel
-stepping through them; its + (New tab) starts a terminal or an agent, and every button there says what it does. A
-file, a diff, a commit or an issue opens in the space's preview tab, as in the TUI.
+stepping through them; + after the last tab (New tab) starts a terminal or an agent, and every button there says
+what it does. A file, a diff, a commit or an issue opens in the space's preview tab, as in the TUI.
 
 ## Files
 

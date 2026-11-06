@@ -1,6 +1,6 @@
 // @ts-check
 // The tab bar where the app's own was, drawn as the app draws it: the space's tabs as pills, dragged into order, a
-// double click renaming one, a right click the app's menu, the wheel stepping through them; + and the panel's toggle.
+// double click renaming one, a right click the app's menu, the wheel stepping through them; + after the last tab.
 import { div, image, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { layout, openOverlay, panes, settings, spaces, window, run as command } from "herdr";
@@ -35,16 +35,17 @@ export class TabsView {
       .on_scroll_wheel((e) => {
         if (Math.abs(e.delta.y) >= 1) command(e.delta.y > 0 ? "tab.prev" : "tab.next");
       })
-      .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(GAP).overflow_x_scrollbar()
-        .children(rows.map((r, i) => this.tab(t, r, i, rows, space))))
+      .child(h_flex().id("tab-scroll").flex_shrink(1).min_w(0).h_full().items_center().gap(GAP)
+        .overflow_x_scroll().children(rows.map((r, i) => this.tab(t, r, i, rows, space))))
       .child(iconButton(t, "tab-new", "plus", "New tab", () => openOverlay({ mod: "new-menu", kind: "popup",
         width: 250, height: 512 }), { size: 15 }))
+      .child(div().flex_1())
       .child(panelToggle(t))
       .when(Boolean(buttons), (e) => e.child(h_flex().pl(8).gap(GAP)
-        .child(iconButton(t, "window-minimize", "minus", "Minimize", () => command("window.minimize")))
+        .child(iconButton(t, "window-minimize", "minus", "Minimize", () => command("window.minimize"), { left: true }))
         .child(iconButton(t, "window-maximize", buttons.maximized ? "copy" : "square",
-          buttons.maximized ? "Restore" : "Maximize", () => command("window.maximize"), { size: 13 }))
-        .child(iconButton(t, "window-close", "x", "Close", () => command("window.close")))));
+          buttons.maximized ? "Restore" : "Maximize", () => command("window.maximize"), { size: 13, left: true }))
+        .child(iconButton(t, "window-close", "x", "Close", () => command("window.close"), { left: true }))));
   }
 
   /** A tab's pill, as the panel's tabs: an agent's icon, its name, a working agent's spinner or a state's dot, and

@@ -337,7 +337,7 @@ function sections(g, t) {
         { width: 2 * PANEL, spec: "h 28 · px 12, 8 by the × · radius 6 · gap 4, 6 inside · × shown and on hover" }),
       specimen(t, "tab-bar-buttons", "Off macOS: the window's buttons",
         div().h(42).child(tabBar(t, { maximized: false }, null)),
-        { width: 2 * PANEL, spec: "+ New tab, the panel's toggle, the window's own · each its tip and the hand" })]),
+        { width: 2 * PANEL, spec: "+ after the last tab · the panel's toggle, the window's own: tips to the left" })]),
       group(t, "Panel tabs", [...g.tabs.map(([name, state], i) => specimen(t, `tabs-${i}`, name,
         div().h(40).child(panelTabs(t, state)), { spec: i ? "" : "h 28 · radius 6 · gap 4 · the shown one raised" }))]),
       group(t, "The panel folded to its rail", [
