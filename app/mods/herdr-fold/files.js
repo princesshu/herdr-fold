@@ -267,7 +267,7 @@ export class FilesView {
       .child(div().w(12).flex_none().when(dir, (e) => e.child(icon(open ? "chevron-down" : "chevron-right", 12))))
       .child(fileMark(dir ? folderIcon(open) : fileIcon(name)))
       .child(renaming ? this.field(t) : div().flex_1().min_w(0).truncate().text_color(color).child(name))
-      .when(asking, (e) => e.child(div().text_size(11).text_color(t.ansi1).child("Move to Trash?"))
+      .when(asking, (e) => e.child(div().flex_none().text_size(11).text_color(t.ansi1).child("Move to Trash?"))
         .child(h_flex().gap(GAP)
           .child(small(t, `${path}-keep`, "Cancel", "Keep it", true, (cx) => this.drop(cx)))
           .child(small(t, `${path}-trash`, "Move", "Move to Trash", true, (cx) => this.trash(path, cx)))))

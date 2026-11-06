@@ -87,6 +87,8 @@ All notable changes to this project are listed here. The format follows
 - Cmd + Shift + I opens the sidebar's Issues view: the key herdr sends it for that (F12) was not read.
 - The AI's button beside a commit message of several lines has its star in the middle: the field opens to an odd
   number of rows, up to seven, a message of two lines with an empty third.
+- In the Herdr app mod, a changed file asked about before a discard keeps its name clear of the question: the name
+  is cut short, and "Discard?", "Discard all?" and "Move to Trash?" stay whole.
 
 ### Security
 

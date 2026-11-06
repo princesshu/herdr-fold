@@ -684,7 +684,7 @@ export default class HerdrFold extends View {
       .on_click((_e, cx) => this.fold(kind, cx))
       .child(icon(this.folded.has(kind) ? "chevron-right" : "chevron-down").text_color(t.muted))
       .child(div().flex_1().min_w(0).truncate().font_bold().child(title))
-      .when(asking, (e) => e.child(div().text_size(11).text_color(t.ansi1).child("Discard all?")))
+      .when(asking, (e) => e.child(div().flex_none().text_size(11).text_color(t.ansi1).child("Discard all?")))
       .when((this.hovered === key || asking) && files.length > 0, (e) => e.child(h_flex().gap(GAP)
         .when(asking, (e) => e.child(small(t, `${key}-cancel`, "Cancel", "Keep changes", this.ready,
           (cx) => this.unask(cx))))
@@ -707,9 +707,9 @@ export default class HerdrFold extends View {
       .on_click((_e, cx) => this.pick(key, { kind: "diff", path }, cx))
       .child(fileMark(fileIcon(name)))
       .child(h_flex().flex_1().min_w(0).gap(6).items_center()
-        .child(div().flex_none().when(code === "D", (e) => e.line_through()).child(name))
+        .child(div().min_w(0).truncate().when(code === "D", (e) => e.line_through()).child(name))
         .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(parts.join("/"))))
-      .when(asking, (e) => e.child(div().text_size(11).text_color(t.ansi1).child("Discard?")))
+      .when(asking, (e) => e.child(div().flex_none().text_size(11).text_color(t.ansi1).child("Discard?")))
       .when(this.hovered === key || asking, (e) => e.child(h_flex().gap(GAP)
         .when(asking, (e) => e.child(small(t, `${key}-cancel`, "Cancel", "Keep change", this.ready,
           (cx) => this.unask(cx))))
