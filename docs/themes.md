@@ -37,4 +37,5 @@ icon](../assets/screenshots/themes.webp)
 
 Where each theme's colors come from: [Third-party notices](../THIRD_PARTY_NOTICES.md#themes).
 
-When you run the installer again, it offers the current theme: the TUI's, else the Herdr app's. `./tools/sync.sh` also makes it the package's default.
+When you run the installer again, it offers the current theme: the TUI's, else the Herdr app's. `./tools/sync.sh`
+also makes it the package's default.
