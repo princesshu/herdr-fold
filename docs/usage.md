@@ -123,6 +123,7 @@ Cmd + Shift + C commits and pushes the repo of the focused pane, in one step:
   private name (this Mac's names, your full name) the changes do not is dropped: the next AI tries, or you type the
   message.
 - You see the whole message first: Enter commits and pushes, `e` edits, `r` asks for a new one, Esc cancels.
+- With nothing to commit and the branch ahead of its upstream, it offers to push those commits: Enter pushes them.
 
 It works for repos on this Mac; on a remote machine, use the sidebar's Changes view. In the Herdr app, Cmd + Shift + C
 does it in the Changes view, on any machine: [Keys](app.md#keys).

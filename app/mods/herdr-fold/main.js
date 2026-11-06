@@ -7,7 +7,7 @@ import { spaces, panes, focused, exec, hc, home, watchFolder, nextCommand, theme
   shared, setShared, readTextFile, run as command } from "herdr";
 import { COMMIT_MESSAGE, FILEOPS, GIT, SEARCH } from "./helper.js";
 import { afterCommit, background, branchLabel, changeName, commitMode, excerpt, fileIcon, foldedSections, lastLine,
-  launcher, letter, marked, MODES, panelToggle, pythonCommand, rowActions, said, searchRows, searchSummary,
+  launcher, letter, marked, MODES, panelToggle, pushOffer, pythonCommand, rowActions, said, searchRows, searchSummary,
   secretQuestion, syncLabel, written } from "./logic.js";
 import { button, chip, END, field, fileMark, GAP, icon, SLIDE, small } from "./parts.js";
 import { Menus, menuPopup } from "./menus.js";
@@ -154,14 +154,17 @@ export default class HerdrFold extends View {
     this.mode = commitMode(shared(MODE));
     /** @type {"push" | null} Cmd + Shift + C's mode, for its one commit */
     this.once = null;
+    /** @type {string | null} Cmd + Shift + C's question with nothing to commit: a push of the commits ahead */
+    this.offer = null;
     this.folded = foldedSections(shared(FOLDED));
     this.input = InputState.new({ placeholder: "Commit message" });
     this.input.on("change", (_e, cx) => {
       const had = Boolean(this.message.trim());
       this.message = this.input.value();
+      if (this.message.trim()) this.offer = null;          // a message typed gives the push asked about up
       if (had !== Boolean(this.message.trim())) cx.notify();
     });
-    this.input.on("submit", (_e, cx) => this.commit(cx));
+    this.input.on("submit", (_e, cx) => this.submit(cx));
     this.refresh(cx);
     cx.timer.every(REFRESH, (cx) => this.refresh(cx));
     cx.spawn(async (cx) => {
@@ -185,7 +188,7 @@ export default class HerdrFold extends View {
     const here = place(), key = JSON.stringify(here);
     if (key !== this.key) {
       Object.assign(this, { key, root: null, commits: [], status: null, open: null, note: null,
-        asked: null, confirm: null, github: null, linked: null, head: null, once: null });
+        asked: null, confirm: null, github: null, linked: null, head: null, once: null, offer: null });
       this.issues.reset();
       this.publish();
     }
@@ -204,7 +207,7 @@ export default class HerdrFold extends View {
           root, here.on) : { linked: null, head: null };
         if (key !== this.key) return;
         Object.assign(this, { root, on: here.on, status, commits, github, linked: settled.linked,
-          head: settled.head ?? this.head });
+          head: settled.head ?? this.head, offer: this.offer && pushOffer(status) });   // asked anew: pushed, changed
         if (this.view === "issues" && github && !this.issues.listing && !this.issues.asked) this.issues.load(cx);
         this.watch(cx);
       } catch (e) {
@@ -368,11 +371,14 @@ export default class HerdrFold extends View {
   }
 
   /** Commit and push in one step, as the TUI's Cmd + Shift + C: the message written into the field, and Commit & Push
-   * for this one commit; Enter commits and pushes, the field changes it, ✦ writes another, Esc cancels. */
+   * for this one commit; Enter commits and pushes, the field changes it, ✦ writes another, Esc cancels. With nothing
+   * to commit, the commits ahead are offered to push, as there: Enter or Push pushes them. */
   commitPush(cx) {
     if (this.busy || !this.root) return;            // as act(): a key never lost to a refresh under way
     if (!this.changed) {
-      this.note = "Nothing to commit";
+      this.offer = pushOffer(this.status);
+      this.note = this.offer ? null : "Nothing to commit";
+      if (this.offer) this.input.focus();
       return void cx.notify();
     }
     this.once = "push";
@@ -380,10 +386,17 @@ export default class HerdrFold extends View {
     this.write(cx);
   }
 
-  /** Cmd + Shift + C's commit given up (Esc, once its message is written): the message gone, the mode the kept one. */
+  /** Enter or the Commit button: the push Cmd + Shift + C asked about, else the commit. */
+  submit(cx) {
+    if (!this.offer) return this.commit(cx);
+    this.offer = null;
+    this.sync(cx, "push");
+  }
+
+  /** Cmd + Shift + C's commit or push given up (Esc): the message gone, the mode the kept one. */
   cancel(cx) {
-    if (!this.once || this.busy) return;
-    Object.assign(this, { once: null, message: "", note: null });
+    if (!(this.once || this.offer) || this.busy) return;
+    Object.assign(this, { once: null, offer: null, message: "", note: null });
     this.input.set_value("");
     cx.notify();
   }
@@ -744,11 +757,11 @@ export default class HerdrFold extends View {
   }
 
   /** Under the repository, as the TUI sidebar has it: the message and its ✦, then Commit across, its arrow choosing
-   * the mode. */
+   * the mode; under them Cmd + Shift + C's question, when it asks to push. */
   composer(t) {
-    const commit = this.ready && Boolean(this.message.trim());
+    const commit = this.ready && (Boolean(this.message.trim()) || Boolean(this.offer));
     const label = this.busy ?? h_flex().gap(8).items_center().child(icon("check"))
-      .child(`${MODES[this.once ?? this.mode]}${this.asked ? " anyway" : ""}`);
+      .child(this.offer ? "Push" : `${MODES[this.once ?? this.mode]}${this.asked ? " anyway" : ""}`);
     return v_flex().flex_none().p(10).gap(8).border_b(1).border_color(t.border)
       .child(h_flex().gap(8)
         .child(div().id("message").flex_1().min_w(0).h(32).px(10).flex().items_center().rounded(8).border_1()
@@ -757,10 +770,11 @@ export default class HerdrFold extends View {
         .child(button(t, "write", icon("sparkles", 15), this.ready, false, (cx) => this.write(cx))
           .bg(t.selection).text_color(this.ready ? t.accent : t.muted).tooltip("Write message")))
       .child(h_flex().gap(8)
-        .child(button(t, "commit", label, commit, true, (cx) => this.commit(cx)).flex_1().justify_center())
+        .child(button(t, "commit", label, commit, true, (cx) => this.submit(cx)).flex_1().justify_center())
         .child(button(t, "mode", icon("chevron-down"), this.ready, true,
           () => this.menus.open(this.modes, this.pressed))
           .on_mouse_down("left", (e) => (this.pressed = e.bounds)).tooltip("Commit mode")))
+      .when(Boolean(this.offer), (e) => e.child(div().text_size(12).text_color(t.foreground).child(this.offer ?? "")))
       .when(Boolean(this.linked), (e) => e.child(fixesLine(t, this.linked, (cx) => this.unlink(cx))));
   }
 }

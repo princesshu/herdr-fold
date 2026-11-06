@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { afterCommit, background, branchLabel, changeName, commitMode, commitRows, conversationChoices,
   conversationRows, coreAgents, diffRows, excerpt, floatHeight, foldedSections, foldedWidth, folderSpaces, issueAgent,
   lastLine, launcher, letter, machineOf, marked, MODES, PANEL, PANEL_BODY, panelShown, panelToggle, previewName,
-  previewTab, priorityColor, pythonCommand, railed, resumeArgv, rowActions, safeMarkdown, said, searchRows,
+  previewTab, priorityColor, pushOffer, pythonCommand, railed, resumeArgv, rowActions, safeMarkdown, said, searchRows,
   searchSummary, secretQuestion, shownTab, strays, syncLabel, tabLabel, TALL, terminalId, TERMINALS,
   urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread, spaceWaits, placeLabel, nested,
   spaceColors, avatarFill, MARK, listBody, listHeight }
@@ -144,6 +144,16 @@ test("the sync button says how far the branch is from its upstream, as VS Code's
   assert.equal(syncLabel({ upstream: "origin/main", ahead: 0, behind: 0 }), "");
   assert.equal(syncLabel({ upstream: null, ahead: 0, behind: 0 }), "");
   assert.equal(syncLabel(null), "");
+});
+
+test("nothing to commit with commits ahead offers their push, as the TUI's Cmd + Shift + C does", () => {
+  const status = { staged: [], changes: [], upstream: "origin/main", ahead: 2, behind: 0 };
+  assert.equal(pushOffer(status), "Nothing to commit. Push 2 commits?");
+  assert.equal(pushOffer({ ...status, ahead: 1 }), "Nothing to commit. Push 1 commit?");
+  assert.equal(pushOffer({ ...status, ahead: 0 }), null);
+  assert.equal(pushOffer({ ...status, upstream: null }), null);
+  assert.equal(pushOffer({ ...status, changes: [{ path: "a.txt", code: "M" }] }), null);
+  assert.equal(pushOffer(null), null);
 });
 
 test("the repository row's branch, as the TUI's footer names it: * with changes, detached without one", () => {

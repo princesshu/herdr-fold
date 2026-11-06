@@ -164,7 +164,7 @@ In the herdr-fold layout:
 | Key | What it does |
 |---|---|
 | Cmd + Shift + G | shows the right panel at Changes; again hides it |
-| Cmd + Shift + C | commits and pushes in one step, as in the TUI: Claude or Codex writes the message into the field, and Commit says Commit & Push for this one commit; Enter commits and pushes, the field changes the message, ✦ writes another, Esc cancels |
+| Cmd + Shift + C | commits and pushes in one step, as in the TUI: Claude or Codex writes the message into the field, and Commit says Commit & Push for this one commit; Enter commits and pushes, the field changes the message, ✦ writes another, Esc cancels; with nothing to commit, it offers to push the commits ahead, and Enter or Push pushes them |
 | Cmd + Shift + I | shows Issues, as in the TUI |
 | Cmd + Shift + R | gives Conversations' filter the keys, as in the TUI |
 | Cmd + Shift + U | marks the focused agent unread: its space says `waiting` again, as in the TUI |

@@ -283,6 +283,13 @@ export function syncLabel(status) {
   return status?.upstream && (status.behind || status.ahead) ? `${status.behind}↓ ${status.ahead}↑` : "";
 }
 
+/** Cmd + Shift + C's question with nothing to commit and commits ahead of the upstream, as the TUI's asks; else null.
+ * @param {any} status @returns {string | null} */
+export function pushOffer(status) {
+  if (!status?.upstream || !status.ahead || status.staged.length || status.changes.length) return null;
+  return `Nothing to commit. Push ${status.ahead} commit${status.ahead === 1 ? "" : "s"}?`;
+}
+
 /** The repository row's branch, as the TUI sidebar's footer names it: * after it with changes; detached without one.
  * @param {any} status */
 export function branchLabel(status) {

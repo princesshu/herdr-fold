@@ -4,7 +4,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState } from "gpui-base";
 import { BY_EXTENSION, BY_NAME, FILE, ICONS } from "./icons.js";
-import { commitRows, conversationRows, diffRows, foldedSections, listHeight, searchRows } from "./logic.js";
+import { commitRows, conversationRows, diffRows, foldedSections, listHeight, pushOffer, searchRows } from "./logic.js";
 import { ConversationsView } from "./conversations.js";
 import { IssuesView } from "./issues.js";
 import { button, chip, fileMark, icon, small } from "./parts.js";
@@ -20,7 +20,7 @@ const TAB = 540;                    // a specimen of the preview tab, two side b
 const SIDEBAR = 268;                // a specimen as wide as the left sidebar
 // what the views' clicks would do: nothing, here
 const INERT = ["act", "change", "choose", "commit", "fold", "later", "pick", "refresh", "reveal", "search", "show",
-  "sync", "unask", "unlink", "watch", "write"];
+  "submit", "sync", "unask", "unlink", "watch", "write"];
 const INERT_ISSUES = ["act", "change", "filter", "load", "open", "terminal", "toAgent", "unask"];
 const INERT_CONVERSATIONS = ["ask", "copy", "load", "look", "open", "pick", "rename", "watch"];
 
@@ -107,7 +107,7 @@ function made(proto, fields = {}) {
   const state = Object.assign(Object.create(proto), {
     view: "changes", root: "/work/lumen-api", on: null, key: "styleguide", status: STATUS,
     github: "lumenworks/lumen-api", linked: null, commits: COMMITS, message: "", busy: null, asked: null, confirm: null,
-    open: null, hovered: null,
+    open: null, hovered: null, offer: null,
     mode: "commit", folded: foldedSections([]), note: null, loading: false, searching: false,
     switches: { case: false, word: false, regex: false }, found: null, searched: null, results: [], peek: null,
     peekRows: [], input: InputState.new({ placeholder: "Commit message" }),
@@ -163,6 +163,8 @@ export function guide(proto) {
     composer: [["Empty", at()], ["Filled", at({ message: MESSAGE })], ["Busy", at({ busy: "Writing the message…" })],
       ["Asking", at({ message: MESSAGE, asked: [".env"] })],
       ["Commit & Push", at({ message: MESSAGE, mode: "push" })],
+      ["Offering a push", at({ status: { ...STATUS, staged: [], changes: [] },
+        offer: pushOffer({ ...STATUS, staged: [], changes: [] }) })],
       ["Fixes an issue", at({ message: MESSAGE, linked: [42, LISTED[0].title] })]],
     sections: [["Default", at()], ["Hover", at({ hovered: "section-changes" })],
       ["Asking", at({ confirm: "section-changes" })], ["Folded", at({ folded: foldedSections(["changes"]) })]],
