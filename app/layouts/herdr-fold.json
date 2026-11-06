@@ -181,7 +181,7 @@
               "size": {
                 "px": 368
               },
-              "min": 280,
+              "min": 44,
               "max": 900,
               "children": [
                 {
@@ -261,6 +261,17 @@
                       }
                     }
                   ]
+                },
+                {
+                  "id": "panel-rail",
+                  "type": "block",
+                  "hidden": true,
+                  "content": {
+                    "mod": "herdr-fold",
+                    "props": {
+                      "part": "rail"
+                    }
+                  }
                 }
               ],
               "gap": 8

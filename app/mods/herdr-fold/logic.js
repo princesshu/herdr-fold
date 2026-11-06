@@ -354,6 +354,9 @@ export const foldedWidth = (root, macos, kept) => (railed(root) ? kept ?? 268 : 
 // the layout's right panel and the stack of its views: herdr-fold's own ids, so the app's tab bar, which shows and
 // hides a panel by space under the app's ids, leaves it alone
 export const PANEL = "fold-panel", PANEL_BODY = "fold-panel-body";
+export const RAIL_BLOCK = "panel-rail";      // the right panel's block while it is folded to its rail
+export const RAIL = 44;                      // px: the right panel folded to its rail
+export const PANEL_PX = 368;                 // px: the right panel open, unless it kept another width
 
 export const TALL = 440;          // a panel floating beside the folded sidebar, at most
 
@@ -510,7 +513,7 @@ export function panelShown(root) {
   return Boolean(panel && !panel.hidden);
 }
 
-/** The right panel's tab shown in layout ROOT: Files while the app's Files block shows, else VIEW (the view kept),
+/** The right panel's tab shown in layout ROOT: Files while its block shows, else VIEW (the view kept),
  * Issues only for a repository on GitHub (GITHUB), else Changes. @param {any} root @param {unknown} view
  * @param {boolean} github @returns {"changes" | "search" | "issues" | "files"} */
 export function shownTab(root, view, github) {
@@ -522,12 +525,60 @@ export function shownTab(root, view, github) {
  * @param {any} props @returns {string | null} */
 export const launcher = (props) => (props?.overlay && !props.part ? props.overlay : null);
 
-/** What Cmd+Shift+G runs in layout ROOT: the right panel shown at Changes, or hidden when it shows that already.
- * @param {any} root */
-export function panelToggle(root) {
-  const panel = find(root, PANEL), body = find(root, PANEL_BODY);
-  return panel && !panel.hidden && body?.active === "changes" ? [["layout.hide", { id: PANEL }]]
-    : [["layout.select", { stack: PANEL_BODY, child: "changes" }], ["layout.show", { id: PANEL }]];
+/** Layout ROOT's right panel's width in px, or null. @param {any} root @returns {number | null} */
+export const panelPx = (root) => find(root, PANEL)?.size?.px ?? null;
+
+/** Whether layout ROOT's right panel is its rail: narrower than a sidebar's rail starts. @param {any} root */
+export const panelRailed = (root) => (panelPx(root) ?? Infinity) < RAIL_BELOW;
+
+/** The commands that make ROOT's right panel show what its width says, a drag's too: its rail's block, at RAIL px, or
+ * its stacks; nothing while it is hidden. @param {any} root @returns {[string, any][]} */
+export function railFollow(root) {
+  const panel = find(root, PANEL);
+  if (!panel || panel.hidden) return [];
+  const railed = panelRailed(root);
+  /** @type {[string, boolean][]} */
+  const blocks = [[PANEL_BODY, !railed], [TERMINALS, !railed], [RAIL_BLOCK, railed]];
+  return [...blocks.filter(([id, on]) => find(root, id) && !find(root, id).hidden !== on)
+    .map(([id, on]) => /** @type {[string, any]} */ ([on ? "layout.show" : "layout.hide", { id }])),
+  ...(railed && panel.size?.px !== RAIL ? [/** @type {[string, any]} */ (["layout.resize", { id: PANEL, px: RAIL }])]
+    : [])];
+}
+
+/** COMMANDS, then what ROOT's right panel, shown PX wide, has to show. @param {any} root @param {number} px
+ * @param {[string, any][]} commands */
+function panelAt(root, px, commands) {
+  const after = JSON.parse(JSON.stringify(root));
+  Object.assign(find(after, PANEL), { hidden: false, size: { px } });
+  return [...commands, ...railFollow(after)];
+}
+
+/** ROOT's right panel folded to its rail. @param {any} root */
+const railFold = (root) => panelAt(root, RAIL, [["layout.resize", { id: PANEL, px: RAIL }]]);
+
+/** ROOT's right panel shown open: KEPT px wide (the width it had, else PANEL_PX) when it was a rail. @param {any} root
+ * @param {number | undefined} kept @returns {[string, any][]} */
+function railOpen(root, kept) {
+  const panel = find(root, PANEL), px = panelRailed(root) ? kept ?? PANEL_PX : panel.size?.px ?? PANEL_PX;
+  return panelAt(root, px, [...(panel.hidden ? [/** @type {[string, any]} */ (["layout.show", { id: PANEL }])] : []),
+    ["layout.resize", { id: PANEL, px }]]);
+}
+
+/** The toggle's commands at the tab bar's right end: an open right panel folded to its rail, else opened (KEPT px
+ * wide when it was a rail). @param {any} root @param {number | undefined} kept */
+export function railToggle(root, kept) {
+  const panel = find(root, PANEL);
+  if (!panel) return [];
+  return !panel.hidden && !panelRailed(root) ? railFold(root) : railOpen(root, kept);
+}
+
+/** What Cmd+Shift+G runs in layout ROOT: the right panel opened at Changes (KEPT px wide from its rail), or folded to
+ * its rail when it shows Changes already. @param {any} root @param {number | undefined} kept */
+export function panelToggle(root, kept) {
+  const panel = find(root, PANEL), open = panel && !panel.hidden && !panelRailed(root);
+  if (!panel) return [];
+  if (open && find(root, PANEL_BODY)?.active === "changes") return railFold(root);
+  return [["layout.select", { stack: PANEL_BODY, child: "changes" }], ...(open ? [] : railOpen(root, kept))];
 }
 
 /** The stack under the panel's views showing the focused tab's own terminal, as the TUI's right column does; its
@@ -537,6 +588,13 @@ const PREFIX = "fold-terminal-", NONE = "fold-terminal-none";
 
 /** The layout id of TAB's terminal in that stack. @param {string} tab */
 export const terminalId = (tab) => PREFIX + tab.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+
+/** The tab's terminal the layout ROOT's stack shows (its address), for the rail's float; null while its stand-in shows.
+ * @param {any} root @returns {string | null} */
+export function activeTerminal(root) {
+  const stack = find(root, TERMINALS), shown = stack?.children?.find((c) => c.id === stack.active);
+  return typeof shown?.content?.terminal === "string" ? shown.content.terminal : null;
+}
 
 /** A terminal's machine, from its address (`lab/t7`): null for this computer's. @param {string} address */
 export const machineOf = (address) => (address.includes("/") ? address.split("/")[0] : null);

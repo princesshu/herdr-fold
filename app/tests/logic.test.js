@@ -12,7 +12,8 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   panelToggle, previewName, previewTab, priorityColor, pushOffer, pythonCommand, railed, resumeArgv, rowActions,
   safeMarkdown, said, searchRows, searchSummary, secretQuestion, shownTab, strays, syncLabel, tabLabel, TALL,
   terminalId, TERMINALS, urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread,
-  spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight }
+  spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow,
+  railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal }
   from "../mods/herdr-fold/logic.js";
 
 test("a diff's lines numbered once, old and new apart; no hunk header, a gap between two hunks", () => {
@@ -80,6 +81,14 @@ test("a tab's terminal in the panel's stack: added once, its address kept up to 
   const moved = withTerminal(first.tree, "tb42", "lab/t9");
   assert.equal(moved.changed, true);
   assert.deepEqual(moved.tree.children[0].children[1].children[1].content, { terminal: "lab/t9" });
+});
+
+test("the tab's terminal the stack shows, for the rail's float: none while the stand-in shows", () => {
+  const two = withTerminal(tree(), "tb1", "lab/t1").tree;
+  assert.equal(activeTerminal(two), null);
+  two.children[0].children[1].active = terminalId("tb1");
+  assert.equal(activeTerminal(two), "lab/t1");
+  assert.equal(activeTerminal({ id: "root" }), null);
 });
 
 test("the terminals of tabs that are gone come out of the stack; the stand-in and the live ones stay", () => {
@@ -346,18 +355,47 @@ test("files named like secrets are asked about before a commit, in the TUI sideb
     "a.key, b.key, c.key and 2 more look like secrets. Commit them anyway?");
 });
 
-test("Cmd+Shift+G shows the right panel at herdr-fold, as the Changes button does, or hides it from there", () => {
-  /** @param {boolean} hidden @param {string} active */
-  const tree = (hidden, active) => ({ id: "root", children: [{ id: "work", children: [{ id: PANEL, hidden,
-    children: [{ id: PANEL_BODY, type: "stack", active, children: [{ id: "files" }, { id: "changes" }] }] }] }] });
-  const show = [["layout.select", { stack: PANEL_BODY, child: "changes" }], ["layout.show", { id: PANEL }]];
-  assert.deepEqual(panelToggle(tree(true, "changes")), show);
-  assert.deepEqual(panelToggle(tree(false, "files")), show);
-  assert.deepEqual(panelToggle(tree(false, "changes")), [["layout.hide", { id: PANEL }]]);
+test("Cmd+Shift+G opens the right panel at Changes, or folds it to its rail from there", () => {
+  /** @param {boolean} hidden @param {string} active @param {number} [px] */
+  const tree = (hidden, active, px = PANEL_PX) => ({ id: "root", children: [{ id: "work", children: [{ id: PANEL,
+    hidden, size: { px }, children: [{ id: PANEL_BODY, type: "stack", active, children: [{ id: "files" },
+      { id: "changes" }] }] }] }] });
+  const select = ["layout.select", { stack: PANEL_BODY, child: "changes" }];
+  assert.deepEqual(panelToggle(tree(true, "changes"), undefined),
+    [select, ["layout.show", { id: PANEL }], ["layout.resize", { id: PANEL, px: PANEL_PX }]]);
+  assert.deepEqual(panelToggle(tree(false, "files"), undefined), [select]);
+  assert.deepEqual(panelToggle(tree(false, "changes"), undefined),
+    [["layout.resize", { id: PANEL, px: RAIL }], ["layout.hide", { id: PANEL_BODY }]]);
+  assert.deepEqual(panelToggle(tree(false, "changes", RAIL), 400), [select, ["layout.resize", { id: PANEL, px: 400 }]]);
   assert.deepEqual([PANEL, PANEL_BODY], ["fold-panel", "fold-panel-body"]);     // not the app's: its tab bar keeps out
   assert.equal(panelShown(tree(false, "files")), true);
   assert.equal(panelShown(tree(true, "changes")), false);
   assert.equal(panelShown({ id: "root" }), false);
+});
+
+test("the right panel folds to its rail and opens again, as its toggle and a drag do it", () => {
+  /** @param {number} px @param {{ hidden?: boolean, rail?: boolean }} [shown] */
+  const tree = (px, { hidden = false, rail = false } = {}) => ({ id: "root", children: [{ id: PANEL, hidden,
+    size: { px }, children: [{ id: PANEL_BODY, hidden: rail }, { id: TERMINALS, hidden: rail },
+      { id: RAIL_BLOCK, hidden: !rail }] }] });
+  /** @param {boolean} open */
+  const blocks = (open) => [[open ? "layout.show" : "layout.hide", { id: PANEL_BODY }],
+    [open ? "layout.show" : "layout.hide", { id: TERMINALS }],
+    [open ? "layout.hide" : "layout.show", { id: RAIL_BLOCK }]];
+  assert.equal(panelRailed(tree(RAIL, { rail: true })), true);
+  assert.equal(panelRailed(tree(PANEL_PX)), false);
+  assert.deepEqual(railToggle(tree(420), 368), [["layout.resize", { id: PANEL, px: RAIL }], ...blocks(false)]);
+  assert.deepEqual(railToggle(tree(RAIL, { rail: true }), 420), [["layout.resize", { id: PANEL, px: 420 }],
+    ...blocks(true)]);
+  assert.deepEqual(railToggle(tree(RAIL, { rail: true }), undefined)[0],
+    ["layout.resize", { id: PANEL, px: PANEL_PX }]);
+  assert.deepEqual(railToggle(tree(420, { hidden: true }), 368), [["layout.show", { id: PANEL }],
+    ["layout.resize", { id: PANEL, px: 420 }]]);
+  // dragged narrow: the rail, at its own width; dragged wide again: the stacks; hidden: nothing
+  assert.deepEqual(railFollow(tree(120)), [...blocks(false), ["layout.resize", { id: PANEL, px: RAIL }]]);
+  assert.deepEqual(railFollow(tree(300, { rail: true })), blocks(true));
+  assert.deepEqual(railFollow(tree(RAIL, { rail: true })), []);
+  assert.deepEqual(railFollow(tree(120, { hidden: true })), []);
 });
 
 test("the right panel's tab shown: Files while the app's Files shows, else the view kept, Issues on GitHub", () => {

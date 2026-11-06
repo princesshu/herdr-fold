@@ -8,9 +8,10 @@ It comes with a layout of its own, `herdr-fold`: the app's main layout, with her
 app's own Changes was, above the tab's own terminal, as the TUI's right column has them, and in the left sidebar its own
 Spaces list, where the app's was, and under it its Conversations, where the app's Agents list was; a pane has no header,
 as in the TUI (the grip on its top edge still drags it). The toggle at the top right, where the app's Files and Changes
-buttons were, shows and hides it, and so does Cmd + Shift + G. The layout is dark, in the TUI's own colors (its theme,
-`themes/herdr-fold.json`, is made from the TUI's); its terminals and code are in Menlo, as VS Code's (on Linux and
-Windows the app's JetBrains Mono), at the TUI's size, 13; the app's theme and font menus change them.
+buttons were, folds it to a rail of icons and opens it again, and so does Cmd + Shift + G. The layout is dark, in the
+TUI's own colors (its theme, `themes/herdr-fold.json`, is made from the TUI's); its terminals and code are in Menlo, as
+VS Code's (on Linux and Windows the app's JetBrains Mono), at the TUI's size, 13; the app's theme and font menus change
+them.
 
 Its icons are Lucide's, a file's Catppuccin Icons' for its type, as the TUI sidebar tells the types apart
 (`core/icons.py`); `tools/icons.py` fetches both from Iconify into `app/mods/herdr-fold/icons/`, and `icons.js` names
@@ -35,9 +36,14 @@ The TUI's themes come along, for any layout: Settings lists each under its file'
 
 Its views are tabs of one panel group, as Adobe's panels are grouped, in VS Code's order: Files, Search, Changes and,
 for a repository on GitHub, Issues; the shown one on a raised pad, Changes with its changed files' count in a round
-badge, as VS Code's; it keeps the one shown. × at the end of the tabs closes the panel, and the toggle at the tab bar's
-right end (or Cmd + Shift + G) opens it again: while this layout shows, the app's own Files and Changes buttons are off
-its tab bar, and back as it goes. A file, a diff, a commit or an issue opens in the space's preview tab, as in the TUI.
+badge, as VS Code's; it keeps the one shown. The toggle at the tab bar's right end (or Cmd + Shift + G) folds the panel
+to a rail, as the left sidebar folds, and opens it again as wide as it was; dragged narrower than 160 px, it folds too.
+The rail, as Adobe's collapsed panels: Files, Search, Changes with its count, Issues on GitHub and the tab's Terminal,
+each a square with its name under it; a press floats that view beside the rail, nearly as tall as the window, one at a
+time, its head dragging it and its × closing it; a key of a view's (Cmd + Shift + C, Cmd + Shift + I) floats it too. ×
+at the end of the tabs hides the panel, and the toggle shows it again. While this layout shows, the app's own Files and
+Changes buttons are off its tab bar, and back as it goes. A file, a diff, a commit or an issue opens in the space's
+preview tab, as in the TUI.
 
 ## Files
 
@@ -178,7 +184,7 @@ In the herdr-fold layout:
 
 | Key | What it does |
 |---|---|
-| Cmd + Shift + G | shows the right panel at Changes; again hides it |
+| Cmd + Shift + G | opens the right panel at Changes; again folds it to its rail |
 | Cmd + Shift + C | commits and pushes in one step, as in the TUI: Claude or Codex writes the message into the field, and Commit says Commit & Push for this one commit; Enter commits and pushes, the field changes the message, ✦ writes another, Esc cancels; with nothing to commit, it offers to push the commits ahead, and Enter or Push pushes them |
 | Cmd + Shift + I | shows Issues, as in the TUI |
 | Cmd + Shift + R | gives Conversations' filter the keys, as in the TUI |

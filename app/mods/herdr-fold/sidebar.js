@@ -44,14 +44,20 @@ function openFloat(panel, bounds, height) {
     at: { x: (sidebarPx(layout()) ?? 76) + 6, y: Math.max(8, bounds?.y ?? 8) }, width: FLOAT, height });
 }
 
-/** A panel floating beside the rail (OVERLAY, a window HEIGHT high), as Adobe's: its head (NAME, BUTTONS, and ×
- * closing it) drags it; BODY under it keeps its presses. @param {string} name @param {string} overlay
- * @param {number} height @param {any[]} buttons @param {any} body */
+/** A floating panel's head, as Adobe's: NAME, BUTTONS, and × closing it (OVERLAY); it drags the panel.
+ * @param {string} name @param {string} overlay @param {any[]} buttons */
+export function floatHead(t, name, overlay, buttons) {
+  return h_flex().w_full().h(36).flex_none().pl(16).pr(6).gap(GAP).items_center()
+    .child(div().flex_1().text_size(11.5).font_medium().text_color(t.dim).child(name)).children(buttons)
+    .child(iconButton(t, "float-close", "x", "Close", () => closeOverlay(overlay)));
+}
+
+/** A panel floating beside a rail (OVERLAY, a window HEIGHT high, else its window's height): its head, then BODY, which
+ * keeps its presses. @param {string} name @param {string} overlay @param {number | undefined} height
+ * @param {any[]} buttons @param {any} body */
 export function floatPanel(t, name, overlay, height, buttons, body) {
-  return v_flex().w_full().h(height).text_size(13)                 // on the window's own fill, under its corners
-    .child(h_flex().h(36).flex_none().pl(16).pr(6).gap(GAP).items_center()
-      .child(div().flex_1().text_size(11.5).font_medium().text_color(t.dim).child(name)).children(buttons)
-      .child(iconButton(t, "float-close", "x", "Close", () => closeOverlay(overlay))))
+  return (height ? v_flex().w_full().h(height) : v_flex().size_full()).text_size(13)   // on the window's own fill
+    .child(floatHead(t, name, overlay, buttons))
     .child(v_flex().flex_1().min_h(0).on_mouse_down("left", (_e, cx) => cx.stop_propagation()).child(body));
 }
 

@@ -35,16 +35,21 @@ export function button(t, id, label, enabled, solid, onClick) {
 
 export const SLIDE = { duration: 180, easing: "ease-out" };   // a section folding or opening, drawn by the app itself
 
-/** A square tab, as the panel heads its views and the folded sidebar shows its spaces and conversations: CONTENT,
- * SIZE square, the shown one (ACTIVE) on the selection, a state's DOT at its corner; the mouse on it names it (TIP).
+/** COUNT in a round badge, as VS Code's on its Source Control. @param {number} count */
+export const badge = (t, count) => div().h(16).min_w(16).px(4).flex().items_center().justify_center().rounded_full()
+  .bg(t.accent).text_color(t.accent_foreground ?? t.background).text_size(10).font_bold().child(String(count));
+
+/** A square tab, as the panel heads its views and a folded side shows its panels: CONTENT, SIZE square, the shown one
+ * (ACTIVE) on the selection, a state's DOT or a COUNT's badge at its corner; the mouse on it names it (TIP).
  * @param {any} content @param {any} how */
-export function iconTab(t, id, content, { size = 30, active = false, dot = null, tip, act }) {
+export function iconTab(t, id, content, { size = 30, active = false, dot = null, count = 0, tip, act }) {
   return div().id(id).relative().size(size).flex_none().flex().items_center().justify_center().rounded(6)
     .cursor_pointer().tooltip(tip).text_size(15).bg(active ? t.selected : t.raised)
     .text_color(active ? t.foreground : t.muted).hover((s) => s.bg(t.hover)).on_click((_e, cx) => act(cx))
     .child(content)
     .when(Boolean(dot), (e) => e.child(div().absolute().top(-3).right(-3).size(9).rounded_full()
-      .bg(/** @type {string} */ (dot)).border_2().border_color(t.chrome ?? t.background)));
+      .bg(/** @type {string} */ (dot)).border_2().border_color(t.chrome ?? t.background)))
+    .when(count > 0, (e) => e.child(badge(t, count).absolute().top(-6).right(-8)));
 }
 
 /** A state's mark, as herdr marks an agent's: a disc in its color (working, blocked, done), a ring when idle, a faint

@@ -8,10 +8,10 @@ import { commitRows, conversationRows, diffRows, foldedSections, listHeight, pus
 import { ConversationsView } from "./conversations.js";
 import { IssuesView } from "./issues.js";
 import { button, chip, fileMark, icon, small } from "./parts.js";
-import { panelTabs, panelTrigger } from "./panel.js";
+import { panelTabs, panelTrigger, rail } from "./panel.js";
 import { Menus, menuPopup } from "./menus.js";
 import { Preview } from "./preview.js";
-import { dock, floatPanel, sidebarTrigger, spacesFloat } from "./sidebar.js";
+import { dock, floatHead, floatPanel, sidebarTrigger, spacesFloat } from "./sidebar.js";
 import { FilesView } from "./files.js";
 import { SpacesView } from "./spaces.js";
 import { standIn } from "./terminal.js";
@@ -324,6 +324,13 @@ function sections(g, t) {
         div().h(40).child(panelTabs(t, state)), { spec: i ? "" : "h 28 · radius 6 · gap 4 · the shown one raised" })),
       specimen(t, "panel-trigger", "Its toggle", div().w(36).h(42).child(panelTrigger(t)),
         { width: 120, small: true, spec: "the tab bar's right end" })]),
+      group(t, "The panel folded to its rail", [
+        specimen(t, "rail-github", "On GitHub, with changes", div().w(44).h(330).child(rail(t,
+          { github: true, changed: 6 }, "t1")), { width: 120, spec: "w 44 · as the left rail" }),
+        specimen(t, "rail-plain", "No GitHub, no terminal yet", div().w(44).h(330).child(rail(t,
+          { github: false, changed: 0 }, null)), { width: 120 }),
+        specimen(t, "rail-float", "A view floating beside it", div().w(PANEL).child(floatHead(t, "Changes", "", [])),
+          { spec: "as wide as the panel · its head drags it" })]),
       group(t, "Search field", g.query.map(([name, state], i) => specimen(t, `query-${i}`, name, state.query(t))))]],
     ["sections", [
       group(t, "Section header", g.sections.map(([name, state], i) => specimen(t, `section-${i}`, name,

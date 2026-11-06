@@ -2,16 +2,21 @@
 // The right panel as one of Adobe's panel groups: herdr-fold's views, Files among them, as its tabs, on the header of
 // the stack that holds them, so they stay while Files shows; its toggle at the tab bar's right end.
 import { div } from "gpui-kit";
-import { h_flex } from "gpui-base";
-import { layout, setShared, shared, watchFolder, run as command } from "herdr";
-import { PANEL, PANEL_BODY, panelShown, shownTab } from "./logic.js";
-import { GAP, iconButton } from "./parts.js";
+import { h_flex, v_flex } from "gpui-base";
+import { layout, openOverlay, setShared, shared, watchFolder, run as command } from "herdr";
+import { PANEL, PANEL_BODY, PANEL_PX, panelPx, panelRailed, panelShown, railToggle, shownTab } from "./logic.js";
+import { badge, GAP, icon, iconButton, iconTab } from "./parts.js";
 
 export const VIEW = "herdr-fold.view";        // the view shown, kept: changes, search or issues
 export const TABS = "herdr-fold.tabs";        // what the views tell the tabs: { github, changed }
-const NAMES = { changes: "Changes", search: "Search", issues: "Issues", files: "Files" };
+export const VIEW_NAMES = { changes: "Changes", search: "Search", issues: "Issues", files: "Files" };
 const BUTTONS = "workspace.panels";           // the app's: the panels its tab bar has a button for
 const BEFORE = "herdr-fold.app-panels";       // those before this layout took them off, given back as it goes
+const KEPT = "herdr-fold.panel-width";        // the right panel's width while open, which its rail opens to again
+const FLOAT_H = 0.85;                         // a view floating beside the rail: this share of the window high
+/** @type {[string, import("./icons.js").IconName, string][]} the rail's views: the panel, its icon, its label */
+const RAILED = [["files", "files", "Files"], ["search", "search", "Search"], ["changes", "git-branch", "Changes"],
+  ["issues", "circle-dot", "Issues"], ["terminal", "square-terminal", "Terminal"]];
 
 /** The group's tabs, in VS Code's order: SHOWN's on a raised pad, the changed files' count (CHANGED) in a badge,
  * Issues only for a repository on GitHub (GITHUB); at the end, × closes the panel.
@@ -22,21 +27,24 @@ export function panelTabs(t, { shown, github, changed }) {
     return h_flex().id(`panel-tab-${id}`).h(28).px(10).gap(6).items_center().rounded(6).cursor_pointer()
       .text_size(12.5).text_color(on ? t.foreground : t.dim).when(on, (e) => e.bg(t.raised).font_semibold())
       .when(!on, (e) => e.hover((s) => s.bg(t.hover).text_color(t.muted))).on_click(() => pick(id))
-      .child(NAMES[id])
-      .when(id === "changes" && changed > 0, (e) => e.child(div().h(16).min_w(16).px(4).flex().items_center()
-        .justify_center().rounded_full().bg(t.accent).text_color(t.accent_foreground ?? t.background).text_size(10)
-        .font_bold().child(String(changed))));                  // a round badge, as VS Code's on its Source Control
+      .child(VIEW_NAMES[id])
+      .when(id === "changes" && changed > 0, (e) => e.child(badge(t, changed)));
   };
   return h_flex().size_full().px(6).gap(GAP).items_center().border_b(1).border_color(t.border)
     .children(["files", "search", "changes", ...(github ? ["issues"] : [])].map(tab)).child(div().flex_1())
     .child(iconButton(t, "panel-close", "x", "Close panel", () => command("layout.hide", { id: PANEL })));
 }
 
+/** What the views tell the tabs and the rail (TABS): whether the repository is on GitHub, its changed files' count. */
+export function tabsState() {
+  const told = /** @type {{ github?: boolean, changed?: number } | null} */ (shared(TABS)) ?? {};
+  return { github: Boolean(told.github), changed: told.changed ?? 0 };
+}
+
 /** The tabs as the panel shows them now. */
 export function liveTabs(t) {
-  const told = /** @type {{ github?: boolean, changed?: number } | null} */ (shared(TABS)) ?? {};
-  const github = Boolean(told.github);
-  return panelTabs(t, { shown: shownTab(layout(), shared(VIEW), github), github, changed: told.changed ?? 0 });
+  const { github, changed } = tabsState();
+  return panelTabs(t, { shown: shownTab(layout(), shared(VIEW), github), github, changed });
 }
 
 /** Tab ID picked: Files is a block of its own; another view is the Changes block's, which shows it (main.js follows
@@ -63,13 +71,57 @@ export function followFolder(holder, again, cx) {
   });
 }
 
-/** The tab bar's right end: the right panel's toggle, where the app's Files and Changes buttons were. */
+/** The width the right panel had open, which its rail opens to again. */
+export const keptWidth = () => /** @type {number | undefined} */ (shared(KEPT) ?? undefined);
+
+/** The right panel's COMMANDS run (its toggle's, Cmd+Shift+G's), its width kept first while it is open.
+ * @param {[string, any][]} commands */
+export function runPanel(commands) {
+  const root = layout();
+  if (panelShown(root) && !panelRailed(root)) setShared(KEPT, panelPx(root));
+  for (const [name, args] of commands) command(name, args);
+}
+
+/** The tab bar's right end: the right panel's toggle, where the app's Files and Changes buttons were; it folds the
+ * panel to its rail and opens it again. */
 export function panelTrigger(t) {
-  const shown = panelShown(layout());
-  const tip = shown ? "Hide panel" : "Show panel";
+  const root = layout(), open = panelShown(root) && !panelRailed(root);
   return h_flex().size_full().pr(10).items_center().justify_end().border_b(1).border_color(t.border)
-    .child(iconButton(t, "panel-open", "panel-right", tip,
-      () => command(shown ? "layout.hide" : "layout.show", { id: PANEL }), { size: 15 }));
+    .child(iconButton(t, "panel-open", "panel-right", open ? "Fold panel" : "Open panel",
+      () => runPanel(railToggle(layout(), keptWidth())), { size: 15 }));
+}
+
+/** The right panel folded to its rail, as the left sidebar's: its views on squares, a label under each, Changes with
+ * its count (CHANGED), Issues only on GitHub (GITHUB), the tab's TERMINAL (none: its button off); a press floats one.
+ * @param {{ github: boolean, changed: number }} tabs @param {string | null} terminal */
+export function rail(t, { github, changed }, terminal) {
+  return v_flex().id("panel-rail").size_full().items_center().pt(10).gap(12)
+    .children(RAILED.filter(([panel]) => panel !== "issues" || github).map(([panel, name, label]) => {
+      const off = panel === "terminal" && !terminal;
+      return v_flex().id(`rail-${panel}`).flex_none().items_center().gap(3)
+        .when(!off, (e) => e.on_mouse_down("left", (e, cx) => {
+          cx.stop_propagation();
+          openRail(panel, e.bounds, terminal);
+        }))
+        .child(iconTab(t, `rail-${panel}-tab`, icon(name, 15), { count: panel === "changes" ? changed : 0,
+          tip: off ? "No terminal in this tab" : label, act: () => {} }))
+        .child(div().text_size(9).text_color(off ? t.border : t.dim).child(label));
+    }));
+}
+
+/** PANEL floating left of the rail's button (BOUNDS; for a key, where the app puts it): a view, THEN its command run
+ * first, or the tab's TERMINAL under a head of herdr-fold's; one at a time, as the left rail's floats.
+ * @param {string} panel @param {any} bounds @param {string | null} terminal @param {string} [then] */
+export function openRail(panel, bounds, terminal, then) {
+  const spec = { kind: /** @type {"window"} */ ("window"), key: "herdr-fold.rail", width: PANEL_PX, height: FLOAT_H,
+    ...(bounds ? { at: { x: Math.max(8, bounds.x - PANEL_PX - 8), y: 48 } } : {}) };
+  if (panel !== "terminal") {
+    return void openOverlay({ ...spec, mod: "herdr-fold", props: { part: "float", panel, then } });
+  }
+  openOverlay({ ...spec, layout: { id: "rail-terminal", type: "column", children: [
+    { id: "rail-terminal-head", type: "block", size: { px: 36 }, content: { mod: "herdr-fold",
+      props: { part: "float-head", name: "Terminal" } } },
+    { id: "rail-terminal-body", type: "block", content: { terminal } }] } });
 }
 
 /** The app's own panel buttons off its tab bar while this layout shows (the panel's tabs are them), what they were
