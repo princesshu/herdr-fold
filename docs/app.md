@@ -137,29 +137,22 @@ gh signed in to GitHub there, for Issues).
 
 With the TUI environment, `./install.sh` does it all: where the Herdr app is on the Mac, it asks
 `Set up herdr-fold in the Herdr app too?`, and a yes puts the mod, the layout and the keys in place, and shows the
-layout in a running app. `./uninstall.sh` takes them off again.
+layout in a running app. `./uninstall.sh` takes them off again, herdr-fold's settings in the app too: a running app
+closes for that moment and opens again.
 
-Without the TUI environment, from the `app` folder of herdr-fold:
+Without the TUI environment, from the herdr-fold folder:
 
-1. Copy the mod, the layout and its theme into the app's home:
+```bash
+python3 lib/herdr_app.py install .
+herdr-app do layout.switch --name herdr-fold
+```
 
-   ```bash
-   mkdir -p ~/.config/herdr-app/mods ~/.config/herdr-app/layouts ~/.config/herdr-app/themes
-   cp -R mods/herdr-fold ~/.config/herdr-app/mods/
-   cp layouts/herdr-fold.json ~/.config/herdr-app/layouts/
-   cp themes/herdr-fold.json ~/.config/herdr-app/themes/
-   ```
-
-2. Add the `layout:herdr-fold` section of `keys.json` to `~/.config/herdr-app/keys.json`.
-3. Show the layout:
-
-   ```bash
-   herdr-app do layout.switch --name herdr-fold
-   ```
-
-Your own layout stays as it was: Cmd + Shift + L switches between the layouts. To remove it all, switch to another
-layout, end the tabs' terminals the layout's `fold-terminals` stack names (`herdr-core kill <address>`), then delete the
-three copied items and the keys section.
+The first puts the mod, the layout, its themes and its keys (the `layout:herdr-fold` section of `keys.json`) into the
+app's home (`~/.config/herdr-app`, or `HERDR_APP_HOME`); run again after an update, it takes off what the earlier
+version put there and this one no longer brings. Your own layout stays as it was: Cmd + Shift + L switches between the
+layouts. To remove it all, switch to another layout, end the terminals it started for tabs (`python3
+lib/herdr_app.py end-terminals`), close the app (while it runs, it keeps herdr-fold's settings and writes them back),
+then `python3 lib/herdr_app.py uninstall .`.
 
 Without the layout, herdr-fold also opens beside a terminal, as a pane of that tab:
 `herdr-app do pane.split --direction right --mod herdr-fold`.
@@ -167,7 +160,6 @@ Without the layout, herdr-fold also opens beside a terminal, as a pane of that t
 ## Keys
 
 In the herdr-fold layout:
-| Cmd + Shift + U | marks the focused agent unread: its space says `waiting` again, as in the TUI |
 
 | Key | What it does |
 |---|---|
@@ -175,6 +167,7 @@ In the herdr-fold layout:
 | Cmd + Shift + C | commits and pushes in one step, as in the TUI: Claude or Codex writes the message into the field, and Commit says Commit & Push for this one commit; Enter commits and pushes, the field changes the message, ✦ writes another, Esc cancels |
 | Cmd + Shift + I | shows Issues, as in the TUI |
 | Cmd + Shift + R | gives Conversations' filter the keys, as in the TUI |
+| Cmd + Shift + U | marks the focused agent unread: its space says `waiting` again, as in the TUI |
 
 The mod takes commands for keys of your own: `herdr-fold.commit-push`, `herdr-fold.write`, `herdr-fold.commit` and
 `herdr-fold.sync`, and `herdr-fold.changes`, `herdr-fold.search` and `herdr-fold.issues`, which show that view (Search

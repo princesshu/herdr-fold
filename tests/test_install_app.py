@@ -9,11 +9,14 @@ import unittest
 from support import (DEFAULTS_STUB, GH_STUB, HERDR_STUB, PackageHome, catalog_text, copy_package, from_homebrew,
                      run_in_terminal, stubs)
 
-# the app's command line: logs each call; running (status answers) only with STUB_APP_RUNNING, on STUB_APP_LAYOUT
+# the app's command line: logs each call; running (status answers) only with STUB_APP_RUNNING, on STUB_APP_LAYOUT,
+# until app.quit closes it (with STUB_APP_STAYS, never)
 APP = """#!/bin/sh
 echo "herdr-app $*" >> "$STUB_APP_LOG"
 case "$1" in
-  status) [ -n "$STUB_APP_RUNNING" ] || exit 1; printf '{"layout": "%s"}\\n' "${STUB_APP_LAYOUT:-main}" ;;
+  status) [ -n "$STUB_APP_RUNNING" ] && [ ! -e "$STUB_APP_LOG.quit" ] || exit 1
+          printf '{"layout": "%s"}\\n' "${STUB_APP_LAYOUT:-main}" ;;
+  do) [ "$2" = app.quit ] && [ -z "$STUB_APP_STAYS" ] && touch "$STUB_APP_LOG.quit" ;;
 esac
 exit 0
 """
@@ -102,6 +105,62 @@ class InstallApp(PackageHome, unittest.TestCase):
         self.assertFalse(self.in_app("mods/herdr-fold"))                   # what it takes off: test_lib_herdr_app
         self.assertIn("herdr-app do layout.switch --name main", self.app_calls())
         self.assertIn(catalog_text("uninstall.app_off"), out)
+
+    def in_bundle(self):
+        """The app's command line where the app puts it: a link into Herdr.app; returns the bundle."""
+        bundle = os.path.join(self.tmp, "Applications", "Herdr.app")
+        os.makedirs(os.path.join(bundle, "Contents", "MacOS"))
+        os.replace(os.path.join(self.fakes, "herdr-app"), os.path.join(bundle, "Contents", "MacOS", "Herdr"))
+        os.symlink(os.path.join(bundle, "Contents", "MacOS", "Herdr"), os.path.join(self.fakes, "herdr-app"))
+        return os.path.realpath(bundle)
+
+    def with_settings(self):
+        with open(os.path.join(self.app_home, "shared.json"), "w") as f:
+            json.dump({"herdr-fold.view": "changes", "frame.welcomed": True}, f)
+
+    def settings(self):
+        with open(os.path.join(self.app_home, "shared.json")) as f:
+            return json.load(f)
+
+    def test_uninstall_closes_a_running_app_for_herdr_folds_settings_and_opens_it_again(self):
+        """A running app holds the mods' shared values and writes them all back: closed meanwhile, as its terminals
+        run on in its core, and opened again behind the uninstaller."""
+        self.with_app(running=True, layout="herdr-fold")
+        bundle = self.in_bundle()
+        self.run_script("install.sh")
+        self.with_settings()
+        opened = os.path.join(self.tmp, "opened")
+        stubs(self.fakes, {"open": f'#!/bin/sh\necho "$*" >> {opened}\n'})
+        out = self.run_script("uninstall.sh")
+        self.assertIn("herdr-app do app.quit", self.app_calls())
+        self.assertIn(catalog_text("uninstall.app_closing"), out)
+        self.assertEqual(self.settings(), {"frame.welcomed": True})
+        with open(opened) as f:
+            self.assertEqual(f.read().splitlines(), [f"-g {bundle}"])
+
+    def test_an_app_that_does_not_open_again_is_named(self):
+        self.with_app(running=True)
+        self.in_bundle()
+        self.run_script("install.sh")
+        out = self.run_script("uninstall.sh")                           # the open stub fails
+        self.assertIn(catalog_text("uninstall.app_not_reopened"), out)
+
+    def test_an_app_that_does_not_close_keeps_the_settings_and_says_where(self):
+        self.with_app(running=True)
+        self.env["STUB_APP_STAYS"] = "1"
+        self.run_script("install.sh")
+        self.with_settings()
+        out = self.run_script("uninstall.sh")
+        self.assertEqual(self.settings(), {"herdr-fold.view": "changes", "frame.welcomed": True})
+        self.assertIn(catalog_text("uninstall.app_still_open", "~/.config/herdr-app/shared.json"), out)
+
+    def test_a_closed_app_stays_closed(self):
+        self.with_app()
+        self.run_script("install.sh")
+        self.with_settings()
+        self.run_script("uninstall.sh")
+        self.assertEqual(self.settings(), {"frame.welcomed": True})
+        self.assertFalse([call for call in self.app_calls() if "app.quit" in call])
 
     def test_uninstall_takes_the_machines_it_added_off_the_app(self):
         self.with_app()

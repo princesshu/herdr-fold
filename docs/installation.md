@@ -19,7 +19,7 @@ views and the same remote machines in both. Each installs alone, or both togethe
 | You want | How |
 |---|---|
 | the TUI only | `./install.sh` and no to `Set up herdr-fold in the Herdr app too?` (it asks only where the app is), or `herdr plugin install princesshu/herdr-fold` |
-| the Herdr app only | the mod, its layout and themes copied into the app: [The Herdr app](app.md#installing-it); the TUI is not needed |
+| the Herdr app only | `python3 lib/herdr_app.py install .` puts the mod, its layout, themes and keys into the app: [The Herdr app](app.md#installing-it); the TUI is not needed |
 | both | `./install.sh` and yes to that question: the same remote machines in both |
 
 The two run side by side on one Mac, each with its own settings; an agent belongs to the one it was started in (herdr's
@@ -169,7 +169,8 @@ Only when you say yes, or when something is missing:
 - in the Herdr app's home (`~/.config/herdr-app`, or `HERDR_APP_HOME`): herdr-fold's mod (`mods/herdr-fold`), its
   layout (`layouts/herdr-fold.json`), its themes (`themes/herdr-fold*.json`: the layout's own and the TUI's twelve)
   and its keys (the `layout:herdr-fold` section of `keys.json`), when you say yes to the Herdr app question; your own
-  mods, layouts, themes and keys stay.
+  mods, layouts, themes and keys stay. An update takes off what an earlier version put there and this one no longer
+  brings: a theme, a key, and, with the app closed, a setting the mod no longer keeps.
 
 Everything it replaces is saved first, in `~/.local/state/herdr-fold/`:
 

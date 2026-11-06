@@ -125,6 +125,8 @@ only herdr's files and its `config.toml`.
 | `changed-<date>/` | installed files you changed (or with no sum recorded to tell), kept when a newer install replaced or dropped them; never deleted |
 | `version` | the installed version, which the next install names in its update question |
 | `plugins.txt` | the plugins and herdr integrations this installer put there, and the plugins you said no to |
+| `app-keys.json` | the keys the last install put in the Herdr app's `keys.json`: the next install and the uninstaller take off one a newer version no longer has, unless you rebound it |
+| `app-machines.txt` | the remote machines herdr-fold added to the Herdr app, which the uninstaller takes off |
 | `loading-colors.txt` | the loading sheep's colors, the chosen theme's |
 | `ghostty-icon/` | the Ghostty app icon of the theme in use: herdr-fold's logo in its colors |
 | `outside.txt` | what the installer did outside its own folders (the SSH key, trusted host keys, the GitHub sign-in, git's settings): it stays, and the uninstaller names it |

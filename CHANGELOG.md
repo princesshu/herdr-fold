@@ -38,15 +38,20 @@ All notable changes to this project are listed here. The format follows
   file's row in Changes shows its whole path in the repository, as in GitHub Desktop, on more rows when it is long;
   so does the Herdr app mod's.
 
+- An update takes off what an earlier version put in the Herdr app and the new one no longer brings: a theme, a key,
+  a setting the mod no longer keeps. The uninstaller takes herdr-fold's settings in the app off too, closing a running
+  app for that moment (your terminals keep running) and opening it again. Without the TUI, `python3 lib/herdr_app.py
+  install .` sets the mod up and updates it. See [Uninstall](docs/uninstall.md).
+
 ### Changed
 
+- The sidebar names its views and the tab's panes in lowercase, as herdr names its own (`changes` beside the view
+  tabs, Close conversations in the ⋯ menu).
 - The sidebar's Changes view puts the repository on top, as VS Code's Repositories: its name, branch, sync and a
   ⋯ that pulls or pushes alone or opens it on GitHub; the status bar at the sidebar's bottom is gone, its branch
   and sync with it. See [The sidebar](docs/sidebar.md).
 - Committing needs no staging, as in GitHub Desktop: with nothing staged, a commit and its written message take every
   change, in the sidebar and in the Herdr app mod; a file .gitignore names is never one of them, nor shows in Changes,
-- The sidebar names its views and the tab's panes in lowercase, as herdr names its own (`changes` beside the view
-  tabs, Close conversations in the ⋯ menu).
   even if it was tracked before. The sidebar commits exactly the changes it showed (and asked about, for files named
   like secrets): one come since waits. Something staged by hand is still committed alone.
 - The sidebar's Changes view keeps the Graph at its bottom, the changes scrolling above it on their own; ↑ and ↓

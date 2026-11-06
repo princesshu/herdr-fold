@@ -13,15 +13,20 @@ changed="$state/changed-$(date +%Y%m%d-%H%M%S)"
 ask "$(t uninstall.ready)" y || exit 0
 
 step "$(t uninstall.step_herdr)"
-# herdr-fold in the Herdr app: a running app leaves its layout first and the terminals the mod started for tabs end
-# (its core runs then; asking a stopped one would start it), then the mod, the layout and the keys go
+# herdr-fold in the Herdr app: a running app leaves its layout, the terminals the mod started for tabs end (its core
+# runs then; asking a stopped one would start it) and it closes for the moment herdr-fold's shared values go (it holds
+# them and writes them back), then the mod, the layout and the keys go
 app_off() {
-  local app status; app=$(python3 "$DOT/lib/herdr_app.py" cli)
+  local app status closed=; app=$(python3 "$DOT/lib/herdr_app.py" cli)
   if [ -n "$app" ] && status=$("$app" status 2>/dev/null); then
     grep -q '"layout": *"herdr-fold"' <<<"$status" && "$app" do layout.switch --name main >/dev/null 2>&1
     python3 "$DOT/lib/herdr_app.py" end-terminals
+    note "$(t uninstall.app_closing)"
+    if python3 "$DOT/lib/herdr_app.py" close; then closed=1
+    else warn "$(t uninstall.app_still_open "$(shown "$(python3 "$DOT/lib/herdr_app.py" home)/shared.json")")"; fi
   fi
   python3 "$DOT/lib/herdr_app.py" uninstall "$DOT" && ok "$(t uninstall.app_off)"
+  [ -z "$closed" ] || python3 "$DOT/lib/herdr_app.py" open || warn "$(t uninstall.app_not_reopened)"
 }
 # the plugins and integrations first: a running herdr then calls nothing that is about to go. A plugin herdr no longer
 # has is left alone (its list answers without a running herdr); one it does not take off (only a running herdr takes

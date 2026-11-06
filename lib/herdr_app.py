@@ -1,19 +1,25 @@
-"""herdr-fold in the Herdr app, for install.sh and uninstall.sh: the mod, its layout, themes and keys into the app's
-home and off again, the tabs' terminals it started ended. Usage: herdr_app.py cli | core | home | install PACKAGE (0; 3:
-keys.json unreadable, left as it is; 4: a mods/herdr-fold not herdr-fold's) | uninstall PACKAGE | end-terminals"""
+"""herdr-fold in the Herdr app: the mod, its layout, themes and keys into the app's home and off again, the tabs'
+terminals it started ended. Usage: herdr_app.py cli | core | home | install PACKAGE (0; 3: keys.json unreadable, left as
+it is; 4: a mods/herdr-fold not herdr-fold's) | uninstall PACKAGE | end-terminals | close | open"""
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 MOD, LAYOUT, KEYS = os.path.join("mods", "herdr-fold"), os.path.join("layouts", "herdr-fold.json"), "keys.json"
 THEMES = "themes"              # herdr-fold.json (the layout's own) and the TUI's themes, herdr-fold-ID.json
 TITLE = "herdr-fold"            # the mod.json title that marks a mods/herdr-fold folder as herdr-fold's copy
 TERMINALS = "fold-terminals"    # the layout's stack of the tabs' terminals the mod started (app/mods/herdr-fold)
-SHARED = "shared.json"          # the app's shared values: the mod notes there the app's panel buttons it took off
+SHARED = "shared.json"          # the app's shared values, the mod's named herdr-fold.*; a running app holds them all
+PREFIX = "herdr-fold."
 BEFORE, BUTTONS = "herdr-fold.app-panels", "workspace.panels"
+RECORD = "app-keys.json"        # in the installer's state folder: what the last install put in keys.json
+CLOSING = 10                    # seconds a running app may take to close
+ANSWER = 30                     # seconds the app's command line may take to answer
 
 
 def cli():
@@ -55,6 +61,42 @@ def end_terminals(hc, home):
 
 def app_home():
     return os.environ.get("HERDR_APP_HOME") or os.path.expanduser("~/.config/herdr-app")
+
+
+def state_dir():
+    return os.path.join(os.path.expanduser("~"), ".local", "state", "herdr-fold")
+
+
+def answer(app, *args):
+    """The app's command line's exit code for ARGS, or None when it did not answer in time."""
+    try:
+        return subprocess.run([app, *args], capture_output=True, timeout=ANSWER, stdin=subprocess.DEVNULL).returncode
+    except subprocess.TimeoutExpired:
+        return None
+
+
+def running(app):
+    """Whether the app runs; one that does not answer is taken for running, as it may still write its values back."""
+    return answer(app, "status") in (0, None)
+
+
+def close(app):
+    """A running app closed, its terminals running on in its core: whether it ran and is closed now."""
+    if not running(app):
+        return False
+    answer(app, "do", "app.quit")
+    for _ in range(CLOSING * 2):
+        if not running(app):
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def bundle(app):
+    """The Herdr.app the command line links into (Herdr.app/Contents/MacOS/Herdr), or None."""
+    path = os.path.realpath(app)
+    top = os.path.dirname(os.path.dirname(os.path.dirname(path)))
+    return top if top.endswith(".app") and os.path.basename(os.path.dirname(path)) == "MacOS" else None
 
 
 def herdr_folds(folder):
@@ -100,23 +142,35 @@ def write_json(path, data):
     os.replace(temp, path)
 
 
-def give_back(home):
-    """The app's own panel buttons as they were before the layout took them off, when the app stopped while showing
-    it (a running app's mod gives them back as the layout goes); the mod's note of them gone."""
+def tidy(home, keep=None):
+    """herdr-fold's shared values in HOME gone but those in KEEP; with none kept, the app's panel buttons as they were
+    before the layout took them off. Never with the app running: it holds them all and writes them back."""
     path = os.path.join(home, SHARED)
     try:
         with open(path, encoding="utf-8") as f:
             shared = json.load(f)
     except (OSError, ValueError):
         return
-    if not isinstance(shared, dict) or BEFORE not in shared:
+    if not isinstance(shared, dict):
         return
-    before = shared.pop(BEFORE)
+    tidied = {key: value for key, value in shared.items() if not key.startswith(PREFIX) or key in (keep or ())}
+    before = shared.get(BEFORE) if keep is None else None
     if isinstance(before, dict) and before.get("panels") is None:
-        shared.pop(BUTTONS, None)
+        tidied.pop(BUTTONS, None)
     elif isinstance(before, dict):
-        shared[BUTTONS] = before["panels"]
-    write_json(path, shared)
+        tidied[BUTTONS] = before["panels"]
+    if tidied != shared:
+        write_json(path, tidied)
+
+
+def named(package):
+    """The shared values PACKAGE's mod keeps: every "herdr-fold.NAME" its files spell out."""
+    found = set()
+    for root, _dirs, files in os.walk(os.path.join(package, "app", MOD)):
+        for name in (name for name in files if name.endswith(".js")):
+            with open(os.path.join(root, name), encoding="utf-8") as f:
+                found.update(re.findall(r'"(herdr-fold\.[\w.-]+)"', f.read()))
+    return found
 
 
 def merge_keys(mine, added):
@@ -137,10 +191,18 @@ def drop_keys(mine, added):
     return kept
 
 
-def themes(package):
-    """The themes PACKAGE brings, each a file under themes/: all named herdr-fold, none a person's own."""
-    return [os.path.join(THEMES, name) for name in sorted(os.listdir(os.path.join(package, "app", THEMES)))
-            if name.startswith("herdr-fold") and name.endswith(".json")]
+def themes(app):
+    """herdr-fold's themes in APP, the package's app folder or the app's home, each a file under themes/: all named
+    herdr-fold, none a person's own."""
+    folder = os.path.join(app, THEMES)
+    names = sorted(os.listdir(folder)) if os.path.isdir(folder) else []
+    return [os.path.join(THEMES, name) for name in names if name.startswith("herdr-fold") and name.endswith(".json")
+            and os.path.isfile(os.path.join(folder, name))]
+
+
+def recorded(state):
+    """The keys the last install put, as it recorded them in STATE ({} without a record)."""
+    return read_keys(os.path.join(state, RECORD)) or {}
 
 
 def package_keys(package):
@@ -148,31 +210,43 @@ def package_keys(package):
         return json.load(f)
 
 
-def install(package, home):
-    """PACKAGE's mod, layout and keys into the app's HOME: the exit code (0, 3 or 4) the usage names."""
+def install(package, home, state, app_running=False):
+    """PACKAGE's mod, layout and keys into the app's HOME, what an earlier version put there and this one does not have
+    taken off: the exit code (0, 3 or 4) the usage names; a running app's shared values are left to it."""
     if os.path.lexists(os.path.join(home, MOD)) and not herdr_folds(os.path.join(home, MOD)):
         return 4
     replace(os.path.join(home, MOD), os.path.join(package, "app", MOD))
-    for rel in (LAYOUT, *themes(package)):
+    brought = themes(os.path.join(package, "app"))
+    for rel in set(themes(home)) - set(brought):
+        os.remove(os.path.join(home, rel))
+    for rel in (LAYOUT, *brought):
         os.makedirs(os.path.join(home, os.path.dirname(rel)), exist_ok=True)
         shutil.copyfile(os.path.join(package, "app", rel), os.path.join(home, rel))
+    if not app_running:
+        tidy(home, named(package))
     mine = read_keys(os.path.join(home, KEYS))
     if mine is None:
         return 3
-    write_json(os.path.join(home, KEYS), merge_keys(mine, package_keys(package)))
+    added = package_keys(package)
+    write_json(os.path.join(home, KEYS), merge_keys(drop_keys(mine, recorded(state)), added))
+    os.makedirs(state, mode=0o700, exist_ok=True)              # the installer's records: their owner's only
+    write_json(os.path.join(state, RECORD), added)
     return 0
 
 
-def uninstall(package, home):
+def uninstall(package, home, state, app_running=False):
     if herdr_folds(os.path.join(home, MOD)):
         replace(os.path.join(home, MOD))
-    for rel in (LAYOUT, *themes(package)):
+    for rel in (LAYOUT, *themes(home)):
         if os.path.isfile(os.path.join(home, rel)):
             os.remove(os.path.join(home, rel))
     mine = read_keys(os.path.join(home, KEYS))
     if mine:
-        write_json(os.path.join(home, KEYS), drop_keys(mine, package_keys(package)))
-    give_back(home)
+        write_json(os.path.join(home, KEYS), drop_keys(drop_keys(mine, package_keys(package)), recorded(state)))
+    if os.path.isfile(os.path.join(state, RECORD)):
+        os.remove(os.path.join(state, RECORD))
+    if not app_running:
+        tidy(home)
 
 
 def main(argv):
@@ -195,12 +269,18 @@ def main(argv):
     if command == "home" and not args:
         print(app_home())
         return 0
-    if command == "install" and len(args) == 1:
-        return install(args[0], app_home())
-    if command == "uninstall" and len(args) == 1:
-        uninstall(args[0], app_home())
-        return 0
-    print("usage: herdr_app.py cli | core | home | install PACKAGE | uninstall PACKAGE | end-terminals",
+    if command in ("install", "uninstall") and len(args) == 1:
+        app = cli()
+        done = (install if command == "install" else uninstall)(args[0], app_home(), state_dir(),
+                                                                 bool(app) and running(app))
+        return done or 0
+    if command == "close" and not args:
+        app = cli()
+        return 0 if app and close(app) else 1
+    if command == "open" and not args:
+        found = bundle(cli() or "")
+        return subprocess.run(["open", "-g", found], capture_output=True).returncode if found else 1
+    print("usage: herdr_app.py cli | core | home | install PACKAGE | uninstall PACKAGE | end-terminals | close | open",
           file=sys.stderr)
     return 2
 

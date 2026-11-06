@@ -18,10 +18,11 @@ It asks `Take herdr-fold off this Mac?`, then works from the installer's records
 - the `~/.zshrc` block and the parts added to your own herdr settings come out; a copy of those settings from before
   the first install stays in `~/.local/state/herdr-fold/original/`;
 - the plugins and herdr integrations it put there are removed, with the empty folders herdr keeps of them;
-- in the Herdr app: herdr-fold's mod, its layout, its themes and its keys (a running app shows its main layout
-  first, and the terminals herdr-fold started for its tabs end), and the machines herdr-fold added there; the app's
-  own Files and Changes buttons, which its layout takes off while it shows, are back as they were; your own mods,
-  layouts, themes, keys, machines and terminals stay;
+- in the Herdr app: herdr-fold's mod, its layout, its themes, its keys and its settings, and the machines
+  herdr-fold added there. A running app shows its main layout first, the terminals herdr-fold started for its tabs
+  end, and it closes for that moment and opens again, as it would write herdr-fold's settings back (your terminals
+  keep running). The app's own Files and Changes buttons, which its layout takes off while it shows, are back as they
+  were; your own mods, layouts, themes, keys, settings, machines and terminals stay;
 - Claude's earlier status line comes back (or herdr-fold's just goes);
 - Ghostty's own app icon comes back: the icons the themes drew go.
 
