@@ -90,11 +90,22 @@ class Shape(unittest.TestCase):
         nodes, rail = self.nodes()
         self.assertEqual((nodes["fold-panel"]["min"], rail), (nodes["sidebar"]["min"], nodes["sidebar"]["min"]))
 
-    def test_the_panel_toggle_sits_over_the_rails_middle(self):
-        """The top row's panel toggle block is as wide as the rail and the work body's padding, so the toggle,
-        centered over the rail's width of it, is level with the folded panel's icons."""
-        nodes, rail = self.nodes()
-        self.assertEqual(nodes["panel-trigger"]["size"]["px"], rail + nodes["work-body"]["padding"])
+    def test_every_spacing_text_size_and_corner_is_on_its_scale(self):
+        """Padding and gaps on parts.js's SPACE (a 4 px grid), text on its TEXT, corners on its RADII, which the
+        styleguide shows: a value off them is a look of its own."""
+        with open(os.path.join(MOD, "parts.js"), encoding="utf-8") as f:
+            parts = f.read()
+        scale = {name: {float(v) for v in re.search(rf"^export const {name} = \[([\d., ]+)\];", parts, re.M)
+                        .group(1).split(",")} for name in ("SPACE", "TEXT", "RADII")}
+        off = []
+        for name in sorted(n for n in os.listdir(MOD) if n.endswith(".js")):
+            with open(os.path.join(MOD, name), encoding="utf-8") as f:
+                for n, line in enumerate(f, 1):
+                    for call, value in re.findall(r"\.(p[xytblr]?|gap|text_size|rounded)\(([\d.]+)\)", line):
+                        kind = {"text_size": "TEXT", "rounded": "RADII"}.get(call, "SPACE")
+                        if float(value) not in scale[kind]:
+                            off.append(f"{name}:{n} {call}({value})")
+        self.assertEqual(off, [])
 
     def test_every_key_reaches_a_command_the_mod_takes(self):
         with open(os.path.join(MOD, "main.js"), encoding="utf-8") as f:

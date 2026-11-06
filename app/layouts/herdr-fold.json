@@ -134,20 +134,6 @@
                   "part": "tabs"
                 }
               }
-            },
-            {
-              "id": "panel-trigger",
-              "type": "block",
-              "size": {
-                "px": 84
-              },
-              "window_drag": true,
-              "content": {
-                "mod": "herdr-fold",
-                "props": {
-                  "part": "panel-trigger"
-                }
-              }
             }
           ]
         },

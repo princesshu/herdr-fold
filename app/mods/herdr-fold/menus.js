@@ -50,7 +50,7 @@ export class Menus {
 export function menuPopup(t, overlay, items) {
   const checks = items.some((item) => item.on !== undefined);
   return v_flex().size_full().p(4).gap(2).text_size(12).text_color(t.foreground)
-    .children(items.map((item, i) => h_flex().id(`menu-${i}`).h(ROW).flex_none().px(10).gap(8).items_center()
+    .children(items.map((item, i) => h_flex().id(`menu-${i}`).h(ROW).flex_none().px(8).gap(8).items_center()
       .rounded(6).when(Boolean(item.off), (e) => e.text_color(t.dim))
       .when(!item.off, (e) => e.cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => {
         if (item.url) cx.open_url(item.url);

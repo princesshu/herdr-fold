@@ -104,7 +104,7 @@ export class Preview {
       ? div().w_full().px(16).h(22).flex_none().flex().items_center().truncate().bg(t.raised).font_bold().child(text)
       : kind === "gap" ? div().w_full().h(22).flex_none().flex().items_center().px(16)
         .child(div().w_full().h(1).bg(t.border))
-      : h_flex().w_full().h(22).flex_none().gap(14)
+      : h_flex().w_full().h(22).flex_none().gap(16)
         .when(kind === "+", (e) => e.bg(t.ansi2 + "18")).when(kind === "-", (e) => e.bg(t.ansi1 + "18"))
         .child(div().w(44).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
         .child(div().flex_1().min_w(0).truncate().child(text));
@@ -121,17 +121,17 @@ export class Preview {
     const closed = issue.state === "CLOSED", color = closed ? t.muted : priorityColor(t, what.level);
     const text = (markdown, n) => TextView.markdown(`issue-${what.n}-${n}`, safeMarkdown(markdown)).selectable();
     return v_flex().id("issue").flex_1().min_h(0).overflow_y_scrollbar().child(v_flex().w_full().max_w(860).px(24)
-      .py(20).gap(14)
-      .child(h_flex().gap(10).items_start().text_size(18)
+      .py(20).gap(16)
+      .child(h_flex().gap(12).items_start().text_size(20)
         .child(div().flex_none().font_bold().text_color(color).child(`#${issue.number}`))
         .child(div().flex_1().min_w(0).font_semibold().child(issue.title)))
       .child(h_flex().flex_wrap().gap(8).items_center().text_size(12).text_color(t.dim)
-        .child(chip(t, closed ? "Closed" : "Open")).child(`${issue.author} · ${ago[0] ?? ""}`)
+        .child(chip(t, closed ? "Closed" : "Open")).child([issue.author, ago[0]].filter(Boolean).join(" · "))
         .children(issue.labels.map((label) => div().text_color(label === what.ranked_by ? color : t.muted)
           .child(label))))
       .child(issue.body.trim() ? text(issue.body, 0) : div().text_color(t.dim).child("No description"))
-      .children(issue.comments.map((c, n) => v_flex().gap(6).pt(14).border_t(1).border_color(t.border)
-        .child(div().text_size(12).text_color(t.dim).child(`${c.author} · ${ago[n + 1] ?? ""}`))
+      .children(issue.comments.map((c, n) => v_flex().gap(6).pt(16).border_t(1).border_color(t.border)
+        .child(div().text_size(12).text_color(t.dim).child([c.author, ago[n + 1]].filter(Boolean).join(" · ")))
         .child(text(c.body, n + 1)))));
   }
 }

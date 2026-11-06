@@ -8,7 +8,7 @@ import { agents, focused, hc, layout, machines, openOverlay, panes, setShared, s
 import { GIT } from "./helper.js";
 import { avatarFill, headed, LIST, listBody, listHeight, nested, nextWaits, placeLabel, spaceColors, spaceWaits,
   toggleUnread, hovering, waited, withMax } from "./logic.js";
-import { icon } from "./parts.js";
+import { icon, iconButton, listHead } from "./parts.js";
 
 const WAITS = "herdr-fold.waits";                  // each agent waiting on you: since when, and Cmd + Shift + U's mark
 const FOLDED = "herdr-fold.machines-folded";       // the machines whose spaces are folded away
@@ -338,11 +338,7 @@ export class SpacesView {
   draw(t, groups) {
     const heads = headed(groups);
     return v_flex().size_full().min_h(0).bg(t.chrome ?? t.background).text_size(13)
-      .child(h_flex().h(LIST.head).flex_none().pl(16).pr(10).items_center().justify_between().text_size(11.5)
-        .text_color(t.dim).child("Spaces")
-        .child(div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6)
-          .cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip("New space")
-          .on_click(() => command("space.new", {})).child(icon("plus"))))
+      .child(listHead(t, "Spaces", iconButton(t, "space-new", "plus", "New space", () => command("space.new", {}))))
       .child(v_flex().id("spaces-list").flex_1().min_h(0).px(8).pb(LIST.foot).overflow_y_scrollbar()
         .on_mouse_up("left", (_e, cx) => {
           this.pressed = null;
@@ -357,7 +353,7 @@ export class SpacesView {
    * one too), its dot, its chevron folding its spaces; folded, its longest wait. @param {Group} g */
   head(t, g) {
     const m = g.machine, id = m ?? "local";
-    return h_flex().id(`machine-${id}`).h(LIST.machine).flex_none().px(8).gap(7).items_center().text_size(11)
+    return h_flex().id(`machine-${id}`).h(LIST.machine).flex_none().px(8).gap(6).items_center().text_size(11)
       .text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover)).on_hover(hovering(this, id))
       .on_click((_e, cx) => {
         const folded = new Set(/** @type {any[]} */ (shared(FOLDED) ?? []));
@@ -369,7 +365,7 @@ export class SpacesView {
       .child(icon(m ? "server" : "monitor", 13).flex_none())
       .child(div().flex_1().truncate().child(m ?? "This computer"))
       .when(!g.connected && !g.rebuilt, (e) => e.child(div().flex_none().child(g.state.replace(/_/g, " "))))
-      .when(g.rebuilt, (e) => e.child(h_flex().flex_none().gap(3).items_center()
+      .when(g.rebuilt, (e) => e.child(h_flex().flex_none().gap(4).items_center()
         .child(div().max_w(140).truncate().child(g.error || "rebuilt"))
         .child(div().id(`machine-connect-${id}`).text_color(g.error ? t.blocked ?? t.ansi1 : t.muted)
           .hover((s) => s.text_color(t.foreground))
@@ -388,7 +384,7 @@ export class SpacesView {
           cx.stop_propagation();
           command("space.new", { machine: m ?? "" });
         }).child(icon("plus", 12))))
-      .child(div().size(6).rounded(3).flex_none().bg(g.connected ? t.ansi2 : t.dim))
+      .child(div().size(6).rounded_full().flex_none().bg(g.connected ? t.ansi2 : t.dim))
       .child(icon(g.folded ? "chevron-right" : "chevron-down", 11).flex_none());
   }
 
@@ -425,13 +421,13 @@ export class SpacesView {
       })
       .on_mouse_down("right", () => openOverlay({ mod: "menu", kind: "popup", width: 200, height: 260,
         props: { tab: "space", target: { id: r.id } } }))
-      .child(h_flex().gap(9).items_center()
-        .when(r.tree, (e) => e.pl(22).child(icon("git-branch", 13).text_color(t.dim)))
-        .when(!r.tree, (e) => e.child(h_flex().size(18).flex_none().rounded(5).bg(avatarFill(r.color, t))
-          .items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff")
+      .child(h_flex().gap(8).items_center()
+        .when(r.tree, (e) => e.pl(18 + 8).child(icon("git-branch", 13).text_color(t.dim)))  // under the checkout's name
+        .when(!r.tree, (e) => e.child(h_flex().size(18).flex_none().rounded(4).bg(avatarFill(r.color, t))
+          .items_center().justify_center().text_size(11).font_bold().text_color("#ffffff")
           .child([...r.name][0]?.toUpperCase() ?? "?")))
         .child(div().flex_shrink(0).max_w(150).truncate().text_color(t.foreground).child(r.name))
-        .child(h_flex().flex_1().min_w(0).gap(5).justify_end().items_center().text_size(11.5).text_color(t.dim)
+        .child(h_flex().flex_1().min_w(0).gap(6).justify_end().items_center().text_size(11).text_color(t.dim)
           .when(Boolean(r.label), (e) => e.child(div().min_w(0).truncate().child(r.label)))
           .when(r.ahead > 0, (e) => e.child(div().flex_none().text_color(t.ansi2).child(`↑${r.ahead}`)))
           .when(r.behind > 0, (e) => e.child(div().flex_none().text_color(t.ansi1).child(`↓${r.behind}`)))
@@ -446,8 +442,8 @@ export class SpacesView {
 
   /** A machine with no space yet: one made there by a click. @param {Group} g */
   emptyRow(t, g) {
-    return h_flex().id(`machine-new-${g.machine ?? "local"}`).h(LIST.tree).flex_none().px(8).gap(7).items_center()
-      .rounded(7).text_size(12).text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground))
+    return h_flex().id(`machine-new-${g.machine ?? "local"}`).h(LIST.tree).flex_none().px(8).gap(6).items_center()
+      .rounded(6).text_size(12).text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground))
       .on_click(() => command("space.new", { machine: g.machine ?? "" }))
       .child(icon("plus", 12)).child("New space there");
   }

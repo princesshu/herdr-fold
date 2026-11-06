@@ -8,8 +8,8 @@ import { commitRows, conversationRows, diffRows, foldedSections, listHeight, pus
   from "./logic.js";
 import { ConversationsView } from "./conversations.js";
 import { IssuesView } from "./issues.js";
-import { button, chip, fileMark, icon, small } from "./parts.js";
-import { panelTabs, panelTrigger, rail } from "./panel.js";
+import { button, chip, fileMark, icon, small, SPACE } from "./parts.js";
+import { panelTabs, rail } from "./panel.js";
 import { Menus, menuPopup } from "./menus.js";
 import { Preview } from "./preview.js";
 import { dock, floatHead, floatPanel, sidebarTrigger, spacesFloat } from "./sidebar.js";
@@ -94,9 +94,10 @@ const BAR = [{ id: "t1", name: "Claude", active: true, status: "working", icon: 
   { id: "t2", name: "Codex", active: false, status: "blocked", icon: ICONS.bot, tint: true },
   { id: "t3", name: "Terminal", active: false, status: null, icon: null, tint: false },
   { id: "t4", name: "notes Z", active: false, status: "done", icon: null, tint: false }];
-/** The tab bar as its view draws BAR, W its window's buttons (null: macOS, the traffic lights' instead).
- * @param {any} w */
-const tabBar = (t, w) => Object.assign(Object.create(TabsView.prototype), { pressed: null }).draw(t, BAR, "s1", 10, w);
+/** The tab bar as its view draws BAR, BUTTONS the window's own (null: macOS, the traffic lights' instead).
+ * @param {any} buttons */
+const tabBar = (t, buttons) => Object.assign(Object.create(TabsView.prototype), { pressed: null }).draw(t, BAR, "s1",
+  { lights: 12, end: 12, buttons });
 const ISSUE = { ago: ["1d", "4h"], issue: { number: 42, title: LISTED[0].title, state: "OPEN", author: "noa-berg",
   labels: ["priority: high", "bug"], body: "Steps:\n\n1. Ask `GET /books?page=99`\n2. The answer is an empty page" +
     "\n\nExpected: the last page, as `pages` says.",
@@ -266,17 +267,17 @@ export function styleguide(g, t, only = null) {
     .text_color(t.foreground).text_size(13);
   const parts = sections(g, t), body = v_flex().w_full().max_w(1400).px(48).py(40);
   const alone = parts.flatMap(([, items]) => items).find(([id]) => id === only);
-  if (alone) return page.child(body.gap(36).children(alone[1]));
+  if (alone) return page.child(body.gap(40).children(alone[1]));
   return page.child(body.gap(64)
     .child(v_flex().gap(4).child(div().text_size(13).text_color(t.muted).child("herdr-fold"))
       .child(div().text_size(28).font_bold().child("Styleguide")))
-    .children(parts.map(([title, items]) => v_flex().gap(36).child(div().text_size(20).font_bold().child(title))
+    .children(parts.map(([title, items]) => v_flex().gap(40).child(div().text_size(20).font_bold().child(title))
       .children(items.flatMap(([, groups]) => groups)))));
 }
 
 /** A group of specimens under its name, side by side as room allows. */
 function group(t, name, specimens) {
-  return v_flex().gap(14).child(div().text_size(15).font_weight(700).text_color(t.foreground).child(name))
+  return v_flex().gap(16).child(div().text_size(15).font_weight(700).text_color(t.foreground).child(name))
     .child(h_flex().flex_wrap().items_start().gap(24).children(specimens));
 }
 
@@ -300,7 +301,7 @@ function sections(g, t) {
     .border_color(t.border).child(div().h(40).flex_none()
       .child(panelTabs(t, { shown, github: true, changed: CHANGED }))).child(view));
   const [lucide, fileTypes] = icons(t);
-  return [["Foundations", [["color", [colors(t)]], ["type", [type(t), shape(t)]],
+  return [["Foundations", [["color", [colors(t)]], ["type", [type(t), spacing(t), shape(t)]],
     ["icons", [lucide]], ["file-types", [fileTypes]]]], ["Components", [
     ["buttons", [
       group(t, "Buttons", [
@@ -322,7 +323,7 @@ function sections(g, t) {
           .child(small(t, "s-stage", icon("plus"), "Stage", true, () => {}))
           .child(small(t, "s-unstage", icon("minus"), "Unstage", true, () => {}))
           .child(small(t, "s-confirm", "Discard", "Discard changes", true, () => {})),
-        { width: 180, small: true, spec: "h 20 · radius 5 · raised on hover" }),
+        { width: 180, small: true, spec: "h 20 · px 6 · radius 4 · raised on hover" }),
       ])]],
     ["files", [group(t, "Files", g.files.map(([name, view], i) => specimen(t, `files-${i}`, name,
       fixed(320, view.draw(t)), { spec: i ? "" : "h 26 a row · 12 a level · Catppuccin Icons' · git's colors" })))
@@ -333,14 +334,12 @@ function sections(g, t) {
     ["tabs", [group(t, "Tab bar", [
       specimen(t, "tab-bar", "The space's tabs: an agent working, one waiting, a shell, one done and zoomed",
         div().h(42).child(tabBar(t, null)),
-        { width: 2 * PANEL, spec: "h 29 · radius 7 · the shown one raised, its ×" }),
+        { width: 2 * PANEL, spec: "h 28 · px 12, 8 by the × · radius 6 · gap 4, 6 inside · the shown one raised" }),
       specimen(t, "tab-bar-buttons", "Off macOS: the window's buttons",
         div().h(42).child(tabBar(t, { maximized: false })),
-        { width: 2 * PANEL, spec: "+ New tab · each button its tip and the hand" })]),
+        { width: 2 * PANEL, spec: "+ New tab, the panel's toggle, the window's own · each its tip and the hand" })]),
       group(t, "Panel tabs", [...g.tabs.map(([name, state], i) => specimen(t, `tabs-${i}`, name,
-        div().h(40).child(panelTabs(t, state)), { spec: i ? "" : "h 28 · radius 6 · gap 4 · the shown one raised" })),
-      specimen(t, "panel-trigger", "Its toggle", div().w(RAIL + 8).h(42).child(panelTrigger(t)),
-        { width: 120, small: true, spec: "the tab bar's right end, over the rail's middle" })]),
+        div().h(40).child(panelTabs(t, state)), { spec: i ? "" : "h 28 · radius 6 · gap 4 · the shown one raised" }))]),
       group(t, "The panel folded to its rail", [
         specimen(t, "rail-github", "On GitHub, with changes", div().w(RAIL).h(330).child(rail(t,
           { github: true, changed: 6 }, "t1")), { width: 120, spec: `w ${RAIL} · as the left sidebar folded` }),
@@ -354,7 +353,7 @@ function sections(g, t) {
         div().p(6).child(state.section(t, "changes", "Changes", CHANGES)),
         { spec: i ? "" : "h 26 · 13 bold · chip" }))),
       group(t, "Count chip", [specimen(t, "chip", "Default", h_flex().gap(8).child(chip(t, "1")).child(chip(t, "12")),
-        { width: 180, small: true, spec: "raised · radius 5 · 11 semibold" })])]],
+        { width: 180, small: true, spec: "raised · px 6 · radius 4 · 11 semibold" })])]],
     ["rows", [group(t, "File row", g.rows.map(([name, kind, file, state], i) => specimen(t, `row-${i}`, name,
         div().p(6).child(state.file(t, kind, file)), { spec: i ? "" : "h 26 · icon, name, folder, letter" })))]],
     ["graph", [group(t, "Graph", g.graph.map(([name, state], i) => specimen(t, `graph-${i}`, name,
@@ -384,7 +383,7 @@ function sections(g, t) {
     ["spaces", [group(t, "Spaces", [
       specimen(t, "spaces-machines", "By machine, the waits beside the branch, lab's head hovered",
         fixed(listHeight(MACHINES), spacesList(t, MACHINES, { hovered: "lab" })),
-        { width: SIDEBAR, spec: "h 30 a row · 28 a worktree's · 26 a machine's · + on its hover · ansi3" }),
+        { width: SIDEBAR, spec: "h 32 a row · 28 a worktree's and a machine's · + on its hover · ansi3" }),
       specimen(t, "spaces-local", "This computer only", fixed(listHeight([LOCAL]), spacesList(t, [LOCAL])),
         { width: SIDEBAR }),
       specimen(t, "spaces-drag", "A space dragged", fixed(listHeight([LOCAL]), spacesList(t, [LOCAL],
@@ -419,10 +418,10 @@ function sections(g, t) {
 function colors(t) {
   const swatch = (token, use) => v_flex().w(148).flex_none().gap(6)
     .child(div().h(56).rounded(8).bg(t[token] ?? t.background).border_1().border_color(t.border))
-    .child(v_flex().gap(1).child(div().text_size(12).font_bold().child(token))
+    .child(v_flex().gap(2).child(div().text_size(12).font_bold().child(token))
       .child(div().text_size(11).text_color(t.dim).child(String(t[token] ?? "")))
       .child(div().text_size(11).text_color(t.muted).child(use)));
-  const row = (name, tokens) => v_flex().gap(10).child(div().text_size(12).text_color(t.muted).child(name))
+  const row = (name, tokens) => v_flex().gap(12).child(div().text_size(12).text_color(t.muted).child(name))
     .child(h_flex().gap(16).children(tokens.map(([token, use]) => swatch(token, use))));
   return group(t, "Color", [v_flex().gap(24)
     .child(row("Surface", [["background", "Panels, fields"], ["raised", "Buttons, chips"], ["hover", "Under the mouse"],
@@ -440,7 +439,7 @@ function type(t) {
   const line = (sample, spec, style) => h_flex().gap(24).items_baseline()
     .child(div().w(220).flex_none().child(style(div().child(sample))))
     .child(div().text_size(11).text_color(t.dim).child(spec));
-  return group(t, "Type", [v_flex().gap(14)
+  return group(t, "Type", [v_flex().gap(16)
     .child(line("Changes", "View name · 13 semibold", (e) => e.text_size(13).font_semibold()))
     .child(line("Staged changes", "Section · 13 bold", (e) => e.text_size(13).font_bold()))
     .child(line("books.py", "Body · 13 regular", (e) => e.text_size(13)))
@@ -448,8 +447,18 @@ function type(t) {
     .child(line("src/lumen/routes", "Meta · 11 regular, dim", (e) => e.text_size(11).text_color(t.dim)))
     .child(line("PAGE = 20", "Code · Menlo 13, the preview tab", (e) => e.text_size(13).font_family("Menlo")))
     .child(line("PAGE = 20", "Code · Menlo 11, a hit's file", (e) => e.text_size(11).font_family("Menlo")))
-    .child(line(h_flex().gap(10).children(["refresh-cw", "plus", "sparkles", "check"].map((name) => icon(name))),
+    .child(line(h_flex().gap(12).children(["refresh-cw", "plus", "sparkles", "check"].map((name) => icon(name))),
       "Icons · Lucide 14, 15 on a tab", (e) => e.text_color(t.muted)))]);
+}
+
+/** The spacing scale (parts.js's SPACE), each step a bar that wide, and the steps the views keep to. */
+function spacing(t) {
+  return group(t, "Spacing", [v_flex().gap(12)
+    .child(h_flex().gap(16).items_end().children(SPACE.map((px) => v_flex().gap(6).items_center()
+      .child(div().w(px).h(24).bg(t.accent)).child(div().text_size(11).text_color(t.dim)
+        .child(String(px))))))
+    .child(div().text_size(11).text_color(t.dim).child("4 between two buttons · 6 an icon and its words · 8 a row's " +
+      "end · 12 inside a panel · 16 a list's start"))]);
 }
 
 /** Radii and heights, each shown at its size. */
@@ -461,9 +470,9 @@ function shape(t) {
     .child(div().w(120).h(px).rounded(4).bg(t.raised).border_1().border_color(t.border))
     .child(div().w(40).text_size(12).child(`${px}`)).child(div().text_size(11).text_color(t.dim).child(use));
   return group(t, "Shape and size", [
-    h_flex().gap(16).children([[10, "Panel"], [8, "Control"], [6, "Row"], [5, "Chip"]].map(([px, use]) =>
+    h_flex().gap(16).children([[10, "Panel"], [8, "Control"], [6, "Row"], [4, "Chip"]].map(([px, use]) =>
       radius(/** @type {number} */ (px), /** @type {string} */ (use)))),
-    v_flex().gap(10).children([[48, "Issue"], [40, "Panel tabs"], [32, "Control"], [28, "Tab"], [26, "Row"],
+    v_flex().gap(12).children([[48, "Issue"], [40, "Panel tabs"], [32, "Control"], [28, "Tab"], [26, "Row"],
       [24, "Commit, hit"], [22, "Preview line"], [20, "A hit's file line"]].map(([px, use]) =>
       height(/** @type {number} */ (px), /** @type {string} */ (use))))]);
 }

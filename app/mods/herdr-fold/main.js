@@ -10,9 +10,9 @@ import { activeTerminal, afterCommit, background, branchLabel, changeColor, chan
   foldedSections, hovering, lastLine, launcher, letter, marked, MODES, panelRailed, panelToggle, pushOffer,
   pythonCommand, railFollow, rowActions, said, searchRows, searchSummary, secretQuestion, syncLabel, written }
   from "./logic.js";
-import { button, chip, END, field, fileMark, GAP, icon, SLIDE, small } from "./parts.js";
+import { button, chip, END, field, fileMark, GAP, icon, INDENT, SLIDE, small } from "./parts.js";
 import { Menus, menuPopup } from "./menus.js";
-import { followFolder, keptWidth, liveTabs, openRail, panelTrigger, rail, runPanel, TABS, tabsState, VIEW, VIEW_NAMES }
+import { followFolder, keptWidth, liveTabs, openRail, rail, runPanel, TABS, tabsState, VIEW, VIEW_NAMES }
   from "./panel.js";
 import { ConversationsView } from "./conversations.js";
 import { FilesView } from "./files.js";
@@ -120,7 +120,6 @@ export default class HerdrFold extends View {
     if ((this.blank = part === "none")) return;
     if ((this.tabs = part === "panel-tabs")) return;     // the right panel's stack: its header, the group's tabs
     if (part === "menu") return void (this.popup = { overlay: props().overlay, items: props().items });
-    if ((this.toggle = part === "panel-trigger")) return;    // the tab bar's right end
     if (part === "tabs") return void (this.bar = new TabsView());    // the tab bar, where the app's own was
     if (part === "preview") return void (this.preview = new Preview(props().space, python));
     if ((this.trigger = part === "trigger")) return;    // left of the tabs: the folded sidebar's toggle
@@ -514,10 +513,6 @@ export default class HerdrFold extends View {
     if (this.blank) return standIn(t);
     if (this.tabs) return liveTabs(t);
     if (this.popup) return menuPopup(t, this.popup.overlay, this.popup.items);
-    if (this.toggle) {
-      this.followRail(cx);
-      return panelTrigger(t);
-    }
     if (this.rail) return rail(t, tabsState(), activeTerminal(layout()));
     if (this.head) {
       this.offRail(this.head.overlay, cx);
@@ -534,7 +529,10 @@ export default class HerdrFold extends View {
     if (this.conversations) return float ? floatPanel(t, "Conversations", float.overlay, float.height, [],
       this.conversations.render(t, cx)) : this.conversations.render(t, cx);
     if (this.spaces) return this.spaces.render(t, cx);
-    if (this.bar) return this.bar.render(t);
+    if (this.bar) {
+      this.followRail(cx);
+      return this.bar.render(t);
+    }
     if (this.files) return float ? floatPanel(t, "Files", float.overlay, undefined, [], this.files.render(t, cx))
       : this.files.render(t, cx);
     if (this.trigger) return sidebarTrigger(t);
@@ -576,7 +574,7 @@ export default class HerdrFold extends View {
 
   /** What went wrong last (a sync, a commit), and what to do. */
   problem(t) {
-    return div().px(10).py(6).text_size(11).text_color(t.ansi1).child(this.note ?? "");
+    return div().px(12).py(6).text_size(11).text_color(t.ansi1).child(this.note ?? "");
   }
 
   /** Section KIND (staged, changes, graph) folded or opened again, and kept so, as the TUI sidebar keeps it.
@@ -598,7 +596,7 @@ export default class HerdrFold extends View {
 
   /** The search field with its switches (Aa, ab, .*), then the folder searched or what the search found. */
   query(t) {
-    const toggle = (name, label, tip) => div().id(`switch-${name}`).h(24).px(6).flex().items_center().rounded(5)
+    const toggle = (name, label, tip) => div().id(`switch-${name}`).h(24).px(6).flex().items_center().rounded(4)
       .text_size(12).cursor_pointer().tooltip(tip).text_color(this.switches[name] ? t.accent : t.muted)
       .when(this.switches[name], (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover))
       .on_click((_e, cx) => {
@@ -609,7 +607,7 @@ export default class HerdrFold extends View {
       .child(label);
     const folder = (this.found ? this.searched?.cwd : place().cwd)?.split(/[\\/]/).pop() ?? "";
     const status = this.searching ? "Searching…" : this.found ? searchSummary(this.found) : `in ${folder}`;
-    return v_flex().flex_none().p(10).gap(6).border_b(1).border_color(t.border)
+    return v_flex().flex_none().p(12).gap(6).border_b(1).border_color(t.border)
       .child(field(t, "search", this.find, toggle("case", "Aa", "Match case"), toggle("word", "ab", "Whole word"),
         toggle("regex", ".*", "Regular expression")))
       .child(div().text_size(11).text_color(this.found?.error ? t.ansi1 : t.dim).truncate().child(status));
@@ -618,13 +616,13 @@ export default class HerdrFold extends View {
   /** The hits by file, the matches marked; a click shows the file there. */
   hits(t) {
     const row = (r) => r.kind === "file"
-      ? h_flex().id(`found-${r.path}`).w_full().h(24).flex_none().px(10).gap(6).items_center().tooltip(r.path)
+      ? h_flex().id(`found-${r.path}`).w_full().h(24).flex_none().px(12).gap(6).items_center().tooltip(r.path)
         .child(fileMark(fileIcon(r.path.split("/").pop())))
         .child(div().font_semibold().child(r.path.split("/").pop()))
         .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim)
           .child(r.path.includes("/") ? r.path.slice(0, r.path.lastIndexOf("/")) : ""))
-        .child(div().px(5).rounded(4).text_size(10).bg(t.raised).text_color(t.muted).child(String(r.count)))
-      : h_flex().id(`hit-${r.path}:${r.line}`).w_full().h(24).flex_none().pl(10).pr(10).gap(8).items_center()
+        .child(div().px(6).rounded(4).text_size(10).bg(t.raised).text_color(t.muted).child(String(r.count)))
+      : h_flex().id(`hit-${r.path}:${r.line}`).w_full().h(24).flex_none().px(12).gap(8).items_center()
         .rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
         .when(this.peek === `${r.path}:${r.line}`, (e) => e.bg(t.selected))
         .child(div().w(34).flex_none().text_right().text_size(11).text_color(t.dim).child(String(r.line)))
@@ -648,7 +646,7 @@ export default class HerdrFold extends View {
 
   /** The hit's file from a few lines above it, numbered, its line marked. */
   lines(t) {
-    const row = ({ number, text, spans }) => h_flex().w_full().h(20).flex_none().gap(10)
+    const row = ({ number, text, spans }) => h_flex().w_full().h(20).flex_none().gap(12)
       .when(Boolean(spans), (e) => e.bg(t.selected))
       .child(div().w(34).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
       .child(this.line(t, text, spans));
@@ -703,8 +701,8 @@ export default class HerdrFold extends View {
     const parts = path.split("/"), name = parts.pop(), key = shown(kind, path);
     const color = changeColor(t, code);
     const asking = this.confirm === key;
-    return h_flex().id(`file-${key}`).h(26).flex_none().pl(26).pr(8).gap(6).items_center().rounded(6).cursor_pointer()
-      .when(this.open === key, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover)).tooltip(path)
+    return h_flex().id(`file-${key}`).h(26).flex_none().pl(INDENT).pr(8).gap(6).items_center().rounded(6)
+      .cursor_pointer().when(this.open === key, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover)).tooltip(path)
       .on_hover(hovering(this, key))
       .on_click((_e, cx) => this.pick(key, { kind: "diff", path }, cx))
       .child(fileMark(fileIcon(name)))
@@ -740,7 +738,7 @@ export default class HerdrFold extends View {
       .child(div().font_bold().child("Graph"));
     const commit = ({ hash, subject, author, refs, head }) => {
       const key = shown("commit", hash);
-      return h_flex().id(`commit-${hash}`).h(24).flex_none().pl(26).pr(8).gap(6).items_center().rounded(6)
+      return h_flex().id(`commit-${hash}`).h(24).flex_none().pl(INDENT).pr(8).gap(6).items_center().rounded(6)
         .cursor_pointer().when(this.open === key, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover))
         .tooltip(`${hash} ${subject}`).on_click((_e, cx) => this.pick(key, { kind: "commit", hash }, cx))
         .child(div().w(14).flex_none().text_color(head ? t.accent : t.muted).child(head ? "◉" : "○"))
@@ -773,7 +771,7 @@ export default class HerdrFold extends View {
    * upstream, when it is) and ⋯ its other ways to the remote; its heading folds it. */
   repository(t) {
     const sync = syncLabel(this.status), name = this.root?.split(/[\\/]/).pop() ?? "";
-    const row = h_flex().id("repository").h(26).flex_none().pl(26).pr(8).gap(6).items_center().rounded(6)
+    const row = h_flex().id("repository").h(26).flex_none().pl(INDENT).pr(8).gap(6).items_center().rounded(6)
       .hover((s) => s.bg(t.hover)).tooltip(this.root ?? "")
       .child(icon("book-marked").text_color(t.muted)).child(div().flex_1().min_w(0).truncate().font_semibold()
         .child(name))
@@ -795,9 +793,9 @@ export default class HerdrFold extends View {
     const commit = this.ready && (Boolean(this.message.trim()) || Boolean(this.offer));
     const label = this.busy ?? h_flex().gap(8).items_center().child(icon("check"))
       .child(this.offer ? "Push" : `${MODES[this.once ?? this.mode]}${this.asked ? " anyway" : ""}`);
-    return v_flex().flex_none().p(10).gap(8).border_b(1).border_color(t.border)
+    return v_flex().flex_none().p(12).gap(8).border_b(1).border_color(t.border)
       .child(h_flex().gap(8)
-        .child(div().id("message").flex_1().min_w(0).h(32).px(10).flex().items_center().rounded(8).border_1()
+        .child(div().id("message").flex_1().min_w(0).h(32).px(12).flex().items_center().rounded(8).border_1()
           .border_color(t.border).cursor_text().on_key_down((e, cx) => e.key === "escape" && this.cancel(cx))
           .child(Input.new(this.input).h_full().text_size(12).text_color(t.foreground)))
         .child(button(t, "write", icon("sparkles", 15), this.ready, false, (cx) => this.write(cx))

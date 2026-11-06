@@ -180,7 +180,7 @@ export class IssuesView {
       ...[["me", q.assigned], ["by me", q.authored], [q.label, q.label]].filter(([, is]) => is)
         .map(([word]) => [word, t.foreground])];
     const shown = on.length ? on : [["Filters", t.muted]];
-    const filters = h_flex().id("issue-filters").h(24).px(8).gap(4).flex_none().items_center().rounded(5)
+    const filters = h_flex().id("issue-filters").h(24).px(8).gap(4).flex_none().items_center().rounded(6)
       .text_size(12).cursor_pointer().hover((s) => s.bg(t.hover)).on_mouse_down("left", (e, cx) => {
         cx.stop_propagation();
         this.pressed = e.bounds;
@@ -189,7 +189,7 @@ export class IssuesView {
       .children(shown.flatMap(([word, color], i) => [...(i ? [div().text_color(t.muted).child("·")] : []),
         div().text_color(color).child(String(word))]))
       .child(icon("chevron-down", 12).text_color(t.muted));
-    return h_flex().flex_none().p(10).pb(6).gap(6).items_center()
+    return h_flex().flex_none().p(12).pb(6).gap(6).items_center()
       .child(field(t, "issue-search", this.find, filters).flex_1().min_w(0))
       .child(button(t, "issue-new", icon("plus", 15), Boolean(this.host.github), false,
         (cx) => this.terminal(["create"], cx)).tooltip("New issue"));
@@ -212,7 +212,7 @@ export class IssuesView {
 
   /** Open and Closed, as GitHub's list has them: the chosen one filled. */
   states(t) {
-    return h_flex().flex_none().px(10).pb(8).gap(6).children(Object.entries(STATES).map(([state, label]) =>
+    return h_flex().flex_none().px(12).pb(8).gap(6).children(Object.entries(STATES).map(([state, label]) =>
       div().id(`issues-${state}`).h(24).px(8).flex().items_center().rounded(6).text_size(12).cursor_pointer()
         .when(this.query.state === state, (e) => e.bg(t.solid).text_color(t.solid_foreground).font_bold())
         .when(this.query.state !== state, (e) => e.text_color(t.muted).hover((s) => s.bg(t.hover)))
@@ -250,14 +250,14 @@ export class IssuesView {
       .when(this.chosen === issue.number, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover))
       .on_hover(hovering(this.host, key)).on_click((_e, cx) => this.open(issue, cx))
       .on_mouse_down("right", () => this.host.menus.open(this.picks(issue)))
-      .child(div().w(3).h(36).flex_none().rounded(2).when(issue.level !== null, (e) => e.bg(color)))
+      .child(div().w(3).h(36).flex_none().rounded_full().when(issue.level !== null, (e) => e.bg(color)))
       .child(v_flex().flex_1().min_w(0).gap(2)
         .child(h_flex().gap(6).min_w(0).child(div().flex_none().font_bold().text_color(color).child(`#${issue.number}`))
           .child(div().flex_1().min_w(0).truncate().child(issue.title)))
         .child(h_flex().gap(6).min_w(0).text_size(11)
           .when(Boolean(issue.ranked_by), (e) => e.child(div().flex_none().text_color(color).child(issue.ranked_by)))
           .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child([labels, people].filter(Boolean)
-            .join("  ")))
+            .join(" · ")))
           .child(div().flex_none().text_color(t.dim).child(issue.ago))))
       .when(Boolean(asking), (e) => e.child(h_flex().flex_none().gap(GAP).pr(6).items_center()
         .child(div().text_size(11).text_color(t.ansi1).child(`${verb}?`))
@@ -285,7 +285,7 @@ export class IssuesView {
 /** The issue NUMBER's Fixes line, as the TUI sidebar shows it under Commit: the next commit closes it; × unlinks it.
  * @param {[number, string]} linked @param {(cx: any) => void} unlink */
 export function fixesLine(t, linked, unlink) {
-  return h_flex().flex_none().px(10).pb(8).gap(6).items_center().text_size(12)
+  return h_flex().flex_none().px(12).pb(8).gap(6).items_center().text_size(12)
     .child(div().flex_1().min_w(0).truncate().text_color(t.accent).child(`Fixes #${linked[0]} ${linked[1]}`))
     .child(small(t, "unlink", icon("x"), "Next commit fixes no issue", true, unlink));
 }

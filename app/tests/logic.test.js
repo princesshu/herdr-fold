@@ -13,7 +13,7 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   safeMarkdown, said, searchRows, searchSummary, secretQuestion, shownTab, strays, syncLabel, tabLabel, TALL,
   terminalId, TERMINALS, urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread,
   spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow,
-  railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom }
+  railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom }
   from "../mods/herdr-fold/logic.js";
 
 test("a tab the app named after its program, an agent's first, else Terminal; its own name kept, zoomed marked", () => {
@@ -37,6 +37,11 @@ test("the tab bar's room for the traffic lights: what the sidebar beside them le
   assert.equal(lightsRoom(root(0, true), mac, 2), 10);
   assert.equal(lightsRoom(root(0, true), { ...mac, fullscreen: true }, 1), 10);
   assert.equal(lightsRoom(root(0, true), { ...mac, platform: "linux" }, 1), 10);
+});
+
+test("the tab bar's end leaves room so its panel toggle, a BUTTON wide, sits over the rail's middle", () => {
+  assert.equal(toggleRoom({ children: [{ id: "work-body", padding: 8 }] }, 26), 8 + (RAIL - 26) / 2);
+  assert.equal(toggleRoom({ children: [] }, 26), (RAIL - 26) / 2);
 });
 
 test("a row hovered: its key while the pointer is over it, let go only by its own leaving", () => {
@@ -450,16 +455,16 @@ test("a floating panel as tall as its content, up to TALL: Spaces' rows, Convers
   assert.equal(floatHeight("spaces", 40), TALL);
 });
 
-test("the Spaces list's height, as the app's: a machine's head once another is there, a worktree's row lower", () => {
+test("the Spaces list's height, on the grid: a machine's head once another is there, a worktree's row lower", () => {
   const group = (machine, rows, more = {}) => ({ machine, rows, folded: false, rebuilt: false, loading: false,
     ...more });
   const row = { tree: false }, tree = { tree: true };
-  assert.equal(listHeight([group(null, [row, row])]), 31 + 2 * 30 + 14);
+  assert.equal(listHeight([group(null, [row, row])]), 32 + 2 * 32 + 16);
   assert.equal(listHeight([group(null, [row, tree]), group("lab", [row]), group("mini", [])]),
-    31 + 3 * 26 + 30 + 28 + 30 + 28 + 14);                      // mini: "New space there"
+    32 + 3 * 28 + 32 + 28 + 32 + 28 + 16);                      // mini: "New space there"
   assert.equal(listHeight([group(null, [row]), group("lab", [row], { folded: true }),
-    group("old", [row], { rebuilt: true })]), 31 + 3 * 26 + 30 + 14);
-  assert.equal(listHeight([group(null, [], { loading: true })]), 31 + 28 + 14);
+    group("old", [row], { rebuilt: true })]), 32 + 3 * 28 + 32 + 16);
+  assert.equal(listHeight([group(null, [], { loading: true })]), 32 + 28 + 16);
   assert.equal(listBody(group(null, []), false), "none");
 });
 

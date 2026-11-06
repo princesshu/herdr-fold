@@ -222,14 +222,14 @@ export class FilesView {
       .on_key_down((e, cx) => e.key === "escape" && this.drop(cx))
       .child(this.toolbar(t))
       .child(this.root ? this.tree(t) : div().p(16).text_size(12).text_color(t.dim).child("No folder"))
-      .when(Boolean(this.note), (e) => e.child(div().px(10).py(6).text_size(11).text_color(t.ansi1)
+      .when(Boolean(this.note), (e) => e.child(div().px(12).py(6).text_size(11).text_color(t.ansi1)
         .child(this.note ?? "")));
   }
 
   /** The folder's name, and as VS Code's Explorer has them: New File, New Folder, Refresh, Collapse; hidden files. */
   toolbar(t) {
     const name = this.root?.split(/[\\/]/).pop() ?? "";
-    return h_flex().h(34).flex_none().px(10).gap(GAP).items_center()
+    return h_flex().h(36).flex_none().px(8).gap(GAP).items_center()
       .child(div().flex_1().min_w(0).truncate().text_size(11).font_semibold().text_color(t.muted)
         .child(name.toUpperCase()))
       .child(iconButton(t, "files-new-file", "file-plus", "New File", (cx) => this.name("new-file", "", cx)))

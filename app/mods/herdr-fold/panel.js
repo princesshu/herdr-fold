@@ -4,7 +4,7 @@
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { layout, openOverlay, setShared, shared, watchFolder, run as command } from "herdr";
-import { PANEL, PANEL_BODY, PANEL_PX, panelPx, panelRailed, panelShown, RAIL, railToggle, shownTab } from "./logic.js";
+import { PANEL, PANEL_BODY, PANEL_PX, panelPx, panelRailed, panelShown, railToggle, shownTab } from "./logic.js";
 import { badge, GAP, icon, iconButton, iconTab } from "./parts.js";
 
 export const VIEW = "herdr-fold.view";        // the view shown, kept: changes, search or issues
@@ -22,8 +22,8 @@ const RAILED = [["files", "files", "Files"], ["search", "search", "Search"], ["c
 export function panelTabs(t, { shown, github, changed }) {
   const tab = (id) => {
     const on = shown === id;
-    return h_flex().id(`panel-tab-${id}`).h(28).px(10).gap(6).items_center().rounded(6).cursor_pointer()
-      .text_size(12.5).text_color(on ? t.foreground : t.dim).when(on, (e) => e.bg(t.raised).font_semibold())
+    return h_flex().id(`panel-tab-${id}`).h(28).px(12).gap(6).items_center().rounded(6).cursor_pointer()
+      .text_size(13).text_color(on ? t.foreground : t.dim).when(on, (e) => e.bg(t.raised).font_semibold())
       .when(!on, (e) => e.hover((s) => s.bg(t.hover).text_color(t.muted))).on_click(() => pick(id))
       .child(VIEW_NAMES[id])
       .when(id === "changes" && changed > 0, (e) => e.child(badge(t, changed)));
@@ -80,32 +80,28 @@ export function runPanel(commands) {
   for (const [name, args] of commands) command(name, args);
 }
 
-/** The tab bar's right end: the right panel's toggle, where the app's Files and Changes buttons were, over the
- * rail's middle (its block is the rail and the work body's padding wide); it folds the panel to its rail and opens
- * it again. */
-export function panelTrigger(t) {
+/** The right panel's toggle, at the tab bar's end: it folds the panel to its rail and opens it again. */
+export function panelToggle(t) {
   const root = layout(), open = panelShown(root) && !panelRailed(root);
-  return h_flex().size_full().border_b(1).border_color(t.border)
-    .child(h_flex().w(RAIL).h_full().items_center().justify_center()
-      .child(iconButton(t, "panel-open", "panel-right", open ? "Fold panel" : "Open panel",
-        () => runPanel(railToggle(layout(), keptWidth())), { size: 15 })));
+  return iconButton(t, "panel-open", "panel-right", open ? "Fold panel" : "Open panel",
+    () => runPanel(railToggle(layout(), keptWidth())), { size: 15 });
 }
 
 /** The right panel folded to its rail, as the left sidebar's: its views on squares, a label under each, Changes with
  * its count (CHANGED), Issues only on GitHub (GITHUB), the tab's TERMINAL (none: its button off); a press floats one.
  * @param {{ github: boolean, changed: number }} tabs @param {string | null} terminal */
 export function rail(t, { github, changed }, terminal) {
-  return v_flex().id("panel-rail").size_full().items_center().pt(10).gap(12)
+  return v_flex().id("panel-rail").size_full().items_center().pt(8).gap(12)
     .children(RAILED.filter(([panel]) => panel !== "issues" || github).map(([panel, name, label]) => {
       const off = panel === "terminal" && !terminal;
-      return v_flex().id(`rail-${panel}`).flex_none().items_center().gap(3)
+      return v_flex().id(`rail-${panel}`).flex_none().items_center().gap(4)
         .when(!off, (e) => e.on_mouse_down("left", (e, cx) => {
           cx.stop_propagation();
           openRail(panel, e.bounds, terminal);
         }))
         .child(iconTab(t, `rail-${panel}-tab`, icon(name, 15), { count: panel === "changes" ? changed : 0,
           tip: off ? "No terminal in this tab" : label, act: () => {} }))
-        .child(div().text_size(9).text_color(off ? t.border : t.dim).child(label));
+        .child(div().text_size(10).text_color(off ? t.border : t.dim).child(label));
     }));
 }
 

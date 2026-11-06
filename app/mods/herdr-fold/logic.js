@@ -381,6 +381,10 @@ export function lightsRoom(root, w, zoom) {
   return Math.max(10, (root.traffic_lights[0] + 64) / zoom - width("sidebar") - width("sidebar-trigger"));
 }
 
+/** The room the tab bar leaves at its end so its panel toggle, BUTTON px wide, sits over the middle of the rail,
+ * inside the work body's padding (layout ROOT's). @param {any} root @param {number} button */
+export const toggleRoom = (root, button) => (find(root, "work-body")?.padding ?? 0) + (RAIL - button) / 2;
+
 // the layout's right panel and the stack of its views: herdr-fold's own ids, so the app's Settings, which shows and
 // hides a panel under the app's ids, leaves it alone
 export const PANEL = "fold-panel", PANEL_BODY = "fold-panel-body";
@@ -505,7 +509,7 @@ export function spaceColors(list, kept) {
  * @param {string} color @param {Record<string, any>} t */
 export const avatarFill = (color, t) => (color.startsWith("#") ? color : MARK[color] ?? t[color] ?? MARK.ansi6);
 
-export const LIST = { head: 31, foot: 14, machine: 26, row: 30, tree: 28 };     // the Spaces list's, as the app's
+export const LIST = { head: 32, foot: 16, machine: 28, row: 32, tree: 28 };     // the Spaces list's, on the grid
 
 /** @typedef {{ machine: string | null, folded: boolean, rebuilt: boolean, loading: boolean,
  *   rows: { tree: boolean }[] }} SpaceGroup */

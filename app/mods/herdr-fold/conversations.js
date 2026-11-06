@@ -9,7 +9,7 @@ import { CONVERSATIONS } from "./helper.js";
 import { archiveKey, conversationChoices, conversationRows, coreAgents, floatHeight, folderSpaces, resumeArgv, said,
   tabLabel } from "./logic.js";
 import { Menus } from "./menus.js";
-import { field, icon, SLIDE, stateMark } from "./parts.js";
+import { field, icon, listHead, SLIDE, stateMark } from "./parts.js";
 import { dock, folded, followFold } from "./sidebar.js";
 import { trackWaits } from "./spaces.js";
 
@@ -255,8 +255,7 @@ export class ConversationsView {
       : this.typed ? "No conversation matches" : "No conversations";
     const docked = !this.overlay;                 // floating, its panel's head names it
     return v_flex().size_full().min_h(0).text_color(t.foreground).text_size(13)
-      .when(docked, (e) => e.child(h_flex().flex_none().h(41).px(16).pt(14).pb(5).items_center()   // the app's lists'
-        .child(div().text_size(11.5).font_medium().text_color(t.dim).child("Conversations"))))
+      .when(docked, (e) => e.child(listHead(t, "Conversations")))
       .child(div().flex_none().px(8).pb(6).child(field(t, "conversations-filter", this.find)))
       .when(Boolean(this.note), (e) => e.child(div().flex_none().px(16).pb(6).text_size(11).truncate()
         .text_color(t.dim).child(this.note ?? "")))
@@ -298,7 +297,7 @@ export class ConversationsView {
     const key = archiveKey(item), archived = this.archived.has(key);
     const title = item.title.replace(/\p{Cc}/gu, "?");    // a title's escape codes shown, never run
     const look = archived ? t.dim : item.state ? t.foreground : t.muted, agent = this.agentIcon(item, 13);
-    return h_flex().id(`conversation-${key}`).h(24).flex_none().pl(22).pr(8).gap(6).items_center().rounded(6)
+    return h_flex().id(`conversation-${key}`).h(24).flex_none().pl(24).pr(8).gap(6).items_center().rounded(6)
       .cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => this.open(item, cx))
       .tooltip(`${title} · ${STATES[item.state] ?? "Closed"}`)              // its whole name, its mark in words
       .on_mouse_down("right", (_e, cx) => {

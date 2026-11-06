@@ -5,7 +5,7 @@ import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { closeOverlay, layout, openOverlay, setShared, shared, spaces, updates, window, run as command } from "herdr";
 import { avatarFill, floatHeight, foldedWidth, railed, sidebarPx, urgent, waited } from "./logic.js";
-import { GAP, icon, iconButton, iconTab, stateMark } from "./parts.js";
+import { GAP, icon, iconButton, iconTab, listName, stateMark } from "./parts.js";
 import { spaceColorsKept, waitsBySpace } from "./spaces.js";
 
 const FOLDED = ["sidebar-trigger"];       // the layout's blocks shown while folded
@@ -32,7 +32,7 @@ function foldSidebar() {
 
 /** The tab bar's left end while the sidebar is a rail: its toggle, as a sidebar's trigger. */
 export function sidebarTrigger(t) {
-  return v_flex().size_full().items_center().justify_center().border_b(1).border_color(t.border)
+  return v_flex().size_full().items_center().justify_center()
     .child(iconButton(t, "sidebar-open", "panel-left", "Show sidebar", foldSidebar, { size: 15 }));
 }
 
@@ -48,7 +48,7 @@ function openFloat(panel, bounds, height) {
  * @param {string} name @param {string} overlay @param {any[]} buttons */
 export function floatHead(t, name, overlay, buttons) {
   return h_flex().w_full().h(36).flex_none().pl(16).pr(6).gap(GAP).items_center()
-    .child(div().flex_1().text_size(11.5).font_medium().text_color(t.dim).child(name)).children(buttons)
+    .child(listName(t, name).flex_1()).children(buttons)
     .child(iconButton(t, "float-close", "x", "Close", () => closeOverlay(overlay)));
 }
 
@@ -67,7 +67,7 @@ export function floatPanel(t, name, overlay, height, buttons, body) {
 export function dock(t, spaces, talks, tall) {
   const dot = (states) => (urgent(states) ? t[/** @type {string} */ (urgent(states))] : null);
   return v_flex().id("dock").size_full().min_h(0).items_center()
-    .child(v_flex().flex_1().pt(10).gap(12).items_center()
+    .child(v_flex().flex_1().pt(8).gap(12).items_center()
       .child(dockButton(t, "spaces", "layers", "Spaces", dot(spaces), floatHeight("spaces", spaces.length)))
       .child(dockButton(t, "conversations", "message-square", "Conversations", dot(talks), tall)))
     .child(v_flex().w_full().flex_none().items_center().gap(GAP).pt(4).pb(8).border_t(1).border_color(t.border)
@@ -82,13 +82,13 @@ export function dock(t, spaces, talks, tall) {
  * state's color, LABEL under it; a press floats it beside the rail, HEIGHT high. @param {string} panel @param {string}
  * label @param {import("./icons.js").IconName} name @param {string | null} dot @param {number} height */
 function dockButton(t, panel, name, label, dot, height) {
-  return v_flex().id(`dock-${panel}`).flex_none().items_center().gap(3).cursor_pointer()
+  return v_flex().id(`dock-${panel}`).flex_none().items_center().gap(4).cursor_pointer()
     .on_mouse_down("left", (e, cx) => {
       cx.stop_propagation();
       openFloat(panel, e.bounds, height);
     })
     .child(iconTab(t, `dock-${panel}-tab`, icon(name, 15), { dot, tip: label, act: () => {} }))
-    .child(div().text_size(9).text_color(t.dim).child(label));
+    .child(div().text_size(10).text_color(t.dim).child(label));
 }
 
 /** The Spaces panel floating beside the folded rail (OVERLAY, HEIGHT high): each of LIST by its avatar (COLORS), its
@@ -98,16 +98,16 @@ export function spacesFloat(t, overlay, height, list = spaces(), colors = spaceC
   now = Date.now()) {
   return floatPanel(t, "Spaces", overlay, height,
     [iconButton(t, "float-new-space", "plus", "New space", () => command("space.new", {}))],
-    v_flex().id("float-spaces").size_full().overflow_y_scrollbar().px(8).pb(8).gap(1)
+    v_flex().id("float-spaces").size_full().overflow_y_scrollbar().px(8).pb(8).gap(2)
       .children(list.map((space) => h_flex().id(`float-space-${space.id}`).h(28).flex_none().px(8).gap(8)
         .items_center().rounded(6).cursor_pointer().when(space.active, (e) => e.bg(t.selected))
         .hover((s) => s.bg(t.hover)).on_click(() => command("space.select", { id: space.id }))
-        .child(h_flex().size(18).flex_none().rounded(5).bg(avatarFill(colors[space.id] ?? "ansi6", t))
+        .child(h_flex().size(18).flex_none().rounded(4).bg(avatarFill(colors[space.id] ?? "ansi6", t))
           .items_center().justify_center()
-          .text_size(10.5).font_bold().text_color("#ffffff").child([...space.name][0]?.toUpperCase() ?? "?"))
+          .text_size(11).font_bold().text_color("#ffffff").child([...space.name][0]?.toUpperCase() ?? "?"))
         .child(div().flex_1().min_w(0).truncate().text_color(space.active ? t.foreground : t.muted)
           .when(space.active, (e) => e.font_bold()).child(space.name))
-        .when(Boolean(since[space.id]), (e) => e.child(div().flex_none().text_size(11.5).text_color(t.ansi3)
+        .when(Boolean(since[space.id]), (e) => e.child(div().flex_none().text_size(11).text_color(t.ansi3)
           .child(waited(now - since[space.id]))))
         .child(stateMark(t, space.status)))));
 }

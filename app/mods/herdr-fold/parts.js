@@ -3,8 +3,14 @@
 import { div, image, svg } from "gpui-kit";
 import { h_flex, Input } from "gpui-base";
 import { ICONS } from "./icons.js";
+import { LIST } from "./logic.js";
 
 export const GAP = 4;              // between two hover backgrounds side by side, everywhere: tabs, icon buttons
+// the scales every view keeps to, which the styleguide shows: padding and gaps on a 4 px grid, the type sizes, the
+// corners (tests/test_app.py checks each value against them)
+export const SPACE = [2, 4, 6, 8, 12, 16, 20, 24, 32, 40, 48, 64];
+export const TEXT = [10, 11, 12, 13, 15, 20, 28];
+export const RADII = [4, 6, 8, 10];
 
 /** The mod's icon NAME (icons.js's, Lucide's), SIZE square, in the text's color.
  * @param {import("./icons.js").IconName} name @param {number} [size] */
@@ -16,10 +22,20 @@ export const fileMark = (path) => image(path).size(16).flex_none();
 /** A button that is an icon (NAME), 26 square, saying TIP while the mouse rests on it; its press never drags what it
  * sits on (the window, a floating panel). @param {import("./icons.js").IconName} name @param {string} tip
  * @param {(cx: any) => void} act */
+export const BUTTON = 26;          // an icon button's square
+export const INDENT = 6 + 14 + 6;  // a row's content under its section's name: the head's padding, chevron and gap
 export const iconButton = (t, id, name, tip, act, { size = 14, color = t.muted } = {}) =>
-  div().id(id).relative().size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(color)
+  div().id(id).relative().size(BUTTON).flex_none().flex().items_center().justify_center().rounded(6).text_color(color)
     .cursor_pointer().tooltip(tip).hover((s) => s.bg(t.hover).text_color(t.foreground))
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => act(cx)).child(icon(name, size));
+
+/** A list's or a floating panel's NAME, as the app's lists: 11, medium, dim. @param {string} name */
+export const listName = (t, name) => div().text_size(11).font_medium().text_color(t.dim).child(name);
+
+/** A sidebar list's head, Spaces' and Conversations' alike: its NAME and its BUTTONS at the end.
+ * @param {string} name @param {...any} buttons */
+export const listHead = (t, name, ...buttons) => h_flex().h(LIST.head).flex_none().pl(16).pr(8).items_center()
+  .justify_between().child(listName(t, name)).children(buttons);
 
 /** A menu choice's mark: a check while it is ON, else its room. @param {boolean} on */
 export const checked = (t, on) => div().size(14).flex_none().text_color(t.accent)
@@ -64,14 +80,14 @@ export function stateMark(t, state) {
 /** A text field, as each of the mod's: bordered, no fill of its own, 32 high; INPUT, then MORE (switches) inside it.
  * @param {any} input @param {...any} more */
 export function field(t, id, input, ...more) {
-  return h_flex().id(id).h(32).pl(10).pr(more.length ? 4 : 10).gap(2).items_center().rounded(8).border_1()
+  return h_flex().id(id).h(32).pl(12).pr(more.length ? 4 : 12).gap(2).items_center().rounded(8).border_1()
     .border_color(t.border).cursor_text()
     .child(Input.new(input).flex_1().h_full().text_size(12).text_color(t.foreground)).children(more);
 }
 
 /** A row's own small button, saying what it does when the mouse rests on it. */
 export function small(t, id, label, tip, enabled, onClick) {
-  return div().id(id).h(20).min_w(20).px(5).flex().items_center().justify_center().rounded(5).text_size(12)
+  return div().id(id).h(20).min_w(20).px(6).flex().items_center().justify_center().rounded(4).text_size(12)
     .font_semibold().text_color(enabled ? t.foreground : t.dim).tooltip(tip)
     .when(enabled, (e) => e.cursor_pointer().hover((s) => s.bg(t.raised).text_color(t.foreground))
       .on_click((_e, cx) => {
@@ -85,6 +101,6 @@ export const END = 24;             // a row's last column: a section's count, it
 
 /** A count on a chip, as the TUI sidebar's sections show theirs. */
 export function chip(t, text) {
-  return div().flex_none().px(6).rounded(5).text_size(11).font_semibold().bg(t.raised).text_color(t.foreground)
+  return div().flex_none().px(6).rounded(4).text_size(11).font_semibold().bg(t.raised).text_color(t.foreground)
     .child(text);
 }

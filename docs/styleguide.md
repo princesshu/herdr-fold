@@ -32,8 +32,10 @@ colors are the layout's theme, Catppuccin Mocha, as in the TUI.
 
 ![The type scale, the radii and the heights](../assets/styleguide/type.webp)
 
-Body text is 13, a button's words 12 bold, a folder or a caption 11; code is Menlo, 13 in the preview tab and 11 for
-a hit's file. Panels are rounded 10, controls 8, rows 6 and chips 5.
+Body text is 13, a button's words 12 bold, a folder or a caption 11, a rail's label 10; code is Menlo, 13 in the
+preview tab and 11 for a hit's file. Padding and gaps keep to a 4 px grid (`SPACE` in `parts.js`: 2, 4, 6, 8, 12, 16
+and up): 4 between two buttons, 6 between an icon and its words, 12 inside a panel. Panels are rounded 10, controls 8,
+rows 6 and chips 4. A test checks every padding, gap, text size and corner against these scales.
 
 ### Motion
 
