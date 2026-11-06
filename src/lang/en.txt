@@ -86,7 +86,7 @@ install.trust_done = trusted — in a session already open there, the status lin
 install.statusline_failed = status line setup failed — later: python3 ~/.config/herdr-fold/statusline_setup.py
 
 # install.sh: step 6, herdr plugins and integrations
-install.step_plugins = 6/8 herdr plugins and agent integrations
+install.step_plugins = 6/8 Plugins and integrations
 install.plugins = herdr plugins: %s
 install.plugin_sidebar = sidebar and Conversations column
 install.plugin_sessions = AI Sessions
@@ -163,6 +163,7 @@ install.step_done = Done
 install.reopen_ghostty = Reopen Ghostty (Cmd + Q, then open it) for the new settings, the theme and its icon; herdr \
   and your agents keep running.
 install.open_ghostty = Open Ghostty: herdr starts in it.
+install.open_app = Open the Herdr app: herdr-fold's layout is set in it.
 install.handoff = herdr %s is installed, but %s still runs in the background: herdr server live-handoff switches \
   without stopping your agents
 install.next_steps = A workspace per repo: the "new" button under Spaces · all keys: Ctrl+B, ? · the rest: README.md

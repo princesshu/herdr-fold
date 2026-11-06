@@ -1,7 +1,8 @@
 # Installation
 
-The installer sets up Ghostty, herdr, starship, gh, bat, git-delta, ripgrep and the JetBrains Mono Nerd Font with
-Homebrew, then puts the settings, the herdr plugins and the Claude Code and Codex status lines in place.
+The installer sets up herdr-fold for herdr's TUI, the Herdr app or both ([below](#the-tui-the-herdr-app-or-both)): for
+the TUI, Ghostty, herdr, starship, gh, bat, git-delta, ripgrep and the JetBrains Mono Nerd Font with Homebrew, then the
+settings, the herdr plugins and the Claude Code and Codex status lines.
 
 A program already on your Mac stays, whoever installed it (Ghostty from its website, ripgrep from cargo): Homebrew
 gets no second copy and takes over no app. The installer names what is missing and asks before Homebrew installs it.
@@ -17,6 +18,11 @@ herdr-fold comes for herdr's TUI (in Ghostty) and for herdr's desktop app, the H
 views and the same remote machines in both. The installer's first question picks one or both, its page in the browser
 showing each: `1` the TUI, `2` the Herdr app, `3` both. The default is what is installed already, else both where the
 Herdr app is on this Mac, else the TUI; `HERDR_FOLD_PARTS` answers it without the question.
+
+Each step then sets up what the chosen parts need. The TUI brings Ghostty, herdr, starship, bat, git-delta and the
+font, their settings, the `~/.zshrc` block for herdr's panes, herdr's plugins and its hooks into Claude Code and Codex.
+The Herdr app brings its mod, layout, themes and keys into the app. Both need gh, ripgrep, the Claude Code and Codex
+status line and GitHub's sign-in; with the Herdr app alone, nothing of the TUI's is installed and no `herdr` runs.
 
 To add the other part later, run `./install.sh` again and answer no to the update question: the first question then
 starts from what is installed, and `3` adds the other. Choosing fewer parts than are installed keeps them all;
