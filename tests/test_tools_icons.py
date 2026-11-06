@@ -1,15 +1,17 @@
 """Tests for tools/icons.py, which fetches the Herdr app mod's icons from Iconify by name: the SVG files it writes keep
 to the repository's line width with their drawing unchanged, and the icons folders hold what its lists name."""
+import importlib.util
 import os
 import re
-import sys
 import unittest
 import xml.etree.ElementTree as ET
 
 from support import PACKAGE
 
-sys.path.insert(0, os.path.join(PACKAGE, "tools"))
-import icons  # noqa: E402
+# by its path, under a name of its own: the core's and the sidebar's icons.py go by "icons" in the same run
+SPEC = importlib.util.spec_from_file_location("tools_icons", os.path.join(PACKAGE, "tools", "icons.py"))
+icons = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(icons)
 
 PATH = "M1 2" + "".join(f"l1.5e-3 {n}c1 2 3 4 5 6" for n in range(40)) + "z"
 
