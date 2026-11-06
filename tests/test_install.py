@@ -372,7 +372,7 @@ class InstallCleanup(PackageHome, unittest.TestCase):
         stubs(os.path.join(self.tmp, "stubs"), {"open": f'#!/bin/sh\necho "$*" >> "{log}"\n'})
         self.install_answering({})
         with open(log) as f:
-            opened = f.read().splitlines()
+            opened = [page for page in f.read().splitlines() if "/src/themes/" in page]     # the parts' page too
         self.assertEqual(opened, [pathlib.Path(self.pkg, "src", "themes", "preview.html").as_uri() + "#3"])
 
     def test_verbose_lists_every_file(self):
