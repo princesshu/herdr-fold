@@ -194,6 +194,14 @@ class CommandLine(Repo):
             "branch": "main", "upstream": None, "ahead": 0, "behind": 0, "error": None, "ignored": [],
             "staged": [{"path": "b.txt", "code": "A"}], "changes": [{"path": "a.txt", "code": "M"}]})
 
+    def test_a_places_repository_and_branch_or_none(self):
+        self.write("a.txt")
+        self.commit_all()
+        self.assertEqual(self.cli("place", self.root), {
+            "name": os.path.basename(self.root), "branch": "main", "ahead": 0, "behind": 0,
+            "repo": os.path.realpath(os.path.join(self.root, ".git")), "linked": False})
+        self.assertIsNone(self.cli("place", self.folder()))
+
     def test_a_files_diff_a_new_ones_as_all_added(self):
         self.write("a.txt")
         self.commit_all()
@@ -493,6 +501,48 @@ class Actions(Repo):
         self.assertFalse(graph[1].head)
         self.assertIn("main", graph[0].refs)
         self.assertEqual(graph[0].author, "dev")
+
+
+class Place(Repo):
+    """Where a space is, as the Herdr app mod's Spaces list says it: its repository's name, the branch, how far from its
+    upstream, and whether the folder is a worktree, listed under its checkout; read without opening a file."""
+
+    def test_a_checkout_goes_by_its_folders_name_on_its_branch(self):
+        self.write("a.txt")
+        self.commit_all()
+        place = git.place(self.root)
+        self.assertEqual((place.name, place.branch, place.ahead, place.behind, place.linked),
+                         (os.path.basename(self.root), "main", 0, 0, False))
+
+    def test_a_worktree_goes_by_its_checkouts_name_and_repository(self):
+        self.write("a.txt")
+        self.commit_all()
+        tree = os.path.join(self.folder(), "spike")
+        self.run_git("worktree", "add", "-q", "-b", "spike", tree)
+        checkout, worktree = git.place(self.root), git.place(tree)
+        self.assertEqual((worktree.name, worktree.branch, worktree.linked), (checkout.name, "spike", True))
+        self.assertEqual(worktree.repo, checkout.repo)
+
+    def test_how_far_the_branch_is_from_its_upstream(self):
+        remote = self.folder()
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", remote], check=True)
+        self.write("a.txt")
+        self.commit_all()
+        self.run_git("remote", "add", "origin", remote)
+        self.run_git("push", "-q", "-u", "origin", "main")
+        self.write("b.txt")
+        self.commit_all("b")
+        self.assertEqual((git.place(self.root).ahead, git.place(self.root).behind), (1, 0))
+
+    def test_a_new_repository_has_its_branch_and_a_detached_head_none(self):
+        self.assertEqual(git.place(self.root).branch, "main")
+        self.write("a.txt")
+        self.commit_all()
+        self.run_git("checkout", "-q", "--detach")
+        self.assertIsNone(git.place(self.root).branch)
+
+    def test_a_folder_outside_any_repository_has_none(self):
+        self.assertIsNone(git.place(self.folder()))
 
 
 class GitHubName(unittest.TestCase):

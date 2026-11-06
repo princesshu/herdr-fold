@@ -4,7 +4,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState } from "gpui-base";
 import { BY_EXTENSION, BY_NAME, FILE, ICONS } from "./icons.js";
-import { commitRows, conversationRows, diffRows, foldedSections, searchRows } from "./logic.js";
+import { commitRows, conversationRows, diffRows, foldedSections, listHeight, searchRows } from "./logic.js";
 import { ConversationsView } from "./conversations.js";
 import { IssuesView } from "./issues.js";
 import { button, chip, fileMark, icon, small } from "./parts.js";
@@ -12,6 +12,7 @@ import { panelTabs, panelTrigger } from "./panel.js";
 import { menuPopup } from "./menus.js";
 import { Preview } from "./preview.js";
 import { dock, floatPanel, sidebarTrigger, spacesFloat } from "./sidebar.js";
+import { SpacesView } from "./spaces.js";
 import { standIn } from "./terminal.js";
 
 const PANEL = 368;                  // a specimen as wide as the right panel
@@ -66,6 +67,25 @@ const PLACES = { "/work/lumen-api": "lumen-api", "/work/harbor-web": "harbor-web
 const SPACES = [{ id: "s1", name: "lumen-api", active: true, status: "blocked" },
   { id: "s2", name: "harbor-web", active: false, status: "idle" },
   { id: "s3", name: "notes", active: false, status: null }];
+const COLORS = { s1: "ansi6", s2: "ansi3", s3: "ansi4" };
+const WAITING = { s1: Date.now() - 12 * 60000 };
+// the Spaces list's groups: this computer, a machine with a space, one folded while a space there waits, one asleep,
+// one rebuilt
+const GROUP = { connected: true, state: "connected", rebuilt: false, error: null, busy: false, folded: false,
+  wait: null, loading: false };
+const ROW = { active: false, color: "ansi6", tree: false, label: "", ahead: 0, behind: 0, wait: null };
+const LOCAL = { ...GROUP, machine: null, rows: [{ ...ROW, id: "s1", name: "lumen-api", active: true, ahead: 2 },
+  { ...ROW, id: "s4", name: "fix-login", tree: true, wait: "waiting 12m" },
+  { ...ROW, id: "s2", name: "harbor-web", color: "ansi3", label: "spike", behind: 1, wait: "waiting 3m" },
+  { ...ROW, id: "s3", name: "notes", color: "ansi4" }] };
+const MACHINES = [LOCAL,
+  { ...GROUP, machine: "lab", rows: [{ ...ROW, id: "s5", name: "lumen-ci", color: "ansi5", label: "lumen-api · ci" }] },
+  { ...GROUP, machine: "mini", folded: true, wait: "waiting 1h", rows: [{ ...ROW, id: "s6", name: "render" }] },
+  { ...GROUP, machine: "nas", connected: false, state: "asleep", rows: [] },
+  { ...GROUP, machine: "old", connected: false, state: "unreachable", rebuilt: true, rows: [] }];
+/** The Spaces list as its view draws GROUPS, MORE its drag. @param {any[]} groups */
+const spacesList = (t, groups, more = {}) => Object.assign(Object.create(SpacesView.prototype),
+  { pressed: null, over: null, machines: [], mending: new Set(), ...more }).draw(t, groups);
 const ISSUE = { ago: ["1d", "4h"], issue: { number: 42, title: LISTED[0].title, state: "OPEN", author: "noa-berg",
   labels: ["priority: high", "bug"], body: "Steps:\n\n1. Ask `GET /books?page=99`\n2. The answer is an empty page" +
     "\n\nExpected: the last page, as `pages` says.",
@@ -103,7 +123,7 @@ function made(proto, fields = {}) {
 function conversationsOf(fields = {}) {
   const view = Object.assign(Object.create(ConversationsView.prototype), { items: TALKS, loaded: true, note: null,
     archived: new Set(["claude:s9"]), typed: "", find: InputState.new({ placeholder: "Filter conversations" }),
-    opened: new Set(), closed: new Set(), picking: null, naming: null, programs: {} }, fields);
+    opened: new Set(), closed: new Set(), naming: null, programs: {} }, fields);
   if (view.typed) view.find.set_value(view.typed);
   view.naming?.input.set_value(view.naming.item.title);
   view.showsArchived = () => fields.showArchived === true;
@@ -166,9 +186,7 @@ export function guide(proto) {
       ["Selected", at({ issues: { chosen: 42 } }), LISTED[0]],
       ["Asking", at({ issues: { confirm: { number: 42, what: "close" } } }), LISTED[0]],
       ["Closed", at(), { ...LISTED[0], state: "CLOSED" }], ["No priority", at(), LISTED[4]]],
-    issueList: [["Filters open", at({ issues: { menu: true, query: { state: "open", assigned: true, authored: false,
-      label: "" } } }), 330], ["Right click's menu", at({ issues: { picking: 42 } }), 330],
-    ["Loading", at({ issues: { listing: null, asked: "styleguide" } }), 120],
+    issueList: [["Loading", at({ issues: { listing: null, asked: "styleguide" } }), 120],
     ["Busy", at({ issues: { busy: "Sending…" } }), 120], ["Closed, none", at({ issues: { listing: { issues: [],
       error: null }, query: { state: "closed", assigned: false, authored: false, label: "" } } }), 120],
     ["Error", at({ issues: { listing: { issues: [], error: "gh is not signed in: run gh auth login" } } }), 120]],
@@ -176,7 +194,7 @@ export function guide(proto) {
       ["Loading", previewOf({ loading: true }), 52], ["Error", previewOf({ note: "HTTP 404: Not Found" }), 52]],
     issue: previewOf({ issue: ISSUE }),
     conversations: [["Default", conversationsOf()], ["Filtered", conversationsOf({ typed: "fix" })],
-      ["Right click's menu", conversationsOf({ picking: "claude:s4" })], ["Renaming", conversationsOf({
+      ["Renaming", conversationsOf({
         naming: { key: "claude:s4", item: TALKS[3], input: InputState.new({ placeholder: TALKS[3].title }) } })],
       ["Archived shown", conversationsOf({ showArchived: true, opened: new Set(["harbor-web"]) })],
       ["Loading", conversationsOf({ loaded: false, items: [] })], ["None yet", conversationsOf({ items: [] })]],
@@ -271,11 +289,14 @@ function sections(g, t) {
     ["rows", [group(t, "File row", g.rows.map(([name, kind, file, state], i) => specimen(t, `row-${i}`, name,
         div().p(6).child(state.file(t, kind, file)), { spec: i ? "" : "h 26 · icon, name, folder, letter" })))]],
     ["graph", [group(t, "Graph", g.graph.map(([name, state], i) => specimen(t, `graph-${i}`, name,
-        fixed(state.folded.has("graph") ? 26 : 32 + COMMITS.length * 24, state.graph(t))))),
-      group(t, "Menus", [["modes", "Commit's arrow", b.modes], ["remote", "The repository's ⋯", b.remote]]
-        .map(([id, name, items]) => specimen(t, `menu-${id}`, name, div().w(180).rounded(8).border_1()
-          .border_color(t.border).bg(t.popover ?? t.raised).child(menuPopup(t, "", items)),
-        { width: 220, small: true, spec: id === "modes" ? "a popup under its button, right-aligned" : "" })))]],
+        fixed(state.folded.has("graph") ? 26 : 32 + COMMITS.length * 24, state.graph(t)))))]],
+    ["menus", [group(t, "Menus", [["Commit's arrow", b.modes], ["The repository's ⋯", b.remote],
+      ["Issues' filters", g.issues.issues.filters(t)], ["An issue's right click", b.issues.picks(LISTED[0])],
+      ["A conversation's right click", g.conversations[0][1].choices(TALKS[3])],
+      ["The list's right click", g.conversations[0][1].choices(null)]]
+      .map(([name, items], i) => specimen(t, `menu-${i}`, name, div().w(180).h(items.length * 30 + 8).rounded(8)
+        .border_1().border_color(t.border).bg(t.popover ?? t.raised).child(menuPopup(t, "", items)),
+      { width: 220, small: true, spec: i ? "" : "a popup under its button, right-aligned; a right click's at it" })))]],
     ["content", [
       group(t, "Problem", [specimen(t, "problem", "Under the Graph, until the next try", g.problem.problem(t),
         { spec: "11 · ansi1" })]),
@@ -291,12 +312,22 @@ function sections(g, t) {
       fixed(h, preview.render(t, "Menlo")), { width: TAB, spec: i ? "" : "Menlo 13 · h 22 · numbered once" })))]],
     ["preview-issue", [group(t, "An issue in the preview tab", [specimen(t, "preview-issue", "Issue",
       fixed(330, g.issue.render(t, "Menlo")), { width: 2 * TAB + 24 })])]],
+    ["spaces", [group(t, "Spaces", [
+      specimen(t, "spaces-machines", "By machine, the waits beside the branch", fixed(listHeight(MACHINES),
+        spacesList(t, MACHINES)), { width: SIDEBAR, spec: "h 30 a row · 28 a worktree's · 26 a machine's · ansi3" }),
+      specimen(t, "spaces-local", "This computer only", fixed(listHeight([LOCAL]), spacesList(t, [LOCAL])),
+        { width: SIDEBAR }),
+      specimen(t, "spaces-drag", "A space dragged", fixed(listHeight([LOCAL]), spacesList(t, [LOCAL],
+        { pressed: "s3", over: "s1" })), { width: SIDEBAR, spec: "the line where it goes" }),
+      specimen(t, "spaces-loading", "Loading", fixed(listHeight([{ ...GROUP, machine: null, rows: [], loading: true }]),
+        spacesList(t, [{ ...GROUP, machine: null, rows: [], loading: true }])), { width: SIDEBAR })])]],
     ["conversations", [group(t, "Conversations", [...g.conversations.map(([name, view], i) => specimen(t,
       `conversations-${i}`, name, fixed(260, view.list(t, view.rows())), { width: SIDEBAR,
         spec: i ? "" : "h 24 a row · a state's mark in herdr's colors" })),
       specimen(t, "conversations-dock", "Folded", fixed(260, dock(t, SPACES.map((space) => space.status),
         TALKS.map((talk) => talk.state), 300)), { width: 76 }),
-      specimen(t, "spaces-float", "Spaces, floating beside it", spacesFloat(t, "", 160, SPACES), { width: 300 }),
+      specimen(t, "spaces-float", "Spaces, floating beside it", spacesFloat(t, "", 160, SPACES, COLORS, WAITING),
+        { width: 300 }),
       specimen(t, "conversations-float", "Conversations, floating beside it", floatPanel(t, "Conversations", "", 300,
         [], g.floating.list(t, g.floating.rows())), { width: 300, spec: "its head drags it · × closes it" }),
       specimen(t, "conversations-trigger", "Its toggle", div().w(40).h(42).child(sidebarTrigger(t)),

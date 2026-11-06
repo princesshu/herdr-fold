@@ -5,13 +5,12 @@ TUI sidebar's counterpart in the app, with the same data layer underneath (`core
 the same in both. It installs on its own, without the TUI environment.
 
 It comes with a layout of its own, `herdr-fold`: the app's main layout, with herdr-fold in the right panel where the
-app's own Changes was, above the tab's own terminal, as the TUI's right column has them, and its Conversations in the
-left sidebar, under Spaces, where the app's own Agents list was; a pane has no header, as in the TUI (the grip on its
-top edge still drags it). The toggle at the top right, where the app's Files and Changes buttons were, shows and hides
-it, and so does Cmd + Shift + G. The layout is
-dark, in the TUI's own colors (its theme, `themes/herdr-fold.json`, is made from the TUI's); its terminals and code are
-in Menlo, as VS Code's (on Linux and Windows the app's JetBrains Mono), at the TUI's size, 13; the app's theme and font
-menus change them.
+app's own Changes was, above the tab's own terminal, as the TUI's right column has them, and in the left sidebar its own
+Spaces list, where the app's was, and under it its Conversations, where the app's Agents list was; a pane has no header,
+as in the TUI (the grip on its top edge still drags it). The toggle at the top right, where the app's Files and Changes
+buttons were, shows and hides it, and so does Cmd + Shift + G. The layout is dark, in the TUI's own colors (its theme,
+`themes/herdr-fold.json`, is made from the TUI's); its terminals and code are in Menlo, as VS Code's (on Linux and
+Windows the app's JetBrains Mono), at the TUI's size, 13; the app's theme and font menus change them.
 
 Its icons are Lucide's, a file's Catppuccin Icons' for its type, as the TUI sidebar tells the types apart
 (`core/icons.py`); `tools/icons.py` fetches both from Iconify into `app/mods/herdr-fold/icons/`, and `icons.js` names
@@ -88,6 +87,20 @@ A space has one, as in the TUI: the first diff, commit or issue opened makes it,
 a removed line by the old file and the others by the new one, a thin rule where lines are left out; a commit shows its
 author, message and each file's diff; an issue its text and comments as markdown. Herdr-fold's panel stays beside it.
 
+## Spaces
+
+In the left sidebar, herdr-fold draws the Spaces list where the app's own was, as the app draws it, and says how long
+an agent in a space waits on you, as the TUI's Space rows do:
+
+| Part | What it does |
+|---|---|
+| A space | its avatar in the color every app mod gives it (a worktree's, the branch icon, under its checkout's space), its name, then only what is unusual of its place: the repository and the branch (never main or master, nor what its name says already), ↑ the commits to push and ↓ to pull; and `waiting 12m` in yellow while an agent there waits on you, blocked or done and not seen yet, the longest wait when several do. A click shows it, a drag puts it elsewhere among its machine's spaces, a right click opens the app's own menu for it |
+| A machine | once another machine is known, a head for each: this computer first, then the others by name, how each is (asleep, unreachable…), + for a new space there, its dot green while connected; a click folds its spaces away, and folded, it says their longest wait. A machine rebuilt or replaced says so, and Connect adds it again the way it was added |
+| + | a new space |
+
+Cmd + Shift + U marks the focused agent unread, as in the TUI: its space says `waiting` again, from then, until you come
+back to it after leaving it; again, it takes the mark off. The app keeps its own waits, apart from the TUI's.
+
 ## Conversations
 
 In the left sidebar, every conversation of this Mac's spaces, running or closed, as the TUI's Conversations column
@@ -154,19 +167,20 @@ Without the layout, herdr-fold also opens beside a terminal, as a pane of that t
 ## Keys
 
 In the herdr-fold layout:
+| Cmd + Shift + U | marks the focused agent unread: its space says `waiting` again, as in the TUI |
 
 | Key | What it does |
 |---|---|
 | Cmd + Shift + G | shows the right panel at Changes; again hides it |
-| Cmd + Shift + C | has Claude or Codex write the message, as the ✦ does; Enter commits |
+| Cmd + Shift + C | commits and pushes in one step, as in the TUI: Claude or Codex writes the message into the field, and Commit says Commit & Push for this one commit; Enter commits and pushes, the field changes the message, ✦ writes another, Esc cancels |
 | Cmd + Shift + I | shows Issues, as in the TUI |
 | Cmd + Shift + R | gives Conversations' filter the keys, as in the TUI |
 
-The mod takes commands for keys of your own: `herdr-fold.write`, `herdr-fold.commit` and `herdr-fold.sync`, and
-`herdr-fold.changes`, `herdr-fold.search` and `herdr-fold.issues`, which show that view (Search with the keys in its
-field), and `herdr-fold.conversations`, which gives Conversations' filter the keys; they reach a herdr-fold that
-shows. `herdr-fold.styleguide` opens the mod's parts, each in each of its
-states, in a tab: [Styleguide](styleguide.md).
+The mod takes commands for keys of your own: `herdr-fold.commit-push`, `herdr-fold.write`, `herdr-fold.commit` and
+`herdr-fold.sync`, and `herdr-fold.changes`, `herdr-fold.search` and `herdr-fold.issues`, which show that view (Search
+with the keys in its field), `herdr-fold.conversations`, which gives Conversations' filter the keys, and
+`herdr-fold.unread`, which marks the focused agent unread; they reach a herdr-fold that shows. `herdr-fold.styleguide`
+opens the mod's parts, each in each of its states, in a tab: [Styleguide](styleguide.md).
 
 ## On another machine
 

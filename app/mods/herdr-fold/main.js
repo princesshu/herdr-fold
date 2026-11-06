@@ -10,11 +10,12 @@ import { afterCommit, background, branchLabel, changeName, commitMode, excerpt, 
   launcher, letter, marked, MODES, panelToggle, pythonCommand, rowActions, said, searchRows, searchSummary,
   secretQuestion, syncLabel, written } from "./logic.js";
 import { button, chip, END, field, fileMark, GAP, icon, SLIDE, small } from "./parts.js";
-import { menuPopup, openMenu } from "./menus.js";
+import { Menus, menuPopup } from "./menus.js";
 import { giveBack, liveTabs, panelTrigger, TABS, takeAppButtons, VIEW } from "./panel.js";
 import { ConversationsView } from "./conversations.js";
 import { floatPanel, sidebarTrigger, spacesFloat } from "./sidebar.js";
 import { IssuesView, fixesLine } from "./issues.js";
+import { markUnread, SpacesView } from "./spaces.js";
 import { Preview, showPreview } from "./preview.js";
 import { guide, styleguide } from "./styleguide.js";
 import { standIn, TerminalFollower } from "./terminal.js";
@@ -48,6 +49,7 @@ const codeFont = () => /** @type {any} */ (layout())?.font ?? settings().font_fa
 const shown = (kind, id) => `${kind}:${id}`;
 
 /** ARGV run in ROOT on machine ON. @param {string[]} argv @param {string} root @param {string | null} on */
+const TICK = 20000;               // ms: a wait's label redrawn this often, as the TUI's
 const run = (argv, root, on) => exec(argv[0], argv.slice(1), { cwd: root, on });
 
 /** The Python core/'s code runs with on each machine (null: this one), asked once; an unreachable one is asked again.
@@ -117,23 +119,30 @@ export default class HerdrFold extends View {
     if (part === "float") {                       // a folded sidebar's panel, floating beside its dock
       this.float = { panel: props().panel, overlay: props().overlay, height: props().height };
       const { panel, overlay } = this.float;
-      if (panel === "conversations") this.conversations = new ConversationsView(python, cx, overlay);
-      return;
+      if (panel === "spaces") return void cx.timer.every(TICK, (cx) => cx.notify());     // its waits, a minute on
+      if (panel !== "conversations") return;
+      this.conversations = new ConversationsView(python, cx, overlay);
+      return void cx.spawn(async (cx) => {
+        for (;;) this.conversations.menus.answer(await nextCommand(), cx);       // its right click's choices
+      });
     }
     if (part === "conversations") {               // the left sidebar's block: Cmd+Shift+R gives its filter the keys
       this.conversations = new ConversationsView(python, cx);
-      return void cx.spawn(async () => {
+      return void cx.spawn(async (cx) => {
         for (;;) {
           const asked = await nextCommand();
+          if (this.conversations.menus.answer(asked, cx)) continue;
           if (asked === "conversations") this.conversations.focus();
+          else if (asked === "unread") markUnread();      // this block always shows: the key reaches it once
         }
       });
     }
+    if (part === "spaces") return void (this.spaces = new SpacesView(python, cx));    // the sidebar's, the app's place
     if (part === "styleguide") {                  // all of it, or its section props().section names (a picture of it)
       this.only = props()?.section ?? null;
       return void (this.guide = guide(HerdrFold.prototype));
     }
-    this.commits = []; this.status = null; this.message = "";
+    this.commits = []; this.status = null; this.message = ""; this.menus = new Menus();
     this.view = ["search", "issues"].includes(shared(VIEW)) ? shared(VIEW) : "changes";
     this.core = python;                           // the Issues view asks core/ through it
     this.issues = new IssuesView(this);
@@ -143,6 +152,8 @@ export default class HerdrFold extends View {
     this.find.on("change", (_e, cx) => this.later(cx));
     this.find.on("submit", (_e, cx) => this.search(cx));
     this.mode = commitMode(shared(MODE));
+    /** @type {"push" | null} Cmd + Shift + C's mode, for its one commit */
+    this.once = null;
     this.folded = foldedSections(shared(FOLDED));
     this.input = InputState.new({ placeholder: "Commit message" });
     this.input.on("change", (_e, cx) => {
@@ -156,10 +167,11 @@ export default class HerdrFold extends View {
     cx.spawn(async (cx) => {
       for (;;) {                                  // "herdr-fold.<command>": a bound key, or herdr-app do
         const asked = await nextCommand();
+        if (this.menus.answer(asked, cx)) continue;      // a choice of a menu this copy opened
         if (asked === "write") this.write(cx);
+        else if (asked === "commit-push") this.commitPush(cx);
         else if (asked === "commit") this.commit(cx);
-        else if (asked === "sync" || asked === "pull" || asked === "push") this.sync(cx, asked);
-        else if (asked.startsWith("mode-")) this.choose(asked.slice("mode-".length), cx);    // its menu's choice
+        else if (asked === "sync") this.sync(cx);
         else if (asked === "changes" || asked === "search" || asked === "issues") this.show(asked, cx);
         else if (asked === "styleguide") command("tab.new", { mod: "herdr-fold", props: { part: "styleguide" } });
       }
@@ -173,7 +185,7 @@ export default class HerdrFold extends View {
     const here = place(), key = JSON.stringify(here);
     if (key !== this.key) {
       Object.assign(this, { key, root: null, commits: [], status: null, open: null, note: null,
-        asked: null, confirm: null, github: null, linked: null, head: null });
+        asked: null, confirm: null, github: null, linked: null, head: null, once: null });
       this.issues.reset();
       this.publish();
     }
@@ -207,8 +219,7 @@ export default class HerdrFold extends View {
 
   /** What the panel's tabs (panel.js, another copy) show of it: Issues or not, and the changed files' count. */
   publish() {
-    const told = { github: Boolean(this.github),
-      changed: (this.status?.staged?.length ?? 0) + (this.status?.changes?.length ?? 0) };
+    const told = { github: Boolean(this.github), changed: this.changed };
     if (JSON.stringify(shared(TABS)) !== JSON.stringify(told)) setShared(TABS, told);
   }
 
@@ -302,7 +313,7 @@ export default class HerdrFold extends View {
     if (!message) return;
     this.asked = null;
     this.act(cx, "Committing…", async (cx) => {
-      const { root, on } = this, then = afterCommit(this.mode);
+      const { root, on } = this, then = afterCommit(this.once ?? this.mode);
       await stage(root, on);
       const question = secretQuestion((await python(COMMIT_MESSAGE, ["secrets", root], root, on)).secret_looking);
       if (question && question !== asked) {
@@ -313,6 +324,7 @@ export default class HerdrFold extends View {
       if (!done.ok) throw new Error(done.advice);
       this.input.set_value("");
       this.message = "";
+      this.once = null;
       if (!then) return null;
       this.busy = then === "push" ? "Pushing…" : "Syncing…";
       cx.notify();
@@ -353,6 +365,27 @@ export default class HerdrFold extends View {
         if (terminal) await hc(["kill", terminal]);
       }
     });
+  }
+
+  /** Commit and push in one step, as the TUI's Cmd + Shift + C: the message written into the field, and Commit & Push
+   * for this one commit; Enter commits and pushes, the field changes it, ✦ writes another, Esc cancels. */
+  commitPush(cx) {
+    if (this.busy || !this.root) return;            // as act(): a key never lost to a refresh under way
+    if (!this.changed) {
+      this.note = "Nothing to commit";
+      return void cx.notify();
+    }
+    this.once = "push";
+    this.input.focus();
+    this.write(cx);
+  }
+
+  /** Cmd + Shift + C's commit given up (Esc, once its message is written): the message gone, the mode the kept one. */
+  cancel(cx) {
+    if (!this.once || this.busy) return;
+    Object.assign(this, { once: null, message: "", note: null });
+    this.input.set_value("");
+    cx.notify();
   }
 
   /** The branch synced with its upstream (pulled, fast-forward only, then pushed), or only pulled or pushed (the
@@ -446,6 +479,7 @@ export default class HerdrFold extends View {
   /** @param {string} mode */
   choose(mode, cx) {
     this.mode = commitMode(mode);
+    this.once = null;
     setShared(MODE, this.mode);
     cx.notify();
   }
@@ -475,6 +509,7 @@ export default class HerdrFold extends View {
     if (float?.panel === "spaces") return spacesFloat(t, float.overlay, float.height);
     if (float) return floatPanel(t, "Conversations", float.overlay, float.height, [], this.conversations.render(t, cx));
     if (this.conversations) return this.conversations.render(t, cx);
+    if (this.spaces) return this.spaces.render(t, cx);
     if (this.trigger) return sidebarTrigger(t);
     if (JSON.stringify(place()) !== this.key) this.refresh(cx);
     this.follow(cx);
@@ -508,6 +543,11 @@ export default class HerdrFold extends View {
 
   get ready() {
     return Boolean(this.root && !this.busy && !this.loading);
+  }
+
+  /** How many files a commit could take: staged or not. */
+  get changed() {
+    return (this.status?.staged?.length ?? 0) + (this.status?.changes?.length ?? 0);
   }
 
   /** The search field with its switches (Aa, ab, .*), then the folder searched or what the search found. */
@@ -672,12 +712,14 @@ export default class HerdrFold extends View {
 
   /** The Commit button's modes, its arrow's menu: a choice is kept for the next commit. */
   get modes() {
-    return Object.entries(MODES).map(([mode, label]) => ({ label, command: `mode-${mode}`, on: this.mode === mode }));
+    return Object.entries(MODES).map(([mode, label]) => ({ label, on: (this.once ?? this.mode) === mode,
+      act: (cx) => this.choose(mode, cx) }));
   }
 
   /** The repository row's ⋯: pull or push alone, and its page on GitHub. */
   get remote() {
-    return [{ label: "Pull", command: "pull" }, { label: "Push", command: "push" },
+    return [{ label: "Pull", act: (cx) => this.sync(cx, "pull") },
+      { label: "Push", act: (cx) => this.sync(cx, "push") },
       ...(this.github ? [{ label: "Open on GitHub", url: `https://github.com/${this.github}` }] : [])];
   }
 
@@ -695,7 +737,7 @@ export default class HerdrFold extends View {
         .child(small(t, "repository-sync", h_flex().gap(4).items_center().child(icon("refresh-cw"))
           .when(Boolean(sync), (e) => e.child(sync)), "Sync", this.ready, (cx) => this.sync(cx)))
         .child(small(t, "repository-more", icon("ellipsis"), "More actions", this.ready,
-          () => openMenu(this.remote, this.pressed)).on_mouse_down("left", (e) => (this.pressed = e.bounds))));
+          () => this.menus.open(this.remote, this.pressed)).on_mouse_down("left", (e) => (this.pressed = e.bounds))));
     const folded = this.folded.has("repositories");
     return v_flex().flex_none().px(6).pt(6).child(this.section(t, "repositories", "Repositories", []))
       .when(!folded && Boolean(this.root), (e) => e.child(row));
@@ -706,17 +748,18 @@ export default class HerdrFold extends View {
   composer(t) {
     const commit = this.ready && Boolean(this.message.trim());
     const label = this.busy ?? h_flex().gap(8).items_center().child(icon("check"))
-      .child(`${MODES[this.mode]}${this.asked ? " anyway" : ""}`);
+      .child(`${MODES[this.once ?? this.mode]}${this.asked ? " anyway" : ""}`);
     return v_flex().flex_none().p(10).gap(8).border_b(1).border_color(t.border)
       .child(h_flex().gap(8)
         .child(div().id("message").flex_1().min_w(0).h(32).px(10).flex().items_center().rounded(8).border_1()
-          .border_color(t.border).cursor_text()
+          .border_color(t.border).cursor_text().on_key_down((e, cx) => e.key === "escape" && this.cancel(cx))
           .child(Input.new(this.input).h_full().text_size(12).text_color(t.foreground)))
         .child(button(t, "write", icon("sparkles", 15), this.ready, false, (cx) => this.write(cx))
           .bg(t.selection).text_color(this.ready ? t.accent : t.muted).tooltip("Write message")))
       .child(h_flex().gap(8)
         .child(button(t, "commit", label, commit, true, (cx) => this.commit(cx)).flex_1().justify_center())
-        .child(button(t, "mode", icon("chevron-down"), this.ready, true, () => openMenu(this.modes, this.pressed))
+        .child(button(t, "mode", icon("chevron-down"), this.ready, true,
+          () => this.menus.open(this.modes, this.pressed))
           .on_mouse_down("left", (e) => (this.pressed = e.bounds)).tooltip("Commit mode")))
       .when(Boolean(this.linked), (e) => e.child(fixesLine(t, this.linked, (cx) => this.unlink(cx))));
   }

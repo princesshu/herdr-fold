@@ -50,11 +50,11 @@ herdr's sidebar lists the current workspace's conversations under Sessions, each
 needs you: an approval, an answer or a choice), done (finished since you last looked) or idle (ready for your next
 prompt). Cmd + D and Cmd + E step through them.
 
-The Spaces list says how long an agent has waited on you, blocked or done, beside its workspace's branch: `waiting
-12m` in the theme's yellow, the longest wait when several agents wait there. It counts on while you work elsewhere and
-goes once you answer, or look at the finished one. To come back to one you have seen, mark it unread: Cmd + Shift + U
-on its pane, and its workspace says `waiting` again, from now, until you return to it after leaving it (Cmd + Shift + U
-again takes the mark off).
+The Spaces list says how long an agent has waited on you, blocked or done, beside its workspace's branch: `waiting 12m`
+in the theme's yellow, the longest wait when several agents wait there. It counts on while you work elsewhere and goes
+once you answer, or look at the finished one. To come back to one you have seen, mark it unread: Cmd + Shift + U on its
+pane, and its workspace says `waiting` again, from now, until you return to it after leaving it (Cmd + Shift + U again
+takes the mark off). The Herdr app's herdr-fold layout does the same: [Spaces](app.md#spaces).
 
 ![The Spaces list: harbor-web's agent blocked and waiting 12 minutes, tidepool's done and waiting 3 minutes, beside
 their branch](../assets/screenshots/waiting.webp)
@@ -124,7 +124,8 @@ Cmd + Shift + C commits and pushes the repo of the focused pane, in one step:
   message.
 - You see the whole message first: Enter commits and pushes, `e` edits, `r` asks for a new one, Esc cancels.
 
-It works for repos on this Mac; on a remote machine, use the sidebar's Changes view.
+It works for repos on this Mac; on a remote machine, use the sidebar's Changes view. In the Herdr app, Cmd + Shift + C
+does it in the Changes view, on any machine: [Keys](app.md#keys).
 
 **A repo without a remote:** the sidebar and Cmd + Shift + C have nowhere to push. In the workspace's terminal:
 

@@ -10,8 +10,9 @@ import { afterCommit, background, branchLabel, changeName, commitMode, commitRow
   conversationRows, coreAgents, diffRows, excerpt, floatHeight, foldedSections, foldedWidth, folderSpaces, issueAgent,
   lastLine, launcher, letter, machineOf, marked, MODES, PANEL, PANEL_BODY, panelShown, panelToggle, previewName,
   previewTab, priorityColor, pythonCommand, railed, resumeArgv, rowActions, safeMarkdown, said, searchRows,
-  searchSummary, secretQuestion, shownTab, spacesHeight, strays, syncLabel, tabLabel, TALL, terminalId, TERMINALS,
-  urgent, withMax, withoutTabs, withTerminal, written }
+  searchSummary, secretQuestion, shownTab, strays, syncLabel, tabLabel, TALL, terminalId, TERMINALS,
+  urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread, spaceWaits, placeLabel, nested,
+  spaceColors, avatarFill, MARK, listBody, listHeight }
   from "../mods/herdr-fold/logic.js";
 
 test("a diff's lines numbered once, old and new apart; no hunk header, a gap between two hunks", () => {
@@ -342,9 +343,17 @@ test("a floating panel as tall as its content, up to TALL: Spaces' rows, Convers
   assert.equal(floatHeight("spaces", 40), TALL);
 });
 
-test("the app's Spaces list's height, as its own mod draws it: a machine's head once another machine is there", () => {
-  assert.equal(spacesHeight([{ machine: null }, { machine: null }], []), 31 + 2 * 30 + 14);
-  assert.equal(spacesHeight([{ machine: null }, { machine: "lab" }], ["lab", "mini"]), 31 + 2 * 30 + 3 * 26 + 14);
+test("the Spaces list's height, as the app's: a machine's head once another is there, a worktree's row lower", () => {
+  const group = (machine, rows, more = {}) => ({ machine, rows, folded: false, rebuilt: false, loading: false,
+    ...more });
+  const row = { tree: false }, tree = { tree: true };
+  assert.equal(listHeight([group(null, [row, row])]), 31 + 2 * 30 + 14);
+  assert.equal(listHeight([group(null, [row, tree]), group("lab", [row]), group("mini", [])]),
+    31 + 3 * 26 + 30 + 28 + 30 + 28 + 14);                      // mini: "New space there"
+  assert.equal(listHeight([group(null, [row]), group("lab", [row], { folded: true }),
+    group("old", [row], { rebuilt: true })]), 31 + 3 * 26 + 30 + 14);
+  assert.equal(listHeight([group(null, [], { loading: true })]), 31 + 28 + 14);
+  assert.equal(listBody(group(null, []), false), "none");
 });
 
 test("a layout node's max set in a copy of the tree, and whether that changed it", () => {
@@ -469,4 +478,62 @@ test("a panel's most urgent state, as the app orders a space's: blocked, done, w
   assert.equal(urgent(["idle", "done", "working"]), "done");
   assert.equal(urgent(["idle", ""]), "idle");
   assert.equal(urgent([null, ""]), null);
+});
+
+test("a wait as a Space row says it, as the TUI's: under a minute, then minutes, hours, days", () => {
+  assert.deepEqual([30e3, 60e3, 12 * 60e3, 61 * 60e3, 25 * 3600e3].map(waited),
+    ["waiting <1m", "waiting 1m", "waiting 12m", "waiting 1h", "waiting 1d"]);
+});
+
+test("an agent waits on you since its last change while blocked or done, and no longer once it works or idles", () => {
+  const agent = (status, seq) => ({ address: "t1", pane: "p1", space: "s1", status, seq });
+  let waits = nextWaits({}, [agent("done", 4)], 1000, null);
+  assert.deepEqual(waits, { t1: { seq: 4, since: 1000 } });
+  waits = nextWaits(waits, [agent("done", 4)], 5000, null);
+  assert.equal(waits.t1.since, 1000);                          // the same wait: its start kept
+  assert.equal(nextWaits(waits, [agent("blocked", 5)], 9000, null).t1.since, 9000);
+  assert.deepEqual(nextWaits(waits, [agent("idle", 6)], 9000, "p1"), {});
+});
+
+test("marked unread, an agent waits until its pane is left and come back to; marked again, the mark goes", () => {
+  const agent = { address: "t1", pane: "p1", space: "s1", status: "idle", seq: 7 };
+  let waits = toggleUnread({}, agent, 2000);
+  assert.deepEqual(waits, { t1: { seq: 7, since: 2000, unread: true, left: false } });
+  assert.deepEqual(nextWaits(waits, [agent], 3000, "p1"), waits);       // still on it
+  waits = nextWaits(waits, [agent], 4000, "p2");
+  assert.equal(waits.t1.left, true);
+  assert.deepEqual(nextWaits(waits, [agent], 5000, "p1"), {});          // back on it: read
+  assert.deepEqual(toggleUnread(toggleUnread({}, agent, 1), agent, 2), {});
+  assert.equal(toggleUnread({ t1: { seq: 7, since: 500 } }, agent, 2000).t1.since, 500);    // from when it waits
+});
+
+test("a space's wait is its longest: since when its first agent waits", () => {
+  const agents = [{ address: "a", space: "s1" }, { address: "b", space: "s1" }, { address: "c", space: "s2" }];
+  assert.deepEqual(spaceWaits({ a: { since: 300 }, b: { since: 100 } }, agents), { s1: 100 });
+});
+
+test("after a space's name, only what is unusual: the repository, the branch, never main or a name it has", () => {
+  assert.equal(placeLabel({ name: "lumen-api", branch: "main" }, false, "lumen-api"), "");
+  assert.equal(placeLabel({ name: "lumen-api", branch: "fix-login" }, false, "api"), "lumen-api · fix-login");
+  assert.equal(placeLabel({ name: "lumen-api", branch: "fix-login" }, true, "fix-login"), "");
+  assert.equal(placeLabel({ name: "lumen-api", branch: null }, false, "lumen-api"), "detached");
+});
+
+test("a worktree's space under its checkout's, in order; one whose checkout has no space stays where it is", () => {
+  const row = (id, g) => ({ w: { id }, g });
+  const rows = nested([row("wt1", { repo: "r", linked: true }), row("main", { repo: "r", linked: false }),
+    row("other", null), row("wt2", { repo: "r", linked: true }), row("lone", { repo: "q", linked: true })]);
+  assert.deepEqual(rows.map((r) => [r.w.id, r.tree]),
+    [["main", false], ["wt1", true], ["wt2", true], ["other", false], ["lone", false]]);
+});
+
+test("a space without a color gets the one fewest use, as every app mod gives it; the home folder's none", () => {
+  const list = [{ id: "a", name: "x" }, { id: "b", name: "y" }, { id: "c", name: "~" }];
+  assert.deepEqual(spaceColors(list, { a: "ansi6", gone: "ansi3" }), { a: "ansi6", b: "ansi3" });
+  assert.equal(spaceColors(list.slice(0, 1), { a: "ansi6" }), null);    // nothing to write
+});
+
+test("an avatar's fill: the app's strong color for a theme color's name, a picked one as it is", () => {
+  assert.equal(avatarFill("ansi3", {}), MARK.ansi3);
+  assert.equal(avatarFill("#123456", {}), "#123456");
 });

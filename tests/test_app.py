@@ -76,7 +76,7 @@ class Shape(unittest.TestCase):
 
     def test_every_key_reaches_a_command_the_mod_takes(self):
         with open(os.path.join(MOD, "main.js"), encoding="utf-8") as f:
-            taken = set(re.findall(r'asked === "(\w+)"', f.read()))           # what nextCommand() gave
+            taken = set(re.findall(r'asked === "([\w-]+)"', f.read()))           # what nextCommand() gave
         with open(os.path.join(APP, "keys.json"), encoding="utf-8") as f:
             actions = [a for section in json.load(f).values() for a in section.values()]
         self.assertTrue(actions)

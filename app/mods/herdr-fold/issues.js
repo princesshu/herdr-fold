@@ -6,7 +6,7 @@ import { v_flex, h_flex, InputState } from "gpui-base";
 import { agents, focused, hc, run as command } from "herdr";
 import { COMMIT_MESSAGE, GITHUB } from "./helper.js";
 import { issueAgent, priorityColor, said } from "./logic.js";
-import { button, checked, field, GAP, icon, small } from "./parts.js";
+import { button, field, GAP, icon, small } from "./parts.js";
 import { showPreview } from "./preview.js";
 
 const LEVELS = ["Urgent", "High", "Medium", "Low"];      // GitHub's Priority field's options, core/github.py's ranks
@@ -36,9 +36,6 @@ export class IssuesView {
     });
     /** @type {number | null} the issue last opened, marked */
     this.chosen = null;
-    this.menu = false;
-    /** @type {number | null} the issue whose right click's menu is open */
-    this.picking = null;
     /** @type {{ number: number, what: string } | null} the close or reopen asked about first */
     this.confirm = null;
     this.note = null; this.busy = null;
@@ -46,8 +43,7 @@ export class IssuesView {
 
   /** Another repository's: nothing of this one's listed or chosen (the filters stay, as in the TUI sidebar). */
   reset() {
-    Object.assign(this, { listing: null, asked: null, chosen: null, menu: false, picking: null, confirm: null,
-      note: null });
+    Object.assign(this, { listing: null, asked: null, chosen: null, confirm: null, note: null });
   }
 
   /** The issues of QUERY (the one chosen by default) asked of GitHub again; an answer for another query is dropped. */
@@ -158,7 +154,6 @@ export class IssuesView {
   /** The filter FIELD turned on or off, or set to VALUE (a label, a priority), and asked of GitHub again (but the
    * priority, picked from what is listed). @param {string} field @param {any} [value] */
   filter(field, value, cx) {
-    this.menu = false;
     if (field === "level") {
       this.level = value;
       return void cx.notify();
@@ -171,12 +166,10 @@ export class IssuesView {
     const shown = this.shown();
     return v_flex().size_full().min_h(0)
       .child(this.field(t))
-      .when(this.menu, (e) => e.child(this.filters(t)))
       .child(this.states(t))
       .when(Boolean(this.line(shown)), (e) => e.child(this.status(t, shown)))
       .child(v_flex().id("issues").flex_1().min_h(0).overflow_y_scrollbar().px(6).pb(6)
-        .children(shown.flatMap((issue) => [this.row(t, issue),
-          ...(this.picking === issue.number ? [this.picks(t, issue)] : [])])));
+        .children(shown.map((issue) => this.row(t, issue))));
   }
 
   /** The search field, the new issue's button and the filters', as the TUI sidebar has them on one line. */
@@ -188,11 +181,11 @@ export class IssuesView {
         .map(([word]) => [word, t.foreground])];
     const shown = on.length ? on : [["Filters", t.muted]];
     const filters = h_flex().id("issue-filters").h(24).px(8).gap(4).flex_none().items_center().rounded(5)
-      .text_size(12).cursor_pointer().when(Boolean(this.menu), (e) => e.bg(t.hover)).hover((s) => s.bg(t.hover))
-      .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => {
-        this.menu = !this.menu;
-        cx.notify();
+      .text_size(12).cursor_pointer().hover((s) => s.bg(t.hover)).on_mouse_down("left", (e, cx) => {
+        cx.stop_propagation();
+        this.pressed = e.bounds;
       })
+      .on_click(() => this.host.menus.open(this.filters(t), this.pressed))
       .children(shown.flatMap(([word, color], i) => [...(i ? [div().text_color(t.muted).child("·")] : []),
         div().text_color(color).child(String(word))]))
       .child(icon("chevron-down", 12).text_color(t.muted));
@@ -202,25 +195,19 @@ export class IssuesView {
         (cx) => this.terminal(["create"], cx)).tooltip("New issue"));
   }
 
-  /** The filters: each one, a check on the ones on; the labels those of the issues listed, the chosen one too. */
+  /** The filters' menu: each one, a check on the ones on; the labels those of the issues listed, the chosen one too.
+   * @returns {import("./menus.js").Item[]} */
   filters(t) {
     const q = this.query;
-    const item = (id, on, label, pick, color = t.foreground) => h_flex().id(id).h(26).px(8).gap(8).items_center()
-      .rounded(6).cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => pick(cx)).child(checked(t, on))
-      .child(div().text_color(color).child(label));
     const listed = (this.listing?.issues ?? []).flatMap((i) => i.labels);
-    const labels = [...new Set([...listed, ...(q.label ? [q.label] : [])])]
-      .sort((a, b) => a.localeCompare(b));
-    return v_flex().flex_none().mx(10).mb(6).p(4).gap(1).rounded(8).border_1().border_color(t.border).bg(t.raised)
-      .text_size(12)
-      .child(item("f-me", q.assigned, "Assigned to me", (cx) => this.filter("assigned", null, cx)))
-      .child(item("f-by", q.authored, "Created by me", (cx) => this.filter("authored", null, cx)))
-      .child(item("f-any-level", this.level === null, "Any priority", (cx) => this.filter("level", null, cx)))
-      .children(LEVELS.map((name, n) => item(`f-level-${n}`, this.level === n, `● ${name}`,
-        (cx) => this.filter("level", n, cx), priorityColor(t, n))))
-      .child(item("f-any-label", !q.label, "Any label", (cx) => this.filter("label", "", cx)))
-      .children(labels.map((label) => item(`f-label-${label}`, q.label === label, label,
-        (cx) => this.filter("label", label, cx))));
+    const labels = [...new Set([...listed, ...(q.label ? [q.label] : [])])].sort((a, b) => a.localeCompare(b));
+    return [{ label: "Assigned to me", on: q.assigned, act: (cx) => this.filter("assigned", null, cx) },
+      { label: "Created by me", on: q.authored, act: (cx) => this.filter("authored", null, cx) },
+      { label: "Any priority", on: this.level === null, act: (cx) => this.filter("level", null, cx) },
+      ...LEVELS.map((name, n) => ({ label: `● ${name}`, on: this.level === n, color: priorityColor(t, n),
+        act: (cx) => this.filter("level", n, cx) })),
+      { label: "Any label", on: !q.label, act: (cx) => this.filter("label", "", cx) },
+      ...labels.map((label) => ({ label, on: q.label === label, act: (cx) => this.filter("label", label, cx) }))];
   }
 
   /** Open and Closed, as GitHub's list has them: the chosen one filled. */
@@ -262,10 +249,7 @@ export class IssuesView {
     return h_flex().id(key).h(48).flex_none().gap(8).items_center().rounded(6).cursor_pointer()
       .when(this.chosen === issue.number, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover))
       .on_hover((over, cx) => this.host.hover(key, over, cx)).on_click((_e, cx) => this.open(issue, cx))
-      .on_mouse_down("right", (_e, cx) => {
-        this.picking = this.picking === issue.number ? null : issue.number;
-        cx.notify();
-      })
+      .on_mouse_down("right", () => this.host.menus.open(this.picks(issue)))
       .child(div().w(3).h(36).flex_none().rounded(2).when(issue.level !== null, (e) => e.bg(color)))
       .child(v_flex().flex_1().min_w(0).gap(2)
         .child(h_flex().gap(6).min_w(0).child(div().flex_none().font_bold().text_color(color).child(`#${issue.number}`))
@@ -286,27 +270,15 @@ export class IssuesView {
           (cx) => cx.open_url(issue.url)))));
   }
 
-  /** The right click's menu on ISSUE, as the TUI sidebar's: all its keys do with it, and Assign to me; a press
-   * elsewhere closes it. @param {Listed} issue */
-  picks(t, issue) {
+  /** The right click's menu on ISSUE, as the TUI sidebar's: all its keys do with it, and Assign to me.
+   * @param {Listed} issue @returns {import("./menus.js").Item[]} */
+  picks(issue) {
     const verb = issue.state === "CLOSED" ? "reopen" : "close";
-    const item = (id, label, pick) => h_flex().id(`pick-${issue.number}-${id}`).h(26).px(8).items_center()
-      .rounded(6).cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => {
-        this.picking = null;
-        pick(cx);
-        cx.notify();
-      }).child(label);
-    return v_flex().flex_none().ml(14).mr(6).mb(4).p(4).gap(1).rounded(8).border_1().border_color(t.border)
-      .bg(t.raised).text_size(12).on_mouse_down_out((_e, cx) => {
-        this.picking = null;
-        cx.notify();
-      })
-      .child(item("open", "Open", (cx) => this.open(issue, cx)))
-      .child(item("web", "Open in the browser", (cx) => cx.open_url(issue.url)))
-      .child(item("agent", "To the agent", (cx) => this.toAgent(issue, cx)))
-      .child(item("reply", "Reply", (cx) => this.terminal(["reply", String(issue.number)], cx)))
-      .child(item("assign", "Assign to me", (cx) => this.change(issue, "assign", cx)))
-      .child(item(verb, verb === "close" ? "Close…" : "Reopen…", (cx) => this.change(issue, verb, cx)));
+    return [{ label: "Open", act: (cx) => this.open(issue, cx) }, { label: "Open in the browser", url: issue.url },
+      { label: "To the agent", act: (cx) => this.toAgent(issue, cx) },
+      { label: "Reply", act: (cx) => this.terminal(["reply", String(issue.number)], cx) },
+      { label: "Assign to me", act: (cx) => this.change(issue, "assign", cx) },
+      { label: verb === "close" ? "Close…" : "Reopen…", act: (cx) => this.change(issue, verb, cx) }];
   }
 }
 

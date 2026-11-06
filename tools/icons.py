@@ -18,8 +18,8 @@ WIDTH = 120                   # a line's cells, as every file keeps to
 SVG = "http://www.w3.org/2000/svg"
 # the views' icons, Lucide's names: the mod draws each with icon(name), and tests/test_app.py fails on one it does not
 UI = ("book-marked", "bot", "check", "chevron-down", "chevron-right", "ellipsis", "external-link", "git-branch",
-      "layers", "message-square", "minus", "panel-left", "panel-right", "plus", "refresh-cw", "settings", "sparkles",
-      "undo-2", "x")
+      "layers", "message-square", "minus", "monitor", "panel-left", "panel-right", "plus", "refresh-cw", "server",
+      "settings", "sparkles", "undo-2", "x")
 
 
 def file_types():

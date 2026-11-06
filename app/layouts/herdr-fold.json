@@ -57,7 +57,10 @@
               },
               "min": 90,
               "content": {
-                "mod": "spaces"
+                "mod": "herdr-fold",
+                "props": {
+                  "part": "spaces"
+                }
               }
             },
             {

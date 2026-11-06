@@ -3,13 +3,15 @@
 // space under a filter; a click goes to a running one or reopens a closed one in a new tab of its space.
 import { div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { agents, home, knownAgents, layout, machines, panes, setShared, shared, spaces, watchFolder, run as command }
+import { agents, home, knownAgents, panes, setShared, shared, spaces, watchFolder, run as command }
   from "herdr";
 import { CONVERSATIONS } from "./helper.js";
 import { archiveKey, conversationChoices, conversationRows, coreAgents, floatHeight, folderSpaces, resumeArgv, said,
-  spacesHeight, tabLabel, withMax } from "./logic.js";
+  tabLabel } from "./logic.js";
+import { Menus } from "./menus.js";
 import { field, icon, SLIDE, stateMark } from "./parts.js";
 import { dock, folded, followFold } from "./sidebar.js";
+import { trackWaits } from "./spaces.js";
 
 const KEPT = "herdr-fold.conversations";      // the archived ones shown or not, and the reopened ones' terminals
 const WATCHED = [".claude/projects", ".codex/sessions"];      // under the home folder, where the agents write them
@@ -46,8 +48,7 @@ export class ConversationsView {
     /** @type {Set<string>} the spaces opened and closed by hand */
     this.opened = new Set();
     this.closed = new Set();
-    /** @type {string | null} the conversation (its archiveKey) whose right click's menu is open; "" the list's own */
-    this.picking = null;
+    this.menus = new Menus();             // a right click's, on a conversation or on the list
     /** @type {{ key: string, item: Listed, input: any } | null} the one being renamed */
     this.naming = null;
     /** @type {{ space: string, tab: string, agent: string, id: string }[]} reopened, their terminal not yet known */
@@ -102,12 +103,7 @@ export class ConversationsView {
       this.folded = now;
       if (!this.overlay) cx.timer.after(0, () => followFold(now));
     }
-    // open, Spaces above this block grows, its edge dragged, only as far as its list: this block takes the rest
-    const list = spacesHeight(spaces(), machines().map((m) => m.name)), capped = withMax(layout(), "spaces", list);
-    if (!this.overlay && capped.changed && this.capped !== list) {
-      this.capped = list;
-      cx.timer.after(0, () => command("layout.set", { layout: capped.tree }));
-    }
+    if (!this.overlay) trackWaits();             // the Spaces list's waits, kept while it is folded away too
     const live = agents(), resumed = this.resumed();
     this.pending = this.pending.filter((p) => {
       const found = live.find((a) => a.space === p.space && a.tab_name === p.tab && a.program?.key === p.agent);
@@ -183,7 +179,6 @@ export class ConversationsView {
   /** CHOICE of the right click's menu, on ITEM (null: the list's own).
    * @param {string} choice @param {Listed | null} item */
   pick(choice, item, cx) {
-    this.picking = null;
     if (choice === "Show archived" || choice === "Hide archived") {
       setShared(KEPT, { ...shared(KEPT), showArchived: choice === "Show archived" });
     } else if (item) {
@@ -266,24 +261,17 @@ export class ConversationsView {
       .when(Boolean(this.note), (e) => e.child(div().flex_none().px(16).pb(6).text_size(11).truncate()
         .text_color(t.dim).child(this.note ?? "")))
       .child(v_flex().id("conversations").flex_1().min_h(0).overflow_y_scrollbar().px(8).pb(8)
-        .on_mouse_down("right", (_e, cx) => {
-          this.picking = this.picking === "" ? null : "";
-          cx.notify();
-        })
+        .on_mouse_down("right", () => this.menus.open(this.choices(null)))
         .when(Boolean(empty), (e) => e.child(div().px(8).py(4).text_size(12).text_color(t.dim).child(empty ?? "")))
         .children(rows.filter((row) => row.kind === "group").flatMap((row) => [this.group(t, row),
-          this.members(t, row)]))
-        .when(this.picking === "", (e) => e.child(this.picks(t, null))));
+          this.members(t, row)])));
   }
 
-  /** ROW's conversations under it, sliding open and shut as the Changes' sections do; with a menu open among them,
-   * as tall as they come. */
+  /** ROW's conversations under it, sliding open and shut as the Changes' sections do. */
   members(t, row) {
-    const picked = row.items.some((item) => this.picking === archiveKey(item));
     return v_flex().id(`members-${row.name}`).flex_none().overflow_hidden()
-      .when(!picked, (e) => e.h(row.open ? row.items.length * 24 : 0).transition("height", SLIDE))
-      .children(row.items.flatMap((item) => [this.row(t, item),
-        ...(this.picking === archiveKey(item) ? [this.picks(t, item)] : [])]));
+      .h(row.open ? row.items.length * 24 : 0).transition("height", SLIDE)
+      .children(row.items.map((item) => this.row(t, item)));
   }
 
   /** A space as the TUI's column has it: its most urgent agent's state mark (none: a faint dot), its name (the one
@@ -314,9 +302,8 @@ export class ConversationsView {
       .cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => this.open(item, cx))
       .tooltip(`${title} · ${STATES[item.state] ?? "Closed"}`)              // its whole name, its mark in words
       .on_mouse_down("right", (_e, cx) => {
-        cx.stop_propagation();
-        this.picking = this.picking === key ? null : key;
-        cx.notify();
+        cx.stop_propagation();                        // not the list's own menu
+        this.menus.open(this.choices(item));
       })
       .child(stateMark(t, item.state))
       .when(Boolean(agent), (e) => e.child(div().flex_none().text_color(t.muted).child(agent)))
@@ -328,17 +315,11 @@ export class ConversationsView {
         .child(archived ? "archived" : agent ? item.ago : `${item.agent} · ${item.ago}`));
   }
 
-  /** The right click's menu: on ITEM what can be done with it, on the list (null) the archived shown or hidden; a
-   * press elsewhere closes it. @param {Listed | null} item */
-  picks(t, item) {
+  /** The right click's menu: on ITEM what can be done with it, on the list (null) the archived shown or hidden.
+   * @param {Listed | null} item @returns {import("./menus.js").Item[]} */
+  choices(item) {
     const choices = conversationChoices(item, this.archived, this.showsArchived());
-    return v_flex().flex_none().ml(item ? 22 : 0).mb(4).p(4).gap(1).rounded(8).border_1().border_color(t.border)
-      .bg(t.raised).text_size(12).on_mouse_down_out((_e, cx) => {
-        this.picking = null;
-        cx.notify();
-      })
-      .when(!choices.length, (e) => e.child(div().px(8).py(4).text_color(t.dim).child("Nothing archived")))
-      .children(choices.map((choice) => h_flex().id(`pick-${choice}`).h(26).px(8).items_center().rounded(6)
-        .cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => this.pick(choice, item, cx)).child(choice)));
+    return choices.length ? choices.map((choice) => ({ label: choice, act: (cx) => this.pick(choice, item, cx) }))
+      : [{ label: "Nothing archived", off: true }];
   }
 }

@@ -76,6 +76,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## The Herdr app's Spaces list
+
+`app/mods/herdr-fold/spaces.js` draws the Spaces list as the Herdr app's own `spaces` mod does (herdr-app,
+Apache-2.0): the rows and machine heads, when a space's git is looked at again, a worktree under its checkout, a rebuilt
+machine added again, and the avatar colors (`MARK` in `logic.js`) follow that mod. The code is herdr-fold's own.
+
 ## Programs it installs
 
 These are not part of this repository: the installer gets them with Homebrew (and Homebrew itself, if it is missing),

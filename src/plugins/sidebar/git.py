@@ -36,6 +36,16 @@ class Status:
 
 
 @dataclass(frozen=True)
+class Place:
+    name: str                 # the repository's: its main checkout's folder, a worktree's too
+    branch: str               # None: a detached HEAD
+    ahead: int
+    behind: int
+    repo: str                 # its .git folder, the same for each of its worktrees
+    linked: bool              # a worktree beside the main checkout
+
+
+@dataclass(frozen=True)
 class Commit:
     hash: str
     subject: str
@@ -89,6 +99,24 @@ def no_filters(root):
     return [arg for name in sorted(names)
             for arg in ("-c", f"{name}.clean=", "-c", f"{name}.smudge=", "-c", f"{name}.process=",
                         "-c", f"{name}.required=false")]
+
+
+def place(path):
+    """Where PATH is, as the Herdr app mod's Spaces list names it, or None outside a repository; no file is read, so
+    nothing a repository's config names runs. git that cannot answer (a folder gone) raises RuntimeError."""
+    where = run(path, "rev-parse", "--show-toplevel", "--git-common-dir")
+    if where.returncode != 0:
+        if "not a git repository" in where.stderr:
+            return None
+        raise RuntimeError(last_line(where) or "git did not answer")
+    top, common = where.stdout.splitlines()[:2]
+    common = os.path.realpath(os.path.join(path, common))      # relative to PATH before git 2.31's --path-format
+    linked = common != os.path.realpath(os.path.join(top, ".git"))
+    name = os.path.basename(os.path.dirname(common) if os.path.basename(common) == ".git" else common)
+    branch = run(path, "symbolic-ref", "--short", "-q", "HEAD").stdout.strip() or None
+    counts = run(path, "rev-list", "--left-right", "--count", "HEAD...@{upstream}").stdout.split()
+    ahead, behind = (int(n) for n in counts) if len(counts) == 2 else (0, 0)
+    return Place(name[:-4] if name.endswith(".git") else name, branch, ahead, behind, common, linked)
 
 
 def status(root):
@@ -296,20 +324,20 @@ def graph(root, n=20):
 
 
 # what the Herdr app mod asks for: the arguments each command takes after ROOT, at least and at most (None: any number)
-COMMANDS = {"status": (0, 0), "diff": (1, 1), "show": (1, 1), "graph": (0, 0), "github": (0, 0),
+COMMANDS = {"status": (0, 0), "place": (0, 0), "diff": (1, 1), "show": (1, 1), "graph": (0, 0), "github": (0, 0),
             "stage": (0, None), "unstage": (1, None), "discard": (1, 1), "commit": (1, 1), "sync": (0, 0),
             "push": (0, 0), "pull": (0, 0)}
 
 
 def main(argv):
-    """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: status, graph, github (its
-    name on GitHub); diff, show (the text, else why there is none); stage (no PATH: every change), unstage, discard,
-    commit, sync, push, pull (whether each worked, else what to do). COMMANDS and the usage line: their arguments."""
+    """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: status, place, graph,
+    github (its name on GitHub); diff, show (the text, else why there is none); stage (no PATH: every change), unstage,
+    discard, commit, sync, push, pull (whether each worked, else what to do). COMMANDS, the usage: their arguments."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     least, most = COMMANDS.get(command, (0, -1))                # an unknown command: no count fits
     given = len(args) - 1                                        # after ROOT
     if not args or given < least or (most is not None and given > most):
-        print("usage: git.py status|graph|github|sync|push|pull ROOT, git.py diff|discard ROOT PATH, "
+        print("usage: git.py status|place|graph|github|sync|push|pull ROOT, git.py diff|discard ROOT PATH, "
               "git.py show ROOT HASH, git.py stage ROOT [PATH…], git.py unstage ROOT PATH…, "
               "git.py commit ROOT MESSAGE", file=sys.stderr)
         return 2
@@ -317,6 +345,13 @@ def main(argv):
     if command == "status":
         st = status(root)
         answer = dict(asdict(st), ignored=sorted(st.ignored))
+    elif command == "place":
+        try:
+            found = place(root)
+        except RuntimeError as err:                             # not a no: the mod asks again later
+            print(err, file=sys.stderr)
+            return 1
+        answer = found and asdict(found)
     elif command in ("diff", "show"):
         text, error = (diff if command == "diff" else show)(root, *rest)
         answer = {"text": text, "error": error}

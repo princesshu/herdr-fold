@@ -329,12 +329,131 @@ export function floatHeight(panel, shown) {
   return Math.min(TALL, 36 + body);
 }
 
-/** The app's Spaces list's height for LIST (spaces()) with MACHINES (the other machines' names), as its own mod
- * draws it: its head (31), a row each (30), a machine's head (26) once another machine is there, its foot (14).
- * @param {{ machine: string | null }[]} list @param {string[]} machines */
-export function spacesHeight(list, machines) {
-  const remote = new Set([...list.map((s) => s.machine).filter(Boolean), ...machines]);
-  return 31 + 30 * list.length + (remote.size ? 26 * (remote.size + 1) : 0) + 14;
+// herdr-fold's Spaces list, where the app's own was: the same rows, and how long an agent there waits on you, as the
+// TUI's Space rows say it
+
+/** A wait as a Space row says it, as the TUI's: under a minute, then minutes, hours or days. @param {number} ms */
+export function waited(ms) {
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 1) return "waiting <1m";
+  const units = /** @type {[string, number][]} */ ([["d", 1440], ["h", 60], ["m", 1]]);
+  const [unit, size] = /** @type {[string, number]} */ (units.find(([, n]) => minutes >= n));
+  return `waiting ${Math.floor(minutes / size)}${unit}`;
+}
+
+const WAITING = ["blocked", "done"];         // waiting on you: a question, or an answer not seen yet
+
+/** @typedef {{ address: string, pane: string, space: string, status: string, seq: number }} Waiter */
+
+/** The waits after a look at AGENTS at NOW, FOCUSED the pane in focus, KNOWN the ones before: each agent blocked
+ * or done since its last change, or marked unread till its pane is left and come back to, as the TUI keeps them.
+ * @param {Record<string, any>} known @param {Waiter[]} agents @param {number} now @param {string | null} focused */
+export function nextWaits(known, agents, now, focused) {
+  /** @type {Record<string, any>} */
+  const waits = {};
+  for (const { address, pane, status, seq } of agents) {
+    let was = known[address];
+    if (was?.unread) {
+      if (focused !== pane) waits[address] = { ...was, left: true };
+      else if (!was.left) waits[address] = was;
+      if (waits[address]) continue;
+      was = null;                                 // read: back on it after leaving it
+    }
+    if (WAITING.includes(status)) waits[address] = { seq, since: was?.seq === seq ? was.since : now };
+  }
+  return waits;
+}
+
+/** WAITS with AGENT marked unread (Cmd + Shift + U) from NOW, or from when it began to wait; marked already, unmarked.
+ * @param {Record<string, any>} waits @param {Waiter} agent @param {number} now */
+export function toggleUnread(waits, agent, now) {
+  const was = waits[agent.address], next = { ...waits };
+  if (was?.unread) delete next[agent.address];
+  else next[agent.address] = { seq: agent.seq, since: was?.since ?? now, unread: true, left: false };
+  return next;
+}
+
+/** Each space's longest wait: since when the first of its AGENTS in WAITS waits.
+ * @param {Record<string, any>} waits @param {{ address: string, space: string }[]} agents */
+export function spaceWaits(waits, agents) {
+  /** @type {Record<string, number>} */
+  const first = {};
+  for (const { address, space } of agents) {
+    if (waits[address]) first[space] = Math.min(first[space] ?? Infinity, waits[address].since);
+  }
+  return first;
+}
+
+/** What a Space row says after its NAME, as the app's own list: its PLACE's repository and branch, each only where
+ * unusual (not the name, nor main or master), a worktree's (TREE, under its checkout) never its repository.
+ * @param {{ name: string, branch: string | null }} place @param {boolean} tree @param {string} name */
+export function placeLabel(place, tree, name) {
+  const same = (text) => text.toLowerCase() === name.toLowerCase(), raw = place.branch ?? "detached";
+  const branch = same(raw) || raw === "main" || raw === "master" ? "" : raw;
+  return [tree || same(place.name) ? "" : place.name, branch].filter(Boolean).join(" · ");
+}
+
+/** ROWS ({ w: a space, g: its place }) in order, each worktree under the first space of its checkout, TREE marking it;
+ * one whose checkout has no space stays where it is. @template {{ g: any }} R @param {R[]} rows */
+export function nested(rows) {
+  const checkouts = new Set(rows.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
+  const under = (/** @type {R} */ r) => Boolean(r.g?.linked && checkouts.has(r.g.repo));
+  const out = [], placed = new Set();
+  for (const row of rows) {
+    if (under(row)) continue;
+    out.push({ ...row, tree: false });
+    if (!row.g || row.g.linked || placed.has(row.g.repo)) continue;
+    placed.add(row.g.repo);
+    out.push(...rows.filter((r) => under(r) && r.g.repo === row.g.repo).map((r) => ({ ...r, tree: true })));
+  }
+  return out;
+}
+
+// a space's avatar color, as every app mod draws one: one strong color per hue, light and dark alike
+export const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a",
+  ansi1: "#d9649a" };
+const PALETTE = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1"];
+
+/** The spaces' colors as every app mod keeps them (shared "space.colors"): KEPT's for the spaces of LIST still there,
+ * one without given the color fewest use, in LIST's order, the home folder's ("~") none; null when nothing changed.
+ * @param {{ id: string, name: string }[]} list @param {Record<string, string>} kept */
+export function spaceColors(list, kept) {
+  const ids = new Set(list.map((s) => s.id));
+  const colors = Object.fromEntries(Object.entries(kept).filter(([id]) => ids.has(id)));
+  let changed = Object.keys(colors).length !== Object.keys(kept).length;
+  for (const { id, name } of list) {
+    if (colors[id] || name === "~") continue;
+    const uses = (c) => Object.values(colors).filter((v) => v === c).length;
+    colors[id] = PALETTE.reduce((best, c) => (uses(c) < uses(best) ? c : best));
+    changed = true;
+  }
+  return changed ? colors : null;
+}
+
+/** An avatar's fill for COLOR (kept): the strong one for a theme color's name, a picked #rrggbb as it is.
+ * @param {string} color @param {Record<string, any>} t */
+export const avatarFill = (color, t) => (color.startsWith("#") ? color : MARK[color] ?? t[color] ?? MARK.ansi6);
+
+export const LIST = { head: 31, foot: 14, machine: 26, row: 30, tree: 28 };     // the Spaces list's, as the app's
+
+/** @typedef {{ machine: string | null, folded: boolean, rebuilt: boolean, loading: boolean,
+ *   rows: { tree: boolean }[] }} SpaceGroup */
+
+/** What a Spaces list's group G shows under its head (HEADED: once another machine is there): its rows, Loading…,
+ * New space there, or nothing (folded, or rebuilt: only its head). @param {SpaceGroup} g @param {boolean} headed */
+export const listBody = (g, headed) => (headed && (g.folded || g.rebuilt) ? "none" : g.rows.length ? "rows"
+  : g.loading ? "loading" : headed ? "empty" : "none");
+
+/** Whether GROUPS get a machine's head each: once a machine other than this computer is there.
+ * @param {SpaceGroup[]} groups */
+export const headed = (groups) => groups.length > 1 || Boolean(groups[0]?.machine);
+
+/** The Spaces list's height as GROUPS draw it: the block, its edge dragged, grows only as far as that.
+ * @param {SpaceGroup[]} groups */
+export function listHeight(groups) {
+  const heads = headed(groups), one = { none: 0, loading: LIST.tree, empty: LIST.tree };
+  return LIST.head + LIST.foot + groups.reduce((h, g) => h + (heads ? LIST.machine : 0) + (listBody(g, heads) ===
+    "rows" ? g.rows.reduce((n, r) => n + (r.tree ? LIST.tree : LIST.row), 0) : one[listBody(g, heads)]), 0);
 }
 
 /** TREE (a layout) with node ID's max at PX, never under its min: a copy, and whether it differs from TREE (else

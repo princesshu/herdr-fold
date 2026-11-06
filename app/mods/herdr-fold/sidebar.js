@@ -4,8 +4,9 @@
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { closeOverlay, layout, openOverlay, setShared, shared, spaces, updates, window, run as command } from "herdr";
-import { floatHeight, foldedWidth, railed, sidebarPx, urgent } from "./logic.js";
+import { avatarFill, floatHeight, foldedWidth, railed, sidebarPx, urgent, waited } from "./logic.js";
 import { GAP, icon, iconButton, iconTab, stateMark } from "./parts.js";
+import { spaceColorsKept, waitsBySpace } from "./spaces.js";
 
 const FOLDED = ["sidebar-trigger"];       // the layout's blocks shown while folded
 const OPEN = ["spaces", "sidebar-footer"];     // and the app's own, shown while open: folded, the dock has them
@@ -84,24 +85,23 @@ function dockButton(t, panel, name, label, dot, height) {
     .child(div().text_size(9).text_color(t.dim).child(label));
 }
 
-/** The Spaces panel floating beside the folded rail (OVERLAY, HEIGHT high): each of LIST by its badge, its name and
- * its most urgent agent's state, the shown one on the selection, as the app's Spaces list; a click shows it.
+/** The Spaces panel floating beside the folded rail (OVERLAY, HEIGHT high): each of LIST by its avatar (COLORS), its
+ * name, how long it waits on you (SINCE) and its most urgent agent's state, the shown one selected; a click shows it.
  * @param {string} overlay @param {number} height */
-export function spacesFloat(t, overlay, height, list = spaces()) {
-  const colors = shared("space.colors") ?? {};
-  const fill = (id) => {
-    const color = colors[id] ?? "ansi6";
-    return color.startsWith("#") ? color : t[color] ?? t.accent;
-  };
+export function spacesFloat(t, overlay, height, list = spaces(), colors = spaceColorsKept(), since = waitsBySpace(),
+  now = Date.now()) {
   return floatPanel(t, "Spaces", overlay, height,
     [iconButton(t, "float-new-space", "plus", "New space", () => command("space.new", {}))],
     v_flex().id("float-spaces").size_full().overflow_y_scrollbar().px(8).pb(8).gap(1)
       .children(list.map((space) => h_flex().id(`float-space-${space.id}`).h(28).flex_none().px(8).gap(8)
         .items_center().rounded(6).cursor_pointer().when(space.active, (e) => e.bg(t.selected))
         .hover((s) => s.bg(t.hover)).on_click(() => command("space.select", { id: space.id }))
-        .child(h_flex().size(18).flex_none().rounded(5).bg(fill(space.id)).items_center().justify_center()
+        .child(h_flex().size(18).flex_none().rounded(5).bg(avatarFill(colors[space.id] ?? "ansi6", t))
+          .items_center().justify_center()
           .text_size(10.5).font_bold().text_color("#ffffff").child([...space.name][0]?.toUpperCase() ?? "?"))
         .child(div().flex_1().min_w(0).truncate().text_color(space.active ? t.foreground : t.muted)
           .when(space.active, (e) => e.font_bold()).child(space.name))
+        .when(Boolean(since[space.id]), (e) => e.child(div().flex_none().text_size(11.5).text_color(t.ansi3)
+          .child(waited(now - since[space.id]))))
         .child(stateMark(t, space.status)))));
 }
