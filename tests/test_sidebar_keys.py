@@ -10,7 +10,7 @@ import time
 import unittest
 from unittest import mock
 
-from support import SRC
+from support import SRC, end_child
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import keys_windows  # noqa: E402
@@ -97,10 +97,10 @@ def run(keys):
     pid, fd = pty.fork()
     if pid == 0:
         os.execv(sys.executable, [sys.executable, "-c", PROGRAM % os.path.join(SRC, "plugins", "sidebar")])
-    out, deadline = b"", time.time() + 10
+    out, deadline = b"", time.monotonic() + 10
     time.sleep(0.6)
     os.write(fd, keys)
-    while time.time() < deadline:
+    while time.monotonic() < deadline:
         if select.select([fd], [], [], 0.2)[0]:
             try:
                 chunk = os.read(fd, 65536)
@@ -109,8 +109,7 @@ def run(keys):
             if not chunk:
                 break
             out += chunk
-    os.waitpid(pid, 0)
-    os.close(fd)
+    end_child(pid, fd)
     return out.decode("utf-8", "replace")
 
 

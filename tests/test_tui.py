@@ -9,7 +9,7 @@ import sys
 import time
 import unittest
 
-from support import SRC
+from support import SRC, end_child
 
 # a window that reads one key, then ends; one that takes the mouse too, and shows what it read
 WINDOW = f"import sys; sys.path.insert(0, {SRC!r}); import tui; tui.getkey()"
@@ -42,8 +42,7 @@ class Cursor(unittest.TestCase):
             os.write(fd, b"x")
             shown += read_until(fd, lambda out: SHOW in out)
         finally:
-            os.waitpid(pid, 0)
-            os.close(fd)
+            end_child(pid, fd)
         self.assertTrue(HIDE in shown and shown.index(HIDE) < shown.rindex(SHOW), shown)
 
     def test_a_click_is_one_key_and_the_mouse_is_given_back_at_the_end(self):
@@ -55,8 +54,7 @@ class Cursor(unittest.TestCase):
             os.write(fd, b"\x1b[<0;12;5M")
             shown += read_until(fd, lambda out: MOUSE_OFF in out)
         finally:
-            os.waitpid(pid, 0)
-            os.close(fd)
+            end_child(pid, fd)
         self.assertIn(b"'\\x1b[<0;12;5M'", shown)
         self.assertLess(shown.index(MOUSE_ON), shown.rindex(MOUSE_OFF))
 

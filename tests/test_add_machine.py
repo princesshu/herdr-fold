@@ -9,6 +9,8 @@ import tempfile
 import time
 import unittest
 
+from support import end_child
+
 PACKAGE = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 HERDR_DIR = os.path.join(PACKAGE, "src")
 
@@ -38,8 +40,8 @@ class AddMachine(unittest.TestCase):
             os.execve("/usr/bin/python3", ["python3", os.path.join(self.herdr, "add_machine.py")],
                       {"HOME": self.home, "PATH": "/usr/bin:/bin", "TERM": "dumb",
                        "HERDR_BIN_PATH": "/somewhere/bin/herdr"})
-        out, end = b"", time.time() + 15
-        while time.time() < end:
+        out, end = b"", time.monotonic() + 15
+        while time.monotonic() < end:
             r, _, _ = select.select([fd], [], [], 0.2)
             if r:
                 try:
@@ -51,8 +53,7 @@ class AddMachine(unittest.TestCase):
                 out += chunk
             elif b"Press any key" in out:
                 os.write(fd, b" ")
-        _, status = os.waitpid(pid, 0)
-        return out.decode("utf-8", "replace").replace("\r", ""), os.waitstatus_to_exitcode(status)
+        return out.decode("utf-8", "replace").replace("\r", ""), end_child(pid, fd)
 
     def test_runs_the_packages_new_machine_flow(self):
         self.record(self.package)

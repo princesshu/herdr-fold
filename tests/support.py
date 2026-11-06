@@ -360,18 +360,36 @@ def run_in_terminal(argv, env, answer, timeout=120, idle=0.5, keep_colors=False)
                 os.write(fd, reply.encode() + b"\r")
                 shown += "\n"                             # the answer ends that line
             last = time.time()
-    ended = False
-    for _ in range(30):
-        if os.waitpid(pid, os.WNOHANG) != (0, 0):
-            ended = True
+    return shown, end_child(pid, fd) is not None
+
+
+def end_child(pid, fd, grace=3.0, read=None):
+    """A pty child's end: its exit code, or None when it still ran after GRACE seconds and was killed (only that child).
+    Its output is taken meanwhile (READ(seconds), else dropped), and the pty goes first: a child killed with its output
+    unread ends only once it is let go."""
+    read = read or (lambda seconds: drop_output(fd, seconds))
+    end = time.monotonic() + grace
+    while True:
+        done, status = os.waitpid(pid, os.WNOHANG)
+        if done:
+            os.close(fd)
+            return os.waitstatus_to_exitcode(status)
+        if time.monotonic() >= end:
             break
-        time.sleep(0.1)
-    if not ended:
-        os.kill(pid, 9)
-    os.close(fd)                    # first: a child killed with its output unread ends only once the pty is let go
-    if not ended:
-        os.waitpid(pid, 0)
-    return shown, ended
+        read(0.1)
+        time.sleep(0.02)                                 # at the pty's end a read returns at once: no busy loop
+    os.kill(pid, 9)
+    os.close(fd)
+    os.waitpid(pid, 0)
+    return None
+
+
+def drop_output(fd, seconds):
+    if select.select([fd], [], [], seconds)[0]:
+        try:
+            os.read(fd, 65536)
+        except OSError:
+            pass
 
 
 class FakeHerdrSocket:

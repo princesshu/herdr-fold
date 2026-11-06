@@ -13,7 +13,7 @@ import time
 import unittest
 from unittest import mock
 
-from support import SRC, finished, logged, set_env, sign_head, stubs, trap
+from support import SRC, end_child, finished, logged, set_env, sign_head, stubs, trap
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import pager  # noqa: E402
@@ -395,7 +395,7 @@ def run_pager(spec, keys, folder, env=None):
         own = {key: value for key, value in os.environ.items() if not key.startswith("HERDR_")}
         os.execve(sys.executable, [sys.executable, os.path.join(SRC, "plugins", "sidebar", "pager.py")],
                   {**own, **(env or {}), "HERDR_FOLD_SPEC_FILE": path})
-    out, ended = b"", False
+    out = b""
     for key in [b""] + keys:
         time.sleep(0.5)
         if isinstance(key, dict):
@@ -404,8 +404,8 @@ def run_pager(spec, keys, folder, env=None):
             os.replace(path + ".new", path)
         else:
             os.write(fd, key)
-    deadline = time.time() + 5
-    while time.time() < deadline:
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
         if select.select([fd], [], [], 0.2)[0]:
             try:
                 chunk = os.read(fd, 65536)
@@ -414,15 +414,7 @@ def run_pager(spec, keys, folder, env=None):
             if not chunk:
                 break
             out += chunk
-    for _ in range(20):
-        if os.waitpid(pid, os.WNOHANG) != (0, 0):
-            ended = True
-            break
-        time.sleep(0.1)
-    if not ended:
-        os.kill(pid, 9)
-        os.waitpid(pid, 0)
-    os.close(fd)
+    ended = end_child(pid, fd, grace=2.0) is not None
     return out.decode("utf-8", "replace"), ended
 
 

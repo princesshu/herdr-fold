@@ -15,7 +15,7 @@ import time
 import unittest
 from unittest import mock
 
-from support import SRC, AppScreen, FakeHerdrSocket, FakeTerminal, logged, set_env, stubs
+from support import SRC, AppScreen, FakeHerdrSocket, FakeTerminal, end_child, logged, set_env, stubs
 
 PLUGIN = os.path.join(SRC, "plugins", "sidebar")
 sys.path.insert(0, PLUGIN)
@@ -1256,17 +1256,7 @@ class Terminal(Repo):
             os.write(fd, key)
             read(0.5)
         read(3)
-        ended = False
-        for _ in range(100):                        # ten seconds: on a busy machine its threads end later
-            if os.waitpid(pid, os.WNOHANG) != (0, 0):
-                ended = True
-                break
-            read(0.1)                               # its output taken meanwhile: a full pty would stop it
-        if not ended:
-            os.kill(pid, 9)
-        os.close(fd)                        # first: a child killed mid-write waits for the pty to take its output
-        if not ended:
-            os.waitpid(pid, 0)
+        ended = end_child(pid, fd, grace=10, read=read) is not None   # on a busy machine its threads end later
         return out.decode("utf-8", "replace"), ended
 
     def test_q_and_ctrl_c_give_the_terminal_back(self):
@@ -1284,7 +1274,7 @@ class Terminal(Repo):
         pid, fd = pty.fork()
         if pid == 0:
             os.execv(sys.executable, [sys.executable, "-B", os.path.join(code, "sidebar.py"), self.root])
-        out, ended = bytearray(), 0
+        out = bytearray()
 
         def read(seconds, until=None, start=0):
             deadline = time.monotonic() + seconds
@@ -1311,18 +1301,9 @@ class Terminal(Repo):
             read(10, "⎇".encode(), restarted)
             self.assertIn(b"Search", out[restarted:])                         # its view handed over through the exec
             os.write(fd, b"\x03")
-            for _ in range(50):
-                ended, status = os.waitpid(pid, os.WNOHANG)
-                if ended:
-                    break
-                read(0.1)                   # its output taken meanwhile, as a terminal does: a full pty would stop it
-            self.assertEqual((ended, os.waitstatus_to_exitcode(status) if ended else None), (pid, 0))
         finally:
-            if not ended:
-                os.kill(pid, 9)
-            os.close(fd)                    # first: a child killed mid-write waits for the pty to take its output
-            if not ended:
-                os.waitpid(pid, 0)
+            status = end_child(pid, fd, grace=5, read=read)
+        self.assertEqual(status, 0)
 
     def test_quitting_does_not_wait_for_a_hanging_ai(self):
         subprocess.run(["git", "-C", self.root, "add", "a.txt"], check=True)

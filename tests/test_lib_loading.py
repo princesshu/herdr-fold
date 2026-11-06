@@ -11,6 +11,8 @@ import tempfile
 import time
 import unittest
 
+from support import end_child
+
 PACKAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 LIB = os.path.join(PACKAGE, "lib/common.sh")
 SCENE = "▀"          # the half block the sheep, the fence and the grass are drawn with
@@ -30,8 +32,8 @@ def terminal(script, **env):
         os.execve("/bin/bash", ["bash", "-c", script],
                   {"PATH": "/usr/bin:/bin", "TERM": "xterm-256color", "LOADING_AFTER": "0", "LOADING_SHEEP": "0",
                    "LOADING_SHEEP_MIN": "0", **env})
-    out, end = b"", time.time() + 20
-    while time.time() < end:
+    out, end = b"", time.monotonic() + 20
+    while time.monotonic() < end:
         r, _, _ = select.select([fd], [], [], 0.1)
         if r:
             try:
@@ -41,7 +43,7 @@ def terminal(script, **env):
             if not chunk:
                 break
             out += chunk
-    os.waitpid(pid, 0)
+    end_child(pid, fd)
     return out.decode("utf-8", "replace")
 
 
