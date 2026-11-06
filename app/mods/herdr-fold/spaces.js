@@ -319,10 +319,14 @@ export class SpacesView {
   }
 
   render(t, cx) {
-    const groups = this.model(), tall = listHeight(groups), capped = withMax(layout(), "spaces", tall);
-    if (capped.changed && this.capped !== tall) {
-      this.capped = tall;
-      cx.timer.after(0, () => command("layout.set", { layout: capped.tree }));
+    const groups = this.model(), tall = listHeight(groups);
+    if (withMax(layout(), "spaces", tall).changed && !this.capping) {
+      this.capping = true;
+      cx.timer.after(0, () => {                   // the layout as it is then: a fold or a resize meanwhile stays
+        this.capping = false;
+        const capped = withMax(layout(), "spaces", tall);
+        if (capped.changed) command("layout.set", { layout: capped.tree });
+      });
     }
     return this.draw(t, groups);
   }
