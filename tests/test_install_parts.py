@@ -6,10 +6,12 @@ import subprocess
 import sys
 import unittest
 
-from support import PACKAGE, AppInstall, catalog_text, run_in_terminal, stubs
+from support import APP_STUB, PACKAGE, AppInstall, catalog_text, run_in_terminal, stubs
 
 
-class FirstQuestion(AppInstall, unittest.TestCase):
+class PartsInstall(AppInstall):
+    """install.sh run as a person runs it (asked), or with HERDR_FOLD_PARTS (with_parts); the parts on its record."""
+
     def asked(self, replies=None):
         """The installer in a terminal: what REPLIES gives for a question its text is in typed there, Enter
         elsewhere; its output."""
@@ -33,6 +35,8 @@ class FirstQuestion(AppInstall, unittest.TestCase):
         del self.env["HERDR_FOLD_PARTS"]
         return out
 
+
+class FirstQuestion(PartsInstall, unittest.TestCase):
     def test_with_the_app_found_both_is_the_default(self):
         self.with_app()
         out = self.asked()
@@ -86,6 +90,86 @@ class FirstQuestion(AppInstall, unittest.TestCase):
         self.assertNotIn("herdr-fold.app", self.recorded())
         out = self.asked({"install.update_ask": "n", "install.parts_ask": "3"})
         self.assertIn(f"{catalog_text('install.parts_ask')} [1]", out)
+        self.assertEqual(self.parts(), ["tui", "app"])
+
+
+class MissingApp(PartsInstall, unittest.TestCase):
+    """The Herdr app chosen and not on this Mac: its own installer (a curl stub whose script puts a herdr-app
+    command line where the app's installer does) offered after a yes, in a terminal only."""
+
+    def setUp(self):
+        super().setUp()
+        self.curl_log = os.path.join(self.tmp, "curl-calls")
+        fake = os.path.join(self.tmp, "fake-herdr-app")
+        with open(fake, "w") as f:
+            f.write(APP_STUB)
+        os.chmod(fake, 0o755)
+        script = f'mkdir -p "$HOME/.local/bin" && cp {fake} "$HOME/.local/bin/herdr-app"'
+        stubs(self.fakes, {"curl": f'#!/bin/sh\necho "curl $*" >> {self.curl_log}\necho \'{script}\'\n'})
+
+    def curls(self):
+        if not os.path.exists(self.curl_log):
+            return []
+        with open(self.curl_log) as f:
+            return f.read().splitlines()
+
+    def test_a_missing_app_is_offered_its_installer(self):
+        out = self.asked({"install.parts_ask": "3"})
+        self.assertIn(catalog_text("install.app_install_ask"), out)
+        self.assertEqual(self.curls(), ["curl -fsSL https://releases.herdr.dev/app/install.sh"])
+        self.assertIn("herdr-fold.app", self.recorded())
+        self.assertEqual(self.parts(), ["tui", "app"])
+
+    def test_without_a_terminal_the_installer_never_runs(self):
+        out = self.with_parts("both")
+        self.assertEqual(self.curls(), [])
+        later = catalog_text("install.app_install_later", "curl -fsSL https://releases.herdr.dev/app/install.sh | sh")
+        self.assertIn(later, out)
+        self.assertEqual(self.parts(), ["tui"])
+
+
+class ChosenParts(PartsInstall, unittest.TestCase):
+    """Each step does what the chosen parts need: the TUI's files, programs, shell block, plugins and integrations
+    with the TUI only; the app's part with the app only; the status line and GitHub for both."""
+
+    def herdr_calls(self):
+        log = os.path.join(self.tmp, "herdr-calls")
+        if not os.path.exists(log):
+            return []
+        with open(log) as f:
+            return f.read().splitlines()
+
+    def test_the_app_alone_writes_no_tui_file(self):
+        self.with_app()
+        self.with_parts("app")
+        self.assertFalse(os.path.exists(self.path(".config/ghostty/config")))
+        self.assertFalse(os.path.exists(self.path(".config/starship.toml")))
+        self.assertNotIn("herdr-fold", self.read(".zshrc") if os.path.exists(self.path(".zshrc")) else "")
+        self.assertEqual([call for call in self.herdr_calls() if "plugin link" in call], [])
+        self.assertTrue(os.path.isfile(self.path(".config/herdr-fold/statusline.py")))
+        self.assertTrue(self.in_app("mods/herdr-fold/main.js"))
+        self.assertEqual(self.parts(), ["app"])
+
+    def test_the_app_alone_without_herdr_runs_no_herdr(self):
+        os.remove(os.path.join(self.fakes, "herdr"))
+        self.with_app()
+        out = self.with_parts("app")
+        said = [line for line in out.splitlines() if re.search(r"\bherdr\b(?!-)", line) and re.search("[!✗]", line)]
+        self.assertEqual(said, [])
+        self.assertEqual(self.parts(), ["app"])
+
+    def test_the_tui_alone_puts_nothing_in_the_app(self):
+        self.with_app()
+        self.with_parts("tui")
+        self.assertFalse(os.path.exists(self.app_home))
+        self.assertIn("declined:herdr-fold.app", self.recorded())
+        self.assertEqual(self.parts(), ["tui"])
+
+    def test_both_set_up_both(self):
+        self.with_app()
+        self.with_parts("both")
+        self.assertTrue(os.path.isfile(self.path(".config/ghostty/config")))
+        self.assertTrue(self.in_app("mods/herdr-fold/main.js"))
         self.assertEqual(self.parts(), ["tui", "app"])
 
 

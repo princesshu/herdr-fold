@@ -198,6 +198,18 @@ else
     || echo "eval \"\$($(command -v brew) shellenv)\"" >> "$HOME/.zprofile"
   ok "$(t install.homebrew)"
 fi
+# The Herdr app, its part chosen and not on this Mac: its own installer (releases.herdr.dev: the app in ~/Applications,
+# herdr-app in ~/.local/bin), after a yes in a terminal; a no, or no terminal, names it for later and goes on
+APP_INSTALLER=https://releases.herdr.dev/app/install.sh
+if [ -z "$app" ] && case " $parts " in *" app "*) true ;; *) false ;; esac; then
+  warn "$(t install.app_missing)"
+  if interactive && ask "$(t install.app_install_ask)" y; then
+    /bin/sh -c "$(curl -fsSL "$APP_INSTALLER")" </dev/tty
+    app=$(python3 "$DOT/lib/herdr_app.py" cli)
+    [ -n "$app" ] && ok "$(t install.app_installed)" || warn "$(t install.app_install_failed)"
+  fi
+  [ -n "$app" ] || note "$(t install.app_install_later "curl -fsSL $APP_INSTALLER | sh")"
+fi
 if command -v claude >/dev/null 2>&1; then there+=("$(t install.claude)")
 else missing+=("warn|$(t install.claude_missing)"); fi
 command -v codex >/dev/null 2>&1 && there+=("$(t install.codex)") || missing+=("note|$(t install.codex_missing)")
