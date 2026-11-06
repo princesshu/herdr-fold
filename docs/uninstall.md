@@ -11,7 +11,25 @@ uninstaller takes that plugin off too, and the folder in `~/.local/share` last. 
 installed alone from herdr's marketplace, which the installer then took over, goes too: the uninstaller names the
 command that brings it back.
 
-It asks `Take herdr-fold off this Mac?`, then works from the installer's records in `~/.local/state/herdr-fold/`:
+It works from the installer's records in `~/.local/state/herdr-fold/`. With the TUI and the Herdr app installed, it
+asks first `Take off`: `1` the TUI, `2` the Herdr app or `3` both (the default); with one, it asks
+`Take herdr-fold off this Mac?`. `HERDR_FOLD_PARTS=tui`, `app` or `both` answers either question.
+
+## One part, or both
+
+One part goes and the other keeps working: what both use goes with the last.
+
+- **The TUI**: its files, the `~/.zshrc` block, herdr-fold's part of herdr's settings, its herdr plugins and
+  integrations, Ghostty's icon, and the sidebar's own state (the theme's colors, the column, the panels, the
+  handovers, previews and issues it keeps). The remote machines stay in the Herdr app, and connected in herdr:
+  `herdr machine remove <id>` disconnects one.
+- **The Herdr app**: herdr-fold's mod, layout, themes, keys and settings in it, and the machines herdr-fold added
+  there, as below. An update of the TUI does not offer it again; choosing it in the installer brings it back.
+- **The last part**, or both: also the files both use (the status line, the themes, the texts), Claude's earlier
+  status line, the sidebar's settings (which keep the issue linked to each repository's next commit), the archived
+  conversations, the records, herdr-fold's plugin from herdr's marketplace and the package folder.
+
+## What goes, and what stays
 
 - the installed files go, and your own earlier ones come back;
 - a file you changed since the install is set aside in `~/.local/state/herdr-fold/changed-<date>/`, not deleted;

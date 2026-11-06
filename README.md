@@ -135,7 +135,7 @@ herdr server live-handoff
 ## Uninstall
 
 ```bash
-./uninstall.sh                  # this Mac: your own files come back
+./uninstall.sh                  # this Mac: the TUI, the Herdr app or both
 ./machines.sh remove alpha      # one remote machine
 ```
 

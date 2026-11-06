@@ -31,6 +31,9 @@ remove_from_app() {
 # them when none is named; a line both parts share with any
 of_parts() { [ $# -eq 1 ] || [ "$1" = both ] || case " ${*:2} " in *" $1 "*) true ;; *) false ;; esac; }
 
+# parts_of ANSWER: the parts an answer names (1 or tui, 2 or app, 3 or both), as "tui app", else nothing
+parts_of() { case $1 in 1|tui) echo tui ;; 2|app) echo app ;; 3|both) echo tui app ;; esac; }
+
 # The package's files and where they go on the machine, from files.txt, as "path in the package|path under HOME"
 # lines, every part's or the PARTs' named. A line with a * stands for every matching file in the package:
 # `src/lang/*.txt | .config/herdr-fold/lang/` puts every language file in place, so a new language needs no new line.

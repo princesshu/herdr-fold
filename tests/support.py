@@ -542,6 +542,34 @@ class AppInstall(PackageHome):
         return os.path.exists(os.path.join(self.app_home, rel))
 
 
+class PartsInstall(AppInstall):
+    """install.sh or uninstall.sh (SCRIPT) run as a person runs it (asked), or with HERDR_FOLD_PARTS (with_parts); the
+    parts on the installer's record."""
+
+    def asked(self, replies=None, script="install.sh"):
+        """SCRIPT in a terminal: what REPLIES gives for a question its text is in typed there, Enter elsewhere; its
+        output."""
+        env = {k: v for k, v in self.env.items() if k != "HERDR_FOLD_YES"}
+        replies = {catalog_text(key): reply for key, reply in (replies or {}).items()}
+        shown, ended = run_in_terminal(["/bin/bash", os.path.join(self.pkg, script)], env,
+                                       lambda line: next((r for text, r in replies.items() if text in line), ""),
+                                       timeout=240)
+        self.assertTrue(ended, shown[-2000:])
+        return shown
+
+    def parts(self):
+        state = os.path.join(self.home, ".local", "state", "herdr-fold")
+        out = subprocess.run([sys.executable, "-B", os.path.join(self.pkg, "src", "parts.py"), state],
+                             capture_output=True, text=True, check=True)
+        return out.stdout.split()
+
+    def with_parts(self, parts, script="install.sh"):
+        self.env["HERDR_FOLD_PARTS"] = parts
+        out = self.run_script(script)
+        del self.env["HERDR_FOLD_PARTS"]
+        return out
+
+
 def end_jobs():
     """The sidebar apps' jobs ended, a test's own tick's too. A test registers it last in setUp: it runs first, while
     the test's HOME and herdr stand (else a job reads the real ones), and before its folders go (else a job makes

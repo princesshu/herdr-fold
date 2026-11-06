@@ -12,7 +12,7 @@ plugins of its own.
 |---|---|
 | `install.sh` | the install wizard |
 | `install.command` | double-click launcher: runs `install.sh` in the Terminal app |
-| `uninstall.sh` | takes it all off this Mac again, by the installer's records |
+| `uninstall.sh` | takes the TUI, the Herdr app or both off this Mac again, by the installer's records |
 | `herdr-plugin.toml` | the whole environment as a herdr plugin (Full Setup), for herdr's marketplace: it opens `install.sh` in a herdr tab, once for each copy herdr keeps (`lib/offer_install.sh`) |
 | `Brewfile` | the programs: herdr, Ghostty, starship, gh, bat, git-delta, ripgrep, the JetBrains Mono Nerd Font |
 | `files.txt` | which file goes where on this Mac |
@@ -96,7 +96,7 @@ plugins of its own.
 | `src/install/parts.html` | the page the installer's first question opens in the browser: the TUI and the Herdr app, each with its picture, the one installed or the app on this Mac marked |
 | `docs/` | the guides |
 | `assets/` | the pictures the README and the guides show: the screenshots and the animation (`screenshots/`), the styleguide's (`styleguide/`) |
-| `tests/` | the tests (`/usr/bin/python3 -m unittest discover -s tests`), a file named after where what it tests lives: `test_core_git.py` for `core/git.py`, `test_sidebar_scm.py` for the sidebar's `scm.py`, `test_close_tab.py` for `src/close_tab.py`; `test_lib_*`, `test_tools_*`, `test_remote_*` and `test_lab.py` for those folders, `test_install*`, `test_uninstall.py` and `test_machines_*` for the scripts, `test_app.py` for the app mod, `test_repo_*` for what holds for the whole repository (docs, privacy, files); what more than one file needs is in `support.py`, and a test imports from there, never from another test |
+| `tests/` | the tests (`/usr/bin/python3 -m unittest discover -s tests`), a file named after where what it tests lives: `test_core_git.py` for `core/git.py`, `test_sidebar_scm.py` for the sidebar's `scm.py`, `test_close_tab.py` for `src/close_tab.py`; `test_lib_*`, `test_tools_*`, `test_remote_*` and `test_lab.py` for those folders, `test_install*`, `test_uninstall*` and `test_machines_*` for the scripts, `test_app.py` for the app mod, `test_repo_*` for what holds for the whole repository (docs, privacy, files); what more than one file needs is in `support.py`, and a test imports from there, never from another test |
 | `lab/` | the test lab: a Linux machine in a container reached over SSH as a remote machine, run only when called (`python3 lab/lab.py test`); `lab.py`, the machine in `linux/` (`Containerfile`, `sshd.conf`, a stand-in `claude`), its tests in `tests/`, the mod's way through a change in `walk.py`, what GitHub's runners run in `ci/` ([its README](../lab/README.md)) |
 | `tools/sync.sh` | copies this Mac's settings back into the package (not over a file edited there and not committed), then checks the files for private data |
 | `tools/icons.py` | fetches the app mod's icons by name from Iconify into `app/mods/herdr-fold/icons/`: Lucide's for the views, Catppuccin Icons' for each file type `core/icons.py` names; run it when either list changes (nothing asks Iconify while the app runs) |
@@ -128,7 +128,7 @@ only herdr's files and its `config.toml`.
 | `<date>/` | earlier versions of the installed files that a newer install replaced; the three newest are kept |
 | `changed-<date>/` | installed files you changed (or with no sum recorded to tell), kept when a newer install replaced or dropped them; never deleted |
 | `version` | the installed version, which the next install names in its update question |
-| `plugins.txt` | the plugins and herdr integrations this installer put there, and the plugins you said no to |
+| `plugins.txt` | the plugins and herdr integrations this installer put there, and the plugins you said no to (the Herdr app, once taken off alone, among them) |
 | `app-keys.json` | the keys the last install put in the Herdr app's `keys.json`: the next install and the uninstaller take off one a newer version no longer has, unless you rebound it |
 | `app-machines.txt` | the remote machines herdr-fold added to the Herdr app, which the uninstaller takes off |
 | `loading-colors.txt` | the loading sheep's colors, the chosen theme's |

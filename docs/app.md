@@ -159,8 +159,8 @@ gh signed in to GitHub there, for Issues).
 
 With the TUI environment, `./install.sh` does it all: where the Herdr app is on the Mac, it asks
 `Set up herdr-fold in the Herdr app too?`, and a yes puts the mod, the layout and the keys in place, and shows the
-layout in a running app. `./uninstall.sh` takes them off again, herdr-fold's settings in the app too: a running app
-closes for that moment and opens again.
+layout in a running app. `./uninstall.sh` takes them off again, alone or with the TUI, herdr-fold's settings in the app
+too: a running app closes for that moment and opens again.
 
 Without the TUI environment, from the herdr-fold folder:
 

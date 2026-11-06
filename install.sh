@@ -145,7 +145,6 @@ take_over() {
 # answers it. Fewer than are installed keep the others: ./uninstall.sh takes a part off
 app=$(python3 "$DOT/lib/herdr_app.py" cli)
 had=$(python3 "$DOT/src/parts.py" "$state" | xargs)
-parts_of() { case $1 in 1|tui) echo tui ;; 2|app) echo app ;; 3|both) echo tui app ;; esac; }
 parts=$(parts_of "${HERDR_FOLD_PARTS:-}")
 [ -n "$parts" ] || [ -z "${HERDR_FOLD_PARTS:-}" ] || warn "$(t install.parts_unknown "$HERDR_FOLD_PARTS")"
 if [ -z "$parts" ] && updating && [ -n "$had" ]; then parts=$had; fi

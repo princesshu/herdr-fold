@@ -2,38 +2,9 @@
 switch that answers it, and what an update or a step-by-step run of an earlier install does with it."""
 import os
 import re
-import subprocess
-import sys
 import unittest
 
-from support import APP_STUB, PACKAGE, AppInstall, catalog_text, run_in_terminal, stubs
-
-
-class PartsInstall(AppInstall):
-    """install.sh run as a person runs it (asked), or with HERDR_FOLD_PARTS (with_parts); the parts on its record."""
-
-    def asked(self, replies=None):
-        """The installer in a terminal: what REPLIES gives for a question its text is in typed there, Enter
-        elsewhere; its output."""
-        env = {k: v for k, v in self.env.items() if k != "HERDR_FOLD_YES"}
-        replies = {catalog_text(key): reply for key, reply in (replies or {}).items()}
-        shown, ended = run_in_terminal(["/bin/bash", os.path.join(self.pkg, "install.sh")], env,
-                                       lambda line: next((r for text, r in replies.items() if text in line), ""),
-                                       timeout=240)
-        self.assertTrue(ended, shown[-2000:])
-        return shown
-
-    def parts(self):
-        state = os.path.join(self.home, ".local", "state", "herdr-fold")
-        out = subprocess.run([sys.executable, "-B", os.path.join(self.pkg, "src", "parts.py"), state],
-                             capture_output=True, text=True, check=True)
-        return out.stdout.split()
-
-    def with_parts(self, parts):
-        self.env["HERDR_FOLD_PARTS"] = parts
-        out = self.run_script("install.sh")
-        del self.env["HERDR_FOLD_PARTS"]
-        return out
+from support import APP_STUB, PACKAGE, PartsInstall, catalog_text, stubs
 
 
 class FirstQuestion(PartsInstall, unittest.TestCase):

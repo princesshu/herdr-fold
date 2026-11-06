@@ -18,6 +18,9 @@ All notable changes to this project are listed here. The format follows
 - A remote machine is prepared for the parts installed on the Mac: with the Herdr app alone it gets git, Python and
   the status line, joins the app's core and nothing of herdr's or starship's. See
   [Remote machines](docs/remote-machines.md).
+- The uninstaller takes off the TUI, the Herdr app or both: with both installed it asks which, both by default, and
+  `HERDR_FOLD_PARTS` answers it. Either goes alone and the other keeps working; what both use (the status line, the
+  archived conversations, the linked issues, the records) goes with the last. See [Uninstall](docs/uninstall.md).
 - Cmd + Shift + U marks the focused agent unread: its workspace says `waiting` again, from then, until you come back
   to it after leaving it; again on a marked one takes the mark off. See [Sessions](docs/usage.md#sessions).
 - herdr-fold in herdr's desktop app: a mod with the sidebar's Changes view (the changed files, staged by file or all at
