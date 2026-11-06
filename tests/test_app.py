@@ -74,6 +74,23 @@ class Shape(unittest.TestCase):
         self.assertEqual(stack["children"][1]["content"], {"mod": "herdr-fold"})
         self.assertNotIn("changes", [n.get("content", {}).get("mod") for n in nodes])
 
+    def rail(self):
+        """The layout's nodes by id, and the right panel's rail's width (logic.js's RAIL)."""
+        with open(os.path.join(APP, "layouts", "herdr-fold.json"), encoding="utf-8") as f:
+            nodes = {n.get("id"): n for n in walk(json.load(f))}
+        with open(os.path.join(MOD, "logic.js"), encoding="utf-8") as f:
+            return nodes, int(re.search(r"^export const RAIL = (\d+);", f.read(), re.M).group(1))
+
+    def test_the_panel_rail_is_as_wide_as_the_folded_sidebar(self):
+        nodes, rail = self.rail()
+        self.assertEqual((nodes["fold-panel"]["min"], rail), (nodes["sidebar"]["min"], nodes["sidebar"]["min"]))
+
+    def test_the_panel_toggle_sits_over_the_rails_middle(self):
+        """The top row's panel toggle block is as wide as the rail and the work body's padding, so the toggle,
+        centered over the rail's width of it, is level with the folded panel's icons."""
+        nodes, rail = self.rail()
+        self.assertEqual(nodes["panel-trigger"]["size"]["px"], rail + nodes["work-body"]["padding"])
+
     def test_every_key_reaches_a_command_the_mod_takes(self):
         with open(os.path.join(MOD, "main.js"), encoding="utf-8") as f:
             taken = set(re.findall(r'asked === "([\w-]+)"', f.read()))           # what nextCommand() gave

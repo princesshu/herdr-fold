@@ -4,7 +4,7 @@
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { layout, openOverlay, setShared, shared, watchFolder, run as command } from "herdr";
-import { PANEL, PANEL_BODY, PANEL_PX, panelPx, panelRailed, panelShown, railToggle, shownTab } from "./logic.js";
+import { PANEL, PANEL_BODY, PANEL_PX, panelPx, panelRailed, panelShown, RAIL, railToggle, shownTab } from "./logic.js";
 import { badge, GAP, icon, iconButton, iconTab } from "./parts.js";
 
 export const VIEW = "herdr-fold.view";        // the view shown, kept: changes, search or issues
@@ -82,13 +82,15 @@ export function runPanel(commands) {
   for (const [name, args] of commands) command(name, args);
 }
 
-/** The tab bar's right end: the right panel's toggle, where the app's Files and Changes buttons were; it folds the
- * panel to its rail and opens it again. */
+/** The tab bar's right end: the right panel's toggle, where the app's Files and Changes buttons were, over the
+ * rail's middle (its block is the rail and the work body's padding wide); it folds the panel to its rail and opens
+ * it again. */
 export function panelTrigger(t) {
   const root = layout(), open = panelShown(root) && !panelRailed(root);
-  return h_flex().size_full().pr(10).items_center().justify_end().border_b(1).border_color(t.border)
-    .child(iconButton(t, "panel-open", "panel-right", open ? "Fold panel" : "Open panel",
-      () => runPanel(railToggle(layout(), keptWidth())), { size: 15 }));
+  return h_flex().size_full().border_b(1).border_color(t.border)
+    .child(h_flex().w(RAIL).h_full().items_center().justify_center()
+      .child(iconButton(t, "panel-open", "panel-right", open ? "Fold panel" : "Open panel",
+        () => runPanel(railToggle(layout(), keptWidth())), { size: 15 })));
 }
 
 /** The right panel folded to its rail, as the left sidebar's: its views on squares, a label under each, Changes with

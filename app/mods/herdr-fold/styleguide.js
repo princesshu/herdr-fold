@@ -4,7 +4,8 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState } from "gpui-base";
 import { BY_EXTENSION, BY_NAME, FILE, ICONS } from "./icons.js";
-import { commitRows, conversationRows, diffRows, foldedSections, listHeight, pushOffer, searchRows } from "./logic.js";
+import { commitRows, conversationRows, diffRows, foldedSections, listHeight, pushOffer, RAIL, searchRows }
+  from "./logic.js";
 import { ConversationsView } from "./conversations.js";
 import { IssuesView } from "./issues.js";
 import { button, chip, fileMark, icon, small } from "./parts.js";
@@ -322,12 +323,12 @@ function sections(g, t) {
       group(t, "Commit", g.composer.map(([name, state], i) => specimen(t, `composer-${i}`, name, state.composer(t))))]],
     ["tabs", [group(t, "Panel tabs", [...g.tabs.map(([name, state], i) => specimen(t, `tabs-${i}`, name,
         div().h(40).child(panelTabs(t, state)), { spec: i ? "" : "h 28 · radius 6 · gap 4 · the shown one raised" })),
-      specimen(t, "panel-trigger", "Its toggle", div().w(36).h(42).child(panelTrigger(t)),
-        { width: 120, small: true, spec: "the tab bar's right end" })]),
+      specimen(t, "panel-trigger", "Its toggle", div().w(RAIL + 8).h(42).child(panelTrigger(t)),
+        { width: 120, small: true, spec: "the tab bar's right end, over the rail's middle" })]),
       group(t, "The panel folded to its rail", [
-        specimen(t, "rail-github", "On GitHub, with changes", div().w(44).h(330).child(rail(t,
-          { github: true, changed: 6 }, "t1")), { width: 120, spec: "w 44 · as the left rail" }),
-        specimen(t, "rail-plain", "No GitHub, no terminal yet", div().w(44).h(330).child(rail(t,
+        specimen(t, "rail-github", "On GitHub, with changes", div().w(RAIL).h(330).child(rail(t,
+          { github: true, changed: 6 }, "t1")), { width: 120, spec: `w ${RAIL} · as the left sidebar folded` }),
+        specimen(t, "rail-plain", "No GitHub, no terminal yet", div().w(RAIL).h(330).child(rail(t,
           { github: false, changed: 0 }, null)), { width: 120 }),
         specimen(t, "rail-float", "A view floating beside it", div().w(PANEL).child(floatHead(t, "Changes", "", [])),
           { spec: "as wide as the panel · its head drags it" })]),

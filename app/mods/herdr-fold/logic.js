@@ -355,15 +355,15 @@ export const sidebarPx = (root) => find(root, "sidebar")?.size?.px ?? null;
 export const railed = (root) => (sidebarPx(root) ?? Infinity) < RAIL_BELOW;
 
 /** The width layout ROOT's sidebar takes when its toggle is pressed, as the app's own toggle has it: folded, as wide
- * as the traffic lights on macOS (MACOS); opened, KEPT, the width it had, else 268.
+ * as the traffic lights on macOS (MACOS), RAIL; opened, KEPT, the width it had, else 268.
  * @param {any} root @param {boolean} macos @param {number | undefined} kept */
-export const foldedWidth = (root, macos, kept) => (railed(root) ? kept ?? 268 : macos ? 76 : 44);
+export const foldedWidth = (root, macos, kept) => (railed(root) ? kept ?? 268 : macos ? RAIL : 44);
 
 // the layout's right panel and the stack of its views: herdr-fold's own ids, so the app's tab bar, which shows and
 // hides a panel by space under the app's ids, leaves it alone
 export const PANEL = "fold-panel", PANEL_BODY = "fold-panel-body";
 export const RAIL_BLOCK = "panel-rail";      // the right panel's block while it is folded to its rail
-export const RAIL = 44;                      // px: the right panel folded to its rail
+export const RAIL = 76;                      // px: the right panel folded to its rail, as the left sidebar folds
 export const PANEL_PX = 368;                 // px: the right panel open, unless it kept another width
 
 export const TALL = 440;          // a panel floating beside the folded sidebar, at most

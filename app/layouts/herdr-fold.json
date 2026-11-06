@@ -136,7 +136,7 @@
               "id": "panel-trigger",
               "type": "block",
               "size": {
-                "px": 36
+                "px": 84
               },
               "window_drag": true,
               "content": {
@@ -181,7 +181,7 @@
               "size": {
                 "px": 368
               },
-              "min": 44,
+              "min": 76,
               "max": 900,
               "children": [
                 {
