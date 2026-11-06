@@ -9,7 +9,7 @@ import threading
 import time
 import unittest
 
-from support import SRC, AppScreen, FakeHerdrSocket, FakeTerminal, jsonl, logged, set_attrs, set_env, stubs
+from support import SRC, AppScreen, FakeHerdrSocket, FakeTerminal, end_jobs, jsonl, logged, set_attrs, set_env, stubs
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import column  # noqa: E402
@@ -51,6 +51,7 @@ class Column(AppScreen, unittest.TestCase):
         fakes = stubs(os.path.join(tmp, "bin"), {"herdr": FAKE_HERDR})
         set_env(self, HOME=self.home, HERDR_LOG=self.log, HERDR_WORKSPACE_ID="w1",
                 HERDR_BIN_PATH=os.path.join(fakes, "herdr"))
+        self.addCleanup(end_jobs)                       # the first cleanup: a test's own tick starts jobs too
         now = time.time()
         self.claude("s1", "/repo/app", "Fix the login", now - 60)
         self.claude("s2", "/repo/app", "Price list", now - 3600)
@@ -64,15 +65,8 @@ class Column(AppScreen, unittest.TestCase):
         os.utime(path, (changed, changed))
 
     def start(self):
-        self.term = FakeTerminal(40, 24)
-        self.app = ConversationsApp(self.term, preview.Herdr(), self.state)
-        thread = threading.Thread(target=self.app.run, daemon=True)
-        thread.start()
-
-        def stop():
-            self.term.type(Key("char", "c", ctrl=True))
-            thread.join(5)
-        self.addCleanup(stop)
+        term = FakeTerminal(40, 24)
+        self.run_app(ConversationsApp(term, preview.Herdr(), self.state), term)
         self.until(lambda s: "Price list" in s)
 
     def calls_after(self, first):

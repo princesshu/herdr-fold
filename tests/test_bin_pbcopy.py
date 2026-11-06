@@ -34,11 +34,19 @@ class ClipShim(unittest.TestCase):
         self.tmp = os.path.join(self.dir, "tmp")
         os.makedirs(self.tmp)
         self.shim = os.path.join(herdr, "bin", "pbcopy")
+        self.formatting = False
 
     def tearDown(self):
+        # a formatter the shim left in the background starts in this folder: it ends first (its mark), then the folder
+        # goes; gone before, the formatter's Python would make it again for its cache
+        for _ in range(50 if self.formatting else 0):
+            if os.path.exists(os.path.join(self.dir, "upgraded")):
+                break
+            time.sleep(0.1)
         shutil.rmtree(self.dir)
 
     def run_shim(self, text, *args):
+        self.formatting = self.formatting or not args          # with no option it starts the formatter
         start = time.time()
         done = subprocess.run([self.shim, *args], input=text, text=True, capture_output=True, timeout=10,
                               env={"PATH": self.path, "HOME": self.dir, "TMPDIR": self.tmp})

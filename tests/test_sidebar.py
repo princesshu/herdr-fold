@@ -15,7 +15,7 @@ import time
 import unittest
 from unittest import mock
 
-from support import SRC, AppScreen, FakeHerdrSocket, FakeTerminal, end_child, logged, set_env, stubs
+from support import SRC, AppScreen, FakeHerdrSocket, FakeTerminal, end_child, end_jobs, logged, set_env, stubs
 
 PLUGIN = os.path.join(SRC, "plugins", "sidebar")
 sys.path.insert(0, PLUGIN)
@@ -97,19 +97,8 @@ class Harness(AppScreen, Repo):
     """The app on its own thread with the stand-in terminal, and ways to wait for what it shows."""
 
     def start(self, cols=45, rows=30):
-        self.term = FakeTerminal(cols, rows)
-        self.app = sidebar.App(self.root, self.term, preview.Herdr(), self.state)
-        self.thread = threading.Thread(target=self.app.run, daemon=True)
-        self.thread.start()
-        self.addCleanup(self.stop)
-
-    def stop(self):
-        if self.thread.is_alive():
-            self.term.type(Key("char", "c", ctrl=True))
-            self.thread.join(5)
-        for thread in threading.enumerate():    # a job still asking (gh, git) writes in the state folder: done first
-            if thread.name.startswith("sidebar-") and thread is not threading.current_thread():
-                thread.join(5)
+        term = FakeTerminal(cols, rows)
+        self.run_app(sidebar.App(self.root, term, preview.Herdr(), self.state), term)
 
     def row(self, part):
         return next((line for line in self.screen().splitlines() if part in line), "")
@@ -871,9 +860,7 @@ class Ticks:
 
     def later(self):
         """Five seconds on, the jobs started meanwhile answered first, as the loop collects them before each tick."""
-        for thread in threading.enumerate():
-            if thread.name.startswith("sidebar-"):
-                thread.join(5)
+        end_jobs()
         self.app.collect()
         self.now += 5
         self.app.tick()
@@ -896,6 +883,7 @@ class NewVersion(Ticks, unittest.TestCase):
                 f.write("x = 1\n")
         set_env(self, GIT_CONFIG_GLOBAL=os.devnull)
         self.addCleanup(os.environ.pop, loop.RESUME_ENV, None)
+        self.addCleanup(end_jobs)                       # the first cleanup: its ticks start jobs
         self.now = 1000.0
         self.app = self.make()
 
@@ -1141,6 +1129,7 @@ class FollowsItsFolder(Ticks, unittest.TestCase):
         set_env(self, GIT_CONFIG_GLOBAL=os.devnull)
         self.addCleanup(os.environ.pop, loop.RESUME_ENV, None)
         self.addCleanup(os.chdir, os.getcwd())
+        self.addCleanup(end_jobs)                       # the first cleanup: its ticks start jobs
         self.now = 1000.0
         self.app = sidebar.App(self.root, FakeTerminal(), preview.Herdr("/usr/bin/false"), self.state,
                                clock=lambda: self.now)

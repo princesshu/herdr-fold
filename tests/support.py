@@ -485,8 +485,32 @@ class PackageHome:
         return done.stdout
 
 
+def end_jobs():
+    """The sidebar apps' jobs ended, a test's own tick's too. A test registers it last in setUp: it runs first, while
+    the test's HOME and herdr stand (else a job reads the real ones), and before its folders go (else a job makes
+    them)."""
+    for thread in threading.enumerate():
+        if thread.name.startswith("sidebar-") and thread is not threading.current_thread():
+            thread.join(5)
+
+
 class AppScreen:
     """For a test running a sidebar app (self.app) on a FakeTerminal."""
+
+    def run_app(self, app, term):
+        """APP's loop on a thread of its own, on TERM, ended with the test: Ctrl+C, then its jobs, as one still asking
+        (gh, git, the conversations) writes in the test's state folder and has to end before that goes."""
+        self.app, self.term = app, term
+        self.thread = threading.Thread(target=app.run, daemon=True)
+        self.thread.start()
+        self.addCleanup(self.stop)
+
+    def stop(self):
+        from vt import Key
+        if self.thread.is_alive():
+            self.term.type(Key("char", "c", ctrl=True))
+            self.thread.join(5)
+        end_jobs()
 
     def screen(self):
         canvas = self.app.canvas

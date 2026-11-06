@@ -5,11 +5,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 import unittest
 
-from support import SRC, FakeTerminal, set_env
+from support import SRC, AppScreen, FakeTerminal, set_env
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import preview  # noqa: E402
@@ -30,7 +29,7 @@ class Recording(FakeTerminal):
             self.first = time.perf_counter()
 
 
-class Big(unittest.TestCase):
+class Big(AppScreen, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.mkdtemp()
@@ -67,17 +66,10 @@ class Big(unittest.TestCase):
         set_env(self, GIT_CONFIG_GLOBAL=os.devnull, HERDR_WORKSPACE_ID=None)
 
     def start(self):
-        self.term = Recording()
+        term = Recording()
         started = time.perf_counter()
-        self.app = sidebar.App(self.root, self.term, preview.Herdr("/usr/bin/false"), self.state)
-        self.thread = threading.Thread(target=self.app.run, daemon=True)
-        self.thread.start()
-        self.addCleanup(self.stop)
+        self.run_app(sidebar.App(self.root, term, preview.Herdr("/usr/bin/false"), self.state), term)
         return started
-
-    def stop(self):
-        self.term.type(Key("char", "c", ctrl=True))
-        self.thread.join(5)
 
     def wait(self, condition, timeout):
         deadline = time.monotonic() + timeout
