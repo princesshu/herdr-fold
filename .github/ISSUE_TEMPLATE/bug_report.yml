@@ -16,10 +16,17 @@ body:
     validations:
       required: true
   - type: input
+    id: version
+    attributes:
+      label: herdr-fold version
+      description: "`cat ~/.local/state/herdr-fold/version`; before the first install, `herdr plugin list`"
+    validations:
+      required: true
+  - type: input
     id: commit
     attributes:
       label: herdr-fold commit
-      description: "`git rev-parse --short HEAD` in the herdr-fold folder"
+      description: "In a git clone of herdr-fold: `git rev-parse --short HEAD` in its folder"
   - type: input
     id: agents
     attributes:

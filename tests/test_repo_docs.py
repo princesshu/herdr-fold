@@ -398,6 +398,12 @@ class Templates(unittest.TestCase):
         self.assertIn("required: true", checkbox)
         self.assertIn("I removed", checkbox)                 # keys, tokens, machine names, addresses, conversations
 
+    def test_a_bug_report_asks_for_the_installed_version(self):
+        # herdr's marketplace copy is no git checkout: the installer's record names what runs, a clone its commit too
+        form = package_text(".github/ISSUE_TEMPLATE/bug_report.yml")
+        self.assertIn("~/.local/state/herdr-fold/version", form)
+        self.assertIn("git rev-parse --short HEAD", form.split("~/.local/state/herdr-fold/version", 1)[1])
+
     def test_every_issue_form_asks_that_a_person_wrote_it(self):
         # one written by an AI tool, or naming one as its author or co-author, is deleted (CONTRIBUTING.md)
         for name in ("bug_report.yml", "feature_request.yml"):
