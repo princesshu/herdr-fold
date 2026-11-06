@@ -92,6 +92,7 @@ plugins of its own.
 |---|---|
 | `src/lang/en.txt` | every text the scripts print, one `key = text` per line (see [Translating](translating.md)) |
 | `src/i18n.py` | looks the texts up for the Python scripts |
+| `src/parts.py` | which of herdr-fold's parts are installed, the TUI and the Herdr app, as the installer's records say; where the Herdr app keeps its home |
 | `docs/` | the guides |
 | `assets/` | the pictures the README and the guides show: the screenshots and the animation (`screenshots/`), the styleguide's (`styleguide/`) |
 | `tests/` | the tests (`/usr/bin/python3 -m unittest discover -s tests`), a file named after where what it tests lives: `test_core_git.py` for `core/git.py`, `test_sidebar_scm.py` for the sidebar's `scm.py`, `test_close_tab.py` for `src/close_tab.py`; `test_lib_*`, `test_tools_*`, `test_remote_*` and `test_lab.py` for those folders, `test_install*`, `test_uninstall.py` and `test_machines_*` for the scripts, `test_app.py` for the app mod, `test_repo_*` for what holds for the whole repository (docs, privacy, files); what more than one file needs is in `support.py`, and a test imports from there, never from another test |

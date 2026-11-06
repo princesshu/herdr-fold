@@ -23,6 +23,7 @@ src/statusline_setup.py | .config/herdr-fold/statusline_setup.py
 src/statusline.py      | .config/herdr-fold/statusline.py
 src/claude_trust.py    | .config/herdr-fold/claude_trust.py
 src/i18n.py            | .config/herdr-fold/i18n.py
+src/parts.py           | .config/herdr-fold/parts.py
 src/lang/*.txt         | .config/herdr-fold/lang/
 src/themes/apply.py    | .config/herdr-fold/themes/apply.py
 src/themes/picker.py   | .config/herdr-fold/themes/picker.py

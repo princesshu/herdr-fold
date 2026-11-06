@@ -10,6 +10,10 @@ import sys
 import tempfile
 import time
 
+sys.dont_write_bytecode = True  # no __pycache__ beside the package's scripts
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
+from parts import app_home  # noqa: E402
+
 MOD, LAYOUT, KEYS = os.path.join("mods", "herdr-fold"), os.path.join("layouts", "herdr-fold.json"), "keys.json"
 THEMES = "themes"              # herdr-fold.json (the layout's own) and the TUI's themes, herdr-fold-ID.json
 TITLE = "herdr-fold"            # the mod.json title that marks a mods/herdr-fold folder as herdr-fold's copy
@@ -57,10 +61,6 @@ def tab_terminals(home):
 def end_terminals(hc, home):
     for address in tab_terminals(home):
         subprocess.run([hc, "kill", "--", address], capture_output=True, timeout=30, stdin=subprocess.DEVNULL)
-
-
-def app_home():
-    return os.environ.get("HERDR_APP_HOME") or os.path.expanduser("~/.config/herdr-app")
 
 
 def state_dir():
