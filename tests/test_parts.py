@@ -1,6 +1,7 @@
 """Tests for src/parts.py: which of herdr-fold's parts are installed (the TUI, the Herdr app), read from the installer's
 records, so nothing records it twice; and where the Herdr app keeps its home."""
 import os
+import pathlib
 import shutil
 import subprocess
 import sys
@@ -52,6 +53,15 @@ class Installed(unittest.TestCase):
         self.record("plugins.txt", "herdr-fold.sidebar", "herdr-fold.app")
         out = subprocess.run([sys.executable, "-B", parts.__file__, self.state], capture_output=True, text=True)
         self.assertEqual((out.returncode, out.stdout), (0, "tui\napp\n"))
+
+    def test_the_page_address_carries_its_marks(self):
+        """--preview MARKS: the parts page beside the package's scripts, MARKS after its # (the installed parts, the
+        app found on this Mac); none, none."""
+        page = pathlib.Path(SRC, "install", "parts.html").as_uri()
+        for marks, address in ((["tui", "found"], page + "#tui,found"), ([], page)):
+            out = subprocess.run([sys.executable, "-B", parts.__file__, "--preview", *marks], capture_output=True,
+                                 text=True)
+            self.assertEqual((out.returncode, out.stdout.strip()), (0, address))
 
 
 class AppHome(unittest.TestCase):

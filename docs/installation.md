@@ -14,13 +14,13 @@ programs, its downloads) and its analytics count nothing; your own Homebrew sett
 ## The TUI, the Herdr app, or both
 
 herdr-fold comes for herdr's TUI (in Ghostty) and for herdr's desktop app, the Herdr app, as a mod, with the same
-views and the same remote machines in both. Each installs alone, or both together:
+views and the same remote machines in both. The installer's first question picks one or both, its page in the browser
+showing each: `1` the TUI, `2` the Herdr app, `3` both. The default is what is installed already, else both where the
+Herdr app is on this Mac, else the TUI; `HERDR_FOLD_PARTS` answers it without the question.
 
-| You want | How |
-|---|---|
-| the TUI only | `./install.sh` and no to `Set up herdr-fold in the Herdr app too?` (it asks only where the app is), or `herdr plugin install princesshu/herdr-fold` |
-| the Herdr app only | `python3 lib/herdr_app.py install .` puts the mod, its layout, themes and keys into the app: [The Herdr app](app.md#installing-it); the TUI is not needed |
-| both | `./install.sh` and yes to that question: the same remote machines in both |
+To add the other part later, run `./install.sh` again and answer no to the update question: the first question then
+starts from what is installed, and `3` adds the other. Choosing fewer parts than are installed keeps them all;
+`./uninstall.sh` takes a part off.
 
 The two run side by side on one Mac, each with its own settings; an agent belongs to the one it was started in (herdr's
 own: the app and the TUI keep their agents apart).
@@ -94,6 +94,7 @@ the default: the capital letter in `[Y/n]` (yes) or `[y/N]` (no). Each line it p
 | Step | Question | When | Default |
 |---|---|---|---|
 | Start | `Update with your earlier choices? No: the entire install process again, step by step` | herdr-fold is installed here already, instead of Enter to start | yes: the theme, settings, status line, plugins, GitHub and machines stay as chosen, and only something new is asked about (a program Homebrew is to install) |
+| Start | `Install for`: `1` the TUI, `2` the Herdr app, `3` both | a first install, or no to the update question; its page opens in your browser | what is installed, else both where the Herdr app is on this Mac, else the TUI |
 | 1 Prerequisites | `Install it now?` | Homebrew is missing | yes (asks for your Mac password) |
 | 2 Apps | `Go ahead with Homebrew?` | a program is missing, or Homebrew's herdr is older than 0.9.5; the lines above it name which. No: nothing is installed, and the installer stops with the `brew` commands to run | yes |
 | 3 Theme | `Theme` | always: a number from the preview that opens in your browser, or a name ([Themes](themes.md)) | the current theme |
@@ -103,7 +104,7 @@ the default: the capital letter in `[Y/n]` (yes) or `[y/N]` (no). Each line it p
 | 5 Status line | `Trust them, so the status line shows there too? (Claude then also runs their own .claude settings and hooks)` | some of your Claude panes are in git repositories Claude does not trust yet (never a folder outside one, your home folder or a folder above it) | no |
 | 6 Plugins | `Show your conversations in herdr's Agents list?` | herdr was set up before | yes, or your last answer |
 | 6 Plugins | `Give every new tab the Conversations column, the sidebar and a terminal?` | herdr was set up before | yes, or your last answer |
-| 6 Plugins | `Set up herdr-fold in the Herdr app too?` | the Herdr app (herdr's desktop app) is on this Mac; an update asks only the first time | yes (no after an earlier no): its mod, layout and keys in the app, and the remote machines there too ([The Herdr app](app.md)) |
+| 6 Plugins | `Set up herdr-fold in the Herdr app too?` | an update of the TUI alone, the Herdr app on this Mac and never asked about | yes: its mod, layout and keys in the app, and the remote machines there too ([The Herdr app](app.md)) |
 | 7 GitHub | `Sign in to GitHub now?` | the Mac is not signed in to GitHub | yes |
 | 7 GitHub | `Let git push through your GitHub sign-in?` | signed in, but git does not use it yet | yes |
 | 7 GitHub | `Commit author name`, `Commit author email` | git has no author yet | signed in to GitHub: your login and its noreply address (`ID+login@users.noreply.github.com`), so a commit shows no real address; else none |
@@ -192,6 +193,7 @@ yes (it is saved first). Your theme, status line choices and machine list stay.
 | Variable | Effect |
 |---|---|
 | `HERDR_FOLD_YES=1` | no questions: every answer is the default |
+| `HERDR_FOLD_PARTS=tui`, `app` or `both` | the parts to install, without the first question |
 | `HERDR_FOLD_NO_BREW=1` | skip the Homebrew installs |
 | `HERDR_FOLD_NO_MACHINES=1` | skip the remote machines step |
 | `HERDR_FOLD_CONFIG=add` or `replace` | the answer for your own herdr settings, without the question |

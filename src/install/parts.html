@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>herdr-fold: the TUI, the Herdr app, or both</title>
+<style>
+  :root { --page: #161618; --card: #1f1f22; --line: #2c2c31; --ink: #ececf1; --muted: #9a9aa5; --pick: #a78bfa; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink);
+         font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header, main { max-width: 1240px; margin: 0 auto; padding: 0 16px; }
+  header { padding-top: 32px; padding-bottom: 8px; }
+  h1 { font-size: 26px; margin: 0 0 8px; letter-spacing: -0.01em; }
+  header p { color: var(--muted); margin: 0 0 16px; }
+  main { padding-top: 8px; padding-bottom: 48px; display: grid; gap: 24px;
+         grid-template-columns: repeat(auto-fill, minmax(min(100%, 560px), 1fr)); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .card h2 { font-size: 17px; margin: 0 0 12px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .no { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .what { font-size: 13px; font-weight: 500; color: var(--muted); }
+  .mark { display: none; font-size: 12px; font-weight: 600; color: #111; background: var(--pick);
+          border-radius: 99px; padding: 1px 8px; }
+  .card img { display: block; width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<header>
+  <h1>The TUI, the Herdr app, or both</h1>
+  <p>Answer in the terminal: 1, 2, or 3 for both, side by side in one theme.</p>
+</header>
+<main>
+  <section class="card">
+    <h2><span class="no">1</span> The TUI <span class="what">herdr in Ghostty</span>
+      <span class="mark" data-mark="tui">installed</span></h2>
+    <img src="../../assets/screenshots/hero.webp" alt="herdr in Ghostty, with herdr-fold's sidebar and Conversations">
+  </section>
+  <section class="card">
+    <h2><span class="no">2</span> The Herdr app <span class="what">herdr's desktop app</span>
+      <span class="mark" data-mark="app">installed</span><span class="mark" data-mark="found">on this Mac</span></h2>
+    <img src="../../assets/screenshots/app.webp" alt="The Herdr app, with herdr-fold's Spaces, Conversations and panel">
+  </section>
+</main>
+<script>
+// the installer's marks after the #: tui and app (installed), found (the Herdr app on this Mac, not yet set up)
+const marks = new Set(location.hash.slice(1).split(","));
+for (const mark of document.querySelectorAll("[data-mark]")) {
+  const name = mark.dataset.mark;
+  if (marks.has(name) && !(name === "found" && marks.has("app"))) mark.style.display = "inline-block";
+}
+</script>
+</body>
+</html>

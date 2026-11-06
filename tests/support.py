@@ -12,6 +12,7 @@ import socket
 import struct
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import zlib
@@ -483,6 +484,62 @@ class PackageHome:
                               capture_output=True, text=True, timeout=300)
         self.assertEqual(done.returncode, 0, done.stdout[-2000:] + done.stderr[-2000:])
         return done.stdout
+
+
+# the app's command line: logs each call; running (status answers) only with STUB_APP_RUNNING, on STUB_APP_LAYOUT,
+# until app.quit closes it (with STUB_APP_STAYS, never)
+APP_STUB = """#!/bin/sh
+echo "herdr-app $*" >> "$STUB_APP_LOG"
+case "$1" in
+  status) [ -n "$STUB_APP_RUNNING" ] && [ ! -e "$STUB_APP_LOG.quit" ] || exit 1
+          printf '{"layout": "%s"}\\n' "${STUB_APP_LAYOUT:-main}" ;;
+  do) [ "$2" = app.quit ] && [ -z "$STUB_APP_STAYS" ] && touch "$STUB_APP_LOG.quit" ;;
+esac
+exit 0
+"""
+
+
+class AppInstall(PackageHome):
+    """install.sh and uninstall.sh in a temporary HOME with the package copied: herdr, gh and the Herdr app's
+    command line (with_app) are stubs, every answer the default (HERDR_FOLD_YES)."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.home = os.path.join(self.tmp, "home")
+        os.makedirs(self.home)
+        self.pkg = copy_package(os.path.join(self.tmp, "pkg"))
+        self.fakes = stubs(os.path.join(self.tmp, "stubs"), {"herdr": HERDR_STUB, "gh": GH_STUB,
+                                                             "defaults": DEFAULTS_STUB, "brew": None, "open": None,
+                                                             "claude": None, "codex": None, "pgrep": None})
+        from_homebrew(self.fakes)
+        plugins = os.path.join(self.tmp, "plugins.json")
+        with open(plugins, "w") as f:
+            json.dump({"result": {"plugins": []}}, f)
+        self.app_log = os.path.join(self.tmp, "app-calls")
+        self.app_home = os.path.join(self.home, ".config", "herdr-app")
+        self.env = {"HOME": self.home, "PATH": f"{self.fakes}:/usr/bin:/bin:/usr/sbin:/sbin", "HERDR_FOLD_YES": "1",
+                    "HERDR_FOLD_NO_BREW": "1", "HERDR_FOLD_NO_MACHINES": "1", "TERM": "dumb", "GH_STUB_STATE": "out",
+                    "GH_STUB_LOG": os.path.join(self.tmp, "gh-calls"), "STUB_PLUGINS": plugins,
+                    "STUB_HERDR_LOG": os.path.join(self.tmp, "herdr-calls"), "STUB_APP_LOG": self.app_log}
+
+    def with_app(self, running=False, layout="main"):
+        stubs(self.fakes, {"herdr-app": APP_STUB})
+        if running:
+            self.env.update(STUB_APP_RUNNING="1", STUB_APP_LAYOUT=layout)
+
+    def app_calls(self):
+        if not os.path.exists(self.app_log):
+            return []
+        with open(self.app_log) as f:
+            return f.read().splitlines()
+
+    def recorded(self):
+        with open(os.path.join(self.home, ".local", "state", "herdr-fold", "plugins.txt")) as f:
+            return f.read().splitlines()
+
+    def in_app(self, rel):
+        return os.path.exists(os.path.join(self.app_home, rel))
 
 
 def end_jobs():

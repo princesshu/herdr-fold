@@ -140,6 +140,49 @@ take_over() {
   grep -qxF "taken:$1" "$plugins.new" || echo "taken:$1" >> "$plugins.new"
 }
 
+# The parts this run sets up, the TUI, the Herdr app or both ("tui app"): asked first, beside their page in the
+# browser (the one installed, or the app on this Mac, marked); an update keeps what is installed, HERDR_FOLD_PARTS
+# answers it. Fewer than are installed keep the others: ./uninstall.sh takes a part off
+app=$(python3 "$DOT/lib/herdr_app.py" cli)
+had=$(python3 "$DOT/src/parts.py" "$state" | xargs)
+parts_of() { case $1 in 1|tui) echo tui ;; 2|app) echo app ;; 3|both) echo tui app ;; esac; }
+parts=$(parts_of "${HERDR_FOLD_PARTS:-}")
+[ -n "$parts" ] || [ -z "${HERDR_FOLD_PARTS:-}" ] || warn "$(t install.parts_unknown "$HERDR_FOLD_PARTS")"
+if [ -z "$parts" ] && updating && [ -n "$had" ]; then parts=$had; fi
+if [ -z "$parts" ]; then
+  if [ -n "$had" ]; then default=$had
+  elif [ -n "$app" ] && ! grep -qxF declined:herdr-fold.app "$state/plugins.txt" 2>/dev/null; then default="tui app"
+  else default=tui; fi
+  case $default in tui) number=1 ;; app) number=2 ;; *) number=3 ;; esac
+  listed=0
+  if interactive; then
+    open "$(python3 "$DOT/src/parts.py" --preview $had ${app:+found})" 2>/dev/null \
+      && note "$(t install.parts_preview)" && listed=1
+    mark() {
+      case " $had " in *" $1 "*) printf '   %s' "$(t install.parts_installed)"; return ;; esac
+      [ "$1" != app ] || [ -z "$app" ] || printf '   %s' "$(t install.parts_found)"
+    }
+    printf '   1. %s%s\n   2. %s%s\n   3. %s\n' "$(t install.parts_tui)" "$(mark tui)" "$(t install.parts_app)" \
+      "$(mark app)" "$(t install.parts_both)"
+    listed=$((listed + 3))
+  fi
+  parts=$(parts_of "$(prompt "$(t install.parts_ask)" "$number")")
+  parts=${parts:-$default}
+  [ "$listed" = 0 ] || [ ! -t 1 ] || printf '\033[%dA\r\033[J' $((listed + 1))
+fi
+kept=
+for part in $had; do
+  case " $parts " in *" $part "*) ;; *) parts="$parts $part" kept="$kept $part" ;; esac
+done
+parts=$(for part in tui app; do case " $parts " in (*" $part "*) echo "$part" ;; esac; done | xargs)
+case $parts in
+  tui) ok "$(t install.parts_set_tui)" ;;
+  app) ok "$(t install.parts_set_app)" ;;
+  *) ok "$(t install.parts_set_both)" ;;
+esac
+case $kept in *tui*) note "$(t install.parts_kept_tui)" ;; esac
+case $kept in *app*) note "$(t install.parts_kept_app)" ;; esac
+
 step "$(t install.step_prerequisites)"
 # what is there, in one line; what is missing, a line each under it
 there=() missing=()
@@ -518,16 +561,16 @@ else
   integration codex "$(was codex)" && hooked+=("$(t install.codex)") \
     || warn "$(t install.codex_integration_failed)"
 fi
-# herdr-fold in the Herdr app (herdr's desktop app), when it is on this Mac: its mod, layout and keys; a running app
-# shows the layout at once. A program of its own, so asked even on a fresh herdr; an update keeps the last answer
+# herdr-fold in the Herdr app (herdr's desktop app), its part chosen: its mod, layout and keys; a running app shows
+# the layout at once. An update of the TUI alone, the app on this Mac and never asked about: asked once
 app_wanted() {
-  if grep -qxF declined:herdr-fold.app "$plugins" 2>/dev/null; then
-    ! updating && ask "$(t install.app_ask)" n && return 0
-  elif grep -qxF herdr-fold.app "$plugins" 2>/dev/null && updating || ask "$(t install.app_ask)" y; then return 0; fi
+  case " $parts " in *" app "*) return 0 ;; esac
+  if updating && ! grep -qxF declined:herdr-fold.app "$plugins" 2>/dev/null && ask "$(t install.app_ask)" y; then
+    parts="$parts app"; return 0
+  fi
   echo declined:herdr-fold.app >> "$plugins.new"
   return 1
 }
-app=$(python3 "$DOT/lib/herdr_app.py" cli)
 if [ -n "$app" ] && app_wanted; then
   python3 "$DOT/lib/herdr_app.py" install "$DOT"; rc=$?
   app_home=$(python3 "$DOT/lib/herdr_app.py" home)

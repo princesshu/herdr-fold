@@ -168,6 +168,19 @@ install.in_trash = this herdr-fold folder is in the Trash (%s): cd into the fold
 install.update_found = herdr-fold %s is installed here; this copy is %s
 install.update_found_earlier = an earlier herdr-fold is installed here; this copy is %s
 install.update_ask = Update with your earlier choices? No: the entire install process again, step by step
+install.parts_tui = The TUI — herdr in Ghostty
+install.parts_app = The Herdr app — herdr's desktop app
+install.parts_both = Both, side by side
+install.parts_installed = ← installed
+install.parts_found = ← on this Mac
+install.parts_preview = The TUI and the Herdr app are shown in your browser.
+install.parts_ask = Install for
+install.parts_set_tui = herdr-fold for the TUI
+install.parts_set_app = herdr-fold for the Herdr app
+install.parts_set_both = herdr-fold for the TUI and the Herdr app
+install.parts_kept_tui = the TUI stays installed: ./uninstall.sh takes a part off
+install.parts_kept_app = the Herdr app part stays installed: ./uninstall.sh takes a part off
+install.parts_unknown = HERDR_FOLD_PARTS=%s is not tui, app or both: the default is taken
 install.stopped = The installer stopped before the end — see the lines above.
 
 # machines.sh: help, status and adding machines

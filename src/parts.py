@@ -1,7 +1,8 @@
 """Which of herdr-fold's parts are installed, the TUI and the Herdr app, as the installer's records say, so nothing
-records it twice; the theme setter, the installer and the uninstaller ask it. Usage: parts.py [STATE] (the records'
-folder): the parts, a line each, the TUI first. And where the Herdr app keeps its home."""
+records it twice. Usage: parts.py [STATE] (the records' folder): the parts, a line each, the TUI first; parts.py
+--preview [MARK...]: the address of the page the installer's first question opens. And the Herdr app's home."""
 import os
+import pathlib
 import sys
 
 STATE = os.path.join(os.path.expanduser("~"), ".local", "state", "herdr-fold")
@@ -32,7 +33,16 @@ def app_home():
     return os.environ.get("HERDR_APP_HOME") or os.path.expanduser("~/.config/herdr-app")
 
 
+def preview_address(marks):
+    """The page beside the package's scripts (install/parts.html), MARKS after its #: tui, app (installed), found."""
+    page = pathlib.Path(os.path.dirname(os.path.abspath(__file__)), "install", "parts.html").as_uri()
+    return page + (f"#{','.join(marks)}" if marks else "")
+
+
 def main(argv):
+    if argv[1:2] == ["--preview"]:
+        print(preview_address(argv[2:]))
+        return 0
     found = installed(argv[1] if len(argv) > 1 else STATE)
     for part in ("tui", "app"):
         if part in found:

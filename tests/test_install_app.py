@@ -2,76 +2,27 @@
 with the app on the Mac, one question puts herdr-fold's mod, layout and keys into it; without it nothing is asked."""
 import json
 import os
-import shutil
-import tempfile
 import unittest
 
-from support import (DEFAULTS_STUB, GH_STUB, HERDR_STUB, PackageHome, catalog_text, copy_package, from_homebrew,
-                     run_in_terminal, stubs)
-
-# the app's command line: logs each call; running (status answers) only with STUB_APP_RUNNING, on STUB_APP_LAYOUT,
-# until app.quit closes it (with STUB_APP_STAYS, never)
-APP = """#!/bin/sh
-echo "herdr-app $*" >> "$STUB_APP_LOG"
-case "$1" in
-  status) [ -n "$STUB_APP_RUNNING" ] && [ ! -e "$STUB_APP_LOG.quit" ] || exit 1
-          printf '{"layout": "%s"}\\n' "${STUB_APP_LAYOUT:-main}" ;;
-  do) [ "$2" = app.quit ] && [ -z "$STUB_APP_STAYS" ] && touch "$STUB_APP_LOG.quit" ;;
-esac
-exit 0
-"""
+from support import AppInstall, catalog_text, run_in_terminal, stubs
 
 
-class InstallApp(PackageHome, unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.tmp)
-        self.home = os.path.join(self.tmp, "home")
-        os.makedirs(self.home)
-        self.pkg = copy_package(os.path.join(self.tmp, "pkg"))
-        self.fakes = stubs(os.path.join(self.tmp, "stubs"), {"herdr": HERDR_STUB, "gh": GH_STUB,
-                                                             "defaults": DEFAULTS_STUB, "brew": None, "open": None,
-                                                             "claude": None, "codex": None, "pgrep": None})
-        from_homebrew(self.fakes)
-        plugins = os.path.join(self.tmp, "plugins.json")
-        with open(plugins, "w") as f:
-            json.dump({"result": {"plugins": []}}, f)
-        self.app_log = os.path.join(self.tmp, "app-calls")
-        self.app_home = os.path.join(self.home, ".config", "herdr-app")
-        self.env = {"HOME": self.home, "PATH": f"{self.fakes}:/usr/bin:/bin:/usr/sbin:/sbin", "HERDR_FOLD_YES": "1",
-                    "HERDR_FOLD_NO_BREW": "1", "HERDR_FOLD_NO_MACHINES": "1", "TERM": "dumb", "GH_STUB_STATE": "out",
-                    "GH_STUB_LOG": os.path.join(self.tmp, "gh-calls"), "STUB_PLUGINS": plugins,
-                    "STUB_HERDR_LOG": os.path.join(self.tmp, "herdr-calls"), "STUB_APP_LOG": self.app_log}
-
-    def with_app(self, running=False, layout="main"):
-        stubs(self.fakes, {"herdr-app": APP})
-        if running:
-            self.env.update(STUB_APP_RUNNING="1", STUB_APP_LAYOUT=layout)
-
-    def app_calls(self):
-        if not os.path.exists(self.app_log):
-            return []
-        with open(self.app_log) as f:
-            return f.read().splitlines()
-
-    def recorded(self):
-        with open(os.path.join(self.home, ".local", "state", "herdr-fold", "plugins.txt")) as f:
-            return f.read().splitlines()
-
-    def in_app(self, rel):
-        return os.path.exists(os.path.join(self.app_home, rel))
-
+class InstallApp(AppInstall, unittest.TestCase):
     def test_without_the_app_nothing_is_asked_or_put(self):
         self.run_script("install.sh")
         self.assertFalse(os.path.exists(self.app_home))
         self.assertEqual([line for line in self.recorded() if "herdr-fold.app" in line], [])
 
-    def test_with_the_app_the_question_is_asked(self):
+    def test_an_update_of_the_tui_alone_asks_once_about_the_app_found(self):
+        """The TUI installed, then the Herdr app on this Mac: the update asks about it once (how v0.2.0's users meet
+        it), not the first question."""
+        self.run_script("install.sh")
         self.with_app()
         env = {k: v for k, v in self.env.items() if k != "HERDR_FOLD_YES"}
         shown, _ = run_in_terminal(["/bin/bash", os.path.join(self.pkg, "install.sh")], env, lambda line: "",
                                    timeout=240)
         self.assertIn(catalog_text("install.app_ask"), shown)
+        self.assertNotIn(catalog_text("install.parts_ask"), shown)
 
     def test_with_the_app_it_is_set_up(self):
         self.with_app()

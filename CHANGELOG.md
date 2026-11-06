@@ -8,6 +8,9 @@ All notable changes to this project are listed here. The format follows
 
 ### Added
 
+- The installer asks first for the TUI, the Herdr app or both, a page in the browser showing each; the default is
+  what is installed, and `HERDR_FOLD_PARTS` answers it. The other part is added later by running it again. See
+  [Installation](docs/installation.md#the-tui-the-herdr-app-or-both).
 - Cmd + Shift + U marks the focused agent unread: its workspace says `waiting` again, from then, until you come back
   to it after leaving it; again on a marked one takes the mark off. See [Sessions](docs/usage.md#sessions).
 - herdr-fold in herdr's desktop app: a mod with the sidebar's Changes view (the changed files, staged by file or all at
