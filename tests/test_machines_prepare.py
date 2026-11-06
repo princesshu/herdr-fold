@@ -226,7 +226,7 @@ class Prepared(Prepare):
             for row in f:
                 if not row.strip() or row.lstrip().startswith("#"):
                     continue
-                src, dest, kinds = (c.strip() for c in row.split("|"))
+                src, dest, kinds, _part = (c.strip() for c in row.split("|"))
                 if kinds not in ("all", self.kind):
                     continue
                 if "*" in src:
@@ -412,6 +412,16 @@ class Payload(unittest.TestCase):
             self.assertIn(colors, listed, script)
             with open(os.path.join(stage, "files", colors)) as f:
                 self.assertEqual(f.read(), '{"badge": "#313244"}', script)
+
+    def test_a_machine_for_the_app_alone_gets_the_shared_files(self):
+        records = {".local/state/herdr-fold/plugins.txt": "herdr-fold.app\n",
+                   ".local/state/herdr/plugins/herdr-fold.sidebar/colors.json": "{}"}
+        for script in ("prepare-unix.sh", "prepare-windows.ps1"):
+            _stage, listed = self.stage(script, mac=records)
+            self.assertIn(".config/herdr-fold/statusline.py", listed, script)
+            self.assertEqual([rel for rel in listed if "/plugins/" in rel or rel.endswith(("starship.toml",
+                                                                                         "herdrlib.py"))], [], script)
+        self.assertIn(".config/herdr-fold/python.ps1", listed)
 
     def test_a_removal_payload_lists_nothing_to_put_in_place(self):
         for script in ("prepare-unix.sh", "prepare-windows.ps1"):

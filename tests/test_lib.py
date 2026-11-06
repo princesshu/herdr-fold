@@ -37,6 +37,26 @@ def ask(default, answer, lib=LIB, lang="en"):
                        lambda line: answer if "Go ahead?" in line else None, lib=lib, HERDR_FOLD_LANG=lang)
 
 
+class Parts(unittest.TestCase):
+    """What each part gets (files.txt's, the Brewfile's own column): the Herdr app alone the shared files and programs,
+    the TUI all of them."""
+
+    def listed(self, function, *parts):
+        return sh(f'DOT="{PACKAGE}"; {function} {" ".join(parts)}').splitlines()
+
+    def test_the_app_alone_gets_the_shared_files(self):
+        shared = {line.split("|")[1] for line in self.listed("package_files", "app")}
+        self.assertIn(".config/herdr-fold/statusline.py", shared)
+        self.assertIn(".config/herdr-fold/themes/apply.py", shared)
+        self.assertNotIn(".config/ghostty/config", shared)
+        self.assertEqual([rel for rel in shared if "/plugins/" in rel], [])
+        self.assertEqual(self.listed("package_files", "tui"), self.listed("package_files"))
+
+    def test_the_app_alone_gets_gh_and_ripgrep(self):
+        self.assertEqual(self.listed("brew_lines", "app"), ["brew gh", "brew ripgrep"])
+        self.assertIn("cask ghostty", self.listed("brew_lines", "tui", "app"))
+
+
 class Summarize(unittest.TestCase):
     """The lines a remote machine prints come back through summarize: what needs attention keeps its own line, the done
     ones and the section headers fold into one line for the step."""

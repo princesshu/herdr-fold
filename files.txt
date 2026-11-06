@@ -1,44 +1,44 @@
-# path in the repo | location on the machine (relative to $HOME)
+# path in the repo | location on the machine (relative to $HOME) | its part: tui, or both (the Herdr app's too)
 # install.sh copies from here to the machine, tools/sync.sh from the machine back here. A path with a * stands for every
 # matching file in the repo, and its location is the folder they go to (lib/common.sh, package_files).
-config/ghostty/config           | .config/ghostty/config
-config/herdr/config.toml        | .config/herdr/config.toml
-src/restore_panes.py   | .config/herdr-fold/restore_panes.py
-src/herdr_layout.py    | .config/herdr-fold/herdr_layout.py
-src/toggle_column.py   | .config/herdr-fold/toggle_column.py
-src/sidebar.sh         | .config/herdr-fold/sidebar.sh
-src/close_tab.py       | .config/herdr-fold/close_tab.py
-src/commit_push.py     | .config/herdr-fold/commit_push.py
-src/rich_clipboard.py  | .config/herdr-fold/rich_clipboard.py
-src/bin/pbcopy    | .config/herdr-fold/bin/pbcopy
-src/pane-env.sh        | .config/herdr-fold/pane-env.sh
-src/claude_search.py   | .config/herdr-fold/claude_search.py
-src/tui.py             | .config/herdr-fold/tui.py
-src/herdrlib.py        | .config/herdr-fold/herdrlib.py
-src/add_machine.py     | .config/herdr-fold/add_machine.py
-src/new_workspace.py   | .config/herdr-fold/new_workspace.py
-src/open_file.py       | .config/herdr-fold/open_file.py
-src/projects.py        | .config/herdr-fold/projects.py
-src/statusline_setup.py | .config/herdr-fold/statusline_setup.py
-src/statusline.py      | .config/herdr-fold/statusline.py
-src/claude_trust.py    | .config/herdr-fold/claude_trust.py
-src/i18n.py            | .config/herdr-fold/i18n.py
-src/parts.py           | .config/herdr-fold/parts.py
-src/lang/*.txt         | .config/herdr-fold/lang/
-src/themes/apply.py    | .config/herdr-fold/themes/apply.py
-src/themes/picker.py   | .config/herdr-fold/themes/picker.py
-src/themes/themes.js   | .config/herdr-fold/themes/themes.js
-src/themes/preview-colors.js | .config/herdr-fold/themes/preview-colors.js
-src/themes/preview.html | .config/herdr-fold/themes/preview.html
-src/themes/logo.svg    | .config/herdr-fold/themes/logo.svg
-src/remote.sh      | .config/herdr-fold/remote.sh
-src/plugins/sessions-view/herdr-plugin.toml | .config/herdr-fold/plugins/sessions-view/herdr-plugin.toml
-src/plugins/sessions-view/sessions.py       | .config/herdr-fold/plugins/sessions-view/sessions.py
-src/plugins/sessions-view/LICENSE           | .config/herdr-fold/plugins/sessions-view/LICENSE
-src/plugins/tab-layout/herdr-plugin.toml    | .config/herdr-fold/plugins/tab-layout/herdr-plugin.toml
-src/plugins/tab-layout/tab_layout.py        | .config/herdr-fold/plugins/tab-layout/tab_layout.py
-src/plugins/tab-layout/LICENSE              | .config/herdr-fold/plugins/tab-layout/LICENSE
-src/plugins/sidebar/herdr-plugin.toml       | .config/herdr-fold/plugins/sidebar/herdr-plugin.toml
-src/plugins/sidebar/LICENSE                 | .config/herdr-fold/plugins/sidebar/LICENSE
-src/plugins/sidebar/*.py                    | .config/herdr-fold/plugins/sidebar/
-config/starship.toml            | .config/starship.toml
+config/ghostty/config           | .config/ghostty/config | tui
+config/herdr/config.toml        | .config/herdr/config.toml | tui
+src/restore_panes.py   | .config/herdr-fold/restore_panes.py | tui
+src/herdr_layout.py    | .config/herdr-fold/herdr_layout.py | tui
+src/toggle_column.py   | .config/herdr-fold/toggle_column.py | tui
+src/sidebar.sh         | .config/herdr-fold/sidebar.sh | tui
+src/close_tab.py       | .config/herdr-fold/close_tab.py | tui
+src/commit_push.py     | .config/herdr-fold/commit_push.py | tui
+src/rich_clipboard.py  | .config/herdr-fold/rich_clipboard.py | tui
+src/bin/pbcopy    | .config/herdr-fold/bin/pbcopy | tui
+src/pane-env.sh        | .config/herdr-fold/pane-env.sh | tui
+src/claude_search.py   | .config/herdr-fold/claude_search.py | tui
+src/tui.py             | .config/herdr-fold/tui.py | tui
+src/herdrlib.py        | .config/herdr-fold/herdrlib.py | tui
+src/add_machine.py     | .config/herdr-fold/add_machine.py | tui
+src/new_workspace.py   | .config/herdr-fold/new_workspace.py | tui
+src/open_file.py       | .config/herdr-fold/open_file.py | tui
+src/projects.py        | .config/herdr-fold/projects.py | tui
+src/statusline_setup.py | .config/herdr-fold/statusline_setup.py | both
+src/statusline.py      | .config/herdr-fold/statusline.py | both
+src/claude_trust.py    | .config/herdr-fold/claude_trust.py | tui
+src/i18n.py            | .config/herdr-fold/i18n.py | both
+src/parts.py           | .config/herdr-fold/parts.py | both
+src/lang/*.txt         | .config/herdr-fold/lang/ | both
+src/themes/apply.py    | .config/herdr-fold/themes/apply.py | both
+src/themes/picker.py   | .config/herdr-fold/themes/picker.py | tui
+src/themes/themes.js   | .config/herdr-fold/themes/themes.js | both
+src/themes/preview-colors.js | .config/herdr-fold/themes/preview-colors.js | tui
+src/themes/preview.html | .config/herdr-fold/themes/preview.html | tui
+src/themes/logo.svg    | .config/herdr-fold/themes/logo.svg | tui
+src/remote.sh      | .config/herdr-fold/remote.sh | tui
+src/plugins/sessions-view/herdr-plugin.toml | .config/herdr-fold/plugins/sessions-view/herdr-plugin.toml | tui
+src/plugins/sessions-view/sessions.py       | .config/herdr-fold/plugins/sessions-view/sessions.py | tui
+src/plugins/sessions-view/LICENSE           | .config/herdr-fold/plugins/sessions-view/LICENSE | tui
+src/plugins/tab-layout/herdr-plugin.toml    | .config/herdr-fold/plugins/tab-layout/herdr-plugin.toml | tui
+src/plugins/tab-layout/tab_layout.py        | .config/herdr-fold/plugins/tab-layout/tab_layout.py | tui
+src/plugins/tab-layout/LICENSE              | .config/herdr-fold/plugins/tab-layout/LICENSE | tui
+src/plugins/sidebar/herdr-plugin.toml       | .config/herdr-fold/plugins/sidebar/herdr-plugin.toml | tui
+src/plugins/sidebar/LICENSE                 | .config/herdr-fold/plugins/sidebar/LICENSE | tui
+src/plugins/sidebar/*.py                    | .config/herdr-fold/plugins/sidebar/ | tui
+config/starship.toml            | .config/starship.toml | tui

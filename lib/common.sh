@@ -27,18 +27,42 @@ remove_from_app() {
   tmp=$(mktemp) && grep -vxF "$1" "$APP_MACHINES" > "$tmp"; mv "$tmp" "$APP_MACHINES"
 }
 
+# of_parts PART [WANTED...] — whether a line of PART (tui, both) goes with the WANTED parts (tui, app): with all of
+# them when none is named; a line both parts share with any
+of_parts() { [ $# -eq 1 ] || [ "$1" = both ] || case " ${*:2} " in *" $1 "*) true ;; *) false ;; esac; }
+
 # The package's files and where they go on the machine, from files.txt, as "path in the package|path under HOME"
-# lines. A line with a * stands for every matching file in the package: `src/lang/*.txt | .config/herdr-fold/lang/`
-# puts every language file in place, so a new language needs no new line.
+# lines, every part's or the PARTs' named. A line with a * stands for every matching file in the package:
+# `src/lang/*.txt | .config/herdr-fold/lang/` puts every language file in place, so a new language needs no new line.
 package_files() {
-  local src rel f
-  grep -vE '^[[:space:]]*(#|$)' "$DOT/files.txt" | while IFS='|' read -r src rel; do
-    src=$(echo "$src" | trim); rel=$(echo "$rel" | trim)
+  local src rel part f
+  grep -vE '^[[:space:]]*(#|$)' "$DOT/files.txt" | while IFS='|' read -r src rel part; do
+    src=$(echo "$src" | trim); rel=$(echo "$rel" | trim); part=$(echo "$part" | trim)
+    of_parts "$part" "$@" || continue
     case "$src" in
       *'*'*) for f in "$DOT"/$src; do [ -f "$f" ] && echo "${f#"$DOT"/}|$rel${f##*/}"; done ;;
       *) echo "$src|$rel" ;;
     esac
   done
+}
+
+# The Brewfile's programs as "brew NAME" or "cask NAME" lines, every part's or the PARTs' named (its comment's [tui]
+# or [both])
+brew_lines() {
+  local line name part
+  while IFS= read -r line; do
+    case $line in 'brew "'*|'cask "'*) ;; *) continue ;; esac
+    name=${line#*\"}; name=${name%%\"*}
+    part=$(sed -n 's/.*\[\([a-z]*\)\][[:space:]]*$/\1/p' <<< "$line")
+    of_parts "$part" "$@" && echo "${line%% *} $name"
+  done < "$DOT/Brewfile"
+}
+
+# The parts installed here (src/parts.py, from the records), a line each; the TUI when the records name none: a
+# package set up before the parts were chosen, or nothing yet
+installed_parts() {
+  local found; found=$(python3 "$DOT/src/parts.py")
+  printf '%s\n' "${found:-tui}"
 }
 
 # The texts (t) and the status lines (ok, warn, fail, …): shared with the prepare script of a remote machine

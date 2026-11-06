@@ -12,15 +12,16 @@ import unittest
 PACKAGE = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 
-def rows(rel, kind=None):
-    """{path in the package: location on the machine} of a file list; remote/files.txt rows for KIND only."""
+def rows(rel, kind=None, part=None):
+    """{path in the package: location on the machine} of a file list; remote/files.txt rows for KIND only; a list's
+    rows for PART only ("both": the shared ones, what the Herdr app alone gets)."""
     found = {}
     with open(os.path.join(PACKAGE, rel), encoding="utf-8") as f:
         for row in f:
             if not row.strip() or row.lstrip().startswith("#"):
                 continue
             cols = [c.strip() for c in row.split("|")]
-            if kind and cols[2] not in ("all", kind):
+            if kind and cols[2] not in ("all", kind) or part and cols[-1] != part:
                 continue
             src, dest = cols[0], cols[1]
             for path in sorted(glob.glob(os.path.join(PACKAGE, src))):
@@ -60,6 +61,21 @@ class Manifests(unittest.TestCase):
 
     def test_a_windows_machines_scripts_find_their_modules(self):
         self.check(rows("remote/files.txt", "windows"))
+
+    def test_the_shared_scripts_find_their_modules_without_the_tui(self):
+        self.check(rows("files.txt", part="both"))
+        self.check(rows("remote/files.txt", "unix", "both"))
+        self.check(rows("remote/files.txt", "windows", "both"))
+
+    def test_every_line_names_its_part(self):
+        for rel, column in (("files.txt", 2), (os.path.join("remote", "files.txt"), 3)):
+            with open(os.path.join(PACKAGE, rel), encoding="utf-8") as f:
+                bad = [row for row in f if row.strip() and not row.lstrip().startswith("#")
+                       and [c.strip() for c in row.split("|")][column:] not in (["tui"], ["both"])]
+            self.assertEqual(bad, [], rel)
+        with open(os.path.join(PACKAGE, "Brewfile"), encoding="utf-8") as f:
+            bad = [row for row in f if row.startswith(("brew ", "cask ")) and not re.search(r"\[(tui|both)\]\s*$", row)]
+        self.assertEqual(bad, [])
 
 
 def own_imports_of(path):

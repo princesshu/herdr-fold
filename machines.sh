@@ -359,13 +359,15 @@ cmd_new() {
   wait_for_key
 }
 
-# remote_files KIND — the files of remote/files.txt for a KIND of machine (unix | windows), as "path in the package|
-# location on the machine" lines; a path with a * stands for every matching file (its location is a folder)
+# remote_files KIND [PART...] — the files of remote/files.txt for a KIND of machine (unix | windows) and the PARTs
+# (every part's, unnamed), as "path in the package|location on the machine" lines; a path with a * stands for every
+# matching file (its location is a folder)
 remote_files() {
-  local src rel kinds f
-  grep -vE '^[[:space:]]*(#|$)' "$DOT/remote/files.txt" | while IFS='|' read -r src rel kinds; do
-    src=$(echo "$src" | trim); rel=$(echo "$rel" | trim); kinds=$(echo "$kinds" | trim)
-    [ "$kinds" = all ] || [ "$kinds" = "$1" ] || continue
+  local kind=$1 src rel kinds part f; shift
+  grep -vE '^[[:space:]]*(#|$)' "$DOT/remote/files.txt" | while IFS='|' read -r src rel kinds part; do
+    src=$(echo "$src" | trim); rel=$(echo "$rel" | trim); kinds=$(echo "$kinds" | trim); part=$(echo "$part" | trim)
+    [ "$kinds" = all ] || [ "$kinds" = "$kind" ] || continue
+    of_parts "$part" "$@" || continue
     case "$src" in
       *'*'*) for f in "$DOT"/$src; do [ -f "$f" ] && echo "${f#"$DOT"/}|$rel${f##*/}"; done ;;
       *) echo "$src|$rel" ;;
@@ -377,7 +379,8 @@ remote_files() {
 # the downloader), and files/<location> for every file of remote/files.txt — plus the Mac's prompt in the colors of its
 # current theme and its status line choice — with files.list, the list of those locations
 stage_payload() {   # stage_payload <stage> <script> [remove]: with remove, nothing is listed to put in place
-  local stage=$1 script=$2 kind src rel
+  local stage=$1 script=$2 kind src rel parts
+  parts=$(installed_parts | paste -sd' ' -)
   [ "$script" = prepare-unix.sh ] && kind=unix || kind=windows
   mkdir -p "$stage/files"
   : > "$stage/files.list"
@@ -392,15 +395,17 @@ stage_payload() {   # stage_payload <stage> <script> [remove]: with remove, noth
     [ -f "$1" ] || { echo "  [!] $(t machines.not_in_package "${1#"$DOT"/}")"; return; }
     mkdir -p "$(dirname "$stage/files/$2")" && cp "$1" "$stage/files/$2" && echo "$2" >> "$stage/files.list"
   }
-  while IFS='|' read -r src rel; do stage_file "$DOT/$src" "$rel"; done < <(remote_files "$kind")
-  stage_file "$( [ -f "$HOME/.config/starship.toml" ] && echo "$HOME/.config/starship.toml" \
-    || echo "$DOT/config/starship.toml")" .config/starship.toml
+  while IFS='|' read -r src rel; do stage_file "$DOT/$src" "$rel"; done < <(remote_files "$kind" $parts)
   [ -f "$HOME/.config/herdr-fold/statusline.json" ] \
     && stage_file "$HOME/.config/herdr-fold/statusline.json" .config/herdr-fold/statusline.json
-  # the sidebar's colors in the Mac's theme (its theme setter writes them on the Mac): without them a machine's sidebar
-  # falls back to the terminal's 16 colors
-  local colors=.local/state/herdr/plugins/herdr-fold.sidebar/colors.json
-  [ -f "$HOME/$colors" ] && stage_file "$HOME/$colors" "$colors"
+  # with the TUI, its prompt, and the sidebar's colors in the Mac's theme (its theme setter writes them on the Mac):
+  # without them a machine's sidebar falls back to the terminal's 16 colors
+  case " $parts " in *" tui "*)
+    stage_file "$( [ -f "$HOME/.config/starship.toml" ] && echo "$HOME/.config/starship.toml" \
+      || echo "$DOT/config/starship.toml")" .config/starship.toml
+    local colors=.local/state/herdr/plugins/herdr-fold.sidebar/colors.json
+    [ -f "$HOME/$colors" ] && stage_file "$HOME/$colors" "$colors" ;;
+  esac
   unset -f stage_file
   # taking it off: the files still travel (one the machine changed is kept, compared to these), the list is empty
   if [ "${3:-}" = remove ]; then : > "$stage/files.list"; fi

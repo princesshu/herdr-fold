@@ -29,8 +29,9 @@ are in its workflow on GitHub's runners, started by hand at the end of a larger 
   3.9 with the standard library only.
 - Every text a script prints goes through a key of `src/lang/en.txt`: `t key` in the shell scripts, `t("key")` in
   Python, `T 'key'` in PowerShell. A test checks that every key exists and none is unused.
-- A new file the installer puts on a machine goes in `files.txt` (and `remote/files.txt` for remote machines), and in
-  the table of [How it is built](docs/architecture.md#whats-in-the-package).
+- A new file the installer puts on a machine goes in `files.txt` (and `remote/files.txt` for remote machines) with its
+  part (`tui`, or `both` when the Herdr app uses it too), and in the table of
+  [How it is built](docs/architecture.md#whats-in-the-package).
 - A new question, switch or key goes in the docs too: the docs tests check them against the code.
 - Comments say what the code cannot: the why, a gotcha. None repeats the code, and no comment or docstring runs
   longer than three lines (a test checks); a longer explanation goes in `docs/`.

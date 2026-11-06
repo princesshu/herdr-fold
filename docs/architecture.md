@@ -110,6 +110,8 @@ plugins of its own.
 
 `files.txt` lists each file of the package and its place under the home folder on the Mac; `remote/files.txt` does the
 same for a remote machine. A line with `*` stands for every matching file, so a new language file needs no new line.
+Each line also names its part: `tui` for a file of the TUI alone, `both` for one the Herdr app uses too; the `Brewfile`
+marks each program the same way (`[tui]`, `[both]`), so the installer and the uninstaller know what belongs to which.
 Everything the scripts need at run time lives in `~/.config/herdr-fold/`; herdr's own folder, `~/.config/herdr/`, holds
 only herdr's files and its `config.toml`.
 

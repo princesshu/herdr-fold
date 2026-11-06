@@ -224,13 +224,11 @@ if [ "${HERDR_FOLD_NO_BREW:-}" = 1 ]; then
   skip "$(t install.apps_skipped)"
 else
   apps=() formulae=() casks=() upgrade= later=
-  while IFS= read -r line; do
-    case $line in 'brew "'*|'cask "'*) ;; *) continue ;; esac
-    name=${line#*\"}; name=${name%%\"*}
+  while read -r kind name; do
     [ -n "$(on_this_mac "$name")" ] && continue
     apps+=("$name")
-    case $line in cask*) casks+=("$name") ;; *) formulae+=("$name") ;; esac
-  done < "$DOT/Brewfile"
+    case $kind in cask) casks+=("$name") ;; *) formulae+=("$name") ;; esac
+  done < <(brew_lines)
   [ -z "$foreign" ] && command -v herdr >/dev/null 2>&1 && herdr_too_old && upgrade=1
   if [ ${#apps[@]} = 0 ] && [ -z "$upgrade" ]; then
     have "$(t install.apps_there)"
