@@ -246,7 +246,7 @@ export class IssuesView {
       ? ` +${issue.assignees.length - 1}` : ""}` : "";
     const asking = this.confirm?.number === issue.number ? this.confirm.what : null;
     const verb = asking === "close" ? "Close" : "Reopen";
-    return h_flex().id(key).h(48).flex_none().gap(8).items_center().rounded(6).cursor_pointer()
+    return h_flex().id(key).h(48).flex_none().pr(8).gap(8).items_center().rounded(6).cursor_pointer()
       .when(this.chosen === issue.number, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover))
       .on_hover(hovering(this.host, key)).on_click((_e, cx) => this.open(issue, cx))
       .on_mouse_down("right", () => this.host.menus.open(this.picks(issue)))
@@ -259,12 +259,12 @@ export class IssuesView {
           .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child([labels, people].filter(Boolean)
             .join(" · ")))
           .child(div().flex_none().text_color(t.dim).child(issue.ago))))
-      .when(Boolean(asking), (e) => e.child(h_flex().flex_none().gap(GAP).pr(6).items_center()
+      .when(Boolean(asking), (e) => e.child(h_flex().flex_none().gap(GAP).items_center()
         .child(div().text_size(11).text_color(t.ansi1).child(`${verb}?`))
         .child(small(t, `${key}-yes`, verb, `${verb} #${issue.number} on GitHub`, !this.busy,
           (cx) => this.change(issue, /** @type {"close" | "reopen"} */ (asking), cx)))
         .child(small(t, `${key}-cancel`, "Cancel", "Leave it as it is", true, (cx) => this.unask(cx)))))
-      .when(!asking && this.host.hovered === key, (e) => e.child(h_flex().flex_none().gap(GAP).pr(6)
+      .when(!asking && this.host.hovered === key, (e) => e.child(h_flex().flex_none().gap(GAP)
         .child(small(t, `${key}-agent`, icon("bot"), "To agent", !this.busy, (cx) => this.toAgent(issue, cx)))
         .child(small(t, `${key}-web`, icon("external-link"), "Open in browser", true,
           (cx) => cx.open_url(issue.url)))));
