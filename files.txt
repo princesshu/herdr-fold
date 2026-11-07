@@ -28,9 +28,9 @@ src/lang/*.txt         | .config/herdr-fold/lang/ | both
 src/themes/apply.py    | .config/herdr-fold/themes/apply.py | both
 src/themes/picker.py   | .config/herdr-fold/themes/picker.py | tui
 src/themes/themes.js   | .config/herdr-fold/themes/themes.js | both
-src/themes/preview-colors.js | .config/herdr-fold/themes/preview-colors.js | tui
-src/themes/preview.html | .config/herdr-fold/themes/preview.html | tui
-src/themes/logo.svg    | .config/herdr-fold/themes/logo.svg | tui
+src/themes/preview-colors.js | .config/herdr-fold/themes/preview-colors.js | both
+src/themes/preview.html | .config/herdr-fold/themes/preview.html | both
+src/themes/logo.svg    | .config/herdr-fold/themes/logo.svg | both
 src/remote.sh      | .config/herdr-fold/remote.sh | tui
 src/plugins/sessions-view/herdr-plugin.toml | .config/herdr-fold/plugins/sessions-view/herdr-plugin.toml | tui
 src/plugins/sessions-view/sessions.py       | .config/herdr-fold/plugins/sessions-view/sessions.py | tui

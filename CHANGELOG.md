@@ -46,7 +46,8 @@ All notable changes to this project are listed here. The format follows
   in the TUI's colors (Catppuccin Mocha), its terminals and code in Menlo as VS Code's, at the TUI's size; the TUI's
   twelve themes come along in the app's Settings; under it, each tab's own terminal, as the TUI's right column has it,
   on the space's machine; Lucide's icons, and a file's Catppuccin Icons' for its type. Where the Herdr app is on the
-  Mac, `install.sh` asks once and sets it all up, the remote machines in the app too; `uninstall.sh` takes it off. See
+  Mac, `install.sh` sets it up when its first question names the app, the remote machines in the app too;
+  `uninstall.sh` takes it off. See
   [The Herdr app](docs/app.md).
 - The Herdr app's layout comes with its recipe and a picture, `app/RECIPE.md` and `app/preview.png`, as the app's
   catalog of layouts lists one: what it shows, how it behaves, what it is built from, so another agent can build it

@@ -120,32 +120,32 @@ class AppTheme(Themed):
         with open(apply.APP_LAYOUT, encoding="utf-8") as f:
             return f.read()
 
-    OURS = {"id": "root", "theme": "herdr-fold", "children": [{"id": "spaces", "content": {"mod": "herdr-fold"}}]}
+    FOLDS = {"id": "root", "theme": "herdr-fold", "children": [{"id": "spaces", "content": {"mod": "herdr-fold"}}]}
 
     def test_the_app_takes_the_theme_too(self):
-        self.layout(self.OURS)
+        self.layout(self.FOLDS)
         self.assertTrue(apply.apply(self.nord, {"tui", "app"})[3])
         self.assertEqual(json.loads(self.named())["theme"], "herdr-fold-nord")
         self.assertEqual(apply.current_id(apply.GHOSTTY), "nord")
 
     def test_the_app_alone_leaves_the_tuis_files(self):
-        self.layout(self.OURS)
+        self.layout(self.FOLDS)
         apply.apply(self.nord, {"app"})
         with open(apply.GHOSTTY, encoding="utf-8") as f:
             self.assertEqual(f.read(), CONFIG)
         self.assertEqual(json.loads(self.named())["theme"], "herdr-fold-nord")
 
     def test_without_the_app_its_layout_is_untouched(self):
-        self.layout(self.OURS)
+        self.layout(self.FOLDS)
         before = self.named()
         self.assertFalse(apply.apply(self.nord, {"tui"})[3])
         self.assertEqual(self.named(), before)
 
     def test_the_theme_there_is_comes_from_the_app_without_the_tui(self):
         os.remove(apply.GHOSTTY)
-        self.layout({**self.OURS, "theme": "herdr-fold-dracula"})
+        self.layout({**self.FOLDS, "theme": "herdr-fold-dracula"})
         self.assertEqual(apply.current(), "dracula")
-        self.layout(self.OURS)                      # the package's own: none named, the installer's default then
+        self.layout(self.FOLDS)                      # the package's own: none named, the installer's default then
         self.assertIsNone(apply.current())
 
     def test_a_broken_or_foreign_layout_is_left_alone(self):
