@@ -7,7 +7,7 @@ import { agents, home, knownAgents, panes, setShared, shared, spaces, watchFolde
   from "herdr";
 import { CONVERSATIONS } from "./helper.js";
 import { archiveKey, conversationChoices, conversationRows, coreAgents, floatHeight, folderSpaces, resumeArgv, said,
-  tabLabel } from "./logic.js";
+  stillResumed, tabLabel } from "./logic.js";
 import { Menus } from "./menus.js";
 import { field, icon, listHead, SLIDE, stateMark } from "./parts.js";
 import { dock, folded, followFold, openFloat } from "./sidebar.js";
@@ -92,8 +92,7 @@ export class ConversationsView {
 
   /** {terminal: conversation id} of the ones reopened here, their agents still running. */
   resumed() {
-    const kept = shared(KEPT)?.resumed ?? {}, live = new Set(agents().map((a) => a.address));
-    return Object.fromEntries(Object.entries(kept).filter(([terminal]) => live.has(terminal)));
+    return stillResumed(shared(KEPT)?.resumed ?? {}, new Set(agents().map((a) => a.address)));
   }
 
   /** From render: a reopened one's terminal learned once its agent is there, and the list read again whenever the

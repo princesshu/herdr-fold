@@ -14,7 +14,7 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   terminalId, TERMINALS, urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread,
   spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow,
   railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom, mediaKind,
-  swapDraft, browsable, fileIcon }
+  swapDraft, browsable, fileIcon, stillResumed }
   from "../mods/herdr-fold/logic.js";
 
 test("a tab the app named after its program, an agent's first, else Terminal; an agent's icon; zoomed marked", () => {
@@ -678,4 +678,10 @@ test("a file named for an object's own property gets the plain file icon, never 
   for (const name of ["x.constructor", "x.toString", "x.__proto__", "x.hasOwnProperty"]) {
     assert.equal(fileIcon(name), fileIcon("x.unknown-kind"), name);
   }
+});
+
+test("a reopened conversation is forgotten once its agent is gone, never for a moment's empty list", () => {
+  const kept = { t1: "talk-1", t2: "talk-2" };
+  assert.deepEqual(stillResumed(kept, new Set(["t1", "t9"])), { t1: "talk-1" });
+  assert.deepEqual(stillResumed(kept, new Set()), kept);                   // the app starting, its core reconnecting
 });

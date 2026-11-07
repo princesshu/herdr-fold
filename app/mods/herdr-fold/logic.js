@@ -715,6 +715,13 @@ export function written(answer) {
   return { message: null, note: `No message: ${answer.note}` };
 }
 
+/** The reopened conversations KEPT ({terminal: id}) whose agents still run (LIVE, their terminals); all of them while
+ * none is known (the app starting, its core reconnecting): never forgotten for a moment's empty list.
+ * @param {Record<string, string>} kept @param {Set<string>} live */
+export function stillResumed(kept, live) {
+  return live.size ? Object.fromEntries(Object.entries(kept).filter(([terminal]) => live.has(terminal))) : { ...kept };
+}
+
 /** The message field on a change of space: FROM's MESSAGE kept in DRAFTS (an empty one forgotten), TO's own given
  * back and taken out ("" for one without). @param {Map<string, string>} drafts @param {string | null} from
  * @param {string} to @param {string} message */
