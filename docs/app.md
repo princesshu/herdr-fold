@@ -177,6 +177,10 @@ layouts. To remove it all, switch to another layout, end the terminals it starte
 lib/herdr_app.py end-terminals`), close the app (while it runs, it keeps herdr-fold's settings and writes them back),
 then `python3 lib/herdr_app.py uninstall .`.
 
+The `app/` folder is laid out as the app's home, the way the app's catalog of shared layouts takes one:
+`app/RECIPE.md` is the brief another agent can build the layout from (what you see, how it behaves, what it is
+built from, what to watch out for, when it is done), and `app/preview.png` is its picture.
+
 Without the layout, herdr-fold also opens beside a terminal, as a pane of that tab:
 `herdr-app do pane.split --direction right --mod herdr-fold`.
 

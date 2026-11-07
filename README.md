@@ -22,7 +22,7 @@ above a terminal](assets/screenshots/hero.webp)
 
 - One workspace per repo: Claude or Codex on the left; on the right, a sidebar (Files, Search, Changes (git) and,
   for a repo on GitHub, Issues) above a terminal. An issue goes to the agent in one key, and the next commit
-  closes it; a file the agent names opens at its line in one key too.
+  closes it; a file the agent names opens at its line in one key too, and a picture or a PDF shows as it looks.
 
   ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the message
   Claude wrote, the issue it fixes and the Graph, Issues by priority](assets/screenshots/sidebar.webp)
