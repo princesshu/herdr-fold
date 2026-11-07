@@ -48,6 +48,7 @@ export class FilesView {
     this.note = null;
     this.hidden = shared(HIDDEN) === true;
     this.loading = false;
+    this.again = false;                           // look asked for again while it ran
     /** @type {string | null} the folder followed on this computer (panel.js's followFolder) */
     this.watched = null;
     cx.timer.every(LOOK, (cx) => this.on && this.look(cx));
@@ -67,9 +68,10 @@ export class FilesView {
       Object.assign(this, { key, ...here, folders: {}, open: new Set(), picked: null, naming: null, asking: null,
         note: null, watched: null });
     }
+    if (this.loading) this.again = true;           // asked during a look: once more after it, a folder opened meanwhile
     if (!this.root || this.loading) return void cx.notify();
     const { root, on } = this, asked = ["", ...this.open];
-    this.loading = true;
+    Object.assign(this, { loading: true, again: false });
     cx.spawn(async (cx) => {
       try {
         const answer = await this.python(TREE, ["list", root, ...(this.hidden ? ["--hidden"] : []), "--limit",
@@ -85,6 +87,7 @@ export class FilesView {
         if (key === this.key) this.note = said(e);
       } finally {
         this.loading = false;
+        if (this.again) this.look(cx);
         cx.notify();
       }
     });
