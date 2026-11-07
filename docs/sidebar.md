@@ -13,6 +13,9 @@ priority](../assets/screenshots/sidebar.webp)
 ![A commit's diff in the preview tab, its message and each file's lines numbered, the tab laid out as the one it
 was opened from](../assets/screenshots/preview.webp)
 
+![A PDF's first page of three drawn in the preview tab, fitted to it, the Conversations column folded beside it,
+and the sidebar's Files with the PDF chosen](../assets/screenshots/pdf.webp)
+
 ## How it gets there
 
 - The installer copies it to `~/.config/herdr-fold/plugins/sidebar` and links it (`herdr plugin link`) for its actions

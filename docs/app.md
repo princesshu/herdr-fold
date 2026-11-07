@@ -109,6 +109,9 @@ as markdown. An image or a PDF on this Mac is drawn, fitted to the tab and never
 page (Previous, Next), with Open in Browser above it; one on another machine is not. Herdr-fold's panel stays
 beside it.
 
+![A PDF's first page of three in the preview tab, fitted to it, under Previous, Next and Open in Browser; beside it
+Files with the PDF chosen in its folder](../assets/screenshots/app-pdf.webp)
+
 ## Spaces
 
 In the left sidebar, herdr-fold draws the Spaces list where the app's own was, as the app draws it, and says how long
