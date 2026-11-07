@@ -262,8 +262,8 @@ class Picture:
         self.path, self.title, self.page, self.note = path, title, 0, None
         self.work = tempfile.mkdtemp(prefix="herdr-fold-picture.")
         self.pdf, self.opens, self.swap = media.kind_of(path) == "pdf", media.browsable(), None
-        self.drawn = media.kind_of(path) in ("svg", "html")      # QuickLook draws it, sharp at any width
-        self.count, self.counted = 1, not self.pdf   # a PDF's pages counted at its first draw; None: its first alone
+        self.drawn = media.kind_of(path) in ("svg", "html")      # WebKit draws it, sharp at any width
+        self.count, self.ready = 1, not (self.pdf or self.drawn)   # None: a PDF's first page alone
 
     def shown(self):
         return self.page, self.note
@@ -286,14 +286,25 @@ class Picture:
 
     def draw(self, term):
         columns, height = term.size()
-        if not self.counted:                         # the first PDF compiles the helper: a few seconds, said
-            term.write(f"\x1b[0m\x1b[2J\x1b[{height};1H\x1b[0;7m{visible(' Opening the PDF…', columns)}\x1b[K\x1b[0m")
-            term.flush()
-            self.count, self.counted = media.pages(self.path), True
+        self.prepare(term, columns, height)
         out = [GONE, "\x1b[0m\x1b[2J", self.place(columns, max(1, height - 1))]
         out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns)}\x1b[K\x1b[0m")
         term.write("".join(out))
         term.flush()
+
+    def prepare(self, term, columns, height):
+        """The first draw's wait, said in the pane: a PDF's pages counted, or the helper that draws an SVG or a page
+        compiled (the first one on this Mac, a few seconds)."""
+        if self.ready:
+            return
+        note = f" Opening the {'PDF' if self.pdf else 'picture'}…"
+        term.write(f"\x1b[0m\x1b[2J\x1b[{height};1H\x1b[0;7m{visible(note, columns)}\x1b[K\x1b[0m")
+        term.flush()
+        if self.pdf:
+            self.count = media.pages(self.path)
+        else:
+            media.helper("page-shot")
+        self.ready = True
 
     def place(self, columns, rows, left=0):
         """The picture fitted to COLUMNS x ROWS cells from column LEFT, as escapes; "" where it cannot be shown."""
@@ -369,6 +380,7 @@ class PictureAndCode:
                 term.write(GONE)                     # the picture taken off for the lines
             return self.views().draw(term)
         self.views()
+        self.picture.prepare(term, columns, height)
         left = (columns - 1) // 2
         out = [GONE, "\x1b[0m\x1b[2J"]
         for row, text in enumerate(self.code.rows(left, height - 1)):

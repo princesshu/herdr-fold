@@ -154,7 +154,7 @@ For either part:
 - `~/.config/herdr-fold/`: the package's scripts, themes and texts, and this Mac's settings (`statusline.json`,
   `machines.txt`); with the TUI, its plugins too.
 - Claude Code's `statusLine` in `~/.claude/settings.json`, and Codex's `[tui] status_line` in `~/.codex/config.toml`.
-- `~/.cache/herdr-fold/`: the PDF viewer's helper, compiled the first time a PDF is shown.
+- `~/.cache/herdr-fold/`: the preview's helpers, compiled the first time a PDF, an SVG or a page is shown.
 - `~/.local/share/herdr-fold`: only when installed from herdr's marketplace, the package itself: herdr keeps its
   copy in a folder per version, so Ctrl+B, Shift+M, the next update and the uninstaller run from this one.
 

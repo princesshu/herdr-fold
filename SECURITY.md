@@ -34,7 +34,9 @@ The sidebar treats the folder it shows as a stranger's, a download or a clone:
   read and no terminal to open, and stops after a time limit;
 - the search reads plain files inside the folder only: never a link, a pipe or a device, nor a path a repository's
   own list names outside it; a program it runs stops after 60 s;
-- the preview never shows a pipe or a device, and stops a program after 30 s;
+- the preview never shows a pipe or a device, and stops a program after 30 s; it draws an SVG or a page with nothing
+  asked of the network and none of its scripts run (an SVG as an image, from its own bytes), so a file cannot learn
+  who opened it;
 - gh asks GitHub about its issues only once you show them;
 - an issue handed to the agent goes as its number only, as anyone can write an issue.
 

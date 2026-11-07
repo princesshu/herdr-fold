@@ -83,9 +83,12 @@ class Commands(unittest.TestCase):
     def test_an_svg_or_a_page_is_a_picture_with_its_code(self):
         set_env(self, SSH_CONNECTION=None, SSH_CLIENT=None)
         for name in ("logo.svg", "site/index.html"):
-            spec = preview.file_spec("/repo", f"/repo/{name}", None, which=tools("bat"))
+            with mock.patch.object(preview.media, "drawable", return_value=True):
+                spec = preview.file_spec("/repo", f"/repo/{name}", None, which=tools("bat"))
             self.assertEqual((spec["picture"], spec["open"]), (f"/repo/{name}", f"/repo/{name}"))
             self.assertEqual(spec["pipeline"][0][:2], ["/opt/bin/bat", "--color=always"])
+            with mock.patch.object(preview.media, "drawable", return_value=False):     # no WebKit: Linux, Windows
+                self.assertNotIn("picture", preview.file_spec("/repo", f"/repo/{name}", None, which=tools("bat")))
 
     @unittest.skipIf(os.name == "nt", "no named pipes here on Windows")
     def test_a_pipe_is_never_handed_to_bat(self):
@@ -536,7 +539,7 @@ class Pictures(unittest.TestCase):
         opened.assert_called_once_with(os.path.join(self.tmp, "shot.png"))
         self.assertFalse(picture.handle(Key("char", "q")))
 
-    @unittest.skipUnless(sys.platform == "darwin", "sips: macOS")
+    @unittest.skipUnless(sys.platform == "darwin", "WebKit or sips: macOS")
     def test_c_turns_an_svg_between_its_picture_and_its_code(self):
         svg = os.path.join(self.tmp, "logo.svg")
         with open(svg, "w", encoding="utf-8") as f:
@@ -557,7 +560,7 @@ class Pictures(unittest.TestCase):
         view.handle(Key("char", "c"))
         self.assertIn("c: code", view.status())
 
-    @unittest.skipUnless(sys.platform == "darwin", "sips: macOS")
+    @unittest.skipUnless(sys.platform == "darwin", "WebKit or sips: macOS")
     def test_a_wide_pane_shows_the_code_and_the_picture_side_by_side(self):
         svg = os.path.join(self.tmp, "logo.svg")
         with open(svg, "w", encoding="utf-8") as f:
@@ -622,6 +625,22 @@ class Pictures(unittest.TestCase):
         with mock.patch.object(pager.media, "pages", side_effect=lambda path: self.assertIn("Opening", term.out)) as n:
             picture.draw(term)
         n.assert_called_once()
+
+    def test_an_svg_says_it_opens_before_its_helper_is_compiled(self):
+        """Its first one compiles the helper that draws it, for a few seconds: in a narrow pane and a wide one alike."""
+        svg = os.path.join(self.tmp, "logo.svg")
+        with open(svg, "w", encoding="utf-8") as f:
+            f.write('<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40"/>\n')
+        for columns in (80, 140):
+            term = Written(columns, 24)
+            view = pager.PictureAndCode({"title": "logo.svg", "picture": svg, "file": svg, "pipeline": []})
+            self.addCleanup(view.close, term)
+            said = lambda kind: self.assertIn("Opening", term.out)               # noqa: E731
+            with mock.patch.object(pager.media, "helper", side_effect=said) as compiled, \
+                    mock.patch.object(pager.media, "drawn_png", return_value=None):
+                view.draw(term)
+                view.draw(term)
+            compiled.assert_called_once_with("page-shot")
 
     @unittest.skipUnless(sys.platform == "darwin" and shutil.which("swiftc"), "PDFKit and swiftc: macOS")
     def test_a_pdf_pages_with_the_pagers_keys(self):

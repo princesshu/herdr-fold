@@ -9,7 +9,8 @@ Claude wrote, the issue it fixes and the Graph, Issues by priority](../../../ass
 - **Files:** the folder as a tree, with git's letter on each changed file and a dot on each folder holding changes; a
   new file or folder, renaming, moving to the Trash, copying a path. A click opens the file in a preview tab: an image
   or a PDF drawn there (Ghostty shows pictures in herdr), fitted and never larger than it is, a PDF page by page, an SVG
-  or a page drawn beside its code (macOS's QuickLook draws it; in a narrow pane one of them, `c` turning between them);
+  or a page drawn beside its code (macOS's WebKit draws it, offline; in a narrow pane one of them, `c` turning between
+  them);
   `o` there, or the right click's Open in Browser, opens a page, a PDF or an image in the default browser (never over
   SSH: a browser there would open on the machine, out of sight). With herdr-fold's tab layout, a folder's right click
   offers New Workspace: herdr-fold's folder picker opens on it.
@@ -103,6 +104,10 @@ Alt + Enter commits from the message there too.
   with git in a terminal: open only folders whose `.git` you trust (a folder from a zip or a share may bring its own).
 - `rg` for the search when installed, else `git grep`, else its own search (over git's file list of each repository
   in the folder); `bat` and `delta` for the previews.
+- On a Mac, the preview's pictures: `sips` for an image, and two small Swift helpers compiled by `swiftc` into
+  `~/.cache/herdr-fold/` the first time each is needed, PDFKit for a PDF's pages and WebKit for an SVG or a page. WebKit
+  draws with every address blocked but the file's own folder, none of the page's scripts run, and an SVG as an image
+  from its own bytes, so nothing reaches the network. Each picture is made in a folder of its own, gone with the tab.
 - herdr's command line, for the preview tab (`herdr tab create`, `herdr pane split`, `herdr pane run`, `herdr tab
   rename`, `herdr tab focus`, `herdr pane process-info` to tell whether its pager still runs, `herdr tab close` on `q`
   and for a preview tab whose pager no longer runs), and to hand an issue to the tab's agent (`herdr pane send-text`:

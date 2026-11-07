@@ -27,7 +27,7 @@ One part goes and the other keeps working: what both use goes with the last.
   there, as below. An update of the TUI does not offer it again; choosing it in the installer brings it back.
 - **The last part**, or both: also the files both use (the status line, the themes, the texts), Claude's earlier
   status line, the sidebar's settings (which keep the issue linked to each repository's next commit), the archived
-  conversations, the records, what was made on first use (`~/.cache/herdr-fold`, the PDF helper), herdr-fold's
+  conversations, the records, what was made on first use (`~/.cache/herdr-fold`, the preview's helpers), herdr-fold's
   plugin from herdr's marketplace and the package folder.
 
 ## What goes, and what stays

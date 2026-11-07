@@ -1,5 +1,6 @@
 """Tests for core/media.py: which files the preview draws as pictures, an image as a PNG (sips), a PDF's pages as PNGs
 (PDFKit, through a Swift helper compiled once), and the browser that opens them (LaunchServices' https handler)."""
+import http.server
 import os
 import plistlib
 import shutil
@@ -7,6 +8,8 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 import zlib
 from unittest import mock
@@ -121,6 +124,7 @@ class Hangs(unittest.TestCase):
             self.assertIsNone(media.page_png(big, 0, 100, self.tmp))
             self.assertIsNone(media.pages(big))
 
+    @unittest.skipUnless(MAC, "the helpers: macOS")
     def test_an_earlier_helper_already_gone_is_no_failure(self):
         """Two first PDFs at once (the TUI's and the app's): the other took the old helper away first."""
         def built(argv, **_):                                              # swiftc's output: a runnable file
@@ -132,7 +136,7 @@ class Hangs(unittest.TestCase):
         with mock.patch.object(media.subprocess, "run", side_effect=built), \
                 mock.patch.object(media.shutil, "which", lambda name: "/usr/bin/swiftc"), \
                 mock.patch.object(media.glob, "glob", lambda pattern: [gone]):
-            self.assertTrue(media.helper().startswith(media.cache()))
+            self.assertTrue(media.helper("pdf-pages").startswith(media.cache()))
 
 
 @unittest.skipUnless(MAC, "sips: macOS")
@@ -160,10 +164,18 @@ class ForTheApp(unittest.TestCase):
     """The Herdr app draws a picture from its own folder (image() takes a path in it): media.py picture makes it in
     the app's home, herdr-fold-pictures/, an old one gone after a day."""
 
+    @classmethod
+    def setUpClass(cls):
+        cls.cache = tempfile.mkdtemp()               # the helpers compiled once for all of them, never in ~/.cache
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.cache)
+
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp)
-        set_env(self, HERDR_APP_HOME=os.path.join(self.tmp, "app"))
+        set_env(self, HERDR_APP_HOME=os.path.join(self.tmp, "app"), XDG_CACHE_HOME=self.cache)
 
     def test_an_image_made_in_the_apps_home(self):
         shot = png(os.path.join(self.tmp, "shot.webp.png"), 300, 200)
@@ -186,7 +198,7 @@ class ForTheApp(unittest.TestCase):
         self.assertNotEqual(media.picture(shot, 0, 100)["png"], first)
 
     def test_an_svg_drawn_as_a_picture(self):
-        """An SVG is code and a picture: the app draws it as the picture (QuickLook, else sips)."""
+        """An SVG is code and a picture: the app draws it as the picture (WebKit, else sips)."""
         svg = os.path.join(self.tmp, "logo.svg")
         with open(svg, "w", encoding="utf-8") as f:
             f.write('<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40"><rect width="60" height="40"'
@@ -195,9 +207,63 @@ class ForTheApp(unittest.TestCase):
         self.assertEqual(answer["kind"], "svg")                                # drawn sharp at the width asked
         self.assertEqual(max(media.size(os.path.join(self.tmp, "app", answer["png"]))), 100)
 
-    @unittest.skipUnless(shutil.which("qlmanage"), "QuickLook: macOS")
+    @unittest.skipUnless(MAC and shutil.which("swiftc"), "WebKit and swiftc: macOS")
+    def test_a_tall_svg_is_drawn_whole_and_narrower(self):
+        """An SVG is drawn whole, at most 5/4 of WIDTH high: a tall one narrower than WIDTH, never cut."""
+        svg = os.path.join(self.tmp, "tall.svg")
+        with open(svg, "w", encoding="utf-8") as f:
+            f.write('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="100"><rect width="40" height="100"'
+                    ' fill="#7c6cd8"/></svg>\n')
+        self.assertEqual(media.size(media.drawn_png(svg, 200, self.tmp)), (100, 250))
+
+    @unittest.skipUnless(MAC and shutil.which("swiftc"), "WebKit and swiftc: macOS")
+    def test_a_drawn_page_is_kept_for_its_version(self):
+        """The TUI draws again at every resize: a page already drawn as wide is taken as it is, not drawn again."""
+        page = os.path.join(self.tmp, "index.html")
+        with open(page, "w", encoding="utf-8") as f:
+            f.write("<html><body><h1>Pagination</h1></body></html>\n")
+        first = media.drawn_png(page, 300, self.tmp)
+        with mock.patch.object(media, "run", return_value=None):              # no drawing would work now
+            self.assertEqual(media.drawn_png(page, 300, self.tmp), first)
+
+    @unittest.skipUnless(MAC and shutil.which("swiftc"), "WebKit and swiftc: macOS")
+    def test_drawing_a_page_reaches_nothing_on_the_network(self):
+        """A page in a repository may name a picture, a style, a font or a frame far away, to learn who opened it:
+        drawing it opens no connection at all, not even an early one, and runs none of its scripts."""
+        reached = []
+
+        class Server(http.server.HTTPServer):
+            def verify_request(self, request, address):
+                reached.append(address)
+                return True
+
+        class Seen(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(204)
+                self.end_headers()
+
+            def log_message(self, *_):
+                pass
+        server = Server(("127.0.0.1", 0), Seen)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        far = f"http://127.0.0.1:{server.server_port}"
+        page = os.path.join(self.tmp, "index.html")
+        with open(page, "w", encoding="utf-8") as f:
+            f.write(f'<html><head><link rel="preconnect" href="{far}"><link rel="dns-prefetch" href="{far}">'
+                    f'<link rel="prefetch" href="{far}/next"><link rel="stylesheet" href="{far}/style.css">'
+                    f'<style>@font-face {{font-family: x; src: url({far}/font.woff)}} body {{font-family: x; '
+                    f'background: url({far}/back.png)}}</style></head><body><h1>Pagination</h1>'
+                    f'<img src="{far}/beacon.png"><iframe src="{far}/frame"></iframe><video poster="{far}/poster.png">'
+                    f'</video><script>fetch("{far}/script")</script></body></html>\n')
+        self.assertIsNotNone(media.drawn_png(page, 400, self.tmp))
+        time.sleep(1)
+        self.assertEqual(reached, [])
+
+    @unittest.skipUnless(MAC and shutil.which("swiftc"), "WebKit and swiftc: macOS")
     def test_a_page_is_drawn_as_a_browser_shows_it(self):
-        """An HTML page drawn by macOS's own WebKit (QuickLook), WIDTH wide, beside its code."""
+        """An HTML page drawn by macOS's own WebKit, WIDTH pixels wide, beside its code."""
         page = os.path.join(self.tmp, "index.html")
         with open(page, "w", encoding="utf-8") as f:
             f.write("<html><body><h1>Pagination</h1><p>Every list route answers a page.</p></body></html>\n")
@@ -241,8 +307,8 @@ class Pages(unittest.TestCase):
         self.assertIsNone(media.page_png(self.pdf, 2, 400, self.tmp))       # no third page
 
     def test_the_helper_is_compiled_once_and_alone(self):
-        first = media.helper()
-        self.assertEqual(media.helper(), first)
+        first = media.helper("pdf-pages")
+        self.assertEqual(media.helper("pdf-pages"), first)
         left = [name for name in os.listdir(os.path.dirname(first)) if name.startswith("pdf-pages")]
         self.assertEqual(left, [os.path.basename(first)])
 

@@ -19,6 +19,10 @@ All notable changes to this project are listed here. The format follows
   page: in the sidebar (Ghostty shows pictures in herdr; ↑ ↓ turn the pages) and in the Herdr app mod (Previous, Next).
   A page, a PDF or an image opens in the default browser from Files' right click, or `o` and a button in the preview
   tab. See [The sidebar](docs/sidebar.md) and [The Herdr app](docs/app.md#the-preview-tab).
+- An SVG or an HTML page chosen in the sidebar's Files shows its code and its picture side by side in the preview tab
+  (in a pane 100 columns wide; narrower, `c` turns between them). macOS's WebKit draws it offline: nothing is asked
+  of the network and none of its scripts run, so a file cannot learn who opened it. See
+  [the sidebar's README](src/plugins/sidebar/README.md).
 - A remote machine is prepared for the parts installed on the Mac: with the Herdr app alone it gets git, Python and
   the status line, joins the app's core and nothing of herdr's or starship's. See
   [Remote machines](docs/remote-machines.md).
