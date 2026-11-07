@@ -13,7 +13,7 @@ import { activeTerminal, afterCommit, background, branchLabel, changeColor, chan
   from "./logic.js";
 import { button, chip, END, field, fileMark, GAP, icon, INDENT, SLIDE, small } from "./parts.js";
 import { Menus, menuPopup } from "./menus.js";
-import { followFolder, keptWidth, liveTabs, openRail, rail, runPanel, TABS, tabsState, VIEW, VIEW_NAMES }
+import { checkUpdates, followFolder, keptWidth, liveTabs, openRail, rail, runPanel, TABS, tabsState, VIEW, VIEW_NAMES }
   from "./panel.js";
 import { ConversationsView } from "./conversations.js";
 import { FilesView } from "./files.js";
@@ -59,6 +59,7 @@ const shown = (kind, id) => `${kind}:${id}`;
 
 /** ARGV run in ROOT on machine ON. @param {string[]} argv @param {string} root @param {string | null} on */
 const TICK = 20000;               // ms: a wait's label redrawn this often, as the TUI's
+const UPDATES_EVERY = 3600000;     // ms between two looks at core/update.py's check (GitHub itself once a day at most)
 const run = (argv, root, on) => exec(argv[0], argv.slice(1), { cwd: root, on });
 
 /** The Python core/'s code runs with on each machine (null: this one), asked once; an unreachable one is asked again.
@@ -120,9 +121,18 @@ export default class HerdrFold extends View {
       return void cx.timer.every(REFRESH, (cx) => this.terminal.look(cx));
     }
     if ((this.blank = part === "none")) return;
-    if ((this.tabs = part === "panel-tabs")) return;     // the right panel's stack: its header, the group's tabs
+    if ((this.tabs = part === "panel-tabs")) {           // the right panel's stack: its header, the group's tabs
+      this.menus = new Menus();
+      return void cx.spawn(async (cx) => {
+        for (;;) this.menus.answer(await nextCommand(), cx);                    // its menu about herdr-fold
+      });
+    }
     if (part === "menu") return void (this.popup = { overlay: props().overlay, items: props().items });
-    if (part === "tabs") return void (this.bar = new TabsView());    // the tab bar, where the app's own was
+    if (part === "tabs") {                        // the tab bar, where the app's own was: always there, so it looks
+      this.bar = new TabsView();                  // for herdr-fold's newer releases too
+      cx.timer.after(0, () => void checkUpdates(python));
+      return void cx.timer.every(UPDATES_EVERY, () => void checkUpdates(python));
+    }
     if (part === "preview") return void (this.preview = new Preview(props().space, python));
     if ((this.trigger = part === "trigger")) return;    // left of the tabs: the folded sidebar's toggle
     if ((this.rail = part === "rail")) return;          // the right panel folded: its rail
@@ -524,7 +534,7 @@ export default class HerdrFold extends View {
     if (this.launcher) return div();
     const t = theme();
     if (this.blank) return standIn(t);
-    if (this.tabs) return liveTabs(t);
+    if (this.tabs) return liveTabs(t, this.menus, python);
     if (this.popup) return menuPopup(t, this.popup.overlay, this.popup.items);
     if (this.rail) return rail(t, tabsState(), activeTerminal(layout()));
     if (this.head) {

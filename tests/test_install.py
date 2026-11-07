@@ -16,6 +16,8 @@ import unittest
 from support import (DEFAULTS_STUB, GH_STUB, HERDR_STUB, PACKAGE, PackageHome, catalog_text, copy_package,
                      from_homebrew, run_in_terminal, stubs)
 
+with open(os.path.join(PACKAGE, "herdr-plugin.toml"), encoding="utf-8") as _f:
+    VERSION = re.search(r'^version = "(.*)"$', _f.read(), re.M).group(1)      # the package's, its last line names it
 
 # herdr-sidebar as herdr lists it: it listens to tab.created too (its --ensure hook)
 SIDEBAR = {"plugin_id": "herdr-sidebar", "version": "0.15.0", "events": [{"on": "tab.created"}], "plugin_root": ""}
@@ -436,12 +438,12 @@ class InstallCleanup(PackageHome, unittest.TestCase):
 
     def test_the_install_ends_with_done(self):
         self.assertEqual(self.lines_of(self.install(), "install.step_done")[0],
-                         "[✓] " + catalog_text("install.finished"))
+                         "[✓] " + catalog_text("install.finished", VERSION))
 
     def test_warnings_are_counted_at_the_end(self):
         os.remove(os.path.join(self.pkg, "src", "tui.py"))       # one warning: missing from the package
         self.assertEqual(self.lines_of(self.install(), "install.step_done")[0],
-                         "[!] " + catalog_text("install.finished_warnings", 1))
+                         "[!] " + catalog_text("install.finished_warnings", VERSION, 1))
 
     def test_each_step_says_what_it_did_not_its_parts(self):
         # as the usual installers do: a line a step, for what changed or needs attention; the parts with
@@ -973,7 +975,7 @@ class InstallCleanup(PackageHome, unittest.TestCase):
         before, done = out.split(catalog_text("install.step_done"))
         self.assertNotIn("in a herdr pane", before)                  # nothing to do about it yet: no line, no count
         self.assertEqual(self.lines_of(out, "install.step_done")[:2],     # what to do next, not a warning
-                         ["[✓] " + catalog_text("install.finished"), catalog_text("install.reopen_ghostty")])
+                         ["[✓] " + catalog_text("install.finished", VERSION), catalog_text("install.reopen_ghostty")])
         self.assertNotIn("server stop", out)                      # that would stop the agents
 
     def test_an_open_ghostty_is_to_be_reopened_from_a_plain_terminal_too(self):

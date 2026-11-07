@@ -14,7 +14,7 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   terminalId, TERMINALS, urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread,
   spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow,
   railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom, mediaKind,
-  swapDraft, browsable, fileIcon, stillResumed }
+  aboutLines, swapDraft, browsable, fileIcon, stillResumed }
   from "../mods/herdr-fold/logic.js";
 
 test("a tab the app named after its program, an agent's first, else Terminal; an agent's icon; zoomed marked", () => {
@@ -27,6 +27,15 @@ test("a tab the app named after its program, an agent's first, else Terminal; an
     { id: "t2", name: "Terminal", active: false, status: null, icon: null, tint: false },
     { id: "t3", name: "notes Z", active: false, status: "done", icon: null, tint: false }]);
   assert.deepEqual(tabRows(undefined, panes), []);
+});
+
+test("the panel menu names herdr-fold's version, a newer one once out, and switches the update check", () => {
+  const found = { version: "0.3.0", latest: "0.3.0", newer: false, on: true, releases: "https://example.com/r" };
+  assert.deepEqual(aboutLines(found), [{ label: "herdr-fold 0.3.0", url: "https://example.com/r" },
+    { label: "Check for Updates", on: true }]);
+  assert.equal(aboutLines({ ...found, latest: "0.4.0", newer: true })[0].label, "herdr-fold 0.4.0 is out");
+  assert.deepEqual(aboutLines({ ...found, version: null }), []);              // never installed here
+  assert.deepEqual(aboutLines(null), []);                                      // not looked at yet
 });
 
 test("a space's first tab, while nobody named it, takes the space's name, as the TUI's main tab", () => {

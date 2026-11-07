@@ -817,6 +817,51 @@ class PaneMenu(unittest.TestCase):
         self.assertEqual(top, 3)                                           # right under the ⋯ (three rows tall)
         self.assertEqual(rows[top].rindex("┐"), dots + 2)                   # its right edge with the ⋯'s
 
+    def installed(self, version="0.3.0"):
+        """herdr-fold installed here, this VERSION, in a home of the test's own."""
+        set_env(self, HOME=self.tmp)
+        folder = os.path.join(self.tmp, ".local", "state", "herdr-fold")
+        os.makedirs(folder)
+        with open(os.path.join(folder, "version"), "w") as f:
+            f.write(f"{version}\n")
+        return folder
+
+    def test_it_names_herdr_folds_version_and_switches_the_update_check(self):
+        folder = self.installed()
+        set_env(self, HERDR_FOLD_NO_UPDATE_CHECK=None)
+        self.app.update = sidebar.update.check(ask=lambda: "0.3.0")
+        self.app.draw()
+        self.app.handle(Mouse("press", 40, 0, 2))
+        self.assertEqual(self.app.menu[0].choices[-2:], ["herdr-fold 0.3.0", "✓ Check for Updates"])
+        self.app.handle(Key("up"))
+        self.app.handle(Key("enter"))
+        end_jobs()
+        self.app.collect()
+        with open(os.path.join(folder, "update.json")) as f:
+            self.assertIs(json.load(f)["on"], False)
+        self.assertFalse(self.app.update["on"])
+
+    def test_a_newer_version_is_told_once_and_shown_until_updated(self):
+        self.installed()
+        calls = []
+        self.app.herdr = mock.Mock(call=lambda *args: calls.append(args) or {})
+        found = {"version": "0.3.0", "latest": "0.4.0", "newer": True, "on": True, "told": None}
+        self.app.got_update(found)
+        end_jobs()
+        self.app.collect()
+        self.assertEqual([c[:3] for c in calls], [("notification", "show", "herdr-fold 0.4.0 is out")])
+        self.assertEqual(sidebar.update.check(ask=lambda: None)["told"], "0.4.0")
+        self.app.got_update({**found, "told": "0.4.0"})                     # another sidebar's: not told again
+        end_jobs()
+        self.app.collect()
+        self.assertEqual(len(calls), 1)
+        self.app.draw()
+        last = "".join(ch for ch, _ in self.app.canvas.rows[-1])
+        self.assertIn("herdr-fold 0.4.0 is out", last)
+        with mock.patch.object(sidebar.media, "open_in_browser", return_value=True) as opened:
+            self.app.handle(Mouse("press", 5, self.app.canvas.height - 1, 0))
+        opened.assert_called_once_with(sidebar.update.RELEASES)
+
     def test_a_click_in_another_pane_closes_every_menu(self):
         # herdr tells the pane it lost the keys (focus reporting): no menu stays open behind
         self.app.draw()

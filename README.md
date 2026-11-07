@@ -124,9 +124,10 @@ Shift + M adds one later. The agents, the sidebar and the terminal run on the ma
 ## Updating
 
 Get the newer `herdr-fold` folder (`git pull`, or replace the folder) and run `./install.sh` again. It asks one
-question, Enter keeps your earlier choices, then it updates what changed, removes what is no longer needed (saved
-first) and updates the connected machines. Installed from herdr's marketplace: `herdr plugin update herdr-fold`, and
-the installer opens in a herdr tab again.
+question, Enter keeps your earlier choices, then it updates what changed, removes what is no longer needed (saved first)
+and updates the connected machines. Installed from herdr's marketplace: `herdr plugin update herdr-fold`, and the
+installer opens in a herdr tab again. The sidebar and the Herdr app say when a newer version is out, once a day at most
+([how, and how to turn it off](docs/installation.md#a-newer-version)).
 
 After `brew upgrade herdr`, the herdr running in the background keeps the old version: `herdr server live-handoff`
 switches to the new one without stopping your agents.

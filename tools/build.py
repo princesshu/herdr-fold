@@ -16,7 +16,7 @@ HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"COMMIT_MESS
                                                                     "FILEOPS": "fileops.py", "GIT": "git.py",
                                                                     "GITHUB": "github.py", "JOB": "job.py",
                                                                     "MEDIA": "media.py", "SEARCH": "search.py",
-                                                                    "TREE": "tree.py"}}
+                                                                    "TREE": "tree.py", "UPDATE": "update.py"}}
 MOD_ONLY = {"job.py"}         # what only the mod runs (its background jobs): the sidebar gets no copy
 ICONS = os.path.join("app", "mods", "herdr-fold", "icons.js")       # the mod's icons, by name, and the file types'
 SVGS = "mods/herdr-fold/icons"     # its icons as the app loads them: lucide/ the views', catppuccin/ a file's

@@ -130,7 +130,7 @@ Alt + Enter commits from the message there too.
   `~/.claude/commands/commit.md`) or, without rules, the recent commit subjects; nothing from ignored or unstaged
   files. The AI runs with no tools, memories or plugins, and Claude with none of your instructions (Codex still reads
   its own `~/.codex/AGENTS.md`), so a diff cannot make it read or send anything else. The AI tool sends what it gets to
-  its own service; the sidebar itself sends nothing anywhere.
+  its own service; the sidebar itself sends nothing anywhere but the look for a newer herdr-fold (below).
 - The Conversations column reads Claude's and Codex's conversation files (`~/.claude/projects/`, `~/.codex/sessions/`,
   `~/.codex/session_index.jsonl`) and AI Sessions' names (`names.json` of `herdr-fold.sessions-view`), never
   writing the conversation files (Rename writes the name you give into that `names.json`, under AI Sessions' own
@@ -145,6 +145,10 @@ Alt + Enter commits from the message there too.
   agents, goes to one (`herdr agent focus`), and reopens a closed conversation (`herdr tab create`, `herdr pane split`,
   `herdr agent start` with `--resume`), and names a running one's pane and its own tab on Rename (`herdr pane rename`,
   `herdr tab rename`).
+- Once a day at most, on a Mac where the installer ran, herdr-fold's latest release from api.github.com (the request
+  alone), kept in `~/.local/state/herdr-fold/update.json` with the version told about: a newer one is said once (a
+  herdr notification) and stays on the last row, a click there opening its releases. The ⋯ menu names the version
+  installed and switches the look (Check for Updates); `HERDR_FOLD_NO_UPDATE_CHECK=1` keeps it off.
 - It writes only what you ask for: a new file or folder, a new name, a commit, a push. Deleting moves to the system's
   Trash (the Recycle Bin on Windows, which asks first when an item cannot be recycled); an untracked file you discard
   goes there too. It never deletes for good on its own, pulls only fast-forward, and never touches `~/.claude`,

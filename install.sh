@@ -675,8 +675,8 @@ versions=; ! of_parts tui $parts || versions=$(herdr status 2>/dev/null | awk '
   END { if (up == "running" && v["c"] != v["s"]) print v["c"], v["s"] }')
 if [ -n "$versions" ]; then set -- $versions; warn "$(t install.handoff "$1" "$2")"; fi
 warnings=$(grep -c . "$HERDR_FOLD_WARNINGS")
-if [ "$warnings" = 0 ]; then ok "$(t install.finished)"
-else warn "$(t install.finished_warnings "$warnings")"; fi
+if [ "$warnings" = 0 ]; then ok "$(t install.finished "$this_version")"
+else warn "$(t install.finished_warnings "$this_version" "$warnings")"; fi
 # what to do next: open Ghostty, or reopen it (started from it, or it is open) for the settings, the theme, its icon
 if of_parts tui $parts; then
   if ghostty_open; then note "$(t install.reopen_ghostty)"; else note "$(t install.open_ghostty)"; fi

@@ -209,6 +209,15 @@ the other part ([above](#the-tui-the-herdr-app-or-both)). What is done is skippe
 earlier version left behind is listed and removed once you say yes (it is saved first). Your parts, theme, status line
 choices and machine list stay.
 
+### A newer version
+
+The sidebar and the Herdr app look for a newer herdr-fold once a day: they ask api.github.com for its latest release,
+with the request alone (no id, no cookie), and keep the answer in `~/.local/state/herdr-fold/update.json`. A newer one
+is said once (a herdr notification, the app's) and stays on the sidebar's last row until you update; the version
+installed is in the sidebar's ⋯ menu, a right click on the app panel's tabs, and the installer's last line. Check for
+Updates there turns the look off and on again; `HERDR_FOLD_NO_UPDATE_CHECK=1`, where the sidebar or the app starts,
+keeps it off. A machine the installer never ran on (a remote one) does not ask.
+
 ## Switches
 
 | Variable | Effect |
@@ -220,6 +229,7 @@ choices and machine list stay.
 | `HERDR_FOLD_CONFIG=add` or `replace` | the answer for your own herdr settings, without the question |
 | `HERDR_FOLD_VERBOSE=1` | show every item instead of one summary line per step |
 | `HERDR_FOLD_LANG=<code>` | the language of the installer's texts (see [Translating](translating.md)) |
+| `HERDR_FOLD_NO_UPDATE_CHECK=1` | for the sidebar and the Herdr app: no daily look for a newer version ([above](#a-newer-version)) |
 
 The commit message writer (Cmd + Shift + C and the sidebar's ✦) has a switch of its own, `HERDR_COMMIT_AI`: see
 [Commit and push](usage.md#commit-and-push).

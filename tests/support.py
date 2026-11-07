@@ -25,6 +25,8 @@ os.environ["HERDR_SOCKET_PATH"] = os.path.join("/tmp", f"herdr-fold-tests-{os.ge
 # git's own upkeep never runs in the background of a test's repository, as the test removes it
 os.environ.update(GIT_CONFIG_COUNT="2", GIT_CONFIG_KEY_0="maintenance.auto", GIT_CONFIG_VALUE_0="false",
                   GIT_CONFIG_KEY_1="gc.auto", GIT_CONFIG_VALUE_1="0")
+# nor GitHub for herdr-fold's newest release (test_core_update asks its own way)
+os.environ["HERDR_FOLD_NO_UPDATE_CHECK"] = "1"
 sys.path.insert(0, SRC)
 # PowerShell 7 for the Windows scripts: the PWSH variable or pwsh on PATH; the tests that need it are skipped without
 PWSH = os.environ.get("PWSH") or shutil.which("pwsh")

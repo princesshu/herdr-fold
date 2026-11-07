@@ -18,6 +18,13 @@ plugin runs one check on herdr's start and on each pane's focus (`lib/offer_inst
 offered, by a mark file) and opens the installer in a herdr tab, with the same questions; nothing else runs before you
 answer.
 
+## The network
+
+herdr-fold's own code asks one thing of the network: once a day, api.github.com for its latest release, the request
+alone. Check for Updates (the sidebar's ⋯ menu, a right click on the Herdr app panel's tabs) or
+`HERDR_FOLD_NO_UPDATE_CHECK=1` turns it off: [A newer version](docs/installation.md#a-newer-version). Everything else
+goes where you ask: git to the repository's remote, gh to GitHub, the AI tool to its own service.
+
 ## Remote machines
 
 herdr-fold reaches remote machines over SSH with keys. For a machine you add by hand that `~/.ssh/known_hosts` does not

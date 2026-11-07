@@ -374,6 +374,15 @@ export function tabRows(space, panes) {
   });
 }
 
+/** The panel menu's lines about herdr-fold, as the TUI sidebar's ⋯ has them: its version (a newer one's, once out),
+ * opening its releases, and Check for Updates; none before a look or where the installer never ran.
+ * @param {any} found core/update.py's check */
+export function aboutLines(found) {
+  if (!found?.version) return [];
+  return [{ label: found.newer ? `herdr-fold ${found.latest} is out` : `herdr-fold ${found.version}`,
+    url: found.releases }, { label: "Check for Updates", on: Boolean(found.on) }];
+}
+
 /** The room the tab bar leaves at its start for the traffic lights of window W (macOS, no title bar, not full
  * screen): what the sidebar and its toggle beside them leave of them at ZOOM, 10 px at least, as the app's own.
  * @param {any} root @param {any} w @param {number} zoom */

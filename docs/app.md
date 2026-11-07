@@ -240,5 +240,6 @@ not take it.
   read from a file, it is never taken for an option or a control code.
 - An SVG or a page is drawn with nothing asked of the network and none of its scripts run, so a file cannot learn who
   opened it.
-- The mod itself sends nothing anywhere; the sync talks to the repository's remote, gh to GitHub, the AI tool to its
-  own service.
+- The mod itself sends nothing anywhere but the daily look for a newer herdr-fold (api.github.com, the request
+  alone), said once as a notification; a right click on the panel's tabs names the version and switches the look
+  (Check for Updates). The sync talks to the repository's remote, gh to GitHub, the AI tool to its own service.

@@ -168,8 +168,8 @@ install.open_app = Open the Herdr app: herdr-fold's layout is set in it.
 install.handoff = herdr %s is installed, but %s still runs in the background: herdr server live-handoff switches \
   without stopping your agents
 install.next_steps = A workspace per repo: the "new" button under Spaces · all keys: Ctrl+B, ? · the rest: README.md
-install.finished = herdr-fold is installed
-install.finished_warnings = herdr-fold is installed, with %s warning(s) — see the [!] lines above
+install.finished = herdr-fold %s is installed
+install.finished_warnings = herdr-fold %s is installed, with %s warning(s) — see the [!] lines above
 install.in_trash = this herdr-fold folder is in the Trash (%s): cd into the folder you unpacked again, then \
   run ./install.sh there
 install.update_found = herdr-fold %s is installed here; this copy is %s

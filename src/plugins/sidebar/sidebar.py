@@ -22,6 +22,7 @@ import panels  # noqa: E402
 import preview  # noqa: E402
 import search  # noqa: E402
 import statefile  # noqa: E402
+import update  # noqa: E402
 from explorer import Explorer  # noqa: E402
 from fileops import Ops  # noqa: E402
 from find import Find  # noqa: E402
@@ -41,6 +42,8 @@ VIEW_KEYS = {"1": "files", "2": "search", "3": "git", "4": "issues", "f9": "file
 # linked: the issue each repository's next commit fixes, {repository: [number, title]}
 DEFAULTS = {"hidden": False, "icons": True, "commit_mode": "commit", "view": "files", "linked": {}, "folded": []}
 STALE = 60.0                  # seconds: the issues shown or listed here asked for again (a new one shows up)
+UPDATES = 3600.0              # seconds between two looks at update.json (GitHub itself is asked once a day at most)
+CHECK = "Check for Updates"   # the ⋯ menu's switch, a ✓ while it is on
 BUSY = {"commit": "Committing…", "sync": "Syncing…", "pull": "Pulling…", "push": "Pushing…"}   # the first running shows
 SPINNER, SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏", 0.1     # ✦'s writing in the message field: a frame every SPIN seconds
 EMPTY = git.Status()
@@ -143,6 +146,7 @@ class App(Loop):
         self.needs = None                                 # the cells this tab's header was said to take
         self.menu = None                                  # the pane's own menu: (Menu, its row, its column, its tab)
         self.tip = None                         # the control under the mouse: (target, tip, x, y, when due, drawn)
+        self.update, self.next_update = None, 0.0         # update.check()'s answer, and when to look again
 
     def stop(self):
         if self.searching:
@@ -208,6 +212,9 @@ class App(Loop):
         """The poll when due, the paused search and a tip come due; whether anything shown changed."""
         now = self.clock()
         shown = bool(self.tip) and not self.tip[5] and now >= self.tip[4]
+        if now >= self.next_update:
+            self.next_update = now + UPDATES
+            self.job("update", update.check, self.got_update)
         if now >= self.next_poll:
             shown = self.follow(now) or shown             # a new version first, before this poll starts a job
             if self.quit:
@@ -236,11 +243,11 @@ class App(Loop):
         return shown or search is not None
 
     def busy(self):
-        """Whether a restart would cut something short: any job (loop.py's busy()), or a name being typed or a
-        question on screen. A menu does not hold it: the new version comes back without it, as a click elsewhere
-        closes it."""
+        """Whether a restart would cut something short: any job but the update check (no program of its own, asked
+        again by the new version), or a name being typed or a question on screen. A menu does not hold it: the new
+        version comes back without it, as a click elsewhere closes it."""
         files, scm, issues = self.views["files"], self.views["git"], self.views["issues"]
-        return super().busy() or any((files.naming, files.confirm, scm.confirm, issues.confirm))
+        return bool(self.running - {"update"}) or any((files.naming, files.confirm, scm.confirm, issues.confirm))
 
     def left(self):
         find, files = self.views["search"], self.views["files"]
@@ -390,6 +397,9 @@ class App(Loop):
             header = target in ("pane", "sync", "panels") or str(target).startswith("view:")
             if header:                                # outside the view: its menu closes, as a click in it does
                 view.close_menu()
+            if target == "news":                                             # a newer version: its release
+                self.do_open_url(update.RELEASES)
+                return
             if target == "panels" and event.button != 2:                  # the ⋯: its menu right under it
                 self.open_menu(*self.dots)
                 return
@@ -437,8 +447,26 @@ class App(Loop):
         tab = next((p["tab_id"] for p in panes if p.get("pane_id") == pane), None)
         present = {p.get("label") for p in panes if p.get("tab_id") == tab} & set(panels.KINDS)
         if tab:
-            menu = Menu(panels.menu(present, "sidebar"))
+            menu = Menu(panels.menu(present, "sidebar") + self.about())
             self.menu = (menu, y, x if right is None else right - menu.width(), tab, present)
+
+    def about(self):
+        """The ⋯ menu's last lines: herdr-fold's version (a newer one's, once out), its releases opened in the browser,
+        and the update check's switch."""
+        found = self.update
+        if not (found and found["version"]):
+            return []                                     # not looked at yet, or never installed here (a remote one)
+        named = f"herdr-fold {found['latest']} is out" if found["newer"] else f"herdr-fold {found['version']}"
+        return [named, f"{'✓' if found['on'] else ' '} {CHECK}"]
+
+    def got_update(self, found):
+        """The update check's answer: a newer version said once, for every sidebar and the app (a herdr notification),
+        and on the pane's last row while it is out."""
+        self.update = found
+        if found["newer"] and found["told"] != found["latest"]:
+            latest = found["latest"]
+            self.job("told", lambda: (update.told(latest), self.herdr.call(
+                "notification", "show", f"herdr-fold {latest} is out", "--body", update.HOW)))
 
     def answer_menu(self, event):
         menu, y, x, tab, present = self.menu
@@ -450,6 +478,13 @@ class App(Loop):
             target = self.canvas.hit(event.x, event.y) if self.canvas else None
             choice = menu.choices[int(target[5:])] if str(target).startswith("menu:") else "cancel"
         self.menu = None
+        if choice.startswith("herdr-fold "):
+            self.do_open_url(update.RELEASES)
+            return None
+        if choice.endswith(CHECK):
+            on = not (self.update or {}).get("on", True)
+            self.job("update", lambda: (update.switch(on), update.check())[1], self.got_update)
+            return None
         what, kinds = panels.chosen(choice, present) or (None, None)
         if what == "close":
             self.job("panels", lambda: panels.close(self.herdr.call, tab, kinds))
@@ -654,6 +689,9 @@ class App(Loop):
     def do_close_preview(self):
         self.job("preview", lambda: preview.close_preview(self.herdr, os.environ["HERDR_WORKSPACE_ID"]))
 
+    def do_open_url(self, url):
+        self.note = "Opened in the browser" if media.open_in_browser(url) else "No browser to open it in"
+
     def do_open_browser(self, path):
         self.note = "Opened in the browser" if media.open_in_browser(path) else "No browser to open it in"
 
@@ -814,8 +852,9 @@ class App(Loop):
         canvas = Canvas(cells, rows)
         roomy = rows >= ROOMY                            # the tabs and the view's controls alike
         top = self.switcher(canvas, roomy)
-        line = self.error or self.note
-        height = max(2, rows - top - bool(line))         # the view, what went wrong below it
+        news = f"herdr-fold {self.update['latest']} is out: {update.HOW}" if (self.update or {}).get("newer") else None
+        line = self.error or self.note or news
+        height = max(2, rows - top - bool(line))         # the view, what went wrong below it, else a newer version
         view = self.views[self.view]
         self.views["git"].busy(next((text for kind, text in BUSY.items() if kind in self.running), None))
         frame = SPINNER[int(self.clock() / SPIN) % len(SPINNER)]
@@ -828,7 +867,10 @@ class App(Loop):
             view.draw(canvas, top, height, self.status, self.graph, roomy)
         if line:
             canvas.put(rows - 1, 0, " " * cells)
-            canvas.put(rows - 1, 1, truncate(line, cells - 2), Style(fg="deleted" if self.error else "muted"))
+            canvas.put(rows - 1, 1, truncate(line, cells - 2),
+                       Style(fg="deleted" if self.error else "muted" if self.note else "accent"))
+            if line is news:
+                canvas.region(rows - 1, 0, cells, "news")
         for y in range(top):                               # the header: the pane's own menu
             canvas.backdrop(y, 0, cells, "pane")
         if self.menu:

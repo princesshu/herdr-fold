@@ -173,7 +173,7 @@ if [ -n "$last" ]; then
   rm -rf "$state"/[0-9]*-[0-9]*
   rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/herdr-fold"          # the preview's helpers, compiled on first use
   rm -f "$record" "$state/installed.sha256" "$state/version" "$state/plugins.txt" "$state/loading-colors.txt" \
-    "$state"/.loading-colors.txt.*.tmp
+    "$state"/.loading-colors.txt.*.tmp "$state/update.json" "$state"/.update.json.*.tmp
   [ -d "$state/original" ] && find "$state/original" -depth -type d -empty -delete
   names="$HOME/.local/state/herdr/plugins/herdr-fold.sessions-view/names.json"
   [ -f "$names" ] && note "$(t uninstall.kept_names "$(shown "$names")")"
