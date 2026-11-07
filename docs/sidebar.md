@@ -6,8 +6,9 @@ macOS, Linux and Windows. Its keys, what it reads and writes on the machine, and
 [its README](../src/plugins/sidebar/README.md). This page is what
 herdr-fold does with it.
 
-![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the message
-Claude wrote, the issue it fixes and the Graph, Issues by priority](../assets/screenshots/sidebar.webp)
+![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the repository
+on top, the message Claude wrote, the issue it fixes and the Graph, Issues by
+priority](../assets/screenshots/sidebar.webp)
 
 ![A diff in the preview tab, its lines numbered, the tab laid out as the one it was opened
 from](../assets/screenshots/preview.webp)
