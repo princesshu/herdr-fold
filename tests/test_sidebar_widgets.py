@@ -52,6 +52,14 @@ class Lists(unittest.TestCase):
         self.view.resize(30)
         self.assertEqual((self.view.index, self.view.top), (99, 70))
 
+    def test_a_selection_made_before_the_first_draw_shows_from_the_top(self):
+        view = ListView()
+        view.set(range(100))
+        view.index = 3
+        view.keep_visible()
+        view.resize(10)
+        self.assertEqual((view.index, view.top), (3, 0))
+
     def test_a_shorter_list_keeps_a_valid_selection(self):
         self.view.move(50)
         self.view.set(range(3))

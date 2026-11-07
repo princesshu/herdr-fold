@@ -22,7 +22,7 @@ class Issues:
         self.query, self.level = Query(), None             # asked of GitHub; the priority shown (its rank), or all
         self.asked = self.listing = None
         self.field, self.searching = TextInput(placeholder="Search issues"), False     # the keys go to the field
-        self.list = ListView(1)
+        self.list = ListView()
         self.hover = self.pointed = self.confirm = self.doomed = self.canvas = self.menu = None
         self.top, self.height, self.drop = 0, 1, (0, 0)
 

@@ -102,6 +102,8 @@ All notable changes to this project are listed here. The format follows
 - The sidebar's commit message scrolls with the wheel: a message longer than the field (one Claude or Codex wrote)
   shows its other rows, the cursor where it was, until a key moves it. A selection goes on past the field's edge,
   the rows following it, and the wheel moves the message while a drag selects.
+- The sidebar's lists start at their top when a preview tab or a new version brings back the row chosen: a commit
+  chosen in the Graph no longer hides the Graph's heading.
 
 ### Security
 

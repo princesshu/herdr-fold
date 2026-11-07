@@ -38,7 +38,7 @@ class Find:
         self.root, self.icons, self.clock = root, icons, clock
         self.field = TextInput(placeholder="Search")
         self.switches = {name: False for name, _, _ in SWITCHES}
-        self.list = ListView(1)
+        self.list = ListView()
         self.focus, self.due, self.asked, self.running = "field", None, None, False
         self.result, self.folded, self.hover, self.canvas = None, set(), None, None
         self.answered = None                              # the question the result shown answers

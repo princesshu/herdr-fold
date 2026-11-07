@@ -28,7 +28,7 @@ class Explorer:
     def __init__(self, tree, icons=True, repo=None):
         self.tree, self.icons = tree, icons
         self.repo = repo or tree.root           # git's paths are relative to the repository's top folder
-        self.list = ListView(1)
+        self.list = ListView()
         self.status, self.marks, self.folders = None, {}, {}
         self.naming = self.menu = self.confirm = self.doomed = None
         self.hover, self.canvas, self.top, self.height = None, Canvas(0, 0), 0, 1

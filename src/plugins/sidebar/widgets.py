@@ -16,8 +16,8 @@ class Action:
 
 
 class ListView:
-    def __init__(self, height):
-        self.height = max(1, height)
+    def __init__(self, height=None):
+        self.height = None if height is None else max(1, height)     # None until drawn: nothing scrolls before
         self.items, self.index, self.top = [], 0, 0
 
     def set(self, items):
@@ -31,8 +31,9 @@ class ListView:
 
     def fit(self):
         """No empty rows below the end while items are hidden above, and the selection in view."""
-        self.top = min(self.top, max(0, len(self.items) - self.height))
-        self.keep_visible()
+        if self.height is not None:
+            self.top = min(self.top, max(0, len(self.items) - self.height))
+            self.keep_visible()
 
     def selected(self):
         return self.items[self.index] if self.items else None
@@ -43,13 +44,15 @@ class ListView:
             self.keep_visible()
 
     def page(self, delta):
-        self.move(delta * self.height)
+        self.move(delta * (self.height or 1))
 
     def scroll(self, delta):
         """The wheel: the view moves, the selection stays."""
-        self.top = max(0, min(max(0, len(self.items) - self.height), self.top + delta))
+        self.top = max(0, min(max(0, len(self.items) - (self.height or 1)), self.top + delta))
 
     def keep_visible(self):
+        if self.height is None:
+            return
         if self.index < self.top:
             self.top = self.index
         elif self.index >= self.top + self.height:
@@ -58,7 +61,7 @@ class ListView:
     def at(self, row):
         """The item index shown on ROW of the view, or None."""
         index = self.top + row
-        return index if 0 <= row < self.height and index < len(self.items) else None
+        return index if 0 <= row < (self.height or 0) and index < len(self.items) else None
 
 
 class TextInput:

@@ -456,6 +456,15 @@ class View(unittest.TestCase):
         self.assertEqual((self.view.focus, self.view.graph_list.selected().subject), ("graph", "commit number 1"))
         self.assertEqual(self.view.list.selected().change.path, "draft.md")
 
+    def test_a_new_version_shows_the_graph_from_its_top(self):
+        self.draw(height=24)                                                   # the Graph scrolls: 9 rows of 21
+        self.view.focus, self.view.graph_list.index = "graph", 1                # commit number 0
+        kept = self.view.kept()
+        self.view = Scm(icons=False)
+        self.view.take(kept)
+        self.draw(height=24)
+        self.assertEqual(self.row_of("commit number 0"), self.row_of("▾ Graph") + 1)
+
     def test_the_graph_stays_at_the_panels_bottom(self):
         self.draw()
         self.assertEqual(self.row_of("commit number 19"), self.canvas.height - 1)

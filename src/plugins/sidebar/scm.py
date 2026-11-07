@@ -43,8 +43,8 @@ class Scm:
         self.mode = mode if mode in MODES else "commit"
         self.icons = icons
         self.field = TextInput(multiline=True, placeholder="Commit message")
-        self.list = ListView(1)                       # the changes
-        self.graph_list = ListView(1)                 # the Graph, at the view's bottom
+        self.list = ListView()                       # the changes
+        self.graph_list = ListView()                 # the Graph, at the view's bottom
         self.focus = "button"                          # message, button, list or graph
         self.folded = set(folded) & {"repositories", "staged", "changes", "graph"}   # the sections closed, kept
         self.repo = self.github = None            # the repository's folder and its name on GitHub, the app's

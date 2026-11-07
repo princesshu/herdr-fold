@@ -52,7 +52,7 @@ class ConversationList:
         self.missing = set()                # the panes this tab lacks: the sidebar, the terminal (the app sets it)
         self.collapsed = False                                      # the rail (the app sets it)
         self.icons = True                   # the sidebar's icons (its settings), or plain marks (the app sets it)
-        self.list = ListView(1)
+        self.list = ListView()
         self.hover = self.canvas = self.menu = None
         self.top = self.height = 0
 
