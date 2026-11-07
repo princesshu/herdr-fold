@@ -5,7 +5,7 @@ import { div, image } from "gpui-kit";
 import { v_flex, h_flex, Scrollbar, TextView, v_virtual_list } from "gpui-base";
 import { home, panes, readTextFile, setShared, shared, spaces, run as command } from "herdr";
 import { GIT, GITHUB, MEDIA } from "./helper.js";
-import { commitRows, diffRows, mediaKind, previewName, previewTab, priorityColor, said, safeMarkdown }
+import { browsable, commitRows, diffRows, mediaKind, previewName, previewTab, priorityColor, said, safeMarkdown }
   from "./logic.js";
 import { chip, iconButton, small } from "./parts.js";
 
@@ -144,22 +144,31 @@ export class Preview {
     const frame = v_flex().size_full().min_h(0).text_color(t.foreground).text_size(13);   // on the pane's own fill
     if (this.issue) return frame.child(this.issueView(t));
     if (this.picture) return frame.child(this.pictureView(t));
-    if (this.rows.length) return frame.child(this.diff(t, code));
+    if (this.rows.length) {                       // a page's lines under Open in Browser, as the TUI's o
+      return frame.when(browsable(this.what), (e) => e.child(this.bar(t))).child(this.diff(t, code));
+    }
     const line = this.loading ? "Loading…" : this.note ?? (this.what ? "" : "Nothing chosen to preview");
     return frame.child(div().p(16).text_size(12).text_color(this.note ? t.ansi1 : t.dim).child(line));
   }
 
-  /** The picture fitted to the tab, under a bar with a PDF's pages and Open in Browser. */
+  /** The bar above a page or a picture: a PDF's pages (PICTURE's), and Open in Browser at its end.
+   * @param {Preview["picture"]} [picture] */
+  bar(t, picture = null) {
+    const { pages = null, page = 0 } = picture ?? {};
+    return h_flex().h(40).flex_none().px(12).gap(4).items_center().border_b(1).border_color(t.border)
+      .when(Boolean(pages), (e) => e
+        .child(small(t, "page-back", "Previous", "Previous page", page > 0, (cx) => this.turn(-1, cx)))
+        .child(div().px(6).text_size(12).text_color(t.muted).child(`${page + 1} of ${pages}`))
+        .child(small(t, "page-on", "Next", "Next page", page + 1 < (pages ?? 1), (cx) => this.turn(1, cx))))
+      .child(div().flex_1())
+      .child(iconButton(t, "browse", "external-link", "Open in Browser", (cx) => this.browse(cx), { left: true }));
+  }
+
+  /** The picture fitted to the tab, under its bar. */
   pictureView(t) {
-    const { png, pages, page, size } = /** @type {NonNullable<Preview["picture"]>} */ (this.picture);
+    const { png, size } = /** @type {NonNullable<Preview["picture"]>} */ (this.picture);
     return v_flex().size_full().min_h(0)
-      .child(h_flex().h(40).flex_none().px(12).gap(4).items_center().border_b(1).border_color(t.border)
-        .when(Boolean(pages), (e) => e
-          .child(small(t, "page-back", "Previous", "Previous page", page > 0, (cx) => this.turn(-1, cx)))
-          .child(div().px(6).text_size(12).text_color(t.muted).child(`${page + 1} of ${pages}`))
-          .child(small(t, "page-on", "Next", "Next page", page + 1 < (pages ?? 1), (cx) => this.turn(1, cx))))
-        .child(div().flex_1())
-        .child(iconButton(t, "browse", "external-link", "Open in Browser", (cx) => this.browse(cx), { left: true })))
+      .child(this.bar(t, this.picture))
       .child(div().flex_1().min_h(0).m(16).relative()     // the picture sized to it, not it to the picture
         .child(div().absolute().inset_0().flex().items_center().justify_center()   // centered, at most its own size
           .child(image(png).size_full().when(Boolean(size), (e) => e.max_w(size?.[0] ?? 0)

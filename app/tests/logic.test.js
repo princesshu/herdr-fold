@@ -14,7 +14,7 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   terminalId, TERMINALS, urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread,
   spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow,
   railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom, mediaKind,
-  swapDraft }
+  swapDraft, browsable }
   from "../mods/herdr-fold/logic.js";
 
 test("a tab the app named after its program, an agent's first, else Terminal; an agent's icon; zoomed marked", () => {
@@ -665,4 +665,11 @@ test("the message field keeps each space's own draft, a message written for one 
   assert.equal(swapDraft(drafts, "b", "a", ""), "feat: written for a");
   assert.equal(swapDraft(drafts, "a", "b", "feat: written for a"), "");    // b's was empty: nothing kept for it
   assert.equal(drafts.has("b"), false);
+});
+
+test("a page, a PDF or a picture on this Mac opens in the browser, nothing else and nothing on another machine", () => {
+  const file = (path, on = null) => ({ kind: "file", path, on });
+  const asked = [file("site/index.html"), file("a.pdf"), file("shot.png"), file("a.py"), file("index.html", "lab"),
+    { kind: "commit", path: "index.html", on: null }, null];
+  assert.deepEqual(asked.map(browsable), [true, true, true, false, false, false, false]);
 });

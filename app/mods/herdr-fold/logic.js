@@ -732,3 +732,9 @@ export function mediaKind(path) {
   return dot > name ? /** @type {Record<string, string>} */ (MEDIA_KINDS)[path.slice(dot).toLowerCase()] ?? null
     : null;
 }
+
+/** Whether WHAT, the preview's, opens in the browser: a page, a PDF or a picture, a file on this Mac.
+ * @param {{ kind: string, path: string, on?: string | null } | null} what */
+export function browsable(what) {
+  return what?.kind === "file" && !what.on && mediaKind(what.path) !== null;
+}
