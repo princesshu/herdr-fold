@@ -458,6 +458,15 @@ class Pictures(unittest.TestCase):
         self.assertIn("\x1b_Ga=d,", term.out)
         self.assertFalse(os.path.exists(picture.work))
 
+    def test_a_pdf_says_it_opens_before_its_pages_are_counted(self):
+        """Its first one compiles the PDF helper, for a few seconds: the pane says so meanwhile."""
+        term = Written(80, 24)
+        picture = pager.Picture(os.path.join(self.tmp, "a.pdf"), "a.pdf")
+        self.addCleanup(picture.close, term)
+        with mock.patch.object(pager.media, "pages", side_effect=lambda path: self.assertIn("Opening", term.out)) as n:
+            picture.draw(term)
+        n.assert_called_once()
+
     @unittest.skipUnless(sys.platform == "darwin" and shutil.which("swiftc"), "PDFKit and swiftc: macOS")
     def test_a_pdf_pages_with_the_pagers_keys(self):
         picture = pager.Picture(pdf(os.path.join(self.tmp, "three.pdf"), 3), "three.pdf")

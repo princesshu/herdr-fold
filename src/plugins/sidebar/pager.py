@@ -248,7 +248,8 @@ class Picture:
     def __init__(self, path, title):
         self.path, self.title, self.page, self.note = path, title, 0, None
         self.work = tempfile.mkdtemp(prefix="herdr-fold-picture.")
-        self.count = media.pages(path) if media.kind_of(path) == "pdf" else 1     # None: only the first page
+        self.pdf = media.kind_of(path) == "pdf"
+        self.count, self.counted = 1, not self.pdf   # a PDF's pages counted at its first draw; None: its first alone
 
     def shown(self):
         return self.page, self.note
@@ -256,17 +257,21 @@ class Picture:
     def status(self):
         if self.note:
             return self.note
-        where = f"  page {self.page + 1} of {self.count or '?'}" if media.kind_of(self.path) == "pdf" else ""
+        where = f"  page {self.page + 1} of {self.count or '?'}" if self.pdf else ""
         return f"{self.title}{where}  o: open in browser"
 
     def png(self, columns):
         width = min(2400, max(480, columns * CELL_PX))
-        if media.kind_of(self.path) == "pdf":
+        if self.pdf:
             return media.page_png(self.path, self.page, width, self.work)
         return media.as_png(self.path, self.work, width)
 
     def draw(self, term):
         columns, height = term.size()
+        if not self.counted:                         # the first PDF compiles the helper: a few seconds, said
+            term.write(f"\x1b[0m\x1b[2J\x1b[{height};1H\x1b[0;7m{visible(' Opening the PDF…', columns)}\x1b[K\x1b[0m")
+            term.flush()
+            self.count, self.counted = media.pages(self.path), True
         out = [GONE, "\x1b[0m\x1b[2J"]
         made = self.png(columns)
         shape = media.size(made) if made else None
