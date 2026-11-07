@@ -78,6 +78,17 @@ class View(unittest.TestCase):
         self.assertNotIn("line 0", self.shown())
         self.assertEqual(self.view.list.top, top)
 
+    def test_the_wheel_moves_the_message_while_it_is_selected(self):
+        """A drag holds the left button: the wheel then moves the message, wherever the mouse is."""
+        self.view.field.insert("\n".join(f"line {n}" for n in range(12)))
+        self.view.field.cursor = 0
+        self.draw()
+        self.view.handle(Mouse("press", *self.at("line 0"), 0))
+        self.view.handle(Mouse("wheel_down", *self.at("Graph"), 0))
+        self.draw()
+        self.assertIn("line 3", self.shown())
+        self.assertNotIn("line 0", self.shown())
+
     def test_the_repository_row_stands_above_the_message_as_vs_codes(self):
         """Its heading folds it; under it the repository's name, ⎇ its branch (* with changes), ↻ with how far it is
         from its upstream, and ⋯; nothing of it without a repository."""

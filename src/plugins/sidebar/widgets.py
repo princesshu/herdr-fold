@@ -202,12 +202,12 @@ class TextInput:
 
     def index_at(self, x, y):
         """The text's index at column X, row Y of the canvas where the field was last drawn: past a row's text its end,
-        above or below the field its nearest row."""
+        above or below the field the row next to it (a drag there scrolls, the rows following the cursor)."""
         if not self.place or not self.text:
             return len(self.text)
         row0, column0, cells, rows = self.place
         spans = wrap(self.text, cells)
-        row = self.top + min(max(y - row0, 0), rows - 1)
+        row = max(0, self.top + min(max(y - row0, -1), rows))
         if row >= len(spans):
             return len(self.text)
         start, end = spans[row]

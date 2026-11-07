@@ -167,6 +167,20 @@ class Text(unittest.TestCase):
         field.draw(canvas, 0, 0, 10, 3, focused=True)
         self.assertEqual(text(canvas, 0), "line 0")
 
+    def test_a_drag_past_the_field_scrolls_it(self):
+        # a selection longer than the field shows: each move above it reaches the row before, and the rows follow
+        field = TextInput(multiline=True)
+        field.insert("\n".join(f"line {n}" for n in range(8)))
+        field.cursor = len(field.text)
+        canvas = Canvas(10, 5)
+        field.draw(canvas, 1, 0, 10, 3, focused=True)             # rows 1 to 3: line 5 to line 7
+        field.press(0, 3, now=1.0)                                # the start of line 7
+        for _ in range(3):
+            field.drag(0, 0)                                      # above the field
+            field.draw(canvas, 1, 0, 10, 3, focused=True)
+        self.assertEqual(text(canvas, 1), "line 2")
+        self.assertEqual(field.selected(), "line 2\nline 3\nline 4\nline 5\nline 6\n")
+
     def test_a_message_put_in_shows_from_its_first_row(self):
         # a suggested message lands with the cursor at its end, but the field shows its subject first
         field = TextInput(multiline=True)

@@ -93,7 +93,8 @@ All notable changes to this project are listed here. The format follows
 - In the Herdr app mod, a changed file asked about before a discard keeps its name clear of the question: the name
   is cut short, and "Discard?", "Discard all?" and "Move to Trash?" stay whole.
 - The sidebar's commit message scrolls with the wheel: a message longer than the field (one Claude or Codex wrote)
-  shows its other rows, the cursor where it was, until a key moves it.
+  shows its other rows, the cursor where it was, until a key moves it. A selection goes on past the field's edge,
+  the rows following it, and the wheel moves the message while a drag selects.
 
 ### Security
 

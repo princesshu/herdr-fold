@@ -416,9 +416,9 @@ class Scm:
             self.field.drag(event.x, event.y)
         elif event.kind == "move":
             self.hover = (target if target[0] == "graph" else target[1]) if isinstance(target, tuple) else None
-        elif event.kind in ("wheel_up", "wheel_down"):                    # the message or the list under the mouse
+        elif event.kind in ("wheel_up", "wheel_down"):     # the message under the mouse or being selected, else a list
             step = 3 if event.kind == "wheel_down" else -3
-            if target == "input":
+            if target == "input" or self.selecting:
                 self.field.scroll(step)
             else:
                 (self.graph_list if isinstance(target, tuple) and target[0] == "graph" else self.list).scroll(step)
