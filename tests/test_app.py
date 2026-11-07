@@ -60,6 +60,17 @@ class Shape(unittest.TestCase):
             self.assertIn(json.load(f).get("place"), ("right", "left", "top", "bottom", "none"))
         self.assertTrue(os.path.isfile(os.path.join(MOD, "main.js")))
 
+    def test_the_folder_holds_what_the_catalog_lists(self):
+        """herdr.dev/layouts lists the folder by its RECIPE.md, in the parts and order the app's guide gives a recipe,
+        and its preview.png."""
+        with open(os.path.join(APP, "RECIPE.md"), encoding="utf-8") as f:
+            recipe = f.read()
+        self.assertEqual(re.findall(r"^#+ (.+)$", recipe, re.M),
+                         ["herdr-fold", "What you see", "How it behaves", "Built from", "Watch out", "Done when"])
+        self.assertIn("![herdr-fold](preview.png)", recipe)
+        with open(os.path.join(APP, "preview.png"), "rb") as f:
+            self.assertEqual(f.read(8), b"\x89PNG\r\n\x1a\n")
+
     def test_the_layouts_terminals_are_the_tuis_size(self):
         with open(os.path.join(APP, "layouts", "herdr-fold.json"), encoding="utf-8") as f:
             root = json.load(f)

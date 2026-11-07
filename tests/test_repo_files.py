@@ -41,11 +41,8 @@ class RepoFiles(unittest.TestCase):
         word = re.compile(r"(?<![A-Za-z])(?:" + "|".join(words + [w.capitalize() for w in words if w != "u" "s"])
                           + r")(?![A-Za-z])")
         found = []
-        for rel in publishable_files():
-            if rel.endswith(".webp"):                               # the media, the one kind of picture here
-                continue
-            with open(os.path.join(PACKAGE, rel), encoding="utf-8") as f:
-                found += [f"{rel}:{n}" for n, line in enumerate(f, 1) if word.search(line)]
+        for rel, data in text_files():
+            found += [f"{rel}:{n}" for n, line in enumerate(data.decode("utf-8").splitlines(), 1) if word.search(line)]
         self.assertEqual(found, [])
 
     def test_no_line_is_longer_than_120_characters(self):
@@ -193,11 +190,10 @@ class Comments(unittest.TestCase):
     def test_no_comment_is_longer_than_three_lines(self):
         """A longer explanation belongs in docs/."""
         long = []
-        for rel in publishable_files():
-            if rel.endswith((".md", ".webp")) or os.path.basename(rel) == "LICENSE":
+        for rel, data in text_files():
+            if rel.endswith(".md") or os.path.basename(rel) == "LICENSE":
                 continue
-            with open(os.path.join(PACKAGE, rel), encoding="utf-8-sig") as f:
-                text = f.read()
+            text = data.decode("utf-8-sig")
             long += [f"{rel}:{line} ({n} lines)" for line, n in self.blocks(rel, text) if n > self.MOST]
         self.assertEqual(long, [])
 

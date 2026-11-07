@@ -75,6 +75,7 @@ plugins of its own.
 | `app/themes/` | the TUI's themes as the app's, made by `tools/build.py` from `src/themes/themes.js`: `herdr-fold.json`, that layout's own (the package's, Catppuccin Mocha), and `herdr-fold-ID.json` for each of the TUI's, offered in the app's Settings for every layout |
 | `app/keys.json` | the keys, merged into the app's own: in that layout Cmd+Shift+G shows or hides herdr-fold, and Cmd+Shift+C has it write the message |
 | `app/tests/` | the mod's logic tested with Node (`logic.test.js`, `node --test` in `app/`); `tests/test_app.py` runs them, and the app's own check of the mod |
+| `app/RECIPE.md`, `app/preview.png` | the layout's entry in the app's catalog (herdr.dev/layouts, for a public repository with the `herdr-layout` topic): the brief an agent builds it from, in the parts and order the app's guide gives, and a picture of it from the demo; the installer copies neither |
 
 ### Remote machines
 
