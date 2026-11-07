@@ -176,8 +176,8 @@ export function fileIcon(name) {
   const named = BY_NAME.find(([, starts]) => starts.some((start) => lower.startsWith(start)));
   if (named) return named[0];
   /** @type {Record<string, string>} */
-  const byExtension = BY_EXTENSION;
-  return (dot > 0 ? byExtension[lower.slice(dot + 1)] : undefined) ?? FILE;
+  const byExtension = BY_EXTENSION, ext = dot > 0 ? lower.slice(dot + 1) : "";
+  return Object.hasOwn(byExtension, ext) ? byExtension[ext] : FILE;       // never an object's own property
 }
 
 /** A change's letter as the TUI sidebar shows git's CODE (an untracked file U, a conflict !). @param {string} code */
