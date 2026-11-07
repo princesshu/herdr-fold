@@ -479,6 +479,11 @@ class Pictures(unittest.TestCase):
         pager.redraw(view, term, drawn)
         self.assertEqual(widths, [60, 50])
 
+    def test_a_narrow_pane_leaves_the_key_hint_out_rather_than_cut(self):
+        status = "docs/pagination.pdf  page 1 of 3  o: open in browser"
+        self.assertEqual(pager.bar(status, 80).strip(), status)
+        self.assertEqual(pager.bar(status, 49).strip(), "docs/pagination.pdf  page 1 of 3")
+
     def test_a_tall_picture_is_made_big_enough_to_fill_the_panes_height(self):
         picture = pager.Picture(png(os.path.join(self.tmp, "tall.png"), 1000, 3000), "tall.png")
         self.addCleanup(picture.close, Written(46, 38))

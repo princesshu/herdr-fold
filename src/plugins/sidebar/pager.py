@@ -17,7 +17,7 @@ sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import media  # noqa: E402
 from preview import Herdr  # noqa: E402
-from screen import char_width  # noqa: E402
+from screen import char_width, width  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
 
 # any escape sequence: CSI, OSC (ended by BEL or ST, or by the line), DCS SOS PM APC (ended by ST), or ESC and one more
@@ -114,6 +114,16 @@ def shown(sgr):
     return f"\x1b[{';'.join(kept)}m" if kept else ""
 
 
+HINT = "  o: open in browser"  # a status row's last part, left out where the row has no room for it
+
+
+def bar(status, cells):
+    """STATUS as the pane's last row, CELLS wide: its key hint left out rather than cut where it does not fit."""
+    if status.endswith(HINT) and width(" " + status) > cells:
+        status = status[:-len(HINT)]
+    return visible(" " + status, cells)
+
+
 def visible(line, cells):
     """LINE cut to CELLS columns: its colors kept, every other escape sequence and control character dropped."""
     out, used, pos = [], 0, 0
@@ -151,7 +161,7 @@ class Pager:
             return "/" + self.typing
         if self.note:
             return self.note
-        hint = "  o: open in browser" if self.opens else ""
+        hint = HINT if self.opens else ""
         return f"{self.title}  {self.top + 1}-{min(len(self.lines), self.top + self.height)}/{len(self.lines)}{hint}"
 
     def draw(self, term):
@@ -163,7 +173,7 @@ class Pager:
             index = self.top + row
             text = visible(self.lines[index], cells) if index < len(self.lines) else "\x1b[2m~"
             out.append(f"\x1b[{row + 1};1H\x1b[0m{text}\x1b[0m\x1b[K")
-        out.append(f"\x1b[{height};1H\x1b[0;7m{visible(' ' + self.status(), cells)}\x1b[K\x1b[0m")
+        out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), cells)}\x1b[K\x1b[0m")
         term.write("".join(out))
         term.flush()
 
@@ -258,7 +268,7 @@ class Picture:
         if self.note:
             return self.note
         where = f"  page {self.page + 1} of {self.count or '?'}" if self.pdf else ""
-        return f"{self.title}{where}  o: open in browser"
+        return f"{self.title}{where}{HINT}"
 
     def png(self, columns, rows):
         """The picture as a PNG with the pixels COLUMNS x ROWS cells show: its longer side, the pane's height for a
@@ -283,7 +293,7 @@ class Picture:
                 out.append(f"\x1b[{row + 1};{column + 1}H" + kitty(f.read(), wide, tall))
         else:
             self.note = self.note or f"{self.title}: cannot be shown here  o: open in browser"
-        out.append(f"\x1b[{height};1H\x1b[0;7m{visible(' ' + self.status(), columns)}\x1b[K\x1b[0m")
+        out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns)}\x1b[K\x1b[0m")
         term.write("".join(out))
         term.flush()
 
