@@ -10,7 +10,7 @@ import { archiveKey, conversationChoices, conversationRows, coreAgents, floatHei
   tabLabel } from "./logic.js";
 import { Menus } from "./menus.js";
 import { field, icon, listHead, SLIDE, stateMark } from "./parts.js";
-import { dock, folded, followFold } from "./sidebar.js";
+import { dock, folded, followFold, openFloat } from "./sidebar.js";
 import { trackWaits } from "./spaces.js";
 
 const KEPT = "herdr-fold.conversations";      // the archived ones shown or not, and the reopened ones' terminals
@@ -234,6 +234,12 @@ export class ConversationsView {
   /** The Filter field taking the keys (Cmd+Shift+R, as the TUI's column). */
   focus() {
     this.find.focus();
+  }
+
+  /** Cmd+Shift+R: the filter given the keys; the sidebar folded, the Conversations floating beside its dock first. */
+  summon() {
+    if (this.folded) openFloat("conversations", null, floatHeight("conversations", this.rows()), "focus");
+    else this.focus();
   }
 
   render(t, cx) {

@@ -134,6 +134,7 @@ export default class HerdrFold extends View {
       if (panel === "conversations" || panel === "files") {
         const view = panel === "files" ? (this.files = new FilesView(python, cx))
           : (this.conversations = new ConversationsView(python, cx, overlay));
+        if (panel === "conversations" && props().then === "focus") this.conversations?.focus();    // Cmd+Shift+R's
         return void cx.spawn(async (cx) => {
           for (;;) view.menus.answer(await nextCommand(), cx);                    // its right click's choices
         });
@@ -145,7 +146,7 @@ export default class HerdrFold extends View {
         for (;;) {
           const asked = await nextCommand();
           if (this.conversations.menus.answer(asked, cx)) continue;
-          if (asked === "conversations") this.conversations.focus();
+          if (asked === "conversations") this.conversations.summon();
           else if (asked === "unread") markUnread();      // this block always shows: the key reaches it once
         }
       });

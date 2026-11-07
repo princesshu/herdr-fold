@@ -37,10 +37,11 @@ export function sidebarTrigger(t) {
 }
 
 /** PANEL ("spaces", "conversations") floating beside the folded rail, level with BOUNDS, as Adobe's collapsed panels
- * open: one at a time, in the other's place, HEIGHT as its content; dragged by its head, it stays where dropped (and
- * opens there next time) until its ×. @param {string} panel @param {any} bounds @param {number} height */
-function openFloat(panel, bounds, height) {
-  openOverlay({ mod: "herdr-fold", kind: "window", key: "herdr-fold.dock", props: { part: "float", panel, height },
+ * open: one at a time, in the other's place, HEIGHT as its content, THEN ("focus": its filter takes the keys); dragged
+ * by its head, it stays where dropped until its ×. @param {string} panel @param {any} bounds @param {number} height */
+export function openFloat(panel, bounds, height, then = undefined) {
+  const props = { part: "float", panel, height, then };
+  openOverlay({ mod: "herdr-fold", kind: "window", key: "herdr-fold.dock", props,
     at: { x: (sidebarPx(layout()) ?? 76) + 6, y: Math.max(8, bounds?.y ?? 8) }, width: FLOAT, height });
 }
 

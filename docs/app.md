@@ -133,7 +133,7 @@ lists them:
 
 | Part | What it does |
 |---|---|
-| Filter | the words a conversation's name, space or folder holds, `archived` for the archived ones; Cmd + Shift + R from anywhere gives it the keys, Enter opens the first one |
+| Filter | the words a conversation's name, space or folder holds, `archived` for the archived ones; Cmd + Shift + R from anywhere gives it the keys (the sidebar folded: floating beside its dock), Enter opens the first one |
 | A space | its most urgent agent's state mark, as the Spaces list has it, and its conversations, the active tab's first, then the newest; a click folds or opens it, the shown space open by itself |
 | A conversation | its state's mark in herdr's colors (a closed one's a faint dot), its name, its agent and how long ago it changed; a click goes to a running one, or reopens a closed one in a new tab of its space, its agent resuming it (`claude --resume`, `codex resume`) |
 | Its right click | Open, Copy conversation (all of it, as Markdown), Rename (in its row: Enter keeps it, as herdr's Rename pane names it) and, for a closed one, Archive or Unarchive; elsewhere in the list, Show or Hide archived |
