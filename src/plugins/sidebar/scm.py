@@ -15,6 +15,7 @@ MODES = {"commit": "Commit", "push": "Commit & Push", "sync": "Commit & Sync"}
 REMOTE = {"Pull": "pull", "Push": "push"}       # the repository row's ⋯, with Open on GitHub for a repository there
 MESSAGE_ROWS = 7              # the message field grows with its text up to this many rows (odd: see draw())
 SIDE = 5                      # the cells of the AI's button beside the message, and of the mode's under it
+BRANCH_LEAST = 4              # the cells the repository row's branch needs at least: ⎇, a letter and …
 
 
 @dataclass(frozen=True)
@@ -205,12 +206,15 @@ class Scm:
         end -= width(sync) + 2
         canvas.put(y, end, sync, Style(fg="accent" if self.working else "muted"))
         canvas.region(y, end - 1, end + width(sync) + 1, "sync")
-        branch = f"⎇ {status.branch or 'detached'}{'*' if status.staged or status.changes else ''}"
-        end -= width(branch) + 2
-        canvas.put(y, max(0, end), truncate(branch, max(1, cells - end)), Style(fg="muted"))
         x = 2 + len(after(self.icons))                    # under the heading's name, as a change's row
         x = canvas.put(y, x, marks["repo"] + after(self.icons), Style(fg="muted"))
-        canvas.put(y, x, truncate(os.path.basename(self.repo.rstrip(os.sep)), max(1, end - x - 1)), Style(fg="text"))
+        name = os.path.basename(self.repo.rstrip(os.sep))
+        room = end - 2 - (x + width(name) + 1)            # the branch's: what the name leaves before the sync
+        if room >= BRANCH_LEAST:
+            branch = truncate(f"⎇ {status.branch or 'detached'}{'*' if status.staged or status.changes else ''}", room)
+            end -= width(branch) + 2
+            canvas.put(y, end, branch, Style(fg="muted"))
+        canvas.put(y, x, truncate(name, max(1, end - x - 1)), Style(fg="text"))
         return y + air
 
     def side(self, canvas, top, rows, roomy):

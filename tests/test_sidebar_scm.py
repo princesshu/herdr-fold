@@ -106,6 +106,23 @@ class View(unittest.TestCase):
         self.draw()
         self.assertNotIn("lumen-api", self.shown())
 
+    def test_a_long_branch_is_cut_between_the_name_and_the_sync(self):
+        """In a narrow pane the branch gives way: the name starts the row, ↻ and ⋯ stay whole at its end, ⋯ its menu."""
+        self.view.repo = "/work/lumen-api"
+        self.status = Status(branch="claude/issue-42-pagination-empty-page", upstream="origin/main", ahead=1)
+        for cells in (36, 24):
+            self.draw(width=cells)
+            row = text(self.canvas, 1).split()
+            self.assertEqual(row[0], "▣", (cells, row))
+            self.assertTrue("lumen-api".startswith(row[1].rstrip("…")), (cells, row))
+            self.assertEqual(row[-4:], ["↻", "0↓", "1↑", "⋯"], (cells, row))
+        self.assertIn("…", text(self.canvas, 1))                               # at 24, the branch cut or gone
+        self.draw(width=36)
+        self.assertEqual(text(self.canvas, 1).split()[1:3], ["lumen-api", "⎇"])     # the name whole, the branch cut
+        self.click("⋯")
+        self.draw(width=36)
+        self.assertEqual(self.view.menu.choices[:2], ["Pull", "Push"])
+
     def test_the_repository_rows_menu_pulls_pushes_and_opens_its_page(self):
         self.view.repo, self.view.github = "/work/lumen-api", "acme/lumen-api"
         self.draw()
