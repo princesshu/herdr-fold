@@ -131,6 +131,13 @@ class Column(unittest.TestCase):
         # w2 (200 cells): its right column kept (40), the Conversations column 53, the agent 107
         self.assertEqual(self.sets(), [("w2:t1", [], 0.535), ("w2:t1", [True], 0.5699)])
 
+    def test_a_new_tab_takes_the_columns_of_the_tab_it_came_from(self):
+        """A preview tab gets its columns to the cell before anything in them starts: nothing moves once they draw."""
+        self.herdr(tab_with(1, 0.55, 0.3), **{"w2:t1": tab_with(2, 0.7, 0.5)})
+        self.assertTrue(column.copy("w1:p2", "w2:p2"))
+        self.assertEqual(column.cells(column.read("w2:p2")), column.cells(column.read("w1:p2")))
+        self.assertFalse(column.copy("w1:p2", "w2:p2"))                    # as wide already: nothing set
+
     def test_the_right_column_stays_exact_where_herdr_stops_a_narrow_rail(self):
         self.herdr(tab_with(1, 0.5, 0.5))
         self.assertTrue(column.arrange(column.read("w1:p4"), right=0.25, conversations=0.01))

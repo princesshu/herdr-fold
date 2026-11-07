@@ -10,14 +10,16 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
 
-from support import SRC, FakeTerminal, end_child, finished, logged, set_env, sign_head, stubs, trap
+from support import SRC, FakeTerminal, end_child, finished, logged, set_attrs, set_env, sign_head, stubs, trap
 from test_core_media import pdf, png
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
+import media  # noqa: E402
 import pager  # noqa: E402
 import preview  # noqa: E402
 from vt import Key  # noqa: E402
@@ -235,7 +237,7 @@ class Tabs(unittest.TestCase):
         calls, path = logged(self.log), preview.spec_file(self.tmp, "w1")
         self.assertIn(f"tab create --workspace w1 --cwd /repo --label preview: a.py --env HERDR_FOLD_PYTHON="
                       f"{sys.executable} --env HERDR_FOLD_PAGER={preview.PAGER} --env HERDR_FOLD_SPEC_FILE={path} "
-                      "--focus", calls)
+                      "--no-focus", calls)
         rename, run = calls.index("pane rename w1:p9 preview"), calls.index('pane run w1:p9 "$HERDR_FOLD_PYTHON" -B '
                                                                              '"$HERDR_FOLD_PAGER" && exit')
         self.assertEqual(len(self.laid), 1)
@@ -244,6 +246,38 @@ class Tabs(unittest.TestCase):
         self.assertTrue(rename < at <= run, calls)                    # named (tab-layout leaves it), laid out, run
         self.assertEqual(calls[-1], "tab close w1:t2")
         self.assertNotIn("tab close w1:t1", calls)
+
+    def seeded(self, **taken):
+        """The layout a sidebar's open_preview gives: a seed for each kind of pane TAKEN names, which takes it (removes
+        it) that many seconds on (None: never), noted in the log."""
+        def lay_out(tab):
+            for kind, after in taken.items():
+                path = preview.seed_file(self.tmp, tab, kind)
+                with open(path, "w") as f:
+                    f.write("{}")
+
+                def take(path=path, kind=kind):
+                    os.remove(path)
+                    with open(self.log, "a") as f:
+                        f.write(f"{kind} took its seed\n")
+                if after is not None:
+                    threading.Timer(after, take).start()
+        return lay_out
+
+    def test_a_new_tab_comes_to_the_front_once_its_column_has_started(self):
+        """Made in the background, laid out, its pager run, shown once its sidebar and Conversations column have
+        started (each takes its seed just before it first draws): no half-drawn tab, no shell's prompt, on screen."""
+        preview.open_preview(self.herdr, "w1", "/repo", SPEC, self.tmp, self.seeded(sidebar=0.2, conversations=0.4),
+                             "w1:t1")
+        calls = logged(self.log)
+        self.assertLess(calls.index("conversations took its seed"), calls.index("tab focus w1:t3"), calls)
+        self.assertLess(next(n for n, call in enumerate(calls) if call.startswith("pane run w1:p9")),
+                        calls.index("sidebar took its seed"))
+
+    def test_a_column_that_never_starts_lets_the_tab_show_all_the_same(self):
+        set_attrs(self, preview, READY=0.3)
+        preview.open_preview(self.herdr, "w1", "/repo", SPEC, self.tmp, self.seeded(sidebar=None), "w1:t1")
+        self.assertIn("tab focus w1:t3", logged(self.log))
 
     def test_the_asking_panes_own_tab_closes_last(self):
         # a sidebar in the old preview tab asks: closing that tab ends it, so nothing may come after
@@ -287,8 +321,9 @@ class Tabs(unittest.TestCase):
         preview.open_tab(self.herdr, "w1", "/repo", "issue: new", preview.Launch("gh issue create", {}))
         calls = logged(self.log)
         self.assertFalse([call for call in calls if call.startswith("tab close")])
-        self.assertIn("tab create --workspace w1 --cwd /repo --label issue: new --focus", calls)
-        self.assertEqual(calls[-2:], ["pane rename w1:p9 issue", "pane run w1:p9 gh issue create"])
+        self.assertIn("tab create --workspace w1 --cwd /repo --label issue: new --no-focus", calls)
+        self.assertEqual(calls[1:3], ["pane rename w1:p9 issue", "pane run w1:p9 gh issue create"])
+        self.assertEqual(calls[-1], "tab focus w1:t3")
 
     def test_a_failing_herdr_is_an_error(self):
         with self.assertRaises(RuntimeError):
@@ -425,6 +460,11 @@ class Pictures(unittest.TestCase):
         self.assertEqual(pager.fit(80, 23, 4000, 2000), (2, 0, 80, None))          # as wide as the pane
         self.assertEqual(pager.fit(80, 23, 1000, 4000), (0, 34, None, 23))         # as tall as it
         self.assertEqual(pager.fit(80, 23, 160, 80), (10, 35, 10, None))           # a small one at its own size
+
+    def test_a_tall_picture_is_made_big_enough_to_fill_the_panes_height(self):
+        picture = pager.Picture(png(os.path.join(self.tmp, "tall.png"), 1000, 3000), "tall.png")
+        self.addCleanup(picture.close, Written(46, 38))
+        self.assertGreaterEqual(media.size(picture.png(46, 37))[1], round(37 * pager.CELL_PX * pager.CELL))
 
     def test_an_image_goes_out_in_chunks_with_its_place(self):
         shot = png(os.path.join(self.tmp, "shot.png"), 400, 300)

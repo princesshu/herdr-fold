@@ -120,6 +120,23 @@ class ConversationsApp(Loop):
         self.view.set(seen["found"], seen["order"], lambda folder: names.get(self.folders.get(folder)),
                       names.get(self.here))
 
+    def resume(self):
+        """Folded or open as the other tabs' column, its width with it, before it first draws; in a new preview tab, its
+        seed taken then: the tab is shown once it is."""
+        super().resume()
+        self.view.collapsed = conversations_pane.is_collapsed(self.state_dir)
+        self.fit()
+        try:
+            if not any(name.startswith("seed-") for name in os.listdir(self.state_dir)):
+                return
+        except OSError:
+            return
+        tab = preview.this_tab(self.herdr)
+        try:
+            os.remove(preview.seed_file(self.state_dir, tab, conversations_pane.NAME) if tab else "")
+        except OSError:
+            pass
+
     def left(self):
         return {"typed": self.view.typed, "opened": sorted(self.view.opened), "closed": sorted(self.view.closed)}
 

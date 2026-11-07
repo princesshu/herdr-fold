@@ -231,6 +231,15 @@ def read(pane):
     return tab
 
 
+def copy(source, target):
+    """TARGET's tab's columns as wide as SOURCE's, to the cell (a new preview tab's, before anything in it starts);
+    whether anything was set."""
+    mine, theirs = read(source), read(target)
+    if not mine or not theirs or (mine.inner is None) != (theirs.inner is None):
+        return False
+    return arrange(theirs, right=mine.right, conversations=mine.conversations)
+
+
 def cells(tab):
     """TAB's (left, Conversations column, right column) in cells."""
     right, mine = round(tab.right * tab.cells), round(tab.conversations * tab.cells)

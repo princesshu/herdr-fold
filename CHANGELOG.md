@@ -96,6 +96,9 @@ All notable changes to this project are listed here. The format follows
   number of rows, up to seven, a message of two lines with an empty third.
 - In the Herdr app mod, a changed file asked about before a discard keeps its name clear of the question: the name
   is cut short, and "Discard?", "Discard all?" and "Move to Trash?" stay whole.
+- A preview tab opens as the tab it came from: its columns as wide to the cell, a folded Conversations column folded
+  from the start, and it shows once its sidebar and Conversations column have started, with no shell's prompt or
+  empty column for a moment.
 - The sidebar's commit message scrolls with the wheel: a message longer than the field (one Claude or Codex wrote)
   shows its other rows, the cursor where it was, until a key moves it. A selection goes on past the field's edge,
   the rows following it, and the wheel moves the message while a drag selects.

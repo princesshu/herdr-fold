@@ -271,7 +271,7 @@ class App(Loop):
                 return
         except OSError:
             return
-        tab = self.own_tab()
+        tab = preview.this_tab(self.herdr)
         path = preview.seed_file(self.state_dir, tab) if tab else None
         try:
             with open(path, encoding="utf-8") as f:
@@ -499,24 +499,22 @@ class App(Loop):
         seed = {key: value for key, value in self.left().items() if key != "message"}
 
         def work():
-            here = self.own_tab()
+            here = preview.this_tab(self.herdr)
 
             def lay_out(tab):
                 kinds = panels.present(self.herdr.call("pane", "list").get("panes") or []).get(here)
                 statefile.write(preview.seed_file(self.state_dir, tab), seed)
+                if conversations_pane.NAME in (kinds or panels.KINDS):    # it starts there too: the tab waits for it
+                    statefile.write(preview.seed_file(self.state_dir, tab, conversations_pane.NAME), {})
                 conversations_pane.bring(self.herdr.call, tab, kinds or set(panels.KINDS), self.state_dir)
+                made = next((p.get("pane_id") for p in self.herdr.call("pane", "list").get("panes") or []
+                             if p.get("tab_id") == tab and p.get("label") == column.SIDEBAR), None)
+                if made:                                    # this tab's widths, before anything there draws
+                    column.copy(os.environ.get("HERDR_PANE_ID"), made)
 
             preview.open_preview(self.herdr, workspace, cwd, spec, self.state_dir, lay_out, here)
 
         self.job("preview", work)
-
-    def own_tab(self):
-        """The tab this sidebar is in (None outside herdr): a call to herdr, for a job's thread."""
-        pane = os.environ.get("HERDR_PANE_ID")
-        try:
-            return self.herdr.call("pane", "get", pane)["pane"]["tab_id"] if pane else None
-        except (RuntimeError, KeyError, TypeError):
-            return None
 
     def open_tab(self, label, argv):
         """ARGV with the keyboard in a tab of its own (gh's prompts for a new issue or a comment)."""

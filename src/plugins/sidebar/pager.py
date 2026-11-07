@@ -260,11 +260,13 @@ class Picture:
         where = f"  page {self.page + 1} of {self.count or '?'}" if self.pdf else ""
         return f"{self.title}{where}  o: open in browser"
 
-    def png(self, columns):
+    def png(self, columns, rows):
+        """The picture as a PNG with the pixels COLUMNS x ROWS cells show: its longer side, the pane's height for a
+        tall one."""
         width = min(2400, max(480, columns * CELL_PX))
         if self.pdf:
             return media.page_png(self.path, self.page, width, self.work)
-        return media.as_png(self.path, self.work, width)
+        return media.as_png(self.path, self.work, min(2400, max(width, round(rows * CELL_PX * CELL))))
 
     def draw(self, term):
         columns, height = term.size()
@@ -273,7 +275,7 @@ class Picture:
             term.flush()
             self.count, self.counted = media.pages(self.path), True
         out = [GONE, "\x1b[0m\x1b[2J"]
-        made = self.png(columns)
+        made = self.png(columns, max(1, height - 1))
         shape = media.size(made) if made else None
         if shape:
             row, column, wide, tall = fit(columns, max(1, height - 1), *shape)

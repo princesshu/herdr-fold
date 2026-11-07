@@ -35,6 +35,7 @@ case "$1 $2" in
   "pane list") echo '{"result": {"panes": [{"pane_id": "w1:p1", "workspace_id": "w1", "cwd": "/repo/app"}]}}' ;;
   "tab create") echo '{"result": {"tab": {"tab_id": "w1:t3"}, "root_pane": {"pane_id": "w1:p9"}}}' ;;
   "tab get") echo '{"result": {"tab": {"tab_id": "w1:t1", "number": 2, "label": "2"}}}' ;;
+  "pane get") echo '{"result": {"pane": {"pane_id": "w1:p1", "tab_id": "w1:t1"}}}' ;;
   "pane split") echo '{"result": {"pane": {"pane_id": "w1:p10"}}}' ;;
   *) echo '{"result": {}}' ;;
 esac
@@ -80,6 +81,21 @@ class Column(AppScreen, unittest.TestCase):
                 return calls[starts[0]:]
             time.sleep(0.05)
         self.fail(f"no {first} call: {logged(self.log)}")
+
+    def test_a_folded_column_is_a_rail_from_its_first_frame_and_takes_its_seed(self):
+        """In a new preview tab it starts folded as the other tabs' column, before it first draws, and takes its seed
+        (preview.seed_file): the tab is shown once its panes have."""
+        os.makedirs(self.state)
+        with open(os.path.join(self.state, conversations.SETTINGS), "w") as f:
+            json.dump({"collapsed": True}, f)
+        seed = preview.seed_file(self.state, "w1:t1", "conversations")
+        with open(seed, "w") as f:
+            f.write("{}")
+        set_env(self, HERDR_PANE_ID="w1:p1")
+        app = ConversationsApp(FakeTerminal(40, 24), preview.Herdr(), self.state)
+        app.resume()
+        self.assertTrue(app.view.collapsed)
+        self.assertFalse(os.path.exists(seed))
 
     def test_the_spaces_in_their_order_their_conversations_under_them(self):
         self.start()

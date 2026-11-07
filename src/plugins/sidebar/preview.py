@@ -8,6 +8,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 
 import media
@@ -16,6 +17,7 @@ import statefile
 PAGER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pager.py")
 LABEL = "preview: "
 PANE = "preview"              # the preview tab's pane the pager runs in
+READY = 1.5                   # seconds a new tab's sidebar may take to start before the tab is shown all the same
 
 
 class Herdr:
@@ -118,9 +120,29 @@ def command(path, windows=os.name == "nt"):
     return Launch('"$HERDR_FOLD_PYTHON" -B "$HERDR_FOLD_PAGER" && exit', env)
 
 
-def seed_file(state_dir, tab):
-    """Where a new preview TAB's sidebar finds where to be: where the sidebar that opened it was, or the file shown."""
-    return os.path.join(state_dir, "seed-" + "".join(ch if ch.isalnum() else "-" for ch in tab) + ".json")
+def seed_file(state_dir, tab, kind="sidebar"):
+    """Where a new preview TAB's pane of KIND finds what it starts with (the sidebar: where the one that opened it was),
+    taken just before it first draws: the tab is shown once every one is (seeded())."""
+    name = "".join(ch if ch.isalnum() else "-" for ch in tab)
+    return os.path.join(state_dir, f"seed-{name}.json" if kind == "sidebar" else f"seed-{name}-{kind}.json")
+
+
+def seeded(state_dir, tab):
+    """Whether TAB's panes have all taken their seeds."""
+    name = os.path.basename(seed_file(state_dir, tab))[:-len(".json")]
+    try:
+        return not any(found == f"{name}.json" or found.startswith(f"{name}-") for found in os.listdir(state_dir))
+    except OSError:
+        return True
+
+
+def this_tab(herdr):
+    """The tab of the pane this runs in (None outside herdr): a call to herdr."""
+    pane = os.environ.get("HERDR_PANE_ID")
+    try:
+        return herdr.call("pane", "get", pane)["pane"]["tab_id"] if pane else None
+    except (RuntimeError, KeyError, TypeError):
+        return None
 
 
 def open_preview(herdr, workspace, root, spec, state_dir, lay_out=None, here=None):
@@ -150,7 +172,8 @@ def open_preview(herdr, workspace, root, spec, state_dir, lay_out=None, here=Non
             lay_out(tab)
 
     try:
-        open_tab(herdr, workspace, root, name, command(path), PANE, laid)
+        open_tab(herdr, workspace, root, name, command(path), PANE, laid,
+                 lambda: not made or seeded(state_dir, made[0]))
     finally:
         for tab in sorted(stale, key=lambda tab: tab == here) if made else ():   # only once a new one is there
             herdr.call("tab", "close", tab)
@@ -172,16 +195,21 @@ def label(text):
     return "".join(ch for ch in text if ch.isprintable()).lstrip("- ")
 
 
-def open_tab(herdr, workspace, root, name, launch, pane_name="issue", lay_out=None):
-    """A new tab in ROOT labeled NAME, LAUNCH running in it once LAY_OUT(tab) has laid it out; other tabs stay. Its pane
-    is named first: a layout plugin (herdr-fold's tab-layout) leaves a new tab alone once its pane has a name."""
+def open_tab(herdr, workspace, root, name, launch, pane_name="issue", lay_out=None, ready=lambda: True):
+    """A new tab in ROOT labeled NAME, LAUNCH running in it once LAY_OUT(tab) has laid it out, shown once READY() says
+    what started there draws; other tabs stay. Its pane is named first: a layout plugin (herdr-fold's tab-layout)
+    leaves a new tab alone once its pane has a name."""
     env = [arg for key, value in launch.env.items() for arg in ("--env", f"{key}={value}")]
     created = herdr.call("tab", "create", "--workspace", workspace, "--cwd", root, "--label", label(name), *env,
-                         "--focus")
-    pane = created["root_pane"]["pane_id"]
+                         "--no-focus")
+    pane, tab = created["root_pane"]["pane_id"], created["tab"]["tab_id"]
     herdr.call("pane", "rename", pane, pane_name)
     try:
         if lay_out:
-            lay_out(created["tab"]["tab_id"])
+            lay_out(tab)
     finally:
         herdr.call("pane", "run", pane, launch.line)
+        end = time.monotonic() + READY                 # no half-drawn tab, no column starting empty, on screen
+        while not ready() and time.monotonic() < end:
+            time.sleep(0.05)
+        herdr.call("tab", "focus", tab)
