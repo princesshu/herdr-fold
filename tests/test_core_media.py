@@ -253,6 +253,21 @@ class ForTheApp(unittest.TestCase):
         with mock.patch.object(media, "run", return_value=None):              # no drawing would work now
             self.assertEqual(media.drawn_png(page, 300, self.tmp), first)
 
+    def test_a_picture_an_earlier_helper_drew_is_drawn_again(self):
+        """A newer herdr-fold may draw it otherwise (an SVG at its own size): the one it drew before is not taken."""
+        page = os.path.join(self.tmp, "index.html")
+        with open(page, "w", encoding="utf-8") as f:
+            f.write("<h1>Pagination</h1>\n")
+
+        def drew(argv, timeout, **_):
+            png(argv[3], 10, 10)
+            return subprocess.CompletedProcess(argv, 0)
+        with mock.patch.object(media, "helper", return_value="/usr/bin/true"), \
+                mock.patch.object(media, "run", side_effect=drew):
+            first = media.drawn_png(page, 300, self.tmp)
+            with mock.patch.dict(media.HELPERS, {"page-shot": media.HELPERS["page-shot"] + "\n"}):
+                self.assertNotEqual(media.drawn_png(page, 300, self.tmp), first)
+
     @unittest.skipUnless(MAC and shutil.which("swiftc"), "WebKit and swiftc: macOS")
     def test_drawing_a_page_reaches_nothing_on_the_network(self):
         """A page in a repository may name a picture, a style, a font or a frame far away, to learn who opened it:

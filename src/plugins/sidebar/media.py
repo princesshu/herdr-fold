@@ -185,7 +185,7 @@ def as_png(path, folder, side):
 def drawn_png(path, width, folder):
     """An SVG or a page as WebKit draws it, offline and none of its scripts run, WIDTH pixels wide at most, made in
     FOLDER (kept for its version); an SVG through sips without it; None where it cannot be."""
-    made = os.path.join(folder, f"{named(path)}-drawn-{width}.png")
+    made = os.path.join(folder, f"{named(path)}-drawn-{width}-{revision('page-shot')}.png")     # a newer helper's anew
     if size(made):
         return made
     tool = helper("page-shot")
@@ -208,10 +208,15 @@ def cache():
                         "herdr-fold")
 
 
+def revision(kind):
+    """The KIND helper's source, by its hash: a newer herdr-fold's is another."""
+    return hashlib.sha256(HELPERS[kind].encode()).hexdigest()[:12]
+
+
 def helper(kind):
     """The KIND helper (macOS), compiled by swiftc into the cache once for its source (an earlier one removed), or
     None."""
-    name = f"{kind}-{hashlib.sha256(HELPERS[kind].encode()).hexdigest()[:12]}"
+    name = f"{kind}-{revision(kind)}"
     folder, made = cache(), os.path.join(cache(), name)
     if os.access(made, os.X_OK):
         return made
