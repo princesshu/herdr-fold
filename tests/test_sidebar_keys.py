@@ -97,10 +97,11 @@ def run(keys):
     pid, fd = pty.fork()
     if pid == 0:
         os.execv(sys.executable, [sys.executable, "-c", PROGRAM % os.path.join(SRC, "plugins", "sidebar")])
-    out, deadline = b"", time.monotonic() + 10
-    time.sleep(0.6)
-    os.write(fd, keys)
+    out, deadline, typed = b"", time.monotonic() + 10, False
     while time.monotonic() < deadline:
+        if not typed and b"WOKE" in out:            # in its key loop: typed sooner, the wake's read takes them
+            os.write(fd, keys)
+            typed = True
         if select.select([fd], [], [], 0.2)[0]:
             try:
                 chunk = os.read(fd, 65536)

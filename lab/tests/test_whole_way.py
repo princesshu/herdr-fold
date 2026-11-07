@@ -1,6 +1,6 @@
-"""The whole remote way on the lab's machine: install.sh in a home of its own connects it to herdr (the TUI) and to the
-Herdr app's core, where the mod commits, pushes and starts the tab's terminal; the TUI's sidebar draws there too; then
-uninstall.sh takes the app's part off. Run by python3 lab/lab.py test; nothing of the person's own is used."""
+"""The whole remote way on the lab's machine: install.sh connects it to herdr (the TUI) and the Herdr app's core, where
+the mod commits and pushes; the sidebar draws there; uninstall.sh takes each part off. Each part alone and an update
+from the last release, in homes of their own. Run by python3 lab/lab.py test; nothing of the person's own is used."""
 import json
 import os
 import shlex
@@ -21,6 +21,9 @@ import lab  # noqa: E402
 import walk  # noqa: E402
 from support import copy_package, run_in_terminal, stubs  # noqa: E402
 
+# what of herdr-fold's a home keeps after the last part goes: the machine list (written by its person), and the lab's
+# own core session
+KEPT = (".config/herdr-fold", ".config/herdr-fold/machines.txt")
 # stand-ins on this Mac: no GitHub sign-in, browser, Tailscale network or Codex; a Claude that answers one message
 FAKES = {"gh": "#!/bin/sh\nexit 1\n", "open": "#!/bin/sh\nexit 0\n", "defaults": "#!/bin/sh\nexit 1\n",
          "tailscale": "#!/bin/sh\nexit 1\n", "codex": None, "pgrep": "#!/bin/sh\nexit 1\n",
@@ -156,8 +159,32 @@ class WholeWay(unittest.TestCase):
             window.kill()
             window.wait()
 
-    def run_here(self, *argv):
-        return subprocess.run(argv, env=self.env, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=600)
+    def run_here(self, *argv, **switches):
+        return subprocess.run(argv, env={**self.env, **switches}, capture_output=True, text=True,
+                              stdin=subprocess.DEVNULL, timeout=600)
+
+    def script(self, name, package=None, **switches):
+        """The package's install.sh or uninstall.sh run with SWITCHES (HERDR_FOLD_PARTS…), every answer the default."""
+        out = self.run_here("/bin/bash", os.path.join(package or self.package, name), **switches)
+        self.assertEqual(out.returncode, 0, out.stdout[-3000:] + out.stderr[-2000:])
+        return out.stdout
+
+    def left(self):
+        """What of herdr-fold's the home holds, but KEPT: a path naming herdr-fold, the lab's core session aside."""
+        found = []
+        for folder, dirs, files in os.walk(self.home):
+            for name in dirs + files:
+                rel = os.path.relpath(os.path.join(folder, name), self.home)
+                if "herdr-fold" in rel and "herdr-fold-lab" not in rel and rel not in KEPT:
+                    found.append(rel)
+        return sorted(found)
+
+    def at(self, rel):
+        return os.path.exists(os.path.join(self.home, rel))
+
+    def herdr_plugins(self):
+        listed = json.loads(self.run_here("herdr", "plugin", "list", "--json").stdout or "{}")
+        return [plugin.get("plugin_id") for plugin in listed.get("result", {}).get("plugins", [])]
 
     def wait_for(self, condition, what, seconds=60):
         deadline = time.monotonic() + seconds
@@ -209,20 +236,75 @@ class WholeWay(unittest.TestCase):
             # the new workspace's (the installer laid out one in the machine's home before)
             sidebar = next(pane["pane_id"] for pane in panes if pane.get("label") == "sidebar" and pane["cwd"] == root)
             deadline, shown = time.monotonic() + 60, ""
-            while "↻" not in shown and time.monotonic() < deadline:     # its status bar, in the repository: narrow too
+            while "a.txt" not in shown and time.monotonic() < deadline:     # Files: the repository read there
                 read = self.run_here("herdr", "--machine", "lab", "pane", "read", sidebar)
                 shown = read.stdout + read.stderr
                 time.sleep(1)
-            self.assertIn("↻", shown, shown[-3000:])
+            self.assertIn("a.txt", shown, shown[-3000:])
         with self.subTest("the Herdr app's window: its mod writes, commits and syncs a change on the machine"):
             if not lab.on_githubs_runner():
                 self.skipTest("the app's window opens on a GitHub runner only, never on this Mac's screen")
             self.in_the_app_window(root)
-        with self.subTest("uninstall.sh takes the app's part off"):
-            out = self.run_here("/bin/bash", os.path.join(self.package, "uninstall.sh"))
-            self.assertEqual(out.returncode, 0, out.stdout[-2000:] + out.stderr[-2000:])
-            self.assertFalse(os.path.exists(os.path.join(self.home, ".config", "herdr-app", "mods", "herdr-fold")))
+        with self.subTest("uninstall.sh takes the TUI's part off, the app keeps its own and the machine"):
+            self.script("uninstall.sh", HERDR_FOLD_PARTS="tui")
+            self.assertFalse(self.at(".config/ghostty/config"))
+            self.assertNotIn("herdr-fold.sidebar", self.herdr_plugins())
+            self.assertTrue(self.at(".config/herdr-app/mods/herdr-fold/main.js"))
+            self.assertIn("lab", self.run_here("herdr-core", "machine", "ls", "--json").stdout)
+        with self.subTest("then the app's, and nothing of herdr-fold's is left but the machine list"):
+            self.script("uninstall.sh", HERDR_FOLD_PARTS="app")
             self.assertNotIn("lab", self.run_here("herdr-core", "machine", "ls", "--json").stdout)
+            self.assertEqual(self.left(), [])
+
+    def test_the_tui_alone(self):
+        """herdr's TUI alone: Ghostty's and herdr's settings, herdr-fold's plugins, nothing in the Herdr app."""
+        self.script("install.sh", HERDR_FOLD_PARTS="tui", HERDR_FOLD_NO_MACHINES="1")
+        self.assertTrue(self.at(".config/ghostty/config"))
+        self.assertIn("herdr-fold.sidebar", self.herdr_plugins())
+        self.assertFalse(self.at(".config/herdr-app/mods/herdr-fold"))
+        self.script("uninstall.sh")
+        self.assertEqual(self.left(), [])
+
+    def test_the_app_alone(self):
+        """The Herdr app alone: its mod, layout and keys, nothing of the TUI's, no herdr plugin."""
+        self.script("install.sh", HERDR_FOLD_PARTS="app", HERDR_FOLD_NO_MACHINES="1")
+        self.assertTrue(self.at(".config/herdr-app/mods/herdr-fold/main.js"))
+        self.assertFalse(self.at(".config/ghostty/config") or self.at(".config/herdr/config.toml"))
+        self.assertFalse([plugin for plugin in self.herdr_plugins() if plugin.startswith("herdr-fold")])
+        self.script("uninstall.sh")
+        self.assertEqual(self.left(), [])
+
+    def test_an_update_from_the_last_release(self):
+        """The last release (main) installed as its own installer does, then this version over it as a person
+        updates (Enter to every question): nothing left that this version does not put there, nothing after it goes."""
+        released = os.path.join(self.tmp, "released")
+        os.makedirs(released)
+        ref = "origin/main"
+        known = subprocess.run(["git", "-C", PACKAGE, "rev-parse", "--verify", "--quiet", ref], capture_output=True)
+        if known.returncode:
+            # a runner's checkout has this branch alone, and only its last commit: a fetch there makes no clone shallow
+            fetched = subprocess.run(["git", "-C", PACKAGE, "fetch", "--depth", "1", "origin", "main"],
+                                     capture_output=True, text=True, timeout=300)
+            self.assertEqual(fetched.returncode, 0, fetched.stderr)
+            ref = "FETCH_HEAD"
+        archive = subprocess.run(["git", "-C", PACKAGE, "archive", ref], capture_output=True, timeout=300)
+        self.assertEqual(archive.returncode, 0, archive.stderr)
+        subprocess.run(["tar", "-x", "-C", released], input=archive.stdout, check=True)
+        self.script("install.sh", released, HERDR_FOLD_NO_MACHINES="1")
+        env = {key: value for key, value in self.env.items() if key != "HERDR_FOLD_YES"}
+        shown, ended = run_in_terminal(["/bin/bash", os.path.join(self.package, "install.sh")],
+                                       {**env, "HERDR_FOLD_NO_MACHINES": "1"}, lambda line: "", timeout=1500)
+        self.assertTrue(ended, shown[-3000:])
+        with open(os.path.join(self.home, ".local", "state", "herdr-fold", "installed.txt")) as f:
+            recorded = set(f.read().split())
+        fold = os.path.join(self.home, ".config", "herdr-fold")
+        own = {"machines.txt", "statusline.json", "setup-folder", "private-words.txt"}       # this Mac's, not files
+        stale = [rel for rel in (os.path.relpath(os.path.join(folder, name), self.home)
+                                 for folder, _dirs, files in os.walk(fold) for name in files)
+                 if rel not in recorded and os.path.basename(rel) not in own and "__pycache__" not in rel]
+        self.assertEqual(stale, [], shown[-3000:])
+        self.script("uninstall.sh")
+        self.assertEqual(self.left(), [])
 
 
 if __name__ == "__main__":
