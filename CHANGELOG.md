@@ -15,8 +15,9 @@ All notable changes to this project are listed here. The format follows
   [Installation](docs/installation.md#the-tui-the-herdr-app-or-both).
 - One theme for both parts: the installer and the TUI's theme picker set herdr-fold's layout in the Herdr app too, and
   a running app switches at once; an update keeps the theme there is. See [Themes](docs/themes.md).
-- An image or a PDF chosen in Files is drawn in the preview tab, fitted to it and never larger than it is, a PDF page by
-  page: in the sidebar (Ghostty shows pictures in herdr; ↑ ↓ turn the pages) and in the Herdr app mod (Previous, Next).
+- An image or a PDF chosen in Files is drawn in the preview tab, an image fitted to it and never larger than it is, a
+  PDF's pages one under another, a gap apart, scrolled: in the sidebar (Ghostty shows pictures in herdr; the wheel,
+  ↑ ↓, Space, `g` `G`) and in the Herdr app mod, its page in view above them.
   A page, a PDF or an image opens in the default browser from Files' right click, or `o` and a button in the preview
   tab. See [The sidebar](docs/sidebar.md) and [The Herdr app](docs/app.md#the-preview-tab).
 - An SVG or an HTML page chosen in Files shows its code and its picture side by side in the preview tab: in the

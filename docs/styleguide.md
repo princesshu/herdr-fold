@@ -150,7 +150,7 @@ green; without one, the accent. Closing or reopening asks on the row first.
 
 ### The preview tab
 
-![The preview tab with a diff, a commit, loading, an error, a PDF's page, and a page's code and picture side by side,
+![The preview tab with a diff, a commit, loading, an error, a PDF scrolled, and a page's code and picture side by side,
 its code alone and its picture alone](../assets/styleguide/preview.webp)
 
 Code, Split and Picture are a choice of a few, as Issues' Open and Closed: side by side, the chosen one filled.

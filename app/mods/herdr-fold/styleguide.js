@@ -247,10 +247,10 @@ export function guide(proto) {
     ["Error", at({ issues: { listing: { issues: [], error: "gh is not signed in: run gh auth login" } } }), 120]],
     preview: [["Diff", previewOf({ rows: DIFF }), 200], ["Commit", previewOf({ rows: COMMIT }), 200],
       ["Loading", previewOf({ loading: true }), 52], ["Error", previewOf({ note: "HTTP 404: Not Found" }), 52],
-      ["A PDF's page", previewOf({ picture: { png: PAGE, pages: 12, page: 1 } }), 320],
+      ["A PDF, scrolled to its second page", previewOf({ pdf: { sizes: Array(12).fill([612, 792]), count: 12,
+        made: Array(12).fill(PAGE), range: null, making: false, page: 1 } }), 320],
       ...[["split", "A page, its code and picture"], ["code", "Its code alone"], ["picture", "Its picture alone"]]
-        .map(([shown, name]) => [name, previewOf({ rows: HTML, picture: { png: PAGE, pages: null, page: 0 }, shown }),
-          320])],
+        .map(([shown, name]) => [name, previewOf({ rows: HTML, picture: { png: PAGE }, shown }), 320])],
     issue: previewOf({ issue: ISSUE }),
     files: [["Default", filesOf()], ["A file chosen", filesOf({ picked: "src/lumen/app.py" })],
       ["A full folder", filesOf({ open: new Set(["src", "src/lumen", "src/lumen/routes"]) })],

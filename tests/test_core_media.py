@@ -35,13 +35,14 @@ def png(path, width, height):
     return path
 
 
-def pdf(path, pages):
-    """A PDF of PAGES letter pages, each a gray box, at PATH."""
+def pdf(path, pages, turned=()):
+    """A PDF of PAGES letter pages, each a gray box, at PATH; those numbered in TURNED (from 0) turned a quarter."""
     objects = ["<< /Type /Catalog /Pages 2 0 R >>",
                f"<< /Type /Pages /Kids [{' '.join(f'{3 + 2 * n} 0 R' for n in range(pages))}] /Count {pages} >>"]
     for n in range(pages):
         box = b"0.5 g 72 72 300 400 re f"
-        objects += [f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {4 + 2 * n} 0 R >>",
+        turn = " /Rotate 90" if n in turned else ""
+        objects += [f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792]{turn} /Contents {4 + 2 * n} 0 R >>",
                     f"<< /Length {len(box)} >>\nstream\n{box.decode()}\nendstream"]
     out, offsets = b"%PDF-1.4\n", []
     for number, body in enumerate(objects, 1):
@@ -298,13 +299,23 @@ class Pages(unittest.TestCase):
         set_env(self, XDG_CACHE_HOME=self.cache)
         self.pdf = pdf(os.path.join(self.tmp, "two.pdf"), 2)
 
-    def test_a_pdf_has_its_pages(self):
-        self.assertEqual(media.pages(self.pdf), 2)
+    def test_a_pdf_has_its_pages_each_as_large_as_it_is_shown(self):
+        """Each page's size in points, a turned one's turned: the preview lays the pages out before it draws them."""
+        self.assertEqual(media.pages(pdf(os.path.join(self.tmp, "turned.pdf"), 2, turned=(1,))),
+                         [[612, 792], [792, 612]])
 
     def test_a_page_as_a_png_as_wide_as_asked(self):
         made = media.page_png(self.pdf, 1, 400, self.tmp)
-        self.assertEqual(media.size(made)[0], 400)
+        self.assertEqual(media.size(made), (400, 518))
         self.assertIsNone(media.page_png(self.pdf, 2, 400, self.tmp))       # no third page
+        turned = pdf(os.path.join(self.tmp, "turned.pdf"), 2, turned=(1,))
+        self.assertEqual(media.size(media.page_png(turned, 1, 400, self.tmp)), (400, 309))
+
+    def test_a_page_made_is_kept_for_its_version(self):
+        """The preview draws a page again as it scrolls: one already made as wide is taken as it is."""
+        first = media.page_png(self.pdf, 0, 300, self.tmp)
+        with mock.patch.object(media, "run", return_value=None):              # no drawing would work now
+            self.assertEqual(media.page_png(self.pdf, 0, 300, self.tmp), first)
 
     def test_the_helper_is_compiled_once_and_alone(self):
         first = media.helper("pdf-pages")

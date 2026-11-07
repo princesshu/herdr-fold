@@ -31,6 +31,7 @@ SPLIT = 100                   # a pane's columns from which an SVG's or a page's
 WAIT = 30                     # seconds a pipeline may run (gh asking GitHub, a program that never ends): then stopped
 PICTURE = 4271                # the picture's id in the Kitty graphics protocol: one at a time
 CELL, CELL_PX = 2.1, 16       # a cell's height by its width, and its width in a picture's pixels (Retina): a guess
+GAP = 1                       # rows between two of a PDF's pages
 
 
 def stop(proc):
@@ -241,45 +242,59 @@ def fit(columns, rows, width, height):
     return 0, (columns - round(width / height * rows * CELL)) // 2, None, rows
 
 
-def kitty(data, columns, rows):
-    """DATA (a PNG) as the Kitty graphics protocol's escapes, placed at the cursor COLUMNS wide or ROWS high, in chunks
-    of 4096; q=2: the terminal answers nothing into the keys."""
+def kitty(data, columns, rows, crop=None, image=PICTURE):
+    """DATA (a PNG) as the Kitty graphics protocol's escapes, image IMAGE placed at the cursor COLUMNS wide, ROWS high
+    or both, its part CROP (x, y, w, h in its pixels) alone; in chunks of 4096, q=2: the terminal answers nothing."""
     text = base64.b64encode(data).decode("ascii")
     chunks = [text[n:n + 4096] for n in range(0, len(text), 4096)] or [""]
-    place = f"c={columns}" if columns else f"r={rows}"
-    return "".join(f"\x1b_G{f'a=T,f=100,i={PICTURE},q=2,{place},' if n == 0 else ''}m={int(n < len(chunks) - 1)};"
+    place = "".join(f"{key}={value}," for key, value in (("c", columns), ("r", rows)) if value)
+    place += "x={},y={},w={},h={},".format(*crop) if crop else ""
+    return "".join(f"\x1b_G{f'a=T,f=100,i={image},q=2,{place}' if n == 0 else ''}m={int(n < len(chunks) - 1)};"
                    f"{chunk}\x1b\\" for n, chunk in enumerate(chunks))
 
 
-GONE = f"\x1b_Ga=d,d=I,i={PICTURE},q=2\x1b\\"   # the picture deleted, its data with it
+def gone(image=PICTURE):
+    """Image IMAGE taken off the pane, its data with it."""
+    return f"\x1b_Ga=d,d=I,i={image},q=2\x1b\\"
+
+
+GONE = gone()
+
+
+def opening(term, columns, height, what):
+    """The pane cleared, saying WHAT opens: its first draw compiles a helper, a few seconds the first time."""
+    term.write(f"\x1b[0m\x1b[2J\x1b[{height};1H\x1b[0;7m{visible(f' Opening the {what}…', columns)}\x1b[K\x1b[0m")
+    term.flush()
+
+
+def width_px(columns):
+    """The pixels a picture COLUMNS wide is made with."""
+    return min(2400, max(480, columns * CELL_PX))
 
 
 class Picture:
-    """An image or a PDF's page drawn in the pane, fitted and centered: a PDF paged with the pager's moves, o opening
-    it in the browser, q or Esc closing the tab. Each page is made a PNG in a folder of its own, gone at close()."""
+    """An image, an SVG or a page drawn in the pane, fitted and centered: o opening it in the browser, q or Esc closing
+    the tab. Its PNG is made in a folder of its own, gone at close()."""
 
     def __init__(self, path, title):
-        self.path, self.title, self.page, self.note = path, title, 0, None
+        self.path, self.title, self.note = path, title, None
         self.work = tempfile.mkdtemp(prefix="herdr-fold-picture.")
-        self.pdf, self.opens, self.swap = media.kind_of(path) == "pdf", media.browsable(), None
+        self.opens, self.swap = media.browsable(), None
         self.drawn = media.kind_of(path) in ("svg", "html")      # WebKit draws it, sharp at any width
-        self.count, self.ready = 1, not (self.pdf or self.drawn)   # None: a PDF's first page alone
+        self.ready = not self.drawn                              # its helper compiled at its first draw
 
     def shown(self):
-        return self.page, self.note
+        return self.note
 
     def status(self):
         if self.note:
             return self.note
-        where = f"  page {self.page + 1} of {self.count or '?'}" if self.pdf else ""
-        return f"{self.title}{where}{f'  c: {self.swap}' if self.swap else ''}{HINT if self.opens else ''}"
+        return f"{self.title}{f'  c: {self.swap}' if self.swap else ''}{HINT if self.opens else ''}"
 
     def png(self, columns, rows):
         """The picture as a PNG with the pixels COLUMNS x ROWS cells show: its longer side, the pane's height for a
         tall one."""
-        width = min(2400, max(480, columns * CELL_PX))
-        if self.pdf:
-            return media.page_png(self.path, self.page, width, self.work)
+        width = width_px(columns)
         if self.drawn:
             return media.drawn_png(self.path, width, self.work)
         return media.as_png(self.path, self.work, min(2400, max(width, round(rows * CELL_PX * CELL))))
@@ -287,24 +302,21 @@ class Picture:
     def draw(self, term):
         columns, height = term.size()
         self.prepare(term, columns, height)
-        out = [GONE, "\x1b[0m\x1b[2J", self.place(columns, max(1, height - 1))]
+        out = [self.taken(), "\x1b[0m\x1b[2J", self.place(columns, max(1, height - 1))]
         out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns)}\x1b[K\x1b[0m")
         term.write("".join(out))
         term.flush()
 
+    def taken(self):
+        """What takes the picture off the pane."""
+        return GONE
+
     def prepare(self, term, columns, height):
-        """The first draw's wait, said in the pane: a PDF's pages counted, or the helper that draws an SVG or a page
-        compiled (the first one on this Mac, a few seconds)."""
-        if self.ready:
-            return
-        note = f" Opening the {'PDF' if self.pdf else 'picture'}…"
-        term.write(f"\x1b[0m\x1b[2J\x1b[{height};1H\x1b[0;7m{visible(note, columns)}\x1b[K\x1b[0m")
-        term.flush()
-        if self.pdf:
-            self.count = media.pages(self.path)
-        else:
+        """The first draw's wait, said in the pane: the helper that draws an SVG or a page compiled."""
+        if not self.ready:
+            opening(term, columns, height, "picture")
             media.helper("page-shot")
-        self.ready = True
+            self.ready = True
 
     def place(self, columns, rows, left=0):
         """The picture fitted to COLUMNS x ROWS cells from column LEFT, as escapes; "" where it cannot be shown."""
@@ -319,37 +331,113 @@ class Picture:
 
     def handle(self, event):
         """React to EVENT; False when the pager should end."""
-        last = (self.count or 1) - 1
-        if isinstance(event, Mouse):
-            if event.kind in ("wheel_up", "wheel_down"):
-                self.page = max(0, min(last, self.page + (1 if event.kind == "wheel_down" else -1)))
-            return True
         if not isinstance(event, Key):
             return True
         self.note = None
         key = event.char if event.name == "char" else event.name
         if key in ("q", "esc") or (event.name == "char" and event.ctrl and event.char == "c"):
             return False
-        moves = {"down": 1, "j": 1, "right": 1, "pagedown": 1, " ": 1, "f": 1, "enter": 1,
-                 "up": -1, "k": -1, "left": -1, "pageup": -1, "b": -1}
-        if key in moves:
-            self.page = max(0, min(last, self.page + moves[key]))
-        elif key in ("g", "home"):
-            self.page = 0
-        elif key in ("G", "end"):
-            self.page = last
-        elif key == "o" and self.opens:
+        if key == "o" and self.opens:
             self.note = None if media.open_in_browser(self.path) else "No browser to open it in"
         return True
 
     def close(self, term):
         """The picture taken off the pane (one already gone, a closed tab's: nothing to say) and its files away."""
         try:
-            term.write(GONE)
+            term.write(self.taken())
             term.flush()
         except OSError:
             pass
         shutil.rmtree(self.work, ignore_errors=True)
+
+
+def layout(sizes, columns):
+    """Where a PDF's pages (SIZES, each width and height) go COLUMNS wide, one under another a GAP apart: each one's
+    first row and rows, and the rows they all take."""
+    places, top = [], 0
+    for wide, tall in sizes:
+        rows = max(1, round(tall / wide * columns / CELL))
+        places.append((top, rows))
+        top += rows + GAP
+    return places, max(0, top - GAP)
+
+
+class Pdf(Picture):
+    """A PDF's pages one under another, as wide as the pane and a row apart, scrolled by the wheel and the pager's
+    moves; o opens it in the browser, q or Esc closes the tab. Each page is made a PNG as it comes into view."""
+
+    def __init__(self, path, title):
+        super().__init__(path, title)
+        self.top, self.rows, self.sizes, self.places, self.total, self.placed = 0, 1, None, [], 0, 0
+        self.ready = False                                       # its pages measured at its first draw
+
+    def shown(self):
+        return self.top, self.note
+
+    def page(self):
+        """The page at the middle of the pane, from 0."""
+        middle = self.top + self.rows // 2
+        return max([n for n, (first, _) in enumerate(self.places) if first <= middle] or [0])
+
+    def status(self):
+        if self.note:
+            return self.note
+        count = len(self.sizes) if self.sizes else "?"            # no helper: the first page alone, through sips
+        return f"{self.title}  page {self.page() + 1} of {count}{HINT if self.opens else ''}"
+
+    def prepare(self, term, columns, height):
+        """The first draw's wait, said in the pane: each page's size asked for (the helper compiled the first time)."""
+        if not self.ready:
+            opening(term, columns, height, "PDF")
+            self.sizes, self.ready = media.pages(self.path), True
+
+    def taken(self):
+        return "".join(gone(PICTURE + n) for n in range(self.placed))
+
+    def place(self, columns, rows, left=0):
+        """The pages in view, COLUMNS wide less a column of air each side, ROWS high, as escapes: a page cut by the
+        pane's edge shows its part in view."""
+        wide, width, self.rows = max(1, columns - 2), width_px(max(1, columns - 2)), rows
+        first = None if self.sizes else media.page_png(self.path, 0, width, self.work)
+        self.places, self.total = layout(self.sizes or ([media.size(first)] if first else []), wide)
+        self.top = max(0, min(self.top, self.total - rows))
+        out, self.placed = [], 0
+        for n, (start, tall) in enumerate(self.places):
+            seen, end = max(start, self.top), min(start + tall, self.top + rows)
+            made = media.page_png(self.path, n, width, self.work) if seen < end else None
+            shape = media.size(made) if made else None
+            if not shape:
+                continue
+            above, below = round((seen - start) / tall * shape[1]), round((end - start) / tall * shape[1])
+            with open(made, "rb") as f:
+                out.append(f"\x1b[{seen - self.top + 1};{left + 2}H" + kitty(
+                    f.read(), wide, end - seen, (0, above, shape[0], max(1, below - above)), PICTURE + self.placed))
+            self.placed += 1
+        if not self.places:
+            self.note = self.note or f"{self.title}: cannot be shown here{HINT if self.opens else ''}"
+        return "".join(out)
+
+    def handle(self, event):
+        """React to EVENT; False when the pager should end."""
+        if isinstance(event, Mouse):
+            if event.kind in ("wheel_up", "wheel_down"):
+                self.scroll(3 if event.kind == "wheel_down" else -3)
+            return True
+        if not isinstance(event, Key):
+            return True
+        key = event.char if event.name == "char" else event.name
+        screen = max(1, self.rows - 1)
+        moves = {"down": 1, "j": 1, "enter": 1, "up": -1, "k": -1, "pagedown": screen, " ": screen, "f": screen,
+                 "pageup": -screen, "b": -screen, "g": -self.total, "home": -self.total, "G": self.total,
+                 "end": self.total}
+        if key in moves:
+            self.note = None
+            self.scroll(moves[key])
+            return True
+        return super().handle(event)
+
+    def scroll(self, rows):
+        self.top = max(0, min(self.total - self.rows, self.top + rows))
 
 
 class PictureAndCode:
@@ -407,6 +495,8 @@ def viewer(spec):
     lines."""
     if spec.get("picture") and media.kind_of(spec["picture"]) in ("svg", "html"):
         return PictureAndCode(spec)
+    if spec.get("picture") and media.kind_of(spec["picture"]) == "pdf":
+        return Pdf(spec["picture"], spec.get("title") or "")
     if spec.get("picture"):
         return Picture(spec["picture"], spec.get("title") or "")
     return Pager(load(spec), spec.get("title") or "", spec.get("line"), spec.get("open"))

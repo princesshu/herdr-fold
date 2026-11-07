@@ -105,13 +105,14 @@ A space has one, as in the TUI: the first file, diff, commit or issue opened mak
 (`preview: src/app.py`, `preview: #42 Pagination retur…`), and the next one shows there again. A file's lines are
 numbered from the first; a diff is numbered once, a removed line by the old file and the others by the new one, a thin
 rule where lines are left out; a commit shows its author, message and each file's diff; an issue its text and comments
-as markdown. An image or a PDF on this Mac is drawn, fitted to the tab and never larger than it is, a PDF page by
-page (Previous, Next), with Open in Browser above it; one on another machine is not. An SVG or an HTML page on this
+as markdown. An image on this Mac is drawn, fitted to the tab and never larger than it is; a PDF's pages one under
+another at their own size, a gap apart, scrolled, each drawn as it comes into view, the page in view and Open in
+Browser above them; one on another machine is not. An SVG or an HTML page on this
 Mac shows its code and its picture side by side, Code and Picture showing either alone; WebKit draws it offline, as
 in the TUI. Herdr-fold's panel stays beside it.
 
-![A PDF's first page of three in the preview tab, fitted to it, under Previous, Next and Open in Browser; beside it
-Files with the PDF chosen in its folder](../assets/screenshots/app-pdf.webp)
+![A PDF's pages one under another in the preview tab, scrolled to its second, under the page in view and Open in
+Browser; beside it Files with the PDF chosen in its folder](../assets/screenshots/app-pdf.webp)
 
 ## Spaces
 

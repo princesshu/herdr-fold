@@ -7,11 +7,13 @@ import { home, panes, readTextFile, setShared, shared, spaces, run as command } 
 import { GIT, GITHUB, MEDIA } from "./helper.js";
 import { browsable, commitRows, diffRows, mediaKind, previewName, previewTab, priorityColor, said, safeMarkdown }
   from "./logic.js";
-import { chip, choices, iconButton, small } from "./parts.js";
+import { chip, choices, iconButton } from "./parts.js";
 
 const PREVIEWS = "herdr-fold.previews";   // what each space's preview tab shows, by the space's id (shared)
 const LINES = 1500;                       // a diff's or a file's lines shown at most
 const PICTURE = 1600;                     // pixels: an image's or a PDF page's width as core/media.py makes it
+const GAP = 16;                           // px between two of a PDF's pages, as the TUI's row
+const TICK = 200;                         // ms between two looks at the PDF's pages in view
 /** @type {[string, string][]} an SVG's or a page's views: its code, both side by side, its picture */
 const VIEWS = [["code", "Code"], ["split", "Split"], ["picture", "Picture"]];
 
@@ -49,9 +51,14 @@ export class Preview {
     this.rows = [];
     /** @type {{ issue: any, ago: string[] } | null} core/github.py's view of the issue */
     this.issue = null;
-    /** @type {{ png: string, pages: number | null, page: number, size?: number[] | null } | null} core/media.py's PNG,
-     * in the app's home, and its size in pixels */
+    /** @type {{ png: string, size?: number[] | null } | null} core/media.py's PNG, in the app's home, and its size in
+     * pixels */
     this.picture = null;
+    /** @type {{ sizes: number[][], count: number | null, made: (string | undefined)[], range: any, making: boolean,
+     * page: number } | null} a PDF's pages: each one's size in points, its PNG once made ("" where it cannot be) */
+    this.pdf = null;
+    /** @type {any} the ticks that make the PDF's pages in view */
+    this.ticking = null;
     /** an SVG's or a page's view (VIEWS'), kept for the next one */
     this.shown = "split";
     this.loading = false;
@@ -61,6 +68,7 @@ export class Preview {
 
   /** From render: the space's latest request, asked for once it is new (after the render, as that redraws). */
   watch(cx) {
+    if (this.pdf && !this.ticking) this.ticking = cx.timer.every(TICK, (cx) => this.tick(cx));
     const what = /** @type {any} */ (shared(PREVIEWS))?.[this.space];
     if (!what || what.n === this.n) return;
     this.n = what.n;
@@ -69,12 +77,14 @@ export class Preview {
 
   /** WHAT from its machine: a file, or from core/ a diff, a commit or an issue; an answer for an older one dropped. */
   load(what, cx) {
-    Object.assign(this, { what, rows: [], issue: null, picture: null, loading: true, note: null });
+    this.ticking?.cancel();
+    Object.assign(this, { what, rows: [], issue: null, picture: null, pdf: null, ticking: null, loading: true,
+      note: null });
     cx.spawn(async (cx) => {
       try {
         if (what.kind === "file" && ["image", "pdf"].includes(mediaKind(what.path) ?? "")) {
           if (what.on) return void (this.note = "A picture on another machine: only those on this Mac are shown");
-          return void (await this.paint(what, 0));
+          return void (await this.paint(what));
         }
         if (what.kind === "file") {
           const text = await readTextFile(`${what.root}/${what.path}`, { on: what.on });
@@ -84,7 +94,7 @@ export class Preview {
             .map((line, i) => ({ kind: " ", number: i + 1, text: line }));
           if (["svg", "html"].includes(mediaKind(what.path) ?? "") && !what.on) {   // its picture beside, from this Mac
             cx.notify();
-            await this.paint(what, 0);
+            await this.paint(what);
           }
           return;
         }
@@ -112,27 +122,41 @@ export class Preview {
     cx.notify();
   }
 
-  /** WHAT's PAGE (an image's only one) as a PNG made on this Mac (core/media.py), in the app's home; an SVG or a page
-   * that cannot be drawn keeps its code alone. */
-  async paint(what, page) {
-    const path = `${what.root}/${what.path}`;
-    const answer = await this.core(MEDIA, ["picture", path, String(page), String(PICTURE)], home(), null);
+  /** WHAT as a PNG made on this Mac (core/media.py), in the app's home: a PDF's first page, with each page's size; an
+   * SVG or a page that cannot be drawn keeps its code alone. */
+  async paint(what) {
+    const answer = await this.core(MEDIA, ["picture", `${what.root}/${what.path}`, "0", String(PICTURE)], home(), null);
     if (what.n !== this.n) return;
-    this.picture = answer.png ? { png: answer.png, pages: answer.pages, page, size: answer.size } : null;
+    const [w, h] = answer.size ?? [1, 1];                 // no helper: the first page alone, through sips
+    if (answer.kind === "pdf" && answer.png) {
+      this.pdf = { sizes: answer.pages ?? [[612, Math.round((612 * h) / w)]], count: answer.pages?.length ?? null,
+        made: [answer.png], range: null, making: false, page: 0 };
+    } else this.picture = answer.png ? { png: answer.png, size: answer.size } : null;
     this.note = answer.png || this.rows.length ? null : "This picture cannot be shown";
   }
 
-  /** The PDF STEP pages on, within it. */
-  turn(step, cx) {
-    const { what, picture } = this;
-    const page = picture?.pages ? Math.max(0, Math.min(picture.pages - 1, picture.page + step)) : null;
-    if (page === null || page === picture?.page) return;
+  /** While a PDF is shown: the bar's page kept up with the scrolled list, and a page in view or next to it made, one
+   * at a time. */
+  tick(cx) {
+    const { pdf, what } = this;
+    if (!pdf?.range) return;
+    if (pdf.range.start !== pdf.page) {
+      pdf.page = pdf.range.start;
+      cx.notify();
+    }
+    const near = Array.from({ length: pdf.range.end - pdf.range.start + 2 }, (_, i) => pdf.range.start - 1 + i);
+    const n = near.find((i) => i >= 0 && i < pdf.sizes.length && pdf.made[i] === undefined);
+    if (pdf.making || n === undefined) return;
+    pdf.making = true;
     cx.spawn(async (cx) => {
       try {
-        await this.paint(what, page);
-      } catch (e) {
-        this.note = said(e);
+        const answer = await this.core(MEDIA, ["picture", `${what.root}/${what.path}`, String(n), String(PICTURE)],
+          home(), null);
+        pdf.made[n] = answer.png ?? "";
+      } catch {
+        pdf.made[n] = "";
       } finally {
+        pdf.making = false;
         cx.notify();
       }
     });
@@ -160,6 +184,7 @@ export class Preview {
     if (this.issue) return frame.child(this.issueView(t));
     if (this.picture && this.rows.length) return frame.child(this.codeAndPicture(t, code));
     if (this.picture) return frame.child(this.pictureView(t));
+    if (this.pdf) return frame.child(this.pdfView(t));
     if (this.rows.length) {                       // a page's lines under Open in Browser, as the TUI's o
       return frame.when(browsable(this.what), (e) => e.child(this.bar(t))).child(this.diff(t, code));
     }
@@ -167,20 +192,18 @@ export class Preview {
     return frame.child(div().p(16).text_size(12).text_color(this.note ? t.ansi1 : t.dim).child(line));
   }
 
-  /** The bar above a page or a picture: an SVG's or a page's views, a PDF's pages (PICTURE's), and Open in Browser at
-   * its end. @param {Preview["picture"]} [picture] */
-  bar(t, picture = null) {
-    const { pages = null, page = 0 } = picture ?? {};
+  /** The bar above a page or a picture: an SVG's or a page's views, the PDF's page in view, and Open in Browser at its
+   * end. */
+  bar(t) {
+    const { pdf } = this;
     return h_flex().h(40).flex_none().px(12).gap(4).items_center().border_b(1).border_color(t.border)
       .when(Boolean(this.picture && this.rows.length), (e) => e.child(choices(t, "preview", VIEWS, this.shown,
         (shown, cx) => {
           this.shown = shown;
           cx.notify();
         })))
-      .when(Boolean(pages), (e) => e
-        .child(small(t, "page-back", "Previous", "Previous page", page > 0, (cx) => this.turn(-1, cx)))
-        .child(div().px(6).text_size(12).text_color(t.muted).child(`${page + 1} of ${pages}`))
-        .child(small(t, "page-on", "Next", "Next page", page + 1 < (pages ?? 1), (cx) => this.turn(1, cx))))
+      .when(Boolean(pdf), (e) => e.child(div().px(4).text_size(12).text_color(t.muted)
+        .child(`Page ${(pdf?.page ?? 0) + 1} of ${pdf?.count ?? "?"}`)))
       .child(div().flex_1())
       .child(iconButton(t, "browse", "external-link", "Open in Browser", (cx) => this.browse(cx), { left: true }));
   }
@@ -188,10 +211,29 @@ export class Preview {
   /** The picture fitted to the tab, under its bar. */
   pictureView(t) {
     return v_flex().size_full().min_h(0)
-      .child(this.bar(t, this.picture))
+      .child(this.bar(t))
       .child(this.canvas())
       .when(Boolean(this.note), (e) => e.child(div().px(16).pb(12).text_size(12).text_color(t.ansi1)
         .child(this.note ?? "")));
+  }
+
+  /** A PDF's pages one under another at their own size, GAP apart, scrolled; each drawn once it is made (a page's
+   * shape until then), as it comes into view. */
+  pdfView(t) {
+    const pdf = /** @type {NonNullable<Preview["pdf"]>} */ (this.pdf), list = `pdf-${this.what.n}`;  // new: at its top
+    const page = (n) => {
+      const [w, h] = pdf.sizes[n], made = pdf.made[n];
+      return div().w_full().h(h + GAP).flex_none().pt(GAP).flex().justify_center()
+        .child(made ? image(made).w(w).h(h).max_w_full() : div().w(w).h(h).max_w_full().bg(t.raised));
+    };
+    return v_flex().size_full().min_h(0)
+      .child(this.bar(t))
+      .child(div().flex_1().min_h(0).relative()
+        .child(v_virtual_list(list, pdf.sizes.length, pdf.sizes.map(([, h]) => h + GAP), (n) => String(n), (range) => {
+          pdf.range = range;                                    // the ticks make what is in view
+          return Array.from({ length: range.end - range.start }, (_, i) => page(range.start + i));
+        }).size_full())
+        .child(Scrollbar.vertical(list).viewport_from_layout().absolute().inset_0()));
   }
 
   /** An SVG's or a page's code and its picture, side by side or either alone, as the bar's views have it. */

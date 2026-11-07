@@ -13,7 +13,7 @@ priority](../assets/screenshots/sidebar.webp)
 ![A commit's diff in the preview tab, its message and each file's lines numbered, the tab laid out as the one it
 was opened from](../assets/screenshots/preview.webp)
 
-![A PDF's first page of three drawn in the preview tab, fitted to it, the Conversations column folded beside it,
+![A PDF's pages one under another in the preview tab, scrolled, the Conversations column folded beside it,
 and the sidebar's Files with the PDF chosen](../assets/screenshots/pdf.webp)
 
 ## How it gets there

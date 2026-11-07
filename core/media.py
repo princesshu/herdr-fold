@@ -19,16 +19,23 @@ KINDS = {**{ext: "image" for ext in (".png", ".jpg", ".jpeg", ".gif", ".webp", "
 SAFARI = "com.apple.Safari"
 APP_PICTURES = "herdr-fold-pictures"     # in the Herdr app's home: its image() takes a path from there
 TIMEOUT = 120                 # seconds a compile or a page may take
-# the Swift helpers, each compiled once: pdf-pages `count PDF` prints its pages, `render PDF N WIDTH OUT` writes
-# page N (from 0) WIDTH pixels wide as a PNG; page-shot `PATH WIDTH OUT RULES` draws a page or an SVG (WebKit, offline)
+# the Swift helpers, each compiled once: pdf-pages `sizes PDF` prints each page's size in points, `render PDF N WIDTH
+# OUT` writes page N (from 0) WIDTH pixels wide as a PNG; page-shot `PATH WIDTH OUT RULES` draws a page or an SVG
 HELPERS = {"pdf-pages": """import AppKit
 import PDFKit
 let a = CommandLine.arguments
 guard a.count >= 3, let doc = PDFDocument(url: URL(fileURLWithPath: a[2])) else { exit(2) }
-if a[1] == "count" { print(doc.pageCount); exit(0) }
+func shown(_ page: PDFPage) -> CGSize {                  // as it is shown: a turned page turned
+  let box = page.bounds(for: .cropBox)
+  return page.rotation % 180 == 0 ? box.size : CGSize(width: box.height, height: box.width)
+}
+if a[1] == "sizes" {
+  for n in 0..<doc.pageCount { let s = shown(doc.page(at: n)!); print(Int(s.width.rounded()), Int(s.height.rounded())) }
+  exit(0)
+}
 guard a[1] == "render", a.count == 6, let n = Int(a[3]), let width = Double(a[4]), n >= 0, n < doc.pageCount,
       let page = doc.page(at: n) else { exit(2) }
-let box = page.bounds(for: .cropBox)
+let box = shown(page)
 let size = NSSize(width: width, height: (box.height * width / box.width).rounded())
 let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width), pixelsHigh: Int(size.height),
                            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
@@ -224,16 +231,23 @@ def helper(kind):
 
 
 def pages(path):
-    """A PDF's page count, or None (no helper, or no PDF)."""
+    """A PDF's pages, each [width, height] in points as it is shown, or None (no helper, or no PDF)."""
     tool = helper("pdf-pages")
-    done = run([tool, "count", path], TIMEOUT, text=True) if tool else None
-    return int(done.stdout) if done and done.returncode == 0 and done.stdout.strip().isdigit() else None
+    done = run([tool, "sizes", path], TIMEOUT, text=True) if tool else None
+    if not done or done.returncode != 0:
+        return None
+    sizes = [line.split() for line in done.stdout.splitlines()]
+    if not sizes or not all(len(size) == 2 and all(n.isdigit() and int(n) > 0 for n in size) for size in sizes):
+        return None
+    return [[int(n) for n in size] for size in sizes]
 
 
 def page_png(path, page, width, folder):
-    """A PDF's PAGE (from 0) as a PNG WIDTH pixels wide, made in FOLDER; None past its last page. Without the helper,
-    the first page alone, through sips."""
+    """A PDF's PAGE (from 0) as a PNG WIDTH pixels wide, made in FOLDER (kept for its version); None past its last
+    page. Without the helper, the first page alone, through sips."""
     made = os.path.join(folder, f"{named(path)}-{page}-{width}.png")
+    if size(made):
+        return made
     tool = helper("pdf-pages")
     if tool:
         argv = [tool, "render", path, str(page), str(width), made]
@@ -289,8 +303,8 @@ def app_pictures():
 
 
 def picture(path, page, width):
-    """PATH as the app's preview draws it: its kind, a PDF's pages, and the PNG of the image or of PAGE, WIDTH wide,
-    made in the app's home (its path from there) with its size in pixels, or None."""
+    """PATH as the app's preview draws it: its kind, a PDF's pages (each one's size in points), and the PNG of the image
+    or of PAGE, WIDTH wide, made in the app's home (its path from there) with its size in pixels, or None."""
     kind = kind_of(path)
     if kind not in ("image", "pdf", "svg", "html"):
         return {"kind": kind, "pages": None, "png": None, "size": None}

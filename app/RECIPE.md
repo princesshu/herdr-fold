@@ -35,9 +35,9 @@ in the space's preview tab. Twelve themes come with it.
   Codex writes the message, the field saying who meanwhile), Commit with its modes (Commit, Commit & Push, Commit &
   Sync), staged and unstaged files with stage, unstage and discard on hover, the Graph of the last 20 commits. The
   sync is ↻, the menu ⋯, the AI button ✦.
-- Files: the folder as a tree with git's marks; a click opens a file in the preview tab (an image or a PDF drawn,
-  a PDF paged), a right click New File, New Folder, Rename, Copy Path, Move to Trash, Open in Browser (a page, a PDF
-  or a picture on this Mac), New Workspace (a folder).
+- Files: the folder as a tree with git's marks; a click opens a file in the preview tab (an image or a PDF drawn, a
+  PDF's pages scrolled), a right click New File, New Folder, Rename, Copy Path, Move to Trash, Open in Browser (a
+  page, a PDF or a picture on this Mac), New Workspace (a folder).
 - Search: ripgrep (else git grep) as you type, with case, word and regex switches. Issues: by priority, filters,
   hand one to the tab's agent, reply, assign, close.
 - The panel's toggle or Cmd + Shift + G folds the panel to a rail of icons; a press floats a view beside it. The

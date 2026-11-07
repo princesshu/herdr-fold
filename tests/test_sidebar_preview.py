@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import media  # noqa: E402
 import pager  # noqa: E402
 import preview  # noqa: E402
-from vt import Key  # noqa: E402
+from vt import Key, Mouse  # noqa: E402
 
 # a workspace with a preview tab (w1:t2) beside its files tab; its pager runs ($PAGING=1) or herdr has started again
 # and left a shell there
@@ -637,13 +637,14 @@ class Pictures(unittest.TestCase):
         self.assertIn("\x1b_Ga=d,", term.out)
         self.assertFalse(os.path.exists(picture.work))
 
-    def test_a_pdf_says_it_opens_before_its_pages_are_counted(self):
+    def test_a_pdf_says_it_opens_before_its_pages_are_measured(self):
         """Its first one compiles the PDF helper, for a few seconds: the pane says so meanwhile."""
         term = Written(80, 24)
-        picture = pager.Picture(os.path.join(self.tmp, "a.pdf"), "a.pdf")
-        self.addCleanup(picture.close, term)
+        view = pager.viewer({"title": "a.pdf", "picture": os.path.join(self.tmp, "a.pdf")})
+        self.assertIsInstance(view, pager.Pdf)
+        self.addCleanup(view.close, term)
         with mock.patch.object(pager.media, "pages", side_effect=lambda path: self.assertIn("Opening", term.out)) as n:
-            picture.draw(term)
+            view.draw(term)
         n.assert_called_once()
 
     def test_an_svg_says_it_opens_before_its_helper_is_compiled(self):
@@ -662,16 +663,66 @@ class Pictures(unittest.TestCase):
                 view.draw(term)
             compiled.assert_called_once_with("page-shot")
 
+    def scrolled(self, sizes):
+        """A PDF of pages SIZES, each made a 400 x 517 PNG, in an 80 x 24 pane: at 78 columns a letter page takes 48
+        rows, the next one a row under it."""
+        made = png(os.path.join(self.tmp, "page.png"), 400, 517)
+        view, term = pager.Pdf(os.path.join(self.tmp, "three.pdf"), "three.pdf"), Written(80, 24)
+        self.addCleanup(view.close, term)
+        for patch in (mock.patch.object(pager.media, "pages", return_value=sizes),
+                      mock.patch.object(pager.media, "page_png", side_effect=lambda *_: made)):
+            patch.start()
+            self.addCleanup(patch.stop)
+        return view, term
+
+    def test_a_pdfs_pages_scroll_one_under_another_a_row_apart(self):
+        view, term = self.scrolled([[612, 792]] * 3)
+        view.draw(term)
+        self.assertIn(f"i={pager.PICTURE},q=2,c=78,r=23,x=0,y=0,w=400,h=248,", term.out)    # the first page's top
+        self.assertIn("page 1 of 3", view.status())
+        view.handle(Key("pagedown"))
+        view.handle(Key("pagedown"))                                       # rows 44 to 66 in view
+        term.out = ""
+        view.draw(term)
+        self.assertIn(f"\x1b_Ga=d,d=I,i={pager.PICTURE},q=2", term.out)    # the last draw's taken off first
+        self.assertIn(f"\x1b[1;2H\x1b_Ga=T,f=100,i={pager.PICTURE},q=2,c=78,r=4,x=0,y=474,w=400,h=43,", term.out)
+        self.assertIn(f"\x1b[6;2H\x1b_Ga=T,f=100,i={pager.PICTURE + 1},q=2,c=78,r=18,x=0,y=0,w=400,h=194,",
+                      term.out)                                            # the next page, a row under the first
+        self.assertIn("page 2 of 3", view.status())
+        for key, page, top in (("G", 3, 146 - 23), ("g", 1, 0)):
+            view.handle(Key("char", key))
+            view.draw(term)
+            self.assertEqual((view.page() + 1, view.top), (page, top))
+
+    def test_the_wheel_scrolls_a_pdf_and_stops_at_its_ends(self):
+        view, term = self.scrolled([[612, 792]] * 2)
+        view.draw(term)
+        for _ in range(3):
+            view.handle(Mouse("wheel_down", 5, 5))
+        self.assertEqual(view.top, 9)
+        for _ in range(9):
+            view.handle(Mouse("wheel_up", 5, 5))
+        self.assertEqual(view.top, 0)
+        for _ in range(60):
+            view.handle(Mouse("wheel_down", 5, 5))
+        self.assertEqual(view.top, 97 - 23)                                 # its last row at the pane's last
+
+    def test_a_pdf_without_the_helper_shows_its_first_page_alone(self):
+        view, term = self.scrolled(None)
+        view.draw(term)
+        self.assertIn("\x1b_Ga=T", term.out)
+        self.assertIn("page 1 of ?", view.status())
+
     @unittest.skipUnless(sys.platform == "darwin" and shutil.which("swiftc"), "PDFKit and swiftc: macOS")
-    def test_a_pdf_pages_with_the_pagers_keys(self):
-        picture = pager.Picture(pdf(os.path.join(self.tmp, "three.pdf"), 3), "three.pdf")
-        term = Written(80, 24)
-        self.addCleanup(picture.close, term)
-        picture.draw(term)
-        self.assertIn("page 1 of 3", picture.status())
-        for key, page in (("down", 2), ("G", 3), ("up", 2), ("g", 1), ("pageup", 1)):
-            picture.handle(Key("char", key) if len(key) == 1 else Key(key))
-            self.assertIn(f"page {page} of 3", picture.status())
+    def test_a_real_pdf_is_drawn_and_scrolled(self):
+        view, term = pager.Pdf(pdf(os.path.join(self.tmp, "three.pdf"), 3), "three.pdf"), Written(80, 24)
+        self.addCleanup(view.close, term)
+        view.draw(term)
+        self.assertIn("\x1b_Ga=T", term.out)
+        self.assertIn("page 1 of 3", view.status())
+        view.handle(Key("char", "G"))
+        view.draw(term)
+        self.assertIn("page 3 of 3", view.status())
 
 
 def run_pager(spec, keys, folder, env=None):
