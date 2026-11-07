@@ -117,9 +117,9 @@ marks each program the same way (`[tui]`, `[both]`), so the installer and the un
 Everything the scripts need at run time lives in `~/.config/herdr-fold/`; herdr's own folder, `~/.config/herdr/`, holds
 only herdr's files and its `config.toml`. What is made on first use is in `~/.cache/herdr-fold/` (the PDF helper,
 compiled once), the Herdr app's pictures in its home's `herdr-fold-pictures/` (a day at most); the app keeps the
-mod's data there too (`data/herdr-fold/`, its views' state) and its storage in
-`~/Library/Application Support/gpui-shell/apps/herdr-fold-…` (empty: the mod stores nothing). The uninstaller takes
-all of them off.
+mod's data there too (`data/herdr-fold/`, its views' state), the layout's (`layouts/.state/herdr-fold.json`, its
+panels' sizes) and the mod's storage in `~/Library/Application Support/gpui-shell/apps/herdr-fold-…` (empty: the
+mod stores nothing). The uninstaller takes all of them off.
 
 ## The installer's records
 

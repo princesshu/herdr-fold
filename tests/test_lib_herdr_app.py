@@ -115,11 +115,14 @@ class Install(unittest.TestCase):
         self.write("herdr-fold-pictures/0123456789ab.png", "a picture the preview tab drew")
         self.write("data/herdr-fold/store.json", "{}\n")                    # the app's data of each mod it ran
         self.write("data/other/store.json", "{}\n")
+        self.write("layouts/.state/herdr-fold.json", "{}\n")                # the app's state of each layout shown
+        self.write("layouts/.state/mine.json", "{}\n")
         herdr_app.uninstall(PACKAGE, self.home, self.state)
         self.assertEqual(sorted(os.listdir(os.path.join(self.home, "mods"))), ["other"])
         self.assertFalse(os.path.exists(os.path.join(self.home, "herdr-fold-pictures")))
         self.assertEqual(os.listdir(os.path.join(self.home, "data")), ["other"])
-        self.assertEqual(os.listdir(os.path.join(self.home, "layouts")), ["mine.json"])
+        self.assertEqual(os.listdir(os.path.join(self.home, "layouts", ".state")), ["mine.json"])
+        self.assertEqual(sorted(os.listdir(os.path.join(self.home, "layouts"))), [".state", "mine.json"])
         self.assertEqual(os.listdir(os.path.join(self.home, "themes")), ["mine.json"])
 
     def test_uninstall_takes_the_apps_storage_of_the_mod_off(self):
