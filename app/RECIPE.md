@@ -69,6 +69,8 @@ in the space's preview tab. Twelve themes come with it.
   staged diff to Claude Code or Codex there. It reads the repository, this Mac's Claude and Codex conversation files,
   and gh's GitHub sign-in.
 - `image()` takes a path from the app's home: pictures are made in `herdr-fold-pictures/` there, a day at most.
+- `image()` takes the picture's own size where its box has none: `size_full()` in a `flex_1()` box grows past it.
+  The preview puts the picture `absolute()` at 100% of a `relative()` box, and the app fits it there.
 - A transition is kept by its element's id: two lists drawn with the same ids share one.
 - `.tooltip()` cannot choose its side: a tip at the right edge is a `HoverCard` anchored to open left.
 - `overflow_x_scrollbar()` grows its container; `overflow_x_scroll()` does not.

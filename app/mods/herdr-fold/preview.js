@@ -159,7 +159,8 @@ export class Preview {
           .child(small(t, "page-on", "Next", "Next page", page + 1 < (pages ?? 1), (cx) => this.turn(1, cx))))
         .child(div().flex_1())
         .child(iconButton(t, "browse", "external-link", "Open in Browser", (cx) => this.browse(cx), { left: true })))
-      .child(div().flex_1().min_h(0).p(16).child(image(png).size_full()))
+      .child(div().flex_1().min_h(0).m(16).relative()     // the picture sized to it, not it to the picture
+        .child(image(png).absolute().top_0().left_0().size_full()))
       .when(Boolean(this.note), (e) => e.child(div().px(16).pb(12).text_size(12).text_color(t.ansi1)
         .child(this.note ?? "")));
   }
