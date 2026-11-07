@@ -66,7 +66,7 @@ All notable changes to this project are listed here. The format follows
 - Tips in the sidebar: a control shown by an icon alone says what it does once the mouse rests on it
   (✦, ↻, the view tabs, a row's Stage, Unstage, Discard and diff icons, the Files and Search buttons). A changed
   file's row in Changes shows its whole path in the repository, as in GitHub Desktop, on more rows when it is long;
-  so does the Herdr app mod's.
+  so does the Herdr app mod's. A name Files cuts short shows its whole path in the folder the same way.
 
 - An update takes off what an earlier version put in the Herdr app and the new one no longer brings: a theme, a key,
   a setting the mod no longer keeps. The uninstaller takes herdr-fold's settings in the app off too, closing a running

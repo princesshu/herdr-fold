@@ -32,6 +32,7 @@ class Explorer:
         self.status, self.marks, self.folders = None, {}, {}
         self.naming = self.menu = self.confirm = self.doomed = None
         self.hover, self.canvas, self.top, self.height = None, Canvas(0, 0), 0, 1
+        self.cut = set()                        # the rows whose name is cut short, as last drawn
         self.pointed = None                               # the header button under the mouse
         self.moved = False                                # whether the chosen row is yours: the first is by itself
         self.opens_workspace = False                      # herdr-fold's folder picker there (the app asks herdr once)
@@ -81,7 +82,7 @@ class Explorer:
 
     def draw(self, canvas, top, height, status):
         """The view from row TOP, HEIGHT rows: the folder's name, the tree right under it."""
-        self.canvas, self.top, self.height = canvas, top, height
+        self.canvas, self.top, self.height, self.cut = canvas, top, height, set()
         self.watch(status)
         self.sync()
         if self.list.height != height - LIST:
@@ -132,10 +133,19 @@ class Explorer:
         code = (self.folders if node.is_dir else self.marks).get(node.path)
         fg = "ignored" if self.tree.is_ignored(node.path) else GIT_ROLE[code] if code else "text"
         strike = code == "D" and not node.is_dir
-        canvas.put(y, x, truncate(node.name, width - x - 3), Style(fg=fg, bg=bg, strike=strike))
+        shown = truncate(node.name, width - x - 3)
+        canvas.put(y, x, shown, Style(fg=fg, bg=bg, strike=strike))
+        if shown != node.name:
+            self.cut.add(index)
         if code:
             mark = "●" if node.is_dir else GIT_LETTER.get(code, code)
             canvas.put(y, width - 2, mark, Style(fg=GIT_ROLE[code], bg=bg))
+
+    def tip(self, target):
+        """A name cut short in its row, whole (its path in the folder), for the mouse resting on it."""
+        if isinstance(target, tuple) and target[0] == "row" and target[1] in self.cut:
+            return os.path.relpath(self.list.items[target[1]].path, self.tree.root)
+        return None
 
     def draw_menu(self, canvas):
         popup = self.menu

@@ -83,9 +83,10 @@ the file plain, the diff in git's colors); the built-in pager shows either.
 
 Everything works with the mouse too: a click, a right click for the menu, the wheel, and the row icons on hover. A
 control shown by an icon alone (✦, ↻, the view tabs, a row's icons…) says what it does once the mouse rests on it
-for half a second, and a changed file's row in Changes its whole path in the repository, on more rows when it is
-wider than the pane. The sections folded in Changes stay folded after an update or a restart (a sidebar
-started later, in another tab too, takes them); a new version comes back to the rows you were on.
+for half a second, a changed file's row in Changes its whole path in the repository, and a name Files cuts short
+its whole path in the folder, on more rows when it is wider than the pane. The sections folded in Changes stay
+folded after an update or a restart (a sidebar started later, in another tab too, takes them); a new version comes
+back to the rows you were on.
 In a field, Shift with an arrow, Home or End selects, and Cmd + A its whole text (herdr-fold's Ghostty and herdr
 keys send F8); in the commit message a drag, a double click (a word) or a triple click (all of it) too. The wheel
 shows the rest of a message longer than the field, as does a drag past its edge, and while a drag selects, the wheel

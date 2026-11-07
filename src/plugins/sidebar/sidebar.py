@@ -311,10 +311,10 @@ class App(Loop):
 
     def point(self, target, x, y):
         """The mouse on TARGET at X, Y: a control shown by an icon says what it does once the mouse rests on it, a
-        changed file its path."""
+        changed file its path, a name Files cuts short its path whole."""
         tip = TIPS.get(target[0] if isinstance(target, tuple) else target)
-        if not tip and self.view == "git":
-            tip = self.views["git"].tip(target)
+        if not tip and self.view in ("git", "files"):
+            tip = self.views[self.view].tip(target)
         if not tip:
             self.tip = None
         elif not self.tip or self.tip[0] != target:

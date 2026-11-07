@@ -346,6 +346,24 @@ class Tips(Harness):
         self.term.type(Mouse("move", *self.changed_row("b.py")))
         self.until(lambda s: " src/b.py " in s, timeout=3)
 
+    def test_a_name_files_cuts_short_shows_whole_under_the_mouse(self):
+        name = "docs/the-release-checklist-for-every-version.md"           # its name cut in its row, whole in a tip
+        os.makedirs(os.path.join(self.root, "docs"))
+        self.write(name, "x\n")
+        self.term.type(Key("char", "1"))
+        self.until(lambda s: "docs" in s)
+        self.term.type(Mouse("press", *self.region(lambda target: isinstance(target, tuple) and target[0] == "row"
+                                                   and "docs" in self.row_text(target))))
+        self.until(lambda s: "the-release" in s)
+        self.term.type(Mouse("move", *self.region(lambda target: isinstance(target, tuple) and target[0] == "row"
+                                                  and "the-release" in self.row_text(target))))
+        self.until(lambda s: " docs/" in s and " the-release-checklist-for-every-version.md " in s, timeout=3)
+
+    def row_text(self, target):
+        """The text of the row TARGET's region is on."""
+        y = next(ry for ry, _x0, _x1, at in list(self.app.canvas.regions) if at == target)
+        return self.screen().splitlines()[y]
+
     def test_a_path_wider_than_the_pane_shows_whole_broken_after_its_slashes(self):
         rel = "src/a-rather-long-folder-name/and-another-one/the-file.txt"
         os.makedirs(os.path.join(self.root, os.path.dirname(rel)))

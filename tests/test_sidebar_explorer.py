@@ -59,6 +59,14 @@ class View(unittest.TestCase):
         y = self.row_of(name)
         return self.view.handle(Mouse("press", text(self.canvas, y).index(name), y, button))
 
+    def test_a_name_cut_short_says_its_path_whole_and_a_whole_one_nothing(self):
+        self.draw()
+        rows = {node.name: i for i, node in enumerate(self.view.list.items)}
+        self.assertEqual(self.view.tip(("row", rows[LONG])), LONG)
+        self.assertIsNone(self.view.tip(("row", rows["README.md"])))
+        self.draw(width=80)                                                 # the pane made wider: it fits now
+        self.assertIsNone(self.view.tip(("row", rows[LONG])))
+
     def test_the_header_names_the_root(self):
         self.assertTrue(text(self.draw(), 0).strip().startswith("project"))
 
