@@ -27,6 +27,7 @@ CONTROL = {chr(c) for c in [*range(32), *range(0x7f, 0xa0)]}
 LIMIT = 8_000_000             # bytes read at most: a huge file or an endless command does not stall the pager
 CONTEXT = 3                   # lines shown above the line the pager opens at, or a search hit
 WATCH = 0.3                   # seconds between looks at the spec's file: a new spec there is shown
+SPLIT = 100                   # a pane's columns from which an SVG's or a page's code and picture stand side by side
 WAIT = 30                     # seconds a pipeline may run (gh asking GitHub, a program that never ends): then stopped
 PICTURE = 4271                # the picture's id in the Kitty graphics protocol: one at a time
 CELL, CELL_PX = 2.1, 16       # a cell's height by its width, and its width in a picture's pixels (Retina): a guess
@@ -152,6 +153,7 @@ class Pager:
         self.top = max(0, (line or 1) - 1 - CONTEXT)
         self.height = 24
         self.query = self.typing = self.hit = self.note = None
+        self.swap = None                                              # what c turns to (PictureAndCode's)
 
     def shown(self):
         return self.top, self.typing, self.note
@@ -161,18 +163,19 @@ class Pager:
             return "/" + self.typing
         if self.note:
             return self.note
-        hint = HINT if self.opens else ""
+        hint = (f"  c: {self.swap}" if self.swap else "") + (HINT if self.opens else "")
         return f"{self.title}  {self.top + 1}-{min(len(self.lines), self.top + self.height)}/{len(self.lines)}{hint}"
+
+    def rows(self, cells, rows):
+        """The lines in view, ROWS of them cut to CELLS: each one's text, for its row."""
+        self.height = max(1, rows)
+        self.top = max(0, min(self.top, len(self.lines) - self.height))
+        return [visible(self.lines[index], cells) if index < len(self.lines) else "\x1b[2m~"
+                for index in range(self.top, self.top + self.height)]
 
     def draw(self, term):
         cells, height = term.size()
-        self.height = max(1, height - 1)
-        self.top = max(0, min(self.top, len(self.lines) - self.height))
-        out = []
-        for row in range(self.height):
-            index = self.top + row
-            text = visible(self.lines[index], cells) if index < len(self.lines) else "\x1b[2m~"
-            out.append(f"\x1b[{row + 1};1H\x1b[0m{text}\x1b[0m\x1b[K")
+        out = [f"\x1b[{row + 1};1H\x1b[0m{text}\x1b[0m\x1b[K" for row, text in enumerate(self.rows(cells, height - 1))]
         out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), cells)}\x1b[K\x1b[0m")
         term.write("".join(out))
         term.flush()
@@ -258,7 +261,8 @@ class Picture:
     def __init__(self, path, title):
         self.path, self.title, self.page, self.note = path, title, 0, None
         self.work = tempfile.mkdtemp(prefix="herdr-fold-picture.")
-        self.pdf, self.opens = media.kind_of(path) == "pdf", media.browsable()
+        self.pdf, self.opens, self.swap = media.kind_of(path) == "pdf", media.browsable(), None
+        self.drawn = media.kind_of(path) in ("svg", "html")      # QuickLook draws it, sharp at any width
         self.count, self.counted = 1, not self.pdf   # a PDF's pages counted at its first draw; None: its first alone
 
     def shown(self):
@@ -268,7 +272,7 @@ class Picture:
         if self.note:
             return self.note
         where = f"  page {self.page + 1} of {self.count or '?'}" if self.pdf else ""
-        return f"{self.title}{where}{HINT if self.opens else ''}"
+        return f"{self.title}{where}{f'  c: {self.swap}' if self.swap else ''}{HINT if self.opens else ''}"
 
     def png(self, columns, rows):
         """The picture as a PNG with the pixels COLUMNS x ROWS cells show: its longer side, the pane's height for a
@@ -276,6 +280,8 @@ class Picture:
         width = min(2400, max(480, columns * CELL_PX))
         if self.pdf:
             return media.page_png(self.path, self.page, width, self.work)
+        if self.drawn:
+            return media.drawn_png(self.path, width, self.work)
         return media.as_png(self.path, self.work, min(2400, max(width, round(rows * CELL_PX * CELL))))
 
     def draw(self, term):
@@ -284,18 +290,21 @@ class Picture:
             term.write(f"\x1b[0m\x1b[2J\x1b[{height};1H\x1b[0;7m{visible(' Opening the PDF…', columns)}\x1b[K\x1b[0m")
             term.flush()
             self.count, self.counted = media.pages(self.path), True
-        out = [GONE, "\x1b[0m\x1b[2J"]
-        made = self.png(columns, max(1, height - 1))
-        shape = media.size(made) if made else None
-        if shape:
-            row, column, wide, tall = fit(columns, max(1, height - 1), *shape)
-            with open(made, "rb") as f:
-                out.append(f"\x1b[{row + 1};{column + 1}H" + kitty(f.read(), wide, tall))
-        else:
-            self.note = self.note or f"{self.title}: cannot be shown here{HINT if self.opens else ''}"
+        out = [GONE, "\x1b[0m\x1b[2J", self.place(columns, max(1, height - 1))]
         out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns)}\x1b[K\x1b[0m")
         term.write("".join(out))
         term.flush()
+
+    def place(self, columns, rows, left=0):
+        """The picture fitted to COLUMNS x ROWS cells from column LEFT, as escapes; "" where it cannot be shown."""
+        made = self.png(columns, rows)
+        shape = media.size(made) if made else None
+        if not shape:
+            self.note = self.note or f"{self.title}: cannot be shown here{HINT if self.opens else ''}"
+            return ""
+        row, column, wide, tall = fit(columns, rows, *shape)
+        with open(made, "rb") as f:
+            return f"\x1b[{row + 1};{left + column + 1}H" + kitty(f.read(), wide, tall)
 
     def handle(self, event):
         """React to EVENT; False when the pager should end."""
@@ -332,8 +341,60 @@ class Picture:
         shutil.rmtree(self.work, ignore_errors=True)
 
 
+class PictureAndCode:
+    """An SVG or a page, code and a picture: side by side in a pane SPLIT wide, its code left; in a narrower one the
+    picture first, c turning to its lines and back."""
+
+    def __init__(self, spec):
+        title = spec.get("title") or ""
+        self.picture, self.code = Picture(spec["picture"], title), Pager(load(spec), title, None, spec.get("open"))
+        self.index, self.split = 0, False
+
+    def views(self):
+        """The picture and the lines, what c turns each to; the one shown first."""
+        self.picture.swap, self.code.swap = (None, None) if self.split else ("code", "picture")
+        return self.code if self.split or self.index else self.picture
+
+    def shown(self):
+        return self.index, self.split, self.views().shown()
+
+    def status(self):
+        return self.views().status()
+
+    def draw(self, term):
+        columns, height = term.size()
+        self.split = columns >= SPLIT
+        if not self.split:
+            if self.index:
+                term.write(GONE)                     # the picture taken off for the lines
+            return self.views().draw(term)
+        self.views()
+        left = (columns - 1) // 2
+        out = [GONE, "\x1b[0m\x1b[2J"]
+        for row, text in enumerate(self.code.rows(left, height - 1)):
+            out.append(f"\x1b[{row + 1};1H\x1b[0m{text}\x1b[0m\x1b[{row + 1};{left + 1}H\x1b[2m│\x1b[0m")
+        out.append(self.picture.place(columns - left - 1, height - 1, left + 1))
+        out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns)}\x1b[K\x1b[0m")
+        term.write("".join(out))
+        term.flush()
+        return None
+
+    def handle(self, event):
+        if isinstance(event, Key) and event.name == "char" and event.char == "c" and not event.ctrl \
+                and self.code.typing is None and not self.split:     # typed into a search, it is a letter
+            self.index = 1 - self.index
+            return True
+        return self.views().handle(event)
+
+    def close(self, term):
+        self.picture.close(term)
+
+
 def viewer(spec):
-    """SPEC's view: an image or a PDF drawn, else the pager over its lines."""
+    """SPEC's view: an SVG or a page as its code and its picture, an image or a PDF drawn, else the pager over its
+    lines."""
+    if spec.get("picture") and media.kind_of(spec["picture"]) in ("svg", "html"):
+        return PictureAndCode(spec)
     if spec.get("picture"):
         return Picture(spec["picture"], spec.get("title") or "")
     return Pager(load(spec), spec.get("title") or "", spec.get("line"), spec.get("open"))
@@ -403,14 +464,14 @@ def main():
                 if stamp(path) not in (seen, None):     # the next preview, written by a sidebar
                     seen, spec = stamp(path), spec_at(path)
                     if spec is not None:
-                        if isinstance(pager, Picture):
+                        if isinstance(pager, (Picture, PictureAndCode)):
                             pager.close(term)
                         pager, drawn = viewer(spec), None
                 drawn = redraw(pager, term, drawn)      # a mouse move changes nothing: no redraw
                 if not all(pager.handle(event) for event in term.read(WATCH)):
                     break
         finally:
-            if isinstance(pager, Picture):
+            if isinstance(pager, (Picture, PictureAndCode)):
                 pager.close(term)
     close(path)
     return 0

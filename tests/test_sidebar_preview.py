@@ -78,7 +78,14 @@ class Commands(unittest.TestCase):
         spec = preview.file_spec("/repo", "/repo/docs/shot.webp", None, which=tools("bat"))
         self.assertEqual((spec["picture"], spec["title"]), ("/repo/docs/shot.webp", "docs/shot.webp"))
         self.assertEqual(preview.file_spec("/repo", "/repo/a.pdf", None, which=tools("bat"))["picture"], "/repo/a.pdf")
-        self.assertNotIn("picture", preview.file_spec("/repo", "/repo/a.html", None, which=tools("bat")))
+        self.assertNotIn("picture", preview.file_spec("/repo", "/repo/a.py", None, which=tools("bat")))
+
+    def test_an_svg_or_a_page_is_a_picture_with_its_code(self):
+        set_env(self, SSH_CONNECTION=None, SSH_CLIENT=None)
+        for name in ("logo.svg", "site/index.html"):
+            spec = preview.file_spec("/repo", f"/repo/{name}", None, which=tools("bat"))
+            self.assertEqual((spec["picture"], spec["open"]), (f"/repo/{name}", f"/repo/{name}"))
+            self.assertEqual(spec["pipeline"][0][:2], ["/opt/bin/bat", "--color=always"])
 
     @unittest.skipIf(os.name == "nt", "no named pipes here on Windows")
     def test_a_pipe_is_never_handed_to_bat(self):
@@ -528,6 +535,42 @@ class Pictures(unittest.TestCase):
             self.assertTrue(picture.handle(Key("char", "o")))
         opened.assert_called_once_with(os.path.join(self.tmp, "shot.png"))
         self.assertFalse(picture.handle(Key("char", "q")))
+
+    @unittest.skipUnless(sys.platform == "darwin", "sips: macOS")
+    def test_c_turns_an_svg_between_its_picture_and_its_code(self):
+        svg = os.path.join(self.tmp, "logo.svg")
+        with open(svg, "w", encoding="utf-8") as f:
+            f.write('<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40">\n<rect width="60" height="40"/>\n'
+                    '</svg>\n')
+        view = pager.viewer(preview.file_spec(self.tmp, svg, None, which=tools()))
+        term = Written(80, 24)
+        self.addCleanup(view.close, term)
+        view.draw(term)
+        self.assertIn("\x1b_G", term.out)                                       # the picture
+        self.assertIn("c: code", view.status())
+        self.assertTrue(view.handle(Key("char", "c")))
+        term.out = ""
+        view.draw(term)
+        self.assertIn(pager.GONE, term.out)                                    # the picture taken off for the code
+        self.assertIn("<rect", term.out)
+        self.assertIn("c: picture", view.status())
+        view.handle(Key("char", "c"))
+        self.assertIn("c: code", view.status())
+
+    @unittest.skipUnless(sys.platform == "darwin", "sips: macOS")
+    def test_a_wide_pane_shows_the_code_and_the_picture_side_by_side(self):
+        svg = os.path.join(self.tmp, "logo.svg")
+        with open(svg, "w", encoding="utf-8") as f:
+            f.write('<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40">\n<rect width="60" height="40"/>\n'
+                    '</svg>\n')
+        view = pager.viewer(preview.file_spec(self.tmp, svg, None, which=tools()))
+        term = Written(140, 30)
+        self.addCleanup(view.close, term)
+        view.draw(term)
+        self.assertIn("<rect", term.out)                                       # the code, on the left
+        self.assertIn("\x1b_G", term.out)                                      # the picture, on the right
+        self.assertIn("│", term.out)
+        self.assertNotIn("c: ", view.status())                                 # both shown: nothing to turn to
 
     def test_a_closed_tab_takes_the_pictures_files_away(self):
         """herdr ends a closed tab's pane with a hang-up: the picture's folder goes all the same."""

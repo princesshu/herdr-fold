@@ -15,7 +15,7 @@ import tempfile
 import time
 
 KINDS = {**{ext: "image" for ext in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".tif", ".tiff", ".bmp")},
-         ".pdf": "pdf", ".html": "html", ".htm": "html"}
+         ".pdf": "pdf", ".html": "html", ".htm": "html", ".svg": "svg"}
 SAFARI = "com.apple.Safari"
 APP_PICTURES = "herdr-fold-pictures"     # in the Herdr app's home: its image() takes a path from there
 TIMEOUT = 120                 # seconds a compile or a page may take
@@ -45,7 +45,7 @@ do { try png.write(to: URL(fileURLWithPath: a[5])) } catch { exit(3) }
 
 
 def kind_of(path):
-    """image, pdf or html by PATH's extension, else None."""
+    """image, pdf, html or svg (a picture that is code too) by PATH's extension, else None."""
     return KINDS.get(os.path.splitext(path)[1].lower())
 
 
@@ -94,6 +94,25 @@ def as_png(path, folder, side):
     if max(size(made)) > side:                        # only then: -Z makes a smaller one larger too
         run(["sips", "-Z", str(side), made], TIMEOUT)
     return made if size(made) else None
+
+
+def drawn_png(path, width, folder):
+    """An SVG or a page as macOS draws it (QuickLook; WebKit for a page), WIDTH pixels wide, made in FOLDER; an SVG
+    through sips without it; None where it cannot be."""
+    tool, made = shutil.which("qlmanage"), os.path.join(folder, f"{named(path)}-drawn-{width}.png")
+    if tool:
+        with tempfile.TemporaryDirectory(dir=folder) as work:
+            done, out = run([tool, "-t", "-s", str(width), "-o", work, path], TIMEOUT), \
+                os.path.join(work, os.path.basename(path) + ".png")
+            if done and done.returncode == 0 and size(out):
+                os.replace(out, made)
+                return made
+    return as_png(path, folder, width) if kind_of(path) == "svg" else None
+
+
+def drawable(path):
+    """Whether PATH, an SVG or a page, can be drawn here: QuickLook (macOS), or sips for an SVG."""
+    return bool(shutil.which("qlmanage") or kind_of(path) == "svg" and shutil.which("sips"))
 
 
 def cache():
@@ -194,10 +213,11 @@ def picture(path, page, width):
     """PATH as the app's preview draws it: its kind, a PDF's pages, and the PNG of the image or of PAGE, WIDTH wide,
     made in the app's home (its path from there) with its size in pixels, or None."""
     kind = kind_of(path)
-    if kind not in ("image", "pdf"):
+    if kind not in ("image", "pdf", "svg", "html"):
         return {"kind": kind, "pages": None, "png": None, "size": None}
     folder = app_pictures()
-    made = page_png(path, page, width, folder) if kind == "pdf" else as_png(path, folder, width)
+    made = page_png(path, page, width, folder) if kind == "pdf" else drawn_png(path, width, folder) \
+        if kind in ("svg", "html") else as_png(path, folder, width)
     if made and os.path.dirname(made) != folder:          # an image already small enough: a copy in the app's home
         made = shutil.copyfile(made, os.path.join(folder, f"{named(path)}.png"))
     return {"kind": kind, "pages": pages(path) if kind == "pdf" else None,

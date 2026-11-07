@@ -50,7 +50,9 @@ def file_spec(root, path, line, which=shutil.which):
     pipeline = [[bat, "--color=always", "--paging=never", "--wrap=never", "--style=numbers,changes", *marked, path]]
     pipeline = pipeline if bat else []
     spec = {"title": os.path.relpath(path, root), "line": line, "file": None if bat else path, "pipeline": pipeline}
-    return {**spec, "open": path} if media.kind_of(path) == "html" and media.browsable() else spec
+    if media.kind_of(path) in ("svg", "html") and media.drawable(path):     # code and a picture, side by side
+        spec["picture"] = path
+    return {**spec, "open": path} if media.kind_of(path) in ("html", "svg") and media.browsable() else spec
 
 
 def git_argv(git, root, command):

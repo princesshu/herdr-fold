@@ -56,7 +56,7 @@ def pdf(path, pages):
 class Kinds(unittest.TestCase):
     def test_pictures_pdfs_and_pages(self):
         for name, kind in [("a.PNG", "image"), ("b.jpeg", "image"), ("c.webp", "image"), ("d.heic", "image"),
-                           ("e.pdf", "pdf"), ("f.html", "html"), ("g.HTM", "html"), ("h.svg", None), ("i.py", None),
+                           ("e.pdf", "pdf"), ("f.html", "html"), ("g.HTM", "html"), ("h.svg", "svg"), ("i.py", None),
                            ("Makefile", None)]:
             with self.subTest(name=name):
                 self.assertEqual(media.kind_of(name), kind)
@@ -184,6 +184,26 @@ class ForTheApp(unittest.TestCase):
         first = media.picture(shot, 0, 100)["png"]
         png(shot, 40, 20)
         self.assertNotEqual(media.picture(shot, 0, 100)["png"], first)
+
+    def test_an_svg_drawn_as_a_picture(self):
+        """An SVG is code and a picture: the app draws it as the picture (QuickLook, else sips)."""
+        svg = os.path.join(self.tmp, "logo.svg")
+        with open(svg, "w", encoding="utf-8") as f:
+            f.write('<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40"><rect width="60" height="40"'
+                    ' fill="#7c6cd8"/></svg>\n')
+        answer = media.picture(svg, 0, 100)
+        self.assertEqual(answer["kind"], "svg")                                # drawn sharp at the width asked
+        self.assertEqual(max(media.size(os.path.join(self.tmp, "app", answer["png"]))), 100)
+
+    @unittest.skipUnless(shutil.which("qlmanage"), "QuickLook: macOS")
+    def test_a_page_is_drawn_as_a_browser_shows_it(self):
+        """An HTML page drawn by macOS's own WebKit (QuickLook), WIDTH wide, beside its code."""
+        page = os.path.join(self.tmp, "index.html")
+        with open(page, "w", encoding="utf-8") as f:
+            f.write("<html><body><h1>Pagination</h1><p>Every list route answers a page.</p></body></html>\n")
+        answer = media.picture(page, 0, 600)
+        self.assertEqual(answer["kind"], "html")
+        self.assertEqual(media.size(os.path.join(self.tmp, "app", answer["png"]))[0], 600)
 
     def test_an_old_picture_goes(self):
         old = png(os.path.join(media.app_pictures(), "old.png"), 4, 4)

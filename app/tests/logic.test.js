@@ -653,8 +653,8 @@ test("an avatar's fill: the app's strong color for a theme color's name, a picke
 });
 
 test("a picture, a PDF or a page by its name, as core/media.py has them", () => {
-  assert.deepEqual(["docs/shot.WEBP", "a.pdf", "site/index.html", "notes.md", ".bashrc", "src.png/app"].map(mediaKind),
-    ["image", "pdf", "html", null, null, null]);
+  assert.deepEqual(["docs/shot.WEBP", "a.pdf", "site/index.html", "logo.svg", "notes.md", ".bashrc", "src.png/app"]
+    .map(mediaKind), ["image", "pdf", "html", "svg", null, null, null]);
 });
 
 test("the message field keeps each space's own draft, a message written for one waiting there", () => {
