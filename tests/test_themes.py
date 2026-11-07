@@ -15,6 +15,7 @@ from support import PACKAGE, SRC, png_alpha, png_rgba, set_attrs, set_env
 sys.path.insert(0, os.path.join(SRC, "themes"))
 sys.path.append(os.path.join(SRC, "plugins", "sidebar"))
 import apply  # noqa: E402
+import parts  # noqa: E402
 from theme import PALETTE_BG, PALETTE_FG  # noqa: E402
 
 DRAWER = os.path.join(PACKAGE, "tools", "logo.swift")                     # herdr-fold's logo, its app icon
@@ -56,7 +57,8 @@ class Themes(unittest.TestCase):
 
 
 class Themed(unittest.TestCase):
-    """Every file apply.py writes is in a temporary folder, and the herdr it calls is never the running one."""
+    """Every file apply.py writes is in a temporary folder, and the herdr it calls is never the running one; the parts
+    installed are a TUI's, as the records there say (this Mac's own are never read)."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -69,6 +71,11 @@ class Themed(unittest.TestCase):
                   ICONS=os.path.join(self.tmp, "state", "herdr-fold", "ghostty-icon"), MAC=True,
                   APP_LAYOUT=os.path.join(self.tmp, "app", "layouts", "herdr-fold.json"))
         set_env(self, HERDR_BIN_PATH="/usr/bin/true")
+        records = os.path.join(self.tmp, "state", "herdr-fold")
+        os.makedirs(records)
+        with open(os.path.join(records, "plugins.txt"), "w", encoding="utf-8") as f:
+            f.write("herdr-fold.sidebar\n")
+        set_attrs(self, apply, installed=lambda: parts.installed(records))
         with open(apply.GHOSTTY, "w", encoding="utf-8") as f:
             f.write(CONFIG)
 
