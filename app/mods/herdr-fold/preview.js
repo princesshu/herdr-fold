@@ -42,7 +42,8 @@ export class Preview {
     this.rows = [];
     /** @type {{ issue: any, ago: string[] } | null} core/github.py's view of the issue */
     this.issue = null;
-    /** @type {{ png: string, pages: number | null, page: number } | null} core/media.py's PNG, in the app's home */
+    /** @type {{ png: string, pages: number | null, page: number, size?: number[] | null } | null} core/media.py's PNG,
+     * in the app's home, and its size in pixels */
     this.picture = null;
     this.loading = false;
     /** @type {string | null} why there is nothing to show */
@@ -102,7 +103,7 @@ export class Preview {
     const path = `${what.root}/${what.path}`;
     const answer = await this.core(MEDIA, ["picture", path, String(page), String(PICTURE)], home(), null);
     if (what.n !== this.n) return;
-    this.picture = answer.png ? { png: answer.png, pages: answer.pages, page } : null;
+    this.picture = answer.png ? { png: answer.png, pages: answer.pages, page, size: answer.size } : null;
     this.note = answer.png ? null : "This picture cannot be shown";
   }
 
@@ -150,7 +151,7 @@ export class Preview {
 
   /** The picture fitted to the tab, under a bar with a PDF's pages and Open in Browser. */
   pictureView(t) {
-    const { png, pages, page } = /** @type {NonNullable<Preview["picture"]>} */ (this.picture);
+    const { png, pages, page, size } = /** @type {NonNullable<Preview["picture"]>} */ (this.picture);
     return v_flex().size_full().min_h(0)
       .child(h_flex().h(40).flex_none().px(12).gap(4).items_center().border_b(1).border_color(t.border)
         .when(Boolean(pages), (e) => e
@@ -160,7 +161,9 @@ export class Preview {
         .child(div().flex_1())
         .child(iconButton(t, "browse", "external-link", "Open in Browser", (cx) => this.browse(cx), { left: true })))
       .child(div().flex_1().min_h(0).m(16).relative()     // the picture sized to it, not it to the picture
-        .child(image(png).absolute().top_0().left_0().size_full()))
+        .child(div().absolute().inset_0().flex().items_center().justify_center()   // centered, at most its own size
+          .child(image(png).size_full().when(Boolean(size), (e) => e.max_w(size?.[0] ?? 0)
+            .max_h(size?.[1] ?? 0)))))
       .when(Boolean(this.note), (e) => e.child(div().px(16).pb(12).text_size(12).text_color(t.ansi1)
         .child(this.note ?? "")));
   }

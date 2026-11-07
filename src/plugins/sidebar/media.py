@@ -166,16 +166,16 @@ def app_pictures():
 
 def picture(path, page, width):
     """PATH as the app's preview draws it: its kind, a PDF's pages, and the PNG of the image or of PAGE, WIDTH wide,
-    made in the app's home (its path from there), or None."""
+    made in the app's home (its path from there) with its size in pixels, or None."""
     kind = kind_of(path)
     if kind not in ("image", "pdf"):
-        return {"kind": kind, "pages": None, "png": None}
+        return {"kind": kind, "pages": None, "png": None, "size": None}
     folder = app_pictures()
     made = page_png(path, page, width, folder) if kind == "pdf" else as_png(path, folder, width)
     if made and os.path.dirname(made) != folder:          # an image already small enough: a copy in the app's home
         made = shutil.copyfile(made, os.path.join(folder, f"{hashlib.sha256(path.encode()).hexdigest()[:12]}.png"))
     return {"kind": kind, "pages": pages(path) if kind == "pdf" else None,
-            "png": made and f"{APP_PICTURES}/{os.path.basename(made)}"}
+            "png": made and f"{APP_PICTURES}/{os.path.basename(made)}", "size": made and list(size(made))}
 
 
 def open_in_browser(path):

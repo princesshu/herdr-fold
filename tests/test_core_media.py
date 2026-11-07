@@ -132,6 +132,12 @@ class ForTheApp(unittest.TestCase):
         self.assertEqual((answer["kind"], answer["pages"]), ("image", None))
         self.assertTrue(answer["png"].startswith("herdr-fold-pictures/"))
         self.assertEqual(media.size(os.path.join(self.tmp, "app", answer["png"])), (100, 66))
+        self.assertEqual(answer["size"], [100, 66])
+
+    def test_a_small_image_keeps_its_own_size(self):
+        """The app draws it no larger than that, as the TUI does."""
+        icon = png(os.path.join(self.tmp, "icon.png"), 40, 30)
+        self.assertEqual(media.picture(icon, 0, 100)["size"], [40, 30])
 
     def test_an_old_picture_goes(self):
         old = png(os.path.join(media.app_pictures(), "old.png"), 4, 4)
@@ -140,7 +146,8 @@ class ForTheApp(unittest.TestCase):
         self.assertFalse(os.path.exists(old))
 
     def test_no_picture_for_anything_else(self):
-        self.assertEqual(media.picture("/w/notes.md", 0, 100), {"kind": None, "pages": None, "png": None})
+        self.assertEqual(media.picture("/w/notes.md", 0, 100), {"kind": None, "pages": None, "png": None,
+                                                                 "size": None})
 
 
 @unittest.skipUnless(MAC and shutil.which("swiftc"), "PDFKit and swiftc: macOS")

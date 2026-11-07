@@ -105,8 +105,9 @@ A space has one, as in the TUI: the first file, diff, commit or issue opened mak
 (`preview: src/app.py`, `preview: #42 Pagination retur…`), and the next one shows there again. A file's lines are
 numbered from the first; a diff is numbered once, a removed line by the old file and the others by the new one, a thin
 rule where lines are left out; a commit shows its author, message and each file's diff; an issue its text and comments
-as markdown. An image or a PDF on this Mac is drawn, fitted to the tab, a PDF page by page (Previous, Next), with
-Open in Browser above it; one on another machine is not. Herdr-fold's panel stays beside it.
+as markdown. An image or a PDF on this Mac is drawn, fitted to the tab and never larger than it is, a PDF page by
+page (Previous, Next), with Open in Browser above it; one on another machine is not. Herdr-fold's panel stays
+beside it.
 
 ## Spaces
 
