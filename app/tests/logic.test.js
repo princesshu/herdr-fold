@@ -13,7 +13,8 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   safeMarkdown, said, searchRows, searchSummary, secretQuestion, shownTab, strays, syncLabel, tabLabel, TALL,
   terminalId, TERMINALS, urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread,
   spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow,
-  railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom, mediaKind }
+  railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom, mediaKind,
+  swapDraft }
   from "../mods/herdr-fold/logic.js";
 
 test("a tab the app named after its program, an agent's first, else Terminal; an agent's icon; zoomed marked", () => {
@@ -654,4 +655,14 @@ test("an avatar's fill: the app's strong color for a theme color's name, a picke
 test("a picture, a PDF or a page by its name, as core/media.py has them", () => {
   assert.deepEqual(["docs/shot.WEBP", "a.pdf", "site/index.html", "notes.md", ".bashrc", "src.png/app"].map(mediaKind),
     ["image", "pdf", "html", null, null, null]);
+});
+
+test("the message field keeps each space's own draft, a message written for one waiting there", () => {
+  const drafts = new Map();
+  assert.equal(swapDraft(drafts, null, "a", ""), "");                     // the first space: an empty field
+  assert.equal(swapDraft(drafts, "a", "b", "fix: a"), "");                 // a's typed message kept, b's new
+  drafts.set("a", "feat: written for a");                                  // the AI's answer, come while on b
+  assert.equal(swapDraft(drafts, "b", "a", ""), "feat: written for a");
+  assert.equal(swapDraft(drafts, "a", "b", "feat: written for a"), "");    // b's was empty: nothing kept for it
+  assert.equal(drafts.has("b"), false);
 });

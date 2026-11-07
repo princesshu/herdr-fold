@@ -8,7 +8,8 @@ import { spaces, panes, focused, exec, hc, home, nextCommand, theme, settings, l
 import { COMMIT_MESSAGE, FILEOPS, GIT, SEARCH } from "./helper.js";
 import { activeTerminal, afterCommit, background, branchLabel, changeColor, changeName, commitMode, excerpt, fileIcon,
   foldedSections, hovering, lastLine, launcher, letter, marked, MODES, panelRailed, panelToggle, pushOffer,
-  pythonCommand, railFollow, rowActions, said, searchRows, searchSummary, secretQuestion, syncLabel, written }
+  pythonCommand, railFollow, rowActions, said, searchRows, searchSummary, secretQuestion, swapDraft, syncLabel,
+  written }
   from "./logic.js";
 import { button, chip, END, field, fileMark, GAP, icon, INDENT, SLIDE, small } from "./parts.js";
 import { Menus, menuPopup } from "./menus.js";
@@ -180,6 +181,10 @@ export default class HerdrFold extends View {
     this.hovered = null;
     /** @type {string | null} while ✦ writes: who writes the message (core/commit_message.py writing) */
     this.writing = null;
+    /** @type {string | null} the space shown, place() as JSON; the one ✦ writes for */
+    this.key = null; this.writingKey = null;
+    /** @type {Map<string, string>} each other space's message, kept while another is shown (swapDraft) */
+    this.drafts = new Map();
     this.input = InputState.new({ placeholder: "Commit message" });
     this.input.on("change", (_e, cx) => {
       const had = Boolean(this.message.trim());
@@ -213,15 +218,16 @@ export default class HerdrFold extends View {
   /** The repository of the focused pane, its changes, how far it is from its upstream and its last commits, from
    * core/git.py. */
   refresh(cx) {
-    if (this.loading || this.busy) return;
     const here = place(), key = JSON.stringify(here);
-    if (key !== this.key) {
-      Object.assign(this, { key, root: null, commits: [], status: null, open: null, note: null,
+    if (key !== this.key) {                       // while ✦ writes too: its message never lands in another space
+      const message = swapDraft(this.drafts, this.key, key, this.message);
+      Object.assign(this, { key, root: null, commits: [], status: null, open: null, note: null, message,
         asked: null, confirm: null, github: null, linked: null, head: null, once: null, offer: null });
+      this.input.set_value(message);
       this.issues.reset();
       this.publish();
     }
-    if (!here.cwd) return;
+    if (this.loading || this.busy || !here.cwd) return;
     this.loading = true;
     cx.spawn(async (cx) => {
       try {
@@ -349,6 +355,7 @@ export default class HerdrFold extends View {
     this.act(cx, "Writing the message…", async (cx) => {
       const { root, on, key } = this;
       this.busy = this.writing = (await python(COMMIT_MESSAGE, ["writing", root], root, on)).writing;
+      this.writingKey = key;
       cx.notify();
       await stage(root, on);
       const job = background(await pythonOn(on), COMMIT_MESSAGE, ["write", root]);
@@ -370,7 +377,7 @@ export default class HerdrFold extends View {
           if (answer.message && key === this.key) {
             this.input.set_value(answer.message);
             this.message = answer.message;
-          }
+          } else if (answer.message) this.drafts.set(key, answer.message);      // waiting there for its space
           return answer.note;
         }
         throw new Error("No message: the AIs took longer than six minutes");
@@ -802,7 +809,7 @@ export default class HerdrFold extends View {
       .child(h_flex().gap(8)
         .child(div().id("message").flex_1().min_w(0).h(32).px(12).flex().items_center().rounded(8).border_1()
           .border_color(t.border).cursor_text().on_key_down((e, cx) => e.key === "escape" && this.cancel(cx))
-          .child(this.writing && !this.message.trim()          // an empty field says who writes in it
+          .child(this.writing && this.writingKey === this.key && !this.message.trim()   // who writes in it
             ? h_flex().gap(6).items_center().text_size(12).text_color(t.muted)
               .child(div().frames(SPINNER, 100)).child(this.writing)
             : Input.new(this.input).h_full().text_size(12).text_color(t.foreground)))

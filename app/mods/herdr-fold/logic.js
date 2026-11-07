@@ -715,6 +715,17 @@ export function written(answer) {
   return { message: null, note: `No message: ${answer.note}` };
 }
 
+/** The message field on a change of space: FROM's MESSAGE kept in DRAFTS (an empty one forgotten), TO's own given
+ * back and taken out ("" for one without). @param {Map<string, string>} drafts @param {string | null} from
+ * @param {string} to @param {string} message */
+export function swapDraft(drafts, from, to, message) {
+  if (from !== null && message.trim()) drafts.set(from, message);
+  else if (from !== null) drafts.delete(from);
+  const back = drafts.get(to) ?? "";
+  drafts.delete(to);
+  return back;
+}
+
 /** PATH's kind by its extension, as core/media.py has it: image, pdf or html, else null. @param {string} path */
 export function mediaKind(path) {
   const dot = path.lastIndexOf("."), name = path.lastIndexOf("/") + 1;
