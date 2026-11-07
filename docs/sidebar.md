@@ -10,8 +10,8 @@ herdr-fold does with it.
 on top, the message Claude wrote, the issue it fixes and the Graph, Issues by
 priority](../assets/screenshots/sidebar.webp)
 
-![A diff in the preview tab, its lines numbered, the tab laid out as the one it was opened
-from](../assets/screenshots/preview.webp)
+![A commit's diff in the preview tab, its message and each file's lines numbered, the tab laid out as the one it
+was opened from](../assets/screenshots/preview.webp)
 
 ## How it gets there
 
