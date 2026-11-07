@@ -61,6 +61,16 @@ def size(path):
     return struct.unpack(">II", head[16:24])
 
 
+def named(path):
+    """The name of PATH's pictures, from its path and its version: a changed file's are new ones, never kept ones."""
+    try:
+        stat = os.stat(path)
+        version = f"{stat.st_mtime_ns}:{stat.st_size}"
+    except OSError:
+        version = ""
+    return hashlib.sha256(f"{path}\0{version}".encode()).hexdigest()[:12]
+
+
 def as_png(path, folder, side):
     """IMAGE as a PNG at most SIDE pixels on its longer side: itself when it is one already, else made in FOLDER by
     sips; None when it cannot be."""
@@ -69,7 +79,7 @@ def as_png(path, folder, side):
         return path
     if not shutil.which("sips"):
         return None
-    made = os.path.join(folder, f"{hashlib.sha256(path.encode()).hexdigest()[:12]}-{side}.png")
+    made = os.path.join(folder, f"{named(path)}-{side}.png")
     if subprocess.run(["sips", "-s", "format", "png", path, "--out", made], capture_output=True,
                       timeout=TIMEOUT).returncode != 0 or not size(made):
         return None
@@ -117,7 +127,7 @@ def pages(path):
 def page_png(path, page, width, folder):
     """A PDF's PAGE (from 0) as a PNG WIDTH pixels wide, made in FOLDER; None past its last page. Without the helper,
     the first page alone, through sips."""
-    made = os.path.join(folder, f"{hashlib.sha256(path.encode()).hexdigest()[:12]}-{page}-{width}.png")
+    made = os.path.join(folder, f"{named(path)}-{page}-{width}.png")
     tool = helper()
     if tool:
         argv = [tool, "render", path, str(page), str(width), made]
@@ -173,7 +183,7 @@ def picture(path, page, width):
     folder = app_pictures()
     made = page_png(path, page, width, folder) if kind == "pdf" else as_png(path, folder, width)
     if made and os.path.dirname(made) != folder:          # an image already small enough: a copy in the app's home
-        made = shutil.copyfile(made, os.path.join(folder, f"{hashlib.sha256(path.encode()).hexdigest()[:12]}.png"))
+        made = shutil.copyfile(made, os.path.join(folder, f"{named(path)}.png"))
     return {"kind": kind, "pages": pages(path) if kind == "pdf" else None,
             "png": made and f"{APP_PICTURES}/{os.path.basename(made)}", "size": made and list(size(made))}
 

@@ -139,6 +139,13 @@ class ForTheApp(unittest.TestCase):
         icon = png(os.path.join(self.tmp, "icon.png"), 40, 30)
         self.assertEqual(media.picture(icon, 0, 100)["size"], [40, 30])
 
+    def test_a_changed_image_is_a_new_picture(self):
+        """The app keeps a picture by its path: a file changed since is made under a new name, never the one it has."""
+        shot = png(os.path.join(self.tmp, "shot.png"), 30, 20)
+        first = media.picture(shot, 0, 100)["png"]
+        png(shot, 40, 20)
+        self.assertNotEqual(media.picture(shot, 0, 100)["png"], first)
+
     def test_an_old_picture_goes(self):
         old = png(os.path.join(media.app_pictures(), "old.png"), 4, 4)
         os.utime(old, (1, 1))
