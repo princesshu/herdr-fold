@@ -9,7 +9,7 @@ import { changeColor, changeName, fileIcon, fileRows, folderIcon, letter, mediaK
 import { END, fileMark, GAP, icon, iconButton, small } from "./parts.js";
 import { Menus } from "./menus.js";
 import { followFolder } from "./panel.js";
-import { showPreview } from "./preview.js";
+import { showPreview, shownPreviewTab } from "./preview.js";
 
 const HIDDEN = "herdr-fold.files-hidden";   // hidden files shown or not, kept (shared), as the TUI keeps its own
 const LOOK = 10000;                          // ms between two looks at another machine's folder
@@ -109,12 +109,13 @@ export class FilesView {
   }
 
   /** What a right click on ROW offers, as the TUI's menu: a page, a PDF or an image on this Mac opened in the
-   * browser, a new file or folder where it is, a rename, its path, the Trash; a folder a new workspace in it.
-   * @param {{ path: string, dir: boolean }} row */
+   * browser, the preview tab closed, a new file or folder where it is, a rename, its path, the Trash; a folder a new
+   * workspace in it. @param {{ path: string, dir: boolean }} row */
   items({ path, dir }) {
     const folder = dir ? path : folderOf(path);
-    const browsed = !dir && !this.on && mediaKind(path);
+    const browsed = !dir && !this.on && mediaKind(path), shown = shownPreviewTab();
     return [...(browsed ? [{ label: "Open in Browser", act: (cx) => this.browse(path, cx) }] : []),
+      ...(shown ? [{ label: "Close Preview", act: () => command("tab.close", { id: shown.id }) }] : []),
       { label: "New File", act: (cx) => this.name("new-file", folder, cx) },
       { label: "New Folder", act: (cx) => this.name("new-folder", folder, cx) },
       { label: "Rename", act: (cx) => this.name("rename", path, cx) },

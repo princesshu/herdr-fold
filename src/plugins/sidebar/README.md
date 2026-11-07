@@ -12,8 +12,9 @@ Claude wrote, the issue it fixes and the Graph, Issues by priority](../../../ass
   or a page drawn beside its code (macOS's WebKit draws it, offline; in a narrow pane one of them, `c` turning between
   them);
   `o` there, or the right click's Open in Browser, opens a page, a PDF or an image in the default browser (never over
-  SSH: a browser there would open on the machine, out of sight). With herdr-fold's tab layout, a folder's right click
-  offers New Workspace: herdr-fold's folder picker opens on it.
+  SSH: a browser there would open on the machine, out of sight). While the workspace has a preview tab, the right
+  click offers Close Preview, as `q` there. With herdr-fold's tab layout, a folder's right click offers New Workspace:
+  herdr-fold's folder picker opens on it.
 - **Search:** as you type (typing on narrows the hits at once, before the search answers), with match case, whole word
   and regular expression; the hits by file. A hit opens the preview at its line. A folder or file you chose in Files (an
   arrow key or a click on it) is the one searched, named above the field, a file even when git ignores it (a link chosen
@@ -151,13 +152,13 @@ Alt + Enter commits from the message there too.
 - Its settings (hidden files, icons, the commit mode, the view, the issue each repository's next commit fixes) are in
   `settings.json` in its state folder, `~/.local/state/herdr/plugins/herdr-fold.sidebar/`. A `colors.json` there,
   written by herdr-fold's theme setter, gives the theme's exact colors; without it the sidebar uses the terminal's own
-  16. What a workspace's preview tab shows is in `preview-<workspace>.json` there until `q` closes it; a new preview
-  tab's sidebar finds where the one that opened it was in a `seed-<tab>.json`, and deletes it. Either one left untouched
-  for an hour goes when a sidebar starts (a tab closed otherwise than by `q` leaves it); the next preview then opens a
-  new preview tab in place of an old one. The issues of each repository and filter as last asked, a private
-  repository's titles too, are in an `issues-….json` there, readable by you alone, for its other sidebars to take
-  instead of asking GitHub again within the minute; one an hour old goes when a sidebar starts, and all of them when
-  herdr-fold is removed.
+  16. What a workspace's preview tab shows is in `preview-<workspace>.json` there until the tab closes (`q`, Close
+  Preview, or herdr's own close); a new preview tab's sidebar finds where the one that opened it was in a
+  `seed-<tab>.json`, and deletes it. Either one left untouched for an hour goes when a sidebar starts (a pager ended
+  without a chance to clean up leaves it); the next preview then opens a new preview tab in place of an old one. The
+  issues of each repository and filter as last asked, a private repository's titles too, are in an `issues-….json`
+  there, readable by you alone, for its other sidebars to take instead of asking GitHub again within the minute; one
+  an hour old goes when a sidebar starts, and all of them when herdr-fold is removed.
 - When an update changes its own files, it starts the new version in the same pane, once every file is in place,
   nothing of its own is running (a status or a search either: the program it runs would be left behind) and no
   question or name being typed is on screen, with the view, the open folders, the search and the message it had; an

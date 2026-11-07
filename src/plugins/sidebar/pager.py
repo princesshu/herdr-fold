@@ -441,12 +441,17 @@ def spec_at(path):
     return spec if isinstance(spec, dict) else None
 
 
-def close(path):
-    """q: the preview tab closes (the panes beside it with it), and what it showed is forgotten."""
-    try:
-        os.remove(path)
-    except OSError:
-        pass
+def forget(path, seen):
+    """What the pager showed forgotten (its spec at PATH, as SEEN), not the next one a sidebar wrote there meanwhile."""
+    if stamp(path) == seen:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def close():
+    """q: the preview tab closes, the panes beside it with it."""
     tab = os.environ.get("HERDR_TAB_ID")
     if tab:
         try:
@@ -485,7 +490,8 @@ def main():
         finally:
             if isinstance(pager, (Picture, PictureAndCode)):
                 pager.close(term)
-    close(path)
+            forget(path, seen)                          # q, or the tab closed otherwise (a hang-up)
+    close()
     return 0
 
 

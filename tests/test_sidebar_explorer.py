@@ -253,6 +253,25 @@ class View(unittest.TestCase):
                     self.assertFalse(any("Open in Browser" in text(self.canvas, y) for y in range(12)))
                     self.view.close_menu()
 
+    def test_close_preview_is_offered_while_the_workspace_shows_one(self):
+        def offered(name=None):
+            self.view.close_menu()
+            self.draw()
+            if name:
+                self.click(name, button=2)
+            else:                                                            # the blank under the tree
+                self.view.handle(Mouse("press", 5, 11, 2))
+            self.draw()
+            return any("Close Preview" in text(self.canvas, y) for y in range(12))
+        self.assertFalse(offered("README.md"))                               # the sidebar alone: no preview tab
+        self.view.preview = self.path("preview-w1.json")
+        self.assertFalse(offered("README.md"))                               # none shown in the workspace now
+        with open(self.view.preview, "w") as f:
+            f.write("{}")
+        self.assertTrue(offered("README.md"))
+        self.assertTrue(offered())
+        self.assertEqual(self.click("Close Preview"), Action("close_preview"))
+
     def test_a_folders_menu_offers_a_new_workspace_once_herdr_folds_picker_is_there(self):
         def menu_of(name):
             self.view.close_menu()

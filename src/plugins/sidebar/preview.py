@@ -181,6 +181,13 @@ def open_preview(herdr, workspace, root, spec, state_dir, lay_out=None, here=Non
             herdr.call("tab", "close", tab)
 
 
+def close_preview(herdr, workspace):
+    """WORKSPACE's preview tab closed (Files' Close Preview): its pager, hung up, forgets what it showed."""
+    for tab in herdr.call("tab", "list", "--workspace", workspace).get("tabs") or []:
+        if isinstance(tab, dict) and tab.get("tab_id") and str(tab.get("label", "")).startswith(LABEL):
+            herdr.call("tab", "close", tab["tab_id"])
+
+
 def paging(herdr, pane):
     """Whether the pager runs in PANE (once herdr starts again, a shell is left there)."""
     try:

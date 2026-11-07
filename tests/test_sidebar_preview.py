@@ -229,6 +229,10 @@ class Tabs(unittest.TestCase):
             self.laid.append((tab, len(logged(self.log))))
         preview.open_preview(self.herdr, "w1", "/repo", spec, self.tmp, lay_out, here)
 
+    def test_close_preview_closes_the_workspaces_preview_tab_alone(self):
+        preview.close_preview(self.herdr, "w1")
+        self.assertEqual([call for call in logged(self.log) if call.startswith("tab close")], ["tab close w1:t2"])
+
     def test_the_preview_tabs_pager_takes_up_the_next_one(self):
         # the tab stays, its columns and sidebar with it: from that sidebar the next file opens there too
         os.environ["PAGING"] = "1"
@@ -576,7 +580,8 @@ class Pictures(unittest.TestCase):
         self.assertNotIn("c: ", view.status())                                 # both shown: nothing to turn to
 
     def test_a_closed_tab_takes_the_pictures_files_away(self):
-        """herdr ends a closed tab's pane with a hang-up: the picture's folder goes all the same."""
+        """herdr ends a closed tab's pane with a hang-up: the picture's folder goes all the same, and what it showed
+        is forgotten, as after q (Files then offers no Close Preview)."""
         temp = os.path.join(self.tmp, "temp")
         os.makedirs(temp)
         shot = png(os.path.join(self.tmp, "shot.png"), 40, 30)
@@ -608,6 +613,21 @@ class Pictures(unittest.TestCase):
         os.close(fd)
         self.assertTrue(hung_up)
         self.assertEqual(made(), [])
+        self.assertFalse(os.path.exists(path))
+
+    def test_a_next_preview_written_meanwhile_is_not_forgotten(self):
+        """An old preview tab closed while a sidebar writes the next one to the same file: that one stays."""
+        path = os.path.join(self.tmp, "preview-w1.json")
+        with open(path, "w") as f:
+            json.dump({"title": "a.py"}, f)
+        seen = pager.stamp(path)
+        with open(path + ".new", "w") as f:
+            json.dump({"title": "b.py"}, f)
+        os.replace(path + ".new", path)                                     # as statefile.write puts it in place
+        pager.forget(path, seen)
+        self.assertTrue(os.path.exists(path))
+        pager.forget(path, pager.stamp(path))
+        self.assertFalse(os.path.exists(path))
 
     def test_closing_takes_the_picture_and_its_files_away(self):
         picture = pager.Picture(png(os.path.join(self.tmp, "shot.png"), 40, 30), "shot.png")

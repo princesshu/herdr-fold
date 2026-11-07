@@ -36,6 +36,7 @@ class Explorer:
         self.pointed = None                               # the header button under the mouse
         self.moved = False                                # whether the chosen row is yours: the first is by itself
         self.opens_workspace = False                      # herdr-fold's folder picker there (the app asks herdr once)
+        self.preview = None                               # the workspace's preview spec: Close Preview while there
 
     @property
     def editing(self):
@@ -350,8 +351,11 @@ class Explorer:
             choices = MENU[:2]
         else:
             choices = (("New Workspace",) if node.is_dir and self.opens_workspace else ()) + MENU
-            if not node.is_dir and media.kind_of(node.path) and media.browsable():     # a page, a PDF, an image
-                choices = ("Open in Browser",) + choices
+        if self.preview and os.path.exists(self.preview):
+            choices = ("Close Preview",) + choices
+        if node is not None and node.path is not None and not node.is_dir and media.kind_of(node.path) \
+                and media.browsable():                                         # a page, a PDF, an image
+            choices = ("Open in Browser",) + choices
         self.menu = Popup(Menu(choices), node, y, x)
 
     def close_menu(self):
@@ -369,6 +373,8 @@ class Explorer:
             return Action("copy_path", (node.path,))
         elif choice == "Open in Browser":
             return Action("open_browser", (node.path,))
+        elif choice == "Close Preview":
+            return Action("close_preview")
         elif choice == "New Workspace":
             return Action("new_workspace", (node.path,))
         elif choice == "Move to Trash":

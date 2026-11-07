@@ -29,6 +29,11 @@ export function showPreview(what) {
   command("tab.select", { id: tab.id });
 }
 
+/** The shown space's preview tab, or null (Files offers Close Preview while there is one). */
+export function shownPreviewTab() {
+  return previewTab(spaces().find((s) => s.active), panes());
+}
+
 export class Preview {
   /** SPACE's preview tab; CORE runs core/'s code where the repository is (main.js's python).
    * @param {string} space

@@ -126,6 +126,8 @@ class App(Loop):
         icons = self.settings["icons"]
         self.views = {"files": Explorer(self.tree, icons, self.repo), "search": Find(self.root, icons, clock),
                       "git": Scm(self.settings["commit_mode"], icons, self.settings["folded"]), "issues": Issues(icons)}
+        workspace = os.environ.get("HERDR_WORKSPACE_ID")
+        self.views["files"].preview = preview.spec_file(state_dir, workspace) if workspace else None
         self.github = git.github_name(self.repo) if self.repo else None     # OWNER/NAME on GitHub, or None
         self.issues_asked = {}                            # when each query's issues were last asked for
         self.views["git"].linked = self.linked()
@@ -648,6 +650,9 @@ class App(Loop):
         self.job("workspace", lambda: self.herdr.call(
             "plugin", "pane", "open", "--plugin", "herdr-fold.tab-layout", "--entrypoint", "new-workspace", "--focus",
             "--env", f"HERDR_NEW_WORKSPACE_FOLDER={folder}"))
+
+    def do_close_preview(self):
+        self.job("preview", lambda: preview.close_preview(self.herdr, os.environ["HERDR_WORKSPACE_ID"]))
 
     def do_open_browser(self, path):
         self.note = "Opened in the browser" if media.open_in_browser(path) else "No browser to open it in"
