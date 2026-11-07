@@ -17,6 +17,7 @@ from themes import apply  # noqa: E402
 
 MOD, LAYOUT, KEYS = os.path.join("mods", "herdr-fold"), os.path.join("layouts", "herdr-fold.json"), "keys.json"
 PICTURES = "herdr-fold-pictures"             # the preview tab's pictures (core/media.py makes them there)
+DATA = os.path.join("data", "herdr-fold")    # the app's data of the mod (its views' state, store.json)
 # in HOME: the app's localStorage of each mod copy, made when it loads one (herdr-fold's stays empty), named
 # NAME-HASH by the copy's folder and the FNV-1a hash of its real path
 STORAGE = os.path.join("Library", "Application Support", "gpui-shell", "apps")
@@ -251,6 +252,7 @@ def uninstall(package, home, state, app_running=False):
     if herdr_folds(os.path.join(home, MOD)):
         replace(os.path.join(home, MOD))
         shutil.rmtree(storage(os.path.join(home, MOD)), ignore_errors=True)
+        shutil.rmtree(os.path.join(home, DATA), ignore_errors=True)
     for rel in (LAYOUT, *themes(home)):
         if os.path.isfile(os.path.join(home, rel)):
             os.remove(os.path.join(home, rel))

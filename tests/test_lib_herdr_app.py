@@ -113,9 +113,12 @@ class Install(unittest.TestCase):
         self.write("themes/mine.json", "{}\n")
         herdr_app.install(PACKAGE, self.home, self.state)
         self.write("herdr-fold-pictures/0123456789ab.png", "a picture the preview tab drew")
+        self.write("data/herdr-fold/store.json", "{}\n")                    # the app's data of each mod it ran
+        self.write("data/other/store.json", "{}\n")
         herdr_app.uninstall(PACKAGE, self.home, self.state)
         self.assertEqual(sorted(os.listdir(os.path.join(self.home, "mods"))), ["other"])
         self.assertFalse(os.path.exists(os.path.join(self.home, "herdr-fold-pictures")))
+        self.assertEqual(os.listdir(os.path.join(self.home, "data")), ["other"])
         self.assertEqual(os.listdir(os.path.join(self.home, "layouts")), ["mine.json"])
         self.assertEqual(os.listdir(os.path.join(self.home, "themes")), ["mine.json"])
 
