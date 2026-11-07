@@ -137,6 +137,7 @@ sidebar, the Herdr app where `plugins.txt` names `herdr-fold.app`.
 | `version` | the installed version, which the next install names in its update question |
 | `plugins.txt` | the plugins and herdr integrations this installer put there, and the plugins you said no to (the Herdr app, once taken off alone, among them) |
 | `app-keys.json` | the keys the last install put in the Herdr app's `keys.json`: the next install and the uninstaller take off one a newer version no longer has, unless you rebound it |
+| `app-themes.json` | the themes the last install put in the Herdr app's `themes/`: the next install takes off one a newer version no longer brings, the uninstaller all of them; a theme of yours there stays, whatever its name |
 | `app-machines.txt` | the remote machines herdr-fold added to the Herdr app, which the uninstaller takes off |
 | `loading-colors.txt` | the loading sheep's colors, the chosen theme's |
 | `ghostty-icon/` | the Ghostty app icon of the theme in use: herdr-fold's logo in its colors |

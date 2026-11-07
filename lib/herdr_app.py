@@ -28,6 +28,7 @@ TERMINALS = "fold-terminals"    # the layout's stack of the tabs' terminals the 
 SHARED = "shared.json"          # the app's shared values, the mod's named herdr-fold.*; a running app holds them all
 PREFIX = "herdr-fold."
 RECORD = "app-keys.json"        # in the installer's state folder: what the last install put in keys.json
+THEMES_RECORD = "app-themes.json"    # and the themes it put in the app's themes/
 CLOSING = 10                    # seconds a running app may take to close
 ANSWER = 30                     # seconds the app's command line may take to answer
 
@@ -200,13 +201,21 @@ def drop_keys(mine, added):
     return kept
 
 
-def themes(app):
-    """herdr-fold's themes in APP, the package's app folder or the app's home, each a file under themes/: all named
-    herdr-fold, none a person's own."""
-    folder = os.path.join(app, THEMES)
-    names = sorted(os.listdir(folder)) if os.path.isdir(folder) else []
-    return [os.path.join(THEMES, name) for name in names if name.startswith("herdr-fold") and name.endswith(".json")
-            and os.path.isfile(os.path.join(folder, name))]
+def themes(package):
+    """The themes PACKAGE brings, each a file under themes/ of its app folder."""
+    folder = os.path.join(package, "app", THEMES)
+    return [os.path.join(THEMES, name) for name in sorted(os.listdir(folder)) if name.endswith(".json")]
+
+
+def put_themes(state):
+    """The themes the last install put in the app's home, as it recorded them in STATE ([] without a record)."""
+    try:
+        with open(os.path.join(state, THEMES_RECORD), encoding="utf-8") as f:
+            found = json.load(f)
+    except (OSError, ValueError):
+        return []
+    return [rel for rel in found if isinstance(rel, str) and os.path.dirname(rel) == THEMES] \
+        if isinstance(found, list) else []
 
 
 def recorded(state):
@@ -227,12 +236,15 @@ def install(package, home, state, app_running=False, theme=None):
         return 4
     had = apply.layout_theme(os.path.join(home, LAYOUT))
     replace(os.path.join(home, MOD), os.path.join(package, "app", MOD))
-    brought = themes(os.path.join(package, "app"))
-    for rel in set(themes(home)) - set(brought):
-        os.remove(os.path.join(home, rel))
+    brought = themes(package)
+    for rel in set(put_themes(state)) - set(brought):            # an earlier version's, this one no longer brings
+        if os.path.isfile(os.path.join(home, rel)):
+            os.remove(os.path.join(home, rel))
     for rel in (LAYOUT, *brought):
         os.makedirs(os.path.join(home, os.path.dirname(rel)), exist_ok=True)
         shutil.copyfile(os.path.join(package, "app", rel), os.path.join(home, rel))
+    os.makedirs(state, mode=0o700, exist_ok=True)              # the installer's records: their owner's only
+    write_json(os.path.join(state, THEMES_RECORD), brought)
     chosen = apply.find(apply.load_themes(), theme) if theme else None
     name = apply.APP_THEME + chosen["id"] if chosen else had
     if name:
@@ -244,7 +256,6 @@ def install(package, home, state, app_running=False, theme=None):
         return 3
     added = package_keys(package)
     write_json(os.path.join(home, KEYS), merge_keys(drop_keys(mine, recorded(state)), added))
-    os.makedirs(state, mode=0o700, exist_ok=True)              # the installer's records: their owner's only
     write_json(os.path.join(state, RECORD), added)
     return 0
 
@@ -254,15 +265,16 @@ def uninstall(package, home, state, app_running=False):
         replace(os.path.join(home, MOD))
         shutil.rmtree(storage(os.path.join(home, MOD)), ignore_errors=True)
         shutil.rmtree(os.path.join(home, DATA), ignore_errors=True)
-    for rel in (LAYOUT, LAYOUT_STATE, *themes(home)):
+    for rel in (LAYOUT, LAYOUT_STATE, *sorted(set(themes(package)) | set(put_themes(state)))):
         if os.path.isfile(os.path.join(home, rel)):
             os.remove(os.path.join(home, rel))
     shutil.rmtree(os.path.join(home, PICTURES), ignore_errors=True)
     mine = read_keys(os.path.join(home, KEYS))
     if mine:
         write_json(os.path.join(home, KEYS), drop_keys(drop_keys(mine, package_keys(package)), recorded(state)))
-    if os.path.isfile(os.path.join(state, RECORD)):
-        os.remove(os.path.join(state, RECORD))
+    for record in (RECORD, THEMES_RECORD):
+        if os.path.isfile(os.path.join(state, record)):
+            os.remove(os.path.join(state, record))
     if not app_running:
         tidy(home)
 

@@ -155,12 +155,22 @@ class Install(unittest.TestCase):
     def test_a_theme_an_earlier_version_brought_goes(self):
         self.write("themes/herdr-fold-gone.json", "{}\n")
         self.write("themes/mine.json", "{}\n")
+        os.makedirs(self.state)
+        with open(os.path.join(self.state, "app-themes.json"), "w", encoding="utf-8") as f:
+            json.dump(["themes/herdr-fold-gone.json"], f)                    # as that version recorded it
         herdr_app.install(PACKAGE, self.home, self.state)
         self.assertEqual(sorted(os.listdir(os.path.join(self.home, "themes"))),
                          sorted(os.listdir(os.path.join(PACKAGE, "app", "themes")) + ["mine.json"]))
-        self.write("themes/herdr-fold-gone.json", "{}\n")
         herdr_app.uninstall(PACKAGE, self.home, self.state)
         self.assertEqual(os.listdir(os.path.join(self.home, "themes")), ["mine.json"])
+
+    def test_a_persons_own_theme_named_like_herdr_folds_stays(self):
+        self.write("themes/herdr-fold-nord-mine.json", "{}\n")                # a copy made to change it
+        herdr_app.install(PACKAGE, self.home, self.state)
+        herdr_app.install(PACKAGE, self.home, self.state)                     # an update
+        self.assertTrue(os.path.isfile(os.path.join(self.home, "themes", "herdr-fold-nord-mine.json")))
+        herdr_app.uninstall(PACKAGE, self.home, self.state)
+        self.assertEqual(os.listdir(os.path.join(self.home, "themes")), ["herdr-fold-nord-mine.json"])
 
     def test_install_records_the_keys_it_put(self):
         herdr_app.install(PACKAGE, self.home, self.state)
