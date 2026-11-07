@@ -58,7 +58,12 @@ class Commands(unittest.TestCase):
         plain = preview.file_spec("/repo", "/repo/a.py", None, which=tools())
         self.assertEqual((plain["pipeline"], plain["file"]), ([], "/repo/a.py"))
 
+    def test_over_ssh_no_page_offers_a_browser(self):
+        set_env(self, SSH_CONNECTION="the client and this machine")
+        self.assertNotIn("open", preview.file_spec("/repo", "/repo/site/index.html", None, which=tools("bat")))
+
     def test_a_page_opens_in_the_browser_with_o(self):
+        set_env(self, SSH_CONNECTION=None, SSH_CLIENT=None)
         spec = preview.file_spec("/repo", "/repo/site/index.html", None, which=tools("bat"))
         self.assertEqual(spec["open"], "/repo/site/index.html")
         self.assertNotIn("open", preview.file_spec("/repo", "/repo/a.py", None, which=tools("bat")))
@@ -505,7 +510,17 @@ class Pictures(unittest.TestCase):
         self.assertEqual(pager.load({key: value for key, value in spec.items() if key != "picture"}),
                          pager.load({"file": spec["picture"]}))
 
+    def test_over_ssh_a_picture_offers_no_browser(self):
+        set_env(self, SSH_CONNECTION="the client and this machine")
+        picture = pager.Picture(png(os.path.join(self.tmp, "shot.png"), 40, 30), "shot.png")
+        self.addCleanup(picture.close, Written(80, 24))
+        self.assertNotIn("o:", picture.status())
+        with mock.patch.object(pager.media, "open_in_browser", return_value=True) as opened:
+            picture.handle(Key("char", "o"))
+        opened.assert_not_called()
+
     def test_o_opens_it_in_the_browser_and_q_closes_it(self):
+        set_env(self, SSH_CONNECTION=None, SSH_CLIENT=None)
         picture = pager.Picture(png(os.path.join(self.tmp, "shot.png"), 40, 30), "shot.png")
         self.addCleanup(picture.close, Written(80, 24))
         with mock.patch.object(pager.media, "open_in_browser", return_value=True) as opened:

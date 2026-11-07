@@ -258,7 +258,7 @@ class Picture:
     def __init__(self, path, title):
         self.path, self.title, self.page, self.note = path, title, 0, None
         self.work = tempfile.mkdtemp(prefix="herdr-fold-picture.")
-        self.pdf = media.kind_of(path) == "pdf"
+        self.pdf, self.opens = media.kind_of(path) == "pdf", media.browsable()
         self.count, self.counted = 1, not self.pdf   # a PDF's pages counted at its first draw; None: its first alone
 
     def shown(self):
@@ -268,7 +268,7 @@ class Picture:
         if self.note:
             return self.note
         where = f"  page {self.page + 1} of {self.count or '?'}" if self.pdf else ""
-        return f"{self.title}{where}{HINT}"
+        return f"{self.title}{where}{HINT if self.opens else ''}"
 
     def png(self, columns, rows):
         """The picture as a PNG with the pixels COLUMNS x ROWS cells show: its longer side, the pane's height for a
@@ -292,7 +292,7 @@ class Picture:
             with open(made, "rb") as f:
                 out.append(f"\x1b[{row + 1};{column + 1}H" + kitty(f.read(), wide, tall))
         else:
-            self.note = self.note or f"{self.title}: cannot be shown here  o: open in browser"
+            self.note = self.note or f"{self.title}: cannot be shown here{HINT if self.opens else ''}"
         out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns)}\x1b[K\x1b[0m")
         term.write("".join(out))
         term.flush()
@@ -318,7 +318,7 @@ class Picture:
             self.page = 0
         elif key in ("G", "end"):
             self.page = last
-        elif key == "o":
+        elif key == "o" and self.opens:
             self.note = None if media.open_in_browser(self.path) else "No browser to open it in"
         return True
 

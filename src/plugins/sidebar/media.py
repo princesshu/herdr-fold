@@ -153,10 +153,18 @@ def browser():
 
 
 def open_argv(path, platform=sys.platform):
-    """The command that opens PATH in the default browser: macOS's open, else the desktop's opener; None without one."""
+    """The command that opens PATH in the default browser: macOS's open, Windows' Explorer (the app for its kind), else
+    the desktop's opener; None without one."""
     if platform == "darwin":
         return ["open", "-b", browser(), path]
+    if platform == "win32":
+        return ["explorer", path]
     return ["xdg-open", path] if shutil.which("xdg-open") else None
+
+
+def browsable():
+    """Whether a browser opened here is in front of its person: not over SSH (a remote machine's), and one there."""
+    return not (os.environ.get("SSH_CONNECTION") or os.environ.get("SSH_CLIENT")) and open_argv("") is not None
 
 
 def app_pictures():

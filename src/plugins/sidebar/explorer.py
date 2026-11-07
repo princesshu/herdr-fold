@@ -340,7 +340,7 @@ class Explorer:
             choices = MENU[:2]
         else:
             choices = (("New Workspace",) if node.is_dir and self.opens_workspace else ()) + MENU
-            if not node.is_dir and media.kind_of(node.path):              # a page, a PDF or an image
+            if not node.is_dir and media.kind_of(node.path) and media.browsable():     # a page, a PDF, an image
                 choices = ("Open in Browser",) + choices
         self.menu = Popup(Menu(choices), node, y, x)
 

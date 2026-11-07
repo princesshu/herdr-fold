@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from support import SRC, text
+from support import SRC, set_env, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import explorer  # noqa: E402
@@ -218,7 +218,18 @@ class View(unittest.TestCase):
         self.draw()
         self.assertFalse(any("Copy Path" in text(self.canvas, y) for y in range(12)))
 
+    def test_over_ssh_nothing_opens_in_a_browser(self):
+        set_env(self, SSH_CONNECTION="the client and this machine")
+        with open(self.path("page.html"), "w") as f:
+            f.write("x\n")
+        self.view = Explorer(Tree(self.root), icons=False)
+        self.draw()
+        self.click("page.html", button=2)
+        self.draw()
+        self.assertFalse(any("Open in Browser" in text(self.canvas, y) for y in range(12)))
+
     def test_a_page_a_pdf_or_an_image_opens_in_the_browser(self):
+        set_env(self, SSH_CONNECTION=None, SSH_CLIENT=None)
         for name in ("page.html", "paper.pdf", "shot.webp"):
             with open(self.path(name), "w") as f:
                 f.write("x\n")

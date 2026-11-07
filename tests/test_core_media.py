@@ -94,6 +94,14 @@ class Browser(unittest.TestCase):
             self.assertEqual(media.open_argv("/w/a.png", "linux"), ["xdg-open", "/w/a.png"])
         with mock.patch.object(media.shutil, "which", lambda name: None):
             self.assertIsNone(media.open_argv("/w/a.png", "linux"))
+        self.assertEqual(media.open_argv(r"C:\w\a.png", "win32"), ["explorer", r"C:\w\a.png"])
+
+    def test_over_ssh_no_browser_is_offered(self):
+        """A browser opened on a machine reached over SSH is one nobody in front of the Mac sees."""
+        set_env(self, SSH_CONNECTION=None, SSH_CLIENT=None)
+        self.assertEqual(media.browsable(), media.open_argv("x") is not None)
+        set_env(self, SSH_CONNECTION="the client and this machine")
+        self.assertFalse(media.browsable())
 
 
 @unittest.skipUnless(MAC, "sips: macOS")
