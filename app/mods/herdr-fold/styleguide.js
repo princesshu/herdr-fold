@@ -21,6 +21,7 @@ import { standIn } from "./terminal.js";
 const PANEL = 368;                  // a specimen as wide as the right panel
 const TAB = 540;                    // a specimen of the preview tab, two side by side
 const SIDEBAR = 268;                // a specimen as wide as the left sidebar
+const PAGE = "mods/herdr-fold/styleguide-page.svg";      // a PDF's page, as the app's home names it
 // what the views' clicks would do: nothing, here
 const INERT = ["act", "change", "choose", "commit", "fold", "later", "pick", "refresh", "reveal", "search", "show",
   "submit", "sync", "unask", "unlink", "watch", "write"];
@@ -242,7 +243,7 @@ export function guide(proto) {
     ["Error", at({ issues: { listing: { issues: [], error: "gh is not signed in: run gh auth login" } } }), 120]],
     preview: [["Diff", previewOf({ rows: DIFF }), 200], ["Commit", previewOf({ rows: COMMIT }), 200],
       ["Loading", previewOf({ loading: true }), 52], ["Error", previewOf({ note: "HTTP 404: Not Found" }), 52],
-      ["A PDF's page", previewOf({ picture: { png: BY_EXTENSION.pdf, pages: 12, page: 1 } }), 200]],
+      ["A PDF's page", previewOf({ picture: { png: PAGE, pages: 12, page: 1 } }), 320]],
     issue: previewOf({ issue: ISSUE }),
     files: [["Default", filesOf()], ["A file chosen", filesOf({ picked: "src/lumen/app.py" })],
       ["A full folder", filesOf({ open: new Set(["src", "src/lumen", "src/lumen/routes"]) })],

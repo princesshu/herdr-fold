@@ -150,7 +150,7 @@ green; without one, the accent. Closing or reopening asks on the row first.
 
 ### The preview tab
 
-![The preview tab with a diff, a commit, loading and an error](../assets/styleguide/preview.webp)
+![The preview tab with a diff, a commit, loading, an error and a PDF's page](../assets/styleguide/preview.webp)
 
 ![An issue in the preview tab, with its comments](../assets/styleguide/preview-issue.webp)
 
