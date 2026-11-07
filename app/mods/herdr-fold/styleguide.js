@@ -94,8 +94,9 @@ const MACHINES = [LOCAL,
 /** The Spaces list as its view draws GROUPS, MORE its drag. @param {any[]} groups */
 const spacesList = (t, groups, more = {}) => Object.assign(Object.create(SpacesView.prototype),
   { pressed: null, over: null, machines: [], mending: new Set(), ...more }).draw(t, groups);
-// the tab bar's tabs: an agent working (its icon tinted), one waiting on you, a shell, one done and zoomed
-const BAR = [{ id: "t1", name: "Claude", active: true, status: "working", icon: ICONS.bot, tint: true },
+// the tab bar's tabs: the first named as its space, an agent working there (its icon tinted), one waiting on you, a
+// shell, one done and zoomed
+const BAR = [{ id: "t1", name: "lumen-api", active: true, status: "working", icon: ICONS.bot, tint: true },
   { id: "t2", name: "Codex", active: false, status: "blocked", icon: ICONS.bot, tint: true },
   { id: "t3", name: "Terminal", active: false, status: null, icon: null, tint: false },
   { id: "t4", name: "notes Z", active: false, status: "done", icon: null, tint: false }];
@@ -350,7 +351,8 @@ function sections(g, t) {
     ["commit", [group(t, "Commit", g.composer.map(([name, state], i) => specimen(t, `composer-${i}`, name,
       state.composer(t))))]],
     ["tab-bar", [group(t, "Tab bar", [
-      specimen(t, "tab-bar", "The space's tabs: an agent working, one waiting, a shell under the pointer, one done",
+      specimen(t, "tab-bar", "The space's tabs: the first named as the space, an agent working there, one waiting, "
+        + "a shell under the pointer, one done",
         div().h(42).child(tabBar(t, null, "t3")),
         { width: 2 * PANEL, spec: "h 28 · px 12, 8 by the × · radius 6 · gap 4, 6 inside · × shown and on hover" }),
       specimen(t, "tab-bar-buttons", "Off macOS: the window's buttons",

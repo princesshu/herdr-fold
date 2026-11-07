@@ -25,6 +25,7 @@ All notable changes to this project are listed here. The format follows
   Picture above them. macOS's WebKit draws it offline: nothing is asked of the network and none of its scripts run,
   so a file cannot learn who opened it. See [the sidebar's README](src/plugins/sidebar/README.md) and
   [The Herdr app](docs/app.md#the-preview-tab).
+- In the Herdr app mod, a space's first tab is named as the space until it is renamed, as the TUI's main tab.
 - Files' right click offers Close Preview while the workspace has a preview tab, in the sidebar and in the Herdr app
   mod; a preview tab closed any way forgets what it showed, as `q` does.
 - A remote machine is prepared for the parts installed on the Mac: with the Herdr app alone it gets git, Python and

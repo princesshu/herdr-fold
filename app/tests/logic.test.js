@@ -29,6 +29,15 @@ test("a tab the app named after its program, an agent's first, else Terminal; an
   assert.deepEqual(tabRows(undefined, panes), []);
 });
 
+test("a space's first tab, while nobody named it, takes the space's name, as the TUI's main tab", () => {
+  const space = { name: "lumen-api", tabs: [{ id: "t1", name: "tb1", status: "working" }, { id: "t2", name: "tb2" }] };
+  const panes = [{ tab: "t1", program: { name: "Claude", agent: true, icon: "claude.svg", tint: true } }];
+  assert.deepEqual(tabRows(space, panes).map((r) => [r.name, r.icon]), [["lumen-api", "claude.svg"],
+    ["Terminal", null]]);
+  space.tabs[0].name = "review";                                    // named by hand: that name
+  assert.equal(tabRows(space, panes)[0].name, "review");
+});
+
 test("the tab bar's room for the traffic lights: what the sidebar beside them leaves, 10 at least, macOS only", () => {
   const root = (sidebar, trigger) => ({ traffic_lights: [12, 16], children: [{ id: "sidebar", size: { px: sidebar } },
     { id: "sidebar-trigger", size: { px: 40 }, hidden: !trigger }] });

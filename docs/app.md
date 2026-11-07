@@ -40,9 +40,10 @@ The rail, as Adobe's collapsed panels: Files, Search, Changes with its count, Is
 each a square with its name under it; a press floats that view beside the rail, nearly as tall as the window, one at a
 time, its head dragging it and its × closing it; a key of a view's (Cmd + Shift + C, Cmd + Shift + I) floats it too. ×
 at the end of the tabs hides the panel, and the toggle shows it again. The tab bar is herdr-fold's, drawn as the app's
-own: the space's tabs, dragged into order, a double click renaming one, a right click the app's menu, the wheel
-stepping through them; + after the last tab (New tab) starts a terminal or an agent, and every button there says
-what it does. A file, a picture, a diff, a commit or an issue opens in the space's preview tab, as in the TUI.
+own: the space's tabs, the first one named as the space until it is renamed (as the TUI's main tab), dragged into order,
+a double click renaming one, a right click the app's menu, the wheel stepping through them; + after the last tab (New
+tab) starts a terminal or an agent, and every button there says what it does. A file, a picture, a diff, a commit or an
+issue opens in the space's preview tab, as in the TUI.
 
 ## Files
 

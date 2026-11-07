@@ -93,8 +93,8 @@ push, and the issue the next commit fixes](../assets/styleguide/commit.webp)
 
 ### Tab bar
 
-![The space's tabs: an agent working, one waiting, a shell under the pointer, one done; off macOS, with the window's
-buttons](../assets/styleguide/tab-bar.webp)
+![The space's tabs: the first named as the space, an agent working there, one waiting, a shell under the pointer,
+one done; off macOS, with the window's buttons](../assets/styleguide/tab-bar.webp)
 
 herdr-fold's own, in place of the app's: a tab 28 high, its × on the active one and under the pointer, + after the
 last tab; at its right end the panel's toggle and, off macOS, the window's buttons, their tips opening to the left.
