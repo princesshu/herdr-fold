@@ -7,6 +7,7 @@ import pty
 import re
 import select
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -527,6 +528,40 @@ class Pictures(unittest.TestCase):
             self.assertTrue(picture.handle(Key("char", "o")))
         opened.assert_called_once_with(os.path.join(self.tmp, "shot.png"))
         self.assertFalse(picture.handle(Key("char", "q")))
+
+    def test_a_closed_tab_takes_the_pictures_files_away(self):
+        """herdr ends a closed tab's pane with a hang-up: the picture's folder goes all the same."""
+        temp = os.path.join(self.tmp, "temp")
+        os.makedirs(temp)
+        shot = png(os.path.join(self.tmp, "shot.png"), 40, 30)
+        path = os.path.join(self.tmp, "preview-w1.json")
+        with open(path, "w") as f:
+            json.dump({"title": "shot.png", "line": None, "file": shot, "pipeline": [], "picture": shot}, f)
+        pid, fd = pty.fork()
+        if pid == 0:
+            own = {key: value for key, value in os.environ.items() if not key.startswith("HERDR_")}
+            os.execve(sys.executable, [sys.executable, os.path.join(SRC, "plugins", "sidebar", "pager.py")],
+                      {**own, "TMPDIR": temp, "HERDR_FOLD_SPEC_FILE": path})
+        made = lambda: [name for name in os.listdir(temp) if name.startswith("herdr-fold-picture.")]   # noqa: E731
+
+        hung_up, done, end = False, 0, time.monotonic() + 10
+        while time.monotonic() < end and not done:
+            if select.select([fd], [], [], 0.1)[0]:
+                try:
+                    os.read(fd, 65536)
+                except OSError:
+                    pass
+            if made() and not hung_up:
+                os.kill(pid, signal.SIGHUP)
+                hung_up = True
+            elif hung_up:
+                done = os.waitpid(pid, os.WNOHANG)[0]
+        if not done:
+            os.kill(pid, signal.SIGKILL)                                   # its own: never left running
+            os.waitpid(pid, 0)
+        os.close(fd)
+        self.assertTrue(hung_up)
+        self.assertEqual(made(), [])
 
     def test_closing_takes_the_picture_and_its_files_away(self):
         picture = pager.Picture(png(os.path.join(self.tmp, "shot.png"), 40, 30), "shot.png")

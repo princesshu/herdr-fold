@@ -323,8 +323,12 @@ class Picture:
         return True
 
     def close(self, term):
-        term.write(GONE)
-        term.flush()
+        """The picture taken off the pane (one already gone, a closed tab's: nothing to say) and its files away."""
+        try:
+            term.write(GONE)
+            term.flush()
+        except OSError:
+            pass
         shutil.rmtree(self.work, ignore_errors=True)
 
 
@@ -389,20 +393,25 @@ def main():
         from keys_windows import WindowsTerminal as Terminal
     else:
         from keys_unix import UnixTerminal as Terminal
+    for name in ("SIGHUP", "SIGTERM"):                # a closed tab's pane ends so: the picture's files go too
+        if hasattr(signal, name):
+            signal.signal(getattr(signal, name), lambda *_: sys.exit(0))
     with Terminal() as term:
         drawn = None
-        while True:
-            if stamp(path) not in (seen, None):     # the next preview, written by a sidebar
-                seen, spec = stamp(path), spec_at(path)
-                if spec is not None:
-                    if isinstance(pager, Picture):
-                        pager.close(term)
-                    pager, drawn = viewer(spec), None
-            drawn = redraw(pager, term, drawn)      # a mouse move changes nothing: no redraw
-            if not all(pager.handle(event) for event in term.read(WATCH)):
-                break
-        if isinstance(pager, Picture):
-            pager.close(term)
+        try:
+            while True:
+                if stamp(path) not in (seen, None):     # the next preview, written by a sidebar
+                    seen, spec = stamp(path), spec_at(path)
+                    if spec is not None:
+                        if isinstance(pager, Picture):
+                            pager.close(term)
+                        pager, drawn = viewer(spec), None
+                drawn = redraw(pager, term, drawn)      # a mouse move changes nothing: no redraw
+                if not all(pager.handle(event) for event in term.read(WATCH)):
+                    break
+        finally:
+            if isinstance(pager, Picture):
+                pager.close(term)
     close(path)
     return 0
 

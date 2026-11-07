@@ -104,6 +104,37 @@ class Browser(unittest.TestCase):
         self.assertFalse(media.browsable())
 
 
+class Hangs(unittest.TestCase):
+    """A tool that hangs or is gone (sips, swiftc, the helper) makes no picture, and never ends the preview."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        set_env(self, XDG_CACHE_HOME=os.path.join(self.tmp, "cache"))
+
+    def test_a_hanging_tool_makes_no_picture(self):
+        big = png(os.path.join(self.tmp, "big.png"), 300, 200)
+        hang = mock.patch.object(media.subprocess, "run", side_effect=subprocess.TimeoutExpired("sips", 1))
+        found = mock.patch.object(media.shutil, "which", lambda name: f"/usr/bin/{name}")
+        with hang, found:
+            self.assertIsNone(media.as_png(big, self.tmp, 100))
+            self.assertIsNone(media.page_png(big, 0, 100, self.tmp))
+            self.assertIsNone(media.pages(big))
+
+    def test_an_earlier_helper_already_gone_is_no_failure(self):
+        """Two first PDFs at once (the TUI's and the app's): the other took the old helper away first."""
+        def built(argv, **_):                                              # swiftc's output: a runnable file
+            with open(argv[-1], "w"):
+                pass
+            os.chmod(argv[-1], 0o755)
+            return subprocess.CompletedProcess(argv, 0)
+        gone = os.path.join(media.cache(), "pdf-pages-000000000000")
+        with mock.patch.object(media.subprocess, "run", side_effect=built), \
+                mock.patch.object(media.shutil, "which", lambda name: "/usr/bin/swiftc"), \
+                mock.patch.object(media.glob, "glob", lambda pattern: [gone]):
+            self.assertTrue(media.helper().startswith(media.cache()))
+
+
 @unittest.skipUnless(MAC, "sips: macOS")
 class Images(unittest.TestCase):
     def setUp(self):

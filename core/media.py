@@ -1,6 +1,7 @@
 """What the preview draws as a picture: an image (as a PNG, through macOS's sips) or a PDF's page (through PDFKit, a
 small Swift helper compiled once into the cache); and the default browser that opens an image, a PDF or a page.
 Usage (the Herdr app mod's, in JSON): media.py picture PATH PAGE WIDTH (its kind, pages, PNG), open PATH."""
+import contextlib
 import glob
 import hashlib
 import json
@@ -60,6 +61,14 @@ def size(path):
     return struct.unpack(">II", head[16:24])
 
 
+def run(argv, timeout, **switches):
+    """ARGV run within TIMEOUT seconds: its finished process, or None where it hung or could not start."""
+    try:
+        return subprocess.run(argv, capture_output=True, timeout=timeout, **switches)
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+
+
 def named(path):
     """The name of PATH's pictures, from its path and its version: a changed file's are new ones, never kept ones."""
     try:
@@ -79,11 +88,11 @@ def as_png(path, folder, side):
     if not shutil.which("sips"):
         return None
     made = os.path.join(folder, f"{named(path)}-{side}.png")
-    if subprocess.run(["sips", "-s", "format", "png", path, "--out", made], capture_output=True,
-                      timeout=TIMEOUT).returncode != 0 or not size(made):
+    done = run(["sips", "-s", "format", "png", path, "--out", made], TIMEOUT)
+    if not done or done.returncode != 0 or not size(made):
         return None
     if max(size(made)) > side:                        # only then: -Z makes a smaller one larger too
-        subprocess.run(["sips", "-Z", str(side), made], capture_output=True, timeout=TIMEOUT)
+        run(["sips", "-Z", str(side), made], TIMEOUT)
     return made if size(made) else None
 
 
@@ -106,12 +115,12 @@ def helper():
         source, built = os.path.join(work, "pdf_pages.swift"), os.path.join(work, name)
         with open(source, "w", encoding="utf-8") as f:
             f.write(SWIFT)
-        done = subprocess.run([swiftc, "-O", source, "-o", built], capture_output=True, timeout=TIMEOUT * 3,
-                              env={**os.environ, "TMPDIR": work + os.sep})
-        if done.returncode != 0 or not os.access(built, os.X_OK):
+        done = run([swiftc, "-O", source, "-o", built], TIMEOUT * 3, env={**os.environ, "TMPDIR": work + os.sep})
+        if not done or done.returncode != 0 or not os.access(built, os.X_OK):
             return None
         for old in glob.glob(os.path.join(folder, "pdf-pages-*")):
-            os.remove(old)
+            with contextlib.suppress(FileNotFoundError):         # another first PDF's took it away first
+                os.remove(old)
         os.replace(built, made)
     return made
 
@@ -119,7 +128,7 @@ def helper():
 def pages(path):
     """A PDF's page count, or None (no helper, or no PDF)."""
     tool = helper()
-    done = subprocess.run([tool, "count", path], capture_output=True, text=True, timeout=TIMEOUT) if tool else None
+    done = run([tool, "count", path], TIMEOUT, text=True) if tool else None
     return int(done.stdout) if done and done.returncode == 0 and done.stdout.strip().isdigit() else None
 
 
@@ -134,8 +143,8 @@ def page_png(path, page, width, folder):
         argv = ["sips", "-s", "format", "png", "--resampleWidth", str(width), path, "--out", made]
     else:
         return None
-    done = subprocess.run(argv, capture_output=True, timeout=TIMEOUT)
-    return made if done.returncode == 0 and size(made) else None
+    done = run(argv, TIMEOUT)
+    return made if done and done.returncode == 0 and size(made) else None
 
 
 def browser():
