@@ -37,8 +37,12 @@ above a terminal](assets/screenshots/hero.webp)
   theme's colors. A status line with the model, effort, context with its window size and limits, the same for Claude
   and Codex.
 - Workspaces on Linux, macOS and Windows machines over SSH; the agents keep running there when the Mac sleeps.
-- In herdr's desktop app too: the sidebar's Changes and Search (the other views follow) above the tab's own terminal,
-  on remote machines alike, dark in the TUI's colors, the twelve themes in Settings: [The Herdr app](docs/app.md).
+- In herdr's desktop app too, as a layout of its own: the sidebar's four views beside the tab and its own terminal
+  under them, Spaces with the waits and the conversations on the left, the twelve themes; on remote machines alike:
+  [The Herdr app](docs/app.md).
+
+  ![herdr's desktop app with herdr-fold's layout: Spaces and the conversations on the left, an issue in the preview
+  tab, and on the right the Issues view by priority above the tab's own terminal](assets/screenshots/app.webp)
 
 ![An issue from the sidebar goes to Claude, which fixes it, and the message it writes closes the
 issue](assets/screenshots/issue-to-agent.webp)
@@ -124,12 +128,8 @@ question, Enter keeps your earlier choices, then it updates what changed, remove
 first) and updates the connected machines. Installed from herdr's marketplace: `herdr plugin update herdr-fold`, and
 the installer opens in a herdr tab again.
 
-After `brew upgrade herdr`, the herdr running in the background keeps the old version. Switch without stopping your
-agents:
-
-```bash
-herdr server live-handoff
-```
+After `brew upgrade herdr`, the herdr running in the background keeps the old version: `herdr server live-handoff`
+switches to the new one without stopping your agents.
 
 ## Uninstall
 
@@ -162,8 +162,8 @@ More: [Troubleshooting](docs/troubleshooting.md).
 - [Remote machines](docs/remote-machines.md): Linux, macOS and Windows machines
 - [Themes](docs/themes.md): the twelve themes and the picker
 - [The sidebar](docs/sidebar.md): Files, Search, Changes and Issues, as herdr-fold uses them
-- [The Herdr app](docs/app.md): the sidebar's Changes and Search views as a mod for herdr's desktop app, its layout
-  and themes; its parts in each state: [Styleguide](docs/styleguide.md)
+- [The Herdr app](docs/app.md): herdr-fold's layout for herdr's desktop app, its views, themes and machines; its
+  parts in each state: [Styleguide](docs/styleguide.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Translating](docs/translating.md): the installer in another language
 - [How it is built](docs/architecture.md): the files and the installer's records
