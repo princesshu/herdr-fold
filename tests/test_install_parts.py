@@ -99,6 +99,18 @@ class MissingApp(PartsInstall, unittest.TestCase):
         self.assertEqual(self.parts(), ["tui"])
 
 
+    def test_with_no_part_set_up_no_machine_is_prepared(self):
+        """The app alone chosen, its installer not run: nothing is set up, so no machine is prepared for the TUI."""
+        log = os.path.join(self.tmp, "machines-calls")
+        with open(os.path.join(self.pkg, "machines.sh"), "w") as f:     # a stand-in that only records its command
+            f.write(f'#!/bin/sh\necho "$*" >> {log}\n')
+        del self.env["HERDR_FOLD_NO_MACHINES"]
+        out = self.with_parts("app")
+        self.assertEqual(self.parts(), [])
+        self.assertFalse(os.path.exists(log))
+        self.assertIn(catalog_text("install.machines_no_part"), out)
+
+
 class ChosenParts(PartsInstall, unittest.TestCase):
     """Each step does what the chosen parts need: the TUI's files, programs, shell block, plugins and integrations
     with the TUI only; the app's part with the app only; the status line and GitHub for both."""

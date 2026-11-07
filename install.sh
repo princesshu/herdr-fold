@@ -654,6 +654,8 @@ fi
 step "$(t install.step_machines)"
 if [ "${HERDR_FOLD_NO_MACHINES:-}" = 1 ]; then
   skip "$(t install.machines_skipped)"
+elif [ -z "$(python3 "$DOT/src/parts.py" "$state")" ]; then     # the app chosen and not on this Mac: nothing set up
+  skip "$(t install.machines_no_part)"
 else
   # new machines: from ~/.ssh/config, the Tailscale network or an address typed in — a question each (Ctrl+B, Shift+M
   # asks the same later)

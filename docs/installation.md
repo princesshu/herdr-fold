@@ -120,7 +120,8 @@ the default: the capital letter in `[Y/n]` (yes) or `[y/N]` (no). Each line it p
 | 7 GitHub | `Let git push through your GitHub sign-in?` | signed in, but git does not use it yet | yes |
 | 7 GitHub | `Commit author name`, `Commit author email` | git has no author yet | signed in to GitHub: your login and its noreply address (`ID+login@users.noreply.github.com`), so a commit shows no real address; else none |
 
-Step 8 connects remote machines. Every question there is optional:
+Step 8 connects remote machines, for the parts set up (with the Herdr app chosen and not installed, none is, and
+the step is skipped). Every question there is optional:
 
 | Question | When | Default |
 |---|---|---|

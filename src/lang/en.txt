@@ -155,6 +155,7 @@ install.git_author_later = git author not set — later: git config --global use
 # install.sh: step 8, remote machines
 install.step_machines = 8/8 Remote machines
 install.machines_skipped = skipped (HERDR_FOLD_NO_MACHINES=1)
+install.machines_no_part = skipped: neither the TUI nor the Herdr app is set up on this Mac
 install.machines_failed = not every machine got connected — status: ./machines.sh, retry: ./machines.sh add <name>
 install.machines_later = no new machine — any time later: Ctrl+B, Shift+M
 
