@@ -543,41 +543,85 @@ class Pictures(unittest.TestCase):
         opened.assert_called_once_with(os.path.join(self.tmp, "shot.png"))
         self.assertFalse(picture.handle(Key("char", "q")))
 
-    @unittest.skipUnless(sys.platform == "darwin", "WebKit or sips: macOS")
-    def test_c_turns_an_svg_between_its_picture_and_its_code(self):
+    def split(self, columns):
+        """An SVG's code and picture (a 400 x 300 PNG made for it) in a COLUMNS x 24 pane."""
         svg = os.path.join(self.tmp, "logo.svg")
         with open(svg, "w", encoding="utf-8") as f:
             f.write('<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40">\n<rect width="60" height="40"/>\n'
                     '</svg>\n')
-        view = pager.viewer(preview.file_spec(self.tmp, svg, None, which=tools()))
-        term = Written(80, 24)
+        made = png(os.path.join(self.tmp, "drawn.png"), 400, 300)
+        for patch in (mock.patch.object(pager.media, "drawn_png", return_value=made),
+                      mock.patch.object(pager.media, "helper", return_value=None)):
+            patch.start()
+            self.addCleanup(patch.stop)
+        set_env(self, SSH_CONNECTION=None, SSH_CLIENT=None)
+        view = pager.viewer({"title": "logo.svg", "picture": svg, "file": svg, "pipeline": []})
+        term = Written(columns, 24)
         self.addCleanup(view.close, term)
+        return view, term
+
+    def places(self, out):
+        """The columns (from 1) the pictures in OUT are placed at."""
+        return [int(column) for column in re.findall(r"\x1b\[\d+;(\d+)H\x1b_Ga=T", out)]
+
+    def test_an_svg_shows_its_code_and_picture_side_by_side_at_once(self):
+        """As VS Code's preview to the side: the code left, the picture right, however narrow the pane."""
+        view, term = self.split(80)
         view.draw(term)
-        self.assertIn("\x1b_G", term.out)                                       # the picture
-        self.assertIn("c: code", view.status())
-        self.assertTrue(view.handle(Key("char", "c")))
-        term.out = ""
-        view.draw(term)
-        self.assertIn(pager.GONE, term.out)                                    # the picture taken off for the code
         self.assertIn("<rect", term.out)
-        self.assertIn("c: picture", view.status())
-        view.handle(Key("char", "c"))
+        self.assertIn("\x1b[1;41H\x1b[2m│", term.out)                       # the divider in the middle
+        self.assertTrue(self.places(term.out) and all(column > 41 for column in self.places(term.out)))
         self.assertIn("c: code", view.status())
 
-    @unittest.skipUnless(sys.platform == "darwin", "WebKit or sips: macOS")
-    def test_a_wide_pane_shows_the_code_and_the_picture_side_by_side(self):
-        svg = os.path.join(self.tmp, "logo.svg")
-        with open(svg, "w", encoding="utf-8") as f:
-            f.write('<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40">\n<rect width="60" height="40"/>\n'
-                    '</svg>\n')
-        view = pager.viewer(preview.file_spec(self.tmp, svg, None, which=tools()))
-        term = Written(140, 30)
-        self.addCleanup(view.close, term)
+    def test_the_divider_drags_and_the_picture_fits_its_side(self):
+        view, term = self.split(100)
         view.draw(term)
-        self.assertIn("<rect", term.out)                                       # the code, on the left
-        self.assertIn("\x1b_G", term.out)                                      # the picture, on the right
-        self.assertIn("│", term.out)
-        self.assertNotIn("c: ", view.status())                                 # both shown: nothing to turn to
+        for event in (Mouse("press", 50, 5, 0), Mouse("move", 70, 5, 0), Mouse("release", 70, 5, 0)):
+            view.handle(event)
+        term.out = ""
+        view.draw(term)
+        self.assertIn("\x1b[1;71H\x1b[2m│", term.out)
+        self.assertTrue(all(column > 71 for column in self.places(term.out)))
+        view.handle(Mouse("move", 20, 5, 0))                                  # no button held: no drag
+        for event in (Mouse("press", 70, 5, 0), Mouse("move", 2, 5, 0), Mouse("release", 2, 5, 0)):
+            view.handle(event)
+        self.assertEqual(view.divider(100), pager.SIDE)                       # the code keeps some room
+
+    def test_c_and_the_right_click_turn_to_the_code_the_picture_and_both(self):
+        view, term = self.split(80)
+        for turn, shown in ((lambda: view.handle(Key("char", "c")), "code"),
+                            (lambda: view.handle(Key("char", "c")), "picture"),
+                            (lambda: view.choose("Code"), "code"), (lambda: view.choose("Split"), "split")):
+            turn()
+            term.out = ""
+            view.draw(term)
+            with self.subTest(shown=shown):
+                self.assertEqual(("<rect" in term.out, bool(self.places(term.out))),
+                                 {"code": (True, False), "picture": (False, True), "split": (True, True)}[shown])
+
+    def test_a_right_click_offers_the_views_the_browser_and_closing(self):
+        view, _ = self.split(80)
+        self.assertEqual(view.choices(), [("Split", True), ("Code", False), ("Picture", False),
+                                          ("Open in Browser", None), ("Close Preview", None)])
+        with mock.patch.object(pager.media, "open_in_browser", return_value=True) as opened:
+            self.assertTrue(view.choose("Open in Browser"))
+        opened.assert_called_once()
+        self.assertFalse(view.choose("Close Preview"))                         # the pager ends: its tab closes
+
+    def test_the_menu_goes_where_it_was_asked_inside_the_pane(self):
+        menu = pager.Popup([("Split", True), ("Code", False), ("Close Preview", None)], 22, 78, 80, 24)
+        drawn = menu.draw()
+        self.assertIn("✓ Split", drawn)
+        self.assertIn("  Close Preview", drawn)
+        self.assertLessEqual(menu.left + menu.wide, 80)                        # pushed back inside the pane
+        self.assertLessEqual(menu.top + 5, 23)                                 # above the status row
+        self.assertIsNone(menu.handle(Key("down")))
+        self.assertEqual(menu.handle(Key("enter")), "Code")
+        self.assertEqual(pager.Popup([("Close Preview", None)], 2, 2, 80, 24).handle(Key("esc")), "")
+        outside = pager.Popup([("Close Preview", None)], 2, 2, 80, 24)
+        self.assertEqual(outside.handle(Mouse("press", 60, 20, 0)), "")
+        inside = pager.Popup([("Close Preview", None)], 2, 2, 80, 24)
+        self.assertEqual(inside.handle(Mouse("press", inside.left + 3, inside.top + 1, 0)), "Close Preview")
 
     def test_a_closed_tab_takes_the_pictures_files_away(self):
         """herdr ends a closed tab's pane with a hang-up: the picture's folder goes all the same, and what it showed
@@ -791,6 +835,16 @@ class Pager(unittest.TestCase):
         self.assertIn("first", shown)
         self.assertIn("line 060", shown.split("first", 1)[1])
         self.assertTrue(ended)
+
+    def test_a_right_clicks_close_preview_closes_the_tab(self):
+        log = os.path.join(self.tmp, "log")
+        herdr = os.path.join(stubs(os.path.join(self.tmp, "bin"), {"herdr": FAKE_HERDR}), "herdr")
+        spec = {"title": "lines.txt", "line": None, "file": self.file, "pipeline": []}
+        _, ended = run_pager(spec, [b"\x1b[<2;10;5M", b"\r"], self.tmp, {"HERDR_BIN_PATH": herdr,
+                                                                         "HERDR_TAB_ID": "w1:t2", "HERDR_LOG": log})
+        self.assertTrue(ended)
+        with open(log) as f:
+            self.assertEqual(f.read().splitlines(), ["tab close w1:t2"])
 
     def test_q_closes_the_preview_tab_and_forgets_what_it_showed(self):
         log = os.path.join(self.tmp, "log")

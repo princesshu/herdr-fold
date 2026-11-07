@@ -133,7 +133,12 @@ export default class HerdrFold extends View {
       cx.timer.after(0, () => void checkUpdates(python));
       return void cx.timer.every(UPDATES_EVERY, () => void checkUpdates(python));
     }
-    if (part === "preview") return void (this.preview = new Preview(props().space, python));
+    if (part === "preview") {
+      const preview = (this.preview = new Preview(props().space, python));
+      return void cx.spawn(async (cx) => {
+        for (;;) preview.menus.answer(await nextCommand(), cx);              // its right click's choices
+      });
+    }
     if ((this.trigger = part === "trigger")) return;    // left of the tabs: the folded sidebar's toggle
     if ((this.rail = part === "rail")) return;          // the right panel folded: its rail
     if (part === "float-head") return void (this.head = { name: props().name, overlay: props().overlay });

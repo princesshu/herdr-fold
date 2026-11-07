@@ -109,8 +109,10 @@ rule where lines are left out; a commit shows its author, message and each file'
 as markdown. An image on this Mac is drawn, fitted to the tab and never larger than it is; a PDF's pages one under
 another at their own size, a gap apart, scrolled, each drawn as it comes into view, the page in view and Open in
 Browser above them; one on another machine is not. An SVG or an HTML page on this
-Mac shows its code and its picture side by side, Code and Picture showing either alone; WebKit draws it offline, as
-in the TUI. Herdr-fold's panel stays beside it.
+Mac shows its code and its picture side by side, as VS Code's preview to the side: the divider between them drags,
+and the picture fits its side on the canvas, as a design tool's artboard; Code, Split and Picture above them show
+either alone or both again. WebKit draws it offline, as in the TUI. A right click in the tab offers those, Open in
+Browser and Close Preview. Herdr-fold's panel stays beside it.
 
 ![A PDF's pages one under another in the preview tab, scrolled to its second, under the page in view and Open in
 Browser; beside it Files with the PDF chosen in its folder](../assets/screenshots/app-pdf.webp)

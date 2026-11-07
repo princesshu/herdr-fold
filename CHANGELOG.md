@@ -20,9 +20,11 @@ All notable changes to this project are listed here. The format follows
   ↑ ↓, Space, `g` `G`) and in the Herdr app mod, its page in view above them.
   A page, a PDF or an image opens in the default browser from Files' right click, or `o` and a button in the preview
   tab. See [The sidebar](docs/sidebar.md) and [The Herdr app](docs/app.md#the-preview-tab).
-- An SVG or an HTML page chosen in Files shows its code and its picture side by side in the preview tab: in the
-  sidebar in a pane 100 columns wide (narrower, `c` turns between them), in the Herdr app mod with Code, Split and
-  Picture above them. macOS's WebKit draws it offline: nothing is asked of the network and none of its scripts run,
+- An SVG or an HTML page chosen in Files shows its code and its picture side by side in the preview tab, as VS Code's
+  preview to the side: the divider between them drags and the picture fits its side (in the Herdr app mod on a
+  canvas, as a design tool's artboard). `c` in the sidebar, Code, Split and Picture in the app show either alone or
+  both again; a right click in the preview tab offers them, Open in Browser and Close Preview. macOS's WebKit draws it
+  offline: nothing is asked of the network and none of its scripts run,
   so a file cannot learn who opened it. See [the sidebar's README](src/plugins/sidebar/README.md) and
   [The Herdr app](docs/app.md#the-preview-tab).
 - In the Herdr app mod, a space's first tab is named as the space until it is renamed, as the TUI's main tab.

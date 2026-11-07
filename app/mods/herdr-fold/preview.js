@@ -2,11 +2,12 @@
 // The preview tab, as the TUI sidebar's: one a space, showing what Files, Changes, the Graph or Issues opened in it (a
 // file, a picture, a PDF's pages, an SVG's or a page's code and picture, a diff, a commit, an issue), the panel beside.
 import { div, image } from "gpui-kit";
-import { v_flex, h_flex, Scrollbar, TextView, v_virtual_list } from "gpui-base";
+import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, TextView, v_virtual_list } from "gpui-base";
 import { home, panes, readTextFile, setShared, shared, spaces, run as command } from "herdr";
 import { GIT, GITHUB, MEDIA } from "./helper.js";
 import { browsable, commitRows, diffRows, mediaKind, previewName, previewTab, priorityColor, said, safeMarkdown }
   from "./logic.js";
+import { Menus } from "./menus.js";
 import { chip, choices, iconButton } from "./parts.js";
 
 const PREVIEWS = "herdr-fold.previews";   // what each space's preview tab shows, by the space's id (shared)
@@ -62,6 +63,7 @@ export class Preview {
     /** an SVG's or a page's view (VIEWS'), kept for the next one */
     this.shown = "split";
     this.loading = false;
+    this.menus = new Menus();                     // its right click's
     /** @type {string | null} why there is nothing to show */
     this.note = null;
   }
@@ -180,7 +182,8 @@ export class Preview {
   /** The issue, the picture, or the file's, diff's or commit's rows in CODE (the code's font); else what is happening
    * instead. */
   render(t, code) {
-    const frame = v_flex().size_full().min_h(0).text_color(t.foreground).text_size(13);   // on the pane's own fill
+    const frame = v_flex().id("preview").size_full().min_h(0).text_color(t.foreground).text_size(13)  // the pane's fill
+      .on_mouse_down("right", () => this.menus.open(this.items()));
     if (this.issue) return frame.child(this.issueView(t));
     if (this.picture && this.rows.length) return frame.child(this.codeAndPicture(t, code));
     if (this.picture) return frame.child(this.pictureView(t));
@@ -190,6 +193,21 @@ export class Preview {
     }
     const line = this.loading ? "Loading…" : this.note ?? (this.what ? "" : "Nothing chosen to preview");
     return frame.child(div().p(16).text_size(12).text_color(this.note ? t.ansi1 : t.dim).child(line));
+  }
+
+  /** What a right click on the tab offers, as the TUI's: an SVG's or a page's views, the file in the browser, the tab
+   * closed. @returns {import("./menus.js").Item[]} */
+  items() {
+    const both = Boolean(this.picture && this.rows.length);
+    return [...(both ? VIEWS.map(([view, label]) => ({ label, on: this.shown === view, act: (cx) => {
+      this.shown = view;
+      cx.notify();
+    } })) : []),
+    ...(browsable(this.what) ? [{ label: "Open in Browser", act: (cx) => this.browse(cx) }] : []),
+    { label: "Close Preview", act: () => {
+      const tab = shownPreviewTab();
+      if (tab) command("tab.close", { id: tab.id });
+    } }];
   }
 
   /** The bar above a page or a picture: an SVG's or a page's views, the PDF's page in view, and Open in Browser at its
@@ -212,7 +230,7 @@ export class Preview {
   pictureView(t) {
     return v_flex().size_full().min_h(0)
       .child(this.bar(t))
-      .child(this.canvas())
+      .child(this.canvas(t))
       .when(Boolean(this.note), (e) => e.child(div().px(16).pb(12).text_size(12).text_color(t.ansi1)
         .child(this.note ?? "")));
   }
@@ -224,11 +242,11 @@ export class Preview {
     const page = (n) => {
       const [w, h] = pdf.sizes[n], made = pdf.made[n];
       return div().w_full().h(h + GAP).flex_none().pt(GAP).flex().justify_center()
-        .child(made ? image(made).w(w).h(h).max_w_full() : div().w(w).h(h).max_w_full().bg(t.raised));
+        .child((made ? image(made) : div().bg(t.raised)).w(w).h(h).max_w_full().shadow_md());   // a page on the board
     };
     return v_flex().size_full().min_h(0)
       .child(this.bar(t))
-      .child(div().flex_1().min_h(0).relative()
+      .child(div().flex_1().min_h(0).relative().bg(t.canvas)
         .child(v_virtual_list(list, pdf.sizes.length, pdf.sizes.map(([, h]) => h + GAP), (n) => String(n), (range) => {
           pdf.range = range;                                    // the ticks make what is in view
           return Array.from({ length: range.end - range.start }, (_, i) => page(range.start + i));
@@ -236,21 +254,25 @@ export class Preview {
         .child(Scrollbar.vertical(list).viewport_from_layout().absolute().inset_0()));
   }
 
-  /** An SVG's or a page's code and its picture, side by side or either alone, as the bar's views have it. */
+  /** An SVG's or a page's code and its picture, as VS Code's preview to the side: side by side, the divider dragged
+   * (the window keeps where), or either alone, as the bar's views have it. */
   codeAndPicture(t, code) {
+    const lines = v_flex().size_full().min_w(0).child(this.diff(t, code));
+    const board = v_flex().size_full().min_w(0).child(this.canvas(t));
     return v_flex().size_full().min_h(0)
       .child(this.bar(t))
-      .child(h_flex().flex_1().min_h(0).items_start()
-        .when(this.shown !== "picture", (e) => e.child(v_flex().flex_1().min_w(0).h_full().child(this.diff(t, code))))
-        .when(this.shown === "split", (e) => e.child(div().w(1).h_full().flex_none().bg(t.border)))
-        .when(this.shown !== "code", (e) => e.child(v_flex().flex_1().min_w(0).h_full().child(this.canvas()))));
+      .child(this.shown === "split"
+        ? h_resizable("preview-split").flex_1().min_h(0)
+          .child(resizable_panel().child(lines)).child(resizable_panel().child(board))
+        : v_flex().flex_1().min_h(0).child(this.shown === "code" ? lines : board));
   }
 
-  /** The picture, as large as the room around it allows and never larger than it is, centered there. */
-  canvas() {
+  /** The picture on the board, as a design tool's artboard: as large as the room allows and never larger than it is,
+   * centered, the room round it the canvas's color. */
+  canvas(t) {
     const { png, size } = /** @type {NonNullable<Preview["picture"]>} */ (this.picture);
-    return div().flex_1().min_h(0).m(16).relative()               // the picture sized to it, not it to the picture
-      .child(div().absolute().inset_0().flex().items_center().justify_center()
+    return div().flex_1().min_h(0).relative().bg(t.canvas)          // the picture sized to the room, not it to the
+      .child(div().absolute().inset(24).flex().items_center().justify_center()                         // picture
         .child(image(png).size_full().when(Boolean(size), (e) => e.max_w(size?.[0] ?? 0).max_h(size?.[1] ?? 0))));
   }
 
