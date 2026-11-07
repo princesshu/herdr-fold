@@ -4,8 +4,8 @@
 import { div } from "gpui-kit";
 import { h_flex, v_flex, Input, InputState } from "gpui-base";
 import { home, setShared, shared, spaces, run as command } from "herdr";
-import { FILEOPS, TREE } from "./helper.js";
-import { changeColor, changeName, fileIcon, fileRows, folderIcon, letter, said } from "./logic.js";
+import { FILEOPS, MEDIA, TREE } from "./helper.js";
+import { changeColor, changeName, fileIcon, fileRows, folderIcon, letter, mediaKind, said } from "./logic.js";
 import { END, fileMark, GAP, icon, iconButton, small } from "./parts.js";
 import { Menus } from "./menus.js";
 import { followFolder } from "./panel.js";
@@ -105,11 +105,14 @@ export class FilesView {
     cx.notify();
   }
 
-  /** What a right click on ROW offers, as the TUI's menu: a new file or folder where it is, a rename, its path, the
-   * Trash; a folder a new workspace in it. @param {{ path: string, dir: boolean }} row */
+  /** What a right click on ROW offers, as the TUI's menu: a page, a PDF or an image on this Mac opened in the
+   * browser, a new file or folder where it is, a rename, its path, the Trash; a folder a new workspace in it.
+   * @param {{ path: string, dir: boolean }} row */
   items({ path, dir }) {
     const folder = dir ? path : folderOf(path);
-    return [{ label: "New File", act: (cx) => this.name("new-file", folder, cx) },
+    const browsed = !dir && !this.on && mediaKind(path);
+    return [...(browsed ? [{ label: "Open in Browser", act: (cx) => this.browse(path, cx) }] : []),
+      { label: "New File", act: (cx) => this.name("new-file", folder, cx) },
       { label: "New Folder", act: (cx) => this.name("new-folder", folder, cx) },
       { label: "Rename", act: (cx) => this.name("rename", path, cx) },
       { label: "Copy Path", act: (cx) => this.copy(path, cx) },
@@ -175,10 +178,19 @@ export class FilesView {
 
   /** PATH, as its machine writes it, on this computer's clipboard. @param {string} path */
   copy(path, cx) {
+    this.onMac(FILEOPS, ["copy", `${this.root}/${path}`], "ok", "No clipboard program on this computer", cx);
+  }
+
+  /** PATH, a page, a PDF or an image on this Mac, opened in the default browser (core/media.py). */
+  browse(path, cx) {
+    this.onMac(MEDIA, ["open", `${this.root}/${path}`], "opened", "No browser to open it in", cx);
+  }
+
+  /** core/'s SOURCE with ARGS on this Mac; its answer's WORKED false: FAILED said. */
+  onMac(source, args, worked, failed, cx) {
     cx.spawn(async (cx) => {
       try {
-        const done = await this.python(FILEOPS, ["copy", `${this.root}/${path}`], home(), null);
-        this.note = done.ok ? null : "No clipboard program on this computer";
+        this.note = (await this.python(source, args, home(), null))[worked] ? null : failed;
       } catch (e) {
         this.note = said(e);
       } finally {

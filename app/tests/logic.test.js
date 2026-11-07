@@ -13,7 +13,7 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   safeMarkdown, said, searchRows, searchSummary, secretQuestion, shownTab, strays, syncLabel, tabLabel, TALL,
   terminalId, TERMINALS, urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread,
   spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow,
-  railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom }
+  railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom, mediaKind }
   from "../mods/herdr-fold/logic.js";
 
 test("a tab the app named after its program, an agent's first, else Terminal; an agent's icon; zoomed marked", () => {
@@ -649,4 +649,9 @@ test("a space without a color gets the one fewest use, as every app mod gives it
 test("an avatar's fill: the app's strong color for a theme color's name, a picked one as it is", () => {
   assert.equal(avatarFill("ansi3", {}), MARK.ansi3);
   assert.equal(avatarFill("#123456", {}), "#123456");
+});
+
+test("a picture, a PDF or a page by its name, as core/media.py has them", () => {
+  assert.deepEqual(["docs/shot.WEBP", "a.pdf", "site/index.html", "notes.md", ".bashrc", "src.png/app"].map(mediaKind),
+    ["image", "pdf", "html", null, null, null]);
 });

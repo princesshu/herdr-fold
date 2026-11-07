@@ -15,7 +15,8 @@ HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"COMMIT_MESS
                                                                     "CONVERSATIONS": "conversations.py",
                                                                     "FILEOPS": "fileops.py", "GIT": "git.py",
                                                                     "GITHUB": "github.py", "JOB": "job.py",
-                                                                    "SEARCH": "search.py", "TREE": "tree.py"}}
+                                                                    "MEDIA": "media.py", "SEARCH": "search.py",
+                                                                    "TREE": "tree.py"}}
 MOD_ONLY = {"job.py"}         # what only the mod runs (its background jobs): the sidebar gets no copy
 ICONS = os.path.join("app", "mods", "herdr-fold", "icons.js")       # the mod's icons, by name, and the file types'
 SVGS = "mods/herdr-fold/icons"     # its icons as the app loads them: lucide/ the views', catppuccin/ a file's
@@ -46,8 +47,8 @@ def note(name):
 def js_note():
     """helper.js's opening comment: where it comes from, and what it is for."""
     return ["// @ts-check",
-            "// Generated from core/ by tools/build.py, each export a module's source: change them there,",
-            "// then run it again. Each runs with Python's -c on the space's machine."]
+            "// Generated from core/ by tools/build.py, each export a module's source (MEDIA_KINDS: media.py's",
+            "// kinds): change them there, then run it again. Each runs with Python's -c on the space's machine."]
 
 
 def literal(text):
@@ -66,12 +67,18 @@ def literal(text):
     return "[\n  " + ",\n  ".join(rows) + ',\n].join("\\n")'
 
 
+def module(name):
+    """core/NAME.py loaded, for its tables."""
+    spec = importlib.util.spec_from_file_location(f"core_{name}", os.path.join(ROOT, "core", f"{name}.py"))
+    loaded = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(loaded)
+    return loaded
+
+
 def icons_js():
     """The mod's icons.js, by the path the app loads each: the views' (ICONS, the lucide/ folder's) and a file's by
     its extension, by its name's start, and any other's (core/icons.py's), and a change's letter."""
-    spec = importlib.util.spec_from_file_location("core_icons", os.path.join(ROOT, "core", "icons.py"))
-    icons = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(icons)
+    icons = module("icons")
     file = lambda name: f"{SVGS}/catppuccin/{name}.svg"                                  # noqa: E731
     views = sorted(name[:-len(".svg")] for name in os.listdir(os.path.join(ROOT, "app", SVGS, "lucide")))
     tables = {"ICONS": {name: f"{SVGS}/lucide/{name}.svg" for name in views},
@@ -122,6 +129,7 @@ def outputs():
     for path, sources in HELPERS.items():
         lines = js_note()
         lines += [f"export const {const} = {literal(runnable(name))};" for const, name in sources.items()]
+        lines.append(f"export const MEDIA_KINDS = {json.dumps(module('media').KINDS, indent=2)};")
         made[path] = "\n".join(lines) + "\n"
     made[ICONS] = icons_js()
     themes, own = tui_themes()

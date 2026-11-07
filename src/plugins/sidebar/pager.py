@@ -1,17 +1,21 @@
-"""The sidebar's pager: a file or a pipeline's output in color, with less's keys; q or Esc closes the preview tab. It
-runs the pipeline itself so the keyboard stays the terminal's, and lets only colors through (no cursor moves, titles or
-clipboard). Usage: HERDR_FOLD_SPEC_FILE=PATH pager.py (preview.py writes the spec there, and each new one)."""
+"""The sidebar's pager: a file or a pipeline's output in color, with less's keys, or an image or a PDF drawn; q or Esc
+closes the preview tab. It runs the pipeline itself so the keys stay the terminal's, and lets only colors through (no
+cursor moves, titles or clipboard). Usage: HERDR_FOLD_SPEC_FILE=PATH pager.py (preview.py writes each spec there)."""
+import base64
 import json
 import os
 import re
+import shutil
 import signal
 import stat
 import subprocess
 import sys
+import tempfile
 import threading
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import media  # noqa: E402
 from preview import Herdr  # noqa: E402
 from screen import char_width  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
@@ -24,6 +28,8 @@ LIMIT = 8_000_000             # bytes read at most: a huge file or an endless co
 CONTEXT = 3                   # lines shown above the line the pager opens at, or a search hit
 WATCH = 0.3                   # seconds between looks at the spec's file: a new spec there is shown
 WAIT = 30                     # seconds a pipeline may run (gh asking GitHub, a program that never ends): then stopped
+PICTURE = 4271                # the picture's id in the Kitty graphics protocol: one at a time
+CELL, CELL_PX = 2.1, 16       # a cell's height by its width, and its width in a picture's pixels (Retina): a guess
 
 
 def stop(proc):
@@ -131,18 +137,22 @@ def visible(line, cells):
 
 
 class Pager:
-    def __init__(self, lines, title, line=None):
-        self.lines, self.title = lines, title
+    def __init__(self, lines, title, line=None, opens=None):
+        self.lines, self.title, self.opens = lines, title, opens      # opens: a page o opens in the browser
         self.top = max(0, (line or 1) - 1 - CONTEXT)
         self.height = 24
         self.query = self.typing = self.hit = self.note = None
+
+    def shown(self):
+        return self.top, self.typing, self.note
 
     def status(self):
         if self.typing is not None:
             return "/" + self.typing
         if self.note:
             return self.note
-        return f"{self.title}  {self.top + 1}-{min(len(self.lines), self.top + self.height)}/{len(self.lines)}"
+        hint = "  o: open in browser" if self.opens else ""
+        return f"{self.title}  {self.top + 1}-{min(len(self.lines), self.top + self.height)}/{len(self.lines)}{hint}"
 
     def draw(self, term):
         cells, height = term.size()
@@ -203,7 +213,109 @@ class Pager:
             self.typing = ""
         elif key in ("n", "N") and self.query:
             self.find(self.top + CONTEXT if self.hit is None else self.hit, 1 if key == "n" else -1)
+        elif key == "o" and self.opens:
+            self.note = None if media.open_in_browser(self.opens) else "No browser to open it in"
         return True
+
+
+def fit(columns, rows, width, height):
+    """Where a WIDTH x HEIGHT picture goes in COLUMNS x ROWS cells: never past its own size, its aspect kept, centered.
+    (row, column, its columns or None, its rows or None): the terminal works the other one out."""
+    wide = min(columns, max(1, round(width / CELL_PX)))
+    tall = height / width * wide / CELL
+    if tall <= rows:
+        return (rows - round(tall)) // 2, (columns - wide) // 2, wide, None
+    return 0, (columns - round(width / height * rows * CELL)) // 2, None, rows
+
+
+def kitty(data, columns, rows):
+    """DATA (a PNG) as the Kitty graphics protocol's escapes, placed at the cursor COLUMNS wide or ROWS high, in chunks
+    of 4096; q=2: the terminal answers nothing into the keys."""
+    text = base64.b64encode(data).decode("ascii")
+    chunks = [text[n:n + 4096] for n in range(0, len(text), 4096)] or [""]
+    place = f"c={columns}" if columns else f"r={rows}"
+    return "".join(f"\x1b_G{f'a=T,f=100,i={PICTURE},q=2,{place},' if n == 0 else ''}m={int(n < len(chunks) - 1)};"
+                   f"{chunk}\x1b\\" for n, chunk in enumerate(chunks))
+
+
+GONE = f"\x1b_Ga=d,d=I,i={PICTURE},q=2\x1b\\"   # the picture deleted, its data with it
+
+
+class Picture:
+    """An image or a PDF's page drawn in the pane, fitted and centered: a PDF paged with the pager's moves, o opening
+    it in the browser, q or Esc closing the tab. Each page is made a PNG in a folder of its own, gone at close()."""
+
+    def __init__(self, path, title):
+        self.path, self.title, self.page, self.note = path, title, 0, None
+        self.work = tempfile.mkdtemp(prefix="herdr-fold-picture.")
+        self.count = media.pages(path) if media.kind_of(path) == "pdf" else 1     # None: only the first page
+
+    def shown(self):
+        return self.page, self.note
+
+    def status(self):
+        if self.note:
+            return self.note
+        where = f"  page {self.page + 1} of {self.count or '?'}" if media.kind_of(self.path) == "pdf" else ""
+        return f"{self.title}{where}  o: open in browser"
+
+    def png(self, columns):
+        width = min(2400, max(480, columns * CELL_PX))
+        if media.kind_of(self.path) == "pdf":
+            return media.page_png(self.path, self.page, width, self.work)
+        return media.as_png(self.path, self.work, width)
+
+    def draw(self, term):
+        columns, height = term.size()
+        out = [GONE, "\x1b[0m\x1b[2J"]
+        made = self.png(columns)
+        shape = media.size(made) if made else None
+        if shape:
+            row, column, wide, tall = fit(columns, max(1, height - 1), *shape)
+            with open(made, "rb") as f:
+                out.append(f"\x1b[{row + 1};{column + 1}H" + kitty(f.read(), wide, tall))
+        else:
+            self.note = self.note or f"{self.title}: cannot be shown here  o: open in browser"
+        out.append(f"\x1b[{height};1H\x1b[0;7m{visible(' ' + self.status(), columns)}\x1b[K\x1b[0m")
+        term.write("".join(out))
+        term.flush()
+
+    def handle(self, event):
+        """React to EVENT; False when the pager should end."""
+        last = (self.count or 1) - 1
+        if isinstance(event, Mouse):
+            if event.kind in ("wheel_up", "wheel_down"):
+                self.page = max(0, min(last, self.page + (1 if event.kind == "wheel_down" else -1)))
+            return True
+        if not isinstance(event, Key):
+            return True
+        self.note = None
+        key = event.char if event.name == "char" else event.name
+        if key in ("q", "esc") or (event.name == "char" and event.ctrl and event.char == "c"):
+            return False
+        moves = {"down": 1, "j": 1, "right": 1, "pagedown": 1, " ": 1, "f": 1, "enter": 1,
+                 "up": -1, "k": -1, "left": -1, "pageup": -1, "b": -1}
+        if key in moves:
+            self.page = max(0, min(last, self.page + moves[key]))
+        elif key in ("g", "home"):
+            self.page = 0
+        elif key in ("G", "end"):
+            self.page = last
+        elif key == "o":
+            self.note = None if media.open_in_browser(self.path) else "No browser to open it in"
+        return True
+
+    def close(self, term):
+        term.write(GONE)
+        term.flush()
+        shutil.rmtree(self.work, ignore_errors=True)
+
+
+def viewer(spec):
+    """SPEC's view: an image or a PDF drawn, else the pager over its lines."""
+    if spec.get("picture"):
+        return Picture(spec["picture"], spec.get("title") or "")
+    return Pager(load(spec), spec.get("title") or "", spec.get("line"), spec.get("open"))
 
 
 def stamp(path):
@@ -245,7 +357,7 @@ def main():
     if spec is None:
         print(f"nothing to show: {path}")
         return 1
-    pager = Pager(load(spec), spec.get("title") or "", spec.get("line"))
+    pager = viewer(spec)
     if os.name == "nt":
         from keys_windows import WindowsTerminal as Terminal
     else:
@@ -256,13 +368,17 @@ def main():
             if stamp(path) not in (seen, None):     # the next preview, written by a sidebar
                 seen, spec = stamp(path), spec_at(path)
                 if spec is not None:
-                    pager, drawn = Pager(load(spec), spec.get("title") or "", spec.get("line")), None
-            state = (pager, pager.top, pager.typing, pager.note, term.size())
+                    if isinstance(pager, Picture):
+                        pager.close(term)
+                    pager, drawn = viewer(spec), None
+            state = (pager, pager.shown(), term.size())
             if state != drawn:                      # a mouse move changes nothing: no redraw
                 pager.draw(term)
-                drawn = (pager, pager.top, pager.typing, pager.note, term.size())
+                drawn = (pager, pager.shown(), term.size())
             if not all(pager.handle(event) for event in term.read(WATCH)):
                 break
+        if isinstance(pager, Picture):
+            pager.close(term)
     close(path)
     return 0
 

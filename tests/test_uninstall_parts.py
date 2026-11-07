@@ -50,9 +50,10 @@ class UninstallParts(PartsInstall, unittest.TestCase):
 
     def test_both_leave_nothing_but_yours(self):
         self.with_parts("both")
+        self.write(".cache/herdr-fold/pdf-pages-0123456789ab", "the PDF helper, compiled on first use")
         out = self.with_parts("both", "uninstall.sh")
         self.assertFalse(self.in_app("mods/herdr-fold/main.js"))
-        for rel in (".config/ghostty/config", ".config/herdr-fold/statusline.py",
+        for rel in (".config/ghostty/config", ".config/herdr-fold/statusline.py", ".cache/herdr-fold",
                     ".local/state/herdr-fold/installed.txt", ".local/state/herdr-fold/plugins.txt"):
             with self.subTest(rel=rel):
                 self.assertFalse(self.there(rel))

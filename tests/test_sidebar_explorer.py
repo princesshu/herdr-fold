@@ -218,6 +218,22 @@ class View(unittest.TestCase):
         self.draw()
         self.assertFalse(any("Copy Path" in text(self.canvas, y) for y in range(12)))
 
+    def test_a_page_a_pdf_or_an_image_opens_in_the_browser(self):
+        for name in ("page.html", "paper.pdf", "shot.webp"):
+            with open(self.path(name), "w") as f:
+                f.write("x\n")
+        self.view = Explorer(Tree(self.root), icons=False)
+        for name, offered in (("page.html", True), ("paper.pdf", True), ("shot.webp", True), ("README.md", False)):
+            with self.subTest(name=name):
+                self.draw()
+                self.click(name, button=2)
+                self.draw()
+                if offered:
+                    self.assertEqual(self.click("Open in Browser"), Action("open_browser", (self.path(name),)))
+                else:
+                    self.assertFalse(any("Open in Browser" in text(self.canvas, y) for y in range(12)))
+                    self.view.close_menu()
+
     def test_a_folders_menu_offers_a_new_workspace_once_herdr_folds_picker_is_there(self):
         def menu_of(name):
             self.view.close_menu()

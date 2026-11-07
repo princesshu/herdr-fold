@@ -17,6 +17,7 @@ import conversations_pane  # noqa: E402
 import git  # noqa: E402
 import github  # noqa: E402
 import issue_work  # noqa: E402
+import media  # noqa: E402
 import panels  # noqa: E402
 import preview  # noqa: E402
 import search  # noqa: E402
@@ -649,6 +650,9 @@ class App(Loop):
         self.job("workspace", lambda: self.herdr.call(
             "plugin", "pane", "open", "--plugin", "herdr-fold.tab-layout", "--entrypoint", "new-workspace", "--focus",
             "--env", f"HERDR_NEW_WORKSPACE_FOLDER={folder}"))
+
+    def do_open_browser(self, path):
+        self.note = "Opened in the browser" if media.open_in_browser(path) else "No browser to open it in"
 
     def do_copy_path(self, path):
         if not self.ops.copy_path(path):        # no clipboard program: the terminal's own (OSC 52)

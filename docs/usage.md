@@ -157,9 +157,10 @@ previous match, Esc goes back to typing.
 Cmd + Shift + L lists the files the focused pane's recent output names, the newest first: `src/app.py:42`,
 `src/app.ts(12,5)`, `README.md#L3`, a Python traceback's `File "…", line 9`, or a path alone. Only files that are
 there show, a relative path found from the pane's folder or its repository's top. Type to narrow the list; Enter, a
-double click or Open shows the file in the sidebar's preview tab at that line, marked, and the tab's sidebar opens
-Files on it. It works on any pane: an agent's reply, a test run's failure, a compiler's errors. A remote machine's
-pane lists nothing: its files are on that machine, and the list shows only files that are on the Mac.
+double click or Open shows the file in the sidebar's preview tab at that line, marked (an image or a PDF drawn
+there, `o` opening it in the browser), and the tab's sidebar opens Files on it. It works on any pane: an agent's
+reply, a test run's failure, a compiler's errors. A remote machine's pane lists nothing: its files are on that
+machine, and the list shows only files that are on the Mac.
 
 ![An agent's reply naming the files it changed and the lines that matter, and over it the list of those files, the
 newest first, each with its line, Cancel and Open at the bottom](../assets/screenshots/open-file.webp)

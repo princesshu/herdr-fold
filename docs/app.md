@@ -56,7 +56,7 @@ The space's folder, read on the space's machine, as the TUI sidebar's Files show
 | Icons | Catppuccin Icons' for each file type and for a folder, closed or open, as the Changes view's |
 | Marks | git's letter on each changed file and a dot on a folder holding changes, in git's colors, as in the TUI |
 | A click | a file opens in the space's preview tab, its lines numbered; a folder opens or closes |
-| Right click | New File, New Folder, Rename (the name typed in its row; Enter makes it, Esc gives it up), Copy Path (the path on its machine, onto this computer's clipboard), Move to Trash (asked on its row first), and on a folder New Workspace there |
+| Right click | Open in Browser (a page, a PDF or an image on this Mac, in the default browser), New File, New Folder, Rename (the name typed in its row; Enter makes it, Esc gives it up), Copy Path (the path on its machine, onto this computer's clipboard), Move to Trash (asked on its row first), and on a folder New Workspace there |
 | The toolbar | New File and New Folder at the top, Refresh, Collapse Folders, and hidden files shown or not, kept for the next start |
 
 It follows the folder as it changes; a folder on another machine is looked at again every ten seconds.
@@ -107,7 +107,8 @@ A space has one, as in the TUI: the first file, diff, commit or issue opened mak
 (`preview: src/app.py`, `preview: #42 Pagination retur…`), and the next one shows there again. A file's lines are
 numbered from the first; a diff is numbered once, a removed line by the old file and the others by the new one, a thin
 rule where lines are left out; a commit shows its author, message and each file's diff; an issue its text and comments
-as markdown. Herdr-fold's panel stays beside it.
+as markdown. An image or a PDF on this Mac is drawn, fitted to the tab, a PDF page by page (Previous, Next), with
+Open in Browser above it; one on another machine is not. Herdr-fold's panel stays beside it.
 
 ## Spaces
 

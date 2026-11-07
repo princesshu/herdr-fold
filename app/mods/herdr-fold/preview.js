@@ -1,15 +1,17 @@
 // @ts-check
 // The preview tab, as the TUI sidebar's: one a space, showing what Files, Changes, the Graph or Issues opened in it (a
-// file, a change's diff, a commit, an issue with its comments), while herdr-fold's panel stays beside it.
-import { div } from "gpui-kit";
+// file, a picture, a PDF's pages, a diff, a commit, an issue with its comments), herdr-fold's panel beside it.
+import { div, image } from "gpui-kit";
 import { v_flex, h_flex, Scrollbar, TextView, v_virtual_list } from "gpui-base";
-import { panes, readTextFile, setShared, shared, spaces, run as command } from "herdr";
-import { GIT, GITHUB } from "./helper.js";
-import { commitRows, diffRows, previewName, previewTab, priorityColor, said, safeMarkdown } from "./logic.js";
-import { chip } from "./parts.js";
+import { home, panes, readTextFile, setShared, shared, spaces, run as command } from "herdr";
+import { GIT, GITHUB, MEDIA } from "./helper.js";
+import { commitRows, diffRows, mediaKind, previewName, previewTab, priorityColor, said, safeMarkdown }
+  from "./logic.js";
+import { chip, iconButton, small } from "./parts.js";
 
 const PREVIEWS = "herdr-fold.previews";   // what each space's preview tab shows, by the space's id (shared)
 const LINES = 1500;                       // a diff's or a file's lines shown at most
+const PICTURE = 1600;                     // pixels: an image's or a PDF page's width as core/media.py makes it
 
 /** WHAT in the shown space's preview tab, as the TUI sidebar opens it: that tab named for it and shown, else a new
  * one. @param {import("./logic.js").Shown} what */
@@ -40,6 +42,8 @@ export class Preview {
     this.rows = [];
     /** @type {{ issue: any, ago: string[] } | null} core/github.py's view of the issue */
     this.issue = null;
+    /** @type {{ png: string, pages: number | null, page: number } | null} core/media.py's PNG, in the app's home */
+    this.picture = null;
     this.loading = false;
     /** @type {string | null} why there is nothing to show */
     this.note = null;
@@ -55,9 +59,13 @@ export class Preview {
 
   /** WHAT from its machine: a file, or from core/ a diff, a commit or an issue; an answer for an older one dropped. */
   load(what, cx) {
-    Object.assign(this, { what, rows: [], issue: null, loading: true, note: null });
+    Object.assign(this, { what, rows: [], issue: null, picture: null, loading: true, note: null });
     cx.spawn(async (cx) => {
       try {
+        if (what.kind === "file" && ["image", "pdf"].includes(mediaKind(what.path) ?? "")) {
+          if (what.on) return void (this.note = "A picture on another machine: only those on this Mac are shown");
+          return void (await this.paint(what, 0));
+        }
         if (what.kind === "file") {
           const text = await readTextFile(`${what.root}/${what.path}`, { on: what.on });
           if (what.n !== this.n) return;
@@ -89,13 +97,71 @@ export class Preview {
     cx.notify();
   }
 
-  /** The issue, or the file's, diff's or commit's rows in CODE (the code's font); else what is happening instead. */
+  /** WHAT's PAGE (an image's only one) as a PNG made on this Mac (core/media.py), in the app's home. */
+  async paint(what, page) {
+    const path = `${what.root}/${what.path}`;
+    const answer = await this.core(MEDIA, ["picture", path, String(page), String(PICTURE)], home(), null);
+    if (what.n !== this.n) return;
+    this.picture = answer.png ? { png: answer.png, pages: answer.pages, page } : null;
+    this.note = answer.png ? null : "This picture cannot be shown";
+  }
+
+  /** The PDF STEP pages on, within it. */
+  turn(step, cx) {
+    const { what, picture } = this;
+    const page = picture?.pages ? Math.max(0, Math.min(picture.pages - 1, picture.page + step)) : null;
+    if (page === null || page === picture?.page) return;
+    cx.spawn(async (cx) => {
+      try {
+        await this.paint(what, page);
+      } catch (e) {
+        this.note = said(e);
+      } finally {
+        cx.notify();
+      }
+    });
+  }
+
+  /** The picture's file opened in the default browser (core/media.py). */
+  browse(cx) {
+    const { what } = this;
+    cx.spawn(async (cx) => {
+      try {
+        const done = await this.core(MEDIA, ["open", `${what.root}/${what.path}`], home(), null);
+        this.note = done.opened ? null : "No browser to open it in";
+      } catch (e) {
+        this.note = said(e);
+      } finally {
+        cx.notify();
+      }
+    });
+  }
+
+  /** The issue, the picture, or the file's, diff's or commit's rows in CODE (the code's font); else what is happening
+   * instead. */
   render(t, code) {
     const frame = v_flex().size_full().min_h(0).text_color(t.foreground).text_size(13);   // on the pane's own fill
     if (this.issue) return frame.child(this.issueView(t));
+    if (this.picture) return frame.child(this.pictureView(t));
     if (this.rows.length) return frame.child(this.diff(t, code));
     const line = this.loading ? "Loading…" : this.note ?? (this.what ? "" : "Nothing chosen to preview");
     return frame.child(div().p(16).text_size(12).text_color(this.note ? t.ansi1 : t.dim).child(line));
+  }
+
+  /** The picture fitted to the tab, under a bar with a PDF's pages and Open in Browser. */
+  pictureView(t) {
+    const { png, pages, page } = /** @type {NonNullable<Preview["picture"]>} */ (this.picture);
+    return v_flex().size_full().min_h(0)
+      .child(h_flex().h(40).flex_none().px(12).gap(4).items_center().border_b(1).border_color(t.border)
+        .when(Boolean(pages), (e) => e
+          .child(small(t, "page-back", "Previous", "Previous page", page > 0, (cx) => this.turn(-1, cx)))
+          .child(div().px(6).text_size(12).text_color(t.muted).child(`${page + 1} of ${pages}`))
+          .child(small(t, "page-on", "Next", "Next page", page + 1 < (pages ?? 1), (cx) => this.turn(1, cx))))
+        .child(div().flex_1())
+        .child(iconButton(t, "browse", "external-link", "Open in Browser", (cx) => this.browse(cx), { left: true })))
+      .child(div().flex_1().min_h(0).p(16).child(image(png).size_full()))
+      .when(Boolean(this.note), (e) => e.child(div().px(16).pb(12).text_size(12).text_color(t.ansi1)
+        .child(this.note ?? "")));
   }
 
   /** The rows: a commit's file names as headings, a thin rule where lines are left out between two changes. */

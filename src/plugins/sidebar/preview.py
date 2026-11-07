@@ -10,6 +10,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 
+import media
 import statefile
 
 PAGER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pager.py")
@@ -38,13 +39,16 @@ class Herdr:
 
 
 def file_spec(root, path, line, which=shutil.which):
-    """bat with LINE marked (one row per line, so the pager's line N is the file's), or the file itself: a pipe or a
-    device too, which bat would wait on for good and the pager does not read."""
+    """An image or a PDF as a picture; else bat with LINE marked (one row per line, so the pager's line N is the
+    file's), or the file itself: a pipe or a device too, which bat would wait on and the pager does not read."""
+    if media.kind_of(path) in ("image", "pdf"):          # a pager from before pictures shows the file: binary
+        return {"title": os.path.relpath(path, root), "line": None, "file": path, "pipeline": [], "picture": path}
     bat = which("bat") if not (os.path.exists(path) and not os.path.isfile(path)) else None
     marked = ["--highlight-line", str(line)] if line else []
     pipeline = [[bat, "--color=always", "--paging=never", "--wrap=never", "--style=numbers,changes", *marked, path]]
     pipeline = pipeline if bat else []
-    return {"title": os.path.relpath(path, root), "line": line, "file": None if bat else path, "pipeline": pipeline}
+    spec = {"title": os.path.relpath(path, root), "line": line, "file": None if bat else path, "pipeline": pipeline}
+    return {**spec, "open": path} if media.kind_of(path) == "html" else spec
 
 
 def git_argv(git, root, command):

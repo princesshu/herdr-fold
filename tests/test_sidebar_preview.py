@@ -4,6 +4,7 @@ search and color-only output, with no stall on a binary or huge file."""
 import json
 import os
 import pty
+import re
 import select
 import shutil
 import subprocess
@@ -13,7 +14,8 @@ import time
 import unittest
 from unittest import mock
 
-from support import SRC, end_child, finished, logged, set_env, sign_head, stubs, trap
+from support import SRC, FakeTerminal, end_child, finished, logged, set_env, sign_head, stubs, trap
+from test_core_media import pdf, png
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import pager  # noqa: E402
@@ -53,6 +55,22 @@ class Commands(unittest.TestCase):
         self.assertEqual((spec["line"], spec["title"]), (40, "a.py"))
         plain = preview.file_spec("/repo", "/repo/a.py", None, which=tools())
         self.assertEqual((plain["pipeline"], plain["file"]), ([], "/repo/a.py"))
+
+    def test_a_page_opens_in_the_browser_with_o(self):
+        spec = preview.file_spec("/repo", "/repo/site/index.html", None, which=tools("bat"))
+        self.assertEqual(spec["open"], "/repo/site/index.html")
+        self.assertNotIn("open", preview.file_spec("/repo", "/repo/a.py", None, which=tools("bat")))
+        page = pager.Pager(["<html>"], "index.html", opens="/repo/site/index.html")
+        self.assertIn("o: open in browser", page.status())
+        with mock.patch.object(pager.media, "open_in_browser", return_value=True) as opened:
+            page.handle(Key("char", "o"))
+        opened.assert_called_once_with("/repo/site/index.html")
+
+    def test_an_image_or_a_pdf_is_a_picture(self):
+        spec = preview.file_spec("/repo", "/repo/docs/shot.webp", None, which=tools("bat"))
+        self.assertEqual((spec["picture"], spec["title"]), ("/repo/docs/shot.webp", "docs/shot.webp"))
+        self.assertEqual(preview.file_spec("/repo", "/repo/a.pdf", None, which=tools("bat"))["picture"], "/repo/a.pdf")
+        self.assertNotIn("picture", preview.file_spec("/repo", "/repo/a.html", None, which=tools("bat")))
 
     @unittest.skipIf(os.name == "nt", "no named pipes here on Windows")
     def test_a_pipe_is_never_handed_to_bat(self):
@@ -381,6 +399,75 @@ class Keys(unittest.TestCase):
 
     def test_the_status_line_is_the_title_and_the_position(self):
         self.assertEqual(self.pager.status().split(), ["lines.txt", "1-10/100"])
+
+
+class Written(FakeTerminal):
+    """A terminal that keeps what is written to it."""
+
+    def __init__(self, cols, rows):
+        super().__init__(cols, rows)
+        self.out = ""
+
+    def write(self, data):
+        self.out += data
+
+
+class Pictures(unittest.TestCase):
+    """An image or a PDF's page drawn in the preview tab with the Kitty graphics protocol (herdr passes it to Ghostty):
+    fitted to the pane, never past its own size, centered; a PDF paged with the pager's keys, o opening the browser."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        set_env(self, XDG_CACHE_HOME=os.path.join(self.tmp, "cache"))
+
+    def test_a_picture_fits_the_pane_and_keeps_its_aspect_centered(self):
+        self.assertEqual(pager.fit(80, 23, 4000, 2000), (2, 0, 80, None))          # as wide as the pane
+        self.assertEqual(pager.fit(80, 23, 1000, 4000), (0, 34, None, 23))         # as tall as it
+        self.assertEqual(pager.fit(80, 23, 160, 80), (10, 35, 10, None))           # a small one at its own size
+
+    def test_an_image_goes_out_in_chunks_with_its_place(self):
+        shot = png(os.path.join(self.tmp, "shot.png"), 400, 300)
+        term = Written(80, 24)
+        picture = pager.Picture(shot, "shot.png")
+        self.addCleanup(picture.close, term)
+        picture.draw(term)
+        self.assertIn("\x1b_Ga=T,f=100,", term.out)
+        self.assertTrue(all(len(chunk) <= 4096 for chunk in re.findall(r";([A-Za-z0-9+/=]*)\x1b\\", term.out)))
+        self.assertIn("shot.png", term.out)
+
+    def test_a_pager_that_draws_no_pictures_shows_the_file_as_binary(self):
+        """A preview tab opened before an update keeps its older pager: the picture's spec is a file to it."""
+        spec = preview.file_spec(self.tmp, png(os.path.join(self.tmp, "shot.png"), 40, 30), None)
+        self.assertEqual(pager.load({key: value for key, value in spec.items() if key != "picture"}),
+                         pager.load({"file": spec["picture"]}))
+
+    def test_o_opens_it_in_the_browser_and_q_closes_it(self):
+        picture = pager.Picture(png(os.path.join(self.tmp, "shot.png"), 40, 30), "shot.png")
+        self.addCleanup(picture.close, Written(80, 24))
+        with mock.patch.object(pager.media, "open_in_browser", return_value=True) as opened:
+            self.assertTrue(picture.handle(Key("char", "o")))
+        opened.assert_called_once_with(os.path.join(self.tmp, "shot.png"))
+        self.assertFalse(picture.handle(Key("char", "q")))
+
+    def test_closing_takes_the_picture_and_its_files_away(self):
+        picture = pager.Picture(png(os.path.join(self.tmp, "shot.png"), 40, 30), "shot.png")
+        term = Written(80, 24)
+        picture.draw(term)
+        picture.close(term)
+        self.assertIn("\x1b_Ga=d,", term.out)
+        self.assertFalse(os.path.exists(picture.work))
+
+    @unittest.skipUnless(sys.platform == "darwin" and shutil.which("swiftc"), "PDFKit and swiftc: macOS")
+    def test_a_pdf_pages_with_the_pagers_keys(self):
+        picture = pager.Picture(pdf(os.path.join(self.tmp, "three.pdf"), 3), "three.pdf")
+        term = Written(80, 24)
+        self.addCleanup(picture.close, term)
+        picture.draw(term)
+        self.assertIn("page 1 of 3", picture.status())
+        for key, page in (("down", 2), ("G", 3), ("up", 2), ("g", 1), ("pageup", 1)):
+            picture.handle(Key("char", key) if len(key) == 1 else Key(key))
+            self.assertIn(f"page {page} of 3", picture.status())
 
 
 def run_pager(spec, keys, folder, env=None):

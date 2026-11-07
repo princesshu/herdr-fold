@@ -64,7 +64,7 @@ plugins of its own.
 
 | File | What it is |
 |---|---|
-| `core/` | the data layer the TUI sidebar and the Herdr app mod share, its one source: `icons.py` (the sidebar's icons: Nerd Font glyphs, plain marks, each file type's, with the app's Catppuccin Icons name for it, a change's letter), `git.py` (the status, a folder's repository and branch for a Space row, a file's diff, staging, the last commits, a sync that loses nothing, the repository's name on GitHub), `tree.py` (the file tree: folders first, a folder read only when open, git's marks on it), `fileops.py` (new, rename and the system's Trash, never outside the root nor in an AI tool's folder), `search.py` (ripgrep, else git grep, else its own search: ignored files never read), `github.py` (the issues through gh, GitHub's priority field, a change, the agent's prompt), `commit_message.py` (the commit message Claude or Codex writes, the staged files named like secrets), `job.py` (the mod's background job: started out of the exec that starts it, polled, cleared), `conversations.py` (this machine's Claude Code and Codex conversations, each file read once and then only where it grew; the formatted copy; the archived ones, kept with the column's settings, so the TUI and the app share them), `statefile.py` (a state file written whole, its owner's only); those the mod runs answer it in JSON from the command line; `tools/build.py` copies it into the sidebar's folder (all but `job.py`) and into the mod, each installing on its own |
+| `core/` | the data layer the TUI sidebar and the Herdr app mod share, its one source: `icons.py` (the sidebar's icons: Nerd Font glyphs, plain marks, each file type's, with the app's Catppuccin Icons name for it, a change's letter), `git.py` (the status, a folder's repository and branch for a Space row, a file's diff, staging, the last commits, a sync that loses nothing, the repository's name on GitHub), `tree.py` (the file tree: folders first, a folder read only when open, git's marks on it), `fileops.py` (new, rename and the system's Trash, never outside the root nor in an AI tool's folder), `search.py` (ripgrep, else git grep, else its own search: ignored files never read), `media.py` (an image as a PNG, a PDF's pages through PDFKit, the default browser), `github.py` (the issues through gh, GitHub's priority field, a change, the agent's prompt), `commit_message.py` (the commit message Claude or Codex writes, the staged files named like secrets), `job.py` (the mod's background job: started out of the exec that starts it, polled, cleared), `conversations.py` (this machine's Claude Code and Codex conversations, each file read once and then only where it grew; the formatted copy; the archived ones, kept with the column's settings, so the TUI and the app share them), `statefile.py` (a state file written whole, its owner's only); those the mod runs answer it in JSON from the command line; `tools/build.py` copies it into the sidebar's folder (all but `job.py`) and into the mod, each installing on its own |
 
 ### The Herdr app
 
@@ -114,7 +114,9 @@ same for a remote machine. A line with `*` stands for every matching file, so a 
 Each line also names its part: `tui` for a file of the TUI alone, `both` for one the Herdr app uses too; the `Brewfile`
 marks each program the same way (`[tui]`, `[both]`), so the installer and the uninstaller know what belongs to which.
 Everything the scripts need at run time lives in `~/.config/herdr-fold/`; herdr's own folder, `~/.config/herdr/`, holds
-only herdr's files and its `config.toml`.
+only herdr's files and its `config.toml`. What is made on first use is in `~/.cache/herdr-fold/` (the PDF helper,
+compiled once), the Herdr app's pictures in its home's `herdr-fold-pictures/` (a day at most): the uninstaller takes
+both off.
 
 ## The installer's records
 

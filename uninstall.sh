@@ -171,6 +171,7 @@ if [ -n "$last" ]; then
   # the conversation names, the machine list, the private word list, outside.txt (named, then removed), a file changed
   # since the install, an original that did not go back, another Mac's prepare record.
   rm -rf "$state"/[0-9]*-[0-9]*
+  rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/herdr-fold"          # the PDF helper compiled on first use, the pictures
   rm -f "$record" "$state/installed.sha256" "$state/version" "$state/plugins.txt" "$state/loading-colors.txt" \
     "$state"/.loading-colors.txt.*.tmp
   [ -d "$state/original" ] && find "$state/original" -depth -type d -empty -delete

@@ -16,6 +16,7 @@ from parts import app_home  # noqa: E402
 from themes import apply  # noqa: E402
 
 MOD, LAYOUT, KEYS = os.path.join("mods", "herdr-fold"), os.path.join("layouts", "herdr-fold.json"), "keys.json"
+PICTURES = "herdr-fold-pictures"             # the preview tab's pictures (core/media.py makes them there)
 THEMES = "themes"              # herdr-fold.json (the layout's own) and the TUI's themes, herdr-fold-ID.json
 TITLE = "herdr-fold"            # the mod.json title that marks a mods/herdr-fold folder as herdr-fold's copy
 TERMINALS = "fold-terminals"    # the layout's stack of the tabs' terminals the mod started (app/mods/herdr-fold)
@@ -241,6 +242,7 @@ def uninstall(package, home, state, app_running=False):
     for rel in (LAYOUT, *themes(home)):
         if os.path.isfile(os.path.join(home, rel)):
             os.remove(os.path.join(home, rel))
+    shutil.rmtree(os.path.join(home, PICTURES), ignore_errors=True)
     mine = read_keys(os.path.join(home, KEYS))
     if mine:
         write_json(os.path.join(home, KEYS), drop_keys(drop_keys(mine, package_keys(package)), recorded(state)))

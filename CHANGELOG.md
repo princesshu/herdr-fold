@@ -15,6 +15,10 @@ All notable changes to this project are listed here. The format follows
   [Installation](docs/installation.md#the-tui-the-herdr-app-or-both).
 - One theme for both parts: the installer and the TUI's theme picker set herdr-fold's layout in the Herdr app too, and
   a running app switches at once; an update keeps the theme there is. See [Themes](docs/themes.md).
+- An image or a PDF chosen in Files is drawn in the preview tab, fitted to it, a PDF page by page: in the sidebar
+  (Ghostty shows pictures in herdr; ↑ ↓ turn the pages) and in the Herdr app mod (Previous, Next). A page, a PDF or
+  an image opens in the default browser from Files' right click, or `o` and a button in the preview tab. See
+  [The sidebar](docs/sidebar.md) and [The Herdr app](docs/app.md#the-preview-tab).
 - A remote machine is prepared for the parts installed on the Mac: with the Herdr app alone it gets git, Python and
   the status line, joins the app's core and nothing of herdr's or starship's. See
   [Remote machines](docs/remote-machines.md).

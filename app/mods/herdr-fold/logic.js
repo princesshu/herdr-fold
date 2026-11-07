@@ -2,7 +2,7 @@
 // What the mod works out without the window: a diff's rows, the sync button's words, a long job run in the background
 // on the space's machine (exec stops a program after 30 s; an AI may take minutes), the commit message writer's answer.
 
-import { JOB } from "./helper.js";
+import { JOB, MEDIA_KINDS } from "./helper.js";
 import { BY_EXTENSION, BY_NAME, FILE, FOLDER, LETTER } from "./icons.js";
 
 /** @typedef {{ kind: string, number?: number, text: string }} Row */
@@ -713,4 +713,11 @@ export function written(answer) {
   }
   if (!answer.files?.length) return { message: null, note: "Nothing to commit" };
   return { message: null, note: `No message: ${answer.note}` };
+}
+
+/** PATH's kind by its extension, as core/media.py has it: image, pdf or html, else null. @param {string} path */
+export function mediaKind(path) {
+  const dot = path.lastIndexOf("."), name = path.lastIndexOf("/") + 1;
+  return dot > name ? /** @type {Record<string, string>} */ (MEDIA_KINDS)[path.slice(dot).toLowerCase()] ?? null
+    : null;
 }

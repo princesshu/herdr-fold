@@ -4,6 +4,7 @@ as an Action for the app."""
 import os
 from dataclasses import dataclass
 
+import media
 from icons import GIT_LETTER, glyphs, icon
 from screen import GIT_ROLE, PLAIN, Canvas, Style, after, truncate
 from tree import Node, git_marks
@@ -339,6 +340,8 @@ class Explorer:
             choices = MENU[:2]
         else:
             choices = (("New Workspace",) if node.is_dir and self.opens_workspace else ()) + MENU
+            if not node.is_dir and media.kind_of(node.path):              # a page, a PDF or an image
+                choices = ("Open in Browser",) + choices
         self.menu = Popup(Menu(choices), node, y, x)
 
     def close_menu(self):
@@ -354,6 +357,8 @@ class Explorer:
             self.rename(node)
         elif choice == "Copy Path":
             return Action("copy_path", (node.path,))
+        elif choice == "Open in Browser":
+            return Action("open_browser", (node.path,))
         elif choice == "New Workspace":
             return Action("new_workspace", (node.path,))
         elif choice == "Move to Trash":
