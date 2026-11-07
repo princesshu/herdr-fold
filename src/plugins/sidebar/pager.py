@@ -325,6 +325,16 @@ def viewer(spec):
     return Pager(load(spec), spec.get("title") or "", spec.get("line"), spec.get("open"))
 
 
+def redraw(view, term, drawn):
+    """VIEW drawn again where it or the pane's size changed since DRAWN; what it is drawn for now. The size is the one
+    before it draws: a pane resized while a picture is made (a moment) is drawn again at the next look."""
+    size = term.size()
+    if (view, view.shown(), size) != drawn:
+        view.draw(term)
+        drawn = (view, view.shown(), size)
+    return drawn
+
+
 def stamp(path):
     """What tells a spec written to PATH from the one before (written whole, in a new file put in place)."""
     try:
@@ -378,10 +388,7 @@ def main():
                     if isinstance(pager, Picture):
                         pager.close(term)
                     pager, drawn = viewer(spec), None
-            state = (pager, pager.shown(), term.size())
-            if state != drawn:                      # a mouse move changes nothing: no redraw
-                pager.draw(term)
-                drawn = (pager, pager.shown(), term.size())
+            drawn = redraw(pager, term, drawn)      # a mouse move changes nothing: no redraw
             if not all(pager.handle(event) for event in term.read(WATCH)):
                 break
         if isinstance(pager, Picture):

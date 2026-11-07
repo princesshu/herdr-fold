@@ -461,6 +461,24 @@ class Pictures(unittest.TestCase):
         self.assertEqual(pager.fit(80, 23, 1000, 4000), (0, 34, None, 23))         # as tall as it
         self.assertEqual(pager.fit(80, 23, 160, 80), (10, 35, 10, None))           # a small one at its own size
 
+    def test_a_pane_resized_while_a_picture_is_drawn_is_drawn_again(self):
+        """Making a PDF's page takes a moment: a preview tab's pane narrowed meanwhile is drawn again, at its width."""
+        term, widths = Written(60, 38), []
+
+        class Slow:
+            def shown(self):
+                return ()
+
+            def draw(self, term_):
+                widths.append(term_.size()[0])
+                term.cols = 50                                       # the column copied in beside it
+
+        view = Slow()
+        drawn = pager.redraw(view, term, None)
+        drawn = pager.redraw(view, term, drawn)
+        pager.redraw(view, term, drawn)
+        self.assertEqual(widths, [60, 50])
+
     def test_a_tall_picture_is_made_big_enough_to_fill_the_panes_height(self):
         picture = pager.Picture(png(os.path.join(self.tmp, "tall.png"), 1000, 3000), "tall.png")
         self.addCleanup(picture.close, Written(46, 38))
