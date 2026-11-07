@@ -42,6 +42,10 @@ const COMMITS = [
 const DIFF = diffRows(["@@ -1,4 +1,5 @@", ' """GET /books: the books, by title."""', "-PAGE = 10", "+PAGE = 20",
   "+LAST = None", " from .. import store", "@@ -30,2 +31,2 @@", "-    return books[start:]",
   "+    return books[start:end]"]);
+const HTML = ["<!doctype html>", "<title>Lumen API: pagination</title>", "<link rel=\"stylesheet\" href=\"docs.css\">",
+  "<h1>Pagination</h1>", "<p>Every list route answers one page at a time,", "  twenty items to a page.</p>",
+  "<h2>Query parameters</h2>", "<dl>", "  <dt><code>page</code></dt>", "  <dd>The page to serve.</dd>", "</dl>"]
+  .map((text, i) => ({ kind: " ", number: i + 1, text }));
 const COMMIT = commitRows(["4f1c2ab  Ada  2 hours ago", "", "refactor(store): keep books in the order added", "",
   "diff --git a/src/lumen/store.py b/src/lumen/store.py", "index 1..2 100644", "--- a/src/lumen/store.py",
   "+++ b/src/lumen/store.py", "@@ -4,2 +4,2 @@", "-books = set()", "+books = []", " def add(book):"].join("\n"));
@@ -243,7 +247,10 @@ export function guide(proto) {
     ["Error", at({ issues: { listing: { issues: [], error: "gh is not signed in: run gh auth login" } } }), 120]],
     preview: [["Diff", previewOf({ rows: DIFF }), 200], ["Commit", previewOf({ rows: COMMIT }), 200],
       ["Loading", previewOf({ loading: true }), 52], ["Error", previewOf({ note: "HTTP 404: Not Found" }), 52],
-      ["A PDF's page", previewOf({ picture: { png: PAGE, pages: 12, page: 1 } }), 320]],
+      ["A PDF's page", previewOf({ picture: { png: PAGE, pages: 12, page: 1 } }), 320],
+      ...[["split", "A page, its code and picture"], ["code", "Its code alone"], ["picture", "Its picture alone"]]
+        .map(([shown, name]) => [name, previewOf({ rows: HTML, picture: { png: PAGE, pages: null, page: 0 }, shown }),
+          320])],
     issue: previewOf({ issue: ISSUE }),
     files: [["Default", filesOf()], ["A file chosen", filesOf({ picked: "src/lumen/app.py" })],
       ["A full folder", filesOf({ open: new Set(["src", "src/lumen", "src/lumen/routes"]) })],

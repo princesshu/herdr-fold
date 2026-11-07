@@ -1,5 +1,6 @@
 // @ts-check
-// herdr-fold's own parts, which its views and its styleguide draw with: an icon, a button, a row's button, a chip.
+// herdr-fold's own parts, which its views and its styleguide draw with: an icon, a button, a row's button, a chip, a
+// choice of a few.
 import { div, image, svg } from "gpui-kit";
 import { h_flex, HoverCard, Input } from "gpui-base";
 import { ICONS } from "./icons.js";
@@ -104,6 +105,17 @@ export function small(t, id, label, tip, enabled, onClick) {
 }
 
 export const END = 24;             // a row's last column: a section's count, its files' letters centered under it
+
+/** A choice of a few, as GitHub's Open and Closed: LIST's [value, label] side by side, the CHOSEN one filled; a click
+ * on another gives PICK its value. @param {[string, string][]} list @param {(value: string, cx: any) => void} pick */
+export function choices(t, id, list, chosen, pick) {
+  return h_flex().flex_none().gap(6).children(list.map(([value, label]) => div().id(`${id}-${value}`).h(24).px(8)
+    .flex().items_center().rounded(6).text_size(12).cursor_pointer()
+    .when(value === chosen, (e) => e.bg(t.solid).text_color(t.solid_foreground).font_bold())
+    .when(value !== chosen, (e) => e.text_color(t.muted).hover((s) => s.bg(t.hover))
+      .on_click((_e, cx) => pick(value, cx)))
+    .child(label)));
+}
 
 /** A count on a chip, as the TUI sidebar's sections show theirs. */
 export function chip(t, text) {

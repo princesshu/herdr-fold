@@ -106,8 +106,9 @@ A space has one, as in the TUI: the first file, diff, commit or issue opened mak
 numbered from the first; a diff is numbered once, a removed line by the old file and the others by the new one, a thin
 rule where lines are left out; a commit shows its author, message and each file's diff; an issue its text and comments
 as markdown. An image or a PDF on this Mac is drawn, fitted to the tab and never larger than it is, a PDF page by
-page (Previous, Next), with Open in Browser above it; one on another machine is not. Herdr-fold's panel stays
-beside it.
+page (Previous, Next), with Open in Browser above it; one on another machine is not. An SVG or an HTML page on this
+Mac shows its code and its picture side by side, Code and Picture showing either alone; WebKit draws it offline, as
+in the TUI. Herdr-fold's panel stays beside it.
 
 ![A PDF's first page of three in the preview tab, fitted to it, under Previous, Next and Open in Browser; beside it
 Files with the PDF chosen in its folder](../assets/screenshots/app-pdf.webp)
@@ -235,5 +236,7 @@ not take it.
   `~/.codex/sessions`), and never writes them; a rename goes where herdr's Rename pane keeps names, the archived ones
   beside the TUI column's settings. A closed one reopens only by an id that is one (letters, digits, `.`, `_`, `-`):
   read from a file, it is never taken for an option or a control code.
+- An SVG or a page is drawn with nothing asked of the network and none of its scripts run, so a file cannot learn who
+  opened it.
 - The mod itself sends nothing anywhere; the sync talks to the repository's remote, gh to GitHub, the AI tool to its
   own service.

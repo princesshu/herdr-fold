@@ -1,17 +1,19 @@
 // @ts-check
 // The preview tab, as the TUI sidebar's: one a space, showing what Files, Changes, the Graph or Issues opened in it (a
-// file, a picture, a PDF's pages, a diff, a commit, an issue with its comments), herdr-fold's panel beside it.
+// file, a picture, a PDF's pages, an SVG's or a page's code and picture, a diff, a commit, an issue), the panel beside.
 import { div, image } from "gpui-kit";
 import { v_flex, h_flex, Scrollbar, TextView, v_virtual_list } from "gpui-base";
 import { home, panes, readTextFile, setShared, shared, spaces, run as command } from "herdr";
 import { GIT, GITHUB, MEDIA } from "./helper.js";
 import { browsable, commitRows, diffRows, mediaKind, previewName, previewTab, priorityColor, said, safeMarkdown }
   from "./logic.js";
-import { chip, iconButton, small } from "./parts.js";
+import { chip, choices, iconButton, small } from "./parts.js";
 
 const PREVIEWS = "herdr-fold.previews";   // what each space's preview tab shows, by the space's id (shared)
 const LINES = 1500;                       // a diff's or a file's lines shown at most
 const PICTURE = 1600;                     // pixels: an image's or a PDF page's width as core/media.py makes it
+/** @type {[string, string][]} an SVG's or a page's views: its code, both side by side, its picture */
+const VIEWS = [["code", "Code"], ["split", "Split"], ["picture", "Picture"]];
 
 /** WHAT in the shown space's preview tab, as the TUI sidebar opens it: that tab named for it and shown, else a new
  * one. @param {import("./logic.js").Shown} what */
@@ -45,6 +47,8 @@ export class Preview {
     /** @type {{ png: string, pages: number | null, page: number, size?: number[] | null } | null} core/media.py's PNG,
      * in the app's home, and its size in pixels */
     this.picture = null;
+    /** an SVG's or a page's view (VIEWS'), kept for the next one */
+    this.shown = "split";
     this.loading = false;
     /** @type {string | null} why there is nothing to show */
     this.note = null;
@@ -71,8 +75,13 @@ export class Preview {
           const text = await readTextFile(`${what.root}/${what.path}`, { on: what.on });
           if (what.n !== this.n) return;
           if (text === null) return void (this.note = "This file is no longer there");
-          return void (this.rows = text.replace(/\n$/, "").split("\n").slice(0, LINES)
-            .map((line, i) => ({ kind: " ", number: i + 1, text: line })));
+          this.rows = text.replace(/\n$/, "").split("\n").slice(0, LINES)
+            .map((line, i) => ({ kind: " ", number: i + 1, text: line }));
+          if (["svg", "html"].includes(mediaKind(what.path) ?? "") && !what.on) {   // its picture beside, from this Mac
+            cx.notify();
+            await this.paint(what, 0);
+          }
+          return;
         }
         if (what.kind === "issue") {
           const answer = await this.core(GITHUB, ["view", what.github, String(what.number)], what.root, what.on);
@@ -98,13 +107,14 @@ export class Preview {
     cx.notify();
   }
 
-  /** WHAT's PAGE (an image's only one) as a PNG made on this Mac (core/media.py), in the app's home. */
+  /** WHAT's PAGE (an image's only one) as a PNG made on this Mac (core/media.py), in the app's home; an SVG or a page
+   * that cannot be drawn keeps its code alone. */
   async paint(what, page) {
     const path = `${what.root}/${what.path}`;
     const answer = await this.core(MEDIA, ["picture", path, String(page), String(PICTURE)], home(), null);
     if (what.n !== this.n) return;
     this.picture = answer.png ? { png: answer.png, pages: answer.pages, page, size: answer.size } : null;
-    this.note = answer.png ? null : "This picture cannot be shown";
+    this.note = answer.png || this.rows.length ? null : "This picture cannot be shown";
   }
 
   /** The PDF STEP pages on, within it. */
@@ -143,6 +153,7 @@ export class Preview {
   render(t, code) {
     const frame = v_flex().size_full().min_h(0).text_color(t.foreground).text_size(13);   // on the pane's own fill
     if (this.issue) return frame.child(this.issueView(t));
+    if (this.picture && this.rows.length) return frame.child(this.codeAndPicture(t, code));
     if (this.picture) return frame.child(this.pictureView(t));
     if (this.rows.length) {                       // a page's lines under Open in Browser, as the TUI's o
       return frame.when(browsable(this.what), (e) => e.child(this.bar(t))).child(this.diff(t, code));
@@ -151,11 +162,16 @@ export class Preview {
     return frame.child(div().p(16).text_size(12).text_color(this.note ? t.ansi1 : t.dim).child(line));
   }
 
-  /** The bar above a page or a picture: a PDF's pages (PICTURE's), and Open in Browser at its end.
-   * @param {Preview["picture"]} [picture] */
+  /** The bar above a page or a picture: an SVG's or a page's views, a PDF's pages (PICTURE's), and Open in Browser at
+   * its end. @param {Preview["picture"]} [picture] */
   bar(t, picture = null) {
     const { pages = null, page = 0 } = picture ?? {};
     return h_flex().h(40).flex_none().px(12).gap(4).items_center().border_b(1).border_color(t.border)
+      .when(Boolean(this.picture && this.rows.length), (e) => e.child(choices(t, "preview", VIEWS, this.shown,
+        (shown, cx) => {
+          this.shown = shown;
+          cx.notify();
+        })))
       .when(Boolean(pages), (e) => e
         .child(small(t, "page-back", "Previous", "Previous page", page > 0, (cx) => this.turn(-1, cx)))
         .child(div().px(6).text_size(12).text_color(t.muted).child(`${page + 1} of ${pages}`))
@@ -166,15 +182,29 @@ export class Preview {
 
   /** The picture fitted to the tab, under its bar. */
   pictureView(t) {
-    const { png, size } = /** @type {NonNullable<Preview["picture"]>} */ (this.picture);
     return v_flex().size_full().min_h(0)
       .child(this.bar(t, this.picture))
-      .child(div().flex_1().min_h(0).m(16).relative()     // the picture sized to it, not it to the picture
-        .child(div().absolute().inset_0().flex().items_center().justify_center()   // centered, at most its own size
-          .child(image(png).size_full().when(Boolean(size), (e) => e.max_w(size?.[0] ?? 0)
-            .max_h(size?.[1] ?? 0)))))
+      .child(this.canvas())
       .when(Boolean(this.note), (e) => e.child(div().px(16).pb(12).text_size(12).text_color(t.ansi1)
         .child(this.note ?? "")));
+  }
+
+  /** An SVG's or a page's code and its picture, side by side or either alone, as the bar's views have it. */
+  codeAndPicture(t, code) {
+    return v_flex().size_full().min_h(0)
+      .child(this.bar(t))
+      .child(h_flex().flex_1().min_h(0).items_start()
+        .when(this.shown !== "picture", (e) => e.child(v_flex().flex_1().min_w(0).h_full().child(this.diff(t, code))))
+        .when(this.shown === "split", (e) => e.child(div().w(1).h_full().flex_none().bg(t.border)))
+        .when(this.shown !== "code", (e) => e.child(v_flex().flex_1().min_w(0).h_full().child(this.canvas()))));
+  }
+
+  /** The picture, as large as the room around it allows and never larger than it is, centered there. */
+  canvas() {
+    const { png, size } = /** @type {NonNullable<Preview["picture"]>} */ (this.picture);
+    return div().flex_1().min_h(0).m(16).relative()               // the picture sized to it, not it to the picture
+      .child(div().absolute().inset_0().flex().items_center().justify_center()
+        .child(image(png).size_full().when(Boolean(size), (e) => e.max_w(size?.[0] ?? 0).max_h(size?.[1] ?? 0))));
   }
 
   /** The rows: a commit's file names as headings, a thin rule where lines are left out between two changes. */

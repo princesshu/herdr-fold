@@ -6,7 +6,7 @@ import { v_flex, h_flex, InputState } from "gpui-base";
 import { agents, focused, hc, run as command } from "herdr";
 import { COMMIT_MESSAGE, GITHUB } from "./helper.js";
 import { hovering, issueAgent, priorityColor, said } from "./logic.js";
-import { button, field, GAP, icon, small } from "./parts.js";
+import { button, choices, field, GAP, icon, small } from "./parts.js";
 import { showPreview } from "./preview.js";
 
 const LEVELS = ["Urgent", "High", "Medium", "Low"];      // GitHub's Priority field's options, core/github.py's ranks
@@ -212,11 +212,8 @@ export class IssuesView {
 
   /** Open and Closed, as GitHub's list has them: the chosen one filled. */
   states(t) {
-    return h_flex().flex_none().px(12).pb(8).gap(6).children(Object.entries(STATES).map(([state, label]) =>
-      div().id(`issues-${state}`).h(24).px(8).flex().items_center().rounded(6).text_size(12).cursor_pointer()
-        .when(this.query.state === state, (e) => e.bg(t.solid).text_color(t.solid_foreground).font_bold())
-        .when(this.query.state !== state, (e) => e.text_color(t.muted).hover((s) => s.bg(t.hover)))
-        .on_click((_e, cx) => state !== this.query.state && this.load(cx, { ...this.query, state })).child(label)));
+    return choices(t, "issues", Object.entries(STATES), this.query.state,
+      (state, cx) => this.load(cx, { ...this.query, state })).px(12).pb(8);
   }
 
   /** What to say above the list: busy, asking, a failure, nothing found, or what was done. @param {Listed[]} shown */
