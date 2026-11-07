@@ -185,7 +185,7 @@ class Pager:
         """The lines in view, ROWS of them cut to CELLS: each one's text, for its row."""
         self.height = max(1, rows)
         self.top = max(0, min(self.top, len(self.lines) - self.height))
-        return [visible(self.lines[index], cells) if index < len(self.lines) else "\x1b[2m~"
+        return [visible(self.lines[index], cells) if index < len(self.lines) else ""
                 for index in range(self.top, self.top + self.height)]
 
     def draw(self, term):

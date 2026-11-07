@@ -35,6 +35,19 @@ def png(path, width, height):
     return path
 
 
+def first_pixel(path):
+    """The top left pixel of the PNG at PATH, RGBA: a first row's first pixel is kept as it is, whatever its filter."""
+    with open(path, "rb") as f:
+        data = f.read()
+    chunks, at = [], 8
+    while at < len(data):
+        length, kind = struct.unpack(">I4s", data[at:at + 8])
+        if kind == b"IDAT":
+            chunks.append(data[at + 8:at + 8 + length])
+        at += 12 + length
+    return tuple(zlib.decompress(b"".join(chunks))[1:5])
+
+
 def pdf(path, pages, turned=()):
     """A PDF of PAGES letter pages, each a gray box, at PATH; those numbered in TURNED (from 0) turned a quarter."""
     objects = ["<< /Type /Catalog /Pages 2 0 R >>",
@@ -205,15 +218,28 @@ class ForTheApp(unittest.TestCase):
             f.write('<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40"><rect width="60" height="40"'
                     ' fill="#7c6cd8"/></svg>\n')
         answer = media.picture(svg, 0, 100)
-        self.assertEqual(answer["kind"], "svg")                                # drawn sharp at the width asked
+        self.assertEqual(answer["kind"], "svg")                                # drawn sharp, no wider than asked
         self.assertEqual(max(media.size(os.path.join(self.tmp, "app", answer["png"]))), 100)
 
     @unittest.skipUnless(MAC and shutil.which("swiftc"), "WebKit and swiftc: macOS")
+    def test_an_svg_is_drawn_at_its_own_size_on_nothing(self):
+        """As a design tool shows it: never stretched to the room, its own size in points (a PNG twice that, sharp on a
+        Mac's screen), what it leaves empty clear, not white."""
+        svg = os.path.join(self.tmp, "mark.svg")
+        with open(svg, "w", encoding="utf-8") as f:
+            f.write('<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40"><rect x="20" y="10" width="20"'
+                    ' height="20" fill="#7c6cd8"/></svg>\n')
+        answer = media.picture(svg, 0, 1600)
+        made = os.path.join(self.tmp, "app", answer["png"])
+        self.assertEqual((media.size(made), answer["size"]), ((120, 80), [60, 40]))
+        self.assertEqual(first_pixel(made)[3], 0)                              # its corner: nothing drawn there
+
+    @unittest.skipUnless(MAC and shutil.which("swiftc"), "WebKit and swiftc: macOS")
     def test_a_tall_svg_is_drawn_whole_and_narrower(self):
-        """An SVG is drawn whole, at most 5/4 of WIDTH high: a tall one narrower than WIDTH, never cut."""
+        """An SVG too large is drawn whole and smaller, at most WIDTH wide and 5/4 of it high: a tall one narrower."""
         svg = os.path.join(self.tmp, "tall.svg")
         with open(svg, "w", encoding="utf-8") as f:
-            f.write('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="100"><rect width="40" height="100"'
+            f.write('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="1000"><rect width="400" height="1000"'
                     ' fill="#7c6cd8"/></svg>\n')
         self.assertEqual(media.size(media.drawn_png(svg, 200, self.tmp)), (100, 250))
 

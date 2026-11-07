@@ -107,12 +107,12 @@ A space has one, as in the TUI: the first file, diff, commit or issue opened mak
 numbered from the first; a diff is numbered once, a removed line by the old file and the others by the new one, a thin
 rule where lines are left out; a commit shows its author, message and each file's diff; an issue its text and comments
 as markdown. An image on this Mac is drawn, fitted to the tab and never larger than it is; a PDF's pages one under
-another at their own size, a gap apart, scrolled, each drawn as it comes into view, the page in view and Open in
-Browser above them; one on another machine is not. An SVG or an HTML page on this
-Mac shows its code and its picture side by side, as VS Code's preview to the side: the divider between them drags,
-and the picture fits its side on the canvas, as a design tool's artboard; Code, Split and Picture above them show
-either alone or both again. WebKit draws it offline, as in the TUI. A right click in the tab offers those, Open in
-Browser and Close Preview. Herdr-fold's panel stays beside it.
+another at their own size, a gap apart, scrolled, each drawn as it comes into view, the page in view and Open in Browser
+above them; one on another machine is not. An SVG or an HTML page on this Mac shows its code and its picture side by
+side, as VS Code's preview to the side: the divider between them drags, and the picture fits its side on the canvas, as
+a design tool's artboard (an SVG at its own size, never larger, what it leaves empty clear); Code, Split and Picture
+above them show either alone or both again. WebKit draws it offline, as in the TUI. A right click in the tab offers
+those, Open in Browser and Close Preview. Herdr-fold's panel stays beside it.
 
 ![A PDF's pages one under another in the preview tab, scrolled to its second, under the page in view and Open in
 Browser; beside it Files with the PDF chosen in its folder](../assets/screenshots/app-pdf.webp)

@@ -361,6 +361,10 @@ class Lines(unittest.TestCase):
             f.write(data)
         return {"title": "file", "line": None, "file": path, "pipeline": []}
 
+    def test_the_rows_after_the_last_line_are_blank(self):
+        view = pager.Pager(["one", "two"], "file")
+        self.assertEqual(view.rows(20, 4), ["one", "two", "", ""])
+
     @unittest.skipIf(os.name == "nt", "no named pipes here on Windows")
     def test_a_pipe_or_a_device_is_not_read(self):
         # a downloaded folder's pipe, or a link to a terminal: read, it would never end, and q would not work

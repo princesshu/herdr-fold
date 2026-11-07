@@ -2351,6 +2351,7 @@ export const MEDIA = [
   "SAFARI = \"com.apple.Safari\"",
   "APP_PICTURES = \"herdr-fold-pictures\"     # in the Herdr app's home: its image() takes a path from there",
   "TIMEOUT = 120                 # seconds a compile or a page may take",
+  "DENSITY = 2                   # a drawn SVG's or page's pixels to a point: a Mac's screen",
   "# the Swift helpers, each compiled once: pdf-pages `sizes PDF` prints each page's size in points, `render " +
     "PDF N WIDTH",
   "# OUT` writes page N (from 0) WIDTH pixels wide as a PNG; page-shot `PATH WIDTH OUT RULES` draws a page or " +
@@ -2390,7 +2391,8 @@ export const MEDIA = [
   "let a = CommandLine.arguments",
   "guard a.count == 5, let width = Double(a[2]), width > 0 else { exit(2) }",
   "let file = URL(fileURLWithPath: a[1]), svg = file.pathExtension.lowercased() == \"svg\"",
-  "let points = width / (NSScreen.main?.backingScaleFactor ?? 1), box = points * 5 / 4",
+  "let points = width / 2, box = points * 5 / 4      // drawn twice as sharp as laid out, as on a Mac " +
+    "(media.py's DENSITY)",
   "NSApplication.shared.setActivationPolicy(.prohibited)",
   "var done = false, failed = false",
   "",
@@ -2431,10 +2433,12 @@ export const MEDIA = [
     "end(false) }",
   "}",
   "",
-  "// a page's first screen; an SVG whole, made narrower when it is taller than that",
-  "let measure = svg ? \"(() => { const i = document.images[0], h = i.getBoundingClientRect().height; \" +",
-  "  \"if (h > \\(box)) i.style.width = (\\(points * box) / h) + 'px'; \" +",
-  "  \"const r = i.getBoundingClientRect(); return [r.width, r.height]; })()\"",
+  "// a page's first screen; an SVG whole at its own size, never larger, smaller where it does not fit that",
+  "let measure = svg ? \"(() => { const i = document.images[0], w = i.naturalWidth || 300, h = i.naturalHeight " +
+    "|| 150, \" +",
+  "  \"k = Math.min(1, \\(points) / w, \\(box) / h); i.style.width = w * k + 'px'; i.style.height = h * k + " +
+    "'px'; \" +",
+  "  \"return [w * k, h * k]; })()\"",
   "  : \"[\\(points), Math.min(document.documentElement.scrollHeight, \\(box))]\"",
   "let shot = Shot(width: width, points: points, out: URL(fileURLWithPath: a[3]), measure: measure)",
   "let rules = \"[\" + #\"{\"trigger\":{\"url-filter\":\".*\"},\"action\":{\"type\":\"block\"}}\"# + " +
@@ -2461,7 +2465,8 @@ export const MEDIA = [
   "    guard let data = try? Data(contentsOf: file) else { return shot.end(false) }",
   "    view.loadHTMLString(\"<body style='margin:0'><img " +
     "src='data:image/svg+xml;base64,\\(data.base64EncodedString())'\"",
-  "                        + \" style='display:block;width:100%'>\", baseURL: nil)",
+  "                        + \" style='display:block'>\", baseURL: nil)",
+  "    view.setValue(false, forKey: \"drawsBackground\")       // what it leaves empty stays clear, not white",
   "  } else {",
   "    view.loadFileURL(file, allowingReadAccessTo: file.deletingLastPathComponent())",
   "  }",
@@ -2682,9 +2687,11 @@ export const MEDIA = [
   "    if made and os.path.dirname(made) != folder:          # an image already small enough: a copy in the " +
     "app's home",
   "        made = shutil.copyfile(made, os.path.join(folder, f\"{named(path)}.png\"))",
+  "    density = DENSITY if made and \"-drawn-\" in os.path.basename(made) else 1     # WebKit's: drawn twice " +
+    "as sharp",
   "    return {\"kind\": kind, \"pages\": pages(path) if kind == \"pdf\" else None,",
-  "            \"png\": made and f\"{APP_PICTURES}/{os.path.basename(made)}\", \"size\": made and " +
-    "list(size(made))}",
+  "            \"png\": made and f\"{APP_PICTURES}/{os.path.basename(made)}\",",
+  "            \"size\": made and [n // density for n in size(made)]}",
   "",
   "",
   "def open_in_browser(path):",

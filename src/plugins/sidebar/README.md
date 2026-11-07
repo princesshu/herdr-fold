@@ -11,11 +11,12 @@ Claude wrote, the issue it fixes and the Graph, Issues by priority](../../../ass
   or a PDF drawn there (Ghostty shows pictures in herdr), an image fitted and never larger than it is, a PDF's pages one
   under another, a row apart, scrolled as the pager scrolls its lines, an SVG or a page drawn beside its code as VS
   Code's preview to the side (macOS's WebKit draws it, offline): the divider between them drags and the picture fits its
-  side, `c` turns to the code alone, the picture alone and both again, and a right click in the preview offers them,
-  Open in Browser and Close Preview; `o` there, or the right click's Open in Browser, opens a page, a PDF or an image in
-  the default browser (never over SSH: a browser there would open on the machine, out of sight). While the workspace has
-  a preview tab, the right click offers Close Preview, as `q` there. With herdr-fold's tab layout, a folder's right
-  click offers New Workspace: herdr-fold's folder picker opens on it.
+  side (an SVG at its own size, never larger, what it leaves empty clear), `c` turns to the code alone, the picture
+  alone and both again, and a right click in the preview offers them, Open in Browser and Close Preview; `o` there, or
+  the right click's Open in Browser, opens a page, a PDF or an image in the default browser (never over SSH: a browser
+  there would open on the machine, out of sight). While the workspace has a preview tab, the right click offers Close
+  Preview, as `q` there. With herdr-fold's tab layout, a folder's right click offers New Workspace: herdr-fold's folder
+  picker opens on it.
 - **Search:** as you type (typing on narrows the hits at once, before the search answers), with match case, whole word
   and regular expression; the hits by file. A hit opens the preview at its line. A folder or file you chose in Files (an
   arrow key or a click on it) is the one searched, named above the field, a file even when git ignores it (a link chosen
