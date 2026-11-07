@@ -1,8 +1,8 @@
 # Installation
 
-The installer sets up herdr-fold for herdr's TUI, the Herdr app or both ([below](#the-tui-the-herdr-app-or-both)): for
-the TUI, Ghostty, herdr, starship, gh, bat, git-delta, ripgrep and the JetBrains Mono Nerd Font with Homebrew, then the
-settings, the herdr plugins and the Claude Code and Codex status lines.
+herdr-fold comes for herdr's TUI, in Ghostty, and for herdr's desktop app, the Herdr app, as a mod: the same views,
+the same theme and the same remote machines in both. One installer sets up either or both, and asks first which
+([below](#the-tui-the-herdr-app-or-both)).
 
 A program already on your Mac stays, whoever installed it (Ghostty from its website, ripgrep from cargo): Homebrew
 gets no second copy and takes over no app. The installer names what is missing and asks before Homebrew installs it.
@@ -14,22 +14,24 @@ programs, its downloads) and its analytics count nothing; your own Homebrew sett
 
 ## The TUI, the Herdr app, or both
 
-herdr-fold comes for herdr's TUI (in Ghostty) and for herdr's desktop app, the Herdr app, as a mod, with the same
-views and the same remote machines in both. The installer's first question picks one or both, its page in the browser
-showing each: `1` the TUI, `2` the Herdr app, `3` both. The default is what is installed already, else both where the
-Herdr app is on this Mac, else the TUI; `HERDR_FOLD_PARTS` answers it without the question.
+The first question picks the parts, its page in the browser showing each: `1` the TUI, `2` the Herdr app, `3` both.
+The default is what is installed already, else both where the Herdr app is on this Mac, else the TUI;
+`HERDR_FOLD_PARTS` answers it without the question. Each step then sets up only what the chosen parts need:
 
-Each step then sets up what the chosen parts need. The TUI brings Ghostty, herdr, starship, bat, git-delta and the
-font, their settings, the `~/.zshrc` block for herdr's panes, herdr's plugins and its hooks into Claude Code and Codex.
-The Herdr app brings its mod, layout, themes and keys into the app. Both need gh, ripgrep, the Claude Code and Codex
-status line and GitHub's sign-in; with the Herdr app alone, nothing of the TUI's is installed and no `herdr` runs.
+| | The TUI | The Herdr app |
+|---|---|---|
+| Programs | Ghostty, herdr, starship, bat, git-delta, the JetBrains Mono Nerd Font | the Herdr app, from its own installer where it is missing |
+| Settings | Ghostty's, herdr's and starship's; a `~/.zshrc` block for herdr's panes | herdr-fold's mod, layout, themes and keys in the app |
+| herdr | herdr-fold's plugins, herdr's hooks into Claude Code and Codex | none: no `herdr` runs for it |
+| Remote machines | connected in herdr, with the TUI's files there | added to the app's core |
+
+Both need gh, ripgrep, the Claude Code and Codex status line and GitHub's sign-in, and a remote machine gets git,
+Python 3 and the status line for either. The two share one theme, and run side by side on one Mac; an agent belongs
+to the one it was started in (herdr's own: the app and the TUI keep their agents apart).
 
 To add the other part later, run `./install.sh` again and answer no to the update question: the first question then
-starts from what is installed, and `3` adds the other. Choosing fewer parts than are installed keeps them all;
-`./uninstall.sh` takes a part off.
-
-The two run side by side on one Mac, each with its own settings; an agent belongs to the one it was started in (herdr's
-own: the app and the TUI keep their agents apart).
+starts from what is installed, and `3` adds the other. Choosing fewer parts than are installed keeps them all:
+`./uninstall.sh` takes a part off ([Uninstall](uninstall.md)).
 
 ## Requirements
 
@@ -37,14 +39,16 @@ own: the app and the TUI keep their agents apart).
   install may get through there, but it is not supported or tested.
 - Homebrew. If it is missing, the installer offers to install it.
 - Claude Code and/or Codex, signed in. The installer does not install them; it tells you if one is missing.
-- herdr 0.9.5 or newer. The installer installs it with Homebrew (`Brewfile`), unless a herdr from elsewhere (herdr's
-  own installer, in `~/.local/bin`) is there: that one stays, without a second from Homebrew. Homebrew has it
-  ready-built only for the newest macOS; on an older one it builds it first (with rust and zig, which it brings), which
-  takes several minutes.
+- For the TUI, herdr 0.9.5 or newer. The installer installs it with Homebrew (`Brewfile`), unless a herdr from
+  elsewhere (herdr's own installer, in `~/.local/bin`) is there: that one stays, without a second from Homebrew.
+  Homebrew has it ready-built only for the newest macOS; on an older one it builds it first (with rust and zig, which it
+  brings), which takes several minutes.
+- For the Herdr app, the app itself. Where it is missing, the installer offers its own installer.
 
 ## From herdr's marketplace
 
-With herdr already on your Mac, the whole environment is one herdr plugin, Full Setup:
+With herdr already on your Mac, the whole environment is one herdr plugin, Full Setup (for the Herdr app alone,
+without herdr, get the folder below):
 
 ```bash
 herdr plugin install princesshu/herdr-fold
@@ -144,8 +148,17 @@ whether it may stop an older herdr running there (answer no, the default).
 
 ## What changes on your Mac
 
-- `~/.config/herdr-fold/`: the package's scripts, plugins, themes and texts, and this Mac's settings
-  (`statusline.json`, `machines.txt`).
+For either part:
+
+- `~/.config/herdr-fold/`: the package's scripts, themes and texts, and this Mac's settings (`statusline.json`,
+  `machines.txt`); with the TUI, its plugins too.
+- Claude Code's `statusLine` in `~/.claude/settings.json`, and Codex's `[tui] status_line` in `~/.codex/config.toml`.
+- `~/.cache/herdr-fold/`: the PDF viewer's helper, compiled the first time a PDF is shown.
+- `~/.local/share/herdr-fold`: only when installed from herdr's marketplace, the package itself: herdr keeps its
+  copy in a folder per version, so Ctrl+B, Shift+M, the next update and the uninstaller run from this one.
+
+For the TUI:
+
 - `~/.config/ghostty/config`, `~/.config/starship.toml`: replaced. Your own versions are kept. Ghostty starts herdr
   from Homebrew's folders, or from `~/.local/bin`, where herdr's own installer puts it: a herdr that
   did not come from Homebrew stays the one, without a second from Homebrew. One elsewhere gets a link to make in
@@ -154,7 +167,6 @@ whether it may stop an older herdr running there (answer no, the default).
 - `~/.config/herdr/config.toml`: replaced, or, if you answer yes to the question above, herdr-fold's are added to yours
   between `# >>> herdr-fold >>>` and `# <<< herdr-fold <<<` marks.
 - `~/.zshrc`: one marked block that loads the herdr pane environment, only inside herdr panes.
-- Claude Code's `statusLine` in `~/.claude/settings.json`, and Codex's `[tui] status_line` in `~/.codex/config.toml`.
 - herdr plugins (the sidebar, AI Sessions, the tab layout) and the herdr integrations for Claude and Codex; a
   herdr-sidebar of your own stays, and is named ([The sidebar](sidebar.md)).
 - The theme's colors for the sidebar, in `~/.local/state/herdr/plugins/herdr-fold.sidebar/colors.json`.
@@ -163,8 +175,13 @@ whether it may stop an older herdr running there (answer no, the default).
   in the folder picker goes back there.
 - `~/.config/ghostty/herdr-fold-icon`: which app icon Ghostty shows (the theme's), written into
   `~/.local/state/herdr-fold/ghostty-icon/`.
-- `~/.local/share/herdr-fold`: only when installed from herdr's marketplace, the package itself: herdr keeps its
-  copy in a folder per version, so Ctrl+B, Shift+M, the next update and the uninstaller run from this one.
+
+For the Herdr app, in its home (`~/.config/herdr-app`, or `HERDR_APP_HOME`): herdr-fold's mod (`mods/herdr-fold`), its
+layout (`layouts/herdr-fold.json`), its themes (`themes/herdr-fold*.json`: the layout's own and the TUI's twelve), its
+keys (the `layout:herdr-fold` section of `keys.json`), and the preview tab's pictures of images and PDFs
+(`herdr-fold-pictures/`, a day at most). Your own mods, layouts, themes and keys stay. An update takes off what an
+earlier version put there and this one no longer brings: a theme, a key, and, with the app closed, a setting the mod
+no longer keeps.
 
 Only when you say yes, or when something is missing:
 
@@ -173,12 +190,7 @@ Only when you say yes, or when something is missing:
 - `~/.ssh/known_hosts`: the key of each machine you trust;
 - `~/.zprofile`: Homebrew's `brew shellenv` line, when the installer installs Homebrew;
 - git's global commit author (`user.name`, `user.email`), only if none is set, and git's GitHub sign-in through `gh`;
-- `~/.claude.json`: the projects you let Claude trust, so the status line shows there;
-- in the Herdr app's home (`~/.config/herdr-app`, or `HERDR_APP_HOME`): herdr-fold's mod (`mods/herdr-fold`), its
-  layout (`layouts/herdr-fold.json`), its themes (`themes/herdr-fold*.json`: the layout's own and the TUI's twelve)
-  and its keys (the `layout:herdr-fold` section of `keys.json`), when you say yes to the Herdr app question; your own
-  mods, layouts, themes and keys stay. An update takes off what an earlier version put there and this one no longer
-  brings: a theme, a key, and, with the app closed, a setting the mod no longer keeps.
+- `~/.claude.json`: the projects you let Claude trust, so the status line shows there.
 
 Everything it replaces is saved first, in `~/.local/state/herdr-fold/`:
 
@@ -191,9 +203,10 @@ It never touches your conversations (Claude and Codex sessions and their names) 
 
 ## Run it again
 
-Run `./install.sh` again any time, for example after getting a newer `herdr-fold` folder or to add a machine. What is
-done is skipped, what changed is updated, and what an earlier version left behind is listed and removed once you say
-yes (it is saved first). Your theme, status line choices and machine list stay.
+Run `./install.sh` again any time, for example after getting a newer `herdr-fold` folder, to add a machine or to add
+the other part ([above](#the-tui-the-herdr-app-or-both)). What is done is skipped, what changed is updated, and what an
+earlier version left behind is listed and removed once you say yes (it is saved first). Your parts, theme, status line
+choices and machine list stay.
 
 ## Switches
 

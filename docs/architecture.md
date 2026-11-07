@@ -120,7 +120,9 @@ both off.
 
 ## The installer's records
 
-`~/.local/state/herdr-fold/` holds what the installer needs to update and to uninstall cleanly:
+`~/.local/state/herdr-fold/` holds what the installer needs to update and to uninstall cleanly; which parts are
+installed is read from it (`src/parts.py`): the TUI where `installed.txt` names a TUI file or `plugins.txt` the
+sidebar, the Herdr app where `plugins.txt` names `herdr-fold.app`.
 
 | Entry | What it holds |
 |---|---|

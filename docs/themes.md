@@ -6,10 +6,10 @@ Kanagawa, Rosé Pine, One Dark, Dracula, Gruvbox, Nord and Solarized. With both 
 
 ## Picking a theme
 
-Cmd + K, then Cmd + T opens the picker: the themes with color swatches, Enter applies, `p` opens the preview in the
-browser. herdr switches at once; press Cmd + Shift + , in Ghostty; the prompt changes in new panes.
+In the TUI, Cmd + K, then Cmd + T opens the picker: the themes with color swatches, Enter applies, `p` opens the
+preview in the browser. herdr switches at once; press Cmd + Shift + , in Ghostty; the prompt changes in new panes.
 
-From a herdr pane:
+From a terminal (a herdr pane, or any one with the Herdr app alone, where a running app switches at once):
 
 ```bash
 open "$(python3 ~/.config/herdr-fold/themes/apply.py --preview)"   # all twelve in the browser, with their icons

@@ -2,16 +2,14 @@
 
 herdr's desktop app takes mods: JavaScript that draws panels in its window. herdr-fold brings one, `herdr-fold`, the
 TUI sidebar's counterpart in the app, with the same data layer underneath (`core/`), so a repository shows and commits
-the same in both. It installs on its own, without the TUI environment.
+the same in both. The installer sets it up alone or beside the TUI ([Installing it](#installing-it)).
 
 It comes with a layout of its own, `herdr-fold`: the app's main layout, with herdr-fold in the right panel where the
 app's own Changes was, above the tab's own terminal, as the TUI's right column has them, and in the left sidebar its own
 Spaces list, where the app's was, and under it its Conversations, where the app's Agents list was; a pane has no header,
-as in the TUI (the grip on its top edge still drags it). The toggle at the top right, where the app's Files and Changes
-buttons were, folds it to a rail of icons and opens it again, and so does Cmd + Shift + G. The layout is dark, in the
-TUI's own colors (its theme, `themes/herdr-fold.json`, is made from the TUI's); its terminals and code are in Menlo, as
-VS Code's (on Linux and Windows the app's JetBrains Mono), at the TUI's size, 13; the app's theme and font menus change
-them.
+as in the TUI (the grip on its top edge still drags it). The layout is in the theme herdr-fold's installer chose
+(the TUI's twelve, one for both: [Themes](themes.md)); its terminals and code are in Menlo, as VS Code's (on Linux
+and Windows the app's JetBrains Mono), at the TUI's size, 13; the app's theme and font menus change them.
 
 Its icons are Lucide's, a file's Catppuccin Icons' for its type, as the TUI sidebar tells the types apart
 (`core/icons.py`); `tools/icons.py` fetches both from Iconify into `app/mods/herdr-fold/icons/`, and `icons.js` names
@@ -44,7 +42,7 @@ time, its head dragging it and its × closing it; a key of a view's (Cmd + Shift
 at the end of the tabs hides the panel, and the toggle shows it again. The tab bar is herdr-fold's, drawn as the app's
 own: the space's tabs, dragged into order, a double click renaming one, a right click the app's menu, the wheel
 stepping through them; + after the last tab (New tab) starts a terminal or an agent, and every button there says
-what it does. A file, a diff, a commit or an issue opens in the space's preview tab, as in the TUI.
+what it does. A file, a picture, a diff, a commit or an issue opens in the space's preview tab, as in the TUI.
 
 ## Files
 
@@ -55,7 +53,7 @@ The space's folder, read on the space's machine, as the TUI sidebar's Files show
 | The tree | folders first, then files, by name; a folder read only once opened, a very full one ending in `… N more`; what git ignores faint and never read |
 | Icons | Catppuccin Icons' for each file type and for a folder, closed or open, as the Changes view's |
 | Marks | git's letter on each changed file and a dot on a folder holding changes, in git's colors, as in the TUI |
-| A click | a file opens in the space's preview tab, its lines numbered; a folder opens or closes |
+| A click | a file opens in the space's preview tab, its lines numbered, an image or a PDF drawn; a folder opens or closes |
 | Right click | Open in Browser (a page, a PDF or an image on this Mac, in the default browser), New File, New Folder, Rename (the name typed in its row; Enter makes it, Esc gives it up), Copy Path (the path on its machine, onto this computer's clipboard), Move to Trash (asked on its row first), and on a folder New Workspace there |
 | The toolbar | New File and New Folder at the top, Refresh, Collapse Folders, and hidden files shown or not, kept for the next start |
 
@@ -158,12 +156,14 @@ no header of its own; one that could not start says why in its place. The edge a
 It needs the Herdr app, and Python 3 and git on the machine the space is on (Claude Code or Codex too, for the ✦, and
 gh signed in to GitHub there, for Issues).
 
-With the TUI environment, `./install.sh` does it all: where the Herdr app is on the Mac, it asks
-`Set up herdr-fold in the Herdr app too?`, and a yes puts the mod, the layout and the keys in place, and shows the
-layout in a running app. `./uninstall.sh` takes them off again, alone or with the TUI, herdr-fold's settings in the app
-too: a running app closes for that moment and opens again.
+`./install.sh` sets it up: choose `2` (the Herdr app) or `3` (both) at its first question
+([Installation](installation.md#the-tui-the-herdr-app-or-both)); where the app is not on the Mac yet, it offers the
+app's own installer. It puts the mod, the layout, its themes and its keys in place and shows the layout in a running
+app. An update of the TUI alone asks once, `Set up herdr-fold in the Herdr app too?`, where the app is on the Mac.
+`./uninstall.sh` takes it off again, alone or with the TUI, herdr-fold's settings in the app too: a running app closes
+for that moment and opens again ([Uninstall](uninstall.md)).
 
-Without the TUI environment, from the herdr-fold folder:
+Without the installer, from the herdr-fold folder:
 
 ```bash
 python3 lib/herdr_app.py install .
@@ -201,8 +201,9 @@ opens the mod's parts, each in each of its states, in a tab: [Styleguide](styleg
 ## On another machine
 
 A space on another machine works the same: the git commands and the message writer run there, through the app's own
-connection. With the TUI environment, `install.sh` (and `./machines.sh add` later) adds each of herdr-fold's machines
-to the app, prepared as for the TUI; without it, add one in Settings → Machines. The mod installs nothing there: it
+connection. `install.sh` (and `./machines.sh add` later) prepares each of herdr-fold's machines for the parts installed
+and adds it to the app ([Remote machines](remote-machines.md)); one added in Settings → Machines works too, with git and
+Python 3 there. The mod installs nothing there: it
 carries its code and runs it with that machine's Python: `python3`, or on Windows the one herdr-fold's preparation
 finds there (not the Store's alias). The message writer runs as a job of its own, so the app's connection ending does
 not take it.

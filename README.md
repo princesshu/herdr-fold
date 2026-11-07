@@ -66,21 +66,20 @@ cd herdr-fold
 ./install.sh
 ```
 
-Either way it is the same installer with the same questions. From the folder, you can also double-click
-`install.command`. On macOS 15 and later, a downloaded copy may need System Settings → Privacy &
-Security → **Open Anyway**. Enter always gives the default answer. When it is done, open Ghostty: herdr starts in it,
-and the **new** button under Spaces makes a workspace.
+Either way it is the same installer with the same questions, the first one the TUI, the Herdr app or both. From the
+folder, you can also double-click `install.command`. On macOS 15 and later, a downloaded copy may need System Settings
+→ Privacy & Security → **Open Anyway**. Enter always gives the default answer. When it is done, open Ghostty (herdr
+starts in it; the **new** button under Spaces makes a workspace) or the Herdr app (herdr-fold's layout is there).
 
-The questions, what each one changes, and the switches: [Installation](docs/installation.md).
-
-The TUI only, the app only, or both: [Installation](docs/installation.md#the-tui-the-herdr-app-or-both).
+The parts, the questions, what each one changes, and the switches: [Installation](docs/installation.md).
 
 ## What it changes
 
 - the settings of Ghostty, herdr and starship, and Claude Code's and Codex's status lines;
 - one marked block in `~/.zshrc`, active only inside herdr panes;
 - three herdr plugins of its own (the sidebar with the Conversations column, AI Sessions, the tab layout), and
-  herdr's Claude and Codex integrations.
+  herdr's Claude and Codex integrations;
+- in the Herdr app, herdr-fold's mod, layout, themes and keys.
 
 Your own files are saved first, in `~/.local/state/herdr-fold/`. Your conversations are never touched.
 [More](docs/installation.md#what-changes-on-your-mac).
