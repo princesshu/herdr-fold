@@ -22,6 +22,7 @@ SECRET_LOOKING = (".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx", "id_rsa*
 SUBJECT_MAX = 72
 CODEX_MODEL, CODEX_EFFORT = "gpt-6-luna", 'model_reasoning_effort="low"'
 TIMEOUTS = {"claude": 120, "codex": 180}
+NAMES = {"claude": "Claude", "codex": "Codex"}
 # the /commit skill's or command's rules: the repository's first, then the shared ones under ~/.claude
 RULE_FILES = [".claude/skills/commit/SKILL.md", ".claude/commands/commit.md", ".agents/skills/commit/SKILL.md"]
 SHAPE = ("Output ONLY the message: a subject line of at most 72 characters, a blank line, then a body: one imperative "
@@ -249,9 +250,20 @@ def ask(backend, binary, prompt, text, model=True):
     return None, ((out.stderr or "").strip().splitlines() or [""])[-1][:120]
 
 
+def writers():
+    """The AIs asked for a message, in turn: the one HERDR_COMMIT_AI names, else Claude, then Codex."""
+    return [os.environ["HERDR_COMMIT_AI"]] if os.environ.get("HERDR_COMMIT_AI") else ["claude", "codex"]
+
+
+def writing(which=find):
+    """What shows while the message is written: the first AI asked that is here, by its name."""
+    who = next((backend for backend in writers() if which(backend)), None)
+    return f"{NAMES.get(who, who)} is writing the message…" if who else "Writing the message…"
+
+
 def write(req, order=None, which=find):
-    """A detailed message for REQ, trying each AI of ORDER (HERDR_COMMIT_AI, else Claude then Codex)."""
-    order = order or ([os.environ["HERDR_COMMIT_AI"]] if os.environ.get("HERDR_COMMIT_AI") else ["claude", "codex"])
+    """A detailed message for REQ, trying each AI of ORDER (writers() by default)."""
+    order = order or writers()
     prompt, text, problems = (RULES_PROMPT if req.rules else PROMPT), context(req), []
     for backend in order:
         binary = which(backend)
@@ -349,8 +361,8 @@ def settle(repo, seen, state=None):
 
 
 def main(argv):
-    """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: write REPO (the message, its
-    writer, why the others could not, the staged files), secrets REPO (those named like secrets), link REPO NUMBER
+    """The Herdr app mod's, on the repository's machine, in JSON: write REPO (the message, its writer, the others'
+    problems, the staged files), writing REPO (who writes it), secrets REPO (files named like secrets), link REPO NUMBER
     TITLE, unlink REPO, settle REPO [SEEN] (the linked issue, unless a commit after SEEN closed it)."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     linking = command == "link" and len(args) == 3 and args[1].isdigit() and int(args[1]) > 0
@@ -363,10 +375,13 @@ def main(argv):
         found, head = settle(args[0], args[1] if len(args) == 2 else None)
         print(json.dumps({"linked": list(found) if found else None, "head": head}))
         return 0
-    if command not in ("write", "secrets") or len(args) != 1:
-        print("usage: commit_message.py write|secrets|unlink REPO | link REPO NUMBER TITLE | settle REPO [SEEN]",
-              file=sys.stderr)
+    if command not in ("write", "writing", "secrets") or len(args) != 1:
+        print("usage: commit_message.py write|writing|secrets|unlink REPO | link REPO NUMBER TITLE | "
+              "settle REPO [SEEN]", file=sys.stderr)
         return 2
+    if command == "writing":
+        print(json.dumps({"writing": writing()}))
+        return 0
     if argv[1] == "secrets":
         print(json.dumps({"secret_looking": [path for path in staged(argv[2]) if secret_looking(path)]}))
         return 0

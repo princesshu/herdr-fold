@@ -22,9 +22,9 @@ Claude wrote, the issue it fixes and the Graph, Issues by priority](../../../ass
   and the commit take every change shown, as GitHub Desktop does (never a file .gitignore names, even one tracked
   before, nor a repository inside; a file come after the commit was asked for waits for the next one); a commit message
   written by Claude or Codex from what the commit takes (a file whose name looks like a secret's, such as `.env` or a
-  key, by its name only); Commit, Commit & Push or Commit & Sync, after a question when such a file goes in; the last 20
-  commits in the Graph, kept at the view's bottom while the changes scroll above it; each file's letter under its
-  section's count.
+  key, by its name only), the field saying who writes it meanwhile; Commit, Commit & Push or Commit & Sync, after a
+  question when such a file goes in; the last 20 commits in the Graph, kept at the view's bottom while the changes
+  scroll above it; each file's letter under its section's count.
 - **Issues** (for a repository on GitHub), laid out and keyed as GitHub's own issue list: the search field with the
   filters button (assigned to me, created by me, a label, the priority), Open and Closed. While shown, the list is asked
   for every minute; while it holds any, behind another view too, so an issue made on GitHub or in another tab shows up
@@ -82,8 +82,9 @@ for half a second, and a changed file's row in Changes its whole path in the rep
 wider than the pane. The sections folded in Changes stay folded after an update or a restart (a sidebar
 started later, in another tab too, takes them); a new version comes back to the rows you were on.
 In a field, Shift with an arrow, Home or End selects, and Cmd + A its whole text (herdr-fold's Ghostty and herdr
-keys send F8); in the commit message a drag, a double click (a word) or a triple click (all of it) too. Backspace or
-Delete takes the selection, typing replaces it, and Alt + Backspace takes the word before the cursor.
+keys send F8); in the commit message a drag, a double click (a word) or a triple click (all of it) too, and the wheel
+shows the rest of a message longer than the field. Backspace or Delete takes the selection, typing replaces it, and
+Alt + Backspace takes the word before the cursor.
 The Alt keys need Option to work as Alt in the terminal (herdr-fold's Ghostty leaves Option to the keyboard layout);
 Alt + Enter commits from the message there too.
 

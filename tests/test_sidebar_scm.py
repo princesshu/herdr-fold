@@ -66,6 +66,18 @@ class View(unittest.TestCase):
     def target(self, name):
         return next((x0, y) for y, x0, _, target in self.canvas.regions if target == name)
 
+    def test_the_wheel_over_a_long_message_scrolls_it(self):
+        """A message taller than its field (an AI's): the wheel over it shows its other rows; the changes stay."""
+        self.view.field.insert("\n".join(f"line {n}" for n in range(12)))
+        self.view.field.cursor = 0
+        self.draw()
+        top = self.view.list.top
+        self.view.handle(Mouse("wheel_down", *self.target("input"), 0))
+        self.draw()
+        self.assertIn("line 3", self.shown())
+        self.assertNotIn("line 0", self.shown())
+        self.assertEqual(self.view.list.top, top)
+
     def test_the_repository_row_stands_above_the_message_as_vs_codes(self):
         """Its heading folds it; under it the repository's name, ⎇ its branch (* with changes), ↻ with how far it is
         from its upstream, and ⋯; nothing of it without a repository."""
@@ -333,6 +345,20 @@ class View(unittest.TestCase):
             self.view.handle(Mouse("move", x, 5))
             self.draw()
         self.assertLess((time.perf_counter() - started) / 10, 0.02)
+
+    def test_the_field_says_who_writes_the_message(self):
+        """While ✦ writes, the empty field says who writes it, its spinner's frame first; ✦ waits; with text in the
+        field, the line says it under the button."""
+        self.view.writing = "⠋ Claude is writing the message…"
+        self.draw()
+        y = self.row_of("⠋ Claude is writing the message…")
+        self.assertIn((y, "input"), {(row, target) for row, _, _, target in self.canvas.regions})
+        self.assertIsNone(self.press("A"))
+        self.press("c", "f", "i", "x")
+        self.draw()
+        y = self.row_of("⠋ Claude is writing the message…")
+        self.assertNotIn((y, "input"), {(row, target) for row, _, _, target in self.canvas.regions})
+        self.assertIn("fix", self.shown())
 
     def test_suggest_by_the_star_or_a(self):
         self.draw()

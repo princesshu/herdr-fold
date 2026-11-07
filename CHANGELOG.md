@@ -62,6 +62,9 @@ All notable changes to this project are listed here. The format follows
 
 ### Changed
 
+- While the AI writes the commit message, the field says who writes it, with a spinner: "Claude is writing the
+  message…" (Codex when it writes), in the sidebar and in the Herdr app mod; with a message of yours in the field,
+  the sidebar says it under Commit.
 - The sidebar names its views and the tab's panes in lowercase, as herdr names its own (`changes` beside the view
   tabs, Close conversations in the ⋯ menu).
 - The sidebar's Changes view puts the repository on top, as VS Code's Repositories: its name, branch, sync and a
@@ -89,6 +92,8 @@ All notable changes to this project are listed here. The format follows
   number of rows, up to seven, a message of two lines with an empty third.
 - In the Herdr app mod, a changed file asked about before a discard keeps its name clear of the question: the name
   is cut short, and "Discard?", "Discard all?" and "Move to Trash?" stay whole.
+- The sidebar's commit message scrolls with the wheel: a message longer than the field (one Claude or Codex wrote)
+  shows its other rows, the cursor where it was, until a key moves it.
 
 ### Security
 

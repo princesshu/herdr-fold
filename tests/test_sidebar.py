@@ -175,7 +175,7 @@ class Running(Harness):
         self.term.type(Key("char", "3"))
         self.until(lambda s: "Staged changes" in s)
         self.term.type(Key("char", "A"))
-        self.until(lambda s: "Writing the message" in s)
+        self.until(lambda s: "Claude is writing the message" in s)
         self.term.type(Key("char", "c"), *keys("fix: mine"), Key("esc"), Key("enter"))
         self.until(lambda s: "suggest" not in self.app.running and "commit" not in self.app.running, timeout=8)
         time.sleep(0.3)                                                     # the frame after the answers
@@ -247,7 +247,7 @@ class Running(Harness):
             self.term.type(Key("char", "3"))
             self.until(lambda s: "a.txt" in s and "new.txt" in s)          # the status read, not only the title
             self.term.type(Key("char", "A"))                                 # nothing staged: it all goes in
-            self.until(lambda s: "Writing the message" in s)
+            self.until(lambda s: "is writing the message" in s)
             self.term.type(Key("char", "1"))
             self.until(lambda s: "project" in s, timeout=1.0)                # the view answers meanwhile
             self.until(lambda s: "claude failed" in s, timeout=15)          # however busy the machine
@@ -1297,7 +1297,7 @@ class Terminal(Repo):
     def test_quitting_does_not_wait_for_a_hanging_ai(self):
         subprocess.run(["git", "-C", self.root, "add", "a.txt"], check=True)
         out, ended = self.run_sidebar(b"3", b"A", b"q")
-        self.assertIn("Writing the message", out)
+        self.assertIn("is writing the message", out)
         self.assertTrue(ended, out[-500:])
 
 

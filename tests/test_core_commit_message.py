@@ -53,6 +53,15 @@ class Writer(unittest.TestCase):
     def write(self, order=None):
         return cm.write(self.req, order=order, which=self.which)
 
+    def test_it_says_who_writes_before_writing(self):
+        """The line shown while the message is written names the first AI asked that is here."""
+        here = lambda names: (lambda name: self.which(name) if name in names else None)  # noqa: E731
+        self.assertEqual(cm.writing(here({"claude", "codex"})), "Claude is writing the message…")
+        self.assertEqual(cm.writing(here({"codex"})), "Codex is writing the message…")
+        self.assertEqual(cm.writing(here(set())), "Writing the message…")
+        set_env(self, HERDR_COMMIT_AI="codex")
+        self.assertEqual(cm.writing(here({"claude", "codex"})), "Codex is writing the message…")
+
     def test_a_detailed_message_is_taken(self):
         self.answers_are(GOOD)
         suggestion = self.write()
@@ -316,6 +325,10 @@ class CommandLine(unittest.TestCase):
         self.assertEqual((result["message"], result["backend"], result["problems"]), (GOOD, "claude", []))
         self.assertEqual(sorted(result["files"]), [".env", "a.txt", "b.txt"])
         self.assertEqual(result["secret_looking"], [".env"])
+
+    def test_who_writes_said_without_an_ai(self):
+        self.assertEqual(self.answer(self.bin, command="writing"), {"writing": "Claude is writing the message…"})
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "log")))
 
     def test_the_staged_files_named_like_secrets_without_an_ai(self):
         """Asked before a commit, as the TUI sidebar asks: no AI runs for it."""

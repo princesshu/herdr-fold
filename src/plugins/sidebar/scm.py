@@ -50,6 +50,7 @@ class Scm:
         self.repo = self.github = None            # the repository's folder and its name on GitHub, the app's
         self.selecting = False        # the left button went down in the message and is held: a drag selects
         self.working = self.notice = self.menu = self.confirm = self.then = None     # then: the Action of the yes
+        self.writing = None           # while ✦ writes: who writes the message, its spinner's frame first
         self.menu_at = None           # the row the repository's ⋯ opened its menu under (None: the mode's)
         self.status, self.hover, self.canvas, self.top, self.height = None, None, None, 0, 1
         self.shown = None             # what the rows were built from: a mouse move must not rebuild 50 000 of them
@@ -136,6 +137,7 @@ class Scm:
         text_row, taken = canvas.control(top, 1, main, rows, "input", roomy)
         for y in range(top, top + taken):
             canvas.region(y, 1, 1 + main, "input")
+        self.field.placeholder = self.writing or "Commit message"         # an empty field says who writes in it
         self.field.draw(canvas, text_row, 3, inner, rows, Style(bg="input"), focused=self.focus == "message")
         self.side(canvas, top, rows, roomy)
         below = top + taken + (0 if roomy else 1)        # the edges are the air between them in a roomy pane
@@ -144,6 +146,8 @@ class Scm:
         lines = []
         if self.linked:
             lines.append((f"Fixes #{self.linked[0]} {self.linked[1]}", "accent"))
+        if self.writing and self.field.text:                  # the field holds a message: who writes says it here
+            lines.append((self.writing, "muted"))
         if self.working or self.notice:
             lines.append((self.working or self.notice, "muted" if self.working else "deleted"))
         if status.branch is None:
@@ -216,7 +220,7 @@ class Scm:
         for y in range(top, top + taken):
             canvas.region(y, x, x + SIDE, "suggest")
         canvas.put(row + (rows - 1) // 2, centered(x, SIDE), glyphs(self.icons)["ai"],
-                   Style(fg="muted" if self.working else "accent", bg="selection", bold=True))
+                   Style(fg="muted" if self.working or self.writing else "accent", bg="selection", bold=True))
 
     def button(self, canvas, y, roomy):
         """The commit button in the message's shape and width, its label in the middle; under the AI's button, the
@@ -412,9 +416,12 @@ class Scm:
             self.field.drag(event.x, event.y)
         elif event.kind == "move":
             self.hover = (target if target[0] == "graph" else target[1]) if isinstance(target, tuple) else None
-        elif event.kind in ("wheel_up", "wheel_down"):                    # the list under the mouse
-            rows = self.graph_list if isinstance(target, tuple) and target[0] == "graph" else self.list
-            rows.scroll(3 if event.kind == "wheel_down" else -3)
+        elif event.kind in ("wheel_up", "wheel_down"):                    # the message or the list under the mouse
+            step = 3 if event.kind == "wheel_down" else -3
+            if target == "input":
+                self.field.scroll(step)
+            else:
+                (self.graph_list if isinstance(target, tuple) and target[0] == "graph" else self.list).scroll(step)
         elif event.kind == "press" and event.button == 0:
             return self.press(target, event)
         elif event.kind == "release":
@@ -487,7 +494,7 @@ class Scm:
         return None
 
     def suggest(self):
-        return None if self.working else Action("suggest")
+        return None if self.working or self.writing else Action("suggest")
 
     def close_menu(self):
         """Its menu closed, as a click outside it closes it: the pane lost the keys, or its header was clicked."""

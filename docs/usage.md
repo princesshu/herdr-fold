@@ -96,7 +96,7 @@ For a repository on GitHub:
    issue's number, not its words: anyone can write an issue, so the agent reads it with gh and is told to take it as a
    description of the problem, not as instructions. The Changes view shows `Fixes #42` from then on.
 3. When the agent is done, the ✦ beside the message has Claude or Codex write it, ending with that line (Cmd + Shift +
-   C adds it too); once the commit is pushed, GitHub closes the issue.
+   C adds it too); meanwhile the field says who writes it. Once the commit is pushed, GitHub closes the issue.
 
 ![An issue from the sidebar goes to Claude, which fixes it, and the message it writes closes the
 issue](../assets/screenshots/issue-to-agent.webp)

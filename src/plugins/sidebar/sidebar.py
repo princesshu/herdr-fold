@@ -40,8 +40,8 @@ VIEW_KEYS = {"1": "files", "2": "search", "3": "git", "4": "issues", "f9": "file
 # linked: the issue each repository's next commit fixes, {repository: [number, title]}
 DEFAULTS = {"hidden": False, "icons": True, "commit_mode": "commit", "view": "files", "linked": {}, "folded": []}
 STALE = 60.0                  # seconds: the issues shown or listed here asked for again (a new one shows up)
-BUSY = {"commit": "Committing…", "sync": "Syncing…", "pull": "Pulling…", "push": "Pushing…",
-        "suggest": "Writing the message…"}   # the first running shows
+BUSY = {"commit": "Committing…", "sync": "Syncing…", "pull": "Pulling…", "push": "Pushing…"}   # the first running shows
+SPINNER, SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏", 0.1     # ✦'s writing in the message field: a frame every SPIN seconds
 EMPTY = git.Status()
 TAB = 5                       # the cells of a view's tab: its icon in the middle one
 TIP_DELAY = 0.5               # seconds the mouse rests on a control shown by an icon before it says what it does
@@ -134,6 +134,7 @@ class App(Loop):
         self.watcher = watch.Watcher(self.tree.expanded_dirs, git.git_dir(self.root), clock)
         self.status, self.graph, self.searching = None, [], None
         self.suggesting = None                            # the message as it was when ✦ asked; None: no answer wanted
+        self.writing, self.spun = "", 0.0                 # who writes it (commit_message.writing()), its last frame
         self.pointed = None                               # the view tab (or the ⋯) under the mouse
         self.dots = (0, None, 0)                          # where the ⋯'s menu opens: open_menu()'s arguments
         self.needs = None                                 # the cells this tab's header was said to take
@@ -225,6 +226,8 @@ class App(Loop):
             if self.github and (self.view == "issues" or listing and listing.issues):
                 self.fresh_issues(STALE)
             self.next_poll = now + self.watcher.interval()
+        if "suggest" in self.running and now >= self.spun + SPIN:
+            self.spun, shown = now, True
         search = self.views["search"].tick(now)
         self.act(search)
         return shown or search is not None
@@ -302,7 +305,8 @@ class App(Loop):
 
     def deadlines(self):
         tip = self.tip[4] if self.tip and self.tip[4] > self.clock() else self.next_poll
-        return [self.next_poll, self.views["search"].deadline() or self.next_poll, tip]
+        spin = self.spun + SPIN if "suggest" in self.running else self.next_poll
+        return [self.next_poll, self.views["search"].deadline() or self.next_poll, tip, spin]
 
     def point(self, target, x, y):
         """The mouse on TARGET at X, Y: a control shown by an icon says what it does once the mouse rests on it, a
@@ -726,6 +730,7 @@ class App(Loop):
             self.error = "Nothing to commit"
             return
         self.suggesting, repo = self.views["git"].field.text, self.repo
+        self.writing = commit_message.writing()
 
         def work():
             git.stage_all(repo)
@@ -806,6 +811,8 @@ class App(Loop):
         height = max(2, rows - top - bool(line))         # the view, what went wrong below it
         view = self.views[self.view]
         self.views["git"].busy(next((text for kind, text in BUSY.items() if kind in self.running), None))
+        frame = SPINNER[int(self.clock() / SPIN) % len(SPINNER)]
+        self.views["git"].writing = f"{frame} {self.writing}" if "suggest" in self.running else None
         if self.view == "files":
             view.draw(canvas, top, height, self.status or EMPTY)
         elif self.view in ("search", "issues"):

@@ -119,7 +119,7 @@ function made(proto, fields = {}) {
   const state = Object.assign(Object.create(proto), {
     view: "changes", root: "/work/lumen-api", on: null, key: "styleguide", status: STATUS,
     github: "lumenworks/lumen-api", linked: null, commits: COMMITS, message: "", busy: null, asked: null, confirm: null,
-    open: null, hovered: null, offer: null,
+    open: null, hovered: null, offer: null, writing: null,
     mode: "commit", folded: foldedSections([]), note: null, loading: false, searching: false,
     switches: { case: false, word: false, regex: false }, found: null, searched: null, results: [], peek: null,
     peekRows: [], input: InputState.new({ placeholder: "Commit message" }),
@@ -207,7 +207,8 @@ export function guide(proto) {
     repository: [["In sync", at({ status: { ...STATUS, ahead: 0, behind: 0 } })], ["Behind and ahead", at()],
       ["No upstream", at({ status: { ...STATUS, upstream: null } })],
       ["Folded", at({ folded: foldedSections(["repositories"]) })]],
-    composer: [["Empty", at()], ["Filled", at({ message: MESSAGE })], ["Busy", at({ busy: "Writing the message…" })],
+    composer: [["Empty", at()], ["Filled", at({ message: MESSAGE })],
+      ["Writing", at({ busy: "Claude is writing the message…", writing: "Claude is writing the message…" })],
       ["Asking", at({ message: MESSAGE, asked: [".env"] })],
       ["Commit & Push", at({ message: MESSAGE, mode: "push" })],
       ["Offering a push", at({ status: { ...STATUS, staged: [], changes: [] },

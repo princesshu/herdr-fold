@@ -67,11 +67,16 @@ class TextInput:
         self.text, self.cursor = "", 0
         self.anchor = None            # the selection's other end (the cursor is the one that moves), or None
         self.top = 0                  # the first row shown: a text taller than the field shows from here
+        self.followed = None          # the cursor and text at the last draw: the rows follow the cursor once it moves
         self.place = None             # where it was last drawn, for a click: (row, column, cells, rows)
         self.clicks = (None, 0, 0)    # the last click: when, at which index, how many in a row
 
     def clear(self):
         self.text, self.cursor, self.top, self.anchor = "", 0, 0, None
+
+    def scroll(self, delta):
+        """The rows shown moved by DELTA (the wheel's), the cursor where it is; the next draw keeps them on the text."""
+        self.top = max(0, self.top + delta)
 
     def span(self):
         """The selection's (start, end), or None."""
@@ -253,8 +258,10 @@ class TextInput:
         spans = wrap(self.text, cells)
         rows = [self.text[start:end] for start, end in spans] if self.text else [self.placeholder]
         row, column = self.cursor_cell(cells)
-        if focused:                   # the rows at the cursor show, wherever it is; otherwise they stay where they were
+        # the rows at the cursor show once it moves (a key, a click, typing); until then they stay as scrolled
+        if focused and (self.cursor, self.text) != self.followed:
             self.top = min(self.top, row) if row < self.top + height else row - height + 1
+        self.followed = (self.cursor, self.text)
         self.top = max(0, min(self.top, len(rows) - height))
         shown, span = rows[self.top:self.top + height], self.span()
         for i in range(height):

@@ -27,6 +27,7 @@ import { standIn, TerminalFollower } from "./terminal.js";
 const REFRESH = 10000;             // ms between two looks when no folder change says so (another machine's space)
 const POLL = 1500;                 // ms between two looks at the message being written
 const WRITING = 6 * 60 * 1000;     // ms the message may take: both AIs, each asked twice
+const SPINNER = [..."⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"];   // the message field's while ✦ writes in it, as the TUI's
 const LINES = 1500;                // a hit's file's lines shown at most
 const MODE = "herdr-fold.commit_mode", FOLDED = "herdr-fold.folded";   // kept (shared)
 /** The view's commands a folded panel hands to a float of the view that shows them, as its rail opens one. */
@@ -177,6 +178,8 @@ export default class HerdrFold extends View {
     this.folded = foldedSections(shared(FOLDED));
     /** @type {string | null} the row or section the pointer is on (hovering's): its buttons shown */
     this.hovered = null;
+    /** @type {string | null} while ✦ writes: who writes the message (core/commit_message.py writing) */
+    this.writing = null;
     this.input = InputState.new({ placeholder: "Commit message" });
     this.input.on("change", (_e, cx) => {
       const had = Boolean(this.message.trim());
@@ -287,7 +290,7 @@ export default class HerdrFold extends View {
       } catch (e) {
         if (key === this.key) this.note = said(e);
       } finally {
-        this.busy = null;
+        this.busy = this.writing = null;
         this.refresh(cx);
         cx.notify();
       }
@@ -345,6 +348,8 @@ export default class HerdrFold extends View {
   write(cx) {
     this.act(cx, "Writing the message…", async (cx) => {
       const { root, on, key } = this;
+      this.busy = this.writing = (await python(COMMIT_MESSAGE, ["writing", root], root, on)).writing;
+      cx.notify();
       await stage(root, on);
       const job = background(await pythonOn(on), COMMIT_MESSAGE, ["write", root]);
       const prepared = await run(job.prepare, root, on);
@@ -797,7 +802,10 @@ export default class HerdrFold extends View {
       .child(h_flex().gap(8)
         .child(div().id("message").flex_1().min_w(0).h(32).px(12).flex().items_center().rounded(8).border_1()
           .border_color(t.border).cursor_text().on_key_down((e, cx) => e.key === "escape" && this.cancel(cx))
-          .child(Input.new(this.input).h_full().text_size(12).text_color(t.foreground)))
+          .child(this.writing && !this.message.trim()          // an empty field says who writes in it
+            ? h_flex().gap(6).items_center().text_size(12).text_color(t.muted)
+              .child(div().frames(SPINNER, 100)).child(this.writing)
+            : Input.new(this.input).h_full().text_size(12).text_color(t.foreground)))
         .child(button(t, "write", icon("sparkles", 15), this.ready, false, (cx) => this.write(cx))
           .bg(t.selection).text_color(this.ready ? t.accent : t.muted).tooltip("Write message")))
       .child(h_flex().gap(8)

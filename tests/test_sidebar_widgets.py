@@ -150,6 +150,23 @@ class Text(unittest.TestCase):
         self.assertEqual([text(canvas, y) for y in range(3)], ["line 5", "line 6", "line 7"])
         self.assertEqual(canvas.cursor, (2, 6))
 
+    def test_the_wheel_shows_other_rows_until_the_cursor_moves(self):
+        # a message taller than the field: the wheel moves its rows and leaves the cursor; a key brings the cursor back
+        field = TextInput(multiline=True)
+        field.insert("\n".join(f"line {n}" for n in range(8)))
+        field.cursor = 0
+        field.draw(Canvas(10, 3), 0, 0, 10, 3, focused=True)
+        field.scroll(3)
+        canvas = Canvas(10, 3)
+        field.draw(canvas, 0, 0, 10, 3, focused=True)
+        self.assertEqual((text(canvas, 0), field.cursor), ("line 3", 0))
+        field.scroll(20)                                          # never past the last rows
+        field.draw(canvas, 0, 0, 10, 3, focused=True)
+        self.assertEqual(text(canvas, 0), "line 5")
+        field.handle(Key("right"))
+        field.draw(canvas, 0, 0, 10, 3, focused=True)
+        self.assertEqual(text(canvas, 0), "line 0")
+
     def test_a_message_put_in_shows_from_its_first_row(self):
         # a suggested message lands with the cursor at its end, but the field shows its subject first
         field = TextInput(multiline=True)
