@@ -581,7 +581,8 @@ fi
 # the layout at once. An update of the TUI alone, the app on this Mac and never asked about: asked once
 app_wanted() {
   of_parts app $parts && return 0
-  if updating && ! grep -qxF declined:herdr-fold.app "$plugins" 2>/dev/null && ask "$(t install.app_ask)" y; then
+  if [ -z "${HERDR_FOLD_PARTS:-}" ] && updating && ! grep -qxF declined:herdr-fold.app "$plugins" 2>/dev/null \
+    && ask "$(t install.app_ask)" y; then                     # HERDR_FOLD_PARTS answers it as it does the first
     parts="$parts app"; return 0
   fi
   echo declined:herdr-fold.app >> "$plugins.new"

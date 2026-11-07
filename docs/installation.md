@@ -214,7 +214,7 @@ choices and machine list stay.
 | Variable | Effect |
 |---|---|
 | `HERDR_FOLD_YES=1` | no questions: every answer is the default |
-| `HERDR_FOLD_PARTS=tui`, `app` or `both` | the parts to install, without the first question |
+| `HERDR_FOLD_PARTS=tui`, `app` or `both` | the parts to install, without the first question, or on an update the app's |
 | `HERDR_FOLD_NO_BREW=1` | skip the Homebrew installs |
 | `HERDR_FOLD_NO_MACHINES=1` | skip the remote machines step |
 | `HERDR_FOLD_CONFIG=add` or `replace` | the answer for your own herdr settings, without the question |

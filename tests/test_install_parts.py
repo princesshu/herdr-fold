@@ -55,6 +55,14 @@ class FirstQuestion(PartsInstall, unittest.TestCase):
         self.assertIn(catalog_text("install.parts_kept_tui"), out)
         self.assertEqual(self.parts(), ["tui", "app"])
 
+    def test_the_switch_answers_the_apps_question_on_an_update_too(self):
+        self.run_script("install.sh")                                     # the TUI, the app not on this Mac yet
+        self.with_app()
+        self.env["HERDR_FOLD_PARTS"] = "tui"
+        out = self.asked()
+        self.assertNotIn(catalog_text("install.app_ask"), out)
+        self.assertEqual(self.parts(), ["tui"])
+
     def test_the_app_added_to_a_tui_install(self):
         self.with_app()
         self.with_parts("tui")
