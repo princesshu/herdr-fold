@@ -596,6 +596,9 @@ if [ -n "$app" ] && app_wanted; then
       echo herdr-fold.app >> "$plugins.new"; ok "$(t install.app_done)"
       [ $rc = 0 ] || warn "$(t install.app_keys_unread "$(shown "$app_home/keys.json")")"
       out=$("$app" check "$app_home/mods/herdr-fold" 2>&1) || warn "$(t install.app_check_failed "${out##*$'\n'}")"
+      for editor in gpui-kit.d.ts herdr.d.ts jsconfig.json; do    # what the check writes for an editor beside it
+        rm -f "$app_home/mods/herdr-fold/$editor"
+      done
       "$app" status >/dev/null 2>&1 && "$app" do layout.switch --name herdr-fold >/dev/null 2>&1 \
         && note "$(t install.app_layout)" ;;
     4) warn "$(t install.app_not_herdr_folds "$(shown "$app_home/mods/herdr-fold")")" ;;

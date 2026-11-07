@@ -494,6 +494,7 @@ case "$1" in
   status) [ -n "$STUB_APP_RUNNING" ] && [ ! -e "$STUB_APP_LOG.quit" ] || exit 1
           printf '{"layout": "%s"}\\n' "${STUB_APP_LAYOUT:-main}" ;;
   do) [ "$2" = app.quit ] && [ -z "$STUB_APP_STAYS" ] && touch "$STUB_APP_LOG.quit" ;;
+  check) for name in gpui-kit.d.ts herdr.d.ts jsconfig.json; do : > "$2/$name"; done ;;   # as the app's own does
 esac
 exit 0
 """

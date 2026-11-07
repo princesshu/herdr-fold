@@ -33,6 +33,14 @@ class InstallApp(AppInstall, unittest.TestCase):
         self.assertIn(catalog_text("install.app_done"), out)
         self.assertFalse([call for call in self.app_calls() if "layout.switch" in call])
 
+    def test_the_check_leaves_no_editor_file_in_the_mod(self):
+        """herdr-app check writes an editor's types and settings beside the mod it checks: none stays there."""
+        self.with_app()
+        self.run_script("install.sh")
+        left = [name for name in ("gpui-kit.d.ts", "herdr.d.ts", "jsconfig.json")
+                if os.path.exists(os.path.join(self.app_home, "mods", "herdr-fold", name))]
+        self.assertEqual(left, [])
+
     def test_a_running_app_shows_the_layout(self):
         self.with_app(running=True)
         out = self.run_script("install.sh")
