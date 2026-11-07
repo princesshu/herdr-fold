@@ -119,6 +119,27 @@ class Install(unittest.TestCase):
         self.assertEqual(os.listdir(os.path.join(self.home, "layouts")), ["mine.json"])
         self.assertEqual(os.listdir(os.path.join(self.home, "themes")), ["mine.json"])
 
+    def test_uninstall_takes_the_apps_storage_of_the_mod_off(self):
+        set_env(self, HOME=self.home)
+        herdr_app.install(PACKAGE, self.home, self.state)
+        mod = herdr_app.storage(os.path.join(self.home, "mods", "herdr-fold"))
+        other = os.path.join(os.path.dirname(mod), "other-0123456789abcdef")
+        for made in (mod, other):
+            os.makedirs(made)
+        herdr_app.uninstall(PACKAGE, self.home, self.state)
+        self.assertEqual(os.listdir(os.path.dirname(mod)), ["other-0123456789abcdef"])
+
+    def test_the_storage_is_named_by_the_real_path(self):
+        # test_app.py checks the name against the folder the app itself makes
+        set_env(self, HOME=self.home)
+        linked = os.path.join(self.home, "linked")
+        os.symlink(self.home, linked)
+        named = herdr_app.storage(os.path.join(self.home, "mod"))
+        self.assertEqual(herdr_app.storage(os.path.join(linked, "mod")), named)
+        self.assertEqual(os.path.dirname(named),
+                         os.path.join(self.home, "Library", "Application Support", "gpui-shell", "apps"))
+        self.assertRegex(os.path.basename(named), r"^mod-[0-9a-f]{16}$")
+
     def test_the_apps_own_shared_values_stay_as_they_are(self):
         text = json.dumps({"workspace.panels": []})
         self.write("shared.json", text)

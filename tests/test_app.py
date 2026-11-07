@@ -8,10 +8,14 @@ import pathlib
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
-from support import PACKAGE
+from support import PACKAGE, set_env
+
+sys.path.insert(0, os.path.join(PACKAGE, "lib"))
+import herdr_app  # noqa: E402
 
 APP = os.path.join(PACKAGE, "app")
 MOD = os.path.join(APP, "mods", "herdr-fold")
@@ -149,6 +153,8 @@ class App(unittest.TestCase):
                "DO_NOT_TRACK": "1"}
         out = subprocess.run([HERDR_APP, "check", copy], env=env, capture_output=True, text=True, timeout=120)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        set_env(self, HOME=home)
+        self.assertTrue(os.path.isdir(herdr_app.storage(copy)), "the app's storage, where uninstall takes it off")
 
 
 if __name__ == "__main__":

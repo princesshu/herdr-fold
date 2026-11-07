@@ -36,10 +36,11 @@ One part goes and the other keeps working: what both use goes with the last.
 - the `~/.zshrc` block and the parts added to your own herdr settings come out; a copy of those settings from before
   the first install stays in `~/.local/state/herdr-fold/original/`;
 - the plugins and herdr integrations it put there are removed, with the empty folders herdr keeps of them;
-- in the Herdr app: herdr-fold's mod, its layout, its themes, its keys and its settings, and the machines
-  herdr-fold added there. A running app shows its main layout first, the terminals herdr-fold started for its tabs
-  end, and it closes for that moment and opens again, as it would write herdr-fold's settings back (your terminals
-  keep running). Your own mods, layouts, themes, keys, settings, machines and terminals stay;
+- in the Herdr app: herdr-fold's mod, its layout, its themes, its keys and its settings, the folder the app keeps for
+  the mod in `~/Library/Application Support/gpui-shell/apps/`, and the machines herdr-fold added there. A running app
+  shows its main layout first, the terminals herdr-fold started for its tabs end, and it closes for that moment and
+  opens again, as it would write herdr-fold's settings back (your terminals keep running). Your own mods, layouts,
+  themes, keys, settings, machines and terminals stay;
 - Claude's earlier status line comes back (or herdr-fold's just goes);
 - Ghostty's own app icon comes back: the icons the themes drew go.
 

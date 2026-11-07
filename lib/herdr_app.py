@@ -17,6 +17,9 @@ from themes import apply  # noqa: E402
 
 MOD, LAYOUT, KEYS = os.path.join("mods", "herdr-fold"), os.path.join("layouts", "herdr-fold.json"), "keys.json"
 PICTURES = "herdr-fold-pictures"             # the preview tab's pictures (core/media.py makes them there)
+# in HOME: the app's localStorage of each mod copy, made when it loads one (herdr-fold's stays empty), named
+# NAME-HASH by the copy's folder and the FNV-1a hash of its real path
+STORAGE = os.path.join("Library", "Application Support", "gpui-shell", "apps")
 THEMES = "themes"              # herdr-fold.json (the layout's own) and the TUI's themes, herdr-fold-ID.json
 TITLE = "herdr-fold"            # the mod.json title that marks a mods/herdr-fold folder as herdr-fold's copy
 TERMINALS = "fold-terminals"    # the layout's stack of the tabs' terminals the mod started (app/mods/herdr-fold)
@@ -98,6 +101,14 @@ def bundle(app):
     path = os.path.realpath(app)
     top = os.path.dirname(os.path.dirname(os.path.dirname(path)))
     return top if top.endswith(".app") and os.path.basename(os.path.dirname(path)) == "MacOS" else None
+
+
+def storage(mod):
+    """The app's localStorage folder of the mod copy at MOD."""
+    hashed = 0xcbf29ce484222325
+    for byte in os.path.realpath(mod).encode():
+        hashed = (hashed ^ byte) * 0x100000001b3 % 2 ** 64
+    return os.path.join(os.path.expanduser("~"), STORAGE, f"{os.path.basename(mod)}-{hashed:016x}")
 
 
 def herdr_folds(folder):
@@ -239,6 +250,7 @@ def install(package, home, state, app_running=False, theme=None):
 def uninstall(package, home, state, app_running=False):
     if herdr_folds(os.path.join(home, MOD)):
         replace(os.path.join(home, MOD))
+        shutil.rmtree(storage(os.path.join(home, MOD)), ignore_errors=True)
     for rel in (LAYOUT, *themes(home)):
         if os.path.isfile(os.path.join(home, rel)):
             os.remove(os.path.join(home, rel))
