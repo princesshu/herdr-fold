@@ -16,7 +16,8 @@ import time
 import unittest
 from unittest import mock
 
-from support import SRC, FakeTerminal, end_child, finished, logged, set_attrs, set_env, sign_head, stubs, trap
+from support import SRC, FakeTerminal, end_child, finished, logged, psd_in_preview, set_attrs, set_env, sign_head, \
+    stubs, trap
 from test_core_media import pdf, png
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
@@ -559,6 +560,18 @@ class Pictures(unittest.TestCase):
             self.assertTrue(picture.handle(Key("char", "o")))
         opened.assert_called_once_with(os.path.join(self.tmp, "shot.png"))
         self.assertFalse(picture.handle(Key("char", "q")))
+
+    def test_a_picture_no_browser_shows_offers_preview(self):
+        """A PSD opens in Preview, as o and the right click say (a browser would only download it)."""
+        set_env(self, SSH_CONNECTION=None, SSH_CLIENT=None)
+        picture = pager.Picture(os.path.join(self.tmp, "art.psd"), "art.psd")
+        self.addCleanup(picture.close, Written(80, 24))
+        with mock.patch.object(pager.media, "opener", psd_in_preview), \
+                mock.patch.object(pager.media, "open_in_browser", return_value=True) as opened:
+            self.assertTrue(picture.status().endswith("o: open in preview"))
+            self.assertIn(("Open in Preview", None), picture.choices())
+            self.assertTrue(picture.choose("Open in Preview"))
+        opened.assert_called_once_with(os.path.join(self.tmp, "art.psd"))
 
     def split(self, columns, rows=24):
         """An SVG's code and picture (a 400 x 300 PNG made for it) in a COLUMNS x ROWS pane."""

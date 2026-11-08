@@ -14,8 +14,15 @@ import sys
 import tempfile
 import time
 
-KINDS = {**{ext: "image" for ext in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".tif", ".tiff", ".bmp")},
-         ".pdf": "pdf", ".html": "html", ".htm": "html", ".svg": "svg"}
+IMAGES = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".bmp", ".ico")     # the web's: a browser shows them
+# the rest macOS's ImageIO reads (sips makes a PNG of each): Apple's, Adobe's, the GPU's, a camera's raw file
+PICTURES = (".heic", ".heics", ".heif", ".hif", ".tif", ".tiff", ".jxl", ".jp2", ".j2k", ".jpf", ".jpe", ".mpo", ".cur",
+            ".icns", ".psd", ".tga", ".exr", ".hdr", ".sgi", ".pict", ".pct", ".pbm", ".pgm", ".ppm", ".pnm", ".dds",
+            ".ktx", ".ktx2", ".astc", ".pvr", ".dcm", ".dng", ".cr2", ".cr3", ".crw", ".nef", ".nrw", ".arw", ".srf",
+            ".sr2", ".raf", ".orf", ".rw2", ".pef", ".srw", ".erf", ".3fr", ".fff", ".iiq", ".mos", ".mrw", ".dcr",
+            ".rwl")
+KINDS = {**{ext: "image" for ext in IMAGES + PICTURES}, ".pdf": "pdf", ".html": "html", ".htm": "html", ".svg": "svg"}
+WEB = IMAGES + (".svg", ".pdf", ".html", ".htm")     # what a browser shows: any other picture opens in Preview
 SAFARI = "com.apple.Safari"
 APP_PICTURES = "herdr-fold-pictures"     # in the Herdr app's home: its image() takes a path from there
 TIMEOUT = 120                 # seconds a compile or a page may take
@@ -282,11 +289,16 @@ def browser():
                  and row.get("LSHandlerURLScheme") == "https" and row.get("LSHandlerRoleAll")), SAFARI)
 
 
+def opener(path, platform=sys.platform):
+    """Where o and Open in … open PATH: the browser, or on a Mac Preview for a picture no browser shows."""
+    return "Preview" if platform == "darwin" and os.path.splitext(path)[1].lower() not in WEB else "Browser"
+
+
 def open_argv(path, platform=sys.platform):
-    """The command that opens PATH in the default browser: macOS's open, Windows' Explorer (the app for its kind), else
-    the desktop's opener; None without one."""
+    """The command that opens PATH in the default browser (on a Mac Preview, as opener() says): macOS's open,
+    Windows' Explorer (the app for its kind), else the desktop's opener; None without one."""
     if platform == "darwin":
-        return ["open", "-b", browser(), path]
+        return ["open", *(["-a", "Preview"] if opener(path, platform) == "Preview" else ["-b", browser()]), path]
     if platform == "win32":
         return ["explorer", path]
     return ["xdg-open", path] if shutil.which("xdg-open") else None

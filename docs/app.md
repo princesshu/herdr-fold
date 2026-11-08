@@ -55,7 +55,7 @@ The space's folder, read on the space's machine, as the TUI sidebar's Files show
 | Icons | Catppuccin Icons' for each file type and for a folder, closed or open, as the Changes view's |
 | Marks | git's letter on each changed file and a dot on a folder holding changes, in git's colors, as in the TUI |
 | A click | a file opens in the space's preview tab, its lines numbered, an image or a PDF drawn; a folder opens or closes |
-| Right click | Open in Browser (a page, a PDF or an image on this Mac, in the default browser), Close Preview (while the space has a preview tab), New File, New Folder, Rename (the name typed in its row; Enter makes it, Esc gives it up), Copy Path (the path on its machine, onto this computer's clipboard), Move to Trash (asked on its row first), and on a folder New Workspace there |
+| Right click | Open in Browser (a page, a PDF or an image on this Mac, in the default browser; Open in Preview for a picture no browser shows, as a PSD or an EXR), Close Preview (while the space has a preview tab), New File, New Folder, Rename (the name typed in its row; Enter makes it, Esc gives it up), Copy Path (the path on its machine, onto this computer's clipboard), Move to Trash (asked on its row first), and on a folder New Workspace there |
 | The toolbar | New File and New Folder at the top, Refresh, Collapse Folders, and hidden files shown or not, kept for the next start |
 
 It follows the folder as it changes; a folder on another machine is looked at again every ten seconds.
@@ -106,15 +106,16 @@ A space has one, as in the TUI: the first file, diff, commit or issue opened mak
 (`preview: src/app.py`, `preview: #42 Pagination retur…`), and the next one shows there again. A file's lines are
 numbered from the first; a diff is numbered once, a removed line by the old file and the others by the new one, a thin
 rule where lines are left out; a commit shows its author, message and each file's diff; an issue its text and comments
-as markdown. An image on this Mac is drawn, fitted to the tab and never larger than it is; a PDF's pages one under
-another at their own size (smaller in a narrower tab), a gap apart and clear of the scrollbar, scrolled, each drawn as
-it comes into view, the page in view and Open in Browser above them; one on another machine is not. An SVG or an HTML
-page on this Mac shows its code and its picture side by side, as VS Code's preview to the side, or its code above its
-picture in a tab taller than wide: the divider between them drags, and the page is drawn for its side as a browser that
-size shows it, once the divider is let go, on the canvas as a design tool's artboard (an SVG at its own size, never
-larger, what it leaves empty clear); Code, Split and Picture above them show either alone or both again, and the button
-beside them sets the two side by side or one under the other. WebKit draws it offline, as in the TUI. A right click in
-the tab offers those, Open in Browser and Close Preview. Herdr-fold's panel stays beside it.
+as markdown. An image on this Mac (any macOS reads, HEIC, AVIF, PSD, EXR and a camera's raw file too) is drawn, fitted
+to the tab and never larger than it is; a PDF's pages one under another at their own size (smaller in a narrower tab), a
+gap apart and clear of the scrollbar, scrolled, each drawn as it comes into view, the page in view and Open in Browser
+above them; one on another machine is not. An SVG or an HTML page on this Mac shows its code and its picture side by
+side, as VS Code's preview to the side, or its code above its picture in a tab taller than wide: the divider between
+them drags, and the page is drawn for its side as a browser that size shows it, once the divider is let go, on the
+canvas as a design tool's artboard (an SVG at its own size, never larger, what it leaves empty clear); Code, Split and
+Picture above them show either alone or both again, and the button beside them sets the two side by side or one under
+the other. WebKit draws it offline, as in the TUI. A right click in the tab offers those, Open in Browser and Close
+Preview. Herdr-fold's panel stays beside it.
 
 ![A PDF's pages one under another in the preview tab, scrolled to where its first page meets its second, under the
 page in view and Open in Browser; beside it Files with the PDF chosen in its folder](../assets/screenshots/app-pdf.webp)

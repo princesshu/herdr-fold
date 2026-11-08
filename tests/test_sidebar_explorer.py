@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from support import SRC, set_env, text
+from support import SRC, psd_in_preview, set_env, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import explorer  # noqa: E402
@@ -252,6 +252,17 @@ class View(unittest.TestCase):
                 else:
                     self.assertFalse(any("Open in Browser" in text(self.canvas, y) for y in range(12)))
                     self.view.close_menu()
+
+    def test_a_picture_no_browser_shows_opens_in_preview(self):
+        set_env(self, SSH_CONNECTION=None, SSH_CLIENT=None)
+        with open(self.path("art.psd"), "w") as f:
+            f.write("x\n")
+        self.view = Explorer(Tree(self.root), icons=False)
+        self.draw()
+        with mock.patch.object(explorer.media, "opener", psd_in_preview):
+            self.click("art.psd", button=2)
+            self.draw()
+            self.assertEqual(self.click("Open in Preview"), Action("open_browser", (self.path("art.psd"),)))
 
     def test_close_preview_is_offered_while_the_workspace_shows_one(self):
         def offered(name=None):

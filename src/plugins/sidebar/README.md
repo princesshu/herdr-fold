@@ -8,16 +8,17 @@ Claude wrote, the issue it fixes and the Graph, Issues by priority](../../../ass
 
 - **Files:** the folder as a tree, with git's letter on each changed file and a dot on each folder holding changes; a
   new file or folder, renaming, moving to the Trash, copying a path. A click opens the file in a preview tab: an image
-  or a PDF drawn there (Ghostty shows pictures in herdr), an image fitted and never larger than it is, a PDF's pages one
-  under another, a row apart, scrolled as the pager scrolls its lines, an SVG or a page drawn beside its code as VS
-  Code's preview to the side, or under it in a pane taller than wide (macOS's WebKit draws it, offline): the divider
-  between them drags and the page is drawn for its side as a browser that size shows it, once the divider is let go (an
-  SVG at its own size, never larger, what it leaves empty clear), `c` turns to the code alone, the picture alone and
-  both again, `v` sets them side by side or one under the other, and a right click in the preview offers them, Open in
-  Browser and Close Preview; `o` there, or the right click's Open in Browser, opens a page, a PDF or an image in the
-  default browser (never over SSH: a browser there would open on the machine, out of sight). While the workspace has a
-  preview tab, the right click offers Close Preview, as `q` there. With herdr-fold's tab layout, a folder's right click
-  offers New Workspace: herdr-fold's folder picker opens on it.
+  (any macOS reads: PNG, JPEG, HEIC, AVIF, WebP, PSD, EXR, a camera's raw file…) or a PDF drawn there (Ghostty shows
+  pictures in herdr), an image fitted and never larger than it is, a PDF's pages one under another, a row apart,
+  scrolled as the pager scrolls its lines, an SVG or a page drawn beside its code as VS Code's preview to the side, or
+  under it in a pane taller than wide (macOS's WebKit draws it, offline): the divider between them drags and the page is
+  drawn for its side as a browser that size shows it, once the divider is let go (an SVG at its own size, never larger,
+  what it leaves empty clear), `c` turns to the code alone, the picture alone and both again, `v` sets them side by side
+  or one under the other, and a right click in the preview offers them, Open in Browser and Close Preview; `o` there, or
+  the right click's Open in Browser, opens a page, a PDF or an image in the default browser (a picture no browser shows,
+  as a PSD or an EXR, in Preview: Open in Preview) (never over SSH: a browser there would open on the machine, out of
+  sight). While the workspace has a preview tab, the right click offers Close Preview, as `q` there. With herdr-fold's
+  tab layout, a folder's right click offers New Workspace: herdr-fold's folder picker opens on it.
 - **Search:** as you type (typing on narrows the hits at once, before the search answers), with match case, whole word
   and regular expression; the hits by file. A hit opens the preview at its line. A folder or file you chose in Files (an
   arrow key or a click on it) is the one searched, named above the field, a file even when git ignores it (a link chosen
@@ -83,7 +84,7 @@ the file plain, the diff in git's colors); the built-in pager shows either.
 | Changes | `c` or typing writes the message (Enter a new line; Esc, then Enter commits), `A` or the star beside the message has it written, Enter stages or unstages, Space shows the diff, `d` discards, `S` syncs |
 | Issues | GitHub's: `/` `s` or Ctrl + / search, `c` a new issue, `a` `u` `l` the assignee, author and label filters, `o` or Enter opens it; herdr-fold's: `t` hands it to the agent, `r` replies, `b` opens it in the browser, `x` closes or reopens it, `R` asks again; ↑ ↓ PgUp PgDn Home End, ← → Open and Closed; a right click: all of it, Assign to me too |
 | Conversations | type to filter, Esc clears it; ↑ ↓ PgUp PgDn Home End; ← closes a group, → or Enter opens it; Enter goes to a running conversation or reopens a closed one in a new tab; Space or Shift + ↑ ↓ marks closed ones, Esc unmarks; a right click: Open, Copy conversation, Rename (Enter keeps the new name, Esc the old one), Archive, or with several marked, all of them at once |
-| Preview | ↑ ↓ or `j` `k`, PgUp PgDn or `b` Space, Home End or `g` `G`, `/` search, `n` `N` the next and previous hit, `c` turns an SVG or a page to its code alone, its picture alone and both again, `v` sets them side by side or one under the other (a right click: those, Open in Browser, Close Preview), `o` opens it in the browser, `q`, Esc or Ctrl + C closes the whole tab |
+| Preview | ↑ ↓ or `j` `k`, PgUp PgDn or `b` Space, Home End or `g` `G`, `/` search, `n` `N` the next and previous hit, `c` turns an SVG or a page to its code alone, its picture alone and both again, `v` sets them side by side or one under the other (a right click: those, Open in Browser, Close Preview), `o` opens it in the browser (or Preview), `q`, Esc or Ctrl + C closes the whole tab |
 
 Everything works with the mouse too: a click, a right click for the menu, the wheel, and the row icons on hover. A
 control shown by an icon alone (✦, ↻, the view tabs, a row's icons…) says what it does once the mouse rests on it

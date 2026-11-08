@@ -2,7 +2,7 @@
 // What the mod works out without the window: a diff's rows, the sync button's words, a long job run in the background
 // on the space's machine (exec stops a program after 30 s; an AI may take minutes), the commit message writer's answer.
 
-import { JOB, MEDIA_KINDS } from "./helper.js";
+import { JOB, MEDIA_KINDS, MEDIA_WEB } from "./helper.js";
 import { BY_EXTENSION, BY_NAME, FILE, FOLDER, LETTER } from "./icons.js";
 
 /** @typedef {{ kind: string, number?: number, text: string }} Row */
@@ -749,11 +749,21 @@ export function swapDraft(drafts, from, to, message) {
   return back;
 }
 
+/** PATH's extension, lowercase with its dot; "" without one. @param {string} path */
+function extension(path) {
+  const dot = path.lastIndexOf("."), name = path.lastIndexOf("/") + 1;
+  return dot > name ? path.slice(dot).toLowerCase() : "";
+}
+
 /** PATH's kind by its extension, as core/media.py has it: image, pdf or html, else null. @param {string} path */
 export function mediaKind(path) {
-  const dot = path.lastIndexOf("."), name = path.lastIndexOf("/") + 1;
-  return dot > name ? /** @type {Record<string, string>} */ (MEDIA_KINDS)[path.slice(dot).toLowerCase()] ?? null
-    : null;
+  return /** @type {Record<string, string>} */ (MEDIA_KINDS)[extension(path)] ?? null;
+}
+
+/** Where Open in … opens PATH on PLATFORM (window()'s), as core/media.py's opener(): the browser, or on a Mac Preview
+ * for a picture no browser shows (a browser would only download a PSD or an EXR). */
+export function opener(path, platform) {
+  return platform === "macos" && !MEDIA_WEB.includes(extension(path)) ? "Preview" : "Browser";
 }
 
 /** Whether WHAT, the preview's, opens in the browser: a page, a PDF or a picture, a file on this Mac.

@@ -3,9 +3,9 @@
 // Catppuccin Icons' files and folders, git's letter on a changed file and a dot on a folder holding changes.
 import { div } from "gpui-kit";
 import { h_flex, v_flex, Input, InputState } from "gpui-base";
-import { home, setShared, shared, spaces, run as command } from "herdr";
+import { home, setShared, shared, spaces, window, run as command } from "herdr";
 import { FILEOPS, MEDIA, TREE } from "./helper.js";
-import { changeColor, changeName, fileIcon, fileRows, folderIcon, letter, mediaKind, said } from "./logic.js";
+import { changeColor, changeName, fileIcon, fileRows, folderIcon, letter, mediaKind, opener, said } from "./logic.js";
 import { END, fileMark, GAP, icon, iconButton, small } from "./parts.js";
 import { Menus } from "./menus.js";
 import { followFolder } from "./panel.js";
@@ -111,12 +111,13 @@ export class FilesView {
   }
 
   /** What a right click on ROW offers, as the TUI's menu: a page, a PDF or an image on this Mac opened in the
-   * browser, the preview tab closed, a new file or folder where it is, a rename, its path, the Trash; a folder a new
-   * workspace in it. @param {{ path: string, dir: boolean }} row */
+   * browser (Preview: opener()), the preview tab closed, a new file or folder where it is, a rename, its path, the
+   * Trash; a folder a new workspace in it. @param {{ path: string, dir: boolean }} row */
   items({ path, dir }) {
     const folder = dir ? path : folderOf(path);
     const browsed = !dir && !this.on && mediaKind(path), shown = this.previewTab();
-    return [...(browsed ? [{ label: "Open in Browser", act: (cx) => this.browse(path, cx) }] : []),
+    return [...(browsed ? [{ label: `Open in ${opener(path, window()?.platform)}`, act: (cx) => this.browse(path, cx) }]
+      : []),
       ...(shown ? [{ label: "Close Preview", act: () => command("tab.close", { id: shown.id }) }] : []),
       { label: "New File", act: (cx) => this.name("new-file", folder, cx) },
       { label: "New Folder", act: (cx) => this.name("new-folder", folder, cx) },

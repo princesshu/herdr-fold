@@ -611,3 +611,8 @@ class AppScreen:
                 return
             time.sleep(0.05)
         self.fail(f"not shown within {timeout} s:\n{self.screen()}")
+
+
+def psd_in_preview(path, *_):
+    """media.opener() as a Mac's for a PSD, the browser for the rest, on any machine the tests run on."""
+    return "Preview" if path.endswith(".psd") else "Browser"

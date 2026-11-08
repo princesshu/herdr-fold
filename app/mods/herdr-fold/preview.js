@@ -4,10 +4,10 @@
 import { div, image } from "gpui-kit";
 import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, TextView, v_resizable, v_virtual_list }
   from "gpui-base";
-import { home, panes, readTextFile, setShared, shared, spaces, run as command } from "herdr";
+import { home, panes, readTextFile, setShared, shared, spaces, window, run as command } from "herdr";
 import { GIT, GITHUB, MEDIA } from "./helper.js";
-import { browsable, commitRows, diffRows, mediaKind, previewName, previewTab, priorityColor, said, safeMarkdown,
-  stacks } from "./logic.js";
+import { browsable, commitRows, diffRows, mediaKind, opener, previewName, previewTab, priorityColor, said,
+  safeMarkdown, stacks } from "./logic.js";
 import { Menus } from "./menus.js";
 import { chip, choices, iconButton } from "./parts.js";
 
@@ -245,7 +245,7 @@ export class Preview {
     } })) : []),
     ...(both ? [{ label: "Side by Side", on: !down, act: turn(false) }, { label: "Stacked", on: down, act: turn(true) }]
       : []),
-    ...(browsable(this.what) ? [{ label: "Open in Browser", act: (cx) => this.browse(cx) }] : []),
+    ...(browsable(this.what) ? [{ label: this.opens(), act: (cx) => this.browse(cx) }] : []),
     { label: "Close Preview", act: () => {
       const tab = shownPreviewTab();
       if (tab) command("tab.close", { id: tab.id });
@@ -273,7 +273,12 @@ export class Preview {
       .when(Boolean(pdf), (e) => e.child(div().px(4).text_size(12).text_color(t.muted)
         .child(`Page ${(pdf?.page ?? 0) + 1} of ${pdf?.count ?? "?"}`)))
       .child(div().flex_1())
-      .child(iconButton(t, "browse", "external-link", "Open in Browser", (cx) => this.browse(cx), { left: true }));
+      .child(iconButton(t, "browse", "external-link", this.opens(), (cx) => this.browse(cx), { left: true }));
+  }
+
+  /** Open in Browser, or Preview for a picture no browser shows (opener()). */
+  opens() {
+    return `Open in ${opener(this.what?.path ?? "", window()?.platform)}`;
   }
 
   /** The picture fitted to the tab, under its bar. */

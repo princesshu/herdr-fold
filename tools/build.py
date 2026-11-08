@@ -47,8 +47,8 @@ def note(name):
 def js_note():
     """helper.js's opening comment: where it comes from, and what it is for."""
     return ["// @ts-check",
-            "// Generated from core/ by tools/build.py, each export a module's source (MEDIA_KINDS: media.py's",
-            "// kinds): change them there, then run it again. Each runs with Python's -c on the space's machine."]
+            "// Generated from core/ by tools/build.py, each export a module's source (MEDIA_*: media.py's",
+            "// tables): change them there, then run it again. Each runs with Python's -c on the space's machine."]
 
 
 def literal(text):
@@ -130,6 +130,7 @@ def outputs():
         lines = js_note()
         lines += [f"export const {const} = {literal(runnable(name))};" for const, name in sources.items()]
         lines.append(f"export const MEDIA_KINDS = {json.dumps(module('media').KINDS, indent=2)};")
+        lines.append(f"export const MEDIA_WEB = {json.dumps(module('media').WEB, indent=2)};")
         made[path] = "\n".join(lines) + "\n"
     made[ICONS] = icons_js()
     themes, own = tui_themes()

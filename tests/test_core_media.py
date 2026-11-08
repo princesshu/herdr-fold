@@ -78,6 +78,13 @@ class Kinds(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertEqual(media.kind_of(name), kind)
 
+    def test_every_picture_macos_reads(self):
+        """Whatever macOS's ImageIO reads is a picture: the web's, Apple's, Adobe's, the GPU's, a camera's raw file."""
+        for ext in (".avif", ".heif", ".jxl", ".jp2", ".ico", ".icns", ".psd", ".tga", ".exr", ".hdr", ".dds", ".ktx",
+                    ".astc", ".pbm", ".pgm", ".ppm", ".dng", ".cr2", ".cr3", ".nef", ".arw", ".raf", ".orf", ".rw2"):
+            with self.subTest(ext=ext):
+                self.assertEqual(media.kind_of("a" + ext.upper()), "image")
+
     def test_a_png_knows_its_size(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(media.size(png(os.path.join(tmp, "a.png"), 30, 20)), (30, 20))
@@ -105,6 +112,14 @@ class Browser(unittest.TestCase):
 
     def test_with_none_chosen_safari(self):
         self.assertEqual(media.open_argv("/w/a.html", "darwin"), ["open", "-b", "com.apple.Safari", "/w/a.html"])
+
+    def test_a_picture_no_browser_shows_opens_in_preview(self):
+        """A browser would only download a PSD or an EXR: those open in Preview, the web's pictures in the browser."""
+        self.assertEqual(media.open_argv("/w/a.psd", "darwin"), ["open", "-a", "Preview", "/w/a.psd"])
+        self.assertEqual(media.open_argv("/w/a.avif", "darwin"), ["open", "-b", "com.apple.Safari", "/w/a.avif"])
+        self.assertEqual([media.opener(name, "darwin") for name in ("a.exr", "b.PNG", "c.svg", "d.pdf")],
+                         ["Preview", "Browser", "Browser", "Browser"])
+        self.assertEqual(media.opener("a.exr", "linux"), "Browser")              # the desktop's own opener there
 
     def test_elsewhere_the_desktops_own(self):
         with mock.patch.object(media.shutil, "which", lambda name: "/usr/bin/xdg-open" if name == "xdg-open" else None):
@@ -198,6 +213,17 @@ class ForTheApp(unittest.TestCase):
         self.assertTrue(answer["png"].startswith("herdr-fold-pictures/"))
         self.assertEqual(media.size(os.path.join(self.tmp, "app", answer["png"])), (100, 66))
         self.assertEqual(answer["size"], [100, 66])
+
+    @unittest.skipUnless(shutil.which("sips"), "macOS's sips")
+    def test_every_kind_sips_writes_is_drawn(self):
+        source = png(os.path.join(self.tmp, "source.png"), 128, 128)              # an icns is 128 at the least
+        for ext in ("avif", "heic", "jp2", "ico", "icns", "psd", "tga", "exr", "ktx", "astc", "pvr", "pbm", "bmp",
+                    "gif", "tiff"):
+            with self.subTest(ext=ext):
+                made = os.path.join(self.tmp, f"a.{ext}")
+                subprocess.run(["sips", "-s", "format", ext, source, "--out", made], check=True, capture_output=True)
+                answer = media.picture(made, 0, 100)
+                self.assertEqual((answer["kind"], answer["size"]), ("image", [100, 100]))
 
     def test_a_small_image_keeps_its_own_size(self):
         """The app draws it no larger than that, as the TUI does."""

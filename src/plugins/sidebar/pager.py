@@ -29,7 +29,7 @@ CONTEXT = 3                   # lines shown above the line the pager opens at, o
 WATCH = 0.3                   # seconds between looks at the spec's file: a new spec there is shown
 SIDE = 10                     # an SVG's or a page's code and picture: the least columns a side keeps (rows: a third)
 VIEWS = ("split", "code", "picture")   # what c turns them to, in turn: both side by side first
-CLOSE, BROWSE = "Close Preview", "Open in Browser"   # a right click's menu: the tab closed, the file in the browser
+CLOSE = "Close Preview"                     # a right click's menu: the tab closed
 MENU = "48;5;237;38;5;252"    # its colors: a background of its own, which a picture lies under
 BELOW = -1073741825           # a picture's z in the Kitty graphics protocol: under a cell with a background of its own
 WAIT = 30                     # seconds a pipeline may run (gh asking GitHub, a program that never ends): then stopped
@@ -120,8 +120,17 @@ def shown(sgr):
     return f"\x1b[{';'.join(kept)}m" if kept else ""
 
 
-HINT = "  o: open in browser"
 KEY_HINT = re.compile(r"  \S: [^:]*$")    # a status row's last key hint, left out where the row has no room for it
+
+
+def browse(path):
+    """The right click's item that opens PATH as o does: in the browser, or in Preview (media.opener())."""
+    return f"Open in {media.opener(path)}"
+
+
+def browse_hint(path):
+    """o's part of a status row, for PATH."""
+    return f"  o: open in {media.opener(path).lower()}"
 
 
 def bar(status, cells):
@@ -171,16 +180,16 @@ class Pager:
             return "/" + self.typing
         if self.note:
             return self.note
-        hint = self.keys + (HINT if self.opens else "")
+        hint = self.keys + (browse_hint(self.opens) if self.opens else "")
         return f"{self.title}  {self.top + 1}-{min(len(self.lines), self.top + self.height)}/{len(self.lines)}{hint}"
 
     def choices(self):
         """A right click's menu: the page in the browser where o opens it, and the tab closed."""
-        return [(BROWSE, None)] * bool(self.opens) + [(CLOSE, None)]
+        return ([(browse(self.opens), None)] if self.opens else []) + [(CLOSE, None)]
 
     def choose(self, choice):
         """CHOICE of the menu done; False when the pager should end."""
-        if choice == BROWSE:
+        if self.opens and choice == browse(self.opens):
             self.note = None if media.open_in_browser(self.opens) else "No browser to open it in"
         return choice != CLOSE
 
@@ -313,7 +322,7 @@ class Picture:
     def status(self):
         if self.note:
             return self.note
-        return f"{self.title}{self.keys}{HINT if self.opens else ''}"
+        return f"{self.title}{self.keys}{browse_hint(self.path) if self.opens else ''}"
 
     def png(self, columns, rows):
         """The picture as a PNG with the pixels COLUMNS x ROWS cells show: its longer side, the pane's height for a
@@ -349,7 +358,7 @@ class Picture:
         made = self.png(*(made_for or (columns, rows)))
         shape = media.size(made) if made else None
         if not shape:
-            self.note = self.note or f"{self.title}: cannot be shown here{HINT if self.opens else ''}"
+            self.note = self.note or f"{self.title}: cannot be shown here{browse_hint(self.path) if self.opens else ''}"
             return ""
         row, column, wide, tall = fit(columns, rows, *shape, self.cell)
         with open(made, "rb") as f:
@@ -368,10 +377,10 @@ class Picture:
         return True
 
     def choices(self):
-        return [(BROWSE, None)] * bool(self.opens) + [(CLOSE, None)]
+        return [(browse(self.path), None)] * bool(self.opens) + [(CLOSE, None)]
 
     def choose(self, choice):
-        if choice == BROWSE:
+        if self.opens and choice == browse(self.path):
             self.note = None if media.open_in_browser(self.path) else "No browser to open it in"
         return choice != CLOSE
 
@@ -417,7 +426,7 @@ class Pdf(Picture):
         if self.note:
             return self.note
         count = len(self.sizes) if self.sizes else "?"            # no helper: the first page alone, through sips
-        return f"{self.title}  page {self.page() + 1} of {count}{HINT if self.opens else ''}"
+        return f"{self.title}  page {self.page() + 1} of {count}{browse_hint(self.path) if self.opens else ''}"
 
     def prepare(self, term, columns, height):
         """The first draw's wait, said in the pane: each page's size asked for (the helper compiled the first time)."""
@@ -449,7 +458,7 @@ class Pdf(Picture):
                     f.read(), wide, end - seen, (0, above, shape[0], max(1, below - above)), PICTURE + self.placed))
             self.placed += 1
         if not self.places:
-            self.note = self.note or f"{self.title}: cannot be shown here{HINT if self.opens else ''}"
+            self.note = self.note or f"{self.title}: cannot be shown here{browse_hint(self.path) if self.opens else ''}"
         return "".join(out)
 
     def handle(self, event):

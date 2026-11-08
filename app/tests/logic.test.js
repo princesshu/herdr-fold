@@ -14,7 +14,7 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   terminalId, TERMINALS, urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread,
   spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow,
   railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom, mediaKind,
-  aboutLines, stacks, swapDraft, browsable, fileIcon, stillResumed }
+  aboutLines, stacks, swapDraft, browsable, opener, fileIcon, stillResumed }
   from "../mods/herdr-fold/logic.js";
 
 test("a tab nobody named after its program, an agent's first, else Terminal; an agent's icon; zoomed marked", () => {
@@ -699,6 +699,13 @@ test("a page, a PDF or a picture on this Mac opens in the browser, nothing else 
   const asked = [file("site/index.html"), file("a.pdf"), file("shot.png"), file("a.py"), file("index.html", "lab"),
     { kind: "commit", path: "index.html", on: null }, null];
   assert.deepEqual(asked.map(browsable), [true, true, true, false, false, false, false]);
+});
+
+test("a picture no browser shows opens in Preview, the web's own in the browser, as the TUI's", () => {
+  assert.deepEqual(["art.PSD", "render.exr", "photo.dng", "shot.png", "logo.svg", "a.pdf", "site/index.html"]
+    .map((path) => opener(path, "macos")),
+  ["Preview", "Preview", "Preview", "Browser", "Browser", "Browser", "Browser"]);
+  assert.equal(opener("art.psd", "linux"), "Browser");                     // the desktop's own opener there
 });
 
 test("a file named for an object's own property gets the plain file icon, never that property", () => {

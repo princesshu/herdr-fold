@@ -12,6 +12,9 @@ All notable changes to this project are listed here. The format follows
   taller than wide, as Xcode's canvas, or as chosen (`v`, named in the status row, and the right click in the TUI; the
   button beside Code, Split and Picture and the right click in the Herdr app), its divider dragged as the side by side
   one.
+- Every picture macOS reads in the preview, both clients: HEIC, AVIF, JPEG XL, JPEG 2000, PSD, TGA, EXR, ICNS, the
+  GPU's textures and a camera's raw file (DNG, CR2, NEF, ARW…) beside PNG, JPEG, GIF, WebP, TIFF and BMP; one no
+  browser shows opens in Preview (Open in Preview), where a browser would only download it.
 
 ### Fixed
 

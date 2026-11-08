@@ -355,7 +355,7 @@ class Explorer:
             choices = ("Close Preview",) + choices
         if node is not None and node.path is not None and not node.is_dir and media.kind_of(node.path) \
                 and media.browsable():                                         # a page, a PDF, an image
-            choices = ("Open in Browser",) + choices
+            choices = (f"Open in {media.opener(node.path)}",) + choices      # Preview for a PSD, an EXR
         self.menu = Popup(Menu(choices), node, y, x)
 
     def close_menu(self):
@@ -371,7 +371,7 @@ class Explorer:
             self.rename(node)
         elif choice == "Copy Path":
             return Action("copy_path", (node.path,))
-        elif choice == "Open in Browser":
+        elif choice in ("Open in Browser", "Open in Preview"):
             return Action("open_browser", (node.path,))
         elif choice == "Close Preview":
             return Action("close_preview")
