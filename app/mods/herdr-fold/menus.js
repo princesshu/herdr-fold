@@ -21,15 +21,16 @@ export class Menus {
     this.acts = [];
   }
 
-  /** ITEMS opened as a menu under BOUNDS (the pressed button's), else at the pointer. @param {Item[]} items
-   * @param {any} [bounds] */
-  open(items, bounds) {
+  /** ITEMS opened as a menu under BOUNDS (the pressed button's), else at the pointer; HEAD names what they act on
+   * above them, its NOTE at its right. @param {Item[]} items @param {any} [bounds]
+   * @param {{ label: string, note?: string }} [head] */
+  open(items, bounds, head) {
     const token = (this.token = Math.random().toString(36).slice(2, 10));
     this.acts = items.map((item) => item.act ?? (() => {}));
     const rows = items.map(({ label, url, on, color, off }, n) => ({ label, url, on, color, off,
       command: `menu-${token}-${n}` }));
-    openOverlay({ mod: "herdr-fold", kind: "popup", props: { part: "menu", items: rows }, width: MENU,
-      height: items.length * (ROW + 2) + 8,
+    openOverlay({ mod: "herdr-fold", kind: "popup", props: { part: "menu", items: rows, head }, width: MENU,
+      height: (items.length + (head ? 1 : 0)) * (ROW + 2) + 8,
       ...(bounds ? { at: { x: Math.max(8, bounds.x + bounds.width - MENU), y: bounds.y + bounds.height + 4 } } : {}) });
   }
 
@@ -44,12 +45,15 @@ export class Menus {
   }
 }
 
-/** The menu (OVERLAY, its popup): ITEMS a row each, a check before the ones on when any can be; a choice sends its
- * command back, or opens its URL, and closes it. @param {string} overlay
- * @param {(Item & { command?: string })[]} items */
-export function menuPopup(t, overlay, items) {
+/** The menu (OVERLAY, its popup): its HEAD, then ITEMS a row each, a check before the ones on when any can be; a
+ * choice sends its command back, or opens its URL, and closes it. @param {string} overlay
+ * @param {(Item & { command?: string })[]} items @param {{ label: string, note?: string }} [head] */
+export function menuPopup(t, overlay, items, head) {
   const checks = items.some((item) => item.on !== undefined);
   return v_flex().size_full().p(4).gap(2).text_size(12).text_color(t.foreground)
+    .when(Boolean(head), (e) => e.child(h_flex().h(ROW).flex_none().px(8).gap(8).items_center()
+      .child(div().font_semibold().child(head?.label ?? "")).child(div().flex_1())
+      .child(div().text_color(t.muted).child(head?.note ?? ""))))
     .children(items.map((item, i) => h_flex().id(`menu-${i}`).h(ROW).flex_none().px(8).gap(8).items_center()
       .rounded(6).when(Boolean(item.off), (e) => e.text_color(t.dim))
       .when(!item.off, (e) => e.cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => {

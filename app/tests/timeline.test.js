@@ -3,7 +3,7 @@
 // in one, and each row's time in this Mac's own zone and hour style.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { clock, timeline } from "../mods/herdr-fold/timeline.js";
+import { clock, format, setForms, timeline } from "../mods/herdr-fold/timeline.js";
 
 const at = (minute) => `2026-11-08T14:${String(minute).padStart(2, "0")}:00.000Z`;
 const EDIT = { path: "src/books.py", lines: ["@@ -12,1 +12,1 @@", "-    return page", "+    return min(page, last)"] };
@@ -57,37 +57,43 @@ test("a skill, a sub-agent and a todo list take their results; a result with no 
   assert.equal(rows[2].ok, null);
 });
 
-test("a time is its hours and minutes in the system's 12 or 24 hours, whatever the runtime's options do", () => {
-  const zone = process.env.TZ, own = Date.prototype.toLocaleTimeString;
-  process.env.TZ = "America/New_York";
-  try {
-    const now = new Date("2026-11-08T14:00:00Z");
-    // the Herdr app's runtime: its own fixed form, seconds and all, the options left aside
-    Date.prototype.toLocaleTimeString = function () { return own.call(this, "en-US", { hour12: true }); };
-    assert.equal(clock("2026-11-08T13:05:00Z", now), "8:05 AM");
-    Date.prototype.toLocaleTimeString = function () { return own.call(this, "en-GB"); };
-    assert.equal(clock("2026-11-08T13:05:00Z", now), "08:05");
-    assert.equal(clock("2026-11-06T21:10:00Z", now), "Nov 6, 16:10");
-  } finally {
-    Date.prototype.toLocaleTimeString = own;
-    if (zone === undefined) delete process.env.TZ;
-    else process.env.TZ = zone;
-  }
-});
-
-test("a time today is the time alone, yesterday's says so, an older one its date", () => {
+/** RUN with this Mac in New York, the system's forms FORMS (none: not known yet), both put back after it.
+ * @param {any} forms @param {() => void} run */
+function inNewYork(forms, run) {
   const zone = process.env.TZ;
   process.env.TZ = "America/New_York";
+  setForms(forms);
   try {
-    const now = new Date("2026-11-08T14:00:00Z");                       // 9 AM in New York
-    assert.equal(plain(clock("2026-11-08T13:32:00Z", now)), "8:32 AM");
-    assert.equal(plain(clock("2026-11-08T03:30:00Z", now)), "Yesterday 10:30 PM");    // the evening before, there
-    assert.equal(plain(clock("2026-11-06T21:10:00Z", now)), "Nov 6, 4:10 PM");
-    assert.equal(plain(clock("2025-11-06T21:10:00Z", now)), "Nov 6, 2025, 4:10 PM");
-    assert.equal(clock("not a time", now), "");
-    assert.equal(clock(null, now), "");
+    run();
   } finally {
+    setForms(null);
     if (zone === undefined) delete process.env.TZ;
     else process.env.TZ = zone;
   }
+}
+
+// macOS's own patterns for its user (NSDateFormatter's, from the templates jmm, MMMdjmm, yMMMdjmm, EEEMMMdjmm)
+const US = { time: "h:mm a", day: "MMM d, h:mm a", year: "MMM d, y, h:mm a", weekday: "EEE, MMM d, h:mm a" };
+const US_24 = { time: "HH:mm", day: "MMM d, HH:mm", year: "MMM d, y, HH:mm", weekday: "EEE, MMM d, HH:mm" };
+const GB = { time: "HH:mm", day: "d MMM, HH:mm", year: "d MMM y, HH:mm", weekday: "EEE d MMM, HH:mm" };
+
+test("a time today is the time alone, yesterday's says so, an older one its date: as this Mac's settings say", () => {
+  const now = new Date("2026-11-08T14:00:00Z");                         // 9 AM in New York
+  inNewYork(US, () => assert.deepEqual(["2026-11-08T13:32:00Z", "2026-11-08T03:30:00Z", "2026-11-06T21:10:00Z",
+    "2025-11-06T21:10:00Z"].map((iso) => clock(iso, now)), ["8:32 AM", "Yesterday 10:30 PM", "Nov 6, 4:10 PM",
+    "Nov 6, 2025, 4:10 PM"]));
+  inNewYork(US_24, () => assert.deepEqual(["2026-11-08T13:32:00Z", "2026-11-06T21:10:00Z"]
+    .map((iso) => clock(iso, now)), ["08:32", "Nov 6, 16:10"]));       // a US Mac set to 24 hours
+  inNewYork(GB, () => assert.equal(clock("2026-11-06T21:10:00Z", now), "6 Nov, 16:10"));
+  inNewYork(null, () => assert.deepEqual([clock("2026-11-06T21:10:00Z", now), clock("not a time", now),
+    clock(null, now)], ["6 Nov, 16:10", "", ""]));                       // the system not asked yet: 24 hours
+});
+
+test("a pattern's letters are the time's parts, a quoted word as it is", () => {
+  inNewYork(null, () => {
+    const when = new Date("2026-11-10T01:05:00Z");                        // Mon, Nov 9, 8:05 PM there
+    assert.equal(format(when, "EEEE, MMMM d, y 'at' h:mm a"), "Monday, November 9, 2026 at 8:05 PM");
+    assert.equal(format(when, "EEE dd.MM.yy H.mm"), "Mon 09.11.26 20.05");
+    assert.equal(format(when, "''hh:mm''"), "'08:05'");
+  });
 });

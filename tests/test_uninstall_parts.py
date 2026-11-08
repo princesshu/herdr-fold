@@ -6,6 +6,7 @@ import unittest
 
 from support import PartsInstall, catalog_text
 
+CHAT = ".local/state/herdr-fold/chat/5f0c6d9e-1b2a-4c3d-8e9f-0a1b2c3d4e5f/status.json"     # a chat's in the app
 TIME = ".local/state/herdr-fold/time.json"                    # how the machine writes hours, the status line's
 
 
@@ -43,9 +44,11 @@ class UninstallParts(PartsInstall, unittest.TestCase):
 
     def test_the_app_alone_leaves_the_tui(self):
         self.with_parts("both")
+        self.write(CHAT, '{"context": 34}')                           # a chat's own files: the app's
         self.write(TIME, '{"twelve": false}')                        # the status line's: both parts'
         self.with_parts("app", "uninstall.sh")
         self.assertFalse(self.in_app("mods/herdr-fold/main.js"))
+        self.assertFalse(self.there(".local/state/herdr-fold/chat"))
         self.assertTrue(self.there(TIME))
         self.assertTrue(self.there(".config/ghostty/config"))
         self.assertTrue(self.there(".config/herdr-fold/statusline.py"))
@@ -56,12 +59,13 @@ class UninstallParts(PartsInstall, unittest.TestCase):
         self.with_parts("both")
         self.write(".cache/herdr-fold/pdf-pages-0123456789ab", "the PDF helper, compiled on first use")
         self.write(".local/state/herdr-fold/update.json", '{"checked": 1, "latest": "0.4.0"}')
+        self.write(CHAT, '{"context": 34}')
         self.write(TIME, '{"twelve": false}')
         out = self.with_parts("both", "uninstall.sh")
         self.assertFalse(self.in_app("mods/herdr-fold/main.js"))
         for rel in (".config/ghostty/config", ".config/herdr-fold/statusline.py", ".cache/herdr-fold",
                     ".local/state/herdr-fold/installed.txt", ".local/state/herdr-fold/plugins.txt",
-                    ".local/state/herdr-fold/update.json", TIME):
+                    ".local/state/herdr-fold/update.json", ".local/state/herdr-fold/chat", TIME):
             with self.subTest(rel=rel):
                 self.assertFalse(self.there(rel))
         self.assertIn(catalog_text("uninstall.done"), out)

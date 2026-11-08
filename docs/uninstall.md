@@ -23,8 +23,9 @@ One part goes and the other keeps working: what both use goes with the last.
   integrations, Ghostty's icon, and the sidebar's own state (the theme's colors, the column, the panels, the
   handovers, previews and issues it keeps). The remote machines stay in the Herdr app, and connected in herdr:
   `herdr machine remove <id>` disconnects one.
-- **The Herdr app**: herdr-fold's mod, layout, themes, keys and settings in it, and the machines herdr-fold added
-  there, as below. An update of the TUI does not offer it again; choosing it in the installer brings it back.
+- **The Herdr app**: herdr-fold's mod, layout, themes, keys and settings in it, its chats' own files (what Claude waits
+  on, the answers, the bar's numbers; the conversations stay), and the machines herdr-fold added there, as below. An
+  update of the TUI does not offer it again; choosing it in the installer brings it back.
 - **The last part**, or both: also the files both use (the status line and its `time.json`, the themes, the texts),
   Claude's earlier status line, the sidebar's settings (which keep the issue linked to each repository's next commit),
   the archived conversations, the records, what was made on first use (`~/.cache/herdr-fold`, the preview's helpers),

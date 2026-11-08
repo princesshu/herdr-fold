@@ -1,8 +1,9 @@
 // @ts-check
 // herdr-fold's own parts, which its views and its styleguide draw with: an icon, a button, a row's button, a chip, a
 // choice of a few.
-import { div, image, svg } from "gpui-kit";
+import { div, image, PathBuilder, svg } from "gpui-kit";
 import { h_flex, HoverCard, Input } from "gpui-base";
+import { ringArc } from "./agents.js";
 import { ICONS } from "./icons.js";
 import { LIST } from "./logic.js";
 
@@ -16,6 +17,24 @@ export const RADII = [4, 6, 8, 10];
 /** The mod's icon NAME (icons.js's, Lucide's), SIZE square, in the text's color.
  * @param {import("./icons.js").IconName} name @param {number} [size] */
 export const icon = (name, size = 14) => svg(ICONS[name]).size(size).flex_none();
+
+/** A key as a cap (KEY: 1, esc, ↩), its edge seen on a lit row too. @param {string} key */
+export const keyCap = (t, key) => div().h(18).min_w(18).px(4).flex_none().flex().items_center().justify_center()
+  .rounded(4).border(1).border_color(t.dim + "80").text_size(11).text_color(t.muted).child(key);
+
+/** The context ring, 16 square: its track, and PERCENT of it from the top clockwise in COLOR, painted as GPUI paints
+ * a path. @param {number} percent @param {string} color */
+export function ring(t, percent, color) {
+  const circle = () => PathBuilder.stroke(2).move_to(8, 2).arc_to(6, 6, 0, false, true, 8, 14)
+    .arc_to(6, 6, 0, false, true, 8, 2);
+  const arc = ringArc(percent);
+  const share = arc === "whole" ? circle().build()
+    : arc && PathBuilder.stroke(2).move_to(8, 2).arc_to(6, 6, 0, arc.large, true, arc.x, arc.y).build();
+  const layer = (/** @type {any} */ path, /** @type {string} */ tone) => window.paint_path(path, tone).absolute()
+    .top_0().left_0().size_full();
+  return div().relative().size(16).flex_none().child(layer(circle().build(), t.raised))
+    .when(Boolean(share), (e) => e.child(layer(share, color)));
+}
 
 /** A file's icon (logic.js's fileIcon, a path), 16 square, in its own colors. @param {string} path */
 export const fileMark = (path) => image(path).size(16).flex_none();

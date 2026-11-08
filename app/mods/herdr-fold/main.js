@@ -128,7 +128,10 @@ export default class HerdrFold extends View {
         for (;;) this.menus.answer(await nextCommand(), cx);                    // its menu about herdr-fold
       });
     }
-    if (part === "menu") return void (this.popup = { overlay: props().overlay, items: props().items });
+    if (part === "menu") {
+      const { overlay, items, head } = props();
+      return void (this.popup = { overlay, items, head });
+    }
     if (part === "tabs") {                        // the tab bar, where the app's own was: always there, so it looks
       this.bar = new TabsView();                  // for herdr-fold's newer releases too
       cx.timer.after(0, () => void checkUpdates(python));
@@ -548,7 +551,7 @@ export default class HerdrFold extends View {
     const t = theme();
     if (this.blank) return standIn(t);
     if (this.tabs) return liveTabs(t, this.menus, python);
-    if (this.popup) return menuPopup(t, this.popup.overlay, this.popup.items);
+    if (this.popup) return menuPopup(t, this.popup.overlay, this.popup.items, this.popup.head);
     if (this.rail) return rail(t, tabsState(), activeTerminal(layout()));
     if (this.head) {
       this.offRail(this.head.overlay, cx);

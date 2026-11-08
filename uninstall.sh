@@ -46,6 +46,7 @@ app_off() {
     else warn "$(t uninstall.app_still_open "$(shown "$(python3 "$DOT/lib/herdr_app.py" home)/shared.json")")"; fi
   fi
   python3 "$DOT/lib/herdr_app.py" uninstall "$DOT" && ok "$(t uninstall.app_off)"
+  rm -rf "$state/chat"                  # its chats' own files: what Claude waits on, the answers, the bar's numbers
   [ -z "$closed" ] || python3 "$DOT/lib/herdr_app.py" open || warn "$(t uninstall.app_not_reopened)"
 }
 # the plugins and integrations first: a running herdr then calls nothing that is about to go. A plugin herdr no longer

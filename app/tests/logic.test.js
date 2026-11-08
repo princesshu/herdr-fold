@@ -29,6 +29,14 @@ test("a tab nobody named after its program, an agent's first, else Terminal; an 
   assert.deepEqual(tabRows(undefined, panes), []);
 });
 
+test("a chat tab wears its agent's icon and state, its agent being a terminal with no pane", () => {
+  const space = { tabs: [{ id: "t4", name: "Fix the page past the last one", named: true }] };
+  const chats = { t4: { status: "working", program: { name: "Claude", agent: true, icon: "claude.svg", tint: true } } };
+  assert.deepEqual(tabRows(space, [{ tab: "t4", program: { name: "herdr-fold" } }], chats), [
+    { id: "t4", name: "Fix the page past the last one", active: false, status: "working", icon: "claude.svg",
+      tint: true }]);
+});
+
 test("an SVG's or a page's code goes above its picture as chosen, else where the room is taller than wide", () => {
   assert.equal(stacks(null, { width: 800, height: 600 }), false);
   assert.equal(stacks(null, { width: 400, height: 900 }), true);

@@ -1,6 +1,7 @@
 """A Claude Code conversation as the Herdr app's chat draws it: its session file read into steps, only where it grew
 (nothing of Claude's is ever written), and the files its hook and the app share. The format is Claude's own: a field
 of a wrong type is missing, a block the chat does not know a plain step, an entry it does not know left out."""
+import difflib
 import json
 import os
 import re
@@ -19,6 +20,8 @@ MAIN = {"Read": "file_path", "Edit": "file_path", "MultiEdit": "file_path", "Wri
         "NotebookEdit": "notebook_path", "Bash": "command", "Grep": "pattern", "Glob": "pattern", "WebFetch": "url",
         "WebSearch": "query"}
 AGENT = ("Agent", "Task")       # a sub-agent's call (Task: its name before Claude Code 2.1)
+MARK = re.compile(r"^\s*(?:[-*]|\d+[.)])\s*")      # a plan's list mark, before its words
+HUNK = re.compile(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 SESSION = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")   # as Claude and the app make one
 
 
@@ -49,8 +52,19 @@ def change(result):
     return {"path": path, "lines": lines} if lines else None
 
 
-def call(block):
-    """A tool call's step; a skill, a sub-agent and a todo list are steps of their own kinds."""
+def first_words(name, args):
+    """What a question's or a plan's row says: its first question, or its plan's first line of words (no heading)."""
+    if name == "AskUserQuestion":
+        questions = args.get("questions")
+        return text(obj(questions[0]).get("question")) if isinstance(questions, list) and questions else None
+    lines = (text(args.get("plan")) or "").splitlines() if name == "ExitPlanMode" else []
+    return next((MARK.sub("", line).strip() for line in lines
+                 if line.strip() and not line.lstrip().startswith("#")), None)
+
+
+def call(block, cwd=None):
+    """A tool call's step, a file named from CWD (Claude's folder) when it is in it; a skill, a sub-agent and a todo
+    list are steps of their own kinds."""
     name, args, call_id = text(block.get("name")) or "", obj(block.get("input")), text(block.get("id"))
     if name == "Skill":
         return {"kind": "skill", "id": call_id, "name": text(args.get("skill"))}
@@ -62,7 +76,11 @@ def call(block):
         return {"kind": "todo", "id": call_id, "items": [{"text": text(todo.get("content")) or "",
                                                           "done": todo.get("status") == "completed"}
                                                          for todo in map(obj, todos)]}
-    main = text(args.get(MAIN.get(name, "")))
+    key = MAIN.get(name, "")
+    main = text(args.get(key)) or first_words(name, args)
+    root = os.path.join(cwd, "") if cwd else None
+    if main and root and key.endswith("path") and main.startswith(root):
+        main = main[len(root):]
     return {"kind": "tool", "id": call_id, "name": name, "main": main and cut(main, INPUT),
             "input": {key: cut(value, INPUT) for key, value in args.items() if isinstance(value, str)}}
 
@@ -107,7 +125,7 @@ def said(entry, seen):
             elif block.get("type") in ("thinking", "redacted_thinking"):
                 found.append({"kind": "thought", "ms": ms if isinstance(ms, int) else None})
             else:
-                found.append(call(block) if block.get("type") == "tool_use" else other(block))
+                found.append(call(block, text(entry.get("cwd"))) if block.get("type") == "tool_use" else other(block))
     elif kind == "system" and entry.get("subtype") == "compact_boundary":
         found = [{"kind": "other", "type": "compact_boundary", "summary": text(entry.get("content")) or ""}]
     return [{**step, "at": text(entry.get("timestamp"))} for step in found]
@@ -178,13 +196,44 @@ def pending(session):
 
 
 def answer(session, reply):
-    """REPLY, the app's answer, to what Claude waits on in the chat with SESSION: False, and nothing written, when it
-    answers another request or none (one asked since, one given up on)."""
-    request_id = text((pending(session) or {}).get("id"))
+    """REPLY, the app's answer, to what Claude waits on in the chat with SESSION (one Claude asks in its own dialog, its
+    card answered there: the request goes): False, and nothing written, when it answers another request or none."""
+    asked = pending(session) or {}
+    request_id = text(asked.get("id"))
     if not request_id or not isinstance(reply, dict) or reply.get("id") != request_id:
         return False
-    statefile.write(os.path.join(chat_dir(session), "answer.json"), reply)
+    if asked.get("kind") == "dialog":
+        os.unlink(os.path.join(chat_dir(session), "request.json"))
+    else:
+        statefile.write(os.path.join(chat_dir(session), "answer.json"), reply)
     return True
+
+
+def asked_change(request):
+    """The change a waiting Edit or Write asks for (REQUEST, request.json's) as diff lines numbered where they stand in
+    the file, its old text looked up there; None for any other request."""
+    args, tool = obj(request.get("tool_input")), request.get("tool_name")
+    path = text(args.get("file_path"))
+    if tool not in ("Edit", "Write") or not path:
+        return None
+    try:
+        with open_regular(path, "rb") as f:
+            current = f.read(READ).decode("utf-8", "replace")
+    except OSError:
+        current = ""
+    old, new = (current, text(args.get("content")) or "") if tool == "Write" \
+        else (text(args.get("old_string")) or "", text(args.get("new_string")) or "")
+    at = current.find(old) if tool == "Edit" and old else -1
+    shift = current.count("\n", 0, at) if at >= 0 else 0
+    lines = []
+    for line in difflib.unified_diff(old.splitlines(), new.splitlines(), lineterm=""):
+        hunk = HUNK.fullmatch(line)
+        if hunk:
+            a, b, c, d = (int(n) if n is not None else 1 for n in hunk.groups())
+            line = f"@@ -{a + shift if b else a},{b} +{c + shift if d else c},{d} @@"
+        if not line.startswith(("---", "+++")):
+            lines.append(line)
+    return {"path": path, "lines": lines} if lines else None
 
 
 def status(session):
@@ -199,8 +248,10 @@ def main(argv):
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     try:
         if command == "steps" and len(args) == 2 and int(args[1]) >= 0:
-            found = {**steps(session_file(args[0]), int(args[1])), "pending": pending(args[0]),
-                     "status": status(args[0])}
+            asked = pending(args[0])
+            change = asked_change(asked) if asked else None
+            found = {**steps(session_file(args[0]), int(args[1])), "status": status(args[0]),
+                     "pending": {**asked, "change": change} if change else asked}
         elif command == "answer" and len(args) == 2:
             reply = json.loads(args[1])
             try:

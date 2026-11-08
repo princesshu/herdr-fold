@@ -16,7 +16,8 @@ TIMEOUT = 590                   # seconds the hook waits for the app: Claude giv
 NO = "The user said no."
 # where a kept rule goes, by the scope the user chose: this conversation, this project (its local settings), everywhere
 DESTINATION = {"session": "session", "project": "localSettings", "user": "userSettings"}
-ASKED = ("tool_name", "tool_input", "permission_suggestions")   # what the app's card is drawn from
+ASKED = ("tool_name", "tool_input", "permission_suggestions", "cwd")   # what the app's card is drawn from
+DIALOG = ("ExitPlanMode",)      # Claude takes no hook's yes for these: its own dialog asks, the card answers there
 
 
 def remove(path):
@@ -26,14 +27,21 @@ def remove(path):
         pass
 
 
-def wait_for(request, timeout=TIMEOUT, poll=0.2):
-    """REQUEST, the hook's input, put where the app sees it with a fresh id, and the app's answer to that id; None when
-    none comes in TIMEOUT seconds or a newer request takes its place. Its files go after it, never another's."""
+def post(request, kind):
+    """REQUEST, the hook's input, put where the app sees it with a fresh id (KIND: permission, answered through the
+    hook; dialog, in Claude's own); the request and its answer's paths."""
     folder = chat.chat_dir(text(request.get("session_id")))
-    asked = {"id": uuid.uuid4().hex, "kind": "permission", **{key: request.get(key) for key in ASKED}}
+    asked = {"id": uuid.uuid4().hex, "kind": kind, **{key: request.get(key) for key in ASKED}}
     paths = [os.path.join(folder, "request.json"), os.path.join(folder, "answer.json")]
     remove(paths[1])                                       # an answer to a request given up on
     statefile.write(paths[0], asked)
+    return asked, paths
+
+
+def wait_for(request, timeout=TIMEOUT, poll=0.2):
+    """REQUEST posted, and the app's answer to it; None when none comes in TIMEOUT seconds or a newer request takes its
+    place. Its files go after it, never another's."""
+    asked, paths = post(request, "permission")
     end = time.monotonic() + timeout
     try:
         while time.monotonic() < end and (chat.read(paths[0]) or {}).get("id") == asked["id"]:
@@ -50,16 +58,13 @@ def wait_for(request, timeout=TIMEOUT, poll=0.2):
 
 def claude_decision(request, reply):
     """The hook's answer to Claude for REQUEST from the app's REPLY: allow (keep: with the rule Claude suggested, kept
-    where the user chose), the answers to its questions, how to go on after a plan, or no with the user's words."""
+    where the user chose), the answers to its questions, or no with the user's words."""
     choice, tool = reply.get("choice"), request.get("tool_name")
     if choice not in ("allow", "keep"):
         decision = {"behavior": "deny", "message": text(reply.get("text")) or NO}
     elif tool == "AskUserQuestion":
         decision = {"behavior": "allow", "updatedInput": {**obj(request.get("tool_input")),
                                                           "answers": obj(reply.get("answers"))}}
-    elif tool == "ExitPlanMode":                            # keep: go on editing without asking
-        decision = {"behavior": "allow", "updatedPermissions": [
-            {"type": "setMode", "mode": "acceptEdits" if choice == "keep" else "default", "destination": "session"}]}
     else:
         suggested = request.get("permission_suggestions")
         rule = obj(suggested[0]) if choice == "keep" and isinstance(suggested, list) and suggested else {}
@@ -108,6 +113,8 @@ def main(argv):
     try:
         if argv[1] == "status":
             print(write_status(data))
+        elif data.get("tool_name") in DIALOG:
+            post(data, "dialog")
         else:
             reply = wait_for(data, TIMEOUT)
             if reply:

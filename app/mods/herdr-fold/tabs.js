@@ -3,8 +3,8 @@
 // double click renaming one, a right click the app's menu, the wheel stepping through them; + after the last tab.
 import { div, image, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { layout, openOverlay, panes, settings, spaces, window, run as command } from "herdr";
-import { hovering, lightsRoom, tabRows, toggleRoom } from "./logic.js";
+import { layout, openOverlay, panes, settings, spaces, terminals, window, run as command } from "herdr";
+import { CHAT_TAB, hovering, lightsRoom, tabRows, toggleRoom } from "./logic.js";
 import { panelToggle } from "./panel.js";
 import { BUTTON, GAP, icon, iconButton } from "./parts.js";
 
@@ -22,8 +22,10 @@ export class TabsView {
 
   render(t) {
     const space = spaces().find((s) => s.active), w = window(), root = layout(), buttons = w?.buttons ? w : null;
-    return this.draw(t, tabRows(space, panes()), space?.id ?? null, { lights: lightsRoom(root, w, settings().zoom),
-      end: buttons ? 8 : toggleRoom(root, BUTTON), buttons });
+    const chats = Object.fromEntries(terminals().filter((c) => c.state === "live" && c.labels?.[CHAT_TAB])
+      .map((c) => [c.labels[CHAT_TAB], c]));                // a chat tab's agent: a terminal with no pane
+    return this.draw(t, tabRows(space, panes(), chats), space?.id ?? null, {
+      lights: lightsRoom(root, w, settings().zoom), end: buttons ? 8 : toggleRoom(root, BUTTON), buttons });
   }
 
   /** ROWS (tabRows') of SPACE, in ROOM. @param {Tab[]} rows @param {string | null} space @param {Room} room */

@@ -17,11 +17,11 @@ API = "https://api.iconify.design"
 WIDTH = 120                   # a line's cells, as every file keeps to
 SVG = "http://www.w3.org/2000/svg"
 # the views' icons, Lucide's names: the mod draws each with icon(name), and tests/test_app.py fails on one it does not
-UI = ("arrow-up", "book-marked", "bot", "check", "chevron-down", "chevron-right", "chevrons-down-up", "circle-dot",
-      "code", "columns-2", "copy", "ellipsis", "external-link", "eye", "eye-off", "file-plus", "files", "folder-plus",
-      "git-branch", "hand", "layers", "loader-circle", "message-square", "minus", "monitor", "notebook", "panel-left",
-      "panel-right", "plus", "refresh-cw", "rows-2", "search", "server", "settings", "sparkles", "square",
-      "square-terminal", "undo-2", "x", "zap")
+UI = ("arrow-up", "book-marked", "bot", "check", "chevron-down", "chevron-right", "chevron-up", "chevrons-down-up",
+      "circle-dot", "code", "columns-2", "copy", "ellipsis", "external-link", "eye", "eye-off", "file-plus", "files",
+      "folder-plus", "git-branch", "hand", "layers", "loader-circle", "message-square", "minus", "monitor", "notebook",
+      "panel-left", "panel-right", "plus", "refresh-cw", "rows-2", "search", "server", "settings", "sparkles", "square",
+      "square-slash", "square-terminal", "undo-2", "x", "zap")
 
 
 def file_types():

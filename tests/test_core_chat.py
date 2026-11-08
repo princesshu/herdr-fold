@@ -77,6 +77,14 @@ class Steps(Case):
     def kinds(self, *lines):
         return [step["kind"] for step in chat.steps(self.write(*lines))["steps"]]
 
+    def test_a_file_in_claudes_folder_is_named_from_there_one_outside_whole(self):
+        inside = said({"type": "tool_use", "id": "t1", "name": "Read", "input": {"file_path": "/repo/lumen/src/a.py"}},
+                      cwd="/repo/lumen")
+        outside = said({"type": "tool_use", "id": "t2", "name": "Read", "input": {"file_path": "/etc/hosts"}},
+                       cwd="/repo/lumen")
+        steps = chat.steps(self.write(inside, outside))["steps"]
+        self.assertEqual([step["main"] for step in steps], ["src/a.py", "/etc/hosts"])
+
     def test_a_turn_becomes_its_steps(self):
         answer = chat.steps(self.write(USER, THOUGHT, READ, READ_OK, ANSWER))
         steps = answer["steps"]
@@ -145,6 +153,12 @@ class Steps(Case):
         self.assertEqual((steps[2]["kind"], steps[2]["name"]), ("agent", "general-purpose"))   # its name before 2.1
         self.assertEqual(steps[3]["items"], [{"text": "Write the test", "done": True},
                                              {"text": "Make it pass", "done": False}])
+
+    def test_a_question_and_a_plan_say_their_first_words(self):
+        steps = chat.steps(self.write(
+            call("q1", "AskUserQuestion", questions=[{"question": "Which page size?", "options": []}]),
+            call("p1", "ExitPlanMode", plan="## The plan\n\n1. Keep the page inside its range\n2. Test it")))["steps"]
+        self.assertEqual([s["main"] for s in steps], ["Which page size?", "Keep the page inside its range"])
 
     def test_an_unknown_block_is_a_plain_step_and_metadata_is_skipped(self):
         steps = chat.steps(self.write(
@@ -243,6 +257,12 @@ class Files(unittest.TestCase):
         with open(os.path.join(self.folder, "answer.json"), encoding="utf-8") as f:
             self.assertEqual(json.load(f), {"id": "r1", "choice": "allow"})
 
+    def test_an_answer_to_one_claude_asks_in_its_own_dialog_takes_it_away(self):
+        self.ask({**REQUEST, "kind": "dialog"})                  # its card answers by keys in Claude's terminal
+        self.assertTrue(chat.answer(SESSION, {"id": "r1", "choice": "key"}))
+        self.assertIsNone(chat.pending(SESSION))
+        self.assertEqual(os.listdir(self.folder), [])
+
     def test_an_answer_for_another_request_is_refused(self):
         self.assertFalse(chat.answer(SESSION, {"id": "r1", "choice": "allow"}))         # nothing asked
         self.ask()
@@ -278,6 +298,21 @@ class Files(unittest.TestCase):
         statefile.write(chat.status_path(SESSION), {"context": 42})
         answer = cli("steps", SESSION, "0")[1]
         self.assertEqual((answer["pending"], answer["status"]), (REQUEST, {"context": 42}))
+
+    def test_a_waiting_edit_brings_its_change_numbered_by_the_file(self):
+        """What Claude asks to change, as the chat's card shows it: its lines numbered where they stand in the file."""
+        path = os.path.join(self.home, "books.py")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("".join(f"line {n}\n" for n in range(1, 31)))
+        self.ask({**REQUEST, "tool_name": "Edit", "tool_input": {"file_path": path, "old_string": "line 12\n",
+                                                                 "new_string": "line 12\nline 12b\n"}})
+        change = cli("steps", SESSION, "0")[1]["pending"]["change"]
+        self.assertEqual(change, {"path": path, "lines": ["@@ -12,1 +12,2 @@", " line 12", "+line 12b"]})
+        self.ask({**REQUEST, "tool_name": "Write", "tool_input": {"file_path": os.path.join(self.home, "new.md"),
+                                                                  "content": "# New\n"}})
+        self.assertEqual(cli("steps", SESSION, "0")[1]["pending"]["change"]["lines"], ["@@ -0,0 +1,1 @@", "+# New"])
+        self.ask()                                                              # a command: no change
+        self.assertNotIn("change", cli("steps", SESSION, "0")[1]["pending"])
 
     def test_the_command_line_answers(self):
         self.ask()

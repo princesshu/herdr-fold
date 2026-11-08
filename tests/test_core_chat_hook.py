@@ -62,15 +62,6 @@ class Decision(unittest.TestCase):
         self.assertEqual(out, decided({"behavior": "allow", "updatedInput": {
             "questions": QUESTION["tool_input"]["questions"], "answers": {"Which page size?": "20"}}}))
 
-    def test_a_plan_yes_edit_automatically_yes_ask_and_keep_planning(self):
-        for choice, mode in (("keep", "acceptEdits"), ("allow", "default")):
-            with self.subTest(choice):
-                out = chat_hook.claude_decision(PLAN, {"id": "r", "choice": choice})
-                self.assertEqual(out, decided({"behavior": "allow", "updatedPermissions": [
-                    {"type": "setMode", "mode": mode, "destination": "session"}]}))
-        out = chat_hook.claude_decision(PLAN, {"id": "r", "choice": "deny", "text": "Keep the old page size"})
-        self.assertEqual(out, decided({"behavior": "deny", "message": "Keep the old page size"}))
-
 
 class Waiting(unittest.TestCase):
     def setUp(self):
@@ -100,7 +91,7 @@ class Waiting(unittest.TestCase):
         seen = []
         self.later(lambda asked: seen.append(asked) or chat.answer(SESSION, {"id": asked["id"], "choice": "deny"}))
         chat_hook.wait_for(BASH, timeout=5, poll=0.02)
-        self.assertEqual(sorted(seen[0]), ["id", "kind", "permission_suggestions", "tool_input", "tool_name"])
+        self.assertEqual(sorted(seen[0]), ["cwd", "id", "kind", "permission_suggestions", "tool_input", "tool_name"])
         self.assertEqual((seen[0]["kind"], seen[0]["tool_input"]), ("permission", BASH["tool_input"]))
 
     def test_no_answer_in_time_prints_nothing(self):
@@ -111,6 +102,18 @@ class Waiting(unittest.TestCase):
                 contextlib.redirect_stdout(out):
             self.assertEqual(chat_hook.main(["chat_hook.py", "permission"]), 0)
         self.assertEqual(out.getvalue(), "")
+
+    def test_a_plan_is_posted_for_its_card_and_left_to_claudes_own_dialog(self):
+        # Claude takes no hook's yes to leave plan mode: the card answers in its terminal, the hook returns at once
+        out = io.StringIO()
+        started = time.monotonic()
+        with mock.patch.object(chat_hook, "TIMEOUT", 3), mock.patch("sys.stdin", io.StringIO(json.dumps(PLAN))), \
+                contextlib.redirect_stdout(out):
+            self.assertEqual(chat_hook.main(["chat_hook.py", "permission"]), 0)
+        self.assertLess(time.monotonic() - started, 2)
+        self.assertEqual(out.getvalue(), "")
+        asked = chat.pending(SESSION)
+        self.assertEqual((asked["kind"], asked["tool_input"]), ("dialog", PLAN["tool_input"]))
 
     def test_a_strangers_answer_is_ignored(self):
         self.later(lambda asked: statefile.write(os.path.join(self.folder, "answer.json"),
