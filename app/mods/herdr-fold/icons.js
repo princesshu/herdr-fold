@@ -9,6 +9,7 @@ export const ICONS = {
   "chevron-right": "mods/herdr-fold/icons/lucide/chevron-right.svg",
   "chevrons-down-up": "mods/herdr-fold/icons/lucide/chevrons-down-up.svg",
   "circle-dot": "mods/herdr-fold/icons/lucide/circle-dot.svg",
+  "code": "mods/herdr-fold/icons/lucide/code.svg",
   "columns-2": "mods/herdr-fold/icons/lucide/columns-2.svg",
   "copy": "mods/herdr-fold/icons/lucide/copy.svg",
   "ellipsis": "mods/herdr-fold/icons/lucide/ellipsis.svg",
@@ -19,11 +20,13 @@ export const ICONS = {
   "files": "mods/herdr-fold/icons/lucide/files.svg",
   "folder-plus": "mods/herdr-fold/icons/lucide/folder-plus.svg",
   "git-branch": "mods/herdr-fold/icons/lucide/git-branch.svg",
+  "hand": "mods/herdr-fold/icons/lucide/hand.svg",
   "layers": "mods/herdr-fold/icons/lucide/layers.svg",
   "loader-circle": "mods/herdr-fold/icons/lucide/loader-circle.svg",
   "message-square": "mods/herdr-fold/icons/lucide/message-square.svg",
   "minus": "mods/herdr-fold/icons/lucide/minus.svg",
   "monitor": "mods/herdr-fold/icons/lucide/monitor.svg",
+  "notebook": "mods/herdr-fold/icons/lucide/notebook.svg",
   "panel-left": "mods/herdr-fold/icons/lucide/panel-left.svg",
   "panel-right": "mods/herdr-fold/icons/lucide/panel-right.svg",
   "plus": "mods/herdr-fold/icons/lucide/plus.svg",
@@ -36,7 +39,8 @@ export const ICONS = {
   "square": "mods/herdr-fold/icons/lucide/square.svg",
   "square-terminal": "mods/herdr-fold/icons/lucide/square-terminal.svg",
   "undo-2": "mods/herdr-fold/icons/lucide/undo-2.svg",
-  "x": "mods/herdr-fold/icons/lucide/x.svg"
+  "x": "mods/herdr-fold/icons/lucide/x.svg",
+  "zap": "mods/herdr-fold/icons/lucide/zap.svg"
 };
 export const BY_EXTENSION = {
   "py": "mods/herdr-fold/icons/catppuccin/python.svg",
