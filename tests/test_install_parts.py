@@ -172,7 +172,7 @@ class Page(unittest.TestCase):
             text = f.read()
         self.assertNotRegex(text, r"https?:|//[\w.-]+\.\w")
         pictures = re.findall(r'src="([^"]+)"', text)
-        self.assertEqual(len(pictures), 2)
+        self.assertEqual(len(pictures), 1)                  # the TUI's; the Herdr app's comes with its new picture
         for rel in pictures:
             path = os.path.normpath(os.path.join(os.path.dirname(page), rel))
             self.assertTrue(path.startswith(PACKAGE + os.sep) and os.path.isfile(path), rel)
