@@ -309,8 +309,8 @@ class Picture:
         """The picture as a PNG with the pixels COLUMNS x ROWS cells show: its longer side, the pane's height for a
         tall one."""
         width = width_px(columns)
-        if self.drawn:
-            return media.drawn_png(self.path, width, self.work)
+        if self.drawn:                               # a page as a browser of the room's size shows it
+            return media.drawn_png(self.path, width, self.work, round(rows * CELL_PX * CELL))
         return media.as_png(self.path, self.work, min(2400, max(width, round(rows * CELL_PX * CELL))))
 
     def draw(self, term):
@@ -470,7 +470,7 @@ class PictureAndCode:
     def __init__(self, spec):
         title = spec.get("title") or ""
         self.picture, self.code = Picture(spec["picture"], title), Pager(load(spec), title, None, spec.get("open"))
-        self.view, self.share, self.dragging, self.columns = "split", 0.5, False, 0
+        self.view, self.share, self.dragging, self.columns, self.side = "split", 0.5, False, 0, 0
 
     def views(self):
         """The one shown alone, or the code beside the picture (its keys and status); what c turns each to."""
@@ -504,8 +504,10 @@ class PictureAndCode:
         for row, text in enumerate(self.code.rows(left, height - 1)):
             out.append(f"\x1b[{row + 1};1H\x1b[0m{text}\x1b[0m")
         out += [f"\x1b[{row + 1};{left + 1}H\x1b[2m│\x1b[0m" for row in range(height - 1)]
-        out.append(self.picture.place(columns - left - 1, height - 1, left + 1, columns))   # made once, as wide as
-        out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns)}\x1b[K\x1b[0m")   # the pane: a drag fits it
+        if not self.dragging:                        # made for the side once let go: fitted meanwhile, as made
+            self.side = columns - left - 1
+        out.append(self.picture.place(columns - left - 1, height - 1, left + 1, self.side))
+        out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns)}\x1b[K\x1b[0m")
         term.write("".join(out))
         term.flush()
         return None

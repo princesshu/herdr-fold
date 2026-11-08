@@ -14,6 +14,9 @@ const PREVIEWS = "herdr-fold.previews";   // what each space's preview tab shows
 const LINES = 1500;                       // a diff's or a file's lines shown at most
 const PICTURE = 1600;                     // pixels: an image's or a PDF page's width as core/media.py makes it
 const GAP = 16;                           // px between two of a PDF's pages, as the TUI's row
+const MARGIN = 32;                        // px each side of a PDF's page: its air, the scrollbar's room on the right
+const INSET = 24;                         // px of the board round a picture
+const FIT = 250;                          // ms the board's size stays before an SVG or a page is drawn for it
 const TICK = 200;                         // ms between two looks at the PDF's pages in view
 /** @type {[string, string][]} an SVG's or a page's views: its code, both side by side, its picture */
 const VIEWS = [["code", "Code"], ["split", "Split"], ["picture", "Picture"]];
@@ -56,10 +59,17 @@ export class Preview {
      * pixels */
     this.picture = null;
     /** @type {{ sizes: number[][], count: number | null, made: (string | undefined)[], range: any, making: boolean,
-     * page: number } | null} a PDF's pages: each one's size in points, its PNG once made ("" where it cannot be) */
+     * page: number, room: number | null } | null} a PDF's pages: each one's size in points, its PNG once made ("" where
+     * it cannot be); the list's width (logical px) once it is known */
     this.pdf = null;
     /** @type {any} the ticks that make the PDF's pages in view */
     this.ticking = null;
+    /** an SVG or a page on this Mac, drawn for the board's size once it is known */
+    this.drawing = false;
+    /** @type {{ width: number, height: number } | null} the board's size the picture was drawn for */
+    this.drawnFor = null;
+    /** @type {any} the wait before it is drawn for a new size */
+    this.fitting = null;
     /** an SVG's or a page's view (VIEWS'), kept for the next one */
     this.shown = "split";
     this.loading = false;
@@ -80,8 +90,9 @@ export class Preview {
   /** WHAT from its machine: a file, or from core/ a diff, a commit or an issue; an answer for an older one dropped. */
   load(what, cx) {
     this.ticking?.cancel();
-    Object.assign(this, { what, rows: [], issue: null, picture: null, pdf: null, ticking: null, loading: true,
-      note: null });
+    this.fitting?.cancel();
+    Object.assign(this, { what, rows: [], issue: null, picture: null, pdf: null, ticking: null, drawing: false,
+      drawnFor: null, fitting: null, loading: true, note: null });
     cx.spawn(async (cx) => {
       try {
         if (what.kind === "file" && ["image", "pdf"].includes(mediaKind(what.path) ?? "")) {
@@ -94,10 +105,7 @@ export class Preview {
           if (text === null) return void (this.note = "This file is no longer there");
           this.rows = text.replace(/\n$/, "").split("\n").slice(0, LINES)
             .map((line, i) => ({ kind: " ", number: i + 1, text: line }));
-          if (["svg", "html"].includes(mediaKind(what.path) ?? "") && !what.on) {   // its picture beside, from this Mac
-            cx.notify();
-            await this.paint(what);
-          }
+          this.drawing = ["svg", "html"].includes(mediaKind(what.path) ?? "") && !what.on;   // beside, for the board
           return;
         }
         if (what.kind === "issue") {
@@ -125,16 +133,39 @@ export class Preview {
   }
 
   /** WHAT as a PNG made on this Mac (core/media.py), in the app's home: a PDF's first page, with each page's size; an
-   * SVG or a page that cannot be drawn keeps its code alone. */
-  async paint(what) {
-    const answer = await this.core(MEDIA, ["picture", `${what.root}/${what.path}`, "0", String(PICTURE)], home(), null);
+   * SVG or a page for a board of SIZE (logical px), one that cannot be drawn leaving its code alone.
+   * @param {{ width: number, height: number } | null} [size] */
+  async paint(what, size = null) {
+    const room = size ? [size.width, size.height].map((n) => String(Math.max(1, Math.round(n - 2 * INSET)) * 2))
+      : [String(PICTURE)];
+    const answer = await this.core(MEDIA, ["picture", `${what.root}/${what.path}`, "0", ...room], home(), null);
     if (what.n !== this.n) return;
+    if (size) Object.assign(this, { drawnFor: size, drawing: Boolean(answer.png) });
     const [w, h] = answer.size ?? [1, 1];                 // no helper: the first page alone, through sips
     if (answer.kind === "pdf" && answer.png) {
       this.pdf = { sizes: answer.pages ?? [[612, Math.round((612 * h) / w)]], count: answer.pages?.length ?? null,
-        made: [answer.png], range: null, making: false, page: 0 };
+        made: [answer.png], range: null, making: false, page: 0, room: null };
     } else this.picture = answer.png ? { png: answer.png, size: answer.size } : null;
     this.note = answer.png || this.rows.length ? null : "This picture cannot be shown";
+  }
+
+  /** The board's SIZE (logical px), as the canvas reports it: an SVG or a page drawn for the room in it, a moment
+   * after it settles (a dragged divider's, once it stops). */
+  fit(size, cx) {
+    const made = this.drawnFor, what = this.what;
+    if (!this.drawing || made && Math.abs(made.width - size.width) < 8 && Math.abs(made.height - size.height) < 8) {
+      return;
+    }
+    this.fitting?.cancel();
+    this.fitting = cx.timer.after(FIT, (cx) => cx.spawn(async (cx) => {
+      try {
+        await this.paint(what, size);
+      } catch (e) {
+        this.note = said(e);
+      } finally {
+        cx.notify();
+      }
+    }));
   }
 
   /** While a PDF is shown: the bar's page kept up with the scrolled list, and a page in view or next to it made, one
@@ -185,7 +216,7 @@ export class Preview {
     const frame = v_flex().id("preview").size_full().min_h(0).text_color(t.foreground).text_size(13)  // the pane's fill
       .on_mouse_down("right", () => this.menus.open(this.items()));
     if (this.issue) return frame.child(this.issueView(t));
-    if (this.picture && this.rows.length) return frame.child(this.codeAndPicture(t, code));
+    if (this.drawing && this.rows.length) return frame.child(this.codeAndPicture(t, code));
     if (this.picture) return frame.child(this.pictureView(t));
     if (this.pdf) return frame.child(this.pdfView(t));
     if (this.rows.length) {                       // a page's lines under Open in Browser, as the TUI's o
@@ -198,7 +229,7 @@ export class Preview {
   /** What a right click on the tab offers, as the TUI's: an SVG's or a page's views, the file in the browser, the tab
    * closed. @returns {import("./menus.js").Item[]} */
   items() {
-    const both = Boolean(this.picture && this.rows.length);
+    const both = this.drawing && this.rows.length > 0;
     return [...(both ? VIEWS.map(([view, label]) => ({ label, on: this.shown === view, act: (cx) => {
       this.shown = view;
       cx.notify();
@@ -215,7 +246,7 @@ export class Preview {
   bar(t) {
     const { pdf } = this;
     return h_flex().h(40).flex_none().px(12).gap(4).items_center().border_b(1).border_color(t.border)
-      .when(Boolean(this.picture && this.rows.length), (e) => e.child(choices(t, "preview", VIEWS, this.shown,
+      .when(this.drawing && this.rows.length > 0, (e) => e.child(choices(t, "preview", VIEWS, this.shown,
         (shown, cx) => {
           this.shown = shown;
           cx.notify();
@@ -239,15 +270,24 @@ export class Preview {
    * shape until then), as it comes into view. */
   pdfView(t) {
     const pdf = /** @type {NonNullable<Preview["pdf"]>} */ (this.pdf), list = `pdf-${this.what.n}`;  // new: at its top
+    const shown = pdf.sizes.map(([w, h]) => {       // at their own size, smaller where the room is narrower
+      const k = pdf.room ? Math.min(1, Math.max(1, pdf.room - 2 * MARGIN) / w) : 1;
+      return [w * k, h * k];
+    });
     const page = (n) => {
-      const [w, h] = pdf.sizes[n], made = pdf.made[n];
+      const [w, h] = shown[n], made = pdf.made[n];
       return div().w_full().h(h + GAP).flex_none().pt(GAP).flex().justify_center()
-        .child((made ? image(made) : div().bg(t.raised)).w(w).h(h).max_w_full().shadow_md());   // a page on the board
+        .child((made ? image(made) : div().bg(t.raised)).w(w).h(h).shadow_md());              // a page on the board
     };
     return v_flex().size_full().min_h(0)
       .child(this.bar(t))
-      .child(div().flex_1().min_h(0).relative().bg(t.canvas)
-        .child(v_virtual_list(list, pdf.sizes.length, pdf.sizes.map(([, h]) => h + GAP), (n) => String(n), (range) => {
+      .child(div().id(`${list}-room`).flex_1().min_h(0).relative().bg(t.canvas)
+        .on_size_change((size, cx) => {
+          if (size.width === pdf.room) return;
+          pdf.room = size.width;
+          cx.notify();
+        })
+        .child(v_virtual_list(list, pdf.sizes.length, shown.map(([, h]) => h + GAP), (n) => String(n), (range) => {
           pdf.range = range;                                    // the ticks make what is in view
           return Array.from({ length: range.end - range.start }, (_, i) => page(range.start + i));
         }).size_full())
@@ -270,10 +310,12 @@ export class Preview {
   /** The picture on the board, as a design tool's artboard: as large as the room allows and never larger than it is,
    * centered, the room round it the canvas's color. */
   canvas(t) {
-    const { png, size } = /** @type {NonNullable<Preview["picture"]>} */ (this.picture);
-    return div().flex_1().min_h(0).relative().bg(t.canvas)          // the picture sized to the room, not it to the
-      .child(div().absolute().inset(24).flex().items_center().justify_center()                         // picture
-        .child(image(png).size_full().when(Boolean(size), (e) => e.max_w(size?.[0] ?? 0).max_h(size?.[1] ?? 0))));
+    const { png = null, size = null } = this.picture ?? {};
+    return div().id("board").flex_1().min_h(0).relative().bg(t.canvas)          // the picture sized to the room, not
+      .on_size_change((room, cx) => this.fit(room, cx))                        // it to the picture
+      .when(Boolean(png), (e) => e.child(div().absolute().inset(INSET).flex().items_center().justify_center()
+        .child(image(String(png)).size_full().when(Boolean(size), (e) => e.max_w(size?.[0] ?? 0)
+          .max_h(size?.[1] ?? 0)))));
   }
 
   /** The rows: a commit's file names as headings, a thin rule where lines are left out between two changes. */

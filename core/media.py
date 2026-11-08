@@ -1,6 +1,6 @@
 """What the preview draws as a picture: an image (as a PNG, through macOS's sips), a PDF's page (PDFKit) or an SVG or
 a page (WebKit, offline), through small Swift helpers compiled once into the cache; and the browser that opens them.
-Usage (the Herdr app mod's, in JSON): media.py picture PATH PAGE WIDTH (its kind, pages, PNG), open PATH."""
+Usage (the Herdr app mod's, in JSON): media.py picture PATH PAGE WIDTH [HEIGHT] (its kind, pages, PNG), open PATH."""
 import contextlib
 import glob
 import hashlib
@@ -21,7 +21,7 @@ APP_PICTURES = "herdr-fold-pictures"     # in the Herdr app's home: its image() 
 TIMEOUT = 120                 # seconds a compile or a page may take
 DENSITY = 2                   # a drawn SVG's or page's pixels to a point: a Mac's screen
 # the Swift helpers, each compiled once: pdf-pages `sizes PDF` prints each page's size in points, `render PDF N WIDTH
-# OUT` writes page N (from 0) WIDTH pixels wide as a PNG; page-shot `PATH WIDTH OUT RULES` draws a page or an SVG
+# OUT` writes page N (from 0) WIDTH pixels wide; page-shot `PATH WIDTH OUT RULES [HEIGHT]` draws a page or an SVG
 HELPERS = {"pdf-pages": """import AppKit
 import PDFKit
 let a = CommandLine.arguments
@@ -53,9 +53,10 @@ do { try png.write(to: URL(fileURLWithPath: a[5])) } catch { exit(3) }
 """, "page-shot": r"""import AppKit
 import WebKit
 let a = CommandLine.arguments
-guard a.count == 5, let width = Double(a[2]), width > 0 else { exit(2) }
+guard a.count == 5 || a.count == 6, let width = Double(a[2]), width > 0 else { exit(2) }
+let room = a.count == 6 ? Double(a[5]) ?? 0 : 0                  // the room's height, else 5/4 of its width
 let file = URL(fileURLWithPath: a[1]), svg = file.pathExtension.lowercased() == "svg"
-let points = width / 2, box = points * 5 / 4      // drawn twice as sharp as laid out, as on a Mac (media.py's DENSITY)
+let points = width / 2, box = room > 0 ? room / 2 : points * 5 / 4      // twice as sharp as laid out (DENSITY)
 NSApplication.shared.setActivationPolicy(.prohibited)
 var done = false, failed = false
 
@@ -181,16 +182,18 @@ def as_png(path, folder, side):
     return made if size(made) else None
 
 
-def drawn_png(path, width, folder):
-    """An SVG or a page as WebKit draws it, offline and none of its scripts run, WIDTH pixels wide at most, made in
-    FOLDER (kept for its version); an SVG through sips without it; None where it cannot be."""
-    made = os.path.join(folder, f"{named(path)}-drawn-{width}-{revision('page-shot')}.png")     # a newer helper's anew
+def drawn_png(path, width, folder, height=None):
+    """An SVG or a page as WebKit draws it, offline and none of its scripts run, WIDTH pixels wide and HEIGHT high at
+    most (a page's first screen that high, else 5/4 of WIDTH), made in FOLDER (kept for its version); an SVG through
+    sips without it; None where it cannot be."""
+    made = os.path.join(folder, f"{named(path)}-drawn-{width}x{height or 0}-{revision('page-shot')}.png")
     if size(made):
         return made
     tool = helper("page-shot")
     if tool:
         with tempfile.TemporaryDirectory(dir=folder) as work:            # its rules, gone even when it hung
-            done = run([tool, path, str(width), made, os.path.join(work, "rules")], TIMEOUT)
+            done = run([tool, path, str(width), made, os.path.join(work, "rules"), *([str(height)] if height else [])],
+                       TIMEOUT)
             if done and done.returncode == 0 and size(made):
                 return made
     return as_png(path, folder, width) if kind_of(path) == "svg" else None
@@ -309,14 +312,15 @@ def app_pictures():
     return made
 
 
-def picture(path, page, width):
+def picture(path, page, width, height=None):
     """PATH as the app's preview draws it: its kind, a PDF's pages (each one's size in points), and the PNG of the image
-    or of PAGE, WIDTH wide, made in the app's home (its path from there) with its size in pixels, or None."""
+    or of PAGE, WIDTH wide (an SVG or a page, HEIGHT high at most), made in the app's home (its path from there) with
+    its size (in points, a drawn one's), or None."""
     kind = kind_of(path)
     if kind not in ("image", "pdf", "svg", "html"):
         return {"kind": kind, "pages": None, "png": None, "size": None}
     folder = app_pictures()
-    made = page_png(path, page, width, folder) if kind == "pdf" else drawn_png(path, width, folder) \
+    made = page_png(path, page, width, folder) if kind == "pdf" else drawn_png(path, width, folder, height) \
         if kind in ("svg", "html") else as_png(path, folder, width)
     if made and os.path.dirname(made) != folder:          # an image already small enough: a copy in the app's home
         made = shutil.copyfile(made, os.path.join(folder, f"{named(path)}.png"))
@@ -337,12 +341,12 @@ def open_in_browser(path):
 
 def main(argv):
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
-    if command == "picture" and len(args) == 3 and args[1].isdigit() and args[2].isdigit():
-        answer = picture(args[0], int(args[1]), int(args[2]))
+    if command == "picture" and len(args) in (3, 4) and all(arg.isdigit() for arg in args[1:]):
+        answer = picture(args[0], *(int(arg) for arg in args[1:]))
     elif command == "open" and len(args) == 1:
         answer = {"opened": open_in_browser(args[0])}
     else:
-        print("usage: media.py picture PATH PAGE WIDTH | open PATH", file=sys.stderr)
+        print("usage: media.py picture PATH PAGE WIDTH [HEIGHT] | open PATH", file=sys.stderr)
         return 2
     print(json.dumps(answer))
     return 0

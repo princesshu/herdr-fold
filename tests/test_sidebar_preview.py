@@ -591,6 +591,21 @@ class Pictures(unittest.TestCase):
             view.handle(event)
         self.assertEqual(view.divider(100), pager.SIDE)                       # the code keeps some room
 
+    def test_the_picture_is_made_for_its_side_once_the_divider_is_let_go(self):
+        """Made anew for each width would take a moment at every step of a drag: it is fitted meanwhile, made for the
+        side's columns once let go."""
+        view, term = self.split(100)
+        view.draw(term)
+        widths = lambda: [call.args[1] for call in pager.media.drawn_png.call_args_list]  # noqa: E731
+        self.assertEqual(widths()[-1], pager.width_px(49))                    # the side right of the divider
+        view.handle(Mouse("press", 50, 5, 0))
+        view.handle(Mouse("move", 70, 5, 0))
+        view.draw(term)
+        self.assertEqual(widths()[-1], pager.width_px(49))                    # dragged: the one made before
+        view.handle(Mouse("release", 70, 5, 0))
+        view.draw(term)
+        self.assertEqual(widths()[-1], pager.width_px(29))
+
     def test_c_and_the_right_click_turn_to_the_code_the_picture_and_both(self):
         view, term = self.split(80)
         for turn, shown in ((lambda: view.handle(Key("char", "c")), "code"),

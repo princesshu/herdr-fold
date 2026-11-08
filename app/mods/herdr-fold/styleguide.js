@@ -249,9 +249,9 @@ export function guide(proto) {
     preview: [["Diff", previewOf({ rows: DIFF }), 200], ["Commit", previewOf({ rows: COMMIT }), 200],
       ["Loading", previewOf({ loading: true }), 52], ["Error", previewOf({ note: "HTTP 404: Not Found" }), 52],
       ["A PDF, scrolled to its second page", previewOf({ pdf: { sizes: Array(12).fill([612, 792]), count: 12,
-        made: Array(12).fill(PAGE), range: null, making: false, page: 1 } }), 320],
+        made: Array(12).fill(PAGE), range: null, making: false, page: 1, room: null } }), 320],
       ...[["split", "A page, its code and picture"], ["code", "Its code alone"], ["picture", "Its picture alone"]]
-        .map(([shown, name]) => [name, previewOf({ rows: HTML, picture: { png: PAGE }, shown }), 320])],
+        .map(([shown, name]) => [name, previewOf({ rows: HTML, picture: { png: PAGE }, drawing: true, shown }), 320])],
     issue: previewOf({ issue: ISSUE }),
     files: [["Default", filesOf()], ["A file chosen", filesOf({ picked: "src/lumen/app.py" })],
       ["A full folder", filesOf({ open: new Set(["src", "src/lumen", "src/lumen/routes"]) })],

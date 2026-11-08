@@ -313,6 +313,16 @@ class ForTheApp(unittest.TestCase):
         self.assertEqual(answer["kind"], "html")
         self.assertEqual(media.size(os.path.join(self.tmp, "app", answer["png"]))[0], 600)
 
+    @unittest.skipUnless(MAC and shutil.which("swiftc"), "WebKit and swiftc: macOS")
+    def test_a_page_is_drawn_as_a_browser_as_large_as_its_room(self):
+        """Beside its code, a page is laid out as a browser of the room's size shows it, the room's height too."""
+        page = os.path.join(self.tmp, "index.html")
+        with open(page, "w", encoding="utf-8") as f:
+            f.write("<html><body><h1>Pagination</h1><p>Every list route answers a page.</p></body></html>\n")
+        self.assertEqual(media.size(media.drawn_png(page, 400, self.tmp, 900)), (400, 900))
+        answer = media.picture(page, 0, 400, 200)
+        self.assertEqual(answer["size"], [200, 100])                          # in points: the room's
+
     def test_an_old_picture_goes(self):
         old = png(os.path.join(media.app_pictures(), "old.png"), 4, 4)
         os.utime(old, (1, 1))

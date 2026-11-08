@@ -16,17 +16,17 @@ All notable changes to this project are listed here. The format follows
 - One theme for both parts: the installer and the TUI's theme picker set herdr-fold's layout in the Herdr app too, and
   a running app switches at once; an update keeps the theme there is. See [Themes](docs/themes.md).
 - An image or a PDF chosen in Files is drawn in the preview tab, an image fitted to it and never larger than it is, a
-  PDF's pages one under another, a gap apart, scrolled: in the sidebar (Ghostty shows pictures in herdr; the wheel,
-  ↑ ↓, Space, `g` `G`) and in the Herdr app mod, its page in view above them.
-  A page, a PDF or an image opens in the default browser from Files' right click, or `o` and a button in the preview
-  tab. See [The sidebar](docs/sidebar.md) and [The Herdr app](docs/app.md#the-preview-tab).
+  PDF's pages one under another, a gap apart, scrolled (in the app clear of the scrollbar, smaller in a narrower tab):
+  in the sidebar (Ghostty shows pictures in herdr; the wheel, ↑ ↓, Space, `g` `G`) and in the Herdr app mod, its page in
+  view above them. A page, a PDF or an image opens in the default browser from Files' right click, or `o` and a button
+  in the preview tab. See [The sidebar](docs/sidebar.md) and [The Herdr app](docs/app.md#the-preview-tab).
 - An SVG or an HTML page chosen in Files shows its code and its picture side by side in the preview tab, as VS Code's
-  preview to the side: the divider between them drags and the picture fits its side, an SVG at its own size, never
-  larger, what it leaves empty clear (in the Herdr app mod on a canvas, as a design tool's artboard). `c` in the
-  sidebar, Code, Split and Picture in the app show either alone or both again; a right click in the preview tab offers
-  them, Open in Browser and Close Preview. macOS's WebKit draws it offline: nothing is asked of the network and none of
-  its scripts run, so a file cannot learn who opened it. See [the sidebar's README](src/plugins/sidebar/README.md) and
-  [The Herdr app](docs/app.md#the-preview-tab).
+  preview to the side: the divider between them drags and the page is drawn for its side as a browser that size shows
+  it, an SVG at its own size, never larger, what it leaves empty clear (in the Herdr app mod on a canvas, as a design
+  tool's artboard). `c` in the sidebar, Code, Split and Picture in the app show either alone or both again; a right
+  click in the preview tab offers them, Open in Browser and Close Preview. macOS's WebKit draws it offline: nothing is
+  asked of the network and none of its scripts run, so a file cannot learn who opened it. See [the sidebar's
+  README](src/plugins/sidebar/README.md) and [The Herdr app](docs/app.md#the-preview-tab).
 - In the Herdr app mod, a space's first tab is named as the space until it is renamed, as the TUI's main tab.
 - herdr-fold says when a newer version is out: once a day it asks api.github.com for its latest release (the request
   alone), says a newer one once (a herdr or Herdr app notification) and keeps it on the sidebar's last row. The
