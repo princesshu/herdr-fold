@@ -41,9 +41,6 @@ above a terminal](assets/screenshots/hero.webp)
   under them, Spaces with the waits and the conversations on the left, the twelve themes; on remote machines alike:
   [The Herdr app](docs/app.md).
 
-  ![herdr's desktop app with herdr-fold's layout: Spaces and the conversations on the left, an issue in the preview
-  tab, and on the right the Issues view by priority above the tab's own terminal](assets/screenshots/app.webp)
-
 ![An issue from the sidebar goes to Claude, which fixes it, and the message it writes closes the
 issue](assets/screenshots/issue-to-agent.webp)
 
