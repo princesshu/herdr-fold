@@ -212,7 +212,16 @@ class ForTheApp(unittest.TestCase):
         self.assertEqual((answer["kind"], answer["pages"]), ("image", None))
         self.assertTrue(answer["png"].startswith("herdr-fold-pictures/"))
         self.assertEqual(media.size(os.path.join(self.tmp, "app", answer["png"])), (100, 66))
-        self.assertEqual(answer["size"], [100, 66])
+        self.assertEqual((answer["size"], answer["pixels"]), ([100, 66], [300, 200]))   # drawn smaller, its own size
+
+    def test_a_pictures_own_pixels_a_png_by_its_head_another_by_sips(self):
+        shot = png(os.path.join(self.tmp, "shot.png"), 30, 20)
+        self.assertEqual(media.pixels(shot), (30, 20))
+        self.assertIsNone(media.pixels(__file__))
+        if shutil.which("sips"):
+            subprocess.run(["sips", "-s", "format", "jpeg", shot, "--out", os.path.join(self.tmp, "shot.jpg")],
+                           check=True, capture_output=True)
+            self.assertEqual(media.pixels(os.path.join(self.tmp, "shot.jpg")), (30, 20))
 
     @unittest.skipUnless(shutil.which("sips"), "macOS's sips")
     def test_every_kind_sips_writes_is_drawn(self):
@@ -229,6 +238,22 @@ class ForTheApp(unittest.TestCase):
         """The app draws it no larger than that, as the TUI does."""
         icon = png(os.path.join(self.tmp, "icon.png"), 40, 30)
         self.assertEqual(media.picture(icon, 0, 100)["size"], [40, 30])
+
+    def test_a_changed_pictures_last_commit_is_drawn_and_gits_copy_goes(self):
+        """A picture under Changes shows what the last commit had beside it, drawn as any other: only PNGs are left."""
+        repo = os.path.join(self.tmp, "repo")
+        set_env(self, GIT_CONFIG_GLOBAL=os.devnull, GIT_AUTHOR_NAME="dev", GIT_AUTHOR_EMAIL="dev@example.com",
+                GIT_COMMITTER_NAME="dev", GIT_COMMITTER_EMAIL="dev@example.com")
+        subprocess.run(["git", "init", "-q", repo], check=True)
+        png(os.path.join(repo, "shot.png"), 30, 20)
+        for args in (("add", "shot.png"), ("commit", "-q", "-m", "shot")):
+            subprocess.run(["git", "-C", repo, *args], check=True, capture_output=True)
+        png(os.path.join(repo, "shot.png"), 40, 20)
+        answer = media.committed_picture(repo, "shot.png", 100)
+        self.assertEqual((answer["kind"], answer["size"]), ("image", [30, 20]))
+        self.assertIsNone(media.committed_picture(repo, "new.png", 100)["png"])        # not in it: nothing before
+        made = os.listdir(os.path.join(self.tmp, "app", media.APP_PICTURES))
+        self.assertTrue(made and all(name.endswith(".png") for name in made))
 
     def test_a_changed_image_is_a_new_picture(self):
         """The app keeps a picture by its path: a file changed since is made under a new name, never the one it has."""
@@ -357,7 +382,7 @@ class ForTheApp(unittest.TestCase):
 
     def test_no_picture_for_anything_else(self):
         self.assertEqual(media.picture("/w/notes.md", 0, 100), {"kind": None, "pages": None, "png": None,
-                                                                 "size": None})
+                                                                 "size": None, "pixels": None})
 
 
 @unittest.skipUnless(MAC and shutil.which("swiftc"), "PDFKit and swiftc: macOS")

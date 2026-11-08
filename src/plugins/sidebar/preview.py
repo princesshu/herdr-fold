@@ -69,7 +69,9 @@ DELTA = ["--paging=never", "--line-numbers", "--hunk-header-decoration-style=non
 
 
 def diff_spec(root, path, staged, which=shutil.which):
-    """The diff of PATH (pages/[id].tsx is that one file)."""
+    """The diff of PATH (pages/[id].tsx is that one file); a picture's before and after (pager.PictureChange)."""
+    if media.kind_of(path) == "image":
+        return {"title": path, "change": {"root": root, "path": path, "staged": staged}}
     git, delta = which("git") or "git", which("delta")
     diff = git_argv(git, root, "diff") + (["--cached"] if staged else [])
     pipeline = [diff + ["--", path], [delta, *DELTA]] if delta else [diff + ["--color=always", "--", path]]

@@ -889,6 +889,76 @@ def run_pager(spec, keys, folder, env=None):
     return out.decode("utf-8", "replace"), ended
 
 
+class PictureChanges(unittest.TestCase):
+    """A changed picture under Changes, as VS Code's image diff: before and after side by side (one above the other in
+    a pane taller than wide), each under its caption; a new one's after alone."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        set_env(self, XDG_CACHE_HOME=os.path.join(self.tmp, "cache"), GIT_CONFIG_GLOBAL=os.devnull,
+                GIT_AUTHOR_NAME="dev", GIT_AUTHOR_EMAIL="dev@example.com", GIT_COMMITTER_NAME="dev",
+                GIT_COMMITTER_EMAIL="dev@example.com", SSH_CONNECTION=None, SSH_CLIENT=None)
+        self.repo = os.path.join(self.tmp, "repo")
+        self.git("init", "-q", self.repo)
+        png(os.path.join(self.repo, "logo.png"), 40, 30)
+        self.git("-C", self.repo, "add", "logo.png")
+        self.git("-C", self.repo, "commit", "-q", "-m", "logo")
+
+    def git(self, *args):
+        subprocess.run(["git", *args], check=True, capture_output=True)
+
+    def shown(self, path, staged=False, columns=80, rows=24):
+        """PATH's change in a COLUMNS x ROWS pane, drawn."""
+        view, term = pager.viewer(preview.diff_spec(self.repo, path, staged)), Written(columns, rows)
+        self.addCleanup(view.close, term)
+        view.draw(term)
+        return view, term
+
+    def test_a_changed_picture_shows_its_before_and_after_side_by_side(self):
+        png(os.path.join(self.repo, "logo.png"), 30, 40)
+        view, term = self.shown("logo.png")
+        self.assertIn("Index", term.out)                                     # an unstaged change: Index, Working Tree
+        self.assertIn("Working Tree", term.out)
+        self.assertIn("\x1b[1;41H\x1b[2m│", term.out)
+        columns = [int(c) for c in re.findall(r"\x1b\[\d+;(\d+)H\x1b_Ga=T", term.out)]
+        self.assertEqual(len(columns), 2)
+        self.assertTrue(columns[0] < 41 < columns[1])
+        self.assertEqual(len(set(re.findall(r"\x1b_Ga=T[^;]*?i=(\d+)", term.out))), 2)   # two pictures, not one twice
+
+    def test_a_staged_one_shows_the_last_commit_and_the_index(self):
+        png(os.path.join(self.repo, "logo.png"), 30, 40)
+        self.git("-C", self.repo, "add", "logo.png")
+        _, term = self.shown("logo.png", staged=True)
+        self.assertIn("HEAD", term.out)
+        self.assertIn("Index", term.out)
+
+    def test_a_tall_pane_shows_the_before_above_the_after_and_v_turns_them(self):
+        png(os.path.join(self.repo, "logo.png"), 30, 40)
+        view, term = self.shown("logo.png", columns=40, rows=60)
+        self.assertIn("\x1b[2m" + "─" * 40, term.out)
+        self.assertIn("v: side by side", view.status())
+        view.handle(Key("char", "v"))
+        term.out = ""
+        view.draw(term)
+        self.assertIn("\x1b[2m│", term.out)
+
+    def test_a_new_picture_shows_its_after_alone(self):
+        png(os.path.join(self.repo, "new.png"), 30, 40)
+        view, term = self.shown("new.png")
+        self.assertEqual(len(re.findall(r"\x1b_Ga=T", term.out)), 1)
+        self.assertIn("Working Tree", term.out)
+        self.assertNotIn("│", term.out)
+        self.assertNotIn("v: ", view.status())
+
+    def test_its_files_go_when_it_closes(self):
+        png(os.path.join(self.repo, "logo.png"), 30, 40)
+        view, term = self.shown("logo.png")
+        made = [view.work] + [side.work for side, _ in view.sides]
+        view.close(term)
+        self.assertEqual([path for path in made if os.path.exists(path)], [])
+
+
 class Pager(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()

@@ -15,6 +15,9 @@ All notable changes to this project are listed here. The format follows
 - Every picture macOS reads in the preview, both clients: HEIC, AVIF, JPEG XL, JPEG 2000, PSD, TGA, EXR, ICNS, the
   GPU's textures and a camera's raw file (DNG, CR2, NEF, ARW…) beside PNG, JPEG, GIF, WebP, TIFF and BMP; one no
   browser shows opens in Preview (Open in Preview), where a browser would only download it.
+- A changed picture under Changes shown as VS Code's image diff in both clients: before and after side by side, each
+  under its name and size (the TUI: Index and Working Tree, staged HEAD and Index; the app: HEAD and Working Tree),
+  one above the other where the room is taller than wide; a new one's after alone, a deleted one's before alone.
 
 ### Fixed
 

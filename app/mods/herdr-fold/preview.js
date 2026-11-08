@@ -6,8 +6,8 @@ import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, TextView, v_re
   from "gpui-base";
 import { home, panes, readTextFile, setShared, shared, spaces, window, run as command } from "herdr";
 import { GIT, GITHUB, MEDIA } from "./helper.js";
-import { browsable, commitRows, diffRows, mediaKind, opener, previewName, previewTab, priorityColor, said,
-  safeMarkdown, stacks } from "./logic.js";
+import { browsable, changeSides, commitRows, diffRows, mediaKind, opener, previewName, previewTab, priorityColor,
+  said, safeMarkdown, stacks } from "./logic.js";
 import { Menus } from "./menus.js";
 import { chip, choices, iconButton } from "./parts.js";
 
@@ -36,6 +36,16 @@ export function showPreview(what) {
   command("tab.select", { id: tab.id });
 }
 
+/** PICTURE ({ png, size }: core/media.py's) on the canvas, as a design tool's artboard: sized to the room, never
+ * larger than it is, centered, the room round it the canvas's color. */
+function artboard(t, id, picture) {
+  const { png = null, size = null } = picture ?? {};
+  return div().id(id).flex_1().min_h(0).relative().bg(t.canvas)
+    .when(Boolean(png), (e) => e.child(div().absolute().inset(INSET).flex().items_center().justify_center()
+      .child(image(String(png)).size_full().when(Boolean(size), (e) => e.max_w(size?.[0] ?? 0)
+        .max_h(size?.[1] ?? 0)))));
+}
+
 /** The shown space's preview tab, or null (Files offers Close Preview while there is one). */
 export function shownPreviewTab() {
   return previewTab(spaces().find((s) => s.active), panes());
@@ -59,6 +69,8 @@ export class Preview {
     /** @type {{ png: string, size?: number[] | null } | null} core/media.py's PNG, in the app's home, and its size in
      * pixels */
     this.picture = null;
+    /** @type {{ before: any, after: any } | null} a changed picture's last commit and file, each core/media.py's */
+    this.change = null;
     /** @type {{ sizes: number[][], count: number | null, made: (string | undefined)[], range: any, making: boolean,
      * page: number, room: number | null } | null} a PDF's pages: each one's size in points, its PNG once made ("" where
      * it cannot be); the list's width (logical px) once it is known */
@@ -96,7 +108,8 @@ export class Preview {
   load(what, cx) {
     this.ticking?.cancel();
     this.fitting?.cancel();
-    Object.assign(this, { what, rows: [], issue: null, picture: null, pdf: null, ticking: null, drawing: false,
+    Object.assign(this, { what, rows: [], issue: null, picture: null, change: null, pdf: null, ticking: null,
+      drawing: false,
       drawnFor: null, fitting: null, loading: true, note: null });
     cx.spawn(async (cx) => {
       try {
@@ -117,6 +130,10 @@ export class Preview {
           const answer = await this.core(GITHUB, ["view", what.github, String(what.number)], what.root, what.on);
           if (what.n === this.n) Object.assign(this, { issue: answer.issue ? answer : null, note: answer.error });
           return;
+        }
+        if (what.kind === "diff" && mediaKind(what.path) === "image") {
+          if (what.on) return void (this.note = "A picture on another machine: only those on this Mac are shown");
+          return void (await this.compare(what));
         }
         const commit = what.kind === "commit";
         const { text, error } = await this.core(GIT, [commit ? "show" : "diff", what.root, commit ? what.hash
@@ -152,6 +169,18 @@ export class Preview {
         made: [answer.png], range: null, making: false, page: 0, room: null };
     } else this.picture = answer.png ? { png: answer.png, size: answer.size } : null;
     this.note = answer.png || this.rows.length ? null : "This picture cannot be shown";
+  }
+
+  /** A changed picture's before (its last commit's) and after (the file's), as VS Code's image diff: either may be
+   * missing, a new one's before and a deleted one's after. */
+  async compare(what) {
+    const [before, after] = await Promise.all([
+      this.core(MEDIA, ["committed", what.root, what.path, String(PICTURE)], home(), null),
+      this.core(MEDIA, ["picture", `${what.root}/${what.path}`, "0", String(PICTURE)], home(), null)]);
+    if (what.n !== this.n) return;
+    const side = (/** @type {any} */ answer) => (answer?.png ? answer : null);
+    this.change = { before: side(before), after: side(after) };
+    this.note = this.change.before || this.change.after ? null : "This picture cannot be shown";
   }
 
   /** The board's SIZE (logical px), as the canvas reports it: an SVG or a page drawn for the room in it, a moment
@@ -221,6 +250,7 @@ export class Preview {
     const frame = v_flex().id("preview").size_full().min_h(0).text_color(t.foreground).text_size(13)  // the pane's fill
       .on_mouse_down("right", () => this.menus.open(this.items()));
     if (this.issue) return frame.child(this.issueView(t));
+    if (this.change && !this.note) return frame.child(this.changeView(t));
     if (this.drawing && this.rows.length) return frame.child(this.codeAndPicture(t, code));
     if (this.picture) return frame.child(this.pictureView(t));
     if (this.pdf) return frame.child(this.pdfView(t));
@@ -243,8 +273,8 @@ export class Preview {
       this.shown = view;
       cx.notify();
     } })) : []),
-    ...(both ? [{ label: "Side by Side", on: !down, act: turn(false) }, { label: "Stacked", on: down, act: turn(true) }]
-      : []),
+    ...(both || this.change?.before && this.change?.after
+      ? [{ label: "Side by Side", on: !down, act: turn(false) }, { label: "Stacked", on: down, act: turn(true) }] : []),
     ...(browsable(this.what) ? [{ label: this.opens(), act: (cx) => this.browse(cx) }] : []),
     { label: "Close Preview", act: () => {
       const tab = shownPreviewTab();
@@ -262,7 +292,7 @@ export class Preview {
           this.shown = shown;
           cx.notify();
         })))
-      .when(this.drawing && this.rows.length > 0 && this.shown === "split", (e) => {
+      .when(this.twoParts(), (e) => {
         const down = stacks(this.stacked, this.room);
         return e.child(iconButton(t, "preview-turn", down ? "columns-2" : "rows-2", down ? "Side by side" : "Stacked",
           (cx) => {
@@ -273,7 +303,15 @@ export class Preview {
       .when(Boolean(pdf), (e) => e.child(div().px(4).text_size(12).text_color(t.muted)
         .child(`Page ${(pdf?.page ?? 0) + 1} of ${pdf?.count ?? "?"}`)))
       .child(div().flex_1())
-      .child(iconButton(t, "browse", "external-link", this.opens(), (cx) => this.browse(cx), { left: true }));
+      .when(browsable(this.what), (e) => e.child(iconButton(t, "browse", "external-link", this.opens(),
+        (cx) => this.browse(cx), { left: true })));
+  }
+
+  /** Whether two parts share the room: an SVG's or a page's code and picture, or a changed picture's before and
+   * after. */
+  twoParts() {
+    return (this.drawing && this.rows.length > 0 && this.shown === "split") ||
+      Boolean(this.change?.before && this.change?.after);
   }
 
   /** Open in Browser, or Preview for a picture no browser shows (opener()). */
@@ -343,12 +381,22 @@ export class Preview {
   /** The picture on the board, as a design tool's artboard: as large as the room allows and never larger than it is,
    * centered, the room round it the canvas's color. */
   canvas(t) {
-    const { png = null, size = null } = this.picture ?? {};
-    return div().id("board").flex_1().min_h(0).relative().bg(t.canvas)          // the picture sized to the room, not
-      .on_size_change((room, cx) => this.fit(room, cx))                        // it to the picture
-      .when(Boolean(png), (e) => e.child(div().absolute().inset(INSET).flex().items_center().justify_center()
-        .child(image(String(png)).size_full().when(Boolean(size), (e) => e.max_w(size?.[0] ?? 0)
-          .max_h(size?.[1] ?? 0)))));
+    return artboard(t, "board", this.picture).on_size_change((room, cx) => this.fit(room, cx));
+  }
+
+  /** A changed picture, as VS Code's image diff: its before and after side by side, or one above the other where the
+   * room is taller than wide (or as chosen), each on the canvas over its caption; a new one's after alone. */
+  changeView(t) {
+    const sides = changeSides(/** @type {any} */ (this.change)), down = stacks(this.stacked, this.room);
+    return v_flex().size_full().min_h(0)
+      .child(this.bar(t))
+      .child(div().id("preview-room").flex_1().min_h(0).on_size_change((size, cx) => this.measure(size, cx))
+        .child((down ? v_flex() : h_flex()).size_full().children(sides.map(([caption, side], i) =>
+          v_flex().flex_1().min_w(0).min_h(0).when(i > 0, (e) => (down ? e.border_t(1) : e.border_l(1))
+            .border_color(t.border))
+            .child(artboard(t, `change-${i}`, side))
+            .child(div().h(32).flex_none().px(16).flex().items_center().text_size(12).text_color(t.muted)
+              .bg(t.canvas).child(caption))))));
   }
 
   /** The rows: a commit's file names as headings, a thin rule where lines are left out between two changes. */

@@ -53,7 +53,9 @@ agent is, and the Conversations column, the sidebar and the terminal beside it a
 one that opened it was. The next file, diff, commit or issue opened shows there too; `q`, Esc or Ctrl + C closes the
 whole tab, its terminal too. A pipe or a device is never shown, and a program that does not finish in 30 s (`gh` asking
 GitHub) is stopped with what it showed. `bat` colors a file and `delta` lays out a diff when they are installed (else
-the file plain, the diff in git's colors); the built-in pager shows either.
+the file plain, the diff in git's colors); the built-in pager shows either. A changed picture shows as VS Code's image
+diff does: before and after side by side, each under its name and size (Index and Working Tree, staged HEAD and Index),
+one above the other in a pane taller than wide, `v` or the right click turning them; a new one's after alone.
 
 - **Conversations** (a full-height pane named `conversations`, `python3 sidebar.py --conversations`, right before the
   column the sidebar is in, sharing a split with it): the Claude Code and Codex conversations of herdr's workspaces,

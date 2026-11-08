@@ -14,7 +14,7 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   terminalId, TERMINALS, urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread,
   spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow,
   railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom, mediaKind,
-  aboutLines, stacks, swapDraft, browsable, opener, fileIcon, stillResumed }
+  aboutLines, stacks, swapDraft, browsable, opener, changeSides, fileIcon, stillResumed }
   from "../mods/herdr-fold/logic.js";
 
 test("a tab nobody named after its program, an agent's first, else Terminal; an agent's icon; zoomed marked", () => {
@@ -706,6 +706,15 @@ test("a picture no browser shows opens in Preview, the web's own in the browser,
     .map((path) => opener(path, "macos")),
   ["Preview", "Preview", "Preview", "Browser", "Browser", "Browser", "Browser"]);
   assert.equal(opener("art.psd", "linux"), "Browser");                     // the desktop's own opener there
+});
+
+test("a changed picture's sides: its last commit's and the file's, each with its pixels, either one missing", () => {
+  const side = (w, h) => ({ png: "herdr-fold-pictures/x.png", size: [w, h], pixels: [w * 4, h * 4] });
+  const [before, after] = [side(160, 120), side(120, 160)];
+  assert.deepEqual(changeSides({ before, after }), [["HEAD · 640 × 480", before], ["Working Tree · 480 × 640", after]]);
+  assert.deepEqual(changeSides({ before: null, after }).map(([caption]) => caption), ["Working Tree · 480 × 640"]);
+  const deleted = { before: { png: "p", size: null, pixels: null }, after: null };   // its pixels not known
+  assert.deepEqual(changeSides(deleted).map(([caption]) => caption), ["HEAD"]);
 });
 
 test("a file named for an object's own property gets the plain file icon, never that property", () => {

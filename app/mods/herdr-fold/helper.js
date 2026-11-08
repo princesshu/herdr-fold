@@ -1499,21 +1499,22 @@ export const GIT = [
   "    head: bool",
   "",
   "",
-  "def run(root, *args, stdin=None, timeout=TIMEOUT):",
+  "def run(root, *args, stdin=None, timeout=TIMEOUT, binary=False):",
   "    \"\"\"git ARGS in ROOT, STDIN its input (else nothing to read), with no terminal to open: a " +
     "repository's config can",
-  "    name /dev/stdin or /dev/tty for git to read, which would be the sidebar's own terminal and its " +
-    "keys.\"\"\"",
+  "    name /dev/stdin or /dev/tty for git to read, which would be the sidebar's own terminal and its keys. " +
+    "BINARY: its",
+  "    output as bytes.\"\"\"",
   "    env = dict(os.environ, GIT_OPTIONAL_LOCKS=\"0\", GIT_TERMINAL_PROMPT=\"0\", " +
     "GIT_LITERAL_PATHSPECS=\"1\", LC_ALL=\"C\")",
   "    env.setdefault(\"GIT_SSH_COMMAND\", \"ssh -o BatchMode=yes\")",
   "    given = {\"input\": stdin} if stdin is not None else {\"stdin\": subprocess.DEVNULL}",
+  "    text = {} if binary else {\"text\": True, \"encoding\": \"utf-8\", \"errors\": \"replace\"}",
   "    try:",
   "        return subprocess.run([GIT, \"-c\", \"core.fsmonitor=false\", \"-c\", \"log.showSignature=false\", " +
     "\"-C\", root, *args],",
-  "                              capture_output=True, text=True, encoding=\"utf-8\", errors=\"replace\", " +
-    "timeout=timeout,",
-  "                              env=env, start_new_session=True, **given)",
+  "                              capture_output=True, timeout=timeout, env=env, start_new_session=True, " +
+    "**text, **given)",
   "    except FileNotFoundError:",
   "        return subprocess.CompletedProcess([GIT], 1, \"\", \"git is not installed\")",
   "    except (OSError, subprocess.TimeoutExpired) as err:",
@@ -1639,6 +1640,19 @@ export const GIT = [
   "              *against)",
   "    return out.stdout, (last_line(out) or \"No diff\") if out.returncode > 1 else None    # --no-index: 1, " +
     "they differ",
+  "",
+  "",
+  "def committed(root, path, out, at=\"HEAD\"):",
+  "    \"\"\"PATH as the last commit has it (AT \"\": as the index has it), written to OUT (a changed " +
+    "picture's before): git's",
+  "    own bytes, as cat-file gives them with no filter run; whether it was there.\"\"\"",
+  "    done = run(root, \"cat-file\", \"blob\", f\"{at}:{path}\", binary=True)     # one argument: never an " +
+    "option",
+  "    if done.returncode != 0:",
+  "        return False",
+  "    with open(out, \"wb\") as f:",
+  "        f.write(done.stdout)",
+  "    return True",
   "",
   "",
   "def show(root, rev):",
@@ -2326,11 +2340,206 @@ export const JOB = [
   "",
 ].join("\n");
 export const MEDIA = [
-  "\"\"\"What the preview draws as a picture: an image (as a PNG, through macOS's sips), a PDF's page (PDFKit) " +
-    "or an SVG or",
-  "a page (WebKit, offline), through small Swift helpers compiled once into the cache; and the browser that " +
-    "opens them.",
-  "Usage (the Herdr app mod's, in JSON): media.py picture PATH PAGE WIDTH [HEIGHT] (its kind, pages, PNG), " +
+  "import sys as _sys, types as _types",
+  "_sys.modules['git'] = _types.ModuleType('git')",
+  "exec('\"\"\"The sidebar\\'s git layer: nothing loses work silently (a pull is fast-forward only; no reset, " +
+    "clean or force push).\\nEvery command runs without optional locks or prompts, with a time limit, a file " +
+    "name never read as a pattern. The\\nunasked status and diff run nothing a repository\\'s config names " +
+    "(fsmonitor, filters, submodules); staging still does.\"\"\"\\nimport json\\nimport os\\nimport re\\nimport " +
+    "shutil\\nimport subprocess\\nimport sys\\nfrom dataclasses import asdict, dataclass, field\\n\\nTIMEOUT = " +
+    "60\\nNO_STATUS = \"No status: a filter in its git config cannot be turned off\"\\nNO_DIFF = \"No diff: a " +
+    "filter in its git config cannot be turned off\"\\nGIT = shutil.which(\"git\") or next(\\n    (p for p in " +
+    "(\"/usr/bin/git\", \"/opt/homebrew/bin/git\", \"/usr/local/bin/git\") if os.path.exists(p)), " +
+    "\"git\")\\n\\n\\n@dataclass(frozen=True)\\nclass Change:\\n    path: str\\n    code: str                 # " +
+    "M, A, D, R, U (conflict), ? (untracked)\\n\\n\\n@dataclass\\nclass Status:\\n    branch: str = None        " +
+    "# None: a detached HEAD (or not a repository)\\n    upstream: str = None\\n    ahead: int = 0\\n    behind: " +
+    "int = 0\\n    staged: list = field(default_factory=list)\\n    changes: list = " +
+    "field(default_factory=list)\\n    ignored: set = field(default_factory=set)       # paths from the root; a " +
+    "folder ends in \"/\"\\n    error: str = None\\n\\n\\n@dataclass(frozen=True)\\nclass Place:\\n    name: str " +
+    "                # the repository\\'s: its main checkout\\'s folder, a worktree\\'s too\\n    branch: str    " +
+    "           # None: a detached HEAD\\n    ahead: int\\n    behind: int\\n    repo: str                 # its " +
+    ".git folder, the same for each of its worktrees\\n    linked: bool              # a worktree beside the " +
+    "main checkout\\n\\n\\n@dataclass(frozen=True)\\nclass Commit:\\n    hash: str\\n    subject: str\\n    " +
+    "author: str\\n    refs: tuple\\n    head: bool\\n\\n\\ndef run(root, *args, stdin=None, timeout=TIMEOUT, " +
+    "binary=False):\\n    \"\"\"git ARGS in ROOT, STDIN its input (else nothing to read), with no terminal to " +
+    "open: a repository\\'s config can\\n    name /dev/stdin or /dev/tty for git to read, which would be the " +
+    "sidebar\\'s own terminal and its keys. BINARY: its\\n    output as bytes.\"\"\"\\n    env = " +
+    "dict(os.environ, GIT_OPTIONAL_LOCKS=\"0\", GIT_TERMINAL_PROMPT=\"0\", GIT_LITERAL_PATHSPECS=\"1\", " +
+    "LC_ALL=\"C\")\\n    env.setdefault(\"GIT_SSH_COMMAND\", \"ssh -o BatchMode=yes\")\\n    given = {\"input\": " +
+    "stdin} if stdin is not None else {\"stdin\": subprocess.DEVNULL}\\n    text = {} if binary else {\"text\": " +
+    "True, \"encoding\": \"utf-8\", \"errors\": \"replace\"}\\n    try:\\n        return subprocess.run([GIT, " +
+    "\"-c\", \"core.fsmonitor=false\", \"-c\", \"log.showSignature=false\", \"-C\", root, *args],\\n             " +
+    "                 capture_output=True, timeout=timeout, env=env, start_new_session=True, **text, **given)\\n " +
+    "   except FileNotFoundError:\\n        return subprocess.CompletedProcess([GIT], 1, \"\", \"git is not " +
+    "installed\")\\n    except (OSError, subprocess.TimeoutExpired) as err:\\n        return " +
+    "subprocess.CompletedProcess([GIT], 1, \"\", str(err))\\n\\n\\ndef last_line(out):\\n    lines = " +
+    "[line.strip() for line in (out.stderr or out.stdout or \"\").splitlines() if line.strip()]\\n    return " +
+    "lines[-1] if lines else \"\"\\n\\n\\ndef top(path):\\n    out = run(path, \"rev-parse\", " +
+    "\"--show-toplevel\")\\n    return out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else " +
+    "None\\n\\n\\ndef git_dir(path):\\n    \"\"\"The repository\\'s own folder (.git, or where a worktree\\'s " +
+    ".git file points), or None outside a repository.\"\"\"\\n    out = run(path, \"rev-parse\", " +
+    "\"--absolute-git-dir\")\\n    return out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else " +
+    "None\\n\\n\\ndef no_filters(root):\\n    \"\"\"The -c arguments that turn off every filter driver git knows " +
+    "at ROOT (each command empty, none required): a\\n    repository\\'s own could run anything (git-lfs may " +
+    "then show a file as changed until git looks again). None when the\\n    config cannot be read or a " +
+    "driver\\'s name cannot round-trip through -c (an =, a non-UTF-8 byte, a control char).\"\"\"\\n    out = " +
+    "run(root, \"config\", \"-z\", \"--name-only\", \"--get-regexp\", r\"^filter\\\\.\")\\n    if out.returncode " +
+    "not in (0, 1):                     # 1: no filter at all\\n        return None\\n    names = " +
+    "{key.rsplit(\".\", 1)[0] for key in out.stdout.split(\"\\\\0\") if key}\\n    if any(\"=\" in name or " +
+    "\"\\\\ufffd\" in name or not name.isprintable() for name in names):\\n        return None\\n    return [arg " +
+    "for name in sorted(names)\\n            for arg in (\"-c\", f\"{name}.clean=\", \"-c\", " +
+    "f\"{name}.smudge=\", \"-c\", f\"{name}.process=\",\\n                        \"-c\", " +
+    "f\"{name}.required=false\")]\\n\\n\\ndef place(path):\\n    \"\"\"Where PATH is, as the Herdr app mod\\'s " +
+    "Spaces list names it, or None outside a repository; no file is read, so\\n    nothing a repository\\'s " +
+    "config names runs. git that cannot answer (a folder gone) raises RuntimeError.\"\"\"\\n    where = " +
+    "run(path, \"rev-parse\", \"--show-toplevel\", \"--git-common-dir\")\\n    if where.returncode != 0:\\n      " +
+    "  if \"not a git repository\" in where.stderr:\\n            return None\\n        raise " +
+    "RuntimeError(last_line(where) or \"git did not answer\")\\n    top, common = " +
+    "where.stdout.splitlines()[:2]\\n    common = os.path.realpath(os.path.join(path, common))      # relative " +
+    "to PATH before git 2.31\\'s --path-format\\n    linked = common != os.path.realpath(os.path.join(top, " +
+    "\".git\"))\\n    name = os.path.basename(os.path.dirname(common) if os.path.basename(common) == \".git\" " +
+    "else common)\\n    branch = run(path, \"symbolic-ref\", \"--short\", \"-q\", \"HEAD\").stdout.strip() or " +
+    "None\\n    counts = run(path, \"rev-list\", \"--left-right\", \"--count\", " +
+    "\"HEAD...@{upstream}\").stdout.split()\\n    ahead, behind = (int(n) for n in counts) if len(counts) == 2 " +
+    "else (0, 0)\\n    return Place(name[:-4] if name.endswith(\".git\") else name, branch, ahead, behind, " +
+    "common, linked)\\n\\n\\ndef status(root):\\n    off = no_filters(root)\\n    if off is None:\\n        " +
+    "return Status(error=NO_STATUS)\\n    out = run(root, *off, \"status\", \"--porcelain=v2\", \"-z\", " +
+    "\"--branch\", \"--ignored=matching\",\\n              \"--untracked-files=all\", " +
+    "\"--ignore-submodules=dirty\")\\n    if out.returncode != 0:\\n        return Status(error=last_line(out) " +
+    "or \"not a git repository\")\\n    st = Status()\\n    fields, i = out.stdout.split(\"\\\\0\"), 0\\n\\n    " +
+    "def add(xy, path):\\n        x, y = xy[0], xy[1]\\n        if x != \".\":\\n            " +
+    "st.staged.append(Change(path, x if x in \"ADR\" else \"M\"))\\n        if y != \".\":\\n            " +
+    "st.changes.append(Change(path, \"D\" if y == \"D\" else \"M\"))\\n\\n    while i < len(fields):\\n        " +
+    "entry = fields[i]\\n        i += 1\\n        if entry.startswith(\"# branch.head \"):\\n            head = " +
+    "entry[len(\"# branch.head \"):]\\n            st.branch = None if head == \"(detached)\" else head\\n       " +
+    " elif entry.startswith(\"# branch.upstream \"):\\n            st.upstream = entry[len(\"# branch.upstream " +
+    "\"):]\\n        elif entry.startswith(\"# branch.ab \"):\\n            ahead, behind = entry[len(\"# " +
+    "branch.ab \"):].split()\\n            st.ahead, st.behind = int(ahead[1:]), int(behind[1:])\\n        elif " +
+    "entry.startswith(\"1 \"):\\n            parts = entry.split(\" \", 8)\\n            add(parts[1], " +
+    "parts[8])\\n        elif entry.startswith(\"2 \"):\\n            parts = entry.split(\" \", 9)\\n           " +
+    " add(parts[1], parts[9])\\n            i += 1                                          # the rename\\'s " +
+    "earlier path\\n        elif entry.startswith(\"u \"):\\n            st.changes.append(Change(entry.split(\" " +
+    "\", 10)[10], \"U\"))\\n        elif entry.startswith(\"? \"):\\n            " +
+    "st.changes.append(Change(entry[2:], \"?\"))\\n        elif entry.startswith(\"! \"):\\n            " +
+    "st.ignored.add(entry[2:])\\n    # a file .gitignore names is no change, even one committed before it named " +
+    "it\\n    tracked_ignored = set(run(root, \"ls-files\", \"-ci\", \"--exclude-standard\", " +
+    "\"-z\").stdout.split(\"\\\\0\")) - {\"\"}\\n    st.changes = [c for c in st.changes if c.path not in " +
+    "tracked_ignored]\\n    return st\\n\\n\\ndef diff(root, path):\\n    \"\"\"PATH\\'s diff against the last " +
+    "commit, an untracked file\\'s as all added: (its text, else why there is none).\"\"\"\\n    off = " +
+    "no_filters(root)\\n    if off is None:\\n        return \"\", NO_DIFF\\n    tracked = run(root, " +
+    "\"ls-files\", \"-z\", \"--\", path).stdout\\n    against = [\"HEAD\", \"--\", path] if tracked else " +
+    "[\"--no-index\", \"--\", os.devnull, path]\\n    out = run(root, *off, \"diff\", \"--no-ext-diff\", " +
+    "\"--no-textconv\", \"--no-color\", \"--ignore-submodules=dirty\",\\n              *against)\\n    return " +
+    "out.stdout, (last_line(out) or \"No diff\") if out.returncode > 1 else None    # --no-index: 1, they " +
+    "differ\\n\\n\\ndef committed(root, path, out, at=\"HEAD\"):\\n    \"\"\"PATH as the last commit has it (AT " +
+    "\"\": as the index has it), written to OUT (a changed picture\\'s before): git\\'s\\n    own bytes, as " +
+    "cat-file gives them with no filter run; whether it was there.\"\"\"\\n    done = run(root, \"cat-file\", " +
+    "\"blob\", f\"{at}:{path}\", binary=True)     # one argument: never an option\\n    if done.returncode != " +
+    "0:\\n        return False\\n    with open(out, \"wb\") as f:\\n        f.write(done.stdout)\\n    return " +
+    "True\\n\\n\\ndef show(root, rev):\\n    \"\"\"Commit REV\\'s message and diff, REV a hash only (never a " +
+    "name or an option git would take): (its text, else why\\n    there is none).\"\"\"\\n    if not " +
+    "re.fullmatch(r\"[0-9a-f]{4,40}\", rev):\\n        return \"\", \"Not a commit\"\\n    off = " +
+    "no_filters(root)\\n    if off is None:\\n        return \"\", NO_DIFF\\n    out = run(root, *off, \"show\", " +
+    "\"--no-ext-diff\", \"--no-textconv\", \"--no-color\", \"--ignore-submodules=dirty\",\\n              " +
+    "\"--format=%h  %an  %ar%n%n%B\", rev, \"--\")                # the author by name, not by address\\n    " +
+    "return out.stdout, (last_line(out) or \"Not a commit\") if out.returncode else None\\n\\n\\ndef stage(root, " +
+    "paths):\\n    out = run(root, \"add\", \"--\", *paths)\\n    return None if out.returncode == 0 else " +
+    "last_line(out)\\n\\n\\ndef unstage(root, paths):\\n    out = run(root, \"restore\", \"--staged\", \"--\", " +
+    "*paths)\\n    if out.returncode != 0:                              # no commit yet: nothing to restore " +
+    "from\\n        out = run(root, \"rm\", \"--cached\", \"-q\", \"--\", *paths)\\n    return None if " +
+    "out.returncode == 0 else last_line(out)\\n\\n\\ndef discard(root, path):\\n    \"\"\"Undo a tracked " +
+    "file\\'s unstaged change; None on success, else the error.\"\"\"\\n    out = run(root, \"restore\", " +
+    "\"--worktree\", \"--\", path)\\n    return None if out.returncode == 0 else last_line(out)\\n\\n\\ndef " +
+    "taken(changes):\\n    \"\"\"The paths a commit of CHANGES takes: never a repository of its own inside " +
+    "(\"inner/\").\"\"\"\\n    return [c.path for c in changes if not c.path.endswith(\"/\")]\\n\\n\\ndef " +
+    "stage_all(root, rest=False):\\n    \"\"\"Every change status lists staged (never an ignored file, nor a " +
+    "repository of its own inside, \"inner/\"), as\\n    GitHub Desktop commits: with nothing staged yet, or " +
+    "REST: beside what is. (whether it worked, else the error)\"\"\"\\n    st = status(root)\\n    if " +
+    "st.error:\\n        return False, st.error\\n    paths = taken(st.changes) if rest or not st.staged else " +
+    "[]\\n    out = run(root, \"add\", \"-A\", \"--\", *paths) if paths else None\\n    return (True, \"\") if " +
+    "out is None or out.returncode == 0 else (False, last_line(out))\\n\\n\\ndef commit(root, message, " +
+    "paths=None):\\n    \"\"\"The staged changes committed, PATHS staged first (the changes a question about " +
+    "secrets saw: one come since\\n    waits), or without PATHS every change when none is staged " +
+    "(stage_all).\"\"\"\\n    if paths is None:\\n        ok, line = stage_all(root)\\n        if not ok:\\n     " +
+    "       return False, line\\n    elif paths:\\n        out = run(root, \"add\", \"-A\", \"--\", *paths)\\n   " +
+    "     if out.returncode != 0:\\n            return False, last_line(out)\\n    out = run(root, \"commit\", " +
+    "\"-F\", \"-\", stdin=message)\\n    return out.returncode == 0, last_line(out)\\n\\n\\ndef push(root):\\n   " +
+    " \"\"\"Push; a branch without an upstream goes to the first remote with -u. One whose upstream was deleted " +
+    "on the\\n    remote (merged, say) is not pushed back.\"\"\"\\n    if run(root, \"rev-parse\", " +
+    "\"--abbrev-ref\", \"@{u}\").returncode == 0:\\n        out = run(root, \"push\")\\n        return " +
+    "out.returncode == 0, last_line(out)\\n    branch = run(root, \"branch\", " +
+    "\"--show-current\").stdout.strip()\\n    if branch and run(root, \"config\", \"--get\", " +
+    "f\"branch.{branch}.merge\").returncode == 0:\\n        return False, \"its upstream branch is gone from the " +
+    "remote\"\\n    remotes = run(root, \"remote\").stdout.split()\\n    if not remotes:\\n        return False, " +
+    "\"no remote\"\\n    if not branch:\\n        return False, \"detached HEAD\"\\n    out = run(root, " +
+    "\"push\", \"-u\", remotes[0], branch)\\n    return out.returncode == 0, last_line(out)\\n\\n\\ndef " +
+    "pull(root):\\n    \"\"\"Pull, fast-forward only: when the branches have diverged, nothing is merged and the " +
+    "reason comes back.\"\"\"\\n    out = run(root, \"pull\", \"--ff-only\")\\n    return out.returncode == 0, " +
+    "last_line(out)\\n\\n\\ndef sync(root):\\n    \"\"\"Pull (fast-forward only), then push; a branch without an " +
+    "upstream is only pushed, with -u.\"\"\"\\n    if run(root, \"rev-parse\", \"--abbrev-ref\", " +
+    "\"@{u}\").returncode == 0:\\n        ok, line = pull(root)\\n        if not ok:\\n            return ok, " +
+    "line\\n    return push(root)\\n\\n\\n# a failed pull or push, and the one line that says what to " +
+    "do\\nADVICE = (((\"Not possible to fast-forward\", \"diverged\"), \"The branches have diverged: merge or " +
+    "rebase in a terminal\"),\\n          ((\"no remote\", \"No configured push destination\", \"does not appear " +
+    "to be a git repository\"),\\n           \"No remote to sync with: add one with git remote add\"),\\n        " +
+    "  ((\"Authentication failed\", \"Permission denied\", \"could not read Username\"),\\n           \"The " +
+    "remote refused the sign-in: sign in to it, then sync again\"),\\n          ((\"upstream branch is " +
+    "gone\",),\\n           \"The branch was deleted on the remote: push it from a terminal to bring it " +
+    "back\"))\\n\\n\\ndef advice(line):\\n    return next((text for needles, text in ADVICE if any(needle in " +
+    "line for needle in needles)), line)\\n\\n\\n# github.com in a remote\\'s address: " +
+    "https://[user@]github.com/OWNER/NAME[.git][/], git@github.com:OWNER/NAME[.git],\\n# " +
+    "ssh://git@github.com/OWNER/NAME[.git]\\nADDRESS = " +
+    "re.compile(r\"^(?:https?://(?:[^@/]+@)?|ssh://(?:[^@/]+@)?|[^@/:]+@)github\\\\.com[:/]([\\\\w.-]+)/([\\\\w.-" +
+    "]+?)\"\\n                     r\"(?:\\\\.git)?/?$\")\\n\\n\\ndef github_name(root):\\n    \"\"\"OWNER/NAME " +
+    "of the repository at ROOT on GitHub: origin\\'s when it is there, else the first other remote\\'s;\\n    " +
+    "None without one (no repository, no remote, or none on github.com).\"\"\"\\n    out = run(root, \"config\", " +
+    "\"--local\", \"--get-regexp\", r\"^remote\\\\..*\\\\.url$\")\\n    if out.returncode != 0:\\n        return " +
+    "None\\n    found = {}\\n    for line in out.stdout.splitlines():\\n        key, _, url = line.partition(\" " +
+    "\")\\n        match = ADDRESS.match(url.strip())\\n        if match:\\n            " +
+    "found.setdefault(key[len(\"remote.\"):-len(\".url\")], \"/\".join(match.groups()))\\n    return " +
+    "found.get(\"origin\") or next(iter(found.values()), None)\\n\\n\\ndef graph(root, n=20):\\n    out = " +
+    "run(root, \"log\", f\"-n{n}\", \"--format=%h%x00%s%x00%an%x00%D%x1e\")\\n    commits = []\\n    for record " +
+    "in out.stdout.split(\"\\\\x1e\") if out.returncode == 0 else []:\\n        if not record.strip():\\n        " +
+    "    continue\\n        hash_, subject, author, decoration = record.strip(\"\\\\n\").split(\"\\\\0\")\\n     " +
+    "   refs = [ref.strip() for ref in decoration.split(\",\") if ref.strip()]\\n        head = any(ref == " +
+    "\"HEAD\" or ref.startswith(\"HEAD -> \") for ref in refs)\\n        refs = tuple(ref[len(\"HEAD -> \"):] if " +
+    "ref.startswith(\"HEAD -> \") else ref for ref in refs if ref != \"HEAD\")\\n        " +
+    "commits.append(Commit(hash_, subject, author, refs, head))\\n    return commits\\n\\n\\n# what the Herdr " +
+    "app mod asks for: the arguments each command takes after ROOT, at least and at most (None: any " +
+    "number)\\nCOMMANDS = {\"status\": (0, 0), \"place\": (0, 0), \"diff\": (1, 1), \"show\": (1, 1), \"graph\": " +
+    "(0, 0), \"github\": (0, 0),\\n            \"stage\": (0, None), \"unstage\": (1, None), \"discard\": (1, " +
+    "1), \"commit\": (1, 1), \"sync\": (0, 0),\\n            \"push\": (0, 0), \"pull\": (0, 0)}\\n\\n\\ndef " +
+    "main(argv):\\n    \"\"\"herdr-fold\\'s Herdr app mod runs this on the repository\\'s machine, answering in " +
+    "JSON: status, place, graph,\\n    github (its name on GitHub); diff, show (the text, else why there is " +
+    "none); stage (no PATH: every change), unstage,\\n    discard, commit, sync, push, pull (whether each " +
+    "worked, else what to do). COMMANDS, the usage: their arguments.\"\"\"\\n    command, args = (argv[1], " +
+    "argv[2:]) if len(argv) > 1 else (\"\", [])\\n    least, most = COMMANDS.get(command, (0, -1))               " +
+    " # an unknown command: no count fits\\n    given = len(args) - 1                                        # " +
+    "after ROOT\\n    if not args or given < least or (most is not None and given > most):\\n        " +
+    "print(\"usage: git.py status|place|graph|github|sync|push|pull ROOT, git.py diff|discard ROOT PATH, \"\\n   " +
+    "           \"git.py show ROOT HASH, git.py stage ROOT [PATH\u2026], git.py unstage ROOT PATH\u2026, \"\\n   " +
+    "           \"git.py commit ROOT MESSAGE\", file=sys.stderr)\\n        return 2\\n    root, rest = args[0], " +
+    "args[1:]\\n    if command == \"status\":\\n        st = status(root)\\n        answer = dict(asdict(st), " +
+    "ignored=sorted(st.ignored))\\n    elif command == \"place\":\\n        try:\\n            found = " +
+    "place(root)\\n        except RuntimeError as err:                             # not a no: the mod asks " +
+    "again later\\n            print(err, file=sys.stderr)\\n            return 1\\n        answer = found and " +
+    "asdict(found)\\n    elif command in (\"diff\", \"show\"):\\n        text, error = (diff if command == " +
+    "\"diff\" else show)(root, *rest)\\n        answer = {\"text\": text, \"error\": error}\\n    elif command " +
+    "== \"graph\":\\n        answer = {\"commits\": [dict(asdict(c), refs=list(c.refs)) for c in " +
+    "graph(root)]}\\n    elif command == \"github\":\\n        answer = {\"name\": github_name(root)}\\n    " +
+    "else:\\n        if command in (\"unstage\", \"discard\") or (command == \"stage\" and rest):     # named " +
+    "files: None, or the error\\n            error = {\"stage\": stage, \"unstage\": unstage}[command](root, " +
+    "rest) if command != \"discard\" \\\\\\n                else discard(root, rest[0])\\n            ok, line = " +
+    "error is None, error or \"\"\\n        else:\\n            act = {\"stage\": stage_all, \"commit\": commit, " +
+    "\"sync\": sync, \"push\": push, \"pull\": pull}[command]\\n            ok, line = act(root, *rest)\\n       " +
+    " answer = {\"ok\": ok, \"advice\": None if ok else advice(line)}\\n    print(json.dumps(answer))\\n    " +
+    "return 0\\n\\n\\nif __name__ == \"__main__\":\\n    sys.exit(main(sys.argv))\\n', " +
+    "_sys.modules['git'].__dict__)",
+  "\"\"\"What the preview draws as a picture: an image (sips), a PDF's page (PDFKit), an SVG or a page " +
+    "(WebKit, offline),",
+  "through Swift helpers compiled once into the cache; and what opens them. The Herdr app mod's, in JSON: " +
+    "media.py",
+  "picture PATH PAGE WIDTH [HEIGHT] (its kind, pages, PNG), committed ROOT PATH WIDTH (its last commit's), " +
     "open PATH.\"\"\"",
   "import contextlib",
   "import glob",
@@ -2338,12 +2547,16 @@ export const MEDIA = [
   "import json",
   "import os",
   "import plistlib",
+  "import re",
   "import shutil",
   "import struct",
   "import subprocess",
   "import sys",
   "import tempfile",
   "import time",
+  "",
+  "sys.dont_write_bytecode = True  # no __pycache__ beside the installed files",
+  "import git  # noqa: E402",
   "",
   "IMAGES = (\".png\", \".jpg\", \".jpeg\", \".gif\", \".webp\", \".avif\", \".bmp\", \".ico\")     # the " +
     "web's: a browser shows them",
@@ -2507,6 +2720,18 @@ export const MEDIA = [
   "    if head[:8] != b\"\\x89PNG\\r\\n\\x1a\\n\" or head[12:16] != b\"IHDR\":",
   "        return None",
   "    return struct.unpack(\">II\", head[16:24])",
+  "",
+  "",
+  "def pixels(path):",
+  "    \"\"\"PATH's own (width, height) in pixels as a picture, or None: a PNG's from its head, any other's " +
+    "from sips.\"\"\"",
+  "    shape = size(path)",
+  "    if shape or not shutil.which(\"sips\"):",
+  "        return shape",
+  "    done = run([\"sips\", \"-g\", \"pixelWidth\", \"-g\", \"pixelHeight\", path], TIMEOUT, text=True)",
+  "    found = dict(re.findall(r\"pixel(Width|Height): (\\d+)\", done.stdout)) if done and done.returncode == " +
+    "0 else {}",
+  "    return (int(found[\"Width\"]), int(found[\"Height\"])) if len(found) == 2 else None",
   "",
   "",
   "def run(argv, timeout, **switches):",
@@ -2710,10 +2935,10 @@ export const MEDIA = [
     "PNG of the image",
   "    or of PAGE, WIDTH wide (an SVG or a page, HEIGHT high at most), made in the app's home (its path from " +
     "there) with",
-  "    its size (in points, a drawn one's), or None.\"\"\"",
+  "    its size (in points, a drawn one's), or None; an image's own pixels.\"\"\"",
   "    kind = kind_of(path)",
   "    if kind not in (\"image\", \"pdf\", \"svg\", \"html\"):",
-  "        return {\"kind\": kind, \"pages\": None, \"png\": None, \"size\": None}",
+  "        return {\"kind\": kind, \"pages\": None, \"png\": None, \"size\": None, \"pixels\": None}",
   "    folder = app_pictures()",
   "    made = page_png(path, page, width, folder) if kind == \"pdf\" else drawn_png(path, width, folder, " +
     "height) \\",
@@ -2723,9 +2948,21 @@ export const MEDIA = [
   "        made = shutil.copyfile(made, os.path.join(folder, f\"{named(path)}.png\"))",
   "    density = DENSITY if made and \"-drawn-\" in os.path.basename(made) else 1     # WebKit's: drawn twice " +
     "as sharp",
+  "    shape = pixels(path) if made and kind == \"image\" else None",
   "    return {\"kind\": kind, \"pages\": pages(path) if kind == \"pdf\" else None,",
   "            \"png\": made and f\"{APP_PICTURES}/{os.path.basename(made)}\",",
-  "            \"size\": made and [n // density for n in size(made)]}",
+  "            \"size\": made and [n // density for n in size(made)], \"pixels\": shape and list(shape)}",
+  "",
+  "",
+  "def committed_picture(root, path, width):",
+  "    \"\"\"PATH as ROOT's last commit has it, drawn as picture() draws a file (a changed picture's before); " +
+    "its PNG None",
+  "    where it was not in it. git's copy of it lives only while it is drawn.\"\"\"",
+  "    with tempfile.TemporaryDirectory(prefix=\"herdr-fold-committed.\") as work:",
+  "        out = os.path.join(work, os.path.basename(path))           # its extension kept: its kind",
+  "        if git.committed(root, path, out):",
+  "            return picture(out, 0, width)",
+  "    return {\"kind\": kind_of(path), \"pages\": None, \"png\": None, \"size\": None, \"pixels\": None}",
   "",
   "",
   "def open_in_browser(path):",
@@ -2742,10 +2979,13 @@ export const MEDIA = [
   "    command, args = (argv[1], argv[2:]) if len(argv) > 1 else (\"\", [])",
   "    if command == \"picture\" and len(args) in (3, 4) and all(arg.isdigit() for arg in args[1:]):",
   "        answer = picture(args[0], *(int(arg) for arg in args[1:]))",
+  "    elif command == \"committed\" and len(args) == 3 and args[2].isdigit():",
+  "        answer = committed_picture(args[0], args[1], int(args[2]))",
   "    elif command == \"open\" and len(args) == 1:",
   "        answer = {\"opened\": open_in_browser(args[0])}",
   "    else:",
-  "        print(\"usage: media.py picture PATH PAGE WIDTH [HEIGHT] | open PATH\", file=sys.stderr)",
+  "        print(\"usage: media.py picture PATH PAGE WIDTH [HEIGHT] | committed ROOT PATH WIDTH | open PATH\",",
+  "              file=sys.stderr)",
   "        return 2",
   "    print(json.dumps(answer))",
   "    return 0",
@@ -3083,39 +3323,40 @@ export const TREE = [
     "           # None: a detached HEAD\\n    ahead: int\\n    behind: int\\n    repo: str                 # its " +
     ".git folder, the same for each of its worktrees\\n    linked: bool              # a worktree beside the " +
     "main checkout\\n\\n\\n@dataclass(frozen=True)\\nclass Commit:\\n    hash: str\\n    subject: str\\n    " +
-    "author: str\\n    refs: tuple\\n    head: bool\\n\\n\\ndef run(root, *args, stdin=None, " +
-    "timeout=TIMEOUT):\\n    \"\"\"git ARGS in ROOT, STDIN its input (else nothing to read), with no terminal to " +
+    "author: str\\n    refs: tuple\\n    head: bool\\n\\n\\ndef run(root, *args, stdin=None, timeout=TIMEOUT, " +
+    "binary=False):\\n    \"\"\"git ARGS in ROOT, STDIN its input (else nothing to read), with no terminal to " +
     "open: a repository\\'s config can\\n    name /dev/stdin or /dev/tty for git to read, which would be the " +
-    "sidebar\\'s own terminal and its keys.\"\"\"\\n    env = dict(os.environ, GIT_OPTIONAL_LOCKS=\"0\", " +
-    "GIT_TERMINAL_PROMPT=\"0\", GIT_LITERAL_PATHSPECS=\"1\", LC_ALL=\"C\")\\n    " +
-    "env.setdefault(\"GIT_SSH_COMMAND\", \"ssh -o BatchMode=yes\")\\n    given = {\"input\": stdin} if stdin is " +
-    "not None else {\"stdin\": subprocess.DEVNULL}\\n    try:\\n        return subprocess.run([GIT, \"-c\", " +
-    "\"core.fsmonitor=false\", \"-c\", \"log.showSignature=false\", \"-C\", root, *args],\\n                     " +
-    "         capture_output=True, text=True, encoding=\"utf-8\", errors=\"replace\", timeout=timeout,\\n        " +
-    "                      env=env, start_new_session=True, **given)\\n    except FileNotFoundError:\\n        " +
-    "return subprocess.CompletedProcess([GIT], 1, \"\", \"git is not installed\")\\n    except (OSError, " +
-    "subprocess.TimeoutExpired) as err:\\n        return subprocess.CompletedProcess([GIT], 1, \"\", " +
-    "str(err))\\n\\n\\ndef last_line(out):\\n    lines = [line.strip() for line in (out.stderr or out.stdout or " +
-    "\"\").splitlines() if line.strip()]\\n    return lines[-1] if lines else \"\"\\n\\n\\ndef top(path):\\n    " +
-    "out = run(path, \"rev-parse\", \"--show-toplevel\")\\n    return out.stdout.strip() if out.returncode == 0 " +
-    "and out.stdout.strip() else None\\n\\n\\ndef git_dir(path):\\n    \"\"\"The repository\\'s own folder " +
-    "(.git, or where a worktree\\'s .git file points), or None outside a repository.\"\"\"\\n    out = run(path, " +
-    "\"rev-parse\", \"--absolute-git-dir\")\\n    return out.stdout.strip() if out.returncode == 0 and " +
-    "out.stdout.strip() else None\\n\\n\\ndef no_filters(root):\\n    \"\"\"The -c arguments that turn off every " +
-    "filter driver git knows at ROOT (each command empty, none required): a\\n    repository\\'s own could run " +
-    "anything (git-lfs may then show a file as changed until git looks again). None when the\\n    config cannot " +
-    "be read or a driver\\'s name cannot round-trip through -c (an =, a non-UTF-8 byte, a control " +
-    "char).\"\"\"\\n    out = run(root, \"config\", \"-z\", \"--name-only\", \"--get-regexp\", " +
-    "r\"^filter\\\\.\")\\n    if out.returncode not in (0, 1):                     # 1: no filter at all\\n      " +
-    "  return None\\n    names = {key.rsplit(\".\", 1)[0] for key in out.stdout.split(\"\\\\0\") if key}\\n    " +
-    "if any(\"=\" in name or \"\\\\ufffd\" in name or not name.isprintable() for name in names):\\n        " +
-    "return None\\n    return [arg for name in sorted(names)\\n            for arg in (\"-c\", " +
-    "f\"{name}.clean=\", \"-c\", f\"{name}.smudge=\", \"-c\", f\"{name}.process=\",\\n                        " +
-    "\"-c\", f\"{name}.required=false\")]\\n\\n\\ndef place(path):\\n    \"\"\"Where PATH is, as the Herdr app " +
-    "mod\\'s Spaces list names it, or None outside a repository; no file is read, so\\n    nothing a " +
-    "repository\\'s config names runs. git that cannot answer (a folder gone) raises RuntimeError.\"\"\"\\n    " +
-    "where = run(path, \"rev-parse\", \"--show-toplevel\", \"--git-common-dir\")\\n    if where.returncode != " +
-    "0:\\n        if \"not a git repository\" in where.stderr:\\n            return None\\n        raise " +
+    "sidebar\\'s own terminal and its keys. BINARY: its\\n    output as bytes.\"\"\"\\n    env = " +
+    "dict(os.environ, GIT_OPTIONAL_LOCKS=\"0\", GIT_TERMINAL_PROMPT=\"0\", GIT_LITERAL_PATHSPECS=\"1\", " +
+    "LC_ALL=\"C\")\\n    env.setdefault(\"GIT_SSH_COMMAND\", \"ssh -o BatchMode=yes\")\\n    given = {\"input\": " +
+    "stdin} if stdin is not None else {\"stdin\": subprocess.DEVNULL}\\n    text = {} if binary else {\"text\": " +
+    "True, \"encoding\": \"utf-8\", \"errors\": \"replace\"}\\n    try:\\n        return subprocess.run([GIT, " +
+    "\"-c\", \"core.fsmonitor=false\", \"-c\", \"log.showSignature=false\", \"-C\", root, *args],\\n             " +
+    "                 capture_output=True, timeout=timeout, env=env, start_new_session=True, **text, **given)\\n " +
+    "   except FileNotFoundError:\\n        return subprocess.CompletedProcess([GIT], 1, \"\", \"git is not " +
+    "installed\")\\n    except (OSError, subprocess.TimeoutExpired) as err:\\n        return " +
+    "subprocess.CompletedProcess([GIT], 1, \"\", str(err))\\n\\n\\ndef last_line(out):\\n    lines = " +
+    "[line.strip() for line in (out.stderr or out.stdout or \"\").splitlines() if line.strip()]\\n    return " +
+    "lines[-1] if lines else \"\"\\n\\n\\ndef top(path):\\n    out = run(path, \"rev-parse\", " +
+    "\"--show-toplevel\")\\n    return out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else " +
+    "None\\n\\n\\ndef git_dir(path):\\n    \"\"\"The repository\\'s own folder (.git, or where a worktree\\'s " +
+    ".git file points), or None outside a repository.\"\"\"\\n    out = run(path, \"rev-parse\", " +
+    "\"--absolute-git-dir\")\\n    return out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else " +
+    "None\\n\\n\\ndef no_filters(root):\\n    \"\"\"The -c arguments that turn off every filter driver git knows " +
+    "at ROOT (each command empty, none required): a\\n    repository\\'s own could run anything (git-lfs may " +
+    "then show a file as changed until git looks again). None when the\\n    config cannot be read or a " +
+    "driver\\'s name cannot round-trip through -c (an =, a non-UTF-8 byte, a control char).\"\"\"\\n    out = " +
+    "run(root, \"config\", \"-z\", \"--name-only\", \"--get-regexp\", r\"^filter\\\\.\")\\n    if out.returncode " +
+    "not in (0, 1):                     # 1: no filter at all\\n        return None\\n    names = " +
+    "{key.rsplit(\".\", 1)[0] for key in out.stdout.split(\"\\\\0\") if key}\\n    if any(\"=\" in name or " +
+    "\"\\\\ufffd\" in name or not name.isprintable() for name in names):\\n        return None\\n    return [arg " +
+    "for name in sorted(names)\\n            for arg in (\"-c\", f\"{name}.clean=\", \"-c\", " +
+    "f\"{name}.smudge=\", \"-c\", f\"{name}.process=\",\\n                        \"-c\", " +
+    "f\"{name}.required=false\")]\\n\\n\\ndef place(path):\\n    \"\"\"Where PATH is, as the Herdr app mod\\'s " +
+    "Spaces list names it, or None outside a repository; no file is read, so\\n    nothing a repository\\'s " +
+    "config names runs. git that cannot answer (a folder gone) raises RuntimeError.\"\"\"\\n    where = " +
+    "run(path, \"rev-parse\", \"--show-toplevel\", \"--git-common-dir\")\\n    if where.returncode != 0:\\n      " +
+    "  if \"not a git repository\" in where.stderr:\\n            return None\\n        raise " +
     "RuntimeError(last_line(where) or \"git did not answer\")\\n    top, common = " +
     "where.stdout.splitlines()[:2]\\n    common = os.path.realpath(os.path.join(path, common))      # relative " +
     "to PATH before git 2.31\\'s --path-format\\n    linked = common != os.path.realpath(os.path.join(top, " +
@@ -3153,7 +3394,12 @@ export const TREE = [
     "[\"--no-index\", \"--\", os.devnull, path]\\n    out = run(root, *off, \"diff\", \"--no-ext-diff\", " +
     "\"--no-textconv\", \"--no-color\", \"--ignore-submodules=dirty\",\\n              *against)\\n    return " +
     "out.stdout, (last_line(out) or \"No diff\") if out.returncode > 1 else None    # --no-index: 1, they " +
-    "differ\\n\\n\\ndef show(root, rev):\\n    \"\"\"Commit REV\\'s message and diff, REV a hash only (never a " +
+    "differ\\n\\n\\ndef committed(root, path, out, at=\"HEAD\"):\\n    \"\"\"PATH as the last commit has it (AT " +
+    "\"\": as the index has it), written to OUT (a changed picture\\'s before): git\\'s\\n    own bytes, as " +
+    "cat-file gives them with no filter run; whether it was there.\"\"\"\\n    done = run(root, \"cat-file\", " +
+    "\"blob\", f\"{at}:{path}\", binary=True)     # one argument: never an option\\n    if done.returncode != " +
+    "0:\\n        return False\\n    with open(out, \"wb\") as f:\\n        f.write(done.stdout)\\n    return " +
+    "True\\n\\n\\ndef show(root, rev):\\n    \"\"\"Commit REV\\'s message and diff, REV a hash only (never a " +
     "name or an option git would take): (its text, else why\\n    there is none).\"\"\"\\n    if not " +
     "re.fullmatch(r\"[0-9a-f]{4,40}\", rev):\\n        return \"\", \"Not a commit\"\\n    off = " +
     "no_filters(root)\\n    if off is None:\\n        return \"\", NO_DIFF\\n    out = run(root, *off, \"show\", " +

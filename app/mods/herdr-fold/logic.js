@@ -766,6 +766,14 @@ export function opener(path, platform) {
   return platform === "macos" && !MEDIA_WEB.includes(extension(path)) ? "Preview" : "Browser";
 }
 
+/** A changed picture's sides, as VS Code's image diff: the last commit's and the file's (HEAD, Working Tree), each
+ * [its caption with its own pixels, it]; a new one's after alone, a deleted one's before alone.
+ * @param {{ before: any, after: any }} change @returns {[string, any][]} */
+export function changeSides({ before, after }) {
+  return /** @type {[string, any][]} */ ([["HEAD", before], ["Working Tree", after]].filter(([, side]) => side)
+    .map(([label, side]) => [side.pixels ? `${label} · ${side.pixels[0]} × ${side.pixels[1]}` : label, side]));
+}
+
 /** Whether WHAT, the preview's, opens in the browser: a page, a PDF or a picture, a file on this Mac.
  * @param {{ kind: string, path: string, on?: string | null } | null} what */
 export function browsable(what) {

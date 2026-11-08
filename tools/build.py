@@ -7,6 +7,7 @@ import os
 import re
 import sys
 
+sys.dont_write_bytecode = True    # core's modules it loads leave no bytecode behind
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SIDEBAR = os.path.join("src", "plugins", "sidebar")
 WIDTH = 110                   # a string literal's cells on a line of helper.js
@@ -68,7 +69,9 @@ def literal(text):
 
 
 def module(name):
-    """core/NAME.py loaded, for its tables."""
+    """core/NAME.py loaded, for its tables (the core modules it imports found beside it)."""
+    if os.path.join(ROOT, "core") not in sys.path:
+        sys.path.insert(0, os.path.join(ROOT, "core"))
     spec = importlib.util.spec_from_file_location(f"core_{name}", os.path.join(ROOT, "core", f"{name}.py"))
     loaded = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(loaded)

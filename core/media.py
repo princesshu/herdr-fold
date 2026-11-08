@@ -1,18 +1,22 @@
-"""What the preview draws as a picture: an image (as a PNG, through macOS's sips), a PDF's page (PDFKit) or an SVG or
-a page (WebKit, offline), through small Swift helpers compiled once into the cache; and the browser that opens them.
-Usage (the Herdr app mod's, in JSON): media.py picture PATH PAGE WIDTH [HEIGHT] (its kind, pages, PNG), open PATH."""
+"""What the preview draws as a picture: an image (sips), a PDF's page (PDFKit), an SVG or a page (WebKit, offline),
+through Swift helpers compiled once into the cache; and what opens them. The Herdr app mod's, in JSON: media.py
+picture PATH PAGE WIDTH [HEIGHT] (its kind, pages, PNG), committed ROOT PATH WIDTH (its last commit's), open PATH."""
 import contextlib
 import glob
 import hashlib
 import json
 import os
 import plistlib
+import re
 import shutil
 import struct
 import subprocess
 import sys
 import tempfile
 import time
+
+sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
+import git  # noqa: E402
 
 IMAGES = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".bmp", ".ico")     # the web's: a browser shows them
 # the rest macOS's ImageIO reads (sips makes a PNG of each): Apple's, Adobe's, the GPU's, a camera's raw file
@@ -152,6 +156,16 @@ def size(path):
     if head[:8] != b"\x89PNG\r\n\x1a\n" or head[12:16] != b"IHDR":
         return None
     return struct.unpack(">II", head[16:24])
+
+
+def pixels(path):
+    """PATH's own (width, height) in pixels as a picture, or None: a PNG's from its head, any other's from sips."""
+    shape = size(path)
+    if shape or not shutil.which("sips"):
+        return shape
+    done = run(["sips", "-g", "pixelWidth", "-g", "pixelHeight", path], TIMEOUT, text=True)
+    found = dict(re.findall(r"pixel(Width|Height): (\d+)", done.stdout)) if done and done.returncode == 0 else {}
+    return (int(found["Width"]), int(found["Height"])) if len(found) == 2 else None
 
 
 def run(argv, timeout, **switches):
@@ -327,19 +341,30 @@ def app_pictures():
 def picture(path, page, width, height=None):
     """PATH as the app's preview draws it: its kind, a PDF's pages (each one's size in points), and the PNG of the image
     or of PAGE, WIDTH wide (an SVG or a page, HEIGHT high at most), made in the app's home (its path from there) with
-    its size (in points, a drawn one's), or None."""
+    its size (in points, a drawn one's), or None; an image's own pixels."""
     kind = kind_of(path)
     if kind not in ("image", "pdf", "svg", "html"):
-        return {"kind": kind, "pages": None, "png": None, "size": None}
+        return {"kind": kind, "pages": None, "png": None, "size": None, "pixels": None}
     folder = app_pictures()
     made = page_png(path, page, width, folder) if kind == "pdf" else drawn_png(path, width, folder, height) \
         if kind in ("svg", "html") else as_png(path, folder, width)
     if made and os.path.dirname(made) != folder:          # an image already small enough: a copy in the app's home
         made = shutil.copyfile(made, os.path.join(folder, f"{named(path)}.png"))
     density = DENSITY if made and "-drawn-" in os.path.basename(made) else 1     # WebKit's: drawn twice as sharp
+    shape = pixels(path) if made and kind == "image" else None
     return {"kind": kind, "pages": pages(path) if kind == "pdf" else None,
             "png": made and f"{APP_PICTURES}/{os.path.basename(made)}",
-            "size": made and [n // density for n in size(made)]}
+            "size": made and [n // density for n in size(made)], "pixels": shape and list(shape)}
+
+
+def committed_picture(root, path, width):
+    """PATH as ROOT's last commit has it, drawn as picture() draws a file (a changed picture's before); its PNG None
+    where it was not in it. git's copy of it lives only while it is drawn."""
+    with tempfile.TemporaryDirectory(prefix="herdr-fold-committed.") as work:
+        out = os.path.join(work, os.path.basename(path))           # its extension kept: its kind
+        if git.committed(root, path, out):
+            return picture(out, 0, width)
+    return {"kind": kind_of(path), "pages": None, "png": None, "size": None, "pixels": None}
 
 
 def open_in_browser(path):
@@ -355,10 +380,13 @@ def main(argv):
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     if command == "picture" and len(args) in (3, 4) and all(arg.isdigit() for arg in args[1:]):
         answer = picture(args[0], *(int(arg) for arg in args[1:]))
+    elif command == "committed" and len(args) == 3 and args[2].isdigit():
+        answer = committed_picture(args[0], args[1], int(args[2]))
     elif command == "open" and len(args) == 1:
         answer = {"opened": open_in_browser(args[0])}
     else:
-        print("usage: media.py picture PATH PAGE WIDTH [HEIGHT] | open PATH", file=sys.stderr)
+        print("usage: media.py picture PATH PAGE WIDTH [HEIGHT] | committed ROOT PATH WIDTH | open PATH",
+              file=sys.stderr)
         return 2
     print(json.dumps(answer))
     return 0

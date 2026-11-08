@@ -105,6 +105,43 @@ class ForeignConfig(Repo):
         self.assertEqual((error, "+changed" in text), (None, True))
         self.assertEqual([os.path.basename(m) for m in marks if os.path.exists(m)], [])
 
+    def test_a_files_last_commit_comes_back_as_git_has_it_and_runs_no_filter(self):
+        """A changed picture's before, shown unasked: git's own bytes of it, no filter of the repository's run."""
+        self.write(".gitattributes", "*.png filter=evil\n")
+        with open(os.path.join(self.root, "a.png"), "wb") as f:
+            f.write(b"\x89PNG before\x00\xff")
+        self.commit_all()
+        with open(os.path.join(self.root, "a.png"), "wb") as f:
+            f.write(b"after")
+        programs = self.folder()
+        marks = [trap(self.root, key, programs) for key in ("filter.evil.clean", "filter.evil.smudge",
+                                                             "filter.evil.process")]
+        out = os.path.join(self.folder(), "a.png")
+        self.assertTrue(git.committed(self.root, "a.png", out))
+        with open(out, "rb") as f:
+            self.assertEqual(f.read(), b"\x89PNG before\x00\xff")
+        self.assertEqual([os.path.basename(m) for m in marks if os.path.exists(m)], [])
+
+    def test_a_files_staged_version_comes_back_too(self):
+        self.write("a.txt", "committed\n")
+        self.commit_all()
+        self.write("a.txt", "staged\n")
+        self.run_git("add", "a.txt")
+        self.write("a.txt", "working\n")
+        out = os.path.join(self.folder(), "a.txt")
+        self.assertTrue(git.committed(self.root, "a.txt", out, at=""))
+        with open(out) as f:
+            self.assertEqual(f.read(), "staged\n")
+
+    def test_a_new_file_or_a_name_like_an_option_has_no_last_commit(self):
+        self.write("a.txt")
+        self.commit_all()
+        self.write("new.png")
+        out = os.path.join(self.folder(), "new.png")
+        self.assertFalse(git.committed(self.root, "new.png", out))
+        self.assertFalse(git.committed(self.root, "--output=" + out, out))
+        self.assertFalse(os.path.exists(out))
+
     def test_a_filter_whose_name_hides_from_the_command_line_stops_the_status(self):
         """git splits -c at the first =: a driver named with one could not be turned off there, so no status is asked
         for at all."""

@@ -15,6 +15,7 @@ import threading
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import git  # noqa: E402
 import media  # noqa: E402
 from preview import Herdr  # noqa: E402
 from screen import char_width, width  # noqa: E402
@@ -308,8 +309,8 @@ class Picture:
     """An image, an SVG or a page drawn in the pane, fitted and centered: o opening it in the browser, q or Esc closing
     the tab. Its PNG is made in a folder of its own, gone at close()."""
 
-    def __init__(self, path, title):
-        self.path, self.title, self.note = path, title, None
+    def __init__(self, path, title, image=PICTURE):
+        self.path, self.title, self.note, self.image = path, title, None, image      # IMAGE: its id, one of two
         self.work = tempfile.mkdtemp(prefix="herdr-fold-picture.")
         self.opens, self.keys = media.browsable(), ""
         self.drawn = media.kind_of(path) in ("svg", "html")      # WebKit draws it, sharp at any width
@@ -343,7 +344,7 @@ class Picture:
 
     def taken(self):
         """What takes the picture off the pane."""
-        return GONE
+        return gone(self.image)
 
     def prepare(self, term, columns, height):
         """The first draw's wait, said in the pane: the helper that draws an SVG or a page compiled."""
@@ -362,7 +363,7 @@ class Picture:
             return ""
         row, column, wide, tall = fit(columns, rows, *shape, self.cell)
         with open(made, "rb") as f:
-            return f"\x1b[{top + row + 1};{left + column + 1}H" + kitty(f.read(), wide, tall)
+            return f"\x1b[{top + row + 1};{left + column + 1}H" + kitty(f.read(), wide, tall, image=self.image)
 
     def handle(self, event):
         """React to EVENT; False when the pager should end."""
@@ -588,6 +589,90 @@ class PictureAndCode:
         self.picture.close(term)
 
 
+SIDES = {False: ("Index", "Working Tree"), True: ("HEAD", "Index")}    # a change's before and after, staged or not
+
+
+class PictureChange:
+    """A changed picture as VS Code's image diff: its before and after side by side, or one above the other where the
+    pane is taller than wide (v or the right click turns them), each under its caption; a new one's after alone, a
+    deleted one's before alone. git's copies of it live in a folder of its own, gone at close()."""
+
+    def __init__(self, spec):
+        change, self.title = spec["change"], spec.get("title") or ""
+        root, path, staged = change["root"], change["path"], change["staged"]
+        self.work = tempfile.mkdtemp(prefix="herdr-fold-change.")
+        found, here = [], os.path.join(root, path)
+        for n, (label, at) in enumerate(zip(SIDES[staged], ("HEAD", "") if staged else ("", None))):
+            out = os.path.join(self.work, f"{n}{os.path.splitext(path)[1]}")      # its extension kept: its kind
+            if at is None:
+                found.append((here if os.path.isfile(here) else None, label))
+            else:
+                found.append((out if git.committed(root, path, out, at) else None, label))
+        self.sides = [(Picture(shown, self.title, PICTURE + n), label) for n, (shown, label) in enumerate(found)
+                      if shown]
+        self.stacked, self.stacking = None, False    # chosen: one above the other, or not; None: by the pane's shape
+
+    def shown(self):
+        return self.stacked, tuple(side.note for side, _ in self.sides)
+
+    def status(self):
+        note = next((side.note for side, _ in self.sides if side.note), None)
+        if note or not self.sides:
+            return note or f"{self.title}: nothing to show"
+        turn = f"  v: {'side by side' if self.stacking else 'stacked'}" if len(self.sides) == 2 else ""
+        return f"{self.title}{turn}"
+
+    def draw(self, term):
+        columns, height = term.size()
+        rows, size = height - 1, cell(term)
+        self.stacking = self.stacked if self.stacked is not None else columns * size[0] < rows * size[1]
+        out = [gone(PICTURE), gone(PICTURE + 1), "\x1b[0m\x1b[2J"]
+        if len(self.sides) == 2 and self.stacking:
+            at = rows // 2
+            out.append(f"\x1b[{at + 1};1H\x1b[2m{'─' * columns}\x1b[0m")
+            parts = [(0, 0, columns, at), (0, at + 1, columns, rows - at - 1)]
+        elif len(self.sides) == 2:
+            at = columns // 2
+            out += [f"\x1b[{row + 1};{at + 1}H\x1b[2m│\x1b[0m" for row in range(rows)]
+            parts = [(0, 0, at, rows), (at + 1, 0, columns - at - 1, rows)]
+        else:
+            parts = [(0, 0, columns, rows)]
+        for (side, label), (left, top, wide, tall) in zip(self.sides, parts):
+            side.cell, shape = size, media.pixels(side.path)
+            caption = f"{label} · {shape[0]} × {shape[1]}" if shape else label
+            out.append(f"\x1b[{top + 1};{left + 2}H\x1b[2m{visible(caption, max(1, wide - 2))}\x1b[0m")
+            out.append(side.place(wide, max(1, tall - 1), left, None, top + 1))
+        out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns)}\x1b[K\x1b[0m")
+        term.write("".join(out))
+        term.flush()
+        return None
+
+    def handle(self, event):
+        """React to EVENT; False when the pager should end."""
+        if not isinstance(event, Key):
+            return True
+        key = event.char if event.name == "char" else event.name
+        if key in ("q", "esc") or (event.name == "char" and event.ctrl and event.char == "c"):
+            return False
+        if key == "v" and not event.ctrl and len(self.sides) == 2:
+            self.stacked = not self.stacking
+        return True
+
+    def choices(self):
+        two = len(self.sides) == 2
+        return [("Side by Side", not self.stacking), ("Stacked", self.stacking)] * two + [(CLOSE, None)]
+
+    def choose(self, choice):
+        if choice in ("Side by Side", "Stacked"):
+            self.stacked = self.stacking = choice == "Stacked"
+        return choice != CLOSE
+
+    def close(self, term):
+        for side, _ in self.sides:
+            side.close(term)
+        shutil.rmtree(self.work, ignore_errors=True)
+
+
 class Popup:
     """A right click's menu, at the pointer and inside the pane: CHOICES a row each, (label, whether it is the one on,
     None: no check), Enter or a click picking one, Esc or a click outside dropping it."""
@@ -631,8 +716,10 @@ class Popup:
 
 
 def viewer(spec):
-    """SPEC's view: an SVG or a page as its code and its picture, an image or a PDF drawn, else the pager over its
-    lines."""
+    """SPEC's view: a changed picture's before and after, an SVG or a page as its code and its picture, an image or a
+    PDF drawn, else the pager over its lines."""
+    if spec.get("change"):
+        return PictureChange(spec)
     if spec.get("picture") and media.kind_of(spec["picture"]) in ("svg", "html"):
         return PictureAndCode(spec)
     if spec.get("picture") and media.kind_of(spec["picture"]) == "pdf":

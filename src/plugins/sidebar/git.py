@@ -54,16 +54,17 @@ class Commit:
     head: bool
 
 
-def run(root, *args, stdin=None, timeout=TIMEOUT):
+def run(root, *args, stdin=None, timeout=TIMEOUT, binary=False):
     """git ARGS in ROOT, STDIN its input (else nothing to read), with no terminal to open: a repository's config can
-    name /dev/stdin or /dev/tty for git to read, which would be the sidebar's own terminal and its keys."""
+    name /dev/stdin or /dev/tty for git to read, which would be the sidebar's own terminal and its keys. BINARY: its
+    output as bytes."""
     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0", GIT_LITERAL_PATHSPECS="1", LC_ALL="C")
     env.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
     given = {"input": stdin} if stdin is not None else {"stdin": subprocess.DEVNULL}
+    text = {} if binary else {"text": True, "encoding": "utf-8", "errors": "replace"}
     try:
         return subprocess.run([GIT, "-c", "core.fsmonitor=false", "-c", "log.showSignature=false", "-C", root, *args],
-                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
-                              env=env, start_new_session=True, **given)
+                              capture_output=True, timeout=timeout, env=env, start_new_session=True, **text, **given)
     except FileNotFoundError:
         return subprocess.CompletedProcess([GIT], 1, "", "git is not installed")
     except (OSError, subprocess.TimeoutExpired) as err:
@@ -177,6 +178,17 @@ def diff(root, path):
     out = run(root, *off, "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--ignore-submodules=dirty",
               *against)
     return out.stdout, (last_line(out) or "No diff") if out.returncode > 1 else None    # --no-index: 1, they differ
+
+
+def committed(root, path, out, at="HEAD"):
+    """PATH as the last commit has it (AT "": as the index has it), written to OUT (a changed picture's before): git's
+    own bytes, as cat-file gives them with no filter run; whether it was there."""
+    done = run(root, "cat-file", "blob", f"{at}:{path}", binary=True)     # one argument: never an option
+    if done.returncode != 0:
+        return False
+    with open(out, "wb") as f:
+        f.write(done.stdout)
+    return True
 
 
 def show(root, rev):
