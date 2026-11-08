@@ -129,8 +129,8 @@ as the panel, its head dragging it.
 
 ### Menus
 
-![The mod's menus: Commit's modes, the repository's ⋯, the issues' filters, an issue's and a conversation's right
-click](../assets/styleguide/menus.webp)
+![The mod's menus: Commit's modes, the repository's ⋯, the issues' filters, an issue's, a file's (a preview open), the
+preview's, the panel's and a conversation's right click](../assets/styleguide/menus.webp)
 
 Every menu is a popup (`Menus` in menus.js), as the app's own: under the button that opened it, its right edge with
 the button's, or at the pointer for a right click; it lays over what is below it, and a press beside it closes it.

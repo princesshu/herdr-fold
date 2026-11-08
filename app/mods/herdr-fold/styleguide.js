@@ -4,7 +4,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState } from "gpui-base";
 import { BY_EXTENSION, BY_NAME, FILE, ICONS } from "./icons.js";
-import { commitRows, conversationRows, diffRows, foldedSections, listHeight, pushOffer, RAIL, searchRows }
+import { aboutLines, commitRows, conversationRows, diffRows, foldedSections, listHeight, pushOffer, RAIL, searchRows }
   from "./logic.js";
 import { ConversationsView } from "./conversations.js";
 import { IssuesView } from "./issues.js";
@@ -156,7 +156,7 @@ const HIDDEN_FOLDERS = { ...FOLDERS, "": { more: 0, entries: [entry(".git", true
 function filesOf(fields = {}) {
   const view = Object.assign(Object.create(FilesView.prototype), { key: "styleguide", root: "/work/lumen-api",
     on: null, folders: FOLDERS, open: new Set(["src", "src/lumen"]), picked: null, naming: null, asking: null,
-    note: null, hidden: false, loading: false, menus: new Menus() }, fields);
+    note: null, hidden: false, loading: false, menus: new Menus(), previewTab: () => ({ id: "styleguide" }) }, fields);
   for (const name of INERT_FILES) view[name] = () => {};
   return view;
 }
@@ -194,10 +194,10 @@ function issuesOf(state, fields) {
   return issues;
 }
 
-/** The preview tab with FIELDS: what it shows, loading, or why nothing. */
+/** The preview tab with FIELDS: what it shows, loading, or why nothing; its board's size draws nothing anew here. */
 function previewOf(fields) {
-  return Object.assign(new Preview("styleguide", null), { what: { n: 0, level: 1, ranked_by: "priority: high" } },
-    fields);
+  return Object.assign(new Preview("styleguide", null), { what: { n: 0, level: 1, ranked_by: "priority: high" },
+    fit: () => {} }, fields);
 }
 
 /** The made-up states the components show, made once (what is typed in them stays). @param {any} proto */
@@ -253,6 +253,8 @@ export function guide(proto) {
       ...[["split", "A page, its code and picture"], ["code", "Its code alone"], ["picture", "Its picture alone"]]
         .map(([shown, name]) => [name, previewOf({ rows: HTML, picture: { png: PAGE }, drawing: true, shown }), 320])],
     issue: previewOf({ issue: ISSUE }),
+    page: previewOf({ rows: HTML, picture: { png: PAGE }, drawing: true, shown: "split", what: { n: 0, kind: "file",
+      path: "docs/pagination.html", root: "/work/lumen-api", on: null } }),
     files: [["Default", filesOf()], ["A file chosen", filesOf({ picked: "src/lumen/app.py" })],
       ["A full folder", filesOf({ open: new Set(["src", "src/lumen", "src/lumen/routes"]) })],
       ["Hidden files shown", filesOf({ hidden: true, folders: HIDDEN_FOLDERS, open: new Set() })],
@@ -381,6 +383,9 @@ function sections(g, t) {
         fixed(state.folded.has("graph") ? 26 : 32 + COMMITS.length * 24, state.graph(t)))))]],
     ["menus", [group(t, "Menus", [["Commit's arrow", b.modes], ["The repository's ⋯", b.remote],
       ["Issues' filters", g.issues.issues.filters(t)], ["An issue's right click", b.issues.picks(LISTED[0])],
+      ["A file's right click, a preview open", g.files[0][1].items({ path: "docs/pagination.html", dir: false })],
+      ["The preview's right click", g.page.items()],
+      ["The panel's right click", aboutLines({ version: "0.3.0", on: true, releases: "https://example.com" })],
       ["A conversation's right click", g.conversations[0][1].choices(TALKS[3])],
       ["The list's right click", g.conversations[0][1].choices(null)]]
       .map(([name, items], i) => specimen(t, `menu-${i}`, name, div().p(20).child(div().w(180)

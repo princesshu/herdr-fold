@@ -27,6 +27,8 @@ export class FilesView {
   constructor(python, cx) {
     this.python = python;
     this.menus = new Menus();
+    /** the space's preview tab, or null: its right click offers Close Preview while there is one */
+    this.previewTab = shownPreviewTab;
     /** @type {string | null} */
     this.key = null;
     /** @type {string | null} the space's folder */
@@ -113,7 +115,7 @@ export class FilesView {
    * workspace in it. @param {{ path: string, dir: boolean }} row */
   items({ path, dir }) {
     const folder = dir ? path : folderOf(path);
-    const browsed = !dir && !this.on && mediaKind(path), shown = shownPreviewTab();
+    const browsed = !dir && !this.on && mediaKind(path), shown = this.previewTab();
     return [...(browsed ? [{ label: "Open in Browser", act: (cx) => this.browse(path, cx) }] : []),
       ...(shown ? [{ label: "Close Preview", act: () => command("tab.close", { id: shown.id }) }] : []),
       { label: "New File", act: (cx) => this.name("new-file", folder, cx) },
