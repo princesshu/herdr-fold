@@ -130,6 +130,17 @@ class RepoFiles(unittest.TestCase):
         self.assertEqual(sorted(done.stdout.split()), sorted(MUST_IGNORE))
 
 
+def listed_rows(rel):
+    """A file list's rows by their package path: (location, ..., part), as the row has them."""
+    rows = {}
+    with open(os.path.join(PACKAGE, rel), encoding="utf-8") as f:
+        for row in f:
+            if row.strip() and not row.lstrip().startswith("#"):
+                cells = [cell.strip() for cell in row.split("|")]
+                rows[cells[0]] = tuple(cells[1:])
+    return rows
+
+
 def listed(rel):
     """The package paths a file list names (glob rows: the files they match), and the rows that match nothing."""
     found, empty = set(), []
@@ -296,6 +307,23 @@ class Credits(unittest.TestCase):
                          if os.path.isfile(os.path.join(PACKAGE, own)) and own not in files]
             if self.AUTHOR not in package_text(os.path.join(folder, "README.md")):
                 problems.append(os.path.join(folder, "README.md") + ": no author")
+        self.assertEqual(problems, [])
+
+    def test_every_install_carries_the_license_and_the_notices(self):
+        # herdr-fold's own folder on a machine (the TUI's, a remote one's) and the Herdr app's mod, which the app keeps
+        # in a folder of its own: each with the license and the notices of what it builds on (its icons' among them)
+        problems = []
+        for name, rows in (("files.txt", listed_rows("files.txt")), ("remote", listed_rows("remote/files.txt"))):
+            for own in ("LICENSE", "THIRD_PARTY_NOTICES.md"):
+                if rows.get(own, ("", ""))[0] != f".config/herdr-fold/{own}" or rows[own][-1] != "both":
+                    problems.append(f"{own}: not installed to .config/herdr-fold for both parts by {name}")
+        mod = os.path.join("app", "mods", "herdr-fold")
+        for own in ("LICENSE", "THIRD_PARTY_NOTICES.md"):
+            path = os.path.join(mod, own)
+            if not os.path.isfile(os.path.join(PACKAGE, path)) or package_text(path) != package_text(own):
+                problems.append(f"{path}: not the package's {own}")
+        if self.AUTHOR not in package_text(os.path.join(mod, "README.md")):
+            problems.append(os.path.join(mod, "README.md") + ": no author")
         self.assertEqual(problems, [])
 
     def test_each_plugin_says_it_is_part_of_herdr_fold(self):

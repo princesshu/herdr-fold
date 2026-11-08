@@ -25,6 +25,8 @@ src/claude_trust.py    | .config/herdr-fold/claude_trust.py | tui
 src/i18n.py            | .config/herdr-fold/i18n.py | both
 src/parts.py           | .config/herdr-fold/parts.py | both
 src/lang/*.txt         | .config/herdr-fold/lang/ | both
+LICENSE                | .config/herdr-fold/LICENSE | both
+THIRD_PARTY_NOTICES.md | .config/herdr-fold/THIRD_PARTY_NOTICES.md | both
 src/themes/apply.py    | .config/herdr-fold/themes/apply.py | both
 src/themes/picker.py   | .config/herdr-fold/themes/picker.py | tui
 src/themes/themes.js   | .config/herdr-fold/themes/themes.js | both

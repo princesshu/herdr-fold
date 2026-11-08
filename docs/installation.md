@@ -151,8 +151,8 @@ whether it may stop an older herdr running there (answer no, the default).
 
 For either part:
 
-- `~/.config/herdr-fold/`: the package's scripts, themes and texts, and this Mac's settings (`statusline.json`,
-  `machines.txt`); with the TUI, its plugins too.
+- `~/.config/herdr-fold/`: the package's scripts, themes and texts, its license and the notices of what it builds on,
+  and this Mac's settings (`statusline.json`, `machines.txt`); with the TUI, its plugins too.
 - Claude Code's `statusLine` in `~/.claude/settings.json`, and Codex's `[tui] status_line` in `~/.codex/config.toml`.
 - `~/.cache/herdr-fold/`: the preview's helpers, compiled the first time a PDF, an SVG or a page is shown.
 - `~/.local/share/herdr-fold`: only when installed from herdr's marketplace, the package itself: herdr keeps its

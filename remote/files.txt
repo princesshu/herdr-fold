@@ -4,6 +4,8 @@
 src/herdrlib.py                             | .config/herdr-fold/herdrlib.py | all | tui
 src/i18n.py                                 | .config/herdr-fold/i18n.py | all | both
 src/lang/*.txt                              | .config/herdr-fold/lang/ | all | both
+LICENSE                                     | .config/herdr-fold/LICENSE | all | both
+THIRD_PARTY_NOTICES.md                      | .config/herdr-fold/THIRD_PARTY_NOTICES.md | all | both
 src/restore_panes.py                        | .config/herdr-fold/restore_panes.py | all | tui
 src/statusline_setup.py                     | .config/herdr-fold/statusline_setup.py | all | both
 src/statusline.py                           | .config/herdr-fold/statusline.py | all | both

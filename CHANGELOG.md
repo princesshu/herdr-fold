@@ -28,6 +28,8 @@ All notable changes to this project are listed here. The format follows
 - The TUI preview's key hints in a narrow pane: each left out whole, the last first, never cut (`c: co`).
 - Claude's status line writes the weekly reset as the machine writes hours (`Monday 13:00` on a Mac set to 24 hours),
   not always with am and pm.
+- The license and the notices of what herdr-fold builds on (its icons' among them) go with every install: herdr-fold's
+  folder on each machine, and the Herdr app's mod, which also names its author.
 
 ## [0.3.0] - 2026-11-08
 
