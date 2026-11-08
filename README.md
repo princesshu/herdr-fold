@@ -8,10 +8,12 @@ it; the sidebar and AI Sessions also install alone; herdr's desktop app gets it 
 
 Created by [princesshu](https://github.com/princesshu).
 
-![License: MIT](https://img.shields.io/badge/license-MIT-blue)
-![Platforms: macOS 15+ on Apple silicon, Linux and Windows over SSH](
-https://img.shields.io/badge/platforms-macOS%2015%2B%20Apple%20silicon%20%7C%20Linux%20and%20Windows%20over%20SSH-lightgrey)
-![herdr 0.9.5+](https://img.shields.io/badge/herdr-0.9.5%2B-lightgrey)
+[![The latest release](
+https://img.shields.io/github/v/release/princesshu/herdr-fold?label=release&labelColor=313244&color=cba6f7)](
+https://github.com/princesshu/herdr-fold/releases/latest)
+![Clients: the TUI (herdr 0.9.5+) and the Herdr app](
+https://img.shields.io/badge/clients-TUI%20%28herdr%200.9.5%2B%29%20%C2%B7%20Herdr%20app-cba6f7?labelColor=313244)
+![License: MIT](https://img.shields.io/badge/license-MIT-45475a?labelColor=313244)
 
 ![Three workspaces under Spaces, one saying how long its agent has waited; Claude's report of an issue it fixed,
 above its status line (model, context, limits); the Conversations column with each workspace's conversations; and on
