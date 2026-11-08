@@ -1,5 +1,5 @@
-"""Tests for core/chat.py: a Claude Code session file read into the steps the app's chat draws, only where it grew;
-lines built the way Claude writes them, its metadata and helpers left out, a block it does not know a plain step."""
+"""Tests for core/chat.py: a Claude Code session file read into the steps the app's chat draws, only where it grew
+(lines built the way Claude writes them); the request, answer and status files a chat's hook and the app share."""
 import contextlib
 import io
 import json
@@ -10,12 +10,23 @@ import tempfile
 import unittest
 from unittest import mock
 
-from support import PACKAGE, jsonl
+from support import PACKAGE, jsonl, set_env
 
 sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import chat  # noqa: E402
+import statefile  # noqa: E402
 
 BOOKS = "src/lumen/routes/books.py"
+SESSION = "5f0c6d9e-1b2a-4c3d-8e9f-0a1b2c3d4e5f"
+REQUEST = {"id": "r1", "kind": "permission", "tool_name": "Bash", "tool_input": {"command": "pytest -q"}}
+
+
+def cli(*args):
+    """chat.py's command line: its exit code, and its answer when it gave one."""
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+        code = chat.main(["chat.py", *args])
+    return code, json.loads(out.getvalue()) if code == 0 else None
 
 
 def at(minute):
@@ -54,7 +65,7 @@ class Case(unittest.TestCase):
     def setUp(self):
         self.home = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.home)
-        self.path = os.path.join(self.home, "5f0c6d9e-1b2a-4c3d-8e9f-0a1b2c3d4e5f.jsonl")
+        self.path = os.path.join(self.home, f"{SESSION}.jsonl")
 
     def write(self, *lines):
         with open(self.path, "a", encoding="utf-8") as f:
@@ -191,19 +202,78 @@ class Steps(Case):
 class CommandLine(Case):
     """The app mod's: the steps as JSON on stdout."""
 
-    def cli(self, *args):
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-            code = chat.main(["chat.py", *args])
-        return code, json.loads(out.getvalue()) if code == 0 else None
-
     def test_the_command_line_prints_the_steps(self):
         self.write(USER, ANSWER)
-        code, answer = self.cli("steps", self.path, "0")
+        code, answer = cli("steps", self.path, "0")
         self.assertEqual(code, 0)
         self.assertEqual([s["kind"] for s in answer["steps"]], ["user", "text"])
-        self.assertEqual(self.cli("steps", self.path, "-1")[0], 2)
-        self.assertEqual(self.cli("steps")[0], 2)
+        self.assertEqual(cli("steps", self.path, "-1")[0], 2)
+        self.assertEqual(cli("steps")[0], 2)
+
+
+class Files(unittest.TestCase):
+    """What Claude waits on, the app's answer and the status line's numbers: a chat's own files, its user's only."""
+
+    def setUp(self):
+        self.home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.home)
+        set_env(self, HOME=self.home)
+        self.folder = os.path.join(self.home, ".local", "state", "herdr-fold", "chat", SESSION)
+
+    def ask(self, request=REQUEST):
+        statefile.write(os.path.join(chat.chat_dir(SESSION), "request.json"), request)     # as the hook does
+
+    def test_a_session_id_must_be_a_uuid(self):
+        self.assertEqual(chat.chat_dir(SESSION), self.folder)
+        for bad in ("../x", "a" * 36, "", SESSION.upper(), SESSION + "/..", f"../{SESSION[3:]}"):
+            with self.subTest(bad), self.assertRaises(ValueError):
+                chat.chat_dir(bad)
+
+    def test_a_request_is_read_and_answered(self):
+        self.assertIsNone(chat.pending(SESSION))
+        self.ask()
+        self.assertEqual(chat.pending(SESSION), REQUEST)
+        self.assertTrue(chat.answer(SESSION, {"id": "r1", "choice": "allow"}))
+        with open(os.path.join(self.folder, "answer.json"), encoding="utf-8") as f:
+            self.assertEqual(json.load(f), {"id": "r1", "choice": "allow"})
+
+    def test_an_answer_for_another_request_is_refused(self):
+        self.assertFalse(chat.answer(SESSION, {"id": "r1", "choice": "allow"}))         # nothing asked
+        self.ask()
+        for reply in ({"id": "older", "choice": "allow"}, {"choice": "allow"}, ["r1"]):
+            with self.subTest(reply):
+                self.assertFalse(chat.answer(SESSION, reply))
+        self.ask({**REQUEST, "id": None})
+        self.assertFalse(chat.answer(SESSION, {"id": None, "choice": "allow"}))
+        self.assertFalse(os.path.exists(os.path.join(self.folder, "answer.json")))
+
+    @unittest.skipIf(os.name == "nt", "POSIX modes")
+    def test_its_files_are_private_to_the_user(self):
+        mask = os.umask(0)
+        self.addCleanup(os.umask, mask)
+        self.ask()
+        chat.answer(SESSION, {"id": "r1", "choice": "deny"})
+        self.assertEqual(os.stat(self.folder).st_mode & 0o777, 0o700)
+        self.assertEqual(os.stat(os.path.join(self.folder, "answer.json")).st_mode & 0o777, 0o600)
+
+    def test_the_status_line_numbers_are_read_from_their_file(self):
+        self.assertIsNone(chat.status(SESSION))
+        statefile.write(chat.status_path(SESSION), {"context": 42, "model": "claude-opus-5-5"})
+        self.assertEqual(chat.status(SESSION), {"context": 42, "model": "claude-opus-5-5"})
+        with open(chat.status_path(SESSION), "w", encoding="utf-8") as f:
+            f.write("[1, 2")
+        self.assertIsNone(chat.status(SESSION))
+
+    def test_the_command_line_answers(self):
+        self.assertEqual(cli("pending", SESSION), (0, None))
+        self.ask()
+        self.assertEqual(cli("pending", SESSION), (0, REQUEST))
+        self.assertEqual(cli("answer", SESSION, json.dumps({"id": "older"})), (0, {"ok": False}))
+        self.assertEqual(cli("answer", SESSION, json.dumps({"id": "r1", "choice": "allow"})), (0, {"ok": True}))
+        self.assertEqual(cli("status", SESSION), (0, None))
+        for bad in (("answer", SESSION, "{not json"), ("pending", "../x"), ("status",), ("answer", SESSION)):
+            with self.subTest(bad):
+                self.assertEqual(cli(*bad)[0], 2)
 
 
 if __name__ == "__main__":

@@ -17,15 +17,10 @@ HOW = "git pull in its folder, then ./install.sh"             # README's Updatin
 DAY = 86400
 
 
-def folder():
-    """herdr-fold's state folder, where the installer records the version it installed."""
-    return os.path.join(os.path.expanduser("~"), ".local", "state", "herdr-fold")
-
-
 def kept():
     """What update.json keeps: when GitHub was last asked, its answer, the version told about, whether it is on."""
     try:
-        with open(os.path.join(folder(), "update.json"), encoding="utf-8") as f:
+        with open(os.path.join(statefile.folder(), "update.json"), encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, ValueError):
         return {}
@@ -33,13 +28,13 @@ def kept():
 
 
 def keep(**changes):
-    statefile.write(os.path.join(folder(), "update.json"), {**kept(), **changes})
+    statefile.write(os.path.join(statefile.folder(), "update.json"), {**kept(), **changes})
 
 
 def installed():
     """The version the installer put on this machine, or None (it never ran here: a remote machine)."""
     try:
-        with open(os.path.join(folder(), "version"), encoding="utf-8") as f:
+        with open(os.path.join(statefile.folder(), "version"), encoding="utf-8") as f:
             version = f.read().strip()
     except OSError:
         return None

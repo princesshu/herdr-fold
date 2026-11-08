@@ -7,6 +7,11 @@ import os
 import tempfile
 
 
+def folder():
+    """herdr-fold's own state folder: the version the installer put in, the update check, the app's chats."""
+    return os.path.join(os.path.expanduser("~"), ".local", "state", "herdr-fold")
+
+
 def write(path, value, **dump):
     """VALUE as JSON in PATH (DUMP: json.dump's own options); OSError when it cannot be written."""
     folder = os.path.dirname(path)
