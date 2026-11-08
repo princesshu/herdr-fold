@@ -6,8 +6,35 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-08
+
+The whole environment `herdr-fold 0.3.0` and its plugins `herdr-fold.sidebar 0.3.0`, `herdr-fold.sessions-view 0.3.0`
+and `herdr-fold.tab-layout 0.3.0`, with herdr-fold's mod for herdr's desktop app.
+
 ### Added
 
+- herdr-fold in herdr's desktop app: a mod with the sidebar's Changes view (the changed files, staged by file or all at
+  once, a change discarded (a new file into the Trash), a file's diff, the message Claude or Codex writes, Commit,
+  Commit & Push or Commit & Sync, Cmd + Shift + C's commit and push in one step (with nothing to commit, the push of the
+  commits ahead), the repository's row as VS Code's (sync, pull, push), and the Graph of the last commits with each
+  one's diff), Search (the space's folder, with the TUI's switches, a hit's file shown at its line) and Issues (by
+  priority, with the TUI's filters; an issue handed to the tab's Claude or Codex and linked to the next commit, a reply,
+  Assign to me, close or reopen; Cmd + Shift + I); a diff, a commit or an issue opens in the space's preview tab, as in
+  the TUI; its own Spaces list, as the app's, with the TUI's waits (`waiting 12m`, Cmd + Shift + U), and its own tab
+  bar, as the app's, each button saying what it does; Conversations in the left sidebar (this Mac's conversations by
+  space, a closed one reopened in a new tab, Rename, Copy conversation, Archive; Cmd + Shift + R), the archived ones and
+  the names shared with the TUI's column, and folded, the sidebar a dock of icons, as Illustrator's panels, and so the
+  right panel (its toggle, Cmd + Shift + G or a drag), each view and the tab's terminal floating beside its rail; the
+  right panel one panel group, its views as its tabs, Files among them (the TUI's, where the app's own was: Catppuccin
+  Icons' files and folders, git's marks, a file in the preview tab, New File, New Folder, Rename, Copy Path, Move to
+  Trash, New Workspace); for a space on this Mac or on another machine (Linux, macOS or Windows), with the TUI's data
+  layer underneath; a layout of its own puts it in the right panel, where the app's Changes was (Cmd + Shift + G), dark
+  in the TUI's colors (Catppuccin Mocha), its terminals and code in Menlo as VS Code's, at the TUI's size; the TUI's
+  twelve themes come along in the app's Settings; under it, each tab's own terminal, as the TUI's right column has it,
+  on the space's machine; Lucide's icons, and a file's Catppuccin Icons' for its type. Where the Herdr app is on the
+  Mac, `install.sh` sets it up when its first question names the app, the remote machines in the app too;
+  `uninstall.sh` takes it off. See
+  [The Herdr app](docs/app.md).
 - The installer asks first for the TUI, the Herdr app or both, a page in the browser showing each; the default is
   what is installed, and `HERDR_FOLD_PARTS` answers it. Each step sets up only what the chosen parts need: the Herdr
   app alone installs nothing of the TUI's and runs no herdr. The other part is added later by running it again. With
@@ -43,28 +70,6 @@ All notable changes to this project are listed here. The format follows
   archived conversations, the linked issues, the records) goes with the last. See [Uninstall](docs/uninstall.md).
 - Cmd + Shift + U marks the focused agent unread: its workspace says `waiting` again, from then, until you come back
   to it after leaving it; again on a marked one takes the mark off. See [Sessions](docs/usage.md#sessions).
-- herdr-fold in herdr's desktop app: a mod with the sidebar's Changes view (the changed files, staged by file or all at
-  once, a change discarded (a new file into the Trash), a file's diff, the message Claude or Codex writes, Commit,
-  Commit & Push or Commit & Sync, Cmd + Shift + C's commit and push in one step (with nothing to commit, the push of the
-  commits ahead), the repository's row as VS Code's (sync, pull, push), and the Graph of the last commits with each
-  one's diff), Search (the space's folder, with the TUI's switches, a hit's file shown at its line) and Issues (by
-  priority, with the TUI's filters; an issue handed to the tab's Claude or Codex and linked to the next commit, a reply,
-  Assign to me, close or reopen; Cmd + Shift + I); a diff, a commit or an issue opens in the space's preview tab, as in
-  the TUI; its own Spaces list, as the app's, with the TUI's waits (`waiting 12m`, Cmd + Shift + U), and its own tab
-  bar, as the app's, each button saying what it does; Conversations in the left sidebar (this Mac's conversations by
-  space, a closed one reopened in a new tab, Rename, Copy conversation, Archive; Cmd + Shift + R), the archived ones and
-  the names shared with the TUI's column, and folded, the sidebar a dock of icons, as Illustrator's panels, and so the
-  right panel (its toggle, Cmd + Shift + G or a drag), each view and the tab's terminal floating beside its rail; the
-  right panel one panel group, its views as its tabs, Files among them (the TUI's, where the app's own was: Catppuccin
-  Icons' files and folders, git's marks, a file in the preview tab, New File, New Folder, Rename, Copy Path, Move to
-  Trash, New Workspace); for a space on this Mac or on another machine (Linux, macOS or Windows), with the TUI's data
-  layer underneath; a layout of its own puts it in the right panel, where the app's Changes was (Cmd + Shift + G), dark
-  in the TUI's colors (Catppuccin Mocha), its terminals and code in Menlo as VS Code's, at the TUI's size; the TUI's
-  twelve themes come along in the app's Settings; under it, each tab's own terminal, as the TUI's right column has it,
-  on the space's machine; Lucide's icons, and a file's Catppuccin Icons' for its type. Where the Herdr app is on the
-  Mac, `install.sh` sets it up when its first question names the app, the remote machines in the app too;
-  `uninstall.sh` takes it off. See
-  [The Herdr app](docs/app.md).
 - The Herdr app's layout comes with its recipe and a picture, `app/RECIPE.md` and `app/preview.png`, as the app's
   catalog of layouts lists one: what it shows, how it behaves, what it is built from, so another agent can build it
   again. See [The Herdr app](docs/app.md#installing-it).
@@ -201,6 +206,7 @@ First release.
 - Privacy: no telemetry; the plugins' state readable by you alone; a hand-added machine's host key shown and confirmed
   before the first connection; a privacy test over every file and every commit. See [Security](SECURITY.md).
 
-[Unreleased]: https://github.com/princesshu/herdr-fold/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/princesshu/herdr-fold/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/princesshu/herdr-fold/releases/tag/v0.3.0
 [0.2.0]: https://github.com/princesshu/herdr-fold/releases/tag/v0.2.0
 [0.1.0]: https://github.com/princesshu/herdr-fold/releases/tag/v0.1.0

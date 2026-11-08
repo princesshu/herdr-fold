@@ -1,6 +1,6 @@
 id = "herdr-fold"
 name = "Full Setup"
-version = "0.2.0"
+version = "0.3.0"
 min_herdr_version = "0.9.5"
 description = """\
   The whole herdr-fold setup on a Mac, from one installer in a herdr tab: files, search, git and GitHub issues, AI \

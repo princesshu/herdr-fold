@@ -1,6 +1,6 @@
 id = "herdr-fold.sessions-view"
 name = "AI Sessions"
-version = "0.2.0"
+version = "0.3.0"
 min_herdr_version = "0.9.5"
 description = """\
   herdr's Agents panel as AI sessions: the current workspace's Claude and Codex conversations with their state, \

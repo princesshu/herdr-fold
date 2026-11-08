@@ -335,7 +335,7 @@ class Credits(unittest.TestCase):
         manifest = package_text("herdr-plugin.toml")
         head = manifest.split("\n[", 1)[0]
         self.assertEqual(dict(re.findall(r'^(id|name|version|min_herdr_version) = "(.*)"$', head, re.MULTILINE)),
-                         {"id": "herdr-fold", "name": "Full Setup", "version": "0.2.0",
+                         {"id": "herdr-fold", "name": "Full Setup", "version": "0.3.0",
                           "min_herdr_version": "0.9.5"})
         self.assertIn('platforms = ["macos"]', head)
         self.assertIn("[[startup]]", manifest)
