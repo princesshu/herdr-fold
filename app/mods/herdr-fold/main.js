@@ -15,6 +15,7 @@ import { button, chip, END, field, fileMark, GAP, icon, INDENT, SLIDE, small } f
 import { Menus, menuPopup } from "./menus.js";
 import { checkUpdates, followFolder, keptWidth, liveTabs, openRail, rail, runPanel, TABS, tabsState, VIEW, VIEW_NAMES }
   from "./panel.js";
+import { Chat } from "./chat.js";
 import { ConversationsView } from "./conversations.js";
 import { FilesView } from "./files.js";
 import { floatHead, floatPanel, sidebarTrigger, spacesFloat } from "./sidebar.js";
@@ -138,6 +139,10 @@ export default class HerdrFold extends View {
       return void cx.spawn(async (cx) => {
         for (;;) preview.menus.answer(await nextCommand(), cx);              // its right click's choices
       });
+    }
+    if (part === "chat") {                        // a chat tab: an agent's conversation as a timeline (chat.js)
+      this.chat = new Chat(props(), python, pythonOn);
+      return void this.chat.init(cx);
     }
     if ((this.trigger = part === "trigger")) return;    // left of the tabs: the folded sidebar's toggle
     if ((this.rail = part === "rail")) return;          // the right panel folded: its rail
@@ -551,6 +556,7 @@ export default class HerdrFold extends View {
       this.preview.watch(cx);
       return this.preview.render(t, codeFont());
     }
+    if (this.chat) return this.chat.render(t, codeFont());
     const float = this.float;
     if (float && !["spaces", "conversations"].includes(float.panel)) this.offRail(float.overlay, cx);
     if (float?.panel === "spaces") return spacesFloat(t, float.overlay, float.height);

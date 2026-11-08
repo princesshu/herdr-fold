@@ -3,7 +3,8 @@
 // fold-terminals stack holds a block per tab; its header, 0 high and always shown with it, picks it (this part).
 import { div } from "gpui-kit";
 import { focused, spaces, terminals, machines, layout, hc, shared, setShared, run as command } from "herdr";
-import { lastLine, machineOf, said, strays, TERMINALS, terminalId, withoutTabs, withTerminal } from "./logic.js";
+import { lastLine, machineOf, orphanChats, said, strays, TERMINALS, terminalId, withoutTabs, withTerminal }
+  from "./logic.js";
 
 const LABEL = "herdr-fold.tab";    // the core keeps a tab's terminal by this label, the tab's id its value
 const NOTE = "herdr-fold.terminal";      // why the focused tab has no terminal, for the stack's stand-in to say
@@ -91,8 +92,8 @@ export class TerminalFollower {
     });
   }
 
-  /** The terminals of tabs closed since, and any second one a tab got: ended, and out of the stack. A machine away
-   * lists no tabs, so its terminals stay until it is back. */
+  /** The terminals of tabs closed since, any second one a tab got, and the agents of chat tabs closed since: ended,
+   * and out of the stack. A machine away lists no tabs, so its terminals stay until it is back. */
   tidy() {
     const shown = spaces();
     if (!shown.length) return;
@@ -101,7 +102,7 @@ export class TerminalFollower {
     const labelled = terminals().filter((t) => t.labels?.[LABEL])
       .map((t) => ({ address: t.address, tab: t.labels[LABEL], live: t.state === "live" }));
     const closed = labelled.filter((t) => t.live && !tabs.includes(t.tab)).map((t) => t.address);
-    for (const address of [...closed, ...strays(layout(), labelled)]) {
+    for (const address of [...closed, ...strays(layout(), labelled), ...orphanChats(terminals(), tabs)]) {
       if (reachable.has(machineOf(address))) hc(["kill", "--", address]);
     }
     for (const t of labelled) if (!tabs.includes(t.tab)) started.delete(t.tab);

@@ -66,9 +66,10 @@ class Runnable(unittest.TestCase):
     def test_what_an_imported_module_imports_is_made_first_too(self):
         # chat.py imports conversations.py, which imports statefile.py and github.py: each made once, before its user
         with tempfile.TemporaryDirectory() as home:
-            done = subprocess.run(["/usr/bin/python3", "-I", "-c", build.runnable("chat.py"), "steps",
-                                   os.path.join(home, "none.jsonl"), "0"], env={"HOME": home, "PATH": "/usr/bin:/bin"},
-                                  capture_output=True, text=True, timeout=30)
+            session = "5f0c6d9e-1b2a-4c3d-8e9f-0a1b2c3d4e5f"
+            done = subprocess.run(["/usr/bin/python3", "-I", "-c", build.runnable("chat.py"), "steps", session, "0"],
+                                  env={"HOME": home, "PATH": "/usr/bin:/bin"}, capture_output=True, text=True,
+                                  timeout=30)
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(json.loads(done.stdout)["steps"], [])
         made = re.findall(r"^_sys\.modules\['(\w+)'\] =", build.runnable("chat.py"), re.M)

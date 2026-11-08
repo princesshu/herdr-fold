@@ -14,7 +14,7 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   terminalId, TERMINALS, urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread,
   spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow,
   railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom, mediaKind,
-  aboutLines, stacks, swapDraft, browsable, opener, changeSides, fileIcon, stillResumed }
+  aboutLines, stacks, swapDraft, browsable, opener, changeSides, fileIcon, stillResumed, CHAT_TAB, orphanChats }
   from "../mods/herdr-fold/logic.js";
 
 test("a tab nobody named after its program, an agent's first, else Terminal; an agent's icon; zoomed marked", () => {
@@ -727,4 +727,10 @@ test("a reopened conversation is forgotten once its agent is gone, never for a m
   const kept = { t1: "talk-1", t2: "talk-2" };
   assert.deepEqual(stillResumed(kept, new Set(["t1", "t9"])), { t1: "talk-1" });
   assert.deepEqual(stillResumed(kept, new Set()), kept);                   // the app starting, its core reconnecting
+});
+
+test("a chat's agent whose tab is gone is ended; one whose tab is there, or that has ended, stays", () => {
+  const agent = (address, tab, state = "live") => ({ address, state, labels: { [CHAT_TAB]: tab } });
+  assert.deepEqual(orphanChats([agent("t1", "tb1"), agent("t2", "tb2"), agent("t3", "tb3", "exited"),
+    { address: "t4", state: "live", labels: {} }], ["tb1"]), ["t2"]);
 });

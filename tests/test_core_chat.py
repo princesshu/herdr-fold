@@ -200,15 +200,21 @@ class Steps(Case):
 
 
 class CommandLine(Case):
-    """The app mod's: the steps as JSON on stdout."""
+    """The app mod's: the steps of a session's conversation as JSON on stdout, found wherever Claude keeps it."""
 
-    def test_the_command_line_prints_the_steps(self):
+    def test_the_command_line_prints_the_steps_of_a_session(self):
+        set_env(self, HOME=self.home)
+        self.assertEqual(cli("steps", SESSION, "0")[1]["steps"], [])               # Claude has not written it yet
+        self.path = os.path.join(self.home, ".claude", "projects", "-work-lumen-api", f"{SESSION}.jsonl")
+        os.makedirs(os.path.dirname(self.path))
         self.write(USER, ANSWER)
-        code, answer = cli("steps", self.path, "0")
+        code, answer = cli("steps", SESSION, "0")
         self.assertEqual(code, 0)
         self.assertEqual([s["kind"] for s in answer["steps"]], ["user", "text"])
-        self.assertEqual(cli("steps", self.path, "-1")[0], 2)
-        self.assertEqual(cli("steps")[0], 2)
+        self.assertEqual(cli("steps", SESSION, str(answer["offset"]))[1]["steps"], [])
+        for bad in (("steps", SESSION, "-1"), ("steps", "../x", "0"), ("steps",)):
+            with self.subTest(bad):
+                self.assertEqual(cli(*bad)[0], 2)
 
 
 class Files(unittest.TestCase):

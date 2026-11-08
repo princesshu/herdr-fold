@@ -56,14 +56,15 @@ export function claudeSettings(python) {
   });
 }
 
-/** Claude's command line for a chat: a new SESSION, or the one it resumes, with the chat's settings and, when chosen,
- * a mode and an effort. A session id, a mode or an effort Claude does not know throws.
- * @param {{ python: string, session: string, resume?: boolean, mode?: string, effort?: string }} chat */
-export function claudeArgv({ python, session, resume = false, mode, effort }) {
+/** Claude's command line for a chat: a new SESSION or the one it resumes, the chat's settings, and when given a mode,
+ * an effort and the first prompt; a session id, mode or effort Claude does not know throws. @param {{ python: string,
+ * session: string, resume?: boolean, mode?: string, effort?: string, prompt?: string }} chat */
+export function claudeArgv({ python, session, resume = false, mode, effort, prompt }) {
   const claude = ADAPTERS.claude;
   if (!SESSION.test(session)) throw new Error("not a session id");
   if (mode && !claude.modes.some((m) => m.id === mode)) throw new Error(`not a mode: ${mode}`);
   if (effort && !claude.efforts.some((e) => e.id === effort)) throw new Error(`not an effort: ${effort}`);
   return ["claude", resume ? "--resume" : "--session-id", session, "--settings", claudeSettings(python),
-    ...(mode ? ["--permission-mode", mode] : []), ...(effort ? ["--effort", effort] : [])];
+    ...(mode ? ["--permission-mode", mode] : []), ...(effort ? ["--effort", effort] : []),
+    ...(prompt ? ["--", prompt] : [])];
 }

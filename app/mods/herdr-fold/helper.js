@@ -987,7 +987,8 @@ export const CHAT = [
   "",
   "sys.dont_write_bytecode = True  # no __pycache__ beside the installed files",
   "import statefile  # noqa: E402",
-  "from conversations import NOT_A_PROMPT, obj, open_regular, parse, text, texts_of  # noqa: E402",
+  "from conversations import NOT_A_PROMPT, obj, open_regular, parse, session_files, text, texts_of  # noqa: " +
+    "E402",
   "",
   "READ = 4 << 20                  # bytes read at a time: a longer line is read whole, and the next call goes " +
     "on",
@@ -1125,10 +1126,11 @@ export const CHAT = [
   "def steps(path, offset=0):",
   "    \"\"\"The steps of the conversation in PATH from byte OFFSET, where the read stopped, and the newest " +
     "model, effort and",
-  "    permission mode its lines name (None when they name none). A file not there yet has no steps.\"\"\"",
+  "    permission mode its lines name (None when they name none). No file (None) or one not there yet has no " +
+    "steps.\"\"\"",
   "    seen = dict.fromkeys((\"requested\", \"model\", \"effort\", \"mode\"))",
   "    try:",
-  "        data, offset = whole_lines(path, offset)",
+  "        data, offset = whole_lines(path, offset) if path else (b\"\", offset)",
   "    except OSError:",
   "        data = b\"\"",
   "    found = [step for raw in data.splitlines() for step in said(parse(raw.decode(\"utf-8\", \"replace\")), " +
@@ -1140,14 +1142,24 @@ export const CHAT = [
   "",
   "# --- what Claude waits on, the app's answer, the status line's numbers",
   "",
-  "def chat_dir(session):",
-  "    \"\"\"The folder of the chat with SESSION, a session id (ValueError for anything else, before a path is " +
-    "built): what",
-  "    Claude waits on (request.json), the app's answer (answer.json), the status line's numbers " +
-    "(status.json).\"\"\"",
+  "def checked(session):",
+  "    \"\"\"SESSION if it is a session id; ValueError for anything else, before a path is built of it.\"\"\"",
   "    if not isinstance(session, str) or not SESSION.fullmatch(session):",
   "        raise ValueError(f\"not a session id: {session!r}\")",
-  "    return os.path.join(statefile.folder(), \"chat\", session)",
+  "    return session",
+  "",
+  "",
+  "def session_file(session):",
+  "    \"\"\"The file of Claude's conversation with SESSION, wherever Claude keeps it; None before it writes " +
+    "one.\"\"\"",
+  "    return next(iter(session_files(\"claude\", checked(session))), None)",
+  "",
+  "",
+  "def chat_dir(session):",
+  "    \"\"\"The folder of the chat with SESSION: what Claude waits on (request.json), the app's answer " +
+    "(answer.json), the",
+  "    status line's numbers (status.json).\"\"\"",
+  "    return os.path.join(statefile.folder(), \"chat\", checked(session))",
   "",
   "",
   "def status_path(session):",
@@ -1186,8 +1198,8 @@ export const CHAT = [
   "",
   "",
   "def main(argv):",
-  "    \"\"\"herdr-fold's Herdr app mod runs this on the space's machine, answering in JSON: steps PATH OFFSET " +
-    "(the",
+  "    \"\"\"herdr-fold's Herdr app mod runs this on the space's machine, answering in JSON: steps SESSION " +
+    "OFFSET (the",
   "    conversation's steps from OFFSET, and where the read stopped), pending SESSION (what Claude waits on, " +
     "or null),",
   "    answer SESSION REPLY ({\"ok\": whether it went to Claude}) and status SESSION (the status line's " +
@@ -1195,7 +1207,7 @@ export const CHAT = [
   "    command, args = (argv[1], argv[2:]) if len(argv) > 1 else (\"\", [])",
   "    try:",
   "        if command == \"steps\" and len(args) == 2 and int(args[1]) >= 0:",
-  "            found = steps(args[0], int(args[1]))",
+  "            found = steps(session_file(args[0]), int(args[1]))",
   "        elif command in (\"pending\", \"status\") and len(args) == 1:",
   "            found = (pending if command == \"pending\" else status)(args[0])",
   "        elif command == \"answer\" and len(args) == 2:",
@@ -1207,7 +1219,7 @@ export const CHAT = [
   "        else:",
   "            raise ValueError(\"unknown command\")",
   "    except (ValueError, RecursionError):",
-  "        print(\"usage: chat.py steps PATH OFFSET | pending SESSION | answer SESSION REPLY | status " +
+  "        print(\"usage: chat.py steps SESSION OFFSET | pending SESSION | answer SESSION REPLY | status " +
     "SESSION\",",
   "              file=sys.stderr)",
   "        return 2",
@@ -2207,7 +2219,8 @@ export const CHAT_HOOK = [
   "'',",
   "'sys.dont_write_bytecode = True  # no __pycache__ beside the installed files',",
   "'import statefile  # noqa: E402',",
-  "'from conversations import NOT_A_PROMPT, obj, open_regular, parse, text, texts_of  # noqa: E402',",
+  "'from conversations import NOT_A_PROMPT, obj, open_regular, parse, session_files, text, texts_of  # noqa: " +
+    "E402',",
   "'',",
   "'READ = 4 << 20                  # bytes read at a time: a longer line is read whole, and the next call " +
     "goes on',",
@@ -2347,10 +2360,11 @@ export const CHAT_HOOK = [
   "'def steps(path, offset=0):',",
   "'    \"\"\"The steps of the conversation in PATH from byte OFFSET, where the read stopped, and the newest " +
     "model, effort and',",
-  "'    permission mode its lines name (None when they name none). A file not there yet has no steps.\"\"\"',",
+  "'    permission mode its lines name (None when they name none). No file (None) or one not there yet has no " +
+    "steps.\"\"\"',",
   "'    seen = dict.fromkeys((\"requested\", \"model\", \"effort\", \"mode\"))',",
   "'    try:',",
-  "'        data, offset = whole_lines(path, offset)',",
+  "'        data, offset = whole_lines(path, offset) if path else (b\"\", offset)',",
   "'    except OSError:',",
   "'        data = b\"\"',",
   "'    found = [step for raw in data.splitlines() for step in said(parse(raw.decode(\"utf-8\", \"replace\")), " +
@@ -2362,14 +2376,25 @@ export const CHAT_HOOK = [
   "'',",
   "\"# --- what Claude waits on, the app's answer, the status line's numbers\",",
   "'',",
-  "'def chat_dir(session):',",
-  "'    \"\"\"The folder of the chat with SESSION, a session id (ValueError for anything else, before a path " +
-    "is built): what',",
-  "'    Claude waits on (request.json), the app\\'s answer (answer.json), the status line\\'s numbers " +
-    "(status.json).\"\"\"',",
+  "'def checked(session):',",
+  "'    \"\"\"SESSION if it is a session id; ValueError for anything else, before a path is built of " +
+    "it.\"\"\"',",
   "'    if not isinstance(session, str) or not SESSION.fullmatch(session):',",
   "'        raise ValueError(f\"not a session id: {session!r}\")',",
-  "'    return os.path.join(statefile.folder(), \"chat\", session)',",
+  "'    return session',",
+  "'',",
+  "'',",
+  "'def session_file(session):',",
+  "'    \"\"\"The file of Claude\\'s conversation with SESSION, wherever Claude keeps it; None before it " +
+    "writes one.\"\"\"',",
+  "'    return next(iter(session_files(\"claude\", checked(session))), None)',",
+  "'',",
+  "'',",
+  "'def chat_dir(session):',",
+  "'    \"\"\"The folder of the chat with SESSION: what Claude waits on (request.json), the app\\'s answer " +
+    "(answer.json), the',",
+  "'    status line\\'s numbers (status.json).\"\"\"',",
+  "'    return os.path.join(statefile.folder(), \"chat\", checked(session))',",
   "'',",
   "'',",
   "'def status_path(session):',",
@@ -2408,8 +2433,8 @@ export const CHAT_HOOK = [
   "'',",
   "'',",
   "'def main(argv):',",
-  "'    \"\"\"herdr-fold\\'s Herdr app mod runs this on the space\\'s machine, answering in JSON: steps PATH " +
-    "OFFSET (the',",
+  "'    \"\"\"herdr-fold\\'s Herdr app mod runs this on the space\\'s machine, answering in JSON: steps " +
+    "SESSION OFFSET (the',",
   "\"    conversation's steps from OFFSET, and where the read stopped), pending SESSION (what Claude waits on, " +
     "or null),\",",
   "'    answer SESSION REPLY ({\"ok\": whether it went to Claude}) and status SESSION (the status line\\'s " +
@@ -2417,7 +2442,7 @@ export const CHAT_HOOK = [
   "'    command, args = (argv[1], argv[2:]) if len(argv) > 1 else (\"\", [])',",
   "'    try:',",
   "'        if command == \"steps\" and len(args) == 2 and int(args[1]) >= 0:',",
-  "'            found = steps(args[0], int(args[1]))',",
+  "'            found = steps(session_file(args[0]), int(args[1]))',",
   "'        elif command in (\"pending\", \"status\") and len(args) == 1:',",
   "'            found = (pending if command == \"pending\" else status)(args[0])',",
   "'        elif command == \"answer\" and len(args) == 2:',",
@@ -2429,7 +2454,7 @@ export const CHAT_HOOK = [
   "'        else:',",
   "'            raise ValueError(\"unknown command\")',",
   "'    except (ValueError, RecursionError):',",
-  "'        print(\"usage: chat.py steps PATH OFFSET | pending SESSION | answer SESSION REPLY | status " +
+  "'        print(\"usage: chat.py steps SESSION OFFSET | pending SESSION | answer SESSION REPLY | status " +
     "SESSION\",',",
   "'              file=sys.stderr)',",
   "'        return 2',",

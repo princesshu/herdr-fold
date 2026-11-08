@@ -20,6 +20,11 @@ test("a new chat starts Claude with its session id, the settings, the mode and t
     "--permission-mode", "plan", "--effort", "high"]);
 });
 
+test("a first prompt goes last, after --, so a dash at its start is no option", () => {
+  assert.deepEqual(claudeArgv({ python: PYTHON, session: SESSION, prompt: "-q: why does page 4 answer page 3?" })
+    .slice(-2), ["--", "-q: why does page 4 answer page 3?"]);
+});
+
 test("a reopened chat resumes its session, its mode and effort left as Claude kept them", () => {
   assert.deepEqual(claudeArgv({ python: PYTHON, session: SESSION, resume: true }),
     ["claude", "--resume", SESSION, "--settings", claudeSettings(PYTHON)]);

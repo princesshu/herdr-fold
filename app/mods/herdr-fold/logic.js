@@ -686,6 +686,16 @@ export function strays(tree, labelled) {
   }).map((t) => t.address);
 }
 
+/** A chat's agent's label: its chat tab's id. A tab closing leaves it running (the app quitting closes tabs too, and
+ * they come back), so it ends once its tab is gone. */
+export const CHAT_TAB = "herdr-fold.chat-tab";
+
+/** The live chat agents among TERMINALS (the app's) whose tab is no longer among TABS (ids), to end.
+ * @param {any[]} terminals @param {string[]} tabs */
+export const orphanChats = (terminals, tabs) => terminals
+  .filter((t) => t.state === "live" && t.labels?.[CHAT_TAB] && !tabs.includes(t.labels[CHAT_TAB]))
+  .map((t) => t.address);
+
 // core/'s code runs where the repository is, isolated (a module there, a json.py, is never imported for Python's)
 // and in UTF-8 on every system; BINARY: python3, or the Python a Windows machine's python.ps1 names
 /** @param {string} binary @returns {string[]} */
