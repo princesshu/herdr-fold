@@ -14,7 +14,8 @@ All notable changes to this project are listed here. The format follows
   side one.
 - The TUI preview's status row starts with Code, Split and Picture, as the Herdr app's buttons, the chosen one in the
   accent, and in Split the turn; a click chooses, `c` and `v` stay, each named faintly before its control. A narrow
-  row leaves out its key hints, then cuts the file's name short, and keeps its controls whole.
+  row leaves out its key hints, then cuts the file's name short, and keeps its controls whole; its gray spans the
+  pane.
 - Every picture macOS reads in the preview, both clients: HEIC, AVIF, JPEG XL, JPEG 2000, PSD, TGA, EXR, ICNS, the
   GPU's textures and a camera's raw file (DNG, CR2, NEF, ARW…) beside PNG, JPEG, GIF, WebP, TIFF and BMP; one no
   browser shows opens in Preview (Open in Preview), where a browser would only download it.

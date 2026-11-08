@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import media  # noqa: E402
 import pager  # noqa: E402
 import preview  # noqa: E402
+from screen import width  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
 
 # a workspace with a preview tab (w1:t2) beside its files tab; its pager runs ($PAGING=1) or herdr has started again
@@ -645,9 +646,20 @@ class Pictures(unittest.TestCase):
         self.assertTrue(self.places(term.out) and all(column > 41 for column in self.places(term.out)))
 
     def bar_row(self, term):
-        """The status row as last drawn: as written, and its text alone."""
-        row = re.findall(rf"\x1b\[{term.rows};1H\x1b\[0;7m(.*?)\x1b\[K", term.out)[-1]
-        return row, pager.plain(row)
+        """The status row as last drawn: as written, and its text alone (the spaces that fill it out left off)."""
+        row = re.findall(rf"\x1b\[{term.rows};1H\x1b\[0;7m(.*?)\x1b\[0m", term.out)[-1]
+        return row, pager.plain(row).rstrip()
+
+    def test_the_status_row_spans_the_pane(self):
+        """Its gray reaches the pane's edge, however short its text: a terminal clears the rest without it."""
+        view, term = self.split(80)
+        view.draw(term)
+        row = re.findall(rf"\x1b\[{term.rows};1H\x1b\[0;7m(.*?)\x1b\[0m", term.out)[-1]
+        self.assertEqual(width(pager.plain(row)), 80)
+        # no erase after it: at the last column the cursor waits there, and an erase would clear that cell too
+        self.assertFalse(row.endswith("\x1b[K"))
+        self.assertEqual(width(pager.plain(pager.bar("logo.svg", 30))), 30)
+        self.assertEqual(width(pager.plain(pager.bar("logo.svg  1-3/3  o: open in browser", 20))), 20)
 
     def test_the_status_row_starts_with_the_views_and_the_turn(self):
         """As the app's buttons: Code, Split and Picture after a faint c, the chosen one in the accent; after a faint v
@@ -991,13 +1003,13 @@ class PictureChanges(unittest.TestCase):
         png(os.path.join(self.repo, "logo.png"), 30, 40)
         view, term = self.shown("logo.png", columns=40, rows=60)
         self.assertIn("\x1b[2m" + "─" * 40, term.out)
-        row = re.findall(r"\x1b\[60;1H\x1b\[0;7m(.*?)\x1b\[K", term.out)[-1]
+        row = re.findall(r"\x1b\[60;1H\x1b\[0;7m(.*?)\x1b\[0m", term.out)[-1]
         self.assertTrue(pager.plain(row).startswith(" v \ueb56 Side by Side  "), pager.plain(row))
         view.handle(Key("char", "v"))
         term.out = ""
         view.draw(term)
         self.assertIn("\x1b[2m│", term.out)
-        x = pager.plain(re.findall(r"\x1b\[60;1H\x1b\[0;7m(.*?)\x1b\[K", term.out)[-1]).index("Stacked")
+        x = pager.plain(re.findall(r"\x1b\[60;1H\x1b\[0;7m(.*?)\x1b\[0m", term.out)[-1]).index("Stacked")
         view.handle(Mouse("press", x, 59, 0))                                # a click on the turn turns it back
         self.assertTrue(view.stacking or view.stacked)
 

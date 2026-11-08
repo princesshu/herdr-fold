@@ -140,7 +140,7 @@ def browse_hint(path):
 
 def bar(status, cells, lead=""):
     """STATUS as the pane's last row, CELLS wide, after LEAD (its controls, kept whole): its key hints left out, the
-    last first, then its end cut short."""
+    last first, then its end cut short; spaces fill it out, as a terminal clears the rest without the row's colors."""
     room = cells - width(plain(lead))
     hint = KEY_HINT.search(status)
     while hint and width(" " + status) > room:
@@ -149,7 +149,8 @@ def bar(status, cells, lead=""):
     status = " " + status
     if width(status) > room:
         status = visible(status, room - 1) + "…" if room > 1 else ""
-    return lead + visible(status, room)
+    status = visible(status, room)
+    return lead + status + " " * (room - width(status))
 
 
 def controls(groups, cells):
@@ -245,7 +246,7 @@ class Pager:
     def draw(self, term):
         cells, height = term.size()
         out = [f"\x1b[{row + 1};1H\x1b[0m{text}\x1b[0m\x1b[K" for row, text in enumerate(self.rows(cells, height - 1))]
-        out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), cells, self.lead)}\x1b[K\x1b[0m")
+        out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), cells, self.lead)}\x1b[0m")
         term.write("".join(out))
         term.flush()
 
@@ -379,7 +380,7 @@ class Picture:
         self.prepare(term, columns, height)
         self.cell = cell(term)
         out = [self.taken(), "\x1b[0m\x1b[2J", self.place(columns, max(1, height - 1))]
-        out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns, self.lead)}\x1b[K\x1b[0m")
+        out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns, self.lead)}\x1b[0m")
         term.write("".join(out))
         term.flush()
 
@@ -591,7 +592,7 @@ class PictureAndCode:
         if not self.dragging or self.side is None:   # made for its part once let go: fitted meanwhile, as made
             self.side = box
         out.append(self.picture.place(*box, left, self.side, top))
-        out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns, self.code.lead)}\x1b[K\x1b[0m")
+        out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns, self.code.lead)}\x1b[0m")
         term.write("".join(out))
         term.flush()
         return None
@@ -695,7 +696,7 @@ class PictureChange:
             caption = f"{label} · {shape[0]} × {shape[1]}" if shape else label
             out.append(f"\x1b[{top + 1};{left + 2}H\x1b[2m{visible(caption, max(1, wide - 2))}\x1b[0m")
             out.append(side.place(wide, max(1, tall - 1), left, None, top + 1))
-        out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns, lead)}\x1b[K\x1b[0m")
+        out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns, lead)}\x1b[0m")
         term.write("".join(out))
         term.flush()
         return None
