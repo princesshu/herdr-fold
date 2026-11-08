@@ -17,9 +17,9 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   aboutLines, swapDraft, browsable, fileIcon, stillResumed }
   from "../mods/herdr-fold/logic.js";
 
-test("a tab the app named after its program, an agent's first, else Terminal; an agent's icon; zoomed marked", () => {
-  const space = { tabs: [{ id: "t1", name: "tb1", active: true, status: "working" }, { id: "t2", name: "tb2" },
-    { id: "t3", name: "notes", zoomed: true, status: "done" }] };
+test("a tab nobody named after its program, an agent's first, else Terminal; an agent's icon; zoomed marked", () => {
+  const space = { tabs: [{ id: "t1", name: "1", named: false, active: true, status: "working" },
+    { id: "t2", name: "2", named: false }, { id: "t3", name: "notes", named: true, zoomed: true, status: "done" }] };
   const panes = [{ tab: "t1", program: { name: "zsh" } }, { tab: "t1", program: { name: "Claude", agent: true,
     icon: "claude.svg", tint: true } }, { tab: "t3", program: { name: "vim", icon: "vim.png" } }];
   assert.deepEqual(tabRows(space, panes), [
@@ -39,11 +39,12 @@ test("the panel menu names herdr-fold's version, a newer one once out, and switc
 });
 
 test("a space's first tab, while nobody named it, takes the space's name, as the TUI's main tab", () => {
-  const space = { name: "lumen-api", tabs: [{ id: "t1", name: "tb1", status: "working" }, { id: "t2", name: "tb2" }] };
+  const space = { name: "lumen-api", tabs: [{ id: "t1", name: "1", named: false, status: "working" },
+    { id: "t2", name: "2", named: false }] };
   const panes = [{ tab: "t1", program: { name: "Claude", agent: true, icon: "claude.svg", tint: true } }];
   assert.deepEqual(tabRows(space, panes).map((r) => [r.name, r.icon]), [["lumen-api", "claude.svg"],
     ["Terminal", null]]);
-  space.tabs[0].name = "review";                                    // named by hand: that name
+  Object.assign(space.tabs[0], { name: "review", named: true });     // named by hand: that name
   assert.equal(tabRows(space, panes)[0].name, "review");
 });
 
