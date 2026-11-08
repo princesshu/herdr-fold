@@ -13,13 +13,14 @@ SIDEBAR = os.path.join("src", "plugins", "sidebar")
 WIDTH = 110                   # a string literal's cells on a line of helper.js
 # the Herdr app mod's helper.js: the name it imports each module's source by, and the module
 HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"CHAT": "chat.py",
+                                                                    "CHAT_HOOK": "chat_hook.py",
                                                                     "COMMIT_MESSAGE": "commit_message.py",
                                                                     "CONVERSATIONS": "conversations.py",
                                                                     "FILEOPS": "fileops.py", "GIT": "git.py",
                                                                     "GITHUB": "github.py", "JOB": "job.py",
                                                                     "MEDIA": "media.py", "SEARCH": "search.py",
                                                                     "TREE": "tree.py", "UPDATE": "update.py"}}
-MOD_ONLY = {"chat.py", "job.py"}  # what only the mod runs (its chat, its background jobs): the sidebar gets no copy
+MOD_ONLY = {"chat.py", "chat_hook.py", "job.py"}  # what only the mod runs (its chat, its jobs): the sidebar gets none
 ICONS = os.path.join("app", "mods", "herdr-fold", "icons.js")       # the mod's icons, by name, and the file types'
 SVGS = "mods/herdr-fold/icons"     # its icons as the app loads them: lucide/ the views', catppuccin/ a file's
 THEMES = os.path.join("app", "themes")      # the TUI's themes in the Herdr app: herdr-fold-ID.json for each, and
