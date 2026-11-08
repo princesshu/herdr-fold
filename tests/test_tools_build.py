@@ -63,6 +63,23 @@ class Runnable(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(json.loads(done.stdout), {"conversations": [], "archived": []})
 
+    def test_what_an_imported_module_imports_is_made_first_too(self):
+        # chat.py imports conversations.py, which imports statefile.py and github.py: each made once, before its user
+        with tempfile.TemporaryDirectory() as home:
+            done = subprocess.run(["/usr/bin/python3", "-I", "-c", build.runnable("chat.py"), "steps",
+                                   os.path.join(home, "none.jsonl"), "0"], env={"HOME": home, "PATH": "/usr/bin:/bin"},
+                                  capture_output=True, text=True, timeout=30)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(json.loads(done.stdout)["steps"], [])
+        made = re.findall(r"^_sys\.modules\['(\w+)'\] =", build.runnable("chat.py"), re.M)
+        self.assertEqual(sorted(made), ["conversations", "github", "statefile"])
+        self.assertGreater(made.index("conversations"), max(made.index("github"), made.index("statefile")))
+
+    def test_a_made_module_keeps_its_lines(self):
+        # each line of a module made first stays a line: helper.js reads as core/ does, and the privacy scan sees what
+        # it sees there (a decorator after an escaped new line looked like an e-mail address)
+        self.assertIn("'@contextlib.contextmanager',", build.runnable("chat.py").split("\n"))
+
     def test_a_module_that_imports_none_is_its_source(self):
         self.assertEqual(build.runnable("git.py"), build.core("git.py"))
 

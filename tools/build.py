@@ -12,13 +12,14 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SIDEBAR = os.path.join("src", "plugins", "sidebar")
 WIDTH = 110                   # a string literal's cells on a line of helper.js
 # the Herdr app mod's helper.js: the name it imports each module's source by, and the module
-HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"COMMIT_MESSAGE": "commit_message.py",
+HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"CHAT": "chat.py",
+                                                                    "COMMIT_MESSAGE": "commit_message.py",
                                                                     "CONVERSATIONS": "conversations.py",
                                                                     "FILEOPS": "fileops.py", "GIT": "git.py",
                                                                     "GITHUB": "github.py", "JOB": "job.py",
                                                                     "MEDIA": "media.py", "SEARCH": "search.py",
                                                                     "TREE": "tree.py", "UPDATE": "update.py"}}
-MOD_ONLY = {"job.py"}         # what only the mod runs (its background jobs): the sidebar gets no copy
+MOD_ONLY = {"chat.py", "job.py"}  # what only the mod runs (its chat, its background jobs): the sidebar gets no copy
 ICONS = os.path.join("app", "mods", "herdr-fold", "icons.js")       # the mod's icons, by name, and the file types'
 SVGS = "mods/herdr-fold/icons"     # its icons as the app loads them: lucide/ the views', catppuccin/ a file's
 THEMES = os.path.join("app", "themes")      # the TUI's themes in the Herdr app: herdr-fold-ID.json for each, and
@@ -30,14 +31,22 @@ def core(name):
         return f.read()
 
 
+def imports(name):
+    """The core modules core/NAME imports and the ones they import, each once, after what it imports itself."""
+    found = []
+    for module in re.findall(r"^(?:import|from) (\w+)", core(name), re.M):
+        if os.path.isfile(os.path.join(ROOT, "core", module + ".py")):
+            found += [one for one in imports(module + ".py") + [module] if one not in found]
+    return found
+
+
 def runnable(name):
-    """core/NAME's source as the mod runs it, with Python's -c on the space's machine: the core modules it imports made
-    there first, each from its own source, so it runs alone."""
-    source = core(name)
-    needed = [module for module in re.findall(r"^(?:import|from) (\w+)", source, re.M)
-              if os.path.isfile(os.path.join(ROOT, "core", module + ".py"))]
-    made = "".join(f"_sys.modules[{m!r}] = _types.ModuleType({m!r})\n"
-                   f"exec({core(m + '.py')!r}, _sys.modules[{m!r}].__dict__)\n" for m in needed)
+    """core/NAME's source as the mod runs it, with Python's -c on the space's machine: the core modules it needs made
+    there first (imports()), each from its own source, so it runs alone."""
+    source, needed = core(name), imports(name)
+    made = "".join(f"_sys.modules[{m!r}] = _types.ModuleType({m!r})\nexec('\\n'.join([\n"
+                   + "".join(f"{line!r},\n" for line in core(m + ".py").split("\n"))
+                   + f"]), _sys.modules[{m!r}].__dict__)\n" for m in needed)      # its lines kept, one per line
     return f"import sys as _sys, types as _types\n{made}{source}" if needed else source
 
 
