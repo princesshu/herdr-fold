@@ -38,6 +38,8 @@ are in its workflow on GitHub's runners, started by hand at the end of a larger 
 - A new part of the Herdr app mod, or a new state of one, goes into its styleguide in the same change
   (`app/mods/herdr-fold/styleguide.js`, drawn by the view's own code), and its picture in
   [Styleguide](docs/styleguide.md) is made again.
+- A picture of a whole window, for the README or the docs, shows it in its macOS frame: rounded corners, the three
+  dots top left in their neutral gray (the window not the active one). A styleguide part stays a cut-out specimen.
 - A change to a theme, to the sidebar's colors or icons, to the loading sheep or to the logo (`tools/logo.swift`):
   run `/usr/bin/python3 tools/preview_colors.py`, so the theme preview and the logo show it (a test fails until then).
 
