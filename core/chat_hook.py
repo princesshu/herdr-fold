@@ -17,6 +17,7 @@ NO = "The user said no."
 # where a kept rule goes, by the scope the user chose: this conversation, this project (its local settings), everywhere
 DESTINATION = {"session": "session", "project": "localSettings", "user": "userSettings"}
 ASKED = ("tool_name", "tool_input", "permission_suggestions", "cwd")   # what the app's card is drawn from
+EDITS = ("Edit", "MultiEdit", "Write", "NotebookEdit")      # a file's change: its card offers edits for now
 DIALOG = ("ExitPlanMode",)      # Claude takes no hook's yes for these: its own dialog asks, the card answers there
 
 
@@ -56,6 +57,18 @@ def wait_for(request, timeout=TIMEOUT, poll=0.2):
                 remove(path)
 
 
+def kept(tool, suggestion, scope=None):
+    """SUGGESTION, Claude's first, as kept where SCOPE says, when it is what the card offers to keep (agents.js's
+    cardFor): its one rule, or for TOOL's edit, edits for this conversation; None for anything else."""
+    suggestion = obj(suggestion)
+    if suggestion.get("type") == "addRules" and isinstance(suggestion.get("rules"), list) \
+            and len(suggestion["rules"]) == 1:
+        return {**suggestion, "destination": DESTINATION.get(scope, "session")}
+    if tool in EDITS and suggestion.get("type") == "setMode" and suggestion.get("mode") == "acceptEdits":
+        return {**suggestion, "destination": "session"}
+    return None
+
+
 def claude_decision(request, reply):
     """The hook's answer to Claude for REQUEST from the app's REPLY: allow (keep: with the rule Claude suggested, kept
     where the user chose), the answers to its questions, or no with the user's words."""
@@ -67,9 +80,9 @@ def claude_decision(request, reply):
                                                           "answers": obj(reply.get("answers"))}}
     else:
         suggested = request.get("permission_suggestions")
-        rule = obj(suggested[0]) if choice == "keep" and isinstance(suggested, list) and suggested else {}
-        decision = {"behavior": "allow", **({"updatedPermissions": [
-            {**rule, "destination": DESTINATION.get(reply.get("scope"), "session")}]} if rule else {})}
+        first = suggested[0] if isinstance(suggested, list) and suggested else None
+        rule = kept(tool, first, reply.get("scope")) if choice == "keep" else None
+        decision = {"behavior": "allow", **({"updatedPermissions": [rule]} if rule else {})}
     return {"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": decision}}
 
 

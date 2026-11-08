@@ -15,6 +15,7 @@ const SESSION = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // new line: neither may reach the agent's terminal from a pasted prompt
 const ESCAPES = /\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)?|[\s\S])/g;
 const CONTROLS = /[\x00-\x08\x0b-\x1f\x7f-\x9f]/g;
+const FOOTER = 3;                     // the screen's last lines where Claude's footer says its mode
 const LIMIT = 80;                     // % of a usage window from which the chat says so (the status line's red)
 const WINDOWS = [["five_hour", "5-hour"], ["week", "weekly"]];      // status.json's windows, as a notice names them
 const SCOPES = ["session", "project", "user"];   // where a kept rule goes: this conversation, this project, everywhere
@@ -26,17 +27,18 @@ export const ADAPTERS = {
   claude: {
     name: "Claude",
     modes: [
-      // written: the name Claude's session file gives the mode, when not its command line's; shown: its line on
-      // Claude's own screen, the one place a mode changed by shift+tab is said at once
+      // written: the name Claude's session file gives the mode, when not its command line's; shown: its footer's line
+      // on Claude's own screen, the one place a mode changed by shift+tab is said at once
       { id: "manual", label: "Manual", description: "Claude asks before each edit and command", icon: "hand",
-        written: "default", shown: /manual mode on/ },
+        written: "default", shown: /^\s*⏸ manual mode on\b/ },
       { id: "acceptEdits", label: "Edit automatically",
-        description: "Claude edits files without asking; commands still ask", icon: "code", shown: /accept edits on/ },
+        description: "Claude edits files without asking; commands still ask", icon: "code",
+        shown: /^\s*⏵⏵ accept edits on\b/ },
       { id: "plan", label: "Plan", description: "Claude explores the code and presents a plan before editing",
-        icon: "notebook", shown: /plan mode on/ },
+        icon: "notebook", shown: /^\s*⏸ plan mode on\b/ },
       { id: "auto", label: "Auto",
         description: "Claude approves what passes a safety check and pauses for anything risky", icon: "zap",
-        shown: /auto mode on/ },
+        shown: /^\s*⏵⏵ auto mode on\b/ },
     ],
     efforts: [{ id: "low", label: "Low" }, { id: "medium", label: "Medium" }, { id: "high", label: "High" },
       { id: "xhigh", label: "Extra high" }, { id: "max", label: "Max" }],
@@ -48,10 +50,11 @@ export const ADAPTERS = {
   },
 };
 
-/** The mode ADAPTER's agent says it is in on SCREEN (its terminal's text): its last mode line; null for none.
- * @param {Adapter} adapter @param {string} screen */
+/** The mode ADAPTER's agent says it is in on SCREEN (its terminal's text): its footer's mode line, in the screen's last
+ * FOOTER lines (the words of its output never pass for it); null for none. @param {Adapter} adapter
+ * @param {string} screen */
 export function screenMode(adapter, screen) {
-  for (const line of screen.split("\n").reverse()) {
+  for (const line of screen.split("\n").filter((l) => l.trim()).slice(-FOOTER).reverse()) {
     const mode = adapter.modes.find((m) => m.shown.test(line));
     if (mode) return mode.id;
   }
@@ -149,24 +152,26 @@ export function limitNotice(status, dismissed, now = new Date()) {
  * change?: { path: string, lines: string[] } | null, questions?: any[], options: Option[], dialog?: boolean }} Card */
 
 const CHOICE = /^\s*(❯\s*)?(\d+)\.\s+(.*\S)\s*$/;   // a numbered line of Claude's dialog, its cursor on it
+const TAIL = 4;                       // the lines at most under a dialog's choices: its hints and its frame
 const DECLINE = /^(?:No|Tell Claude)\b/;                   // a dialog's choice that turns Claude back: words follow
 
 /** The choices of the dialog Claude shows on SCREEN (its terminal's text): the run of lines numbered from 1 that its
- * cursor is in, the last such; none while no dialog is drawn (a plan's own numbered steps have no cursor).
+ * cursor is in, at the screen's foot; none while no dialog is drawn (a plan's numbered steps have no cursor).
  * @param {string} screen @returns {{ key: string, label: string }[]} */
 export function screenChoices(screen) {
+  const lines = screen.split("\n").filter((line) => line.trim());
   /** @type {{ key: string, label: string, at: boolean }[]} */
-  let run = [], found = [];
-  for (const line of [...screen.split("\n"), ""]) {
+  let run = [], found = [], end = 0;
+  for (const [n, line] of [...lines, ""].entries()) {
     const choice = CHOICE.exec(line);
     if (choice && Number(choice[2]) === run.length + 1) {
       run.push({ key: choice[2], label: choice[3], at: Boolean(choice[1]) });
       continue;
     }
-    if (run.some((c) => c.at)) found = run;
+    if (run.some((c) => c.at)) [found, end] = [run, n];
     run = choice?.[2] === "1" ? [{ key: "1", label: choice[3], at: Boolean(choice[1]) }] : [];
   }
-  return found.map(({ key, label }) => ({ key, label }));
+  return lines.length - end <= TAIL ? found.map(({ key, label }) => ({ key, label })) : [];   // at its foot alone
 }
 
 /** OPTIONS, each keyed by its place: the digit that picks it is the one drawn. @param {Omit<Option, "key">[]} options
@@ -179,22 +184,25 @@ const numbered = (options) => options.map((option, n) => ({ key: String(n + 1), 
 export function cardFor(request, choices = /** @type {{ key: string, label: string }[]} */ ([])) {
   const input = request?.tool_input ?? {}, tool = String(request?.tool_name ?? ""), id = String(request?.id ?? "");
   const suggested = Array.isArray(request?.permission_suggestions) ? request.permission_suggestions[0] : null;
+  // kept only as the card says it (core/chat_hook.py's kept): the one rule Claude suggests, or edits for now
+  const rule = suggested?.type === "addRules" && suggested.rules?.length === 1 ? suggested.rules[0] : null;
   const card = (/** @type {string} */ kind, /** @type {string} */ title, /** @type {any} */ sentence,
     /** @type {object} */ extra, /** @type {Omit<Option, "key"> | null} */ keep) => ({ id, kind, title,
     sentence: String(sentence ?? ""), ...extra,
     options: numbered([{ label: "Yes", choice: "allow" }, ...(keep ? [keep] : []), NO]) });
   if (tool === "Bash") {
-    const rule = suggested?.rules?.[0]?.ruleContent;
+    const words = rule?.toolName === "Bash" && typeof rule.ruleContent === "string" ? rule.ruleContent : null;
     return card("command", "Run a command?", input.command, { detail: String(input.description ?? "") },
-      typeof rule === "string" ? { label: `Yes, and don't ask again for ${rule.replace(/:\*$/, "")} commands`,
-        choice: "keep", scope: "project" } : null);
+      words ? { label: `Yes, and don't ask again for ${words.replace(/:\*$/, "")} commands`, choice: "keep",
+        scope: "project" } : null);
   }
   if (EDITS.has(tool)) {
     const path = String(input.file_path ?? input.notebook_path ?? ""), root = `${request.cwd ?? ""}/`;
     return card("change", "Change a file?", request.cwd && path.startsWith(root) ? path.slice(root.length) : path,
       { change: request.change ?? null, old: String(input.old_string ?? ""),
         new: String(input.new_string ?? input.content ?? input.new_source ?? "") },
-      suggested ? { label: "Yes, and allow edits for the rest of this conversation", choice: "keep" } : null);
+      suggested?.type === "setMode" && suggested.mode === "acceptEdits"
+        ? { label: "Yes, and allow edits for the rest of this conversation", choice: "keep" } : null);
   }
   if (tool === "AskUserQuestion") {
     const questions = Array.isArray(input.questions) ? input.questions : [];
@@ -205,8 +213,9 @@ export function cardFor(request, choices = /** @type {{ key: string, label: stri
     return { id, kind: "plan", title: "Ready to code?", sentence: "", detail: String(input.plan ?? ""), dialog: true,
       options: choices.map(({ key, label }) => ({ key, label, choice: DECLINE.test(label) ? "deny" : "key" })) };
   }
+  const named = rule && `${rule.toolName}${typeof rule.ruleContent === "string" ? `(${rule.ruleContent})` : ""}`;
   return card("tool", `Use ${tool}?`, Object.values(input).find((v) => typeof v === "string"), {},
-    suggested ? { label: `Yes, and don't ask again for ${tool}`, choice: "keep", scope: "project" } : null);
+    named ? { label: `Yes, and don't ask again for ${named}`, choice: "keep", scope: "project" } : null);
 }
 
 /** The reply to CARD (core/chat_hook.py's): OPTION's choice (its key in Claude's own dialog), the scope chosen where it

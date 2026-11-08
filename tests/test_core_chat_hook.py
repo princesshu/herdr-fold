@@ -47,6 +47,21 @@ class Decision(unittest.TestCase):
                 self.assertEqual(out, decided({"behavior": "allow",
                                                "updatedPermissions": [{**RULE, "destination": destination}]}))
 
+    def test_only_what_the_card_says_is_kept(self):
+        # one rule, or edits for this conversation: a directory, two rules or a mode kept anywhere else stay unkept
+        dirs = {"type": "addDirectories", "directories": ["/elsewhere"], "destination": "session"}
+        two = {**RULE, "rules": RULE["rules"] + [{"toolName": "Bash", "ruleContent": "rm:*"}]}
+        for suggestion in (dirs, two):
+            with self.subTest(suggestion["type"]):
+                out = chat_hook.claude_decision({**BASH, "permission_suggestions": [suggestion]},
+                                                {"id": "r", "choice": "keep", "scope": "user"})
+                self.assertEqual(out, decided({"behavior": "allow"}))
+        edits = {"type": "setMode", "mode": "acceptEdits", "destination": "localSettings"}
+        out = chat_hook.claude_decision({**BASH, "tool_name": "Edit", "permission_suggestions": [edits]},
+                                        {"id": "r", "choice": "keep", "scope": "user"})
+        self.assertEqual(out, decided({"behavior": "allow",
+                                       "updatedPermissions": [{**edits, "destination": "session"}]}))
+
     def test_keep_without_a_rule_to_keep_is_a_plain_yes(self):
         out = chat_hook.claude_decision({**BASH, "permission_suggestions": []}, {"id": "r", "choice": "keep"})
         self.assertEqual(out, decided({"behavior": "allow"}))

@@ -203,6 +203,20 @@ test("a question's card holds every question; a plan's offers how to go on; anot
   assert.deepEqual([other.kind, other.title, other.sentence], ["tool", "Use WebFetch?", "https://example.com/api"]);
 });
 
+test("a rule is kept only as its card says it: one rule, or edits for now; anything else offers no keep", () => {
+  const keys = (/** @type {any} */ card) => card.options.map((o) => o.choice);
+  const dirs = { type: "addDirectories", directories: ["/elsewhere"], destination: "session" };
+  const two = { type: "addRules", behavior: "allow", destination: "localSettings",
+    rules: [{ toolName: "Bash", ruleContent: "pytest:*" }, { toolName: "Bash", ruleContent: "rm:*" }] };
+  assert.deepEqual(keys(cardFor(asked("Bash", { command: "touch a" }, [dirs]))), ["allow", "deny"]);
+  assert.deepEqual(keys(cardFor(asked("Bash", { command: "pytest" }, [two]))), ["allow", "deny"]);
+  assert.deepEqual(keys(cardFor(asked("Edit", { file_path: "a.py" }, [dirs]))), ["allow", "deny"]);
+  assert.deepEqual(keys(cardFor(asked("WebFetch", { url: "https://a.example" }, [dirs]))), ["allow", "deny"]);
+  const fetch = cardFor(asked("WebFetch", { url: "https://a.example" }, [{ type: "addRules", behavior: "allow",
+    destination: "localSettings", rules: [{ toolName: "WebFetch", ruleContent: "domain:a.example" }] }]));
+  assert.equal(fetch.options[1].label, "Yes, and don't ask again for WebFetch(domain:a.example)");
+});
+
 test("a reply carries the request's id, its choice, the scope where a rule is kept, the words, the answers", () => {
   const card = cardFor(asked("Bash", { command: "pytest -q" }, [RULE]));
   assert.deepEqual(replyFor(card, card.options[0]), { id: "r1", choice: "allow" });
@@ -221,6 +235,7 @@ test("Claude's own dialog's choices are read off its screen: the run of numbered
     " ❯ 1. Yes, and use auto mode", "   2. Yes, manually approve edits", "   3. Tell Claude what to change",
     "      shift+tab to approve with this feedback", " ctrl+g to edit in Vim · ~/.claude/plans/x.md"])), CHOICES);
   assert.deepEqual(screenChoices(screen(["  1. Cap the page", "  2. Test it", "> "])), []);   // a plan's steps alone
+  assert.deepEqual(screenChoices(screen([" ❯ 1. Yes", "   2. No", ...Array(8).fill("Claude's words"), "> "])), []);
 });
 
 test("a choice in Claude's own dialog is answered by its key there, its words after it", () => {
@@ -242,4 +257,9 @@ test("the mode in effect is read off Claude's own screen, its last mode line; no
   assert.deepEqual(["⏸ manual mode on", "⏵⏵ auto mode on (shift+tab to cycle)", "⏵⏵ accept edits on",
     "⏸ plan mode on (shift+tab to cycle)", "> waiting"].map((line) => screenMode(claude, screen(line))),
   ["manual", "auto", "acceptEdits", "plan", null]);
+  // the words in Claude's output never pass for its mode: only its footer, the screen's last lines, at a line's start
+  const spoof = "  I printed: ⏵⏵ auto mode on\n⏵⏵ auto mode on\n" + "output\n".repeat(8);
+  assert.equal(screenMode(claude, `${spoof}─────\n⏸ manual mode on\n`), "manual");
+  assert.equal(screenMode(claude, `${spoof}─────\n> waiting\n`), null);
+  assert.equal(screenMode(claude, "─────\n  echo ⏵⏵ auto mode on\n"), null);
 });
