@@ -13,8 +13,9 @@ Claude wrote, the issue it fixes and the Graph, Issues by priority](../../../ass
   scrolled as the pager scrolls its lines, an SVG or a page drawn beside its code as VS Code's preview to the side, or
   under it in a pane taller than wide (macOS's WebKit draws it, offline): the divider between them drags and the page is
   drawn for its side as a browser that size shows it, once the divider is let go (an SVG at its own size, never larger,
-  what it leaves empty clear), `c` turns to the code alone, the picture alone and both again, `v` sets them side by side
-  or one under the other, and a right click in the preview offers them, Open in Browser and Close Preview; `o` there, or
+  what it leaves empty clear); the status row starts with Code, Split and Picture (a click, or `c` for the next) and in
+  Split the turn between side by side and one under the other (a click, or `v`), a narrow row keeping them whole, and a
+  right click in the preview offers them, Open in Browser and Close Preview; `o` there, or
   the right click's Open in Browser, opens a page, a PDF or an image in the default browser (a picture no browser shows,
   as a PSD or an EXR, in Preview: Open in Preview) (never over SSH: a browser there would open on the machine, out of
   sight). While the workspace has a preview tab, the right click offers Close Preview, as `q` there. With herdr-fold's
@@ -55,7 +56,8 @@ whole tab, its terminal too. A pipe or a device is never shown, and a program th
 GitHub) is stopped with what it showed. `bat` colors a file and `delta` lays out a diff when they are installed (else
 the file plain, the diff in git's colors); the built-in pager shows either. A changed picture shows as VS Code's image
 diff does: before and after side by side, each under its name and size (Index and Working Tree, staged HEAD and Index),
-one above the other in a pane taller than wide, `v` or the right click turning them; a new one's after alone.
+one above the other in a pane taller than wide, the status row's turn, `v` or the right click turning them; a new one's
+after alone.
 
 - **Conversations** (a full-height pane named `conversations`, `python3 sidebar.py --conversations`, right before the
   column the sidebar is in, sharing a split with it): the Claude Code and Codex conversations of herdr's workspaces,
@@ -86,7 +88,7 @@ one above the other in a pane taller than wide, `v` or the right click turning t
 | Changes | `c` or typing writes the message (Enter a new line; Esc, then Enter commits), `A` or the star beside the message has it written, Enter stages or unstages, Space shows the diff, `d` discards, `S` syncs |
 | Issues | GitHub's: `/` `s` or Ctrl + / search, `c` a new issue, `a` `u` `l` the assignee, author and label filters, `o` or Enter opens it; herdr-fold's: `t` hands it to the agent, `r` replies, `b` opens it in the browser, `x` closes or reopens it, `R` asks again; ↑ ↓ PgUp PgDn Home End, ← → Open and Closed; a right click: all of it, Assign to me too |
 | Conversations | type to filter, Esc clears it; ↑ ↓ PgUp PgDn Home End; ← closes a group, → or Enter opens it; Enter goes to a running conversation or reopens a closed one in a new tab; Space or Shift + ↑ ↓ marks closed ones, Esc unmarks; a right click: Open, Copy conversation, Rename (Enter keeps the new name, Esc the old one), Archive, or with several marked, all of them at once |
-| Preview | ↑ ↓ or `j` `k`, PgUp PgDn or `b` Space, Home End or `g` `G`, `/` search, `n` `N` the next and previous hit, `c` turns an SVG or a page to its code alone, its picture alone and both again, `v` sets them side by side or one under the other (a right click: those, Open in Browser, Close Preview), `o` opens it in the browser (or Preview), `q`, Esc or Ctrl + C closes the whole tab |
+| Preview | ↑ ↓ or `j` `k`, PgUp PgDn or `b` Space, Home End or `g` `G`, `/` search, `n` `N` the next and previous hit, `c` turns an SVG or a page to its next view (Code, Split, Picture: the status row's, a click there chooses one), `v` sets them side by side or one under the other (the status row's turn; a right click: those, Open in Browser, Close Preview), `o` opens it in the browser (or Preview), `q`, Esc or Ctrl + C closes the whole tab |
 
 Everything works with the mouse too: a click, a right click for the menu, the wheel, and the row icons on hover. A
 control shown by an icon alone (✦, ↻, the view tabs, a row's icons…) says what it does once the mouse rests on it

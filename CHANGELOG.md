@@ -9,9 +9,12 @@ All notable changes to this project are listed here. The format follows
 ### Added
 
 - The preview's code and picture one under the other: an SVG's or a page's code above its picture where the room is
-  taller than wide, as Xcode's canvas, or as chosen (`v`, named in the status row, and the right click in the TUI; the
-  button beside Code, Split and Picture and the right click in the Herdr app), its divider dragged as the side by side
-  one.
+  taller than wide, as Xcode's canvas, or as chosen (the turn in the status row, `v` and the right click in the TUI;
+  the button beside Code, Split and Picture and the right click in the Herdr app), its divider dragged as the side by
+  side one.
+- The TUI preview's status row starts with Code, Split and Picture, as the Herdr app's buttons, the chosen one in the
+  accent, and in Split the turn; a click chooses, `c` and `v` stay, each named faintly before its control. A narrow
+  row leaves out its key hints, then cuts the file's name short, and keeps its controls whole.
 - Every picture macOS reads in the preview, both clients: HEIC, AVIF, JPEG XL, JPEG 2000, PSD, TGA, EXR, ICNS, the
   GPU's textures and a camera's raw file (DNG, CR2, NEF, ARW…) beside PNG, JPEG, GIF, WebP, TIFF and BMP; one no
   browser shows opens in Preview (Open in Preview), where a browser would only download it.

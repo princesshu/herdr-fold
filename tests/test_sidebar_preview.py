@@ -614,14 +614,16 @@ class Pictures(unittest.TestCase):
         view.draw(term)
         self.assertIn("─" * 80, term.out)
         self.assertIn(("Stacked", True), view.choices())
-        self.assertIn("v: side by side", view.status())                      # the status says where v turns
+        self.assertIn("v \ueb56 Side by Side", self.bar_row(term)[1])        # the row says where v turns
         self.assertTrue(view.choose("Side by Side"))
         term.out = ""
         view.draw(term)
         self.assertIn("\x1b[2m│", term.out)
-        self.assertIn("v: stacked", view.status())
-        view.handle(Key("char", "c"))                                        # the code alone: nothing to turn
-        self.assertNotIn("v: ", view.status())
+        self.assertIn("v \ueb57 Stacked", self.bar_row(term)[1])
+        view.handle(Key("char", "c"))                                        # the picture alone: nothing to turn
+        term.out = ""
+        view.draw(term)
+        self.assertNotIn(" v ", self.bar_row(term)[1])
 
     def test_the_stacked_divider_drags_too(self):
         view, term = self.split(80)
@@ -641,7 +643,59 @@ class Pictures(unittest.TestCase):
         self.assertIn("<rect", term.out)
         self.assertIn("\x1b[1;41H\x1b[2m│", term.out)                       # the divider in the middle
         self.assertTrue(self.places(term.out) and all(column > 41 for column in self.places(term.out)))
-        self.assertIn("c: code", view.status())
+
+    def bar_row(self, term):
+        """The status row as last drawn: as written, and its text alone."""
+        row = re.findall(rf"\x1b\[{term.rows};1H\x1b\[0;7m(.*?)\x1b\[K", term.out)[-1]
+        return row, pager.plain(row)
+
+    def test_the_status_row_starts_with_the_views_and_the_turn(self):
+        """As the app's buttons: Code, Split and Picture after a faint c, the chosen one in the accent; after a faint v
+        the turn, its glyph and word where it goes. No c: or v: hint is left after them."""
+        view, term = self.split(80)
+        view.draw(term)
+        row, text = self.bar_row(term)
+        self.assertEqual(text, " c Code  Split  Picture  v \ueb57 Stacked  logo.svg  1-3/3")
+        self.assertIn(pager.CHOSEN + " Split \x1b[0;7m", row)
+        self.assertIn(pager.FAINT + "c", row)
+
+    def test_a_click_on_the_status_row_turns_the_view_and_the_split(self):
+        view, term = self.split(80)
+        view.draw(term)
+
+        def click(word):
+            x = self.bar_row(term)[1].index(word)
+            for kind in ("press", "release"):
+                view.handle(Mouse(kind, x, term.rows - 1, 0))
+            term.out = ""
+            view.draw(term)
+        click("Stacked")
+        self.assertIn("─" * 80, term.out)
+        self.assertIn("\ueb56 Side by Side", self.bar_row(term)[1])
+        click("Code")
+        self.assertEqual(view.view, "code")
+        self.assertNotIn("Side by Side", self.bar_row(term)[1])               # the code alone: nothing to turn
+        click("Picture")
+        self.assertEqual(view.view, "picture")
+        click("Split")
+        self.assertEqual((view.view, view.stacking), ("split", True))
+
+    def test_a_narrow_row_keeps_its_controls_whole(self):
+        """Its key hints go first, then the file's name is cut short, then the turn's word: the controls stay."""
+        view, _ = self.split(80)
+        view.choose("Picture")
+        for columns, text in ((80, " c Code  Split  Picture  logo.svg  o: open in browser"),
+                              (40, " c Code  Split  Picture  logo.svg"), (30, " c Code  Split  Picture  logo…")):
+            term = Written(columns, 24)
+            view.draw(term)
+            self.assertEqual(self.bar_row(term)[1], text, columns)
+        view.choose("Split")
+        view.choose("Side by Side")
+        for columns, text in ((46, " c Code  Split  Picture  v \ueb57 Stacked  logo.sv…"),
+                              (44, " c Code  Split  Picture  v \ueb57  logo.svg  1-3…")):
+            term = Written(columns, 24)
+            view.draw(term)
+            self.assertEqual(self.bar_row(term)[1], text, columns)
 
     def test_the_divider_drags_and_the_picture_fits_its_side(self):
         view, term = self.split(100)
@@ -674,8 +728,8 @@ class Pictures(unittest.TestCase):
 
     def test_c_and_the_right_click_turn_to_the_code_the_picture_and_both(self):
         view, term = self.split(80)
-        for turn, shown in ((lambda: view.handle(Key("char", "c")), "code"),
-                            (lambda: view.handle(Key("char", "c")), "picture"),
+        for turn, shown in ((lambda: view.handle(Key("char", "c")), "picture"),     # c: the next in the row's order
+                            (lambda: view.handle(Key("char", "c")), "code"),
                             (lambda: view.choose("Code"), "code"), (lambda: view.choose("Split"), "split")):
             turn()
             term.out = ""
@@ -686,7 +740,7 @@ class Pictures(unittest.TestCase):
 
     def test_a_right_click_offers_the_views_the_browser_and_closing(self):
         view, _ = self.split(80)
-        self.assertEqual(view.choices(), [("Split", True), ("Code", False), ("Picture", False), ("Side by Side", True),
+        self.assertEqual(view.choices(), [("Code", False), ("Split", True), ("Picture", False), ("Side by Side", True),
                                           ("Stacked", False), ("Open in Browser", None), ("Close Preview", None)])
         with mock.patch.object(pager.media, "open_in_browser", return_value=True) as opened:
             self.assertTrue(view.choose("Open in Browser"))
@@ -937,11 +991,15 @@ class PictureChanges(unittest.TestCase):
         png(os.path.join(self.repo, "logo.png"), 30, 40)
         view, term = self.shown("logo.png", columns=40, rows=60)
         self.assertIn("\x1b[2m" + "─" * 40, term.out)
-        self.assertIn("v: side by side", view.status())
+        row = re.findall(r"\x1b\[60;1H\x1b\[0;7m(.*?)\x1b\[K", term.out)[-1]
+        self.assertTrue(pager.plain(row).startswith(" v \ueb56 Side by Side  "), pager.plain(row))
         view.handle(Key("char", "v"))
         term.out = ""
         view.draw(term)
         self.assertIn("\x1b[2m│", term.out)
+        x = pager.plain(re.findall(r"\x1b\[60;1H\x1b\[0;7m(.*?)\x1b\[K", term.out)[-1]).index("Stacked")
+        view.handle(Mouse("press", x, 59, 0))                                # a click on the turn turns it back
+        self.assertTrue(view.stacking or view.stacked)
 
     def test_a_new_picture_shows_its_after_alone(self):
         png(os.path.join(self.repo, "new.png"), 30, 40)
