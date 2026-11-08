@@ -34,7 +34,7 @@ MENU = "48;5;237;38;5;252"    # its colors: a background of its own, which a pic
 BELOW = -1073741825           # a picture's z in the Kitty graphics protocol: under a cell with a background of its own
 WAIT = 30                     # seconds a pipeline may run (gh asking GitHub, a program that never ends): then stopped
 PICTURE = 4271                # the picture's id in the Kitty graphics protocol: one at a time
-CELL, CELL_PX = 2.1, 16       # a cell's height by its width, and its width in a picture's pixels (Retina): a guess
+CELL, CELL_PX = 2.1, 16       # a cell's height by its width, and its width in pixels, where the terminal says neither
 GAP = 1                       # rows between two of a PDF's pages
 
 
@@ -246,14 +246,20 @@ class Pager:
         return True
 
 
-def fit(columns, rows, width, height):
-    """Where a WIDTH x HEIGHT picture goes in COLUMNS x ROWS cells: never past its own size, its aspect kept, centered.
-    (row, column, its columns or None, its rows or None): the terminal works the other one out."""
-    wide = min(columns, max(1, round(width / CELL_PX)))
-    tall = height / width * wide / CELL
-    if tall <= rows:
-        return (rows - round(tall)) // 2, (columns - wide) // 2, wide, None
-    return 0, (columns - round(width / height * rows * CELL)) // 2, None, rows
+def cell(term):
+    """A cell of TERM in pixels, (width, height): as the terminal says (herdr gives a pane's size in pixels), else the
+    guess."""
+    pixels, (columns, rows) = getattr(term, "pixels", lambda: None)(), term.size()
+    return (pixels[0] / columns, pixels[1] / rows) if pixels else (CELL_PX, CELL_PX * CELL)
+
+
+def fit(columns, rows, width, height, size=None):
+    """Where a WIDTH x HEIGHT picture goes in COLUMNS x ROWS cells of SIZE (cell's): never past its own size, its
+    aspect kept, centered. (row, column, its columns, its rows): both given, the terminal works neither out."""
+    cw, ch = size or (CELL_PX, CELL_PX * CELL)
+    scale = min(1, columns * cw / width, rows * ch / height)
+    wide, tall = min(columns, max(1, round(width * scale / cw))), min(rows, max(1, round(height * scale / ch)))
+    return (rows - tall) // 2, (columns - wide) // 2, wide, tall
 
 
 def kitty(data, columns, rows, crop=None, image=PICTURE):
@@ -281,9 +287,9 @@ def opening(term, columns, height, what):
     term.flush()
 
 
-def width_px(columns):
-    """The pixels a picture COLUMNS wide is made with."""
-    return min(2400, max(480, columns * CELL_PX))
+def width_px(columns, cw=CELL_PX):
+    """The pixels a picture COLUMNS wide (cells CW pixels wide) is made with."""
+    return min(2400, max(480, round(columns * cw)))
 
 
 class Picture:
@@ -296,6 +302,7 @@ class Picture:
         self.opens, self.swap = media.browsable(), None
         self.drawn = media.kind_of(path) in ("svg", "html")      # WebKit draws it, sharp at any width
         self.ready = not self.drawn                              # its helper compiled at its first draw
+        self.cell = (CELL_PX, CELL_PX * CELL)                    # the pane's, as its terminal says at each draw
 
     def shown(self):
         return self.note
@@ -308,14 +315,15 @@ class Picture:
     def png(self, columns, rows):
         """The picture as a PNG with the pixels COLUMNS x ROWS cells show: its longer side, the pane's height for a
         tall one."""
-        width = width_px(columns)
+        width, high = width_px(columns, self.cell[0]), round(rows * self.cell[1])
         if self.drawn:                               # a page as a browser of the room's size shows it
-            return media.drawn_png(self.path, width, self.work, round(rows * CELL_PX * CELL))
-        return media.as_png(self.path, self.work, min(2400, max(width, round(rows * CELL_PX * CELL))))
+            return media.drawn_png(self.path, width, self.work, high)
+        return media.as_png(self.path, self.work, min(2400, max(width, high)))
 
     def draw(self, term):
         columns, height = term.size()
         self.prepare(term, columns, height)
+        self.cell = cell(term)
         out = [self.taken(), "\x1b[0m\x1b[2J", self.place(columns, max(1, height - 1))]
         out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns)}\x1b[K\x1b[0m")
         term.write("".join(out))
@@ -340,7 +348,7 @@ class Picture:
         if not shape:
             self.note = self.note or f"{self.title}: cannot be shown here{HINT if self.opens else ''}"
             return ""
-        row, column, wide, tall = fit(columns, rows, *shape)
+        row, column, wide, tall = fit(columns, rows, *shape, self.cell)
         with open(made, "rb") as f:
             return f"\x1b[{row + 1};{left + column + 1}H" + kitty(f.read(), wide, tall)
 
@@ -374,12 +382,12 @@ class Picture:
         shutil.rmtree(self.work, ignore_errors=True)
 
 
-def layout(sizes, columns):
-    """Where a PDF's pages (SIZES, each width and height) go COLUMNS wide, one under another a GAP apart: each one's
-    first row and rows, and the rows they all take."""
+def layout(sizes, columns, ratio=CELL):
+    """Where a PDF's pages (SIZES, each width and height) go COLUMNS wide, one under another a GAP apart, in cells RATIO
+    times as high as wide: each one's first row and rows, and the rows they all take."""
     places, top = [], 0
     for wide, tall in sizes:
-        rows = max(1, round(tall / wide * columns / CELL))
+        rows = max(1, round(tall / wide * columns / ratio))
         places.append((top, rows))
         top += rows + GAP
     return places, max(0, top - GAP)
@@ -420,9 +428,10 @@ class Pdf(Picture):
     def place(self, columns, rows, left=0):
         """The pages in view, COLUMNS wide less a column of air each side, ROWS high, as escapes: a page cut by the
         pane's edge shows its part in view."""
-        wide, width, self.rows = max(1, columns - 2), width_px(max(1, columns - 2)), rows
+        wide, self.rows = max(1, columns - 2), rows
+        width, ratio = width_px(wide, self.cell[0]), self.cell[1] / self.cell[0]
         first = None if self.sizes else media.page_png(self.path, 0, width, self.work)
-        self.places, self.total = layout(self.sizes or ([media.size(first)] if first else []), wide)
+        self.places, self.total = layout(self.sizes or ([media.size(first)] if first else []), wide, ratio)
         self.top = max(0, min(self.top, self.total - rows))
         out, self.placed = [], 0
         for n, (start, tall) in enumerate(self.places):
@@ -499,6 +508,7 @@ class PictureAndCode:
             return self.views().draw(term)
         self.views()
         self.picture.prepare(term, columns, height)
+        self.picture.cell = cell(term)
         left = self.divider(columns)
         out = [GONE, "\x1b[0m\x1b[2J"]
         for row, text in enumerate(self.code.rows(left, height - 1)):

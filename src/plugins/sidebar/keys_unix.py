@@ -1,10 +1,12 @@
 """The sidebar's terminal on macOS and Linux: raw mode, the alternate screen, mouse, paste and focus reporting, switched
 on while it runs and back off afterwards. Keys arrive as events through the shared decoder (vt.py); another thread
 wakes the loop with wake(), and a window size change arrives as a Resize event."""
+import fcntl
 import os
 import select
 import shutil
 import signal
+import struct
 import sys
 import termios
 import tty
@@ -59,6 +61,14 @@ class UnixTerminal:
         """Columns and lines; 80×24 for a window that reports none (Python 3.9 passes a 0×0 size on)."""
         columns, lines = shutil.get_terminal_size((80, 24))
         return columns or 80, lines or 24
+
+    def pixels(self):
+        """The window's width and height in pixels where the terminal says (herdr does for a pane), else None."""
+        try:
+            *_, width, height = struct.unpack("HHHH", fcntl.ioctl(self.fd, termios.TIOCGWINSZ, bytes(8)))
+        except OSError:
+            return None
+        return (width, height) if width and height else None
 
     def read(self, timeout):
         """The events that arrive within TIMEOUT seconds (fewer, or none, if woken)."""

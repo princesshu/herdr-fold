@@ -481,9 +481,19 @@ class Pictures(unittest.TestCase):
         set_env(self, XDG_CACHE_HOME=os.path.join(self.tmp, "cache"))
 
     def test_a_picture_fits_the_pane_and_keeps_its_aspect_centered(self):
-        self.assertEqual(pager.fit(80, 23, 4000, 2000), (2, 0, 80, None))          # as wide as the pane
-        self.assertEqual(pager.fit(80, 23, 1000, 4000), (0, 34, None, 23))         # as tall as it
-        self.assertEqual(pager.fit(80, 23, 160, 80), (10, 35, 10, None))           # a small one at its own size
+        self.assertEqual(pager.fit(80, 23, 4000, 2000), (2, 0, 80, 19))            # as wide as the pane
+        self.assertEqual(pager.fit(80, 23, 1000, 4000), (0, 34, 12, 23))           # as tall as it
+        self.assertEqual(pager.fit(80, 23, 160, 80), (10, 35, 10, 2))              # a small one at its own size
+
+    def test_a_picture_is_placed_by_the_cells_the_terminal_has(self):
+        """herdr gives a pane its size in pixels: a cell taller than guessed keeps a picture made for the box inside
+        it, its columns and rows both given, so the terminal works neither out (and never past the pane's edge)."""
+        class Pane(Written):
+            def pixels(self):
+                return 624, 629                                             # 39 x 17 cells of 16 x 37 pixels
+        self.assertEqual(pager.cell(Pane(39, 17)), (16, 37))
+        self.assertEqual(pager.cell(Written(39, 17)), (pager.CELL_PX, pager.CELL_PX * pager.CELL))   # the guess
+        self.assertEqual(pager.fit(35, 36, 560, 1332, (16, 37)), (0, 0, 35, 36))  # made for its box: just that
 
     def test_a_pane_resized_while_a_picture_is_drawn_is_drawn_again(self):
         """Making a PDF's page takes a moment: a preview tab's pane narrowed meanwhile is drawn again, at its width."""
