@@ -194,14 +194,13 @@ def status(session):
 
 def main(argv):
     """herdr-fold's Herdr app mod runs this on the space's machine, answering in JSON: steps SESSION OFFSET (the
-    conversation's steps from OFFSET, and where the read stopped), pending SESSION (what Claude waits on, or null),
-    answer SESSION REPLY ({"ok": whether it went to Claude}) and status SESSION (the status line's numbers, or null)."""
+    conversation's steps from OFFSET and where the read stopped, what Claude waits on and the status line's numbers:
+    one read a poll) and answer SESSION REPLY ({"ok": whether it went to Claude})."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     try:
         if command == "steps" and len(args) == 2 and int(args[1]) >= 0:
-            found = steps(session_file(args[0]), int(args[1]))
-        elif command in ("pending", "status") and len(args) == 1:
-            found = (pending if command == "pending" else status)(args[0])
+            found = {**steps(session_file(args[0]), int(args[1])), "pending": pending(args[0]),
+                     "status": status(args[0])}
         elif command == "answer" and len(args) == 2:
             reply = json.loads(args[1])
             try:
@@ -211,8 +210,7 @@ def main(argv):
         else:
             raise ValueError("unknown command")
     except (ValueError, RecursionError):
-        print("usage: chat.py steps SESSION OFFSET | pending SESSION | answer SESSION REPLY | status SESSION",
-              file=sys.stderr)
+        print("usage: chat.py steps SESSION OFFSET | answer SESSION REPLY", file=sys.stderr)
         return 2
     print(json.dumps(found))
     return 0

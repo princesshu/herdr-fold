@@ -2,6 +2,7 @@
 // Generated from core/icons.py and the icons/ folder by tools/build.py: change them there, then run
 // /usr/bin/python3 tools/build.py. Each icon by the path the app loads it.
 export const ICONS = {
+  "arrow-up": "mods/herdr-fold/icons/lucide/arrow-up.svg",
   "book-marked": "mods/herdr-fold/icons/lucide/book-marked.svg",
   "bot": "mods/herdr-fold/icons/lucide/bot.svg",
   "check": "mods/herdr-fold/icons/lucide/check.svg",

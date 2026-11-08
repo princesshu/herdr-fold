@@ -4,12 +4,20 @@
 
 import { CHAT_HOOK } from "./helper.js";
 import { pythonCommand } from "./logic.js";
+import { hours, MONTHS } from "./timeline.js";
 
 /** @typedef {{ id: string, label: string, description: string, icon: string, written?: string }} Mode */
 /** @typedef {{ name: string, modes: Mode[], efforts: { id: string, label: string }[], switches: string[],
  * commands: { name: string, description: string }[] }} Adapter */
 
 const SESSION = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+// a terminal's escape sequence (CSI, OSC to its end, else ESC and one more), and every other control code but tab and
+// new line: neither may reach the agent's terminal from a pasted prompt
+const ESCAPES = /\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)?|[\s\S])/g;
+const CONTROLS = /[\x00-\x08\x0b-\x1f\x7f-\x9f]/g;
+const LIMIT = 80;                     // % of a usage window from which the chat says so (the status line's red)
+const WINDOWS = [["five_hour", "5-hour"], ["week", "weekly"]];      // status.json's windows, as a notice names them
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /** The agents by their program's key. @type {Record<string, Adapter>} */
 export const ADAPTERS = {
@@ -67,4 +75,41 @@ export function claudeArgv({ python, session, resume = false, mode, effort, prom
   return ["claude", resume ? "--resume" : "--session-id", session, "--settings", claudeSettings(python),
     ...(mode ? ["--permission-mode", mode] : []), ...(effort ? ["--effort", effort] : []),
     ...(prompt ? ["--", prompt] : [])];
+}
+
+/** RAW, typed or pasted, as the text sent to the agent: no escape sequence or control code, new lines and tabs kept,
+ * no spaces at its end. @param {string} raw */
+export const promptText = (raw) => raw.replace(ESCAPES, "").replace(/\r\n?/g, "\n").replace(CONTROLS, "").trimEnd();
+
+/** The context ring's color at PERCENT, by the status line's thresholds (core's statusline level). @param {number}
+ * percent @returns {"green" | "yellow" | "red"} */
+export const contextColor = (percent) => (percent >= 80 ? "red" : percent >= 50 ? "yellow" : "green");
+
+/** A model's ID as its name ("claude-opus-5-5[1m]": Opus 5.5), for the bar until the status line names it; an id of
+ * another kind as it is. @param {string} id */
+export function modelName(id) {
+  const named = /^claude-([a-z]+)-(\d+)-(\d+)(?:\b|$)/.exec(id);
+  return named ? `${named[1][0].toUpperCase()}${named[1].slice(1)} ${named[2]}.${named[3]}` : id;
+}
+
+/** EFFORT (its id) in ADAPTER's own words. @param {Adapter} adapter @param {string} effort */
+export const effortLabel = (adapter, effort) => adapter.efforts.find((e) => e.id === effort)?.label ?? effort;
+
+/** When a window resets, SECONDS since 1970: its time today, else its day, date and time. @param {number} seconds
+ * @param {Date} now */
+function resets(seconds, now) {
+  const when = new Date(seconds * 1000);
+  return when.toDateString() === now.toDateString() ? hours(when)
+    : `${DAYS[when.getDay()]}, ${MONTHS[when.getMonth()]} ${when.getDate()}, ${hours(when)}`;
+}
+
+/** The usage window STATUS (core/chat.py's status) has at LIMIT% or more, the more used first, as the notice above the
+ * prompt says it; null for none, or for one in DISMISSED (by its key: the window and its reset, so it comes back with
+ * the next). @param {any} status @param {Set<string>} dismissed @param {Date} [now] */
+export function limitNotice(status, dismissed, now = new Date()) {
+  const used = WINDOWS.map(([key, name]) => ({ key, name, ...(status?.limits?.[key] ?? {}) }))
+    .filter((w) => typeof w.used === "number" && w.used >= LIMIT).sort((a, b) => b.used - a.used)
+    .map((w) => ({ key: `${w.key}:${w.resets ?? ""}`,
+      text: `You've used ${w.used}% of your ${w.name} limit${w.resets ? ` · resets ${resets(w.resets, now)}` : ""}` }));
+  return used.find((notice) => !dismissed.has(notice.key)) ?? null;
 }

@@ -2,12 +2,14 @@
 // The chat tab: an agent's conversation drawn as a timeline from its session file (core/chat.py, read as it grows),
 // the agent itself in a core terminal with no pane, started with herdr-fold's hook and status line (agents.js).
 import { div, list } from "gpui-kit";
-import { v_flex, h_flex, Scrollbar, TextView, VirtualListScrollHandle } from "gpui-base";
+import { v_flex, h_flex, Scrollbar, Textarea, TextareaState, TextView, VirtualListScrollHandle } from "gpui-base";
 import { randomUUID } from "crypto";
 import { focused, hc, spaces, terminals, run as command } from "herdr";
 import { CHAT } from "./helper.js";
-import { claudeArgv } from "./agents.js";
-import { icon } from "./parts.js";
+import { ADAPTERS, claudeArgv, contextColor, effortLabel, limitNotice, modelName, modeOf, promptText }
+  from "./agents.js";
+import { Menus } from "./menus.js";
+import { icon, iconButton } from "./parts.js";
 import { clock, timeline } from "./timeline.js";
 import { CHAT_TAB, diffRows, lastLine, said } from "./logic.js";
 
@@ -16,6 +18,7 @@ const WORKING = 500, IDLE = 2000;     // ms between two reads of the session fil
 const COLUMN = 760;                   // px: the timeline's width at most, in the middle of the tab
 const OUTPUT = 12;                    // an open call's output: its lines shown at most
 const NAME = 40;                      // a new chat tab's name: its first prompt's characters at most
+const ROWS = 8;                       // the prompt's rows at most, as it grows with what is typed
 
 /** A new chat tab in SPACE (its id): AGENT's conversation SESSION, a new one (and its first PROMPT) or one it resumes.
  * @param {{ space: string, agent?: string, session?: string, resume?: boolean, prompt?: string,
@@ -53,11 +56,32 @@ export class Chat {
     this.scroll = VirtualListScrollHandle.new();
     /** @type {string | null} why there is no chat */
     this.note = null;
+    this.adapter = ADAPTERS[String(props.agent)] ?? ADAPTERS.claude;
+    this.menus = new Menus();                     // the mode's, the commands'
+    /** @type {any} the status line's numbers (core/chat.py's status); what Claude waits on (Task 7's cards) */
+    this.status = null;
+    this.pending = null;
+    /** @type {{ model: string | null, effort: string | null, mode: string | null }} as the session file names them */
+    this.named = { model: null, effort: null, mode: null };
+    /** @type {string | null} the mode asked for, and the shift+tab presses made towards it */
+    this.wanted = null;
+    this.presses = 0;
+    /** @type {Set<string>} limit notices closed, by key */
+    this.dismissed = new Set();
+    /** @type {any} the bounds of the chip pressed, the menu's place */
+    this.pressed = null;
+    /** @type {any} the prompt (init's: a host call) */
+    this.input = null;
   }
 
   /** Once, after tab.new has selected its tab: the agent found again (the tab drawn anew, the app opened again) or
    * started; then its file read. */
   init(cx) {
+    this.input = TextareaState.new({ placeholder: "Message Claude" });
+    this.input.set_auto_grow(1, ROWS);
+    this.input.on("submit", (event, cx) => {
+      if (!event.shift) this.send(cx);                                     // Shift+Enter: a new line
+    });
     cx.timer.after(0, (cx) => {
       this.tab = focused()?.tab ?? null;
       cx.spawn(async (cx) => {
@@ -94,23 +118,30 @@ export class Chat {
     this.address = JSON.parse(done.stdout).address;
   }
 
-  /** Every WORKING ms: the session file's new lines while the agent works, every IDLE ms while it waits. */
+  /** Every WORKING ms: the session file's new lines, what Claude waits on and the status line's numbers while the agent
+   * works or a mode is asked for, every IDLE ms while it waits. */
   look(cx) {
     if (!this.address || this.reading) return;
-    if (this.agent?.status !== "working" && Date.now() - this.read < IDLE) return;
+    if (this.agent?.status !== "working" && !this.wanted && Date.now() - this.read < IDLE) return;
     this.reading = true;
     this.read = Date.now();
     cx.spawn(async (cx) => {
       try {
         const got = await this.core(CHAT, ["steps", this.session, String(this.offset)], this.space?.folder ?? "/",
           null);
+        const before = JSON.stringify([this.status, this.pending, this.named]);
         this.offset = got.offset;
+        this.status = got.status;
+        this.pending = got.pending;
+        this.named = { model: got.model ?? this.named.model, effort: got.effort ?? this.named.effort,
+          mode: got.mode ?? this.named.mode };
+        this.turn();
         if (got.steps.length) {
           this.steps.push(...got.steps);
           this.rows = timeline(this.steps);
           if (this.following) this.scroll.scroll_to_bottom();
-          cx.notify();
         }
+        if (got.steps.length || before !== JSON.stringify([this.status, this.pending, this.named])) cx.notify();
       } catch (e) {
         this.note = said(e);
         cx.notify();
@@ -118,6 +149,51 @@ export class Chat {
         this.reading = false;
       }
     });
+  }
+
+  /** The mode in effect, as the adapter names it; null before the session file says. */
+  get mode() {
+    return this.named.mode ? modeOf(this.adapter, this.named.mode) : null;
+  }
+
+  /** Towards the mode asked for: Claude's own shift+tab, one press a read, until the session file names it (the cycle
+   * is Claude's, so at most once round). */
+  turn() {
+    if (!this.wanted) return;
+    if (this.mode?.id === this.wanted || this.presses > this.adapter.modes.length) {
+      this.wanted = null;
+      return;
+    }
+    this.presses += 1;
+    hc(["keys", String(this.address), "shift+tab"]);
+  }
+
+  /** The prompt's text to the agent (a working one queues it), the prompt emptied, the timeline back at its end. */
+  send(cx) {
+    const text = promptText(this.input.value());
+    if (!text || !this.address) return;
+    hc(["send", this.address, text]);
+    this.input.set_value("");
+    this.following = true;
+    this.scroll.scroll_to_bottom();
+    cx.notify();
+  }
+
+  /** The mode's menu: the adapter's modes, then its efforts, each in its own words, the one in effect checked. */
+  modes() {
+    const effort = this.status?.effort ?? this.named.effort;
+    return [...this.adapter.modes.map((mode) => ({ label: mode.label, on: mode.id === this.mode?.id,
+      act: () => void ((this.wanted = mode.id), (this.presses = 0)) })),
+    { label: "Effort", off: true }, ...this.adapter.efforts.map((e) => ({ label: e.label, on: e.id === effort,
+      act: () => void hc(["send", String(this.address), `/effort ${e.id}`]) }))];
+  }
+
+  /** The / menu: the adapter's commands, one put in the prompt for its arguments. */
+  commands() {
+    return this.adapter.commands.map((c) => ({ label: c.name, act: () => {
+      this.input.set_value(`${c.name} `);
+      this.input.focus();
+    } }));
   }
 
   /** A row's key, its place in the timeline (rows only ever come after it). @param {number} index */
@@ -130,11 +206,14 @@ export class Chat {
 
   render(t, code) {
     const frame = v_flex().id("chat").size_full().min_h(0).bg(t.surface).text_color(t.foreground).text_size(13);
-    if (!this.rows.length) {
-      const line = this.note ?? (this.address ? "Waiting for Claude…" : "Starting Claude…");
-      return frame.child(div().p(24).text_size(12).text_color(this.note ? t.ansi1 : t.dim).child(line));
-    }
-    return frame.child(div().flex_1().min_h(0).relative()
+    const line = this.note ?? (this.address ? "Waiting for Claude…" : "Starting Claude…");
+    return frame.child(this.rows.length ? this.timeline(t, code)
+      : div().flex_1().p(24).text_size(12).text_color(this.note ? t.ansi1 : t.dim).child(line))
+      .when(Boolean(this.address), (e) => e.child(this.bottom(t)));
+  }
+
+  timeline(t, code) {
+    return div().flex_1().min_h(0).relative()
       .child(list("timeline", this.rows.length, this.key, (index) => this.row(t, code, index))
         .track_scroll(this.scroll).size_full()
         .on_item_click((key, cx) => {
@@ -155,7 +234,51 @@ export class Chat {
             this.following = true;
             this.scroll.scroll_to_bottom();
             cx.notify();
-          })))));
+          }))));
+  }
+
+  /** Under the timeline, as wide as its column: a usage limit near its end, then the prompt and its bar. */
+  bottom(t) {
+    const notice = limitNotice(this.status, this.dismissed);
+    return div().w_full().flex().justify_center().px(24).pb(16).pt(8)
+      .child(v_flex().w_full().max_w(COLUMN).gap(8)
+        .when(Boolean(notice), (e) => e.child(h_flex().px(12).py(6).gap(8).rounded(8).border(1)
+          .border_color(t.blocked).text_size(12).text_color(t.blocked)
+          .child(div().flex_1().min_w(0).child(notice?.text ?? ""))
+          .child(iconButton(t, "notice-close", "x", "Close", (cx) => {
+            if (notice) this.dismissed.add(notice.key);
+            cx.notify();
+          }, { size: 12, color: t.blocked }))))
+        .child(v_flex().rounded(10).border(1).border_color(t.border).bg(t.raised)
+          .child(Textarea.new(this.input).px(12).pt(8).text_size(13))
+          .child(this.bar(t))));
+  }
+
+  /** The prompt's bar: the commands, the context in use in its color, the model and effort, the mode, send or stop. */
+  bar(t) {
+    const context = this.status?.context, mode = this.mode, working = this.agent?.status === "working";
+    const effort = this.status?.effort ?? this.named.effort;
+    const model = [this.status?.model ?? modelName(this.named.model ?? ""), effort && effortLabel(this.adapter, effort)]
+      .filter(Boolean).join(" ");
+    const tone = { green: t.ansi2, yellow: t.ansi3, red: t.ansi1 }[contextColor(context ?? 0)];
+    const chip = (/** @type {string} */ id, /** @type {(cx: any) => void} */ act) => h_flex().id(id).h(26).px(8)
+      .gap(6).items_center().rounded(6).text_size(12).text_color(t.muted).cursor_pointer()
+      .hover((s) => s.bg(t.hover).text_color(t.foreground))
+      .on_mouse_down("left", (e, cx) => {
+        cx.stop_propagation();
+        this.pressed = e.bounds;
+      }).on_click((_e, cx) => act(cx));
+    return h_flex().px(8).pb(8).gap(4).items_center()
+      .child(chip("commands", () => this.menus.open(this.commands(), this.pressed)).font_family("Menlo").child("/"))
+      .when(typeof context === "number", (e) => e.child(h_flex().px(8).gap(4).text_size(12).text_color(t.dim)
+        .child("context").child(div().text_color(tone).child(`${context}%`))))
+      .child(div().flex_1())
+      .when(Boolean(model), (e) => e.child(div().px(8).text_size(12).text_color(t.dim).child(model)))
+      .when(Boolean(mode), (e) => e.child(chip("mode", () => this.menus.open(this.modes(), this.pressed))
+        .child(icon(mode?.icon ?? "hand", 12)).child(mode?.label ?? "")
+        .child(icon("chevron-down", 12).text_color(t.dim))))
+      .child(working ? iconButton(t, "stop", "square", "Stop", () => void hc(["interrupt", String(this.address)]))
+        : iconButton(t, "send", "arrow-up", "Send", (cx) => this.send(cx)));
   }
 
   /** Row INDEX in the timeline's column: the person's message boxed, the agent's text with its time, a step on the

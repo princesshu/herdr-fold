@@ -9,7 +9,7 @@
 const OPEN = new Set(["Edit", "MultiEdit", "Write"]);      // a change's call: its diff open from the start
 const CALLS = new Set(["tool", "skill", "agent", "todo"]); // the steps a result answers, by the call's id
 const DAY = 86400000;
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** How long a thought took, as the extension says it. @param {number | null | undefined} ms */
 function thought(ms) {
@@ -45,7 +45,7 @@ export function timeline(steps) {
 const twelve = () => /[AP]M/i.test(new Date(2000, 0, 1, 13).toLocaleTimeString());
 
 /** WHEN's hours and minutes, in the system's 12 or 24 hours. @param {Date} when */
-function hours(when) {
+export function hours(when) {
   const hour = when.getHours(), minutes = String(when.getMinutes()).padStart(2, "0");
   return twelve() ? `${hour % 12 || 12}:${minutes} ${hour < 12 ? "AM" : "PM"}`
     : `${String(hour).padStart(2, "0")}:${minutes}`;

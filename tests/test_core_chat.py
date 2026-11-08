@@ -270,14 +270,21 @@ class Files(unittest.TestCase):
             f.write("[1, 2")
         self.assertIsNone(chat.status(SESSION))
 
-    def test_the_command_line_answers(self):
-        self.assertEqual(cli("pending", SESSION), (0, None))
+    def test_one_read_brings_the_steps_what_claude_waits_on_and_the_status(self):
+        """The chat polls one command: its steps, what Claude waits on, the status line's numbers, together."""
+        self.assertEqual({key: cli("steps", SESSION, "0")[1][key] for key in ("pending", "status")},
+                         {"pending": None, "status": None})
         self.ask()
-        self.assertEqual(cli("pending", SESSION), (0, REQUEST))
+        statefile.write(chat.status_path(SESSION), {"context": 42})
+        answer = cli("steps", SESSION, "0")[1]
+        self.assertEqual((answer["pending"], answer["status"]), (REQUEST, {"context": 42}))
+
+    def test_the_command_line_answers(self):
+        self.ask()
         self.assertEqual(cli("answer", SESSION, json.dumps({"id": "older"})), (0, {"ok": False}))
         self.assertEqual(cli("answer", SESSION, json.dumps({"id": "r1", "choice": "allow"})), (0, {"ok": True}))
-        self.assertEqual(cli("status", SESSION), (0, None))
-        for bad in (("answer", SESSION, "{not json"), ("pending", "../x"), ("status",), ("answer", SESSION)):
+        for bad in (("answer", SESSION, "{not json"), ("answer", "../x", "{}"), ("pending", SESSION),
+                    ("status", SESSION), ("answer", SESSION)):
             with self.subTest(bad):
                 self.assertEqual(cli(*bad)[0], 2)
 

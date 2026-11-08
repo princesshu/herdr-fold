@@ -141,8 +141,11 @@ export default class HerdrFold extends View {
       });
     }
     if (part === "chat") {                        // a chat tab: an agent's conversation as a timeline (chat.js)
-      this.chat = new Chat(props(), python, pythonOn);
-      return void this.chat.init(cx);
+      const chat = (this.chat = new Chat(props(), python, pythonOn));
+      chat.init(cx);
+      return void cx.spawn(async (cx) => {
+        for (;;) chat.menus.answer(await nextCommand(), cx);                // its mode's and commands' menus
+      });
     }
     if ((this.trigger = part === "trigger")) return;    // left of the tabs: the folded sidebar's toggle
     if ((this.rail = part === "rail")) return;          // the right panel folded: its rail

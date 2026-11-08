@@ -7,7 +7,8 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ADAPTERS, claudeArgv, claudeSettings, modeOf, shellQuote } from "../mods/herdr-fold/agents.js";
+import { ADAPTERS, claudeArgv, claudeSettings, contextColor, effortLabel, limitNotice, modelName, modeOf,
+  promptText, shellQuote } from "../mods/herdr-fold/agents.js";
 import { CHAT_HOOK } from "../mods/herdr-fold/helper.js";
 
 const SESSION = "5f0c6d9e-1b2a-4c3d-8e9f-0a1b2c3d4e5f";
@@ -93,4 +94,41 @@ test("the mode Claude's session file names: Manual is default there", () => {
   assert.equal(modeOf(claude, "default")?.label, "Manual");
   assert.equal(modeOf(claude, "acceptEdits")?.label, "Edit automatically");
   assert.equal(modeOf(claude, "bypassPermissions"), null);
+});
+
+test("a prompt goes to the terminal without its control codes: an escape sequence and a bell out, lines kept", () => {
+  assert.equal(promptText("Fix it\x1b[31m now\x07\n\tthe pager  \r\n"), "Fix it now\n\tthe pager");
+  assert.equal(promptText("\x1b]0;title\x07plain"), "plain");
+});
+
+test("the context ring's color: the status line's own thresholds", () => {
+  assert.deepEqual([0, 49, 50, 79, 80, 100].map(contextColor), ["green", "green", "yellow", "yellow", "red", "red"]);
+});
+
+test("a limit at 80% or more is said once until its next reset; under it nothing", () => {
+  const zone = process.env.TZ;
+  process.env.TZ = "America/New_York";
+  try {
+    const reset = Date.parse("2026-11-10T14:00:00Z") / 1000, now = new Date("2026-11-08T14:00:00Z");
+    const status = (used) => ({ limits: { five_hour: { used: 12, resets: null }, week: { used, resets: reset } } });
+    assert.equal(limitNotice(status(79), new Set(), now), null);
+    const notice = limitNotice(status(84), new Set(), now);
+    assert.equal(notice?.text, "You've used 84% of your weekly limit · resets Tue, Nov 10, 9:00 AM");
+    assert.equal(limitNotice(status(84), new Set([notice?.key]), now), null);           // dismissed
+    const later = { limits: { five_hour: { used: 0, resets: null }, week: { used: 90, resets: reset + 604800 } } };
+    assert.ok(limitNotice(later, new Set([notice?.key]), now));                         // the next reset's
+    assert.equal(limitNotice(null, new Set(), now), null);
+  } finally {
+    if (zone === undefined) delete process.env.TZ;
+    else process.env.TZ = zone;
+  }
+});
+
+test("an effort is named in the agent's own words", () => {
+  assert.deepEqual(["xhigh", "low", "turbo"].map((id) => effortLabel(claude, id)), ["Extra high", "Low", "turbo"]);
+});
+
+test("a model's id reads as its name, as the status line names it, until the status line says it", () => {
+  assert.deepEqual(["claude-opus-5-5", "claude-opus-5-5[1m]", "claude-sonnet-5-5-20261001", "claude-fable-5-1",
+    "gpt-x"].map(modelName), ["Opus 5.5", "Opus 5.5", "Sonnet 5.5", "Fable 5.1", "gpt-x"]);
 });
