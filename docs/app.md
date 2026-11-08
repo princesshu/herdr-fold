@@ -109,11 +109,12 @@ rule where lines are left out; a commit shows its author, message and each file'
 as markdown. An image on this Mac is drawn, fitted to the tab and never larger than it is; a PDF's pages one under
 another at their own size (smaller in a narrower tab), a gap apart and clear of the scrollbar, scrolled, each drawn as
 it comes into view, the page in view and Open in Browser above them; one on another machine is not. An SVG or an HTML
-page on this Mac shows its code and its picture side by side, as VS Code's preview to the side: the divider between them
-drags, and the page is drawn for its side as a browser that size shows it, once the divider is let go, on the canvas as
-a design tool's artboard (an SVG at its own size, never larger, what it leaves empty clear); Code, Split and Picture
-above them show either alone or both again. WebKit draws it offline, as in the TUI. A right click in the tab offers
-those, Open in Browser and Close Preview. Herdr-fold's panel stays beside it.
+page on this Mac shows its code and its picture side by side, as VS Code's preview to the side, or its code above its
+picture in a tab taller than wide: the divider between them drags, and the page is drawn for its side as a browser that
+size shows it, once the divider is let go, on the canvas as a design tool's artboard (an SVG at its own size, never
+larger, what it leaves empty clear); Code, Split and Picture above them show either alone or both again, and the button
+beside them sets the two side by side or one under the other. WebKit draws it offline, as in the TUI. A right click in
+the tab offers those, Open in Browser and Close Preview. Herdr-fold's panel stays beside it.
 
 ![A PDF's pages one under another in the preview tab, scrolled to where its first page meets its second, under the
 page in view and Open in Browser; beside it Files with the PDF chosen in its folder](../assets/screenshots/app-pdf.webp)

@@ -2,11 +2,12 @@
 // The preview tab, as the TUI sidebar's: one a space, showing what Files, Changes, the Graph or Issues opened in it (a
 // file, a picture, a PDF's pages, an SVG's or a page's code and picture, a diff, a commit, an issue), the panel beside.
 import { div, image } from "gpui-kit";
-import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, TextView, v_virtual_list } from "gpui-base";
+import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, TextView, v_resizable, v_virtual_list }
+  from "gpui-base";
 import { home, panes, readTextFile, setShared, shared, spaces, run as command } from "herdr";
 import { GIT, GITHUB, MEDIA } from "./helper.js";
-import { browsable, commitRows, diffRows, mediaKind, previewName, previewTab, priorityColor, said, safeMarkdown }
-  from "./logic.js";
+import { browsable, commitRows, diffRows, mediaKind, previewName, previewTab, priorityColor, said, safeMarkdown,
+  stacks } from "./logic.js";
 import { Menus } from "./menus.js";
 import { chip, choices, iconButton } from "./parts.js";
 
@@ -72,6 +73,10 @@ export class Preview {
     this.fitting = null;
     /** an SVG's or a page's view (VIEWS'), kept for the next one */
     this.shown = "split";
+    /** @type {boolean | null} its code above its picture, as chosen (kept for the next one); null: by the room */
+    this.stacked = null;
+    /** @type {{ width: number, height: number } | null} the room the two share, as last measured */
+    this.room = null;
     this.loading = false;
     this.menus = new Menus();                     // its right click's
     /** @type {string | null} why there is nothing to show */
@@ -229,11 +234,17 @@ export class Preview {
   /** What a right click on the tab offers, as the TUI's: an SVG's or a page's views, the file in the browser, the tab
    * closed. @returns {import("./menus.js").Item[]} */
   items() {
-    const both = this.drawing && this.rows.length > 0;
+    const both = this.drawing && this.rows.length > 0, down = stacks(this.stacked, this.room);
+    const turn = (stacked) => (cx) => {
+      this.stacked = stacked;
+      cx.notify();
+    };
     return [...(both ? VIEWS.map(([view, label]) => ({ label, on: this.shown === view, act: (cx) => {
       this.shown = view;
       cx.notify();
     } })) : []),
+    ...(both ? [{ label: "Side by Side", on: !down, act: turn(false) }, { label: "Stacked", on: down, act: turn(true) }]
+      : []),
     ...(browsable(this.what) ? [{ label: "Open in Browser", act: (cx) => this.browse(cx) }] : []),
     { label: "Close Preview", act: () => {
       const tab = shownPreviewTab();
@@ -251,6 +262,14 @@ export class Preview {
           this.shown = shown;
           cx.notify();
         })))
+      .when(this.drawing && this.rows.length > 0 && this.shown === "split", (e) => {
+        const down = stacks(this.stacked, this.room);
+        return e.child(iconButton(t, "preview-turn", down ? "columns-2" : "rows-2", down ? "Side by side" : "Stacked",
+          (cx) => {
+            this.stacked = !down;
+            cx.notify();
+          }));
+      })
       .when(Boolean(pdf), (e) => e.child(div().px(4).text_size(12).text_color(t.muted)
         .child(`Page ${(pdf?.page ?? 0) + 1} of ${pdf?.count ?? "?"}`)))
       .child(div().flex_1())
@@ -294,17 +313,26 @@ export class Preview {
         .child(Scrollbar.vertical(list).viewport_from_layout().absolute().inset_0()));
   }
 
-  /** An SVG's or a page's code and its picture, as VS Code's preview to the side: side by side, the divider dragged
-   * (the window keeps where), or either alone, as the bar's views have it. */
+  /** An SVG's or a page's code and its picture, as VS Code's preview to the side: side by side, or the code above
+   * where the room is taller than wide (or as chosen), the divider dragged (the window keeps where); or either alone,
+   * as the bar's views have it. */
   codeAndPicture(t, code) {
-    const lines = v_flex().size_full().min_w(0).child(this.diff(t, code));
-    const board = v_flex().size_full().min_w(0).child(this.canvas(t));
+    const lines = v_flex().size_full().min_w(0).min_h(0).child(this.diff(t, code));
+    const board = v_flex().size_full().min_w(0).min_h(0).child(this.canvas(t));
+    const parts = stacks(this.stacked, this.room) ? v_resizable("preview-split-stacked") : h_resizable("preview-split");
     return v_flex().size_full().min_h(0)
       .child(this.bar(t))
       .child(this.shown === "split"
-        ? h_resizable("preview-split").flex_1().min_h(0)
-          .child(resizable_panel().child(lines)).child(resizable_panel().child(board))
+        ? div().id("preview-room").flex_1().min_h(0).on_size_change((size, cx) => this.measure(size, cx))
+          .child(parts.size_full().child(resizable_panel().child(lines)).child(resizable_panel().child(board)))
         : v_flex().flex_1().min_h(0).child(this.shown === "code" ? lines : board));
+  }
+
+  /** The room the code and the picture share, SIZE (logical px): which way they part, by its shape, follows it. */
+  measure(size, cx) {
+    if (this.room && this.room.width === size.width && this.room.height === size.height) return;
+    this.room = size;
+    cx.notify();
   }
 
   /** The picture on the board, as a design tool's artboard: as large as the room allows and never larger than it is,

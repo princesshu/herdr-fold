@@ -27,7 +27,7 @@ CONTROL = {chr(c) for c in [*range(32), *range(0x7f, 0xa0)]}
 LIMIT = 8_000_000             # bytes read at most: a huge file or an endless command does not stall the pager
 CONTEXT = 3                   # lines shown above the line the pager opens at, or a search hit
 WATCH = 0.3                   # seconds between looks at the spec's file: a new spec there is shown
-SIDE = 10                     # an SVG's or a page's code and picture: the least columns a side keeps
+SIDE = 10                     # an SVG's or a page's code and picture: the least columns a side keeps (rows: a third)
 VIEWS = ("split", "code", "picture")   # what c turns them to, in turn: both side by side first
 CLOSE, BROWSE = "Close Preview", "Open in Browser"   # a right click's menu: the tab closed, the file in the browser
 MENU = "48;5;237;38;5;252"    # its colors: a background of its own, which a picture lies under
@@ -120,13 +120,16 @@ def shown(sgr):
     return f"\x1b[{';'.join(kept)}m" if kept else ""
 
 
-HINT = "  o: open in browser"  # a status row's last part, left out where the row has no room for it
+HINT = "  o: open in browser"
+KEY_HINT = re.compile(r"  \S: [^:]*$")    # a status row's last key hint, left out where the row has no room for it
 
 
 def bar(status, cells):
-    """STATUS as the pane's last row, CELLS wide: its key hint left out rather than cut where it does not fit."""
-    if status.endswith(HINT) and width(" " + status) > cells:
-        status = status[:-len(HINT)]
+    """STATUS as the pane's last row, CELLS wide: its key hints left out, the last first, rather than cut."""
+    hint = KEY_HINT.search(status)
+    while hint and width(" " + status) > cells:
+        status = status[:hint.start()]
+        hint = KEY_HINT.search(status)
     return visible(" " + status, cells)
 
 
@@ -158,7 +161,7 @@ class Pager:
         self.top = max(0, (line or 1) - 1 - CONTEXT)
         self.height = 24
         self.query = self.typing = self.hit = self.note = None
-        self.swap = None                                              # what c turns to (PictureAndCode's)
+        self.keys = ""                                                # where c and v turn it (PictureAndCode's)
 
     def shown(self):
         return self.top, self.typing, self.note
@@ -168,7 +171,7 @@ class Pager:
             return "/" + self.typing
         if self.note:
             return self.note
-        hint = (f"  c: {self.swap}" if self.swap else "") + (HINT if self.opens else "")
+        hint = self.keys + (HINT if self.opens else "")
         return f"{self.title}  {self.top + 1}-{min(len(self.lines), self.top + self.height)}/{len(self.lines)}{hint}"
 
     def choices(self):
@@ -299,7 +302,7 @@ class Picture:
     def __init__(self, path, title):
         self.path, self.title, self.note = path, title, None
         self.work = tempfile.mkdtemp(prefix="herdr-fold-picture.")
-        self.opens, self.swap = media.browsable(), None
+        self.opens, self.keys = media.browsable(), ""
         self.drawn = media.kind_of(path) in ("svg", "html")      # WebKit draws it, sharp at any width
         self.ready = not self.drawn                              # its helper compiled at its first draw
         self.cell = (CELL_PX, CELL_PX * CELL)                    # the pane's, as its terminal says at each draw
@@ -310,7 +313,7 @@ class Picture:
     def status(self):
         if self.note:
             return self.note
-        return f"{self.title}{f'  c: {self.swap}' if self.swap else ''}{HINT if self.opens else ''}"
+        return f"{self.title}{self.keys}{HINT if self.opens else ''}"
 
     def png(self, columns, rows):
         """The picture as a PNG with the pixels COLUMNS x ROWS cells show: its longer side, the pane's height for a
@@ -340,17 +343,17 @@ class Picture:
             media.helper("page-shot")
             self.ready = True
 
-    def place(self, columns, rows, left=0, made_for=None):
-        """The picture fitted to COLUMNS x ROWS cells from column LEFT, as escapes, its PNG made for MADE_FOR columns
-        when given (a side, dragged: made once); "" where it cannot be shown."""
-        made = self.png(made_for or columns, rows)
+    def place(self, columns, rows, left=0, made_for=None, top=0):
+        """The picture fitted to COLUMNS x ROWS cells from column LEFT and row TOP, as escapes, its PNG made for
+        MADE_FOR (columns, rows) when given (a side, dragged: made once); "" where it cannot be shown."""
+        made = self.png(*(made_for or (columns, rows)))
         shape = media.size(made) if made else None
         if not shape:
             self.note = self.note or f"{self.title}: cannot be shown here{HINT if self.opens else ''}"
             return ""
         row, column, wide, tall = fit(columns, rows, *shape, self.cell)
         with open(made, "rb") as f:
-            return f"\x1b[{row + 1};{left + column + 1}H" + kitty(f.read(), wide, tall)
+            return f"\x1b[{top + row + 1};{left + column + 1}H" + kitty(f.read(), wide, tall)
 
     def handle(self, event):
         """React to EVENT; False when the pager should end."""
@@ -473,50 +476,64 @@ class Pdf(Picture):
 
 
 class PictureAndCode:
-    """An SVG or a page, as VS Code's preview to the side: its code left and its picture right, the divider dragged, the
-    picture fitted to its side; c or the right click's menu turns to the code alone, the picture alone, both again."""
+    """An SVG or a page, as VS Code's preview to the side: its code left and its picture right, or above and below where
+    the pane is taller than wide (v or the right click's menu turns between them), the divider dragged, the picture
+    fitted to its part; c or the menu turns to the code alone, the picture alone, both again."""
 
     def __init__(self, spec):
         title = spec.get("title") or ""
         self.picture, self.code = Picture(spec["picture"], title), Pager(load(spec), title, None, spec.get("open"))
-        self.view, self.share, self.dragging, self.columns, self.side = "split", 0.5, False, 0, 0
+        self.view, self.share, self.dragging, self.side = "split", 0.5, False, None
+        self.stacked = None                          # chosen: code above the picture, or not; None: by the pane's shape
+        self.size, self.stacking = (0, 0), False     # the pane's cells and its way, as last drawn
 
     def views(self):
-        """The one shown alone, or the code beside the picture (its keys and status); what c turns each to."""
-        self.picture.swap = self.code.swap = self.following()
+        """The one shown alone, or the code beside the picture (its keys and status); where c and v turn them."""
+        turn = f"  v: {'side by side' if self.stacking else 'stacked'}" if self.view == "split" else ""
+        self.picture.keys = self.code.keys = f"  c: {self.following()}{turn}"
         return self.picture if self.view == "picture" else self.code
 
     def following(self):
         return VIEWS[(VIEWS.index(self.view) + 1) % len(VIEWS)]
 
     def shown(self):
-        return self.view, self.share, self.views().shown()
+        return self.view, self.share, self.stacked, self.views().shown()
 
     def status(self):
         return self.views().status()
 
-    def divider(self, columns):
-        """The divider's column in a pane COLUMNS wide: SHARE of it, each side SIDE wide at least."""
-        return max(min(SIDE, columns // 2), min(columns - SIDE - 1, round(columns * self.share)))
+    def divider(self, cells, least=SIDE):
+        """The divider's column (or row, stacked) in CELLS: SHARE of them, each side LEAST at least."""
+        return max(min(least, cells // 2), min(cells - least - 1, round(cells * self.share)))
 
     def draw(self, term):
         columns, height = term.size()
-        self.columns = columns
+        rows = height - 1
         if self.view != "split":
             if self.view == "code":
                 term.write(GONE)                     # the picture taken off for the lines
             return self.views().draw(term)
         self.views()
         self.picture.prepare(term, columns, height)
-        self.picture.cell = cell(term)
-        left = self.divider(columns)
+        size = self.picture.cell = cell(term)
+        self.size, self.stacking = (columns, rows), self.stacked if self.stacked is not None \
+            else columns * size[0] < rows * size[1]
         out = [GONE, "\x1b[0m\x1b[2J"]
-        for row, text in enumerate(self.code.rows(left, height - 1)):
-            out.append(f"\x1b[{row + 1};1H\x1b[0m{text}\x1b[0m")
-        out += [f"\x1b[{row + 1};{left + 1}H\x1b[2m│\x1b[0m" for row in range(height - 1)]
-        if not self.dragging:                        # made for the side once let go: fitted meanwhile, as made
-            self.side = columns - left - 1
-        out.append(self.picture.place(columns - left - 1, height - 1, left + 1, self.side))
+        if self.stacking:
+            at = self.divider(rows, max(1, rows // 3))
+            for row, text in enumerate(self.code.rows(columns, at)):
+                out.append(f"\x1b[{row + 1};1H\x1b[0m{text}\x1b[0m")
+            out.append(f"\x1b[{at + 1};1H\x1b[2m{'─' * columns}\x1b[0m")
+            box, left, top = (columns, rows - at - 1), 0, at + 1
+        else:
+            at = self.divider(columns)
+            for row, text in enumerate(self.code.rows(at, rows)):
+                out.append(f"\x1b[{row + 1};1H\x1b[0m{text}\x1b[0m")
+            out += [f"\x1b[{row + 1};{at + 1}H\x1b[2m│\x1b[0m" for row in range(rows)]
+            box, left, top = (columns - at - 1, rows), at + 1, 0
+        if not self.dragging or self.side is None:   # made for its part once let go: fitted meanwhile, as made
+            self.side = box
+        out.append(self.picture.place(*box, left, self.side, top))
         out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns)}\x1b[K\x1b[0m")
         term.write("".join(out))
         term.flush()
@@ -524,26 +541,37 @@ class PictureAndCode:
 
     def handle(self, event):
         if isinstance(event, Mouse) and self.view == "split" and event.kind in ("press", "move", "release"):
-            if event.kind == "press" and event.button == 0 and event.x == self.divider(self.columns):
+            columns, rows = self.size
+            at, cells = (event.y, rows) if self.stacking else (event.x, columns)
+            least = max(1, rows // 3) if self.stacking else SIDE
+            if event.kind == "press" and event.button == 0 and at == self.divider(cells, least):
                 self.dragging = True
                 return True
             if self.dragging:
                 if event.kind == "move" and event.button == 0:
-                    self.share = event.x / max(1, self.columns)
+                    self.share = at / max(1, cells)
                 self.dragging = event.kind != "release"
                 return True
-        if isinstance(event, Key) and event.name == "char" and event.char == "c" and not event.ctrl \
+        if isinstance(event, Key) and event.name == "char" and event.char in ("c", "v") and not event.ctrl \
                 and self.code.typing is None:                # typed into a search, it is a letter
-            self.view = self.following()
+            if event.char == "c":
+                self.view = self.following()
+            else:
+                self.stacked = not self.stacking
             return True
         return self.views().handle(event)
 
     def choices(self):
-        return [(view.title(), view == self.view) for view in VIEWS] + self.picture.choices()
+        return [(view.title(), view == self.view) for view in VIEWS] + [
+            ("Side by Side", not self.stacking), ("Stacked", self.stacking)] + self.picture.choices()
 
     def choose(self, choice):
         if choice.lower() in VIEWS:
             self.view = choice.lower()
+            return True
+        if choice in ("Side by Side", "Stacked"):
+            self.stacked = choice == "Stacked"
+            self.stacking = self.stacked
             return True
         return self.picture.choose(choice)
 

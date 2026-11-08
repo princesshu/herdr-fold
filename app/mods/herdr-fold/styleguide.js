@@ -249,9 +249,12 @@ export function guide(proto) {
     preview: [["Diff", previewOf({ rows: DIFF }), 200], ["Commit", previewOf({ rows: COMMIT }), 200],
       ["Loading", previewOf({ loading: true }), 52], ["Error", previewOf({ note: "HTTP 404: Not Found" }), 52],
       ["A PDF, scrolled to its second page", previewOf({ pdf: { sizes: Array(12).fill([612, 792]), count: 12,
-        made: Array(12).fill(PAGE), range: null, making: false, page: 1, room: null } }), 320],
-      ...[["split", "A page, its code and picture"], ["code", "Its code alone"], ["picture", "Its picture alone"]]
-        .map(([shown, name]) => [name, previewOf({ rows: HTML, picture: { png: PAGE }, drawing: true, shown }), 320])],
+        made: Array(12).fill(PAGE), range: null, making: false, page: 1, room: null } }), 320]],
+    pageViews: [["Its code and picture side by side", "split", false, 280],
+      ["Its code above its picture", "split", true, 400], ["Its code alone", "code", null, 280],
+      ["Its picture alone", "picture", null, 280]]
+      .map(([name, shown, stacked, h]) => [name, previewOf({ rows: HTML, picture: { png: PAGE }, drawing: true, shown,
+        stacked }), h]),
     issue: previewOf({ issue: ISSUE }),
     page: previewOf({ rows: HTML, picture: { png: PAGE }, drawing: true, shown: "split", what: { n: 0, kind: "file",
       path: "docs/pagination.html", root: "/work/lumen-api", on: null } }),
@@ -313,6 +316,9 @@ function specimen(t, id, name, content, { width = PANEL, spec = "", small = fals
 function sections(g, t) {
   const b = g.base;
   const fixed = (h, content) => div().h(h).flex().flex_col().child(content);
+  // the preview tab's specimens, each [name, preview, height], two side by side, the first with what it is made of
+  const tabs = (id, specimens) => specimens.map(([name, preview, h], i) => specimen(t, `${id}-${i}`, name,
+    fixed(h, preview.render(t, "Menlo")), { width: TAB, spec: i ? "" : "Menlo 13 · h 22 · numbered once" }));
   // a view as the right panel's stack frames it, under the group's tabs
   const stack = (shown, view) => fixed(600, v_flex().size_full().rounded(10).overflow_hidden().border_1()
     .border_color(t.border).child(div().h(40).flex_none()
@@ -403,8 +409,8 @@ function sections(g, t) {
         { spec: i ? "" : "h 48 · priority bar 3 · number in its color" })))]],
     ["issue-list", [group(t, "Issue list", g.issueList.map(([name, state, h], i) => specimen(t, `issue-list-${i}`,
       name, fixed(h, state.issues.render(t)))))]],
-    ["preview", [group(t, "Preview tab", g.preview.map(([name, preview, h], i) => specimen(t, `preview-${i}`, name,
-      fixed(h, preview.render(t, "Menlo")), { width: TAB, spec: i ? "" : "Menlo 13 · h 22 · numbered once" })))]],
+    ["preview", [group(t, "Preview tab", tabs("preview", g.preview))]],
+    ["preview-page", [group(t, "An SVG or a page in the preview tab", tabs("preview-page", g.pageViews))]],
     ["preview-issue", [group(t, "An issue in the preview tab", [specimen(t, "preview-issue", "Issue",
       fixed(330, g.issue.render(t, "Menlo")), { width: 2 * TAB + 24 })])]],
     ["spaces", [group(t, "Spaces", [

@@ -6,6 +6,17 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The preview's code and picture one under the other: an SVG's or a page's code above its picture where the room is
+  taller than wide, as Xcode's canvas, or as chosen (`v`, named in the status row, and the right click in the TUI; the
+  button beside Code, Split and Picture and the right click in the Herdr app), its divider dragged as the side by side
+  one.
+
+### Fixed
+
+- The TUI preview's key hints in a narrow pane: each left out whole, the last first, never cut (`c: co`).
+
 ## [0.3.0] - 2026-11-08
 
 The whole environment `herdr-fold 0.3.0` and its plugins `herdr-fold.sidebar 0.3.0`, `herdr-fold.sessions-view 0.3.0`

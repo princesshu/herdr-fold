@@ -517,6 +517,9 @@ class Pictures(unittest.TestCase):
         status = "docs/pagination.pdf  page 1 of 3  o: open in browser"
         self.assertEqual(pager.bar(status, 80).strip(), status)
         self.assertEqual(pager.bar(status, 49).strip(), "docs/pagination.pdf  page 1 of 3")
+        split = "logo.svg  1-3/3  c: code  v: side by side"                 # each hint whole or none, last first
+        self.assertEqual(pager.bar(split, 36).strip(), "logo.svg  1-3/3  c: code")
+        self.assertEqual(pager.bar(split, 20).strip(), "logo.svg  1-3/3")
 
     def test_a_tall_picture_is_made_big_enough_to_fill_the_panes_height(self):
         picture = pager.Picture(png(os.path.join(self.tmp, "tall.png"), 1000, 3000), "tall.png")
@@ -557,8 +560,8 @@ class Pictures(unittest.TestCase):
         opened.assert_called_once_with(os.path.join(self.tmp, "shot.png"))
         self.assertFalse(picture.handle(Key("char", "q")))
 
-    def split(self, columns):
-        """An SVG's code and picture (a 400 x 300 PNG made for it) in a COLUMNS x 24 pane."""
+    def split(self, columns, rows=24):
+        """An SVG's code and picture (a 400 x 300 PNG made for it) in a COLUMNS x ROWS pane."""
         svg = os.path.join(self.tmp, "logo.svg")
         with open(svg, "w", encoding="utf-8") as f:
             f.write('<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40">\n<rect width="60" height="40"/>\n'
@@ -570,13 +573,53 @@ class Pictures(unittest.TestCase):
             self.addCleanup(patch.stop)
         set_env(self, SSH_CONNECTION=None, SSH_CLIENT=None)
         view = pager.viewer({"title": "logo.svg", "picture": svg, "file": svg, "pipeline": []})
-        term = Written(columns, 24)
+        term = Written(columns, rows)
         self.addCleanup(view.close, term)
         return view, term
 
     def places(self, out):
         """The columns (from 1) the pictures in OUT are placed at."""
         return [int(column) for column in re.findall(r"\x1b\[\d+;(\d+)H\x1b_Ga=T", out)]
+
+    def rows_placed(self, out):
+        """The rows (from 1) the pictures in OUT are placed at."""
+        return [int(row) for row in re.findall(r"\x1b\[(\d+);\d+H\x1b_Ga=T", out)]
+
+    def test_a_pane_taller_than_wide_shows_the_code_above_the_picture(self):
+        """As Xcode's canvas at the bottom: the code full width on top, the picture under a divider."""
+        view, term = self.split(40, 60)
+        view.draw(term)
+        self.assertIn("\x1b[31;1H\x1b[2m" + "─" * 40, term.out)               # the divider half way down 59 rows
+        self.assertIn("<rect", term.out)
+        self.assertTrue(self.rows_placed(term.out) and all(row > 31 for row in self.rows_placed(term.out)))
+        self.assertNotIn("\x1b[2m│", term.out)
+
+    def test_v_and_the_right_click_turn_between_side_by_side_and_stacked(self):
+        view, term = self.split(80)
+        self.assertIn(("Side by Side", True), view.choices())                  # a wide pane: side by side
+        view.handle(Key("char", "v"))
+        view.draw(term)
+        self.assertIn("─" * 80, term.out)
+        self.assertIn(("Stacked", True), view.choices())
+        self.assertIn("v: side by side", view.status())                      # the status says where v turns
+        self.assertTrue(view.choose("Side by Side"))
+        term.out = ""
+        view.draw(term)
+        self.assertIn("\x1b[2m│", term.out)
+        self.assertIn("v: stacked", view.status())
+        view.handle(Key("char", "c"))                                        # the code alone: nothing to turn
+        self.assertNotIn("v: ", view.status())
+
+    def test_the_stacked_divider_drags_too(self):
+        view, term = self.split(80)
+        view.choose("Stacked")
+        view.draw(term)
+        for event in (Mouse("press", 5, 12, 0), Mouse("move", 5, 15, 0), Mouse("release", 5, 15, 0)):
+            view.handle(event)
+        term.out = ""
+        view.draw(term)
+        self.assertIn("\x1b[16;1H\x1b[2m" + "─" * 80, term.out)
+        self.assertTrue(all(row > 16 for row in self.rows_placed(term.out)))
 
     def test_an_svg_shows_its_code_and_picture_side_by_side_at_once(self):
         """As VS Code's preview to the side: the code left, the picture right, however narrow the pane."""
@@ -630,8 +673,8 @@ class Pictures(unittest.TestCase):
 
     def test_a_right_click_offers_the_views_the_browser_and_closing(self):
         view, _ = self.split(80)
-        self.assertEqual(view.choices(), [("Split", True), ("Code", False), ("Picture", False),
-                                          ("Open in Browser", None), ("Close Preview", None)])
+        self.assertEqual(view.choices(), [("Split", True), ("Code", False), ("Picture", False), ("Side by Side", True),
+                                          ("Stacked", False), ("Open in Browser", None), ("Close Preview", None)])
         with mock.patch.object(pager.media, "open_in_browser", return_value=True) as opened:
             self.assertTrue(view.choose("Open in Browser"))
         opened.assert_called_once()

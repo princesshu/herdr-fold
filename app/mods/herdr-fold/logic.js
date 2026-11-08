@@ -374,6 +374,12 @@ export function tabRows(space, panes) {
   });
 }
 
+/** Whether an SVG's or a page's code goes above its picture: as CHOSEN, else where the ROOM (logical px) is taller
+ * than wide, as the TUI's. @param {boolean | null} chosen @param {{ width: number, height: number } | null} room */
+export function stacks(chosen, room) {
+  return chosen ?? Boolean(room && room.height > room.width);
+}
+
 /** The panel menu's lines about herdr-fold, as the TUI sidebar's ⋯ has them: its version (a newer one's, once out),
  * opening its releases, and Check for Updates; none before a look or where the installer never ran.
  * @param {any} found core/update.py's check */

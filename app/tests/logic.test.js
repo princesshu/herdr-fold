@@ -14,7 +14,7 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   terminalId, TERMINALS, urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread,
   spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow,
   railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom, mediaKind,
-  aboutLines, swapDraft, browsable, fileIcon, stillResumed }
+  aboutLines, stacks, swapDraft, browsable, fileIcon, stillResumed }
   from "../mods/herdr-fold/logic.js";
 
 test("a tab nobody named after its program, an agent's first, else Terminal; an agent's icon; zoomed marked", () => {
@@ -27,6 +27,14 @@ test("a tab nobody named after its program, an agent's first, else Terminal; an 
     { id: "t2", name: "Terminal", active: false, status: null, icon: null, tint: false },
     { id: "t3", name: "notes Z", active: false, status: "done", icon: null, tint: false }]);
   assert.deepEqual(tabRows(undefined, panes), []);
+});
+
+test("an SVG's or a page's code goes above its picture as chosen, else where the room is taller than wide", () => {
+  assert.equal(stacks(null, { width: 800, height: 600 }), false);
+  assert.equal(stacks(null, { width: 400, height: 900 }), true);
+  assert.equal(stacks(true, { width: 800, height: 600 }), true);
+  assert.equal(stacks(false, { width: 400, height: 900 }), false);
+  assert.equal(stacks(null, null), false);                          // not measured yet: side by side
 });
 
 test("the panel menu names herdr-fold's version, a newer one once out, and switches the update check", () => {
