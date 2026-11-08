@@ -179,6 +179,10 @@ python3 ~/.config/herdr-fold/statusline_setup.py
 Claude's line is drawn by `~/.config/herdr-fold/statusline.py`; Codex's is its own `[tui] status_line` setting in
 `~/.codex/config.toml`, where your own items are kept. The choice carries over to the remote machines.
 
+The weekly reset is written as the machine writes hours: `Monday 13:00`, or `Monday 1pm` with 12 hours (a Mac's
+Language & Region, Windows' short time, else the locale's). The line asks once a day and keeps the answer in
+`~/.local/state/herdr-fold/time.json`.
+
 Your own status line: Space on the group's title (Claude Code or Codex) turns herdr-fold's off. Claude gets back the
 status line it had before, or none; Codex keeps your own items, or shows its default line. No install or update puts
 herdr-fold's back until you turn it on again. Set yours with Claude's or Codex's `/statusline` command, before or

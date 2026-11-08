@@ -6,6 +6,7 @@ import glob
 import importlib.util
 import json
 import os
+import plistlib
 import re
 import select
 import shutil
@@ -16,8 +17,9 @@ import threading
 import time
 import unittest
 import warnings
+from unittest import mock
 
-from support import PACKAGE, catalog_text
+from support import PACKAGE, catalog_text, set_env
 
 SCRIPT = os.path.join(PACKAGE, "src", "statusline.py")
 COMMAND = 'python3 "$HOME/.config/herdr-fold/statusline.py"'             # the command the installer sets
@@ -31,14 +33,17 @@ GRAY, RESET = "\x1b[38;2;147;153;178m", "\x1b[0m"
 SEP = f" {GRAY}|{RESET} "
 
 
-def run(data, choice=None, columns=None):
-    """What the status line prints for Claude's JSON DATA, with CHOICE as statusline.json and COLUMNS as the pane's
-    width — in UTC, with no jq or anything else on the PATH."""
+def run(data, choice=None, columns=None, twelve=True):
+    """What the status line prints for Claude's JSON DATA, with CHOICE as statusline.json, COLUMNS as the pane's width
+    and the machine's hours TWELVE or 24 (time.json's) — in UTC, with no jq or anything else on the PATH."""
     with tempfile.TemporaryDirectory() as home:
         if choice is not None:
             os.makedirs(os.path.join(home, ".config", "herdr-fold"))
             with open(os.path.join(home, ".config", "herdr-fold", "statusline.json"), "w") as f:
                 f.write(choice)
+        os.makedirs(os.path.join(home, ".local", "state", "herdr-fold"))
+        with open(os.path.join(home, ".local", "state", "herdr-fold", "time.json"), "w") as f:
+            json.dump({"twelve": twelve}, f)
         env = {"HOME": home, "PATH": "", "TZ": "UTC", **({"COLUMNS": columns} if columns else {})}
         done = subprocess.run([sys.executable, SCRIPT], input=data.encode("utf-8"), capture_output=True, timeout=20,
                               env=env)
@@ -114,6 +119,10 @@ class Statusline(unittest.TestCase):
         for columns, line in steps:
             self.assertEqual(re.sub(r"\x1b\[[0-9;]*m", "", run(data, columns=columns)), line, columns)
 
+    def test_the_weekly_reset_in_the_machines_24_hours(self):
+        self.assertIn(f"{CRIT}91%{RESET}{GRAY}/Monday 13:00{RESET}", run(FULL, twelve=False))
+        self.assertIn("wk 91%/Mon 13:00", re.sub(r"\x1b\[[0-9;]*m", "", run(FULL, columns="70", twelve=False)))
+
     def test_without_a_width_the_line_stays_whole(self):
         for columns in ("0", "wide"):
             self.assertEqual(run(FULL, columns=columns), run(FULL), columns)
@@ -121,6 +130,53 @@ class Statusline(unittest.TestCase):
     def test_unreadable_input_prints_nothing(self):
         for data in ("", "{", "[1, 2]", '{"model": "Opus", "rate_limits": 7}'):
             self.assertEqual(run(data), "", data)
+
+
+def load_statusline():
+    spec = importlib.util.spec_from_file_location("statusline", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class Clock(unittest.TestCase):
+    """How the machine's user has hours written: macOS's own setting, else the locale's; kept a day in time.json."""
+
+    def setUp(self):
+        self.home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.home)
+        set_env(self, HOME=self.home)
+        self.line = load_statusline()
+
+    def prefs(self, **keys):
+        folder = os.path.join(self.home, "Library", "Preferences")
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, ".GlobalPreferences.plist"), "wb") as f:
+            plistlib.dump(keys, f)
+
+    def test_a_mac_set_to_24_or_12_hours_says_so(self):
+        with mock.patch.object(sys, "platform", "darwin"):
+            self.prefs(AppleICUForce24HourTime=True, AppleLocale="en_US")
+            self.assertFalse(self.line.asked())
+            self.prefs(AppleICUForce12HourTime=True, AppleLocale="en_GB")
+            self.assertTrue(self.line.asked())
+
+    def test_elsewhere_the_locales_time_format_says(self):
+        with mock.patch.object(sys, "platform", "linux"), mock.patch.object(os, "name", "posix"), \
+                mock.patch("locale.setlocale"):
+            for form, twelve in (("%I:%M:%S %p", True), ("%r", True), ("%H:%M:%S", False), ("%T", False)):
+                with self.subTest(form), mock.patch("locale.nl_langinfo", return_value=form):
+                    self.assertEqual(self.line.asked(), twelve)
+
+    def test_the_answer_is_kept_a_day(self):
+        now = time.time()
+        with mock.patch.object(self.line, "asked", return_value=True):
+            self.assertTrue(self.line.twelve_hours(now))
+        with mock.patch.object(self.line, "asked", return_value=False):
+            self.assertTrue(self.line.twelve_hours(now + 3600))                 # kept
+            self.assertFalse(self.line.twelve_hours(now + 2 * 86400))           # a day on: asked again
+        with open(os.path.join(self.home, ".local", "state", "herdr-fold", "time.json")) as f:
+            self.assertEqual(json.load(f), {"twelve": False})
 
 
 def load_setup():

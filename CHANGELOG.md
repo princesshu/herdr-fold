@@ -26,6 +26,8 @@ All notable changes to this project are listed here. The format follows
 ### Fixed
 
 - The TUI preview's key hints in a narrow pane: each left out whole, the last first, never cut (`c: co`).
+- Claude's status line writes the weekly reset as the machine writes hours (`Monday 13:00` on a Mac set to 24 hours),
+  not always with am and pm.
 
 ## [0.3.0] - 2026-11-08
 

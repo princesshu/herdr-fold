@@ -3,11 +3,18 @@ macOS, Linux and Windows. Claude Code passes the session's JSON on stdin and the
 come from statusline.json (statusline_setup.py), and a narrow pane drops them step by step (STEPS)."""
 import json
 import os
+import plistlib
 import re
+import subprocess
 import sys
 import time
 
 CHOICE = os.path.join(os.path.expanduser("~"), ".config", "herdr-fold", "statusline.json")
+# how this machine's user has hours written, kept a DAY (asked): a Mac's own setting is a process to ask at worst
+TIME = os.path.join(os.path.expanduser("~"), ".local", "state", "herdr-fold", "time.json")
+DAY = 86400
+HOURS = ("ObjC.import('Foundation'); "
+         "$.NSDateFormatter.dateFormatFromTemplateOptionsLocale('j', 0, $.NSLocale.currentLocale).js")
 
 
 def rgb(r, g, b):
@@ -91,14 +98,70 @@ def until(reset, now, short=False):
     return f"/{hours}{'h' if short else 'hr'} {minutes}m" if hours else f"/{minutes}m"
 
 
-def weekday(reset, short=False):
-    """The day and hour of the weekly reset in local time, e.g. "/Monday 1pm" (SHORT: "/Mon 1pm"; English, as the
-    line's labels)."""
+def asked():
+    """Whether this machine's user has hours written as 12 with am and pm: a Mac's Language & Region (its 24-hour
+    switch, else its region's way, asked of macOS), Windows' short time, else the locale's time format."""
+    if sys.platform == "darwin":
+        try:
+            with open(os.path.join(os.path.expanduser("~"), "Library", "Preferences", ".GlobalPreferences.plist"),
+                      "rb") as f:
+                prefs = plistlib.load(f)
+        except (OSError, ValueError, plistlib.InvalidFileException):
+            prefs = {}
+        if prefs.get("AppleICUForce24HourTime") or prefs.get("AppleICUForce12HourTime"):
+            return bool(prefs.get("AppleICUForce12HourTime"))
+        try:
+            return "a" in subprocess.run(["/usr/bin/osascript", "-l", "JavaScript", "-e", HOURS], capture_output=True,
+                                         text=True, timeout=5).stdout
+        except (OSError, subprocess.SubprocessError):
+            return False
+    if os.name == "nt":
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\International") as key:
+                return "h" in winreg.QueryValueEx(key, "sShortTime")[0]          # h: 12 hours, H: 24
+        except OSError:
+            return False
+    import locale
+    try:
+        locale.setlocale(locale.LC_TIME, "")
+        form = locale.nl_langinfo(locale.T_FMT)
+    except (locale.Error, AttributeError):
+        return False
+    return any(mark in form for mark in ("%p", "%I", "%r"))
+
+
+def twelve_hours(now):
+    """asked(), as time.json keeps it for a DAY: the line is drawn often, the answer rarely changes."""
+    try:
+        if now - os.path.getmtime(TIME) < DAY:
+            with open(TIME, encoding="utf-8") as f:
+                kept = json.load(f).get("twelve")
+            if isinstance(kept, bool):
+                return kept
+    except (OSError, ValueError, AttributeError):
+        pass
+    twelve = asked()
+    try:
+        os.makedirs(os.path.dirname(TIME), mode=0o700, exist_ok=True)
+        with open(TIME, "w", encoding="utf-8") as f:
+            json.dump({"twelve": twelve}, f)
+        os.utime(TIME, (now, now))
+    except OSError:
+        pass
+    return twelve
+
+
+def weekday(reset, now, short=False):
+    """The day and hour of the weekly reset in local time, as the machine writes hours: e.g. "/Monday 1pm" or
+    "/Monday 13:00" (SHORT: "/Mon 1pm"; English, as the line's labels)."""
     try:
         at = time.localtime(int(reset))
     except (TypeError, ValueError, OverflowError, OSError):
         return ""
-    return f"/{time.strftime('%a' if short else '%A', at)} {at.tm_hour % 12 or 12}{'am' if at.tm_hour < 12 else 'pm'}"
+    hour = f"{at.tm_hour % 12 or 12}{'am' if at.tm_hour < 12 else 'pm'}" if twelve_hours(now) \
+        else f"{at.tm_hour:02d}:{at.tm_min:02d}"
+    return f"/{time.strftime('%a' if short else '%A', at)} {hour}"
 
 
 def room():
@@ -144,7 +207,7 @@ def draw(data, show, now, step):
     used = percent(field(data, "rate_limits", "seven_day", "used_percentage"))
     if show["weekly"] and used is not None:
         reset = field(data, "rate_limits", "seven_day", "resets_at")
-        extra = "" if reset is None or step >= NO_WEEKLY_RESET else weekday(reset, step >= SHORT_TIMES)
+        extra = "" if reset is None or step >= NO_WEEKLY_RESET else weekday(reset, now, step >= SHORT_TIMES)
         line += f" {SEP} {GRAY}{label['weekly']}{RESET} {level(used)}{used}%{RESET}{GRAY}{extra}{RESET}"
     return line
 
