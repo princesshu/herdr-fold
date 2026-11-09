@@ -11,6 +11,7 @@ import uuid
 import column
 import statefile
 import watch
+import widgets
 from screen import Renderer
 from theme import Theme
 
@@ -51,7 +52,7 @@ class Loop:
                         if self.quit:
                             break
                     answered = self.collect()
-                    changed = self.tick() or answered or bool(events)
+                    changed = self.tick() or answered or bool(events) or widgets.TURNS.ended()
             except KeyboardInterrupt:
                 pass
             finally:
@@ -132,7 +133,8 @@ class Loop:
             getattr(self, "do_" + action.name)(*action.args)
 
     def timeout(self):
-        return max(0.0, min(self.deadlines()) - self.clock())
+        turning = widgets.TURNS.deadline()                 # a fold's chevron at rest again
+        return max(0.0, min(self.deadlines() + ([turning] if turning else [])) - self.clock())
 
     def deadlines(self):
         """When the loop has to wake up on its own: the next poll."""

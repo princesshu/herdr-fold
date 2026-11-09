@@ -95,12 +95,15 @@ def _key_mode():
         atexit.register(restore_terminal)
 
 
-def getkey():
-    """One key; arrows and the like as escape sequences (e.g. "\\x1b[D"), a plain Esc on its own, Enter as "\\n".
-    Reads straight from the file descriptor: sys.stdin's buffering would hide the rest of a sequence from select()."""
+def getkey(timeout=None):
+    """One key; arrows and the like as escape sequences (e.g. "\\x1b[D"), a plain Esc on its own, Enter as "\\n";
+    None when none comes in TIMEOUT seconds. Reads straight from the file descriptor: sys.stdin's buffering would hide
+    the rest of a sequence from select()."""
     global _pending
     _key_mode()
     fd = sys.stdin.fileno()
+    if timeout is not None and not _pending and not select.select([fd], [], [], timeout)[0]:
+        return None
     data, _pending = (_pending, b"") if _pending else (os.read(fd, 1), b"")
     if data == b"\x1b" and select.select([fd], [], [], 0.05)[0]:
         data += os.read(fd, 1)                 # ESC [ … (CSI) or ESC O x (SS3); only the sequence's own bytes

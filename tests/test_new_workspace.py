@@ -10,6 +10,7 @@ from support import ANSI, set_attrs, set_env
 
 import herdrlib
 import new_workspace
+import widgets  # noqa: E402  the sidebar's, on the path herdrlib gives
 from icons import glyphs  # noqa: E402  the sidebar's, on the path herdrlib gives
 
 OPEN, CLOSED = glyphs(False)["open"], glyphs(False)["closed"]     # its folds without a Nerd Font
@@ -115,6 +116,15 @@ class Mouse(unittest.TestCase):
         self.assertTrue(shows_old())
         self.click(mark, row, 20.0)
         self.assertFalse(shows_old())
+
+    def test_a_folder_opened_turns_its_chevron_through_45_degrees(self):
+        now = [5.0]
+        set_attrs(self, widgets, TURN=0.08, TURNS=widgets.Turns(clock=lambda: now[0]))
+        row = self.row_of("archives")
+        self.click(self.lines()[row - 1].index(CLOSED) + 1, row)
+        self.assertIn("⌟", self.lines()[row - 1])
+        now[0] += widgets.TURN
+        self.assertIn(OPEN, self.lines()[row - 1])
 
     def test_the_toggle_the_buttons_and_the_wheel(self):
         lines = self.lines()

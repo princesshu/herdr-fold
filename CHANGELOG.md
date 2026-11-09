@@ -27,6 +27,9 @@ All notable changes to this project are listed here. The format follows
 
 - The TUI folds with one chevron everywhere: the Conversations column's spaces and the issues' filter as the file tree
   and the sections, and without a Nerd Font a plain chevron (› ⌄) for each.
+- A fold turns its chevron as it opens or shuts: the Herdr app springs its section open with no overshoot and crosses
+  its two chevrons on the same spring (sections, Graph, the conversations' spaces, the chat's rows and cards); the TUI
+  turns it through a frame at 45° (the file tree, the sections, the Conversations column, the folder picker).
 
 ### Fixed
 

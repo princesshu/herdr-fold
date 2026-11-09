@@ -9,7 +9,7 @@ import { CONVERSATIONS } from "./helper.js";
 import { archiveKey, conversationChoices, conversationRows, coreAgents, floatHeight, folderSpaces, resumeArgv, said,
   stillResumed, tabLabel } from "./logic.js";
 import { Menus } from "./menus.js";
-import { field, icon, listHead, SLIDE, stateMark } from "./parts.js";
+import { field, fold, listHead, SPRING, stateMark } from "./parts.js";
 import { dock, folded, followFold, openFloat } from "./sidebar.js";
 import { trackWaits } from "./spaces.js";
 
@@ -275,7 +275,7 @@ export class ConversationsView {
   /** ROW's conversations under it, sliding open and shut as the Changes' sections do. */
   members(t, row) {
     return v_flex().id(`members-${this.slides}${row.name}`).flex_none().overflow_hidden()
-      .h(row.open ? row.items.length * 24 : 0).transition("height", SLIDE)
+      .h(row.open ? row.items.length * 24 : 0).spring("height", SPRING)
       .children(row.items.map((item) => this.row(t, item)));
   }
 
@@ -294,7 +294,7 @@ export class ConversationsView {
       .child(div().flex_1().min_w(0).truncate().text_color(here ? t.foreground : t.muted)
         .when(here, (e) => e.font_bold()).child(row.name))
       .child(div().flex_none().text_size(11).text_color(t.dim).child(String(row.items.length)))
-      .child(icon(row.open ? "chevron-down" : "chevron-right", 12).text_color(t.accent));
+      .child(fold(`space-${row.name}-fold`, row.open, 12, t.accent));
   }
 
   /** A conversation: its state's mark (a closed one's faint dot), its agent's icon, its name (a closed one's fainter)

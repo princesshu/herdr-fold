@@ -5,11 +5,12 @@ import re
 import sys
 import unittest
 
-from support import SRC, text
+from support import SRC, set_attrs, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import sidebar  # noqa: E402
 from conversation_list import RAIL, ConversationList  # noqa: E402
+import widgets  # noqa: E402
 from icons import glyphs  # noqa: E402
 from conversations import Conversation  # noqa: E402
 from screen import Canvas  # noqa: E402
@@ -31,6 +32,7 @@ HEADER = 3                                                   # the filter and th
 
 class List(unittest.TestCase):
     def setUp(self):
+        set_attrs(self, widgets, TURN=0)                  # each fold at rest at once: Turning has the turn's own tests
         self.view = ConversationList(now=lambda: NOW)
         self.view.set([LOGIN, RATES, PRICES, OLD, STRAY], SPACES, PLACES.get, "shop")
         self.view.states = {"shop": "working", "api": "blocked"}            # as herdr's Spaces list has them
@@ -74,6 +76,16 @@ class List(unittest.TestCase):
         self.assertEqual([line[:6] for line in shown[2:4]], ["   ├─ ", "   └─ "])     # its own, the newest first
         self.assertIn("Login redirect fix", shown[2])
         self.assertIn("Price list", shown[3])
+
+    def test_a_space_opened_turns_its_chevron_through_45_degrees(self):
+        now = [5.0]
+        set_attrs(self, widgets, TURN=0.08, TURNS=widgets.Turns(clock=lambda: now[0]))
+        self.view.toggle("notes")
+        def marks():
+            return [line.split()[-1] for line in self.draw()[HEADER:] if line.split()[1:2] == ["notes"]]
+        self.assertEqual(marks(), ["⌟"])
+        now[0] += widgets.TURN
+        self.assertEqual(marks(), [glyphs(True)["open"]])
 
     def test_without_icons_a_space_folds_with_the_plain_marks_the_tree_has(self):
         self.view.icons = False

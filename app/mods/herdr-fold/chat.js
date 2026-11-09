@@ -10,7 +10,7 @@ import { ADAPTERS, claudeArgv, contextColor, contextLine, effortLabel, limitNoti
   screenChoices, screenMode } from "./agents.js";
 import { Answer } from "./card.js";
 import { Menus } from "./menus.js";
-import { BUTTON, icon, iconButton, keyCap, ring } from "./parts.js";
+import { BUTTON, fold, icon, iconButton, keyCap, ring } from "./parts.js";
 import { clock, setForms, timeline } from "./timeline.js";
 import { CHAT_TAB, diffRows, lastLine, said } from "./logic.js";
 
@@ -472,8 +472,7 @@ export class Chat {
       .when(this.running(row), (e) => e.child(div().flex_none().text_size(11).text_color(t.dim).child("running…")))
       .when(this.waiting(row), (e) => e.child(div().flex_none().text_size(11).text_color(t.ansi3)
         .child("waiting for you")))
-      .when(this.opens(index), (e) => e.child(icon(this.isOpen(index) ? "chevron-down" : "chevron-right", 12)
-        .text_color(t.dim)));
+      .when(this.opens(index), (e) => e.child(fold(`row-${index}-fold`, this.isOpen(index), 12, t.dim)));
     if (row.kind === "thought") return div().text_color(t.dim).child(row.label);
     if (row.kind === "text") {
       return v_flex().gap(4).child(div().text_right().text_size(11).text_color(t.dim).child(clock(row.at)))

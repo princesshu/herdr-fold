@@ -13,7 +13,8 @@ from herdr_layout import LayoutError, build  # noqa: E402
 from herdrlib import AGENTS, PLUGIN_STATE, agent_pane_ids, free_label, herdr  # noqa: E402
 from i18n import line, t  # noqa: E402
 from projects import repositories, start  # noqa: E402
-from icons import glyphs, icon  # noqa: E402  the sidebar's, on the path herdrlib gives
+import widgets  # noqa: E402  the sidebar's, on the path herdrlib gives
+from icons import icon  # noqa: E402  the sidebar's, on the path herdrlib gives
 from screen import after, icons_on  # noqa: E402  the sidebar's, on the path herdrlib gives
 from tui import (GRAY, INVERT, MARGIN, RESET, button_at, buttons, clicked, getkey, mouse, printable,  # noqa: E402
                  wait_and_exit)
@@ -129,9 +130,14 @@ class Picker:
             self.filt, self.chosen, self.top = self.filt + key, 0, 0
         return None
 
+    def shown(self, path, opened):
+        """The folder at PATH opened (OPENED) or shut, its chevron turning."""
+        (self.opened.add if opened else self.opened.discard)(path)
+        widgets.TURNS.turn(("folder", path))
+
     def open_or_enter(self, rows, row):
         if not row.open:
-            self.opened.add(row.path)
+            self.shown(row.path, True)
         elif self.chosen + 1 < len(rows) and rows[self.chosen + 1].depth > row.depth:
             self.chosen += 1
 
@@ -139,7 +145,7 @@ class Picker:
         if row is None:
             return
         if row.depth and row.open:
-            self.opened.discard(row.path)
+            self.shown(row.path, False)
         elif row.depth:
             self.chosen = next((n for n in range(self.chosen - 1, -1, -1) if rows[n].depth < row.depth), self.chosen)
         elif os.path.dirname(self.root) != self.root:    # the top row: up a folder, this one open and chosen
@@ -173,7 +179,7 @@ class Picker:
         row, self.chosen = shown[at - FIRST_ROW], self.top + at - FIRST_ROW
         mark = 2 + len(indent(row.depth))
         if row.depth and mark <= column <= mark + 1:
-            self.opened.symmetric_difference_update({row.path})
+            self.shown(row.path, row.path not in self.opened)
             self.last = None
         elif self.last and self.last[1] == self.chosen and now - self.last[0] <= DOUBLE:
             self.last = None
@@ -232,7 +238,7 @@ def screen(picker, opened, height, width):
     lines = [" " * MARGIN + f"{BOLD}{title}{RESET}" + " " * (toggle_start(title, width) - MARGIN - len(title)) + toggle
              + " " * MARGIN, " " * MARGIN + f"{picker.filt}▏" if picker.filt else ""]
     for n, row in enumerate(rows, picker.top):
-        mark = glyphs(icons)["open" if row.open else "closed"] + after(icons)
+        mark = widgets.TURNS.mark(icons, ("folder", row.path), row.open) + after(icons)
         folder = icon(row.name, True, row.open) + after(True) if icons else ""
         cell = indent(row.depth) + mark + folder + printable(row.name)
         tags = " ".join(tag for tag, on in (("git", is_repo(row.path)), ("open", row.path in opened)) if on)
@@ -250,7 +256,11 @@ def main():
     while True:
         height, width = max(3, os.get_terminal_size().lines - 6), shutil.get_terminal_size().columns
         print(screen(picker, opened, height, width), end="", flush=True)
-        key = getkey()
+        turning = widgets.TURNS.deadline()                 # a folder's chevron at rest again: drawn anew
+        key = getkey(None if turning is None else max(0.0, turning - time.monotonic()))
+        if key is None:
+            widgets.TURNS.ended()
+            continue
         event = clicked(key)
         action = picker.click(event, time.monotonic(), width, height) if event else picker.press(key, height)
         if action == "open" and picker.chosen_path():

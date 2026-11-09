@@ -4,9 +4,42 @@ side effects, so they are tested without a terminal."""
 import time
 from dataclasses import dataclass
 
+from icons import glyphs
 from screen import PLAIN, Style, char_width, truncate, width
 
 DOUBLE_CLICK = 0.4            # seconds: a click on the same place sooner than this after one is a double (or triple)
+TURN, TURNING = 0.08, "⌟"     # a fold's chevron turning: a terminal turns nothing, so a frame at 45° between › and ⌄
+
+
+class Turns:
+    """The folds turning now, by key: each one's chevron at its 45° frame for TURN seconds after it flipped."""
+
+    def __init__(self, clock=time.monotonic):
+        self.clock, self.since = clock, {}
+
+    def turn(self, key):
+        self.since[key] = self.clock()
+
+    def mark(self, icons, key, opened):
+        """KEY's chevron now: the turning frame while it turns, else open or closed (glyphs())."""
+        start = self.since.get(key)
+        return TURNING if start is not None and self.clock() < start + TURN else glyphs(icons)[
+            "open" if opened else "closed"]
+
+    def ended(self):
+        """Whether a turn ended since the last ask (its chevron to draw at rest); the ended ones forgotten."""
+        now = self.clock()
+        done = [key for key, start in self.since.items() if start + TURN <= now]
+        for key in done:
+            del self.since[key]
+        return bool(done)
+
+    def deadline(self):
+        """When the next turn ends; None while none turns."""
+        return min(self.since.values()) + TURN if self.since else None
+
+
+TURNS = Turns()               # the program's folds: one clock for all its views
 
 
 @dataclass(frozen=True)

@@ -11,7 +11,7 @@ import { activeTerminal, afterCommit, background, branchLabel, changeColor, chan
   pythonCommand, railFollow, rowActions, said, searchRows, searchSummary, secretQuestion, swapDraft, syncLabel,
   written }
   from "./logic.js";
-import { button, chip, END, field, fileMark, GAP, icon, INDENT, SLIDE, small } from "./parts.js";
+import { button, chip, END, field, fileMark, fold, GAP, icon, INDENT, small, SPRING } from "./parts.js";
 import { Menus, menuPopup } from "./menus.js";
 import { checkUpdates, followFolder, keptWidth, liveTabs, openRail, rail, runPanel, TABS, tabsState, VIEW, VIEW_NAMES }
   from "./panel.js";
@@ -704,10 +704,10 @@ export default class HerdrFold extends View {
     const rows = shownRows("staged", staged) + shownRows("changes", changes);
     const part = (kind, title, files) => (e) => e.child(this.section(t, kind, title, files))
       .child(v_flex().id(`${kind}-files`).flex_none().overflow_hidden().h(this.folded.has(kind) ? 0 : files.length * 26)
-        .transition("height", SLIDE).children(files.map((f) => this.file(t, kind, f))));
+        .spring("height", SPRING).children(files.map((f) => this.file(t, kind, f))));
     // as tall as its rows, less when the panel is short: the open Graph below keeps a third
     return v_flex().id("changed").flex_grow(0).flex_shrink(1).h(Math.max(44, rows * 26 + 12))
-      .transition("height", SLIDE).min_h(44).overflow_y_scrollbar().p(6)
+      .spring("height", SPRING).min_h(44).overflow_y_scrollbar().p(6)
       .when(staged.length > 0, part("staged", "Staged changes", staged))
       .when(changes.length > 0, part("changes", "Changes", changes))
       .when(!rows, (e) => e.child(div().p(8).text_color(t.dim).child(empty)));
@@ -722,7 +722,7 @@ export default class HerdrFold extends View {
     return h_flex().id(key).h(26).flex_none().pl(6).pr(8).gap(6).items_center().rounded(6).cursor_pointer()
       .hover((s) => s.bg(t.hover)).on_hover(hovering(this, key))
       .on_click((_e, cx) => this.fold(kind, cx))
-      .child(icon(this.folded.has(kind) ? "chevron-right" : "chevron-down").text_color(t.muted))
+      .child(fold(`${key}-fold`, !this.folded.has(kind), 14, t.muted))
       .child(div().flex_1().min_w(0).truncate().font_bold().child(title))
       .when(asking, (e) => e.child(div().flex_none().text_size(11).text_color(t.ansi1).child("Discard all?")))
       .when((this.hovered === key || asking) && files.length > 0, (e) => e.child(h_flex().gap(GAP)
@@ -774,7 +774,7 @@ export default class HerdrFold extends View {
     const folded = this.folded.has("graph");
     const heading = h_flex().id("graph").h(26).flex_none().pl(12).pr(8).gap(6).items_center().cursor_pointer()
       .border_t(1).border_color(t.border).hover((s) => s.bg(t.hover)).on_click((_e, cx) => this.fold("graph", cx))
-      .child(icon(folded ? "chevron-right" : "chevron-down").text_color(t.muted))
+      .child(fold("graph-fold", !folded, 14, t.muted))
       .child(div().font_bold().child("Graph"));
     const commit = ({ hash, subject, author, refs, head }) => {
       const key = shown("commit", hash);
@@ -790,7 +790,7 @@ export default class HerdrFold extends View {
     // at the bottom, as the TUI sidebar's: the room the changes leave, a third at least when open, its heading on top
     return v_flex().flex_grow(1).flex_shrink(0).flex_basis(folded ? 26 : "33%").min_h(26).justify_end().child(heading)
       .when(this.commits.length > 0, (e) => e.child(v_flex().id("commits").flex_grow(0).flex_shrink(1)
-        .h(folded ? 0 : this.commits.length * 24 + 6).transition("height", SLIDE).min_h(0).overflow_y_scrollbar()
+        .h(folded ? 0 : this.commits.length * 24 + 6).spring("height", SPRING).min_h(0).overflow_y_scrollbar()
         .px(6).children(this.commits.map(commit)).child(div().h(6).flex_none())));
   }
 

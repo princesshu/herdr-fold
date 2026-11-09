@@ -6,7 +6,7 @@ import sys
 import time
 import unittest
 
-from support import SRC, text
+from support import SRC, set_attrs, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 from git import Change, Commit, Status  # noqa: E402
@@ -14,6 +14,7 @@ from scm import MESSAGE_ROWS, Entry, Gap, Scm, Section  # noqa: E402
 from icons import glyphs  # noqa: E402
 from screen import Canvas  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
+import widgets  # noqa: E402
 from widgets import Action  # noqa: E402
 
 OPEN, CLOSED = glyphs(False)["open"], glyphs(False)["closed"]     # its folds without a Nerd Font
@@ -36,6 +37,7 @@ def history():
 
 class View(unittest.TestCase):
     def setUp(self):
+        set_attrs(self, widgets, TURN=0)                  # each fold at rest at once: Turning has the turn's own tests
         self.view = Scm(icons=False)
         self.status, self.graph = changes(), history()
 
@@ -455,6 +457,17 @@ class View(unittest.TestCase):
         last = {name: len(self.rows()[self.row_of(name)].rstrip()) - 1 for name in names}
         self.assertEqual(last["new.py"], last[f"{OPEN} Staged changes"])
         self.assertEqual(last["app.py"], last[f"{OPEN} Changes"])
+
+    def test_a_section_folded_turns_its_chevron_through_45_degrees(self):
+        now = [5.0]
+        set_attrs(self, widgets, TURN=0.08, TURNS=widgets.Turns(clock=lambda: now[0]))
+        self.draw()
+        self.click(f"{OPEN} Graph")
+        self.draw()
+        self.assertIsNotNone(self.row_of("⌟ Graph"))
+        now[0] += widgets.TURN
+        self.draw()
+        self.assertIsNotNone(self.row_of(f"{CLOSED} Graph"))
 
     def test_a_section_folded_is_kept_by_the_app(self):
         self.draw()

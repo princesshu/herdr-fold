@@ -5,7 +5,7 @@ import { div } from "gpui-kit";
 import { v_flex, h_flex, Textarea, TextareaState, TextView } from "gpui-base";
 import { cardFor, nextScope, promptText, replyFor } from "./agents.js";
 import { diffRows } from "./logic.js";
-import { icon, keyCap } from "./parts.js";
+import { fold, icon, keyCap } from "./parts.js";
 
 const LINES = 8;                      // a change's old and new text: their lines shown at most, each
 const PLAN = 240;                     // px: a plan's height at most, scrolled past it
@@ -131,7 +131,7 @@ export class Answer {
         .on_click((_e, cx) => {
           this.folded = !this.folded;
           cx.notify();
-        }).child(icon(this.folded ? "chevron-up" : "chevron-down", 14).text_color(t.dim)));
+        }).child(fold("card-fold-mark", !this.folded, 14, t.dim, ["chevron-up", "chevron-down"])));
     if (this.folded) return box.child(head);
     return box.child(head)
       .child(v_flex().px(16).pb(12).gap(8)

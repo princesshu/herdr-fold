@@ -9,7 +9,9 @@ from support import SRC
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 from screen import Canvas  # noqa: E402
 from vt import Key  # noqa: E402
-from widgets import Confirm, ListView, Menu, TextInput  # noqa: E402
+import widgets  # noqa: E402
+from icons import glyphs  # noqa: E402
+from widgets import Confirm, ListView, Menu, TextInput, Turns  # noqa: E402
 
 
 def typed(field, text):
@@ -330,3 +332,23 @@ class Confirmations(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Turning(unittest.TestCase):
+    """A fold's chevron turns: a terminal turns nothing, so a frame at 45° (⌟) between › and ⌄, TURN seconds long."""
+
+    def test_a_fold_rests_turns_through_its_45_degree_frame_then_rests_again(self):
+        now = [100.0]
+        turns = Turns(clock=lambda: now[0])
+        self.assertEqual(turns.mark(True, "src", True), glyphs(True)["open"])
+        self.assertIsNone(turns.deadline())
+        turns.turn("src")
+        self.assertEqual((turns.mark(True, "src", True), turns.mark(False, "src", False)), ("⌟", "⌟"))
+        self.assertEqual(turns.deadline(), 100.0 + widgets.TURN)
+        self.assertFalse(turns.ended())
+        now[0] += widgets.TURN
+        self.assertTrue(turns.ended())                                    # the loop draws it at rest, once
+        self.assertFalse(turns.ended())
+        self.assertEqual(turns.mark(False, "src", False), glyphs(False)["closed"])
+        self.assertIsNone(turns.deadline())
+

@@ -4,6 +4,7 @@ after a question. The view only asks: every git command comes back as an Action 
 import os
 from dataclasses import dataclass
 
+import widgets
 from commit_message import secret_looking
 from git import Change, Commit, taken
 from icons import GIT_LETTER, glyphs, icon
@@ -191,7 +192,8 @@ class Scm:
         if not self.repo:
             return y
         folded = "repositories" in self.folded
-        x = canvas.put(y, 1, marks["closed" if folded else "open"] + after(self.icons), Style(fg="muted"))
+        mark = widgets.TURNS.mark(self.icons, ("section", "repositories"), not folded)
+        x = canvas.put(y, 1, mark + after(self.icons), Style(fg="muted"))
         canvas.put(y, x, "Repositories", Style(fg="text", bold=True))
         canvas.region(y, 0, cells, "repositories")
         air = 1 if roomy else 2
@@ -278,7 +280,7 @@ class Scm:
 
     def section(self, canvas, y, index, item, bg, hovered):
         cells = canvas.width
-        mark = glyphs(self.icons)["closed" if item.kind in self.folded else "open"]
+        mark = widgets.TURNS.mark(self.icons, ("section", item.kind), item.kind not in self.folded)
         x = canvas.put(y, 1, mark + after(self.icons), Style(fg="muted", bg=bg))
         end = cells - 1
         if item.count is not None:                       # the count on a chip
@@ -456,6 +458,7 @@ class Scm:
             self.menu_at = event.y + 1
         elif target == "repositories":
             self.folded.symmetric_difference_update({"repositories"})
+            widgets.TURNS.turn(("section", "repositories"))
             return Action("remember_folded", (sorted(self.folded),))
         elif target == "unlink":
             return Action("unlink", ())
@@ -521,6 +524,7 @@ class Scm:
     def activate(self, item):
         if isinstance(item, Section):
             self.folded.symmetric_difference_update({item.kind})
+            widgets.TURNS.turn(("section", item.kind))
             return Action("remember_folded", (sorted(self.folded),))
         if isinstance(item, Entry):
             return Action("unstage" if item.staged else "stage", (self.paths(item),))

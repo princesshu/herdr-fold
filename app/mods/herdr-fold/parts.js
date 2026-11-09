@@ -5,6 +5,8 @@ import { div, image, PathBuilder, svg } from "gpui-kit";
 import { h_flex, HoverCard, Input } from "gpui-base";
 import { ringArc } from "./agents.js";
 import { ICONS } from "./icons.js";
+
+/** @typedef {import("./icons.js").IconName} IconName */
 import { LIST } from "./logic.js";
 
 export const GAP = 4;              // between two hover backgrounds side by side, everywhere: tabs, icon buttons
@@ -75,7 +77,15 @@ export function button(t, id, label, enabled, solid, onClick) {
     .when(enabled, (e) => e.cursor_pointer().on_click((_e, cx) => onClick(cx))).child(label);
 }
 
-export const SLIDE = { duration: 180, easing: "ease-out" };   // a section folding or opening, drawn by the app itself
+export const SPRING = { response: 240, damping: 1 };   // a fold opening or shutting, sprung by the app, no overshoot
+
+/** A fold's chevron, SIZE square in COLOR: SHUT's icon while shut, OPEN's while open, the one fading into the other as
+ * the app springs its section (GPUI turns nothing once, so the two cross). @param {string} id @param {boolean} open
+ * @param {number} [size] @param {string} [color] @param {[IconName, IconName]} [names] */
+export const fold = (id, open, size = 14, color = undefined, names = ["chevron-right", "chevron-down"]) =>
+  div().id(id).relative().size(size).flex_none().when(Boolean(color), (e) => e.text_color(String(color)))
+    .children(names.map((name, n) => icon(name, size).id(`${id}-${n}`).absolute().top_0().left_0()
+      .opacity(Number(open) === n ? 1 : 0).spring("opacity", SPRING)));
 
 /** COUNT in a round badge, as VS Code's on its Source Control. @param {number} count */
 export const badge = (t, count) => div().h(16).min_w(16).px(4).flex().items_center().justify_center().rounded_full()

@@ -5,6 +5,7 @@ import os
 from dataclasses import dataclass
 
 import media
+import widgets
 from icons import GIT_LETTER, glyphs, icon
 from screen import GIT_ROLE, PLAIN, Canvas, Style, after, truncate
 from tree import Node, git_marks
@@ -81,6 +82,11 @@ class Explorer:
 
     # --- drawing
 
+    def toggle(self, path):
+        """The folder at PATH opened or shut, its chevron turning."""
+        self.tree.toggle(path)
+        widgets.TURNS.turn(("tree", path))
+
     def draw(self, canvas, top, height, status):
         """The view from row TOP, HEIGHT rows: the folder's name, the tree right under it."""
         self.canvas, self.top, self.height, self.cut = canvas, top, height, set()
@@ -123,7 +129,7 @@ class Explorer:
         if node.path is None and not named:                 # "… N more"
             canvas.put(y, x + 2, truncate(node.name, width - x - 3), Style(fg="muted", bg=bg))
             return
-        chevron = glyphs(self.icons)["open" if node.expanded else "closed"] if node.is_dir else " "
+        chevron = widgets.TURNS.mark(self.icons, ("tree", node.path), node.expanded) if node.is_dir else " "
         x = canvas.put(y, x, chevron + after(self.icons), Style(fg="muted", bg=bg))
         if self.icons:
             glyph = icon(node.name, node.is_dir, node.expanded)
@@ -273,7 +279,7 @@ class Explorer:
         if node is None or node.path is None:
             return None
         if node.is_dir:
-            self.tree.toggle(node.path)
+            self.toggle(node.path)
             self.sync()
             return None
         return Action("preview_file", (node.path,))
@@ -282,7 +288,7 @@ class Explorer:
         if node is None or not node.is_dir:
             return
         if not node.expanded:
-            self.tree.toggle(node.path)
+            self.toggle(node.path)
             self.sync()
         elif self.list.index + 1 < len(self.list.items) and self.list.items[self.list.index + 1].depth > node.depth:
             self.list.move(1)
@@ -291,7 +297,7 @@ class Explorer:
         if node is None:
             return
         if node.is_dir and node.expanded:
-            self.tree.toggle(node.path)
+            self.toggle(node.path)
             self.sync()
             return
         for index in range(self.list.index - 1, -1, -1):
@@ -308,7 +314,7 @@ class Explorer:
 
     def new(self, action, folder):
         if folder != self.tree.root and folder not in self.tree.expanded:
-            self.tree.toggle(folder)
+            self.toggle(folder)
         depth = 0 if folder == self.tree.root else os.path.relpath(folder, self.tree.root).count(os.sep) + 1
         chosen = self.list.selected()
         node = Node(None, "", action == "new_folder", depth)

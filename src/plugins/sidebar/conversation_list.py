@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 
 import panels
+import widgets
 from github import since
 from icons import glyphs
 from screen import Style, centered, truncate, width
@@ -159,6 +160,7 @@ class ConversationList:
         return ("group", row[1]) if row[0] == "group" else ("item", row[1].agent, row[1].id)
 
     def toggle(self, name):
+        widgets.TURNS.turn(("space", name))
         if self.is_open(name):
             self.closed.add(name)
             self.opened.discard(name)
@@ -244,7 +246,7 @@ class ConversationList:
         if row[0] == "group":
             _, name, found, opened = row
             count = str(len(found))
-            canvas.put(y, cells - 2, glyphs(self.icons)["open" if opened else "closed"], Style(fg="accent", bg=bg))
+            canvas.put(y, cells - 2, widgets.TURNS.mark(self.icons, ("space", name), opened), Style(fg="accent", bg=bg))
             canvas.put(y, cells - 3 - width(count), count, Style(fg="muted", bg=bg))
             shown, role = self.space_mark(name)
             canvas.put(y, 1, shown, Style(fg=role, bg=bg))

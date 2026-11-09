@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from support import SRC, psd_in_preview, set_env, text
+from support import SRC, psd_in_preview, set_attrs, set_env, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import explorer  # noqa: E402
@@ -18,7 +18,8 @@ from icons import glyphs  # noqa: E402
 from screen import Canvas  # noqa: E402
 from tree import Tree  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
-from widgets import Action  # noqa: E402
+import widgets  # noqa: E402
+from widgets import Action, Turns  # noqa: E402
 
 LONG = "a-very-long-file-name-that-does-not-fit.txt"
 
@@ -154,6 +155,17 @@ class View(unittest.TestCase):
         self.draw()
         self.assertEqual(self.row_of("app.py"), self.row_of("src") + 1)
         self.assertEqual(self.press("down", "enter"), Action("preview_file", (self.path("src/app.py"),)))
+
+    def test_a_folder_opened_turns_its_chevron_through_45_degrees(self):
+        now = [10.0]
+        set_attrs(self, widgets, TURN=0.08, TURNS=Turns(clock=lambda: now[0]))
+        self.draw()
+        self.click("src")
+        self.draw()
+        self.assertEqual(text(self.canvas, self.row_of("src")).split()[0], "⌟")
+        now[0] += widgets.TURN
+        self.draw()
+        self.assertEqual(text(self.canvas, self.row_of("src")).split()[0], glyphs(False)["open"])
 
     def test_left_and_right_walk_the_tree(self):
         self.draw()

@@ -45,8 +45,10 @@ rows 6 and chips 4. A test checks every padding, gap, text size and corner again
 
 ### Motion
 
-A section, and the Graph, slides open and shut: its height in 180 ms, easing out, animated by the app itself
-(`transition`), never by the mod's own timer.
+A section, and the Graph, springs open and shut, its height with no overshoot (`spring`, `SPRING` in `parts.js`), and
+its chevron turns with it: GPUI turns nothing once, so `fold()` crosses the two chevrons' opacity on the same spring.
+The app animates them itself, never the mod's own timer. The TUI turns a fold's chevron through a frame at 45° (⌟)
+between › and ⌄, 80 ms long (`Turns` in its `widgets.py`).
 
 ### Iconography
 
