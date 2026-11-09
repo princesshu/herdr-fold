@@ -38,6 +38,11 @@ All notable changes to this project are listed here. The format follows
   not always with am and pm.
 - The license and the notices of what herdr-fold builds on (its icons' among them) go with every install: herdr-fold's
   folder on each machine, and the Herdr app's mod, which also names its author.
+- The Herdr app's themes give a control its own fill, frame and hover, so every button, stepper and field in the
+  panels and in the app's Settings looks alike and answers the mouse; GitHub Dark's buttons show on their panel, and
+  a field's frame is no longer white.
+- A menu opens above its button, or above the row clicked, where it does not fit under it, in both clients: the
+  chat bar's model, mode and command menus, and a right click near a pane's foot.
 
 ## [0.3.0] - 2026-11-08
 

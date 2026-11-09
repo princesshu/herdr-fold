@@ -25,6 +25,7 @@ ICONS = os.path.join("app", "mods", "herdr-fold", "icons.js")       # the mod's 
 SVGS = "mods/herdr-fold/icons"     # its icons as the app loads them: lucide/ the views', catppuccin/ a file's
 THEMES = os.path.join("app", "themes")      # the TUI's themes in the Herdr app: herdr-fold-ID.json for each, and
 THEME = os.path.join(THEMES, "herdr-fold.json")   # the herdr-fold layout's own (the package's, Catppuccin Mocha)
+RAISED = 1.15                 # the contrast a control's fill needs on its panel (GitHub Dark's surface0 has none)
 
 
 def core(name):
@@ -118,18 +119,24 @@ def tui_themes():
 def app_theme(theme):
     """THEME, one of the TUI's, as a Herdr app theme: the TUI's terminal colors, the panels in the colors of herdr's
     frame round the TUI's panes."""
+    import apply
     colors, frame = theme["colors"], theme["colors"]["herdr"]
     selection = theme["herdr"].get("custom", {}).get("selection_bg") or frame["surface0"]
     panels = {"canvas": "sidebar_bg", "chrome": "sidebar_bg", "surface": "panel_bg", "popover": "panel_bg",
-              "raised": "surface0", "hover": "surface0", "selected": "active_row_bg", "border": "surface0",
-              "input": "overlay1", "foreground": "text", "muted": "subtext0", "dim": "overlay0", "accent": "accent",
-              "solid": "accent"}
+              "selected": "active_row_bg", "foreground": "text", "muted": "subtext0", "dim": "overlay0",
+              "accent": "accent", "solid": "accent"}
+    # a control as Herdr draws it: its fill (the TUI's surface0, else a step lighter than the panel), in a frame
+    # between the two, lighter under the mouse; a field's frame a step lighter again
+    panel, text = frame["panel_bg"], frame["text"]
+    raised = frame["surface0"] if apply.contrast(frame["surface0"], panel) >= RAISED else apply.mix(panel, text, 0.1)
+    controls = {"raised": raised, "hover": apply.mix(raised, text, 0.1), "border": apply.mix(panel, raised, 0.5),
+                "input": apply.mix(raised, text, 0.2)}
     # an agent's state as the TUI's column marks it, its role's terminal color: blocked red, done cyan, working
     # yellow, idle green, unknown faint
     states = {"blocked": 1, "done": 6, "working": 3, "idle": 2, "unknown": 8}
     made = {"background": colors["background"], "foreground": colors["foreground"], "selection": selection,
             "cursor": colors["cursor"], "ansi": colors["palette"],
-            "colors": {**{name: frame[key] for name, key in panels.items()},
+            "colors": {**{name: frame[key] for name, key in panels.items()}, **controls,
                        **{state: colors["palette"][n] for state, n in states.items()}, "selection": selection,
                        "accent_foreground": colors["background"], "solid_foreground": colors["background"]}}
     return json.dumps(made, indent=2) + "\n"

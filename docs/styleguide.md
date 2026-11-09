@@ -15,10 +15,10 @@ colors are the layout's theme, Catppuccin Mocha, as in the TUI.
 |---|---|
 | `background` | panels and fields |
 | `raised` | buttons and chips |
-| `hover` | what the mouse is on |
+| `hover` | what the mouse is on, a step lighter than `raised` |
 | `selected` | the chosen row |
 | `selection` | a match in Search, the ✦ button |
-| `border` | frames and rules |
+| `border` | a control's frame and the rules, between the panel and `raised` |
 | `foreground` | body text |
 | `muted` | icons and captions |
 | `dim` | folders, line numbers, authors |
@@ -39,9 +39,9 @@ preview tab and 11 for a hit's file.
 
 ![The spacing scale, the radii and the heights](../assets/styleguide/shape.webp)
 
-Padding and gaps keep to a 4 px grid (`SPACE` in `parts.js`: 2, 4, 6, 8, 12, 16
-and up): 4 between two buttons, 6 between an icon and its words, 12 inside a panel. Panels are rounded 10, controls 8,
-rows 6 and chips 4. A test checks every padding, gap, text size and corner against these scales.
+Padding and gaps keep to a 4 px grid (`SPACE` in `parts.js`: 2, 4, 6, 8, 12, 16 and up): 4 between two buttons, 6
+between an icon and its words, 12 inside a panel. Panels are rounded 10, controls 8, rows 6 and chips 4. A test checks
+every padding, gap, text size and corner against these scales.
 
 ### Motion
 
@@ -70,7 +70,8 @@ States are named alike throughout: Default, Hover, Selected, Busy, Asking (a sec
 ![Primary, busy, secondary, disabled, icon and row buttons](../assets/styleguide/buttons.webp)
 
 Commit is the one solid button; it keeps its color while it cannot commit yet. A secondary button dims its words when
-it cannot be pressed. A row's buttons show only with the mouse on the row.
+it cannot be pressed. A row's buttons show only with the mouse on the row. Every icon button is `iconButton`: 26
+square, radius 6.
 
 ### Files
 
@@ -135,7 +136,10 @@ as the panel, its head dragging it.
 preview's, the panel's and a conversation's right click](../assets/styleguide/menus.webp)
 
 Every menu is a popup (`Menus` in menus.js), as the app's own: under the button that opened it, its right edge with
-the button's, or at the pointer for a right click; it lays over what is below it, and a press beside it closes it.
+the button's, above the button where it does not fit under it (the chat's bar), or at the pointer for a right
+click; it lays over what is below it, and a press beside it closes it. The TUI's menus open the same way.
+A button that opens a list to choose from (Commit's modes, the chat's model and mode) carries ⌄ at its right end;
+one that acts at once carries none.
 
 ### Problems and empty states
 
@@ -184,7 +188,7 @@ left of the tabs](../assets/styleguide/sidebar-folded.webp)
 Folded, the sidebar is a dock, as Adobe's panels collapse to icons: each panel on a square (`iconTab`: 30 square,
 radius 6), its name under it, its most urgent state's dot at the corner; a press floats it beside the dock, a window
 its head drags and its × closes (`floatPanel`). The app's footer buttons sit centered at its foot, its toggle left of
-the tabs, where the window's buttons leave it room. Every icon button is `iconButton`: 26 square, radius 6.
+the tabs, where the window's buttons leave it room.
 
 ### Search results
 
@@ -193,6 +197,26 @@ the tabs, where the window's buttons leave it room. Every icon button is `iconBu
 ### The tab's terminal
 
 ![The tab's terminal when it could not start: why, in its place](../assets/styleguide/terminal.webp)
+
+### The chat
+
+![The chat's prompt: empty with the agent's name, typed with the cursor in it, while Claude works, and a usage limit
+near its end](../assets/styleguide/chat-prompt.webp)
+
+The prompt sits at the timeline's foot, as wide as its column. Empty, its words name the agent; while the agent works,
+they say a message is queued and esc stops it. Its bar holds the commands, the context ring (green, yellow from 50 %,
+red from 80 %; a click offers Compact), the model with its effort and the mode, each opening its list, and send or
+stop.
+
+![What Claude waits on, in the prompt's place: a command a rule may keep, a change with its diff, a plan asked in
+Claude's own dialog, a question](../assets/styleguide/chat-cards.webp)
+
+A card takes the prompt's place while Claude waits; its answers are numbered, a digit or ⏎ picks one, esc says no.
+
+![The chat's timeline: the person's message, Claude's steps on the line, a change open, its words with their time, a
+command waiting](../assets/styleguide/chat-timeline.webp)
+
+Each step's dot says how it went: done, failed (ansi1), running (accent), waiting on the person (ansi3, fading).
 
 ## Patterns
 

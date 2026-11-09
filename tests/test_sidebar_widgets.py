@@ -307,6 +307,12 @@ class Menus(unittest.TestCase):
                          (("button_text", "button", True), ("text", "panel")))      # the chosen row in the accent
         self.assertEqual(menu.at(30, 35, 40, 0, 20), (16, 19, 21))                  # moved in to stay on screen
 
+    def test_it_opens_above_the_row_when_it_does_not_fit_under_it(self):
+        menu = Menu(["Open", "Copy conversation"])                                   # 4 rows high, 21 wide
+        self.assertEqual(menu.at(5, 0, 40, 0, 20), (5, 0, 21))                      # room under: there
+        self.assertEqual(menu.at(18, 0, 40, 0, 20), (14, 0, 21))                    # none: above the row
+        self.assertEqual(menu.at(3, 0, 40, 0, 6), (2, 0, 21))                       # neither: moved in
+
 
 class Confirmations(unittest.TestCase):
     def test_enter_alone_is_the_safe_answer(self):

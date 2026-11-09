@@ -14,8 +14,8 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   terminalId, TERMINALS, urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread,
   spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow,
   railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom, mediaKind,
-  aboutLines, stacks, swapDraft, browsable, opener, changeSides, fileIcon, stillResumed, CHAT_TAB, orphanChats }
-  from "../mods/herdr-fold/logic.js";
+  aboutLines, stacks, swapDraft, browsable, opener, changeSides, fileIcon, stillResumed, CHAT_TAB, orphanChats,
+  menuPlace } from "../mods/herdr-fold/logic.js";
 
 test("a tab nobody named after its program, an agent's first, else Terminal; an agent's icon; zoomed marked", () => {
   const space = { tabs: [{ id: "t1", name: "1", named: false, active: true, status: "working" },
@@ -741,4 +741,13 @@ test("a chat's agent whose tab is gone is ended; one whose tab is there, or that
   const agent = (address, tab, state = "live") => ({ address, state, labels: { [CHAT_TAB]: tab } });
   assert.deepEqual(orphanChats([agent("t1", "tb1"), agent("t2", "tb2"), agent("t3", "tb3", "exited"),
     { address: "t4", state: "live", labels: {} }], ["tb1"]), ["t2"]);
+});
+
+test("a menu opens under its button where it fits there, else above it, else as far in as the window lets it", () => {
+  const room = { width: 1200, height: 800 };
+  const button = (y) => ({ x: 600, y, width: 60, height: 24 });
+  assert.deepEqual(menuPlace(button(100), 120, room, 180), { x: 480, y: 128 });            // under, right edges in line
+  assert.deepEqual(menuPlace(button(740), 120, room, 180), { x: 480, y: 616 });            // the chat's bar: above
+  assert.deepEqual(menuPlace(button(60), 760, room, 180), { x: 480, y: 32 });              // neither: in the window
+  assert.deepEqual(menuPlace({ x: 2, y: 100, width: 24, height: 24 }, 120, room, 180).x, 8);   // the left edge kept
 });

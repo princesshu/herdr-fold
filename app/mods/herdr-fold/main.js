@@ -186,7 +186,7 @@ export default class HerdrFold extends View {
     }
     if (part === "styleguide") {                  // all of it, or its section props().section names (a picture of it)
       this.only = props()?.section ?? null;
-      return void (this.guide = guide(HerdrFold.prototype));
+      return void (this.guide = guide(HerdrFold.prototype, cx));
     }
     this.commits = []; this.status = null; this.message = ""; this.menus = new Menus();
     const kept = this.float?.panel ?? shared(VIEW);

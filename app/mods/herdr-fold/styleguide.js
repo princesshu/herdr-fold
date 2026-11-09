@@ -2,10 +2,12 @@
 // The mod's styleguide: its foundations, each component in each of its states and the panels they make, drawn by the
 // views' own code from made-up states whose clicks go nowhere. herdr-app do herdr-fold.styleguide opens it.
 import { div } from "gpui-kit";
-import { v_flex, h_flex, InputState } from "gpui-base";
+import { v_flex, h_flex, InputState, TextareaState } from "gpui-base";
 import { BY_EXTENSION, BY_NAME, FILE, ICONS } from "./icons.js";
 import { aboutLines, commitRows, conversationRows, diffRows, foldedSections, listHeight, pushOffer, RAIL, searchRows }
   from "./logic.js";
+import { Answer } from "./card.js";
+import { Chat } from "./chat.js";
 import { ConversationsView } from "./conversations.js";
 import { IssuesView } from "./issues.js";
 import { button, chip, fileMark, icon, small, SPACE } from "./parts.js";
@@ -17,10 +19,12 @@ import { FilesView } from "./files.js";
 import { SpacesView } from "./spaces.js";
 import { TabsView } from "./tabs.js";
 import { standIn } from "./terminal.js";
+import { timeline } from "./timeline.js";
 
 const PANEL = 368;                  // a specimen as wide as the right panel
 const TAB = 540;                    // a specimen of the preview tab, two side by side
 const SIDEBAR = 268;                // a specimen as wide as the left sidebar
+const CHAT = 600;                   // a specimen of the chat's column: its prompt, a card, its timeline
 const PAGE = "mods/herdr-fold/styleguide-page.svg";      // a PDF's page, as the app's home names it
 // what the views' clicks would do: nothing, here
 const INERT = ["act", "change", "choose", "commit", "fold", "later", "pick", "refresh", "reveal", "search", "show",
@@ -200,8 +204,61 @@ function previewOf(fields) {
     fit: () => {} }, fields);
 }
 
-/** The made-up states the components show, made once (what is typed in them stays). @param {any} proto */
-export function guide(proto) {
+/** What Claude asks: TOOL with its INPUT and SUGGESTIONS (core/chat_hook.py's request.json), in KIND's way. */
+const asked = (tool, input, suggestions = [], kind = "permission") => ({ id: tool, kind, tool_name: tool,
+  tool_input: input, permission_suggestions: suggestions, cwd: "/work/lumen-api" });
+// Claude's change to books.py, as core/chat.py and the hook give it: its diff's lines
+const CHANGE = { path: "src/lumen/routes/books.py", lines: ["@@ -12,2 +12,2 @@", "     last = store.pages(size)",
+  "-    return page", "+    return min(max(page, 1), last)"] };
+// what Claude waits on, a card each: a command a rule may keep, a change, a plan asked in its own dialog, a question
+const WAITS = [
+  ["A command, kept for the project", [asked("Bash", { command: "pytest -q", description: "Run the tests" },
+    [{ type: "addRules", rules: [{ toolName: "Bash", ruleContent: "pytest:*" }], behavior: "allow",
+      destination: "localSettings" }])]],
+  ["A change", [{ ...asked("Edit", { file_path: "/work/lumen-api/src/lumen/routes/books.py",
+    old_string: "    return page", new_string: "    return min(max(page, 1), last)" },
+    [{ type: "setMode", mode: "acceptEdits", destination: "session" }]), change: CHANGE }]],
+  ["A plan, in Claude's own dialog", [asked("ExitPlanMode", { plan: "1. Keep the page inside 1 to pages\n" +
+    "2. Test the page past the end" }, [], "dialog"), [{ key: "1", label: "Yes, and use auto mode" },
+    { key: "2", label: "Yes, manually approve edits" }, { key: "3", label: "Tell Claude what to change" }]]],
+  ["A question", [asked("AskUserQuestion", { questions: [{ question: "Which page size should the list use?",
+    header: "Size", options: [{ label: "20", description: "As the API's other lists" },
+      { label: "50", description: "Fewer requests" }], multiSelect: false }] })]]];
+const minute = (/** @type {number} */ n) => `2026-11-08T14:${String(n).padStart(2, "0")}:00.000Z`;
+// a conversation as core/chat.py reads it: the person's message, Claude reading, changing, testing, its words, and a
+// command it waits on
+const STEPS = [
+  { kind: "user", text: "The last page link 404s on /books. Keep the page inside the range.", at: minute(0) },
+  { kind: "tool", id: "c1", name: "Read", main: "src/lumen/routes/books.py", input: {}, at: minute(1) },
+  { kind: "result", id: "c1", ok: true, output: "12\t    last = store.pages(size)", change: null, at: minute(1) },
+  { kind: "tool", id: "c2", name: "Edit", main: "src/lumen/routes/books.py", input: {}, at: minute(2) },
+  { kind: "result", id: "c2", ok: true, output: "The file was updated.", change: CHANGE, at: minute(2) },
+  { kind: "tool", id: "c3", name: "Bash", main: "pytest -q tests/test_books.py", input: {}, at: minute(3) },
+  { kind: "result", id: "c3", ok: false, output: "1 failed, 11 passed", change: null, at: minute(3) },
+  { kind: "text", text: "The page is kept inside 1 to pages now; one test still expects a 404 past the end.",
+    at: minute(4) },
+  { kind: "tool", id: "c4", name: "Bash", main: "pytest -q", input: {}, at: minute(5) }];
+
+/** The chat drawn by its own code: its ROWS, the CONTEXT used (%), what is TYPED (the cursor in the prompt), its
+ * agent's STATE, the usage LIMITS near their end, what it WAITS on ([request, choices]; its card made with CX). */
+function chatOf(cx, { rows = [], context = 34, typed = "", state = "idle", limits = null, waits = null } = {}) {
+  const chat = Object.assign(new Chat({ session: "styleguide", agent: "claude" }, null, null), {
+    address: "t1", rows, typing: Boolean(typed), input: TextareaState.new({ placeholder: "" }),
+    named: { model: "claude-opus-5-5", effort: "high", mode: "default" },
+    status: { model: "Opus 5.5", effort: "high", context, window: 200000, limits } });
+  Object.defineProperty(chat, "agent", { value: { status: state } });         // a terminal's, as herdr says it
+  for (const name of ["send", "tell", "reply"]) chat[name] = () => {};
+  if (typed) chat.input.set_value(typed);
+  if (waits) {
+    chat.answer = new Answer(() => {}, cx);
+    chat.answer.reset(waits[0], waits[1]);
+  }
+  return chat;
+}
+
+/** The made-up states the components show, made once (what is typed in them stays); CX makes the chat's cards.
+ * @param {any} proto */
+export function guide(proto, cx) {
   const at = (fields = {}) => made(proto, fields);
   const found = { total: 3, files: 2, hits: HITS, error: null };
   const nothing = { total: 0, files: 0, hits: [], error: null };
@@ -277,6 +334,13 @@ export function guide(proto) {
       peek: "src/lumen/routes/books.py:12", peekRows: PEEK }),
     changes: at({ message: MESSAGE, open: "staged:src/lumen/routes/books.py", hovered: "changes:docs/api.md" }),
     issues: at({ view: "issues", hovered: "issue-41", issues: { chosen: 42 } }),
+    prompts: [["Empty: Message and the agent's name", chatOf(cx)],
+      ["Typed, the cursor in it", chatOf(cx, { typed: "Also cap the page size at 100" })],
+      ["While Claude works: a message queued, esc stops it", chatOf(cx, { state: "working", context: 72 })],
+      ["A usage limit near its end, the context nearly full", chatOf(cx, { context: 92,
+        limits: { five_hour: { used: 86, resets: null } } })]],
+    cards: WAITS.map(([name, waits]) => [name, chatOf(cx, { waits })]),
+    conversation: chatOf(cx, { rows: timeline(STEPS), state: "blocked" }),
   };
 }
 
@@ -397,7 +461,8 @@ function sections(g, t) {
       .map(([name, items], i) => specimen(t, `menu-${i}`, name, div().p(20).child(div().w(180)
         .h(items.length * 30 + 8).rounded(8).border_1().border_color(t.border).bg(t.popover ?? t.raised)
         .child(menuPopup(t, "", items))),
-      { width: 220, spec: i ? "" : "a popup under its button, right-aligned; a right click's at it" })))]],
+      { width: 220,
+        spec: i ? "" : "under its button, right-aligned, above it where it does not fit; a right click's at it" })))]],
     ["content", [
       group(t, "Problem", [specimen(t, "problem", "Under the Graph, until the next try", g.problem.problem(t),
         { spec: "11 · ansi1" })]),
@@ -439,7 +504,15 @@ function sections(g, t) {
       fixed(300, v_flex().size_full().child(g.search.hits(t)).child(g.search.lines(t))))])]],
     ["terminal", [group(t, "The tab's terminal", [specimen(t, "terminal-none", "When it could not start",
       div().h(60).child(standIn(t, "No terminal: the machine is not reachable")),
-      { spec: "12 · ansi1, in its place" })])]]]],
+      { spec: "12 · ansi1, in its place" })])]],
+    ["chat-prompt", [group(t, "The chat's prompt", g.prompts.map(([name, chat], i) => specimen(t, `prompt-${i}`,
+      name, chat.bottom(t, "Menlo"), { width: CHAT,
+        spec: i ? "" : "radius 10 · its bar: commands, context, model, mode, send" })))]],
+    ["chat-cards", [group(t, "What Claude waits on", g.cards.map(([name, chat], i) => specimen(t, `card-${i}`,
+      name, chat.bottom(t, "Menlo"), { width: CHAT, spec: i ? "" : "in the prompt's place · a digit picks" })))]],
+    ["chat-timeline", [group(t, "The chat's timeline", [specimen(t, "timeline", "A conversation, a command waiting",
+      fixed(360, g.conversation.timeline(t, "Menlo")),
+      { width: CHAT, spec: "a dot a step: done, failed ansi1, running accent, waiting ansi3 and fading" })])]]]],
     ["Patterns", [["panels", [group(t, "Panels", [
       specimen(t, "panel-changes", "Changes", stack("changes", g.changes.panel(t))),
       specimen(t, "panel-search", "Search", stack("search", g.search.panel(t))),

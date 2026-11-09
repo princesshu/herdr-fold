@@ -359,10 +359,12 @@ class Menu:
         return len(self.choices) + 2
 
     def at(self, y, x, cells, top, bottom):
-        """Where it goes for a click at Y, X, as herdr's own: its corner there, moved in as far as it must to stay
-        between rows TOP and BOTTOM in a pane CELLS wide; (y, x, its width)."""
-        wide = min(cells, self.width())
-        return max(top, min(y, bottom - self.height())), max(0, min(x, cells - wide)), wide
+        """Where it goes for a click at Y, X between rows TOP and BOTTOM in a pane CELLS wide: its corner there where
+        it fits, else right above row Y, else moved in as far as it must; (y, x, its width)."""
+        wide, high = min(cells, self.width()), self.height()
+        if y + high > bottom:
+            y = y - high if top <= y - high and y <= bottom else bottom - high
+        return max(top, y), max(0, min(x, cells - wide)), wide
 
     def handle(self, key):
         if key.name in ("up", "down"):

@@ -381,6 +381,18 @@ export function stacks(chosen, room) {
   return chosen ?? Boolean(room && room.height > room.width);
 }
 
+const MENU_EDGE = 8, MENU_OFF = 4;       // px a menu keeps from the window's edges, and from its button
+
+/** Where a menu HIGH and WIDE opens for BUTTON in a window ROOM: under it, right edges in line, where it fits;
+ * else above it; else as far in as the window lets it. @param {{ x: number, y: number, width: number,
+ * height: number }} button @param {number} high @param {{ width: number, height: number }} room @param {number} wide */
+export function menuPlace(button, high, room, wide) {
+  const x = Math.max(MENU_EDGE, Math.min(button.x + button.width - wide, room.width - MENU_EDGE - wide));
+  const under = button.y + button.height + MENU_OFF, over = button.y - MENU_OFF - high;
+  if (under + high <= room.height - MENU_EDGE) return { x, y: under };
+  return { x, y: over >= MENU_EDGE ? over : Math.max(MENU_EDGE, room.height - MENU_EDGE - high) };
+}
+
 /** The panel menu's lines about herdr-fold, as the TUI sidebar's ⋯ has them: its version (a newer one's, once out),
  * opening its releases, and Check for Updates; none before a look or where the installer never ran.
  * @param {any} found core/update.py's check */

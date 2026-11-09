@@ -1,9 +1,10 @@
 // @ts-check
-// The mod's menus: a popup over what is below, right-aligned under the button pressed or at the pointer; a choice comes
-// back to the copy that opened it as herdr-fold.menu-TOKEN-N, which runs it.
+// The mod's menus: a popup over what is below, right-aligned under the button pressed (above it where it does not
+// fit) or at the pointer; a choice comes back to the copy that opened it as herdr-fold.menu-TOKEN-N, which runs it.
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { closeOverlay, openOverlay, run as command } from "herdr";
+import { menuPlace } from "./logic.js";
 import { checked } from "./parts.js";
 
 const MENU = 180;                  // a menu's width: its longest choice, Commit & Sync, with its check
@@ -21,17 +22,17 @@ export class Menus {
     this.acts = [];
   }
 
-  /** ITEMS opened as a menu under BOUNDS (the pressed button's), else at the pointer; HEAD names what they act on
-   * above them, its NOTE at its right. @param {Item[]} items @param {any} [bounds]
+  /** ITEMS opened as a menu under BOUNDS (the pressed button's; above, where it does not fit), else at the pointer;
+   * HEAD names what they act on above them, its NOTE at its right. @param {Item[]} items @param {any} [bounds]
    * @param {{ label: string, note?: string }} [head] */
   open(items, bounds, head) {
     const token = (this.token = Math.random().toString(36).slice(2, 10));
     this.acts = items.map((item) => item.act ?? (() => {}));
     const rows = items.map(({ label, url, on, color, off }, n) => ({ label, url, on, color, off,
       command: `menu-${token}-${n}` }));
-    openOverlay({ mod: "herdr-fold", kind: "popup", props: { part: "menu", items: rows, head }, width: MENU,
-      height: (items.length + (head ? 1 : 0)) * (ROW + 2) + 8,
-      ...(bounds ? { at: { x: Math.max(8, bounds.x + bounds.width - MENU), y: bounds.y + bounds.height + 4 } } : {}) });
+    const height = (items.length + (head ? 1 : 0)) * (ROW + 2) + 8;
+    openOverlay({ mod: "herdr-fold", kind: "popup", props: { part: "menu", items: rows, head }, width: MENU, height,
+      ...(bounds ? { at: menuPlace(bounds, height, window.viewport_size(), MENU) } : {}) });
   }
 
   /** Whether ASKED (nextCommand's) is a choice of this copy's open menu; it runs then. @param {string} asked */

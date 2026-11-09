@@ -91,7 +91,7 @@ class AppTheme(unittest.TestCase):
     def setUp(self):
         sys.path.insert(0, os.path.join(PACKAGE, "src", "themes"))
         import apply
-        self.themes = apply.load_themes()
+        self.apply, self.themes = apply, apply.load_themes()
         self.default = apply.current_id(os.path.join(PACKAGE, "config", "ghostty", "config"))
 
     def made(self, name):
@@ -119,6 +119,24 @@ class AppTheme(unittest.TestCase):
                 for state, role in conversation_list.STATE_ROLE.items():
                     code = int(theme.PALETTE_FG[role])                  # 31-37, or 90-97 the bright ones
                     self.assertEqual(made[state], palette[code - 30 if code < 90 else code - 82], state)
+
+    def test_a_control_shows_its_fill_its_edge_and_the_mouse_over_it(self):
+        # Herdr draws a button as its fill (raised) in a frame (border), lighter under the mouse (hover), on a panel
+        for tui in self.themes:
+            with self.subTest(tui["id"]):
+                made = self.made(f"herdr-fold-{tui['id']}.json")["colors"]
+                panel, edge, fill, hover = (self.apply.luminance(made[k])
+                                            for k in ("surface", "border", "raised", "hover"))
+                self.assertTrue(panel < edge < fill < hover, made)
+                self.assertGreaterEqual(self.apply.contrast(made["raised"], made["surface"]), 1.15)
+                self.assertGreaterEqual(self.apply.contrast(made["hover"], made["raised"]), 1.1)
+
+    def test_a_fields_frame_shows_and_stays_quieter_than_the_words(self):
+        for tui in self.themes:
+            with self.subTest(tui["id"]):
+                made = self.made(f"herdr-fold-{tui['id']}.json")["colors"]
+                self.assertGreaterEqual(self.apply.contrast(made["input"], made["surface"]), 1.5)
+                self.assertLess(self.apply.luminance(made["input"]), self.apply.luminance(made["muted"]))
 
     def test_the_layout_wears_the_tuis_default_catppuccin(self):
         self.assertEqual(self.default, "catppuccin")
