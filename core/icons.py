@@ -11,7 +11,7 @@ NERD_GLYPHS = {"closed": "\ueab6", "open": "\ueab4", "folder": "\uea83", "folder
                "diff": "\ueae1", "files": "\ueaf0", "search": "\uea6d", "git": "\uea68", "ai": "\uec10",
                "issues": "\ueb00", "agent": "\uec0f", "web": "\ueb14", "fold": "\ueac7", "unfold": "\ueac7",
                "repo": "\uea62"}
-PLAIN_GLYPHS = {"closed": "▸", "open": "▾", "new_file": "+", "new_folder": "⊞", "refresh": "↻", "collapse": "⊟",
+PLAIN_GLYPHS = {"closed": "›", "open": "⌄", "new_file": "+", "new_folder": "⊞", "refresh": "↻", "collapse": "⊟",
                 "check": "✓", "more": "⌄", "stage": "+", "unstage": "−", "discard": "↺", "diff": "⇄", "files": "▤",
                 "search": "⌕", "git": "⎇", "ai": "✦", "issues": "#", "agent": "»", "web": "↗", "fold": "«",
                 "unfold": "»", "repo": "▣"}

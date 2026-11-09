@@ -16,6 +16,8 @@ from screen import Canvas  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
 from widgets import Action  # noqa: E402
 
+OPEN, CLOSED = glyphs(False)["open"], glyphs(False)["closed"]     # its folds without a Nerd Font
+
 
 def key(name, **mods):
     return Key("char", name, **mods) if len(name) == 1 else Key(name, **mods)
@@ -96,7 +98,7 @@ class View(unittest.TestCase):
         self.assertNotIn("Repositories", self.shown())
         self.view.repo, self.view.github = "/work/lumen-api", "acme/lumen-api"
         self.draw()
-        self.assertEqual(self.row_of("▾ Repositories"), 0)
+        self.assertEqual(self.row_of(f"{OPEN} Repositories"), 0)
         row = text(self.canvas, 1)
         self.assertEqual(row.split(), ["▣", "lumen-api", "⎇", "main*", "↻", "0↓", "1↑", "⋯"])
         self.assertTrue(text(self.canvas, 2).startswith(" ▄▄▄"))              # the message's edge right under it
@@ -141,8 +143,8 @@ class View(unittest.TestCase):
         self.draw()
         rows = self.rows()
         edge = max(self.rows_where(5, "button")) + 1                        # the button's lower edge: its air
-        self.assertEqual(self.row_of("▾ Staged changes"), edge + 1)
-        for header in ("▾ Changes", "▾ Graph"):
+        self.assertEqual(self.row_of(f"{OPEN} Staged changes"), edge + 1)
+        for header in (f"{OPEN} Changes", f"{OPEN} Graph"):
             self.assertEqual(rows[self.row_of(header) - 1].strip(), "", header)
 
     def test_the_keys_and_the_mouse_pass_over_the_space_between_sections(self):
@@ -156,7 +158,7 @@ class View(unittest.TestCase):
             self.press(name)
             self.assertIsInstance(self.view.list.selected(), (Section, Entry, Commit), name)
         self.draw()
-        gap = self.row_of("▾ Changes") - 1
+        gap = self.row_of(f"{OPEN} Changes") - 1
         self.assertIsNone(self.view.handle(Mouse("press", 5, gap, 0)))
         self.assertEqual([target for y, _, _, target in self.canvas.regions if y == gap], [])
 
@@ -262,12 +264,12 @@ class View(unittest.TestCase):
         side = self.canvas.width - 6
         self.assertEqual((self.rows_where(5, "input"), self.rows_where(side + 2, "selection", 3)), ([0], [0]))
         self.assertEqual(self.rows_where(5, "button"), [2])                 # a row of air between them still
-        self.assertEqual(self.row_of("▾ Staged changes"), 4)                 # and between the button and the list
+        self.assertEqual(self.row_of(f"{OPEN} Staged changes"), 4)                 # and between the button and the list
 
     def test_the_counts(self):
         self.draw()
         self.assertTrue(text(self.canvas, self.row_of("Staged changes")).rstrip().endswith("1"))
-        y = self.row_of("▾ Changes")
+        y = self.row_of(f"{OPEN} Changes")
         self.assertTrue(text(self.canvas, y).rstrip().endswith("4"))
         badge = self.canvas.rows[y][len(text(self.canvas, y).rstrip()) - 1][1]
         self.assertEqual((badge.fg, badge.bg), ("badge_text", "badge"))
@@ -420,7 +422,7 @@ class View(unittest.TestCase):
         stage = next((x0, ry) for ry, x0, _, target in self.canvas.regions
                      if isinstance(target, tuple) and target[0] == "stage")
         self.assertEqual(self.view.handle(Mouse("press", *stage)), Action("stage", (("src/app.py",),)))
-        self.view.handle(Mouse("move", *self.at("▾ Changes")))
+        self.view.handle(Mouse("move", *self.at(f"{OPEN} Changes")))
         self.draw()
         stage_all = next((x0, ry) for ry, x0, _, target in self.canvas.regions
                          if isinstance(target, tuple) and target[0] == "stage")
@@ -449,16 +451,16 @@ class View(unittest.TestCase):
 
     def test_each_files_letter_stands_under_its_sections_count(self):
         self.draw()
-        last = {name: len(self.rows()[self.row_of(name)].rstrip()) - 1 for name in ("▾ Staged changes", "▾ Changes",
-                                                                                   "new.py", "app.py")}
-        self.assertEqual(last["new.py"], last["▾ Staged changes"])
-        self.assertEqual(last["app.py"], last["▾ Changes"])
+        names = (f"{OPEN} Staged changes", f"{OPEN} Changes", "new.py", "app.py")
+        last = {name: len(self.rows()[self.row_of(name)].rstrip()) - 1 for name in names}
+        self.assertEqual(last["new.py"], last[f"{OPEN} Staged changes"])
+        self.assertEqual(last["app.py"], last[f"{OPEN} Changes"])
 
     def test_a_section_folded_is_kept_by_the_app(self):
         self.draw()
-        self.assertEqual(self.click("▾ Graph"), Action("remember_folded", (["graph"],)))
+        self.assertEqual(self.click(f"{OPEN} Graph"), Action("remember_folded", (["graph"],)))
         self.draw()
-        self.assertEqual(self.click("▸ Graph"), Action("remember_folded", ([],)))
+        self.assertEqual(self.click(f"{CLOSED} Graph"), Action("remember_folded", ([],)))
         self.assertEqual(Scm(icons=False, folded=["graph", "elsewhere"]).folded, {"graph"})
 
     def test_a_new_version_comes_back_to_the_same_rows(self):
@@ -480,26 +482,26 @@ class View(unittest.TestCase):
         self.view = Scm(icons=False)
         self.view.take(kept)
         self.draw(height=24)
-        self.assertEqual(self.row_of("commit number 0"), self.row_of("▾ Graph") + 1)
+        self.assertEqual(self.row_of("commit number 0"), self.row_of(f"{OPEN} Graph") + 1)
 
     def test_the_graph_stays_at_the_panels_bottom(self):
         self.draw()
         self.assertEqual(self.row_of("commit number 19"), self.canvas.height - 1)
-        between = range(self.row_of("draft.md") + 1, self.row_of("▾ Graph"))
+        between = range(self.row_of("draft.md") + 1, self.row_of(f"{OPEN} Graph"))
         self.assertGreater(len(between), 1)                                   # few changes: the room stays empty
         self.assertTrue(all(not self.rows()[y].strip() for y in between))
 
     def test_many_changes_leave_the_graph_its_room(self):
         self.status = Status(branch="main", changes=[Change(f"f{i}.txt", "M") for i in range(200)])
         self.draw()
-        graph = self.row_of("▾ Graph")
+        graph = self.row_of(f"{OPEN} Graph")
         self.assertGreaterEqual(self.canvas.height - graph, 10)              # a third of the list's room at least
         self.assertEqual(self.row_of("commit number 0"), graph + 1)
         self.view.focus = "list"
         self.press("end")                                                    # the changes scroll on their own
         self.draw()
         self.assertIn("f199.txt", self.shown())
-        self.assertEqual(self.row_of("▾ Graph"), graph)
+        self.assertEqual(self.row_of(f"{OPEN} Graph"), graph)
 
     def test_the_keys_go_from_the_changes_into_the_graph_and_back(self):
         self.draw()

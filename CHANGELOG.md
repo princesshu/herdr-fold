@@ -23,6 +23,11 @@ All notable changes to this project are listed here. The format follows
   under its name and size (the TUI: Index and Working Tree, staged HEAD and Index; the app: HEAD and Working Tree),
   one above the other where the room is taller than wide; a new one's after alone, a deleted one's before alone.
 
+### Changed
+
+- The TUI folds with one chevron everywhere: the Conversations column's spaces and the issues' filter as the file tree
+  and the sections, and without a Nerd Font a plain chevron (› ⌄) for each.
+
 ### Fixed
 
 - The TUI preview's key hints in a narrow pane: each left out whole, the last first, never cut (`c: co`).

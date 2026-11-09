@@ -115,7 +115,8 @@ class Issues:
         q = self.query
         parts += [(word, "text") for word, on in (("me", q.assigned), ("by me", q.authored), (q.label, q.label)) if on]
         parts = parts or [("Filters", "muted")]
-        label = " · ".join(text for text, _ in parts) + " ▾"
+        caret = glyphs(self.icons)["open"]                     # the folds' chevron, as every caret
+        label = " · ".join(text for text, _ in parts) + " " + caret
         cells = min(width(label) + 2, max(4, end // 2))
         x = end - cells
         lit = self.pointed == "filters" or self.menu is not None
@@ -125,7 +126,7 @@ class Issues:
             if n:
                 at = canvas.put(row, at, " · ", Style(fg="muted", bg=bg))
             at = canvas.put(row, at, truncate(text, max(1, x + cells - 3 - at)), Style(fg=role, bg=bg))
-        canvas.put(row, min(at + 1, x + cells - 2), "▾", Style(fg="muted", bg=bg))
+        canvas.put(row, min(at + 1, x + cells - 2), caret, Style(fg="muted", bg=bg))
         canvas.region(row, x, x + cells, "filters")
         return x
 

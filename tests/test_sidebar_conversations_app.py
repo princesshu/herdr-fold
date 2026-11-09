@@ -14,6 +14,7 @@ from support import SRC, AppScreen, FakeHerdrSocket, FakeTerminal, end_jobs, jso
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import column  # noqa: E402
 import conversations  # noqa: E402
+from icons import glyphs  # noqa: E402
 import preview  # noqa: E402
 import conversations_pane  # noqa: E402
 from conversation_list import RAIL  # noqa: E402
@@ -101,10 +102,10 @@ class Column(AppScreen, unittest.TestCase):
         self.start()
         rows = self.screen().splitlines()
         shown = [row.strip() for row in rows[rows.index(next(r for r in rows if "Filter" in r)) + 2:] if row.strip()]
-        self.assertEqual((shown[0].split()[1], shown[0][-1]), ("app", "▾"), shown)   # 1 app, this pane's: open
+        self.assertEqual((shown[0].split()[1], shown[0][-1]), ("app", glyphs(True)["open"]), shown)   # this pane's
         self.assertTrue(shown[1].startswith("├─ ● Fix the login"), shown)
         self.assertTrue(shown[2].startswith("└─ · Price list"), shown)
-        self.assertEqual(shown[3].split(), ["○", "docs", "0", "▸"], shown)   # 2 docs: an idle agent, nothing else
+        self.assertEqual(shown[3].split(), ["○", "docs", "0", glyphs(True)["closed"]], shown)   # an idle agent
         self.assertNotIn("Old notes", self.screen())                        # /elsewhere: no workspace has it
 
     def test_a_running_one_is_gone_to(self):

@@ -234,7 +234,7 @@ class ConversationList:
 
     def draw_row(self, canvas, y, index):
         """A workspace as herdr's Spaces list has it: its mark, its name (the current one's bold), and at the right
-        edge how many it holds and its ▾ or ▸; a conversation on herdr's tree lines: its mark, its name (a closed
+        edge how many it holds and its fold chevron; a conversation on herdr's tree lines: its mark, its name (a closed
         one's faint), the agent (fainter still) and how long ago."""
         row, cells = self.list.items[index], canvas.width
         bg = "selection" if index == self.list.index else ("hover" if index == self.hover else None)
@@ -244,7 +244,7 @@ class ConversationList:
         if row[0] == "group":
             _, name, found, opened = row
             count = str(len(found))
-            canvas.put(y, cells - 2, "▾" if opened else "▸", Style(fg="accent", bg=bg))
+            canvas.put(y, cells - 2, glyphs(self.icons)["open" if opened else "closed"], Style(fg="accent", bg=bg))
             canvas.put(y, cells - 3 - width(count), count, Style(fg="muted", bg=bg))
             shown, role = self.space_mark(name)
             canvas.put(y, 1, shown, Style(fg=role, bg=bg))

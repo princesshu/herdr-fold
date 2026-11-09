@@ -20,6 +20,8 @@ from screen import Canvas  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
 from widgets import Action  # noqa: E402
 
+CARET = glyphs(True)["open"]                  # a menu's caret: the folds' chevron
+
 NOW = github.parse_time("2026-10-24T12:00:00Z")
 SAFARI = Issue(42, "Login fails on Safari", ("bug", "ui"), ("dev",), "2026-10-22T10:00:00Z", "OPEN",
                "https://github.com/acme/app/issues/42")
@@ -122,7 +124,7 @@ class View(unittest.TestCase):
     def test_the_search_field_and_its_filters_button_then_open_and_closed(self):
         self.draw()
         field = self.row_of("Search issues")
-        self.assertTrue(text(self.canvas, field).rstrip().endswith("Filters ▾"))
+        self.assertTrue(text(self.canvas, field).rstrip().endswith(f"Filters {CARET}"))
         states = text(self.canvas, self.row_of("Open"))
         self.assertGreater(self.row_of("Open"), field)
         self.assertLess(states.index("Open"), states.index("Closed"))
@@ -241,7 +243,7 @@ class View(unittest.TestCase):
         self.draw()
         self.assertEqual(self.numbers(), [52])
         field = text(self.canvas, self.row_of("Search issues"))
-        self.assertIn("● High · me · bug ▾", field)
+        self.assertIn(f"● High · me · bug {CARET}", field)
         self.assertEqual(self.canvas.rows[self.row_of("Search issues")][field.index("●")][1].fg, "deleted")
 
     def test_a_click_on_the_field_and_on_the_filters_button(self):

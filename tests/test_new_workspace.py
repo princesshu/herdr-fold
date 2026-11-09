@@ -10,6 +10,9 @@ from support import ANSI, set_attrs, set_env
 
 import herdrlib
 import new_workspace
+from icons import glyphs  # noqa: E402  the sidebar's, on the path herdrlib gives
+
+OPEN, CLOSED = glyphs(False)["open"], glyphs(False)["closed"]     # its folds without a Nerd Font
 import projects
 
 
@@ -77,7 +80,7 @@ class Tree(unittest.TestCase):
 
 
 class Mouse(unittest.TestCase):
-    """A click chooses a row, a second one on it at once opens it, a click on its ▸ opens or closes it; the toggle
+    """A click chooses a row, a second one on it at once opens it, a click on its chevron opens or closes it; the toggle
     chooses the agent, the buttons open or cancel, the wheel moves."""
 
     def setUp(self):
@@ -106,7 +109,7 @@ class Mouse(unittest.TestCase):
 
     def test_a_click_on_the_mark_opens_or_closes_the_folder(self):
         row = self.row_of("archives")
-        mark = self.lines()[row - 1].index("▸") + 1
+        mark = self.lines()[row - 1].index(CLOSED) + 1
         shows_old = lambda: any(line.rstrip().endswith(" old") for line in self.lines()[2:])  # noqa: E731
         self.click(mark, row)
         self.assertTrue(shows_old())
@@ -153,7 +156,7 @@ class Screen(unittest.TestCase):
         lines = self.lines()
         self.assertTrue(lines[0].startswith(" ~/projects"))
         self.assertEqual([line.rstrip() for line in lines[2:5]],
-                         [" ▾ projects", "   ▸ app" + " " * 42 + "git open", "   ▸ notes"])
+                         [f" {OPEN} projects", f"   {CLOSED} app" + " " * 42 + "git open", f"   {CLOSED} notes"])
 
     def test_the_agent_is_a_toggle_with_the_chosen_one_marked(self):
         first = self.screen().split("\n")[0]

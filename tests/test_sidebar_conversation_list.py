@@ -10,6 +10,7 @@ from support import SRC, text
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import sidebar  # noqa: E402
 from conversation_list import RAIL, ConversationList  # noqa: E402
+from icons import glyphs  # noqa: E402
 from conversations import Conversation  # noqa: E402
 from screen import Canvas  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
@@ -68,17 +69,24 @@ class List(unittest.TestCase):
         shown = [line for line in self.draw()[HEADER:] if line.strip()]
         groups = [line.split() for line in shown if not line.startswith("   ")]
         self.assertEqual([words[1] for words in groups], ["notes", "shop", "api", "empty"])
-        self.assertEqual([words[-2:] for words in groups], [["1", "▸"], ["2", "▾"], ["1", "▸"], ["0", "▸"]])
+        closed, opened = glyphs(True)["closed"], glyphs(True)["open"]          # the file tree's chevrons, as every fold
+        self.assertEqual([words[-2:] for words in groups], [["1", closed], ["2", opened], ["1", closed], ["0", closed]])
         self.assertEqual([line[:6] for line in shown[2:4]], ["   ├─ ", "   └─ "])     # its own, the newest first
         self.assertIn("Login redirect fix", shown[2])
         self.assertIn("Price list", shown[3])
+
+    def test_without_icons_a_space_folds_with_the_plain_marks_the_tree_has(self):
+        self.view.icons = False
+        groups = [line.split() for line in self.draw()[HEADER:] if line.strip() and not line.startswith("   ")]
+        self.assertEqual([words[-1] for words in groups], [glyphs(False)["closed"], glyphs(False)["open"],
+                                                           glyphs(False)["closed"], glyphs(False)["closed"]])
 
     def test_the_spaces_as_herdrs_spaces_list_types_them(self):
         self.draw()
         shop, notes = self.style("shop"), self.style("notes")
         self.assertEqual((shop.fg, shop.bold), ("text", True))                    # the current one: bold
         self.assertEqual((notes.fg, notes.bold), ("subtext", False))
-        self.assertEqual(self.style("▾").fg, "accent")
+        self.assertEqual(self.style(glyphs(True)["open"]).fg, "accent")
         self.assertEqual(self.style("├─").fg, "guide")
         self.assertEqual(self.style("·", at="notes").fg, "ignored")              # no agent there: herdr's overlay0
         self.assertEqual(self.style("●", at="shop").fg, "modified")              # working
@@ -189,7 +197,7 @@ class List(unittest.TestCase):
         self.view.rebuild()
         rows = "\n".join(self.draw())
         self.assertNotIn("Price list", rows)
-        self.assertIn("1 ▾", rows)                                         # shop holds the running one only
+        self.assertIn(f"1 {glyphs(True)['open']}", rows)                  # shop holds the running one only
         self.type("archived")
         rows = self.draw()
         self.assertTrue(text(self.canvas, self.row_of("Price list")).rstrip().endswith("· archived"))   # over the time
