@@ -96,26 +96,26 @@ class Column(unittest.TestCase):
         self.assertEqual(column.drag(self.state, "w1:p2", 100), 0)
         self.assertIsNone(column.saved(self.state))
 
-    def test_the_right_column_keeps_room_for_every_view_button(self):
-        self.assertEqual(column.NARROWEST, sidebar.narrowest(sidebar.VIEWS))  # every view, a title, the ⋯
-        self.assertEqual(column.FEWEST, sidebar.narrowest(["files", "search", "git"]))
+    def test_the_right_column_keeps_room_for_the_widest_head(self):
+        self.assertEqual(column.NARROWEST, sidebar.narrowest(sidebar.PANELS))  # every panel's tab, the ⋯
+        self.assertEqual(column.FEWEST, sidebar.narrowest(["files", "search", "changes"]))
         column.need(self.state, "w1:t1", column.NARROWEST, {"w1:t1"})
         self.herdr(tab(1, 0.9))                                             # dragged to 20 cells, 18 inside
         column.drag(self.state, "w1:p2", 18)
-        self.assertEqual(self.sets(), [("w1:t1", [], 0.795)])               # 41: 39 inside, the frame 2
-        self.assertEqual(column.saved(self.state), 0.795)
+        self.assertEqual(self.sets(), [("w1:t1", [], 0.845)])               # 31: 29 inside, the frame 2
+        self.assertEqual(column.saved(self.state), 0.845)
 
-    def test_each_tab_keeps_room_for_its_own_sidebars_buttons(self):
-        column.need(self.state, "w9:t1", 33, {"w9:t1"})                     # a tab closed since: forgotten below
-        column.need(self.state, "w1:t1", 33, {"w1:t1", "w3:t1"})            # no Issues here: three views
-        column.need(self.state, "w3:t1", 39, {"w1:t1", "w3:t1"})            # Issues there: four
-        self.assertEqual((column.least(self.state, "w1:t1"), column.least(self.state, "w3:t1")), (33, 39))
-        self.assertEqual(column.least(self.state, "w5:t1"), column.FEWEST)  # not said yet: the fewest buttons
+    def test_each_tab_keeps_room_for_its_own_sidebars_heads(self):
+        column.need(self.state, "w9:t1", 23, {"w9:t1"})                     # a tab closed since: forgotten below
+        column.need(self.state, "w1:t1", 23, {"w1:t1", "w3:t1"})            # no Issues here
+        column.need(self.state, "w3:t1", 29, {"w1:t1", "w3:t1"})            # Issues there: the widest head
+        self.assertEqual((column.least(self.state, "w1:t1"), column.least(self.state, "w3:t1")), (23, 29))
+        self.assertEqual(column.least(self.state, "w5:t1"), column.FEWEST)  # not said yet: the fewest
         self.assertIsNone((column.kept(self.state).get("least") or {}).get("w9:t1"))
         self.herdr(tab(1, 0.9), **{"w3:t1": tab(3, 0.6)})                   # dragged to 18 inside
         column.drag(self.state, "w1:p2", 18)
-        # this one to its own 33 (35 with the frame), the other one following but not under its 39 (41)
-        self.assertEqual(self.sets(), [("w1:t1", [], 0.825), ("w3:t1", [], 0.795)])
+        # this one to its own 23 (25 with the frame), the other one following but not under its 29 (31)
+        self.assertEqual(self.sets(), [("w1:t1", [], 0.875), ("w3:t1", [], 0.845)])
 
     def test_widths_still_moving_are_not_taken(self):
         self.herdr()
@@ -124,7 +124,7 @@ class Column(unittest.TestCase):
         self.assertIsNone(column.settled("w1:p2"))
 
     def test_a_chosen_conversations_width_is_remembered_and_set_in_every_other_tab(self):
-        column.need(self.state, "w2:t1", 33, {"w2:t1"})                     # its buttons take less than its 40
+        column.need(self.state, "w2:t1", 23, {"w2:t1"})                     # its heads take less than its 40
         self.herdr(tab_with(1, 0.5, 0.5), **{"w2:t1": tab_with(2, 0.6, 0.5), "w3:t1": tab(3)})
         self.assertEqual(column.spread(self.state, "w1:p4", agent=0.6667, file="conversations.json"), 1)
         self.assertEqual(column.saved(self.state, "conversations.json"), 0.6667)   # the agent's share before the right

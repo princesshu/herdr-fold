@@ -16,8 +16,8 @@ TOLERANCE = 0.002           # shares this close are the same width (a cell is ab
 LIMITS = (0.3, 0.9)         # a remembered share: outside this nobody chose it (a tab too small, or a stray value)
 SPLIT = (0.1, 0.9)          # the shares herdr lets a split have
 SETTLE = 0.2                # seconds a tab's widths stay put before a pane takes them as chosen
-NARROWEST = 39              # the right column's cells inside herdr's frame: four view buttons, a view's title, the ⋯
-FEWEST = 33                 # the same with three (no Issues): what a tab's sidebar takes at least
+NARROWEST = 29              # the right column's cells inside herdr's frame: the widest group's head and the ⋯
+FEWEST = 23                 # the same without Issues: what a tab's sidebar takes at least
 FRAME = 2                   # herdr's frame round a pane, in cells, where it is not measured
 
 

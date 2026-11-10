@@ -192,7 +192,7 @@ def open_found(h, found, root, pane, state_dir=PLUGIN_STATE):
     while up != place and up.startswith(place):
         opened.insert(0, up)
         up = os.path.dirname(up)
-    seed = {"view": "files", "selected": found.path, "expanded": opened}
+    seed = {"show": "files", "selected": found.path, "expanded": opened}
 
     def lay_out(tab):
         statefile.write(preview.seed_file(state_dir, tab), seed)

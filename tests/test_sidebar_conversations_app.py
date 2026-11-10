@@ -445,13 +445,13 @@ class Width(unittest.TestCase):
         self.app.view.collapsed, self.app.placed, self.app.last = False, True, (90, 60, 50)
         self.layout(0.45, 0.8182)                                # the sidebar dragged to 20 cells
         self.assertIsNone(self.app.drag("w1:p4"))
-        self.assertEqual(self.sets(), [([], 0.535), ([True], round(60 / 93, 4))])   # 33: its sidebar has not said
-        column.need(self.state, "w1:t1", column.NARROWEST, {"w1:t1"})        # Issues there too: 39
+        self.assertEqual(self.sets(), [([], 0.585), ([True], round(60 / 83, 4))])   # 23: its sidebar has not said
+        column.need(self.state, "w1:t1", column.NARROWEST, {"w1:t1"})        # Issues there too: 29
         self.fake.calls.clear()
         self.app.last = (90, 60, 50)
         self.layout(0.45, 0.8182)
         self.assertIsNone(self.app.drag("w1:p4"))
-        self.assertEqual(self.sets(), [([], 0.505), ([True], round(60 / 99, 4))])   # 39, this column 60 beside it
+        self.assertEqual(self.sets(), [([], 0.555), ([True], round(60 / 89, 4))])   # 29, this column 60 beside it
 
     def test_collapsed_either_border_widens_the_right_column_the_rail_moving_with_it(self):
         self.app.view.collapsed, self.app.placed, self.app.last = True, True, (143, 7, 50)

@@ -276,6 +276,7 @@ class Uninstall(PackageHome, unittest.TestCase):
             self.write(f"{folder}/preview-w1.json", "{}\n")                           # a preview tab still open
             self.write(f"{folder}/issues-0123456789abcdef.json", "{}\n")             # a repository's issues
             self.write(f"{folder}/column.json", '{"ratio": 0.6}\n')                    # the column's width
+            self.write(f"{folder}/dock.json", '{}\n')                                # each folder's groups
             self.write(f"{folder}/conversations.json", '{"collapsed": true}\n')       # the Conversations choice
             self.write(f"{folder}/conversation-index.json", "{}\n")                   # what it read of the files
             self.write(f"{folder}/panels.json", '{"w1:t1": ["sidebar"]}\n')           # what each tab has had

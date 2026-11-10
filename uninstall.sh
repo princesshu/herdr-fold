@@ -155,9 +155,9 @@ fi
 [ -z "$last" ] || rm -f "$HOME/.config/herdr-fold/statusline.json"
 remove_empty_dirs "$HOME/.config/herdr-fold"
 sidebar_state="$HOME/.local/state/herdr/plugins/herdr-fold.sidebar"
-[ -z "$tui" ] || rm -f "$sidebar_state/colors.json" "$sidebar_state/column.json" "$sidebar_state/panels.json" \
-  "$sidebar_state"/resume-*.json "$sidebar_state"/seed-*.json "$sidebar_state"/preview-*.json \
-  "$sidebar_state"/issues-*.json
+[ -z "$tui" ] || rm -f "$sidebar_state/colors.json" "$sidebar_state/column.json" "$sidebar_state/dock.json" \
+  "$sidebar_state/panels.json" "$sidebar_state"/resume-*.json "$sidebar_state"/seed-*.json \
+  "$sidebar_state"/preview-*.json "$sidebar_state"/issues-*.json
 [ -z "$last" ] || rm -f "$sidebar_state/settings.json" "$sidebar_state/conversations.json" \
   "$sidebar_state/conversation-index.json" "$sidebar_state"/.*.tmp           # .*.tmp: a write cut short
 rmdir "$sidebar_state" 2>/dev/null                                  # only when nothing else is in it

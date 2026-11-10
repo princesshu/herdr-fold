@@ -54,7 +54,8 @@ class Scm:
         self.working = self.notice = self.menu = self.confirm = self.then = None     # then: the Action of the yes
         self.writing = None           # while ✦ writes: who writes the message, its spinner's frame first
         self.menu_at = None           # the row the repository's ⋯ opened its menu under (None: the mode's)
-        self.status, self.hover, self.canvas, self.top, self.height = None, None, None, 0, 1
+        self.status, self.graph = None, []        # the app's: git's status and the Graph's commits
+        self.hover, self.canvas, self.top, self.height = None, None, 0, 1
         self.shown = None             # what the rows were built from: a mouse move must not rebuild 50 000 of them
         self.linked = None            # (number, title) of the issue the next commit fixes
         self.wanted = None            # where the version before this one was (kept()), once the rows are there
@@ -118,9 +119,10 @@ class Scm:
 
     # --- drawing
 
-    def draw(self, canvas, top, height, status, graph, roomy):
+    def draw(self, canvas, top, height, roomy):
         """The view from row TOP, HEIGHT rows; its field and buttons tall in a ROOMY pane, chips in a low one."""
-        self.canvas, self.top, self.height, self.status = canvas, top, height, status
+        self.canvas, self.top, self.height = canvas, top, height
+        status, graph = self.status, self.graph
         cells = canvas.width
         if status is None:
             return

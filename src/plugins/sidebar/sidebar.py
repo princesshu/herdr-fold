@@ -21,6 +21,7 @@ import media  # noqa: E402
 import panels  # noqa: E402
 import preview  # noqa: E402
 import search  # noqa: E402
+import stack  # noqa: E402
 import statefile  # noqa: E402
 import update  # noqa: E402
 from explorer import Explorer  # noqa: E402
@@ -29,41 +30,47 @@ from find import Find  # noqa: E402
 from issues import Issues  # noqa: E402
 from loop import CODE, Loop  # noqa: E402
 from scm import Scm  # noqa: E402
-from icons import glyphs  # noqa: E402
+from dock import GROUPS, PANELS  # noqa: E402
 from screen import ROOMY, Canvas, Style, centered, truncate, width  # noqa: E402
 from tree import Tree, git_marks  # noqa: E402
 from vt import Focus, Key, Mouse, Resize  # noqa: E402
+import widgets  # noqa: E402
 from widgets import Menu, wrap  # noqa: E402
 import watch  # noqa: E402
 
-VIEWS = {"files": "files", "search": "search", "git": "changes", "issues": "issues"}     # each one's title, as herdr's
-VIEW_KEYS = {"1": "files", "2": "search", "3": "git", "4": "issues", "f9": "files", "f10": "search", "f11": "git",
-             "f12": "issues"}
+VIEW_KEYS = {"1": "files", "2": "search", "3": "changes", "4": "issues", "f9": "files", "f10": "search",
+             "f11": "changes", "f12": "issues"}
+GROUP_OF = {panel: group for group, panels in GROUPS for panel in panels}
 # linked: the issue each repository's next commit fixes, {repository: [number, title]}
-DEFAULTS = {"hidden": False, "icons": True, "commit_mode": "commit", "view": "files", "linked": {}, "folded": []}
+DEFAULTS = {"hidden": False, "icons": True, "commit_mode": "commit", "linked": {}, "folded": []}
 STALE = 60.0                  # seconds: the issues shown or listed here asked for again (a new one shows up)
 UPDATES = 3600.0              # seconds between two looks at update.json (GitHub itself is asked once a day at most)
 CHECK = "Check for Updates"   # the ⋯ menu's switch, a ✓ while it is on
 BUSY = {"commit": "Committing…", "sync": "Syncing…", "pull": "Pulling…", "push": "Pushing…"}   # the first running shows
 SPINNER, SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏", 0.1     # ✦'s writing in the message field: a frame every SPIN seconds
 EMPTY = git.Status()
-TAB = 5                       # the cells of a view's tab: its icon in the middle one
+MORE = 5                      # the cells of the ⋯ (the pane's own menu) at the first group's head
+COUNT = 3                     # the cells a count beside a tab's name takes at most (Changes: 999)
 TIP_DELAY = 0.5               # seconds the mouse rests on a control shown by an icon before it says what it does
 # what each such control does, by its target (a row's buttons by their kind)
 TIPS = {"suggest": "Write message", "mode": "Commit mode", "sync": "Sync", "panels": "Panes",
-        "unlink": "Unlink issue", **{f"view:{view}": title for view, title in VIEWS.items()},
+        "unlink": "Unlink issue",
         "new_file": "New file", "new_folder": "New folder", "refresh": "Refresh",
         "collapse": "Collapse all", "case": "Match case", "word": "Whole word", "regex": "Regular expression",
         "clear": "Clear", "stage": "Stage", "unstage": "Unstage", "discard": "Discard changes", "diff": "Show diff",
         "agent": "To agent", "web": "Open in browser", "remote": "More actions"}
-# the cells between the last view's tab and the ⋯ at least: the shown view's title (a cell of air on each side), the ⋯ a
-# group of its own
-APART = 1 + max(width(title) for title in VIEWS.values()) + 1
 
 
-def narrowest(views):
-    """The cells the header takes with VIEWS shown: a cell of edge, their tabs, APART, the ⋯ and a cell of edge."""
-    return len(views) * (TAB + 1) + APART + TAB + 1
+def head_width(panels):
+    """The cells a group's head takes with PANELS as its tabs: a cell of edge, the fold and a cell, each tab's name (and
+    Changes' count) two apart, a cell, the ⋯ and a cell of edge."""
+    names = sum(width(PANELS[panel]["title"]) + (1 + COUNT if panel == "changes" else 0) for panel in panels)
+    return 1 + 2 + names + 2 * (len(panels) - 1) + 1 + MORE + 1
+
+
+def narrowest(panels):
+    """The cells the widest group's head takes with PANELS shown: what the column keeps to at least (column.need())."""
+    return max(head_width([panel for panel in shown if panel in panels]) for _group, shown in GROUPS)
 
 
 def load_settings(path):
@@ -128,20 +135,24 @@ class App(Loop):
         self.tree = Tree(self.root, show_hidden=self.settings["hidden"])
         icons = self.settings["icons"]
         self.views = {"files": Explorer(self.tree, icons, self.repo), "search": Find(self.root, icons, clock),
-                      "git": Scm(self.settings["commit_mode"], icons, self.settings["folded"]), "issues": Issues(icons)}
+                      "changes": Scm(self.settings["commit_mode"], icons, self.settings["folded"]),
+                      "issues": Issues(icons)}
         workspace = os.environ.get("HERDR_WORKSPACE_ID")
         self.views["files"].preview = preview.spec_file(state_dir, workspace) if workspace else None
         self.github = git.github_name(self.repo) if self.repo else None     # OWNER/NAME on GitHub, or None
         self.issues_asked = {}                            # when each query's issues were last asked for
-        self.views["git"].linked = self.linked()
-        self.view = self.settings["view"] if self.settings["view"] in self.tabs() else "files"
+        self.views["changes"].linked = self.linked()
+        self.dock = stack.state(state_dir, self.root)    # each group's panel shown, the folded ones, their shares
+        self.focus = GROUPS[0][0]                         # the group whose panel has the keys
+        self.slices = {}                                  # each group's rows, as last drawn: {group: (top, rows)}
+        self.dragging = None                              # a head held: (its group, the row it went down on, weights)
         self.ops = Ops(self.root)
         self.repo_ops = Ops(self.repo) if self.repo else None
         self.watcher = watch.Watcher(self.tree.expanded_dirs, git.git_dir(self.root), clock)
         self.status, self.graph, self.searching = None, [], None
         self.suggesting = None                            # the message as it was when ✦ asked; None: no answer wanted
         self.writing, self.spun = "", 0.0                 # who writes it (commit_message.writing()), its last frame
-        self.pointed = None                               # the view tab (or the ⋯) under the mouse
+        self.pointed = None                               # the panel's tab (or the ⋯) under the mouse
         self.dots = (0, None, 0)                          # where the ⋯'s menu opens: open_menu()'s arguments
         self.needs = None                                 # the cells this tab's header was said to take
         self.menu = None                                  # the pane's own menu: (Menu, its row, its column, its tab)
@@ -153,8 +164,34 @@ class App(Loop):
             self.searching.set()
 
     def tabs(self):
-        """The views shown: Issues only for a repository on GitHub."""
-        return [view for view in VIEWS if view != "issues" or self.github]
+        """The panels there: Issues only for a repository on GitHub."""
+        return [panel for panel in PANELS if panel != "issues" or self.github]
+
+    def groups(self):
+        """GROUPS with the panels there, a group without any left out."""
+        tabs = self.tabs()
+        return [(group, [panel for panel in panels if panel in tabs]) for group, panels in GROUPS
+                if any(panel in tabs for panel in panels)]
+
+    def shown(self, group):
+        """The panel GROUP shows: the one kept for this folder while it is there, else its first."""
+        panels = dict(self.groups()).get(group) or []
+        kept = self.dock["shown"].get(group)
+        return kept if kept in panels else (panels[0] if panels else None)
+
+    def showing(self, panel):
+        """Whether PANEL is on screen: shown in its group, the group open (as last drawn; before that, not folded)."""
+        group = GROUP_OF[panel]
+        rows = self.slices[group][1] if group in self.slices else None
+        opened = rows > stack.HEAD if rows is not None else group not in self.dock["folded"]
+        return opened and self.shown(group) == panel
+
+    def keep_dock(self, **changes):
+        self.dock.update(changes)
+        try:
+            stack.keep(self.state_dir, self.root, **self.dock)
+        except OSError as err:
+            self.error = f"settings not saved: {err}"
 
     def refresh(self):
         """Ask git for the status (and the graph while Changes shows); once more when asked while running.
@@ -163,7 +200,7 @@ class App(Loop):
         if "status" in self.running:
             self.again.add("status")
             return
-        root, with_graph, started = self.root, self.view == "git", self.clock()
+        root, with_graph, started = self.root, self.showing("changes"), self.clock()
         settings = os.path.join(self.state_dir, "settings.json")
         place = self.looked = self.chosen_folder()
         known, seen = self.repo, self.head                  # the latest commit seen in the repository shown
@@ -195,14 +232,12 @@ class App(Loop):
             self.watcher.git_dir = git.git_dir(repo) if repo else None
             self.head = None
         self.settings["linked"] = linked
-        self.views["git"].linked = issue
-        self.views["git"].repo, self.views["git"].github = repo, self.github
+        scm = self.views["changes"]
+        scm.linked, scm.repo, scm.github, scm.status = issue, repo, self.github, self.status
         self.head = head or self.head
-        if self.view not in self.tabs():                # the repository left GitHub (or git)
-            self.view = "files"
         self.views["files"].take(self.status, marks)
         if graph is not None:
-            self.graph = graph
+            self.graph = scm.graph = graph
         self.watcher.status_done(started, finished)
         if "status" in self.again:
             self.again.discard("status")
@@ -229,11 +264,11 @@ class App(Loop):
             if folders:
                 self.tree.reload(folders)
                 shown = True
-            if self.watcher.status_due(bool(changed), self.view == "git") or (
+            if self.watcher.status_due(bool(changed), self.showing("changes")) or (
                     self.own is None and self.chosen_folder() != self.looked):    # another folder chosen in Files
                 self.refresh()
             listing = self.views["issues"].listing        # asked on screen; behind it only while it lists any
-            if self.github and (self.view == "issues" or listing and listing.issues):
+            if self.github and (self.showing("issues") or listing and listing.issues):
                 self.fresh_issues(STALE)
             self.next_poll = now + self.watcher.interval()
         if "suggest" in self.running and now >= self.spun + SPIN:
@@ -246,15 +281,16 @@ class App(Loop):
         """Whether a restart would cut something short: any job but the update check (no program of its own, asked
         again by the new version), or a name being typed or a question on screen. A menu does not hold it: the new
         version comes back without it, as a click elsewhere closes it."""
-        files, scm, issues = self.views["files"], self.views["git"], self.views["issues"]
+        files, scm, issues = self.views["files"], self.views["changes"], self.views["issues"]
         return bool(self.running - {"update"}) or any((files.naming, files.confirm, scm.confirm, issues.confirm))
 
     def left(self):
         find, files = self.views["search"], self.views["files"]
-        return {"view": self.view, "expanded": sorted(map(self.moved_path, self.tree.expanded)),
+        return {"show": self.shown(self.focus), "expanded": sorted(map(self.moved_path, self.tree.expanded)),
                 "selected": self.moved_path(getattr(files.list.selected(), "path", None)), "top": files.list.top,
                 "chosen": files.moved,
-                "message": self.views["git"].field.text, "changes": self.views["git"].kept(), "query": find.field.text,
+                "message": self.views["changes"].field.text, "changes": self.views["changes"].kept(),
+                "query": find.field.text,
                 "switches": find.switches,
                 "issues": self.views["issues"].kept()}
 
@@ -269,7 +305,8 @@ class App(Loop):
         was, or to the view last chosen; the issues asked for when they show, as a click on their view would."""
         super().resume()
         self.seeded()
-        self.show(self.view)
+        if self.showing("issues"):
+            self.fresh_issues(STALE)
         if os.name != "nt":                     # the folder picker is not on Windows; a job only once the terminal is
             self.job("picker", lambda: picker_there(self.herdr), self.got_picker)    # taken (its wake needs that)
 
@@ -292,7 +329,8 @@ class App(Loop):
             self.take(left)
 
     def take(self, left):
-        self.view = left.get("view") if left.get("view") in self.tabs() else self.view
+        if left.get("show") in self.tabs():
+            self.show(left["show"])
         self.views["issues"].take(left.get("issues"))
         self.tree.expanded.update(p for p in left.get("expanded") or () if isinstance(p, str) and os.path.isdir(p))
         if isinstance(left.get("selected"), str):
@@ -302,8 +340,8 @@ class App(Loop):
             if isinstance(left.get("top"), int) and left["top"] >= 0:
                 files.list.top = left["top"]      # as it was scrolled, not as a list not yet drawn (one row) puts it
         if isinstance(left.get("message"), str) and left["message"]:
-            self.views["git"].set_message(left["message"])
-        self.views["git"].take(left.get("changes"))
+            self.views["changes"].set_message(left["message"])
+        self.views["changes"].take(left.get("changes"))
         find = self.views["search"]
         for name, on in (left.get("switches") or {}).items():
             if name in find.switches:
@@ -322,8 +360,9 @@ class App(Loop):
         """The mouse on TARGET at X, Y: a control shown by an icon says what it does once the mouse rests on it, a
         changed file its path, a name Files cuts short its path whole."""
         tip = TIPS.get(target[0] if isinstance(target, tuple) else target)
-        if not tip and self.view in ("git", "files"):
-            tip = self.views[self.view].tip(target)
+        panel = self.panel_at(y)
+        if not tip and panel in ("changes", "files"):
+            tip = self.views[panel].tip(target)
         if not tip:
             self.tip = None
         elif not self.tip or self.tip[0] != target:
@@ -371,15 +410,18 @@ class App(Loop):
                 for view in self.views.values():
                     view.close_menu()
             return
-        view = self.views[self.view]
         if self.menu and isinstance(event, (Key, Mouse)) and (isinstance(event, Key) or event.kind == "press"):
             self.act(self.answer_menu(event))
+            return
+        if isinstance(event, Mouse) and self.dragging and event.kind in ("move", "release"):
+            self.drag_head(event)
             return
         if isinstance(event, Key):
             if event.name == "char" and event.ctrl and event.char == "c":
                 self.quit = True
                 return
             self.error = self.note = None
+            view = self.views[self.shown(self.focus) or self.tabs()[0]]
             name = event.char if event.name == "char" and not (event.ctrl or event.alt) else event.name
             if name in VIEW_KEYS and (name.startswith("f") or not view.editing):
                 self.show(VIEW_KEYS[name])
@@ -387,32 +429,62 @@ class App(Loop):
             if name == "q" and not view.editing:
                 self.quit = True
                 return
-        elif isinstance(event, Mouse) and event.kind == "move":
-            target = self.canvas.hit(event.x, event.y) if self.canvas else None
-            self.pointed = target[5:] if str(target).startswith("view:") else target if target == "panels" else None
+            self.act(view.handle(event))
+            return
+        target = self.canvas.hit(event.x, event.y) if self.canvas else None
+        if event.kind == "move":
+            self.pointed = target[4:] if str(target).startswith("tab:") else target if target == "panels" else None
             self.point(target, event.x, event.y)
-        elif isinstance(event, Mouse) and event.kind == "press":
+        elif event.kind == "press":
             self.error = self.note = None
-            target = self.canvas.hit(event.x, event.y) if self.canvas else None
-            header = target in ("pane", "sync", "panels") or str(target).startswith("view:")
-            if header:                                # outside the view: its menu closes, as a click in it does
-                view.close_menu()
+            head = target in ("pane", "sync", "panels") or str(target).startswith(("head:", "fold:", "tab:"))
+            if head:                                  # outside the panels: their menus close, as a click in one does
+                for view in self.views.values():
+                    view.close_menu()
             if target == "news":                                             # a newer version: its release
                 self.do_open_url(update.RELEASES)
                 return
             if target == "panels" and event.button != 2:                  # the ⋯: its menu right under it
                 self.open_menu(*self.dots)
                 return
-            if header and event.button == 2:          # a right click on the header or the status bar: there
+            if head and event.button == 2:            # a right click on a head or the status bar: there
                 self.open_menu(event.y, event.x)
                 return
-            if str(target).startswith("view:"):
-                self.show(target[5:])
+            kind, _, name = str(target).partition(":")
+            if kind == "fold":
+                self.fold(name)
+                return
+            if kind == "tab":
+                self.show(name)
+                return
+            if kind == "head":                        # held: the edge above it follows the mouse
+                self.dragging = (name, event.y, dict(self.dock["weights"]))
                 return
             if target == "sync":
                 self.do_sync()
                 return
-        self.act(view.handle(event))
+        panel = self.panel_at(event.y)
+        if panel:
+            if event.kind == "press":
+                self.focus = GROUP_OF[panel]
+            self.act(self.views[panel].handle(event))
+
+    def panel_at(self, y):
+        """The panel drawn at row Y; None on a head or under the groups."""
+        for group, (top, rows) in self.slices.items():
+            if top + stack.HEAD <= y < top + rows:
+                return self.shown(group)
+        return None
+
+    def drag_head(self, event):
+        """A head held: the edge above it follows the mouse; kept once it is let go."""
+        group, start, weights = self.dragging
+        rows = sum(size for _top, size in self.slices.values())
+        names = [name for name, _panels in self.groups()]
+        self.dock["weights"] = stack.dragged(rows, names, set(self.dock["folded"]), weights, group, event.y - start)
+        if event.kind == "release":
+            self.dragging = None
+            self.keep_dock()
 
     def need(self, cells):
         """On the job's thread: this tab's right column takes CELLS at least inside its frame (column.need(): the
@@ -492,16 +564,36 @@ class App(Loop):
             conversations_pane.bring_apart(tab, kinds)              # it may close this pane on the way
         return None
 
-    def show(self, view):
-        if view != self.view and view in self.tabs():
-            self.view = view
-            self.save(view=view)
-            if view == "git":
-                self.refresh()
-            if view == "search":
-                self.act(self.views["search"].within(self.chosen_place()))
-        if self.view == "issues":
+    def show(self, panel):
+        """PANEL shown in its group, the group open, and given the keys; what it needs as it comes (came())."""
+        if panel not in self.tabs():
+            return
+        group = GROUP_OF[panel]
+        self.focus = group
+        if self.shown(group) != panel or group in self.dock["folded"]:
+            self.keep_dock(shown={**self.dock["shown"], group: panel},
+                           folded=[name for name in self.dock["folded"] if name != group])
+            self.came(panel)
+        elif panel == "issues":
             self.fresh_issues(STALE)
+
+    def came(self, panel):
+        """What PANEL needs once it comes on screen: Changes its Graph, Search the place chosen in Files, Issues
+        their list."""
+        if panel == "changes":
+            self.refresh()
+        elif panel == "search":
+            self.act(self.views["search"].within(self.chosen_place()))
+        elif panel == "issues":
+            self.fresh_issues(STALE)
+
+    def fold(self, group):
+        """GROUP folded to its head, or open again, its panel coming on screen."""
+        opening = group in self.dock["folded"]
+        self.keep_dock(folded=[name for name in self.dock["folded"] if name != group] + ([] if opening else [group]))
+        widgets.TURNS.turn(("group", group))
+        if opening:
+            self.came(self.shown(group))
 
     def fresh_issues(self, after):
         """The issues asked for again when their last answer is older than AFTER seconds and none is on its way: an
@@ -651,7 +743,7 @@ class App(Loop):
             self.error = f"settings not saved: {err}"
             return
         self.settings["linked"] = load_settings(os.path.join(self.state_dir, "settings.json"))["linked"]
-        self.views["git"].linked = issue
+        self.views["changes"].linked = issue
 
     def do_new_file(self, folder, name):
         self.file_op(lambda: self.ops.new_file(folder, name), folder)
@@ -709,7 +801,7 @@ class App(Loop):
         self.save(hidden=show)
 
     def do_icons(self, on):
-        self.views["search"].icons = self.views["git"].icons = self.views["issues"].icons = on
+        self.views["search"].icons = self.views["changes"].icons = self.views["issues"].icons = on
         self.save(icons=on)
 
     def do_search(self, query, place):
@@ -774,7 +866,7 @@ class App(Loop):
         if not (status.staged or status.changes):
             self.error = "Nothing to commit"
             return
-        self.suggesting, repo = self.views["git"].field.text, self.repo
+        self.suggesting, repo = self.views["changes"].field.text, self.repo
         self.writing = commit_message.writing()
 
         def work():
@@ -787,9 +879,9 @@ class App(Loop):
         """The written message goes into the field only if nothing happened meanwhile: no commit, no typing."""
         wanted, self.suggesting = self.suggesting, None
         if suggestion.message:
-            if wanted is not None and self.views["git"].field.text == wanted:
-                linked = self.views["git"].linked
-                self.views["git"].set_message(commit_message.with_fixes(suggestion.message, linked and linked[0]))
+            if wanted is not None and self.views["changes"].field.text == wanted:
+                linked = self.views["changes"].linked
+                self.views["changes"].set_message(commit_message.with_fixes(suggestion.message, linked and linked[0]))
         else:
             self.error = "No message: " + commit_message.explain(suggestion.problems)
         self.refresh()                                  # what was staged for it
@@ -811,8 +903,8 @@ class App(Loop):
         def then(answer):
             committed, error = answer
             if committed:
-                self.views["git"].set_message("")
-                linked = self.views["git"].linked
+                self.views["changes"].set_message("")
+                linked = self.views["changes"].linked
                 if linked and commit_message.fixes(message, linked[0]):
                     self.do_unlink()                    # GitHub closes it with the push
             self.error = error
@@ -850,29 +942,28 @@ class App(Loop):
     def draw(self):
         cells, rows = self.term.size()
         canvas = Canvas(cells, rows)
-        roomy = rows >= ROOMY                            # the tabs and the view's controls alike
-        top = self.switcher(canvas, roomy)
         news = f"herdr-fold {self.update['latest']} is out: {update.HOW}" if (self.update or {}).get("newer") else None
         line = self.error or self.note or news
-        height = max(2, rows - top - bool(line))         # the view, what went wrong below it, else a newer version
-        view = self.views[self.view]
-        self.views["git"].busy(next((text for kind, text in BUSY.items() if kind in self.running), None))
+        height = max(1, rows - bool(line))              # the groups, what went wrong below them, else a newer version
+        groups = self.groups()
+        self.slices = stack.heights(height, [group for group, _panels in groups], set(self.dock["folded"]),
+                                    self.dock["weights"])
+        scm = self.views["changes"]
+        scm.busy(next((text for kind, text in BUSY.items() if kind in self.running), None))
         frame = SPINNER[int(self.clock() / SPIN) % len(SPINNER)]
-        self.views["git"].writing = f"{frame} {self.writing}" if "suggest" in self.running else None
-        if self.view == "files":
-            view.draw(canvas, top, height, self.status or EMPTY)
-        elif self.view in ("search", "issues"):
-            view.draw(canvas, top, height, roomy)
-        else:
-            view.draw(canvas, top, height, self.status, self.graph, roomy)
+        scm.writing = f"{frame} {self.writing}" if "suggest" in self.running else None
+        for n, (group, panels) in enumerate(groups):
+            top, size = self.slices[group]
+            self.group_head(canvas, top, group, panels, size > stack.HEAD, first=n == 0)
+            if size > stack.HEAD:                       # its controls tall where its panel has the rows for them
+                body = size - stack.HEAD
+                self.views[self.shown(group)].draw(canvas, top + stack.HEAD, body, body >= ROOMY)
         if line:
             canvas.put(rows - 1, 0, " " * cells)
             canvas.put(rows - 1, 1, truncate(line, cells - 2),
                        Style(fg="deleted" if self.error else "muted" if self.note else "accent"))
             if line is news:
                 canvas.region(rows - 1, 0, cells, "news")
-        for y in range(top):                               # the header: the pane's own menu
-            canvas.backdrop(y, 0, cells, "pane")
         if self.menu:
             menu, y, x = self.menu[:3]
             menu.draw(canvas, *menu.at(y, x, cells, 0, rows))
@@ -882,31 +973,31 @@ class App(Loop):
         self.term.write(self.renderer.frame(canvas))
         self.term.flush()
 
-    def switcher(self, canvas, roomy):
-        """The views as tabs, the shown one lit, and the ⋯ (the pane's own menu) apart at the right edge, the shown
-        view's title between them; the column is never narrower than all of them (narrowest()). Returns the row the
-        view starts at: right under tall tabs, a row of air under one-row ones."""
-        nerd, tabs = self.settings["icons"], self.tabs()
-        marks, x, cells = glyphs(nerd), 1, TAB
-        more = canvas.width - 1 - cells                                      # the ⋯: at the right edge
-        row, taken = canvas.control(0, more, cells, 1, "badge", roomy)
-        self.dots = (taken, None, more + cells)                 # its menu: right under it, its right edge with it
-        lit = "text" if self.pointed == "panels" else "muted"
-        canvas.put(row, centered(more, cells), "⋯", Style(fg=lit, bg="badge"))
-        for y in range(taken):
-            canvas.region(y, more, more + cells, "panels")
-        for view in tabs:
-            shown = view == self.view
-            color = "selection" if shown else "badge"
-            row, taken = canvas.control(0, x, cells, 1, color, roomy)
-            lit = "accent" if shown else "text" if view == self.pointed else "muted"   # under the mouse: brighter
-            canvas.put(row, centered(x, cells), marks[view], Style(fg=lit, bg=color, bold=shown))
-            for y in range(taken):
-                canvas.region(y, x, x + cells, "view:" + view)
-            x += cells + 1
-        canvas.put(row, x, truncate(VIEWS[self.view], more - 1 - x), Style(fg="accent", bold=True))   # as herdr's
-        return taken + (0 if roomy else 1)
-
+    def group_head(self, canvas, y, group, panels, opened, first):
+        """GROUP's head on row Y: its fold, its PANELS as tabs (the shown one bold in the accent, Changes with its
+        count), at the FIRST head's right end the ⋯ (the pane's own menu); the rest of it drags the edge above it."""
+        canvas.backdrop(y, 0, canvas.width, f"head:{group}")
+        canvas.put(y, 1, widgets.TURNS.mark(self.settings["icons"], ("group", group), opened), Style(fg="muted"))
+        canvas.region(y, 0, 3, f"fold:{group}")
+        right = canvas.width - 2 - MORE if first else canvas.width - 1
+        x, shown = 3, self.shown(group)
+        for panel in panels:
+            lit = "accent" if panel == shown else "text" if panel == self.pointed else "muted"
+            end = canvas.put(y, x, truncate(PANELS[panel]["title"], max(0, right - x)),
+                             Style(fg=lit, bold=panel == shown))
+            count = len(self.status.staged) + len(self.status.changes) if panel == "changes" and self.status else 0
+            if count:
+                end = canvas.put(y, end + 1, truncate(str(min(count, 10 ** COUNT - 1)), max(0, right - end - 1)),
+                                 Style(fg="modified"))
+            canvas.region(y, x, end, f"tab:{panel}")
+            x = end + 2
+        if first:
+            more = canvas.width - 1 - MORE
+            canvas.control(y, more, MORE, 1, "badge", False)
+            canvas.put(y, centered(more, MORE), "⋯", Style(fg="text" if self.pointed == "panels" else "muted",
+                                                            bg="badge"))
+            canvas.region(y, more, more + MORE, "panels")
+            self.dots = (y + 1, None, more + MORE)          # its menu: right under it, its right edge with it
 
 def main(argv):
     reap()

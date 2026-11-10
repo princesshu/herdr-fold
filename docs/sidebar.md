@@ -47,7 +47,7 @@ by itself, where it was, and so it does on its folder's new place when the folde
 
 The column keeps one width everywhere: drag it wider or narrower in one tab, and every other tab's column, in every
 workspace, gets that width at once; a new column opens at it too. A tab's column is never narrower than its sidebar's
-header: 33 cells with three views, 39 with Issues.
+widest group head: 23 cells, 29 with Issues.
 
 ## Keys
 
@@ -55,7 +55,7 @@ Cmd + Shift + G (Changes), Cmd + Shift + I (Issues), Cmd + Shift + E and Cmd + S
 [Keys](keybindings.md#panes-and-tabs). Cmd + Shift + L opens a file the focused pane's output names in its preview,
 at that line ([Opening a file the agent named](usage.md#opening-a-file-the-agent-named)).
 
-The ⋯ at the header's right edge (or a right click on them or the header) closes or shows back the
+The ⋯ at the first group head's right edge (or a right click on a head) closes or shows back the
 tab's other panes, one by one (Close conversations, Show terminal…), and offers Restore panels while any is closed. The
 keys inside the sidebar are in its README.
 

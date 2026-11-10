@@ -8,7 +8,8 @@ import media
 import widgets
 from icons import GIT_LETTER, glyphs, icon
 from screen import GIT_ROLE, PLAIN, Canvas, Style, after, truncate
-from tree import Node, git_marks
+from git import Status
+from tree import Node
 from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, Popup, TextInput
 
@@ -30,7 +31,7 @@ class Explorer:
         self.tree, self.icons = tree, icons
         self.repo = repo or tree.root           # git's paths are relative to the repository's top folder
         self.list = ListView()
-        self.status, self.marks, self.folders = None, {}, {}
+        self.status, self.marks, self.folders = Status(), {}, {}      # the app's, by take()
         self.naming = self.menu = self.confirm = self.doomed = None
         self.hover, self.canvas, self.top, self.height = None, Canvas(0, 0), 0, 1
         self.cut = set()                        # the rows whose name is cut short, as last drawn
@@ -45,11 +46,6 @@ class Explorer:
         return any(held is not None for held in (self.naming, self.menu, self.confirm))
 
     # --- what is shown
-
-    def watch(self, status):
-        """Git's marks from a STATUS not seen yet (the app hands them over worked out already, with take)."""
-        if status is not self.status:
-            self.take(status, git_marks(status, self.repo, self.tree.root))
 
     def take(self, status, marks):
         """A STATUS and its MARKS from git_marks."""
@@ -87,10 +83,9 @@ class Explorer:
         self.tree.toggle(path)
         widgets.TURNS.turn(("tree", path))
 
-    def draw(self, canvas, top, height, status):
-        """The view from row TOP, HEIGHT rows: the folder's name, the tree right under it."""
+    def draw(self, canvas, top, height, roomy):
+        """The view from row TOP, HEIGHT rows: the folder's name, the tree right under it (ROOMY changes nothing)."""
         self.canvas, self.top, self.height, self.cut = canvas, top, height, set()
-        self.watch(status)
         self.sync()
         if self.list.height != height - LIST:
             self.list.resize(height - LIST)

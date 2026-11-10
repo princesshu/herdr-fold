@@ -45,8 +45,11 @@ class View(unittest.TestCase):
         return os.path.join(self.root, rel)
 
     def draw(self, width=45, height=12):
+        """The view HEIGHT rows high, its status and marks handed over as the app hands them (take())."""
         self.canvas = Canvas(width, height)
-        self.view.draw(self.canvas, 0, height, self.status)
+        if self.view.status is not self.status:
+            self.view.take(self.status, git_marks(self.status, self.view.repo, self.view.tree.root))
+        self.view.draw(self.canvas, 0, height, False)
         return self.canvas
 
     def row_of(self, name):
@@ -127,13 +130,6 @@ class View(unittest.TestCase):
         self.assertEqual(text(canvas, self.row_of("util.py"))[43], "A")       # added, then edited: still new
         self.assertEqual(text(canvas, self.row_of("app.py"))[43], "!")
         self.assertEqual(canvas.rows[self.row_of("src")][43][1].fg, "conflict")
-
-    def test_marks_worked_out_off_the_main_thread_are_not_worked_out_again(self):
-        marks = git_marks(self.status, self.root, self.root)
-        self.view.take(self.status, marks)
-        with mock.patch.object(explorer, "git_marks", side_effect=AssertionError("worked out again")):
-            canvas = self.draw()
-        self.assertEqual(text(canvas, self.row_of("src"))[43], "●")
 
     def test_an_ignored_row_is_faint(self):
         canvas = self.draw()

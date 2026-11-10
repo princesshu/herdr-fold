@@ -3,6 +3,11 @@
 A herdr plugin: Files, Search, Changes (git) and Issues (GitHub) in one pane, and a Conversations column beside it,
 the same on macOS, Linux and Windows.
 
+The panels stand in two groups, one under the other, each under its head as Adobe's panel groups: Files and Search,
+Changes and Issues. A head names its panels as tabs, the one shown bold in the accent, Changes with its count; its
+chevron folds the group to its head (a group without three rows to spare folds itself); dragging a head moves the
+edge above it. Each folder keeps which panel each group shows, the groups folded and their sizes (`dock.json`).
+
 ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the message
 Claude wrote, the issue it fixes and the Graph, Issues by priority](../../../assets/screenshots/sidebar.webp)
 
@@ -82,7 +87,7 @@ after alone.
 
 | Where | Keys |
 |---|---|
-| Everywhere | `1` `2` `3` `4` the views and `q` quits, unless a field, a menu or a question has the keys; F9 F10 F11 F12 the views and Ctrl + C quits even then |
+| Everywhere | `1` `2` `3` `4` show a panel (its group opened) and give it the keys, `q` quits, unless a field, a menu or a question has the keys; F9 F10 F11 F12 the panels and Ctrl + C quits even then; a click gives its group the keys |
 | Files | ↑ ↓ ← → or `j` `k` `h` `l`, PgUp PgDn, Home End or `g` `G`, Enter or Space opens, `n` new file, `N` new folder, `r` rename, Delete to the Trash, `m` the menu, `.` hidden files, `i` plain icons, `R` refresh |
 | Search | type to search; a click or Alt + C, Alt + W, Alt + R the switches; Esc or the field's × clears the text and the folder or file; Tab or ↓ to the hits (PgUp PgDn Home End too), Enter opens a hit or folds a file's, Esc, Tab or another letter goes back to the field |
 | Changes | `c` or typing writes the message (Enter a new line; Esc, then Enter commits), `A` or the star beside the message has it written, Enter stages or unstages, Space shows the diff, `d` discards, `S` syncs |

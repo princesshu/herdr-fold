@@ -379,11 +379,11 @@ class List(unittest.TestCase):
 
     def test_its_button_is_a_sidebar_view_button_with_the_sidebars_margin(self):
         self.draw()
-        start = 44 - 1 - sidebar.TAB                                        # a cell's margin at the right edge
+        start = 44 - 1 - sidebar.MORE                                        # a cell's margin at the right edge
         self.assertEqual([x for x in range(44) if self.canvas.hit(x, 1) == "collapse"], list(range(start, 43)))
         self.view.collapsed = True
         self.draw(cells=RAIL)
-        self.assertEqual(RAIL, 1 + sidebar.TAB + 1)                         # the rail: the button, a cell each side
+        self.assertEqual(RAIL, 1 + sidebar.MORE + 1)                         # the rail: the button, a cell each side
         self.assertEqual(text(self.canvas, 1), "   \ueac7   ")
         self.view.icons = False                                             # the sidebar's icons turned off
         self.draw(cells=RAIL)

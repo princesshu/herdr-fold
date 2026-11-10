@@ -25,6 +25,10 @@ All notable changes to this project are listed here. The format follows
 
 ### Changed
 
+- The TUI sidebar shows its panels as two groups one under the other, as Adobe's panel groups: Files and
+  Search, Changes and Issues, each under a head with its tabs (Changes with its count) and a fold; a head dragged
+  moves the edge between them, and each folder keeps the panels shown, the groups folded and their sizes. The
+  view buttons above them are gone.
 - The TUI folds with one chevron everywhere: the Conversations column's spaces and the issues' filter as the file tree
   and the sections, and without a Nerd Font a plain chevron (› ⌄) for each.
 - A fold turns its chevron as it opens or shuts: the Herdr app springs its section open with no overshoot and crosses

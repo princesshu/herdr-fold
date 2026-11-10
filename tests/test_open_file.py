@@ -172,7 +172,7 @@ class Open(Root):
         self.assertEqual(brought, [("w1:t5", {"sidebar"}, state)])
         with open(open_file.preview.seed_file(state, "w1:t5")) as f:
             seed = json.load(f)
-        self.assertEqual(seed, {"view": "files", "selected": self.path("src/web/page.tsx"),
+        self.assertEqual(seed, {"show": "files", "selected": self.path("src/web/page.tsx"),
                                 "expanded": [self.path("src"), self.path("src/web")]})
 
 

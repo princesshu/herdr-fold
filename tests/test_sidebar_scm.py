@@ -43,7 +43,8 @@ class View(unittest.TestCase):
 
     def draw(self, width=45, height=40, roomy=True):
         self.canvas = Canvas(width, height)
-        self.view.draw(self.canvas, 0, height, self.status, self.graph, roomy)
+        self.view.status, self.view.graph = self.status, self.graph       # as the app hands them over
+        self.view.draw(self.canvas, 0, height, roomy)
         return self.canvas
 
     def rows(self):
