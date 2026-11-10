@@ -20,6 +20,7 @@ from support import SRC, AppScreen, FakeHerdrSocket, FakeTerminal, end_child, en
 PLUGIN = os.path.join(SRC, "plugins", "sidebar")
 sys.path.insert(0, PLUGIN)
 import actions  # noqa: E402
+import changes_panel  # noqa: E402
 import column  # noqa: E402
 import commit_message  # noqa: E402
 import loop  # noqa: E402
@@ -527,7 +528,7 @@ class IssuesTab(Harness):
         # again, as in an editor's list
         self.on_github()
         listed = lambda: [issue.number for issue in self.app.views["issues"].listing.issues]  # noqa: E731
-        with mock.patch.object(sidebar, "STALE", 0.3):
+        with mock.patch.object(changes_panel, "STALE", 0.3):
             self.start()
             self.until(lambda s: "project" in s and self.tabs() == 4)
             self.term.type(Key("f12"))
@@ -541,7 +542,7 @@ class IssuesTab(Harness):
     def test_never_looked_at_they_are_never_asked_for(self):
         # a repository whose issues were never shown here (a stranger's clone): gh is not run for its remote
         self.on_github()
-        with mock.patch.object(sidebar, "STALE", 0.3):
+        with mock.patch.object(changes_panel, "STALE", 0.3):
             self.start()
             self.until(lambda s: "project" in s and self.tabs() == 4)
             time.sleep(1.5)
@@ -553,7 +554,7 @@ class IssuesTab(Harness):
         self.on_github()
         set_env(self, GH_ISSUES="[]")
         lists = lambda: len([call for call in self.gh_calls() if call.startswith("issue list")])  # noqa: E731
-        with mock.patch.object(sidebar, "STALE", 0.3):
+        with mock.patch.object(changes_panel, "STALE", 0.3):
             self.start()
             self.until(lambda s: "project" in s and self.tabs() == 4)
             self.term.type(Key("f12"))
@@ -582,7 +583,7 @@ class IssuesTab(Harness):
         self.until(lambda s: "#42 Login fails on Safari" in s and lists() == 1)
         other = sidebar.App(self.root, FakeTerminal(), preview.Herdr(), self.state)
         other.github = "acme/app"
-        other.fresh_issues(sidebar.STALE)
+        other.work["issues"].fresh_issues(changes_panel.STALE)
         for thread in threading.enumerate():
             if thread.name.startswith("sidebar-") and thread is not threading.current_thread():
                 thread.join(5)
@@ -1006,7 +1007,7 @@ class NewVersion(Ticks, unittest.TestCase):
         self.assertEqual(self.app.left()["changes"]["focus"], "graph")
 
     def test_a_folded_section_stays_folded_in_the_next_one(self):
-        self.app.act(Action("remember_folded", (["graph"],)))
+        self.app.act(Action("remember_folded", (["graph"],)), "changes")
         self.assertEqual(self.make().views["changes"].folded, {"graph"})
 
     def test_it_hands_over_once_the_new_version_is_still(self):
@@ -1091,7 +1092,7 @@ class NewVersion(Ticks, unittest.TestCase):
 
     def test_the_new_one_comes_back_where_this_one_was(self):
         src = os.path.join(self.app.root, "src")                           # the real path (/var is a link here)
-        self.app.tree.toggle(src)
+        self.app.work["files"].tree.toggle(src)
         self.app.views["files"].select(src)
         self.app.views["changes"].set_message("feat: half written")
         find = self.app.views["search"]
@@ -1109,7 +1110,7 @@ class NewVersion(Ticks, unittest.TestCase):
         self.assertEqual(new.views["changes"].field.text, "feat: half written")
         self.assertEqual((new.views["search"].field.text, new.views["search"].switches["case"],
                           new.views["search"].place), ("needle", True, "src"))
-        self.assertIn(src, new.tree.expanded)
+        self.assertIn(src, new.work["files"].tree.expanded)
         self.assertEqual(new.views["files"].list.selected().path, src)
         self.assertEqual(self.handovers(), [])
 
@@ -1148,7 +1149,7 @@ class NewVersion(Ticks, unittest.TestCase):
         app.views["files"].select(os.path.join(app.root, "zlink"))
         app.views["files"].moved = True
         self.assertEqual(app.views["files"].list.selected().name, "zlink")
-        self.assertEqual(app.chosen_place(), "")
+        self.assertEqual(app.work["files"].chosen_place(), "")
 
     def test_each_sidebar_gets_its_own_handover_back(self):
         # an update restarts every pane's sidebar at once, all with one state folder: none takes up another's
@@ -1235,7 +1236,7 @@ class FollowsItsFolder(Ticks, unittest.TestCase):
                                clock=lambda: self.now)
 
     def test_a_renamed_folder_brings_it_back_on_the_new_name_where_it_was(self):
-        self.app.tree.expanded.add(os.path.join(self.app.root, "src"))
+        self.app.work["files"].tree.expanded.add(os.path.join(self.app.root, "src"))
         new = os.path.join(os.path.realpath(self.tmp), "new-name")
         os.rename(self.root, new)
         self.later()
@@ -1312,7 +1313,7 @@ class NewWorkspace(unittest.TestCase):
     def test_it_opens_the_folder_picker_on_the_folder(self):
         app = self.make(["herdr-fold.tab-layout"])
         folder = os.path.join(app.root, "src")
-        app.act(Action("new_workspace", (folder,)))
+        app.act(Action("new_workspace", (folder,)), "files")
         self.settle()
         self.assertIn(("plugin", "pane", "open", "--plugin", "herdr-fold.tab-layout", "--entrypoint", "new-workspace",
                        "--focus", "--env", f"HERDR_NEW_WORKSPACE_FOLDER={folder}"), self.calls)

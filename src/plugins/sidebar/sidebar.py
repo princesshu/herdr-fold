@@ -1,13 +1,12 @@
 """The sidebar: Conversations, Files, Search, Changes and, for a repository on GitHub, Issues in one pane, as groups of
 tabs. One process: the screen and keys on the main thread, slow commands on background threads that wake the loop, so
 the view never waits. Usage: python3 sidebar.py [FOLDER] (in the home folder: ~/Documents)"""
-import base64
 import json
 import os
 import subprocess
 import sys
-import threading
 import time
+from dataclasses import dataclass
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -15,25 +14,19 @@ import column  # noqa: E402
 import commit_message  # noqa: E402
 import panes  # noqa: E402
 import git  # noqa: E402
-import github  # noqa: E402
-import issue_work  # noqa: E402
 import media  # noqa: E402
 import panels  # noqa: E402
 import preview  # noqa: E402
-import search  # noqa: E402
 import stack  # noqa: E402
 import statefile  # noqa: E402
 import update  # noqa: E402
+from changes_panel import Changes  # noqa: E402
 from conversations_panel import Conversations  # noqa: E402
-from explorer import Explorer  # noqa: E402
-from fileops import Ops  # noqa: E402
-from find import Find  # noqa: E402
-from issues import Issues  # noqa: E402
+from files_panel import Files  # noqa: E402
 from loop import CODE, Loop  # noqa: E402
-from scm import Scm  # noqa: E402
 from dock import GROUPS, PANELS  # noqa: E402
 from screen import ROOMY, Canvas, Style, centered, truncate, width  # noqa: E402
-from tree import Tree, git_marks  # noqa: E402
+from tree import git_marks  # noqa: E402
 from vt import Focus, Key, Mouse, Resize  # noqa: E402
 import widgets  # noqa: E402
 from widgets import Menu, wrap  # noqa: E402
@@ -45,12 +38,9 @@ FIND, FOLD = "f7", "f6"       # the keys herdr's actions send (actions.py): find
 GROUP_OF = {panel: group for group, panels in GROUPS for panel in panels}
 # linked: the issue each repository's next commit fixes, {repository: [number, title]}
 DEFAULTS = {"hidden": False, "icons": True, "commit_mode": "commit", "linked": {}, "folded": []}
-STALE = 60.0                  # seconds: the issues shown or listed here asked for again (a new one shows up)
 UPDATES = 3600.0              # seconds between two looks at update.json (GitHub itself is asked once a day at most)
 CHECK = "Check for Updates"   # the ⋯ menu's switch, a ✓ while it is on
-BUSY = {"commit": "Committing…", "sync": "Syncing…", "pull": "Pulling…", "push": "Pushing…"}   # the first running shows
-SPINNER, SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏", 0.1     # ✦'s writing in the message field: a frame every SPIN seconds
-EMPTY = git.Status()
+FAMILIES = (Conversations, Files, Changes)        # the panel families the dock hosts, in its groups' order
 MORE = 5                      # the cells of the ⋯ (the pane's own menu) at the first group's head
 COUNT = 3                     # the cells a count beside a tab's name takes at most (Changes: 999)
 TIP_DELAY = 0.5               # seconds the mouse rests on a control shown by an icon before it says what it does
@@ -114,13 +104,15 @@ def moved_to(root, known):
     return next((os.path.realpath(place) for place in places if identity(place) == known), None)
 
 
-def picker_there(herdr):
-    """Whether herdr-fold's tab layout is there, with the folder picker of herdr's new button: herdr's plugin list."""
-    try:
-        plugins = herdr.call("plugin", "list", "--json").get("plugins") or []
-    except RuntimeError:
-        return False
-    return any(plugin.get("plugin_id") == "herdr-fold.tab-layout" for plugin in plugins)
+@dataclass
+class Look:
+    """The repository's status as the dock's status job found it, for each family to take what it shows."""
+    repo: str                 # None outside a repository
+    github: str               # OWNER/NAME on GitHub, or None
+    status: object            # git.Status
+    marks: dict               # the file view's marks (tree.git_marks)
+    graph: list               # the recent commits, None when Changes was not shown
+    issue: tuple              # the issue the next commit fixes: (number, title), or None
 
 
 class App(Loop):
@@ -134,28 +126,18 @@ class App(Loop):
         self.own = self.repo                            # the folder's own repository; without one, the chosen's
         self.looked = None                              # the folder chosen in Files the last status was asked for
         self.head = None                                # the latest commit seen: a newer one may close the linked issue
-        self.tree = Tree(self.root, show_hidden=self.settings["hidden"])
-        icons = self.settings["icons"]
-        self.views = {"files": Explorer(self.tree, icons, self.repo), "search": Find(self.root, icons, clock),
-                      "changes": Scm(self.settings["commit_mode"], icons, self.settings["folded"]),
-                      "issues": Issues(icons)}
-        self.work = {"conversations": Conversations(self)}  # a panel's own work, where the sidebar does not do it
-        self.views["conversations"] = self.work["conversations"].view
-        workspace = os.environ.get("HERDR_WORKSPACE_ID")
-        self.views["files"].preview = preview.spec_file(state_dir, workspace) if workspace else None
         self.github = git.github_name(self.repo) if self.repo else None     # OWNER/NAME on GitHub, or None
-        self.issues_asked = {}                            # when each query's issues were last asked for
-        self.views["changes"].linked = self.linked()
+        self.status = None
+        self.families = [family(self) for family in FAMILIES]
+        self.work = {panel: family for family in self.families for panel in family.PANELS}    # each panel's family
+        self.views = {panel: view for family in self.families for panel, view in family.views.items()}
         self.dock = stack.state(state_dir, self.root)    # each group's panel shown, the folded ones, their shares
         self.focus = GROUP_OF["files"]                    # the group with the keys: Files' at first
         self.slices = {}                                  # each group's rows, as last drawn: {group: (top, rows)}
         self.dragging = None                              # a head held: (its group, the row it went down on, weights)
-        self.ops = Ops(self.root)
-        self.repo_ops = Ops(self.repo) if self.repo else None
-        self.watcher = watch.Watcher(self.tree.expanded_dirs, git.git_dir(self.root), clock)
-        self.status, self.graph, self.searching = None, [], None
-        self.suggesting = None                            # the message as it was when ✦ asked; None: no answer wanted
-        self.writing, self.spun = "", 0.0                 # who writes it (commit_message.writing()), its last frame
+        files = self.work.get("files")
+        self.watcher = watch.Watcher(files.tree.expanded_dirs if files else lambda: [self.root],
+                                     git.git_dir(self.root), clock)
         self.pointed = None                               # the panel's tab (or the ⋯) under the mouse
         self.dots = (0, None, 0)                          # where the ⋯'s menu opens: open_menu()'s arguments
         self.needs = None                                 # the cells this tab's header was said to take
@@ -164,12 +146,12 @@ class App(Loop):
         self.update, self.next_update = None, 0.0         # update.check()'s answer, and when to look again
 
     def stop(self):
-        if self.searching:
-            self.searching.set()
+        for family in self.families:
+            family.stop()
 
     def tabs(self):
-        """The panels there: Issues only for a repository on GitHub."""
-        return [panel for panel in PANELS if panel != "issues" or self.github]
+        """The panels there: its families', Issues only for a repository on GitHub."""
+        return [panel for panel in PANELS if panel in self.views and (panel != "issues" or self.github)]
 
     def groups(self):
         """GROUPS with the panels there, a group without any left out."""
@@ -231,17 +213,14 @@ class App(Loop):
             self.needs = narrowest(self.tabs())
             self.job("need", lambda cells=self.needs: self.need(cells))
         if repo != self.repo:
-            self.repo, self.repo_ops = repo, Ops(repo) if repo else None
-            self.views["files"].repo = repo or self.root
+            self.repo = repo
             self.watcher.git_dir = git.git_dir(repo) if repo else None
             self.head = None
         self.settings["linked"] = linked
-        scm = self.views["changes"]
-        scm.linked, scm.repo, scm.github, scm.status = issue, repo, self.github, self.status
         self.head = head or self.head
-        self.views["files"].take(self.status, marks)
-        if graph is not None:
-            self.graph = scm.graph = graph
+        look = Look(repo, self.github, self.status, marks, graph, issue)
+        for family in self.families:
+            family.took_status(look)
         self.watcher.status_done(started, finished)
         if "status" in self.again:
             self.again.discard("status")
@@ -266,39 +245,28 @@ class App(Loop):
             changed = self.watcher.poll()
             folders = [path for path in changed if path != "git"]
             if folders:
-                self.tree.reload(folders)
+                self.reload(folders)
                 shown = True
             if self.watcher.status_due(bool(changed), self.showing("changes")) or (
                     self.own is None and self.chosen_folder() != self.looked):    # another folder chosen in Files
                 self.refresh()
-            listing = self.views["issues"].listing        # asked on screen; behind it only while it lists any
-            if self.github and (self.showing("issues") or listing and listing.issues):
-                self.fresh_issues(STALE)
             self.next_poll = now + self.watcher.interval()
-        shown = self.work["conversations"].tick(now) or shown    # after the handover's turn: never during a look
-        if "suggest" in self.running and now >= self.spun + SPIN:
-            self.spun, shown = now, True
-        search = self.views["search"].tick(now)
-        self.act(search)
-        return shown or search is not None
+        for family in self.families:                      # after the handover's turn: never during a look
+            shown = family.tick(now) or shown
+        return shown
 
     def busy(self):
         """Whether a restart would cut something short: any job but the update check (no program of its own, asked
         again by the new version), or a name being typed or a question on screen. A menu does not hold it: the new
         version comes back without it, as a click elsewhere closes it."""
-        files, scm, issues = self.views["files"], self.views["changes"], self.views["issues"]
-        held = (files.naming, files.confirm, scm.confirm, issues.confirm, self.views["conversations"].naming)
+        held = [hold for family in self.families for hold in family.holds()]
         return bool(self.running - {"update"}) or any(held)
 
     def left(self):
-        find, files = self.views["search"], self.views["files"]
-        return {"show": self.shown(self.focus), "expanded": sorted(map(self.moved_path, self.tree.expanded)),
-                "selected": self.moved_path(getattr(files.list.selected(), "path", None)), "top": files.list.top,
-                "chosen": files.moved,
-                "message": self.views["changes"].field.text, "changes": self.views["changes"].kept(),
-                "query": find.field.text,
-                "switches": find.switches,
-                "issues": self.views["issues"].kept(), "conversations": self.work["conversations"].left()}
+        left = {"show": self.shown(self.focus)}
+        for family in self.families:
+            left.update(family.left())
+        return left
 
     def moved_path(self, path):
         """PATH in its folder's new place, once the folder moved."""
@@ -311,10 +279,8 @@ class App(Loop):
         was, or to the view last chosen; the issues asked for when they show, as a click on their view would."""
         super().resume()
         self.seeded()
-        if self.showing("issues"):
-            self.fresh_issues(STALE)
-        if os.name != "nt":                     # the folder picker is not on Windows; a job only once the terminal is
-            self.job("picker", lambda: picker_there(self.herdr), self.got_picker)    # taken (its wake needs that)
+        for family in self.families:            # a job only once the terminal is taken (its wake needs that)
+            family.resume()
 
     def seeded(self):
         """A new preview tab's sidebar: where the sidebar that opened it was, left for its tab (open_preview())."""
@@ -337,40 +303,20 @@ class App(Loop):
     def take(self, left):
         if left.get("show") in self.tabs():
             self.show(left["show"])
-        self.views["issues"].take(left.get("issues"))
-        self.work["conversations"].take(left.get("conversations") or {})
-        self.tree.expanded.update(p for p in left.get("expanded") or () if isinstance(p, str) and os.path.isdir(p))
-        if isinstance(left.get("selected"), str):
-            files = self.views["files"]
-            files.select(left["selected"])
-            files.moved = left.get("chosen") is True
-            if isinstance(left.get("top"), int) and left["top"] >= 0:
-                files.list.top = left["top"]      # as it was scrolled, not as a list not yet drawn (one row) puts it
-        if isinstance(left.get("message"), str) and left["message"]:
-            self.views["changes"].set_message(left["message"])
-        self.views["changes"].take(left.get("changes"))
-        find = self.views["search"]
-        for name, on in (left.get("switches") or {}).items():
-            if name in find.switches:
-                find.switches[name] = bool(on)
-        find.place = self.chosen_place()
-        if isinstance(left.get("query"), str) and left["query"]:
-            find.field.insert(left["query"])
-            self.act(find.ask())
+        for family in self.families:
+            family.take(left)
 
     def deadlines(self):
         tip = self.tip[4] if self.tip and self.tip[4] > self.clock() else self.next_poll
-        spin = self.spun + SPIN if "suggest" in self.running else self.next_poll
-        return [self.next_poll, self.views["search"].deadline() or self.next_poll, tip, spin,
-                self.work["conversations"].next_read]
+        return [self.next_poll, tip] + [due for family in self.families for due in family.deadlines()]
 
     def point(self, target, x, y):
         """The mouse on TARGET at X, Y: a control shown by an icon says what it does once the mouse rests on it, a
         changed file its path, a name Files cuts short its path whole."""
         tip = TIPS.get(target[0] if isinstance(target, tuple) else target)
-        panel = self.panel_at(y)
-        if not tip and panel in ("changes", "files"):
-            tip = self.views[panel].tip(target)
+        view = self.views.get(self.panel_at(y))
+        if not tip and hasattr(view, "tip"):            # a view's own: a changed file's path, a name cut short
+            tip = view.tip(target)
         if not tip:
             self.tip = None
         elif not self.tip or self.tip[0] != target:
@@ -475,8 +421,8 @@ class App(Loop):
             if kind == "head":                        # held: the edge above it follows the mouse
                 self.dragging = (name, event.y, dict(self.dock["weights"]))
                 return
-            if target == "sync":
-                self.do_sync()
+            if target == "sync" and "changes" in self.work:
+                self.work["changes"].do_sync()
                 return
         panel = self.panel_at(event.y)
         if panel:
@@ -594,18 +540,13 @@ class App(Loop):
             self.keep_dock(shown={**self.dock["shown"], group: panel},
                            folded=[name for name in self.dock["folded"] if name != group])
             self.came(panel)
-        elif panel == "issues":
-            self.fresh_issues(STALE)
+        elif panel == "issues":                     # shown already: asked again once its answer is old
+            self.came(panel)
 
     def came(self, panel):
-        """What PANEL needs once it comes on screen: Changes its Graph, Search the place chosen in Files, Issues
-        their list."""
-        if panel == "changes":
-            self.refresh()
-        elif panel == "search":
-            self.act(self.views["search"].within(self.chosen_place()))
-        elif panel == "issues":
-            self.fresh_issues(STALE)
+        """What PANEL needs once it comes on screen (its family's came()): Changes its Graph, Search the place chosen
+        in Files, Issues their list."""
+        self.work[panel].came(panel)
 
     def fold(self, group):
         """GROUP folded to its head, or open again, its panel coming on screen."""
@@ -615,28 +556,7 @@ class App(Loop):
         if opening:
             self.came(self.shown(group))
 
-    def fresh_issues(self, after):
-        """The issues asked for again when their last answer is older than AFTER seconds and none is on its way: an
-        answer another sidebar of the repository got less than STALE seconds ago is taken (one question a minute)."""
-        issues = self.views["issues"]
-        if self.clock() - self.issues_asked.get(issues.query, float("-inf")) > after and not issues.asked:
-            issues.ask()
-            self.do_load_issues(issues.query, shared=True)
-
-    # --- what the views ask for
-
-    def do_preview_file(self, path, line=None):
-        self.open_preview(preview.file_spec(self.root, path, line), self.root)
-
-    def do_preview_diff(self, path, staged):
-        untracked = not staged and any(c.path == path and c.code == "?" for c in (self.status or EMPTY).changes)
-        if untracked:                                   # no diff to show: the file itself
-            self.open_preview(preview.file_spec(self.repo, os.path.join(self.repo, path), None), self.repo)
-        else:
-            self.open_preview(preview.diff_spec(self.repo, path, staged), self.repo)
-
-    def do_preview_commit(self, commit):
-        self.open_preview(preview.commit_spec(self.repo, commit), self.repo)
+    # --- what every family asks for: the preview tab, a tab of its own, the browser, the icons
 
     def open_preview(self, spec, cwd):
         """SPEC in the workspace's preview tab; a new one gets this sidebar's tab's panes of the plugin's, and its
@@ -672,288 +592,24 @@ class App(Loop):
         launch = preview.interactive(argv)
         self.job("tab", lambda: preview.open_tab(self.herdr, workspace, self.repo or self.root, label, launch))
 
-    # --- the issues
-
-    def do_load_issues(self, query, shared=False):
-        """The issues of QUERY from GitHub, kept for the repository's other sidebars; SHARED: one of them got less
-        than STALE seconds ago taken instead (R and a change made here always ask GitHub)."""
-        name, state_dir = self.github, self.state_dir
-        if not name:
-            return
-
-        def work():
-            listing = issue_work.kept(state_dir, name, query, STALE) if shared else None
-            if listing is None:
-                listing = github.issues(name, query)
-                issue_work.keep(state_dir, name, query, listing)
-            return listing
-
-        def then(listing):
-            self.issues_asked[query] = self.clock()
-            self.views["issues"].show(listing, query)
-
-        self.job("issues", work, then)
-
-    def do_preview_issue(self, issue):
-        self.open_preview(issue_work.view_spec(self.github, issue), self.repo or self.root)
-
-    def do_issue_web(self, issue):
-        name = self.github
-
-        def then(error):
-            if error:
-                self.error = f"{error}: {issue.url}"
-        self.job("issue", lambda: github.open_in_browser(name, issue.number), then)
-
-    def do_issue_comment(self, issue):
-        self.open_tab(f"issue: #{issue.number}", github.comment_argv(self.github, issue.number))
-
-    def do_new_issue(self):
-        self.open_tab("issue: new", github.create_argv(self.github))
-
-    def do_issue_change(self, issue, what):
-        name, done = self.github, {"close": "Closed", "reopen": "Reopened", "assign": "Assigned to you:"}[what]
-
-        def then(error):
-            self.error = error
-            if not error:
-                self.note = f"{done} #{issue.number}"
-            self.act(self.views["issues"].ask())
-
-        self.job("issue", lambda: github.change(name, issue.number, what), then)
-
-    def do_issue_to_agent(self, issue):
-        """The tab's Claude or Codex gets the issue as a prompt, not sent yet, and the focus; the next commit fixes
-        it."""
-        me = os.environ.get("HERDR_PANE_ID")
-
-        def work():
-            tab = self.herdr.call("pane", "get", me).get("pane", {}).get("tab_id") if me else None
-            agents = self.herdr.call("agent", "list").get("agents", [])
-            target = next((a["pane_id"] for a in agents if a.get("tab_id") == tab and a.get("agent") in
-                           ("claude", "codex")), None)
-            if target is None:
-                return "No Claude or Codex in this tab to hand the issue to"
-            self.herdr.call("pane", "send-text", target, github.prompt(self.github, issue))
-            self.herdr.call("agent", "focus", target)
-            return None
-
-        def then(error):
-            self.error = error
-            if not error:
-                self.link((issue.number, issue.title))
-
-        self.job("agent", work, then)
-
-    def linked(self):
-        """The issue this repository's next commit fixes: (number, title), or None."""
-        found = self.settings["linked"].get(self.repo) if self.repo else None
-        return (int(found[0]), str(found[1])) if isinstance(found, list) and len(found) == 2 else None
-
-    def do_unlink(self):
-        self.link(None)
-
-    def link(self, issue):
-        """ISSUE ((number, title), or None) as the one this repository's next commit fixes, as the app mod links it."""
-        try:
-            commit_message.link(self.repo, issue, self.state_dir)
-        except OSError as err:
-            self.error = f"settings not saved: {err}"
-            return
-        self.settings["linked"] = load_settings(os.path.join(self.state_dir, "settings.json"))["linked"]
-        self.views["changes"].linked = issue
-
-    def do_new_file(self, folder, name):
-        self.file_op(lambda: self.ops.new_file(folder, name), folder)
-
-    def do_new_folder(self, folder, name):
-        self.file_op(lambda: self.ops.new_folder(folder, name), folder)
-
-    def do_rename(self, path, name):
-        self.file_op(lambda: self.ops.rename(path, name), os.path.dirname(path))
-
-    def file_op(self, work, folder):
-        try:
-            path = work()
-        except OSError as err:                  # Refused, a name in use, no permission
-            self.error = str(err)
-            return
-        self.tree.reload([folder])
-        self.views["files"].select(path)
-        self.refresh()
-
-    def do_trash(self, path):
-        def then(_):
-            self.tree.reload([os.path.dirname(path)])
-            self.refresh()
-        self.job("trash", lambda: self.ops.trash(path), then)
-
-    def got_picker(self, there):
-        self.views["files"].opens_workspace = there
-
-    def do_new_workspace(self, folder):
-        self.job("workspace", lambda: self.herdr.call(
-            "plugin", "pane", "open", "--plugin", "herdr-fold.tab-layout", "--entrypoint", "new-workspace", "--focus",
-            "--env", f"HERDR_NEW_WORKSPACE_FOLDER={folder}"))
-
-    def do_close_preview(self):
-        self.job("preview", lambda: preview.close_preview(self.herdr, os.environ["HERDR_WORKSPACE_ID"]))
-
     def do_open_url(self, url):
         self.note = "Opened in the browser" if media.open_in_browser(url) else "No browser to open it in"
 
-    def do_open_browser(self, path):
-        self.note = "Opened in the browser" if media.open_in_browser(path) else "No browser to open it in"
-
-    def do_copy_path(self, path):
-        if not self.ops.copy_path(path):        # no clipboard program: the terminal's own (OSC 52)
-            self.term.write("\x1b]52;c;" + base64.b64encode(path.encode("utf-8")).decode("ascii") + "\x07")
-            self.term.flush()
-        self.note = "Path copied"
-
-    def do_refresh(self):
-        self.tree.reload()
-        self.refresh()
-
-    def do_show_hidden(self, show):
-        self.save(hidden=show)
-
     def do_icons(self, on):
-        self.views["search"].icons = self.views["changes"].icons = self.views["issues"].icons = on
+        for view in self.views.values():
+            view.icons = on
         self.save(icons=on)
 
-    def do_search(self, query, place):
-        if self.searching:
-            self.searching.set()                # the older search stops; its answer would be dropped anyway
-        self.searching = stop = threading.Event()
-        self.job("search", lambda: search.search(self.root, query, cancel=stop, place=place),
-                 lambda result: self.views["search"].show(result, query, place))
-
-    def chosen_place(self):
-        """The folder or file you chose in Files, for the search (from the root, with "/"), or "" for all of it: only
-        the first row, chosen by itself (a row away from it is always yours, before an update too), or a link (it may
-        lead out of the folder)."""
-        files = self.views["files"]
-        node = files.list.selected()
-        if not ((files.moved or files.list.index > 0) and node is not None and node.path) or node.path == self.root \
-                or os.path.islink(node.path):
-            return ""
-        return os.path.relpath(node.path, self.root).replace(os.sep, "/")
-
     def chosen_folder(self):
-        """The folder you chose in Files (a file's own folder), the root without a choice: in a folder that is no
-        repository itself, Changes shows that one's."""
-        path = os.path.normpath(os.path.join(self.root, self.chosen_place()))
-        return path if os.path.isdir(path) else os.path.dirname(path)
+        """The folder chosen in Files (its family's), the root without Files: in a folder that is no repository itself,
+        Changes shows that one's."""
+        files = self.work.get("files")
+        return files.chosen_folder() if files else self.root
 
-    def git_job(self, kind, work, reload=False):
-        def then(error):
-            if error:
-                self.error = error
-            if reload:
-                self.tree.reload()
-            self.refresh()
-        self.job(kind, work, then)
-
-    def do_stage(self, paths):
-        self.git_job("git", lambda: git.stage(self.repo, list(paths)))
-
-    def do_unstage(self, paths):
-        self.git_job("git", lambda: git.unstage(self.repo, list(paths)))
-
-    def do_discard(self, paths):
-        untracked = {change.path for change in (self.status or EMPTY).changes if change.code == "?"}
-
-        def work():
-            for path in paths:
-                if path in untracked:           # never deleted: an untracked file goes to the Trash
-                    self.repo_ops.trash(os.path.join(self.repo, path))
-                else:
-                    error = git.discard(self.repo, path)
-                    if error:
-                        return error
-            return None
-
-        self.git_job("git", work, reload=True)
-
-    def do_suggest(self):
-        """The message written for what a commit takes: the staged changes, or every change, staged first."""
-        if "suggest" in self.running:
-            return
-        status = self.status or EMPTY
-        if not (status.staged or status.changes):
-            self.error = "Nothing to commit"
-            return
-        self.suggesting, repo = self.views["changes"].field.text, self.repo
-        self.writing = commit_message.writing()
-
-        def work():
-            git.stage_all(repo)
-            return commit_message.write(commit_message.request(repo))
-
-        self.job("suggest", work, self.got_suggestion)
-
-    def got_suggestion(self, suggestion):
-        """The written message goes into the field only if nothing happened meanwhile: no commit, no typing."""
-        wanted, self.suggesting = self.suggesting, None
-        if suggestion.message:
-            if wanted is not None and self.views["changes"].field.text == wanted:
-                linked = self.views["changes"].linked
-                self.views["changes"].set_message(commit_message.with_fixes(suggestion.message, linked and linked[0]))
-        else:
-            self.error = "No message: " + commit_message.explain(suggestion.problems)
-        self.refresh()                                  # what was staged for it
-
-    def do_commit(self, message, mode, paths):
-        if self.running & {"commit", "sync", "pull", "push"}:
-            self.note = "A commit or sync is still running"
-            return
-        self.suggesting = None                          # a message still being written is for changes now committed
-
-        def work():
-            ok, line = git.commit(self.repo, message, paths)
-            if not ok:
-                return False, line
-            if mode in ("push", "sync"):
-                ok, line = (git.push if mode == "push" else git.sync)(self.repo)
-            return True, None if ok else git.advice(line)
-
-        def then(answer):
-            committed, error = answer
-            if committed:
-                self.views["changes"].set_message("")
-                linked = self.views["changes"].linked
-                if linked and commit_message.fixes(message, linked[0]):
-                    self.do_unlink()                    # GitHub closes it with the push
-            self.error = error
-            self.refresh()
-
-        self.job("commit", work, then)
-
-    def do_remember_mode(self, mode):
-        self.save(commit_mode=mode)
-
-    def do_remember_folded(self, folded):
-        self.save(folded=folded)
-
-    def do_sync(self, how="sync"):
-        """The branch synced with its upstream, or only pulled or pushed (HOW), as the repository row asks."""
-        if not self.repo or self.running & {"sync", "pull", "push"}:
-            return
-
-        def work():
-            ok, line = getattr(git, how)(self.repo)
-            return None if ok else git.advice(line)
-
-        self.git_job(how, work)
-
-    def do_repo_web(self):
-        name = self.github
-
-        def then(error):
-            if error:
-                self.error = error
-        self.job("repo", lambda: github.open_in_browser(name), then)
+    def reload(self, folders=None):
+        """FOLDERS changed on disk (None: any of them): shown as they are now."""
+        for family in self.families:
+            family.reload(folders)
 
     # --- drawing
 
@@ -966,10 +622,8 @@ class App(Loop):
         groups = self.groups()
         self.slices = stack.heights(height, [group for group, _panels in groups], set(self.dock["folded"]),
                                     self.dock["weights"])
-        scm = self.views["changes"]
-        scm.busy(next((text for kind, text in BUSY.items() if kind in self.running), None))
-        frame = SPINNER[int(self.clock() / SPIN) % len(SPINNER)]
-        scm.writing = f"{frame} {self.writing}" if "suggest" in self.running else None
+        for family in self.families:
+            family.drawing()
         for n, (group, panels) in enumerate(groups):
             top, size = self.slices[group]
             self.group_head(canvas, top, group, panels, size > stack.HEAD, first=n == 0)

@@ -12,6 +12,7 @@ import panes
 import preview
 import richtext
 from conversation_list import ConversationList
+from family import Family
 from fileops import system_clipboard
 
 POLL = 1.0                    # seconds between two looks at the conversations
@@ -36,11 +37,14 @@ def own_tab(call, pane):
     return None if (call("tab", "get", tab).get("tab") or {}).get("number") == 1 else tab
 
 
-class Conversations:
+class Conversations(Family):
     """The list (VIEW) and what it asks for, done through HOST: the sidebar."""
+    PANELS = ("conversations",)
 
     def __init__(self, host):
-        self.host, self.view = host, ConversationList()
+        super().__init__(host)
+        self.view = ConversationList()
+        self.views = {"conversations": self.view}
         self.next_read = 0.0
         self.here = os.environ.get("HERDR_WORKSPACE_ID")
         self.folders = {}                     # a folder a workspace's pane is in → that workspace
@@ -101,14 +105,22 @@ class Conversations:
         self.view.field.clear()
         self.view.rebuild()
 
+    def deadlines(self):
+        return [self.next_read]
+
+    def holds(self):
+        return (self.view.naming,)
+
     def left(self):
-        return {"typed": self.view.typed, "opened": sorted(self.view.opened), "closed": sorted(self.view.closed)}
+        view = self.view
+        return {"conversations": {"typed": view.typed, "opened": sorted(view.opened), "closed": sorted(view.closed)}}
 
     def take(self, left):
-        if isinstance(left.get("typed"), str):
-            self.view.field.insert(left["typed"])
-        self.view.opened.update(name for name in left.get("opened") or () if isinstance(name, str))
-        self.view.closed.update(name for name in left.get("closed") or () if isinstance(name, str))
+        mine = left.get("conversations") if isinstance(left.get("conversations"), dict) else {}
+        if isinstance(mine.get("typed"), str):
+            self.view.field.insert(mine["typed"])
+        self.view.opened.update(name for name in mine.get("opened") or () if isinstance(name, str))
+        self.view.closed.update(name for name in mine.get("closed") or () if isinstance(name, str))
 
     # --- what the list asks for
 
