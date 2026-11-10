@@ -139,7 +139,7 @@ back to it after leaving it; again, it takes the mark off. The app keeps its own
 
 ## Conversations
 
-In the left sidebar, every conversation of this Mac's spaces, running or closed, as the TUI's Conversations column
+In the left sidebar, every conversation of this Mac's spaces, running or closed, as the TUI sidebar's Conversations
 lists them:
 
 | Part | What it does |

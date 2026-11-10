@@ -4,10 +4,10 @@ A herdr plugin of herdr-fold that keeps the workspace layout:
 
 - A new workspace from herdr's **new** button (or Ctrl + B, then Shift + N) opens the folder picker instead of reusing
   the active workspace's folder. A workspace of a git worktree keeps its own folder.
-- Every other new tab gets the columns: the Conversations column, then the sidebar on top of a terminal, with the tab's
-  own shell on the left. It acts only on an empty new tab: one with a single unnamed pane still running a shell after
-  1.5 seconds.
-- When herdr starts, it restarts the Conversations columns, the sidebars and the still-empty agent panes.
+- Every other new tab gets the right column: the sidebar on top of a terminal, with the tab's own shell on the left.
+  It acts only on an empty new tab: one with a single unnamed pane still running a shell after 1.5 seconds.
+- When herdr starts, it restarts the sidebars and the still-empty agent panes, and closes an older install's
+  Conversations columns (their list is in the sidebar now).
 - It shows the confirmation window when you close a tab that holds a conversation.
 - A workspace named after its folder takes the folder's new name, and so does its main tab, when the folder is renamed
   or moved (seen at the next pane you focus). A folder renamed before is known by the Claude conversations kept under
@@ -22,10 +22,9 @@ A herdr plugin of herdr-fold that keeps the workspace layout:
 - Claude's conversation folders (`~/.claude/projects/`): only whether one exists for a workspace's old folder;
   nothing in them is read.
 - herdr-fold's scripts in `~/.config/herdr-fold/` (`herdrlib.py`, `new_workspace.py`, `restore_panes.py`,
-  `close_tab.py`, `plugins/sidebar/conversations_pane.py`).
-- The sidebar plugin's state folder (`~/.local/state/herdr/plugins/herdr-fold.sidebar/`): the remembered column widths
-  (`column.json`, `conversations.json`) for a new tab's columns, and `panels.json`, where the tab is noted as having
-  them.
+  `close_tab.py`, `plugins/sidebar/panes.py`).
+- The sidebar plugin's state folder (`~/.local/state/herdr/plugins/herdr-fold.sidebar/`): the remembered column width
+  (`column.json`) for a new tab's right column, and `panels.json`, where the tab is noted as having it.
 - Its own state folder (`~/.local/state/herdr/plugins/herdr-fold.tab-layout/`): `spaces.json`, each workspace named
   after its folder, with that folder, so a renamed folder is recognized; `focus.json`, the workspace in front and the
   one before it, so Esc in the folder picker goes back there. The uninstaller removes both.

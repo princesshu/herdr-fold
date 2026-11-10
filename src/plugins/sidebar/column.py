@@ -1,6 +1,6 @@
-"""The columns' widths, the same in every tab: a column dragged in one tab sets every other tab's. A tab splits as
-agent | (Conversations | right column), so herdr's smallest share (a tenth) lets Conversations narrow to a rail. Set
-through herdr's socket API (its command line cannot set a split), to the cell: a first side is round(width x ratio)."""
+"""The right column's width, the same in every tab: dragged in one tab, it sets every other tab's. A tab splits as
+agent | right column. Set through herdr's socket API (its command line cannot set a split), to the cell: a first side
+is round(width x ratio)."""
 import json
 import os
 import socket
@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import statefile
 
 FILE = "column.json"
-SIDEBAR, CONVERSATIONS = "sidebar", "conversations"          # the panes' names
+SIDEBAR = "sidebar"         # the right column's top pane, by its name
 RIGHT = 0.75                # the share before the right column until it is dragged
 TOLERANCE = 0.002           # shares this close are the same width (a cell is about 0.007 of a wide window)
 LIMITS = (0.3, 0.9)         # a remembered share: outside this nobody chose it (a tab too small, or a stray value)
@@ -60,14 +60,11 @@ def read_line(read):
 
 @dataclass
 class Columns:
-    """A tab's columns: the paths of the split before them (OUTER) and of the one between the Conversations column and
-    the right column (INNER, None without it there); the shares of OUTER's width before them, the Conversations
-    column's and the right column's; OUTER's width in cells (0: not known), and each pane's (WIDTHS, frame and all)."""
+    """A tab's columns: the path of the split before the right column (OUTER), the shares of its width before it and of
+    the right column; OUTER's width in cells (0: not known), and each pane's (WIDTHS, frame and all)."""
     tab: str
     outer: list
-    inner: list
     left: float
-    conversations: float
     right: float
     cells: int = 0
     widths: dict = None
@@ -94,25 +91,16 @@ def find(node, label, path=()):
 
 def columns(found):
     """The columns in FOUND (a tab's layout.export), or None when it has no right column: the innermost split to the
-    right whose second side holds the sidebar, past one whose first side is the Conversations column."""
+    right whose second side holds the sidebar."""
     root = found.get("root") or {}
     path = find(root, SIDEBAR)
     if path is None:
         return None
-    inner = None
     for depth in range(len(path) - 1, -1, -1):
         node = at(root, path[:depth])
-        if node.get("direction") != "right" or not path[depth]:
-            continue
-        first = node.get("first") or {}
-        if inner is None and first.get("type") == "pane" and first.get("label") == CONVERSATIONS:
-            inner = path[:depth]
-            continue
-        outer = float(node.get("ratio", 0))
-        if inner is None:
-            return Columns(found.get("tab_id"), path[:depth], None, outer, 0.0, 1 - outer)
-        share = float(at(root, inner).get("ratio", 0))
-        return Columns(found.get("tab_id"), path[:depth], inner, outer, (1 - outer) * share, (1 - outer) * (1 - share))
+        if node.get("direction") == "right" and path[depth]:
+            outer = float(node.get("ratio", 0))
+            return Columns(found.get("tab_id"), path[:depth], outer, 1 - outer)
     return None
 
 
@@ -125,29 +113,29 @@ def layout(pane):
     return None if found.get("zoomed") else found
 
 
-def saved(state_dir, file=FILE):
+def saved(state_dir):
     """The share remembered on this machine, or None."""
     try:
-        with open(os.path.join(state_dir, file), encoding="utf-8") as f:
+        with open(os.path.join(state_dir, FILE), encoding="utf-8") as f:
             ratio = json.load(f).get("ratio")
     except (OSError, ValueError, AttributeError):
         return None
     return float(ratio) if isinstance(ratio, (int, float)) and LIMITS[0] <= ratio <= LIMITS[1] else None
 
 
-def kept(state_dir, file=FILE):
+def kept(state_dir):
     try:
-        with open(os.path.join(state_dir, file), encoding="utf-8") as f:
+        with open(os.path.join(state_dir, FILE), encoding="utf-8") as f:
             found = json.load(f)
     except (OSError, ValueError):
         return {}
     return found if isinstance(found, dict) else {}
 
 
-def keep(state_dir, values, file=FILE):
+def keep(state_dir, values):
     """VALUES kept in FILE, whatever else it keeps staying; whether they were."""
     try:
-        statefile.write(os.path.join(state_dir, file), {**kept(state_dir, file), **values})
+        statefile.write(os.path.join(state_dir, FILE), {**kept(state_dir), **values})
     except OSError:
         return False
     return True
@@ -168,50 +156,31 @@ def need(state_dir, tab, cells, tabs):
         keep(state_dir, {"least": {**known, tab: cells}})
 
 
-def remember(state_dir, ratio, file=FILE):
+def remember(state_dir, ratio):
     """RATIO kept in FILE (whatever else it keeps stays) when somebody chose it and it is a new one; whether it was."""
     if not LIMITS[0] <= ratio <= LIMITS[1]:
         return False
-    before = saved(state_dir, file)
+    before = saved(state_dir)
     if before is not None and abs(before - ratio) <= TOLERANCE:
         return False
-    return keep(state_dir, {"ratio": round(ratio, 4)}, file)
+    return keep(state_dir, {"ratio": round(ratio, 4)})
 
 
 def share(ratio):
     return min(SPLIT[1], max(SPLIT[0], ratio))
 
 
-def arrange(tab, right=None, conversations=None):
-    """TAB's columns set so the right column takes RIGHT of the width and the Conversations column CONVERSATIONS (None:
-    as they are), to the cell where TAB's width is known (the Conversations column as near as herdr's smallest share
-    lets it). Whether anything was set."""
-    right = tab.right if right is None else right
-    conversations = tab.conversations if conversations is None else conversations
-    if tab.inner is None:
-        ratios = [(tab.outer, share(1 - right), tab.left)]
-    elif tab.cells:
-        whole = tab.cells
-        right_cells, mine = round(right * whole), max(1, round(conversations * whole))
-        while mine / (mine + right_cells) < SPLIT[0]:       # herdr's smallest share: the column a cell wider
-            mine += 1
-        if (right_cells, mine) == (round(tab.right * whole), round(tab.conversations * whole)):
-            return False
-        ratios = [(tab.outer, share((whole - right_cells - mine) / whole), tab.left),
-                  (tab.inner, mine / (mine + right_cells), tab.conversations / (tab.conversations + tab.right))]
-    else:
-        inner = share(conversations / max(conversations + right, 0.001))
-        ratios = [(tab.outer, share(1 - right / (1 - inner)), tab.left),
-                  (tab.inner, inner, tab.conversations / max(tab.conversations + tab.right, 0.001))]
-    changed = False
-    for path, ratio, now in ratios:
-        if abs(ratio - now) > TOLERANCE:
-            try:
-                call("layout.set_split_ratio", {"tab_id": tab.tab, "path": path, "ratio": round(ratio, 4)})
-            except OSError:
-                return changed
-            changed = True
-    return changed
+def arrange(tab, right=None):
+    """TAB's columns set so the right column takes RIGHT of the width (None: as it is), within herdr's shares. Whether
+    anything was set."""
+    ratio = share(1 - (tab.right if right is None else right))
+    if abs(ratio - tab.left) <= TOLERANCE:
+        return False
+    try:
+        call("layout.set_split_ratio", {"tab_id": tab.tab, "path": tab.outer, "ratio": round(ratio, 4)})
+    except OSError:
+        return False
+    return True
 
 
 def read(pane):
@@ -235,23 +204,13 @@ def copy(source, target):
     """TARGET's tab's columns as wide as SOURCE's, to the cell (a new preview tab's, before anything in it starts);
     whether anything was set."""
     mine, theirs = read(source), read(target)
-    if not mine or not theirs or (mine.inner is None) != (theirs.inner is None):
-        return False
-    return arrange(theirs, right=mine.right, conversations=mine.conversations)
+    return bool(mine and theirs) and arrange(theirs, right=mine.right)
 
 
 def cells(tab):
-    """TAB's (left, Conversations column, right column) in cells."""
-    right, mine = round(tab.right * tab.cells), round(tab.conversations * tab.cells)
-    return tab.cells - right - mine, mine, right
-
-
-def visible(tab):
-    """Whether TAB is the tab on screen: only there can a border be dragged."""
-    try:
-        return (call("pane.current", {}).get("pane") or {}).get("tab_id") == tab.tab
-    except OSError:
-        return False
+    """TAB's (left, right column) in cells."""
+    right = round(tab.right * tab.cells)
+    return tab.cells - right, right
 
 
 def settled(pane):
@@ -283,13 +242,12 @@ def frame(tab, pane, inside):
 
 
 def drag(state_dir, pane, inside):
-    """PANE's right column (INSIDE cells inside its frame) was resized in a tab without the Conversations column (whose
-    pane sees to the widths otherwise): kept at least least() wide, its share remembered to the cell and set in every
-    other tab. How many were set."""
+    """PANE's right column (INSIDE cells inside its frame) was resized: kept at least least() wide, its share
+    remembered to the cell and set in every other tab. How many were set."""
     here = settled(pane)
-    if not here or here.inner is not None:
+    if not here:
         return 0
-    right = cells(here)[2]
+    right = cells(here)[1]
     narrowest = least(state_dir, here.tab) + frame(here, pane, inside)
     if right < narrowest:
         right = narrowest
@@ -300,25 +258,13 @@ def drag(state_dir, pane, inside):
     return spread(state_dir, pane, right=right / here.cells)
 
 
-def spread(state_dir, pane, right=None, agent=None, file=None):
-    """RIGHT (the right column's share) and AGENT (the agent's share of what is before the right column, kept in FILE)
-    remembered, where given, and every other tab set to them, its right column never narrower than its own buttons
-    take; how many were set."""
-    if right is not None and not remember(state_dir, 1 - right):
-        right = None
-    if agent is not None and not remember(state_dir, agent, file):
-        agent = None
-    if right is None and agent is None:
+def spread(state_dir, pane, right):
+    """RIGHT (the right column's share) remembered and every other tab set to it, its right column never narrower than
+    its own sidebar takes; how many were set."""
+    if not remember(state_dir, 1 - right):
         return 0
     moved = 0
     for tab in others(pane):
-        width = right if right is not None else tab.right
-        if tab.cells:
-            width = max(width, (least(state_dir, tab.tab) + FRAME) / tab.cells)
-        if agent is None or tab.inner is None:
-            moved += arrange(tab, right=width)
-        else:
-            space = tab.cells - round(width * tab.cells) if tab.cells else 0
-            mine = round((1 - agent) * space) / tab.cells if tab.cells else (1 - agent) * (1 - width)
-            moved += arrange(tab, right=width, conversations=mine)
+        width = max(right, (least(state_dir, tab.tab) + FRAME) / tab.cells) if tab.cells else right
+        moved += arrange(tab, right=width)
     return moved

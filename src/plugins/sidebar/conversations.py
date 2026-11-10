@@ -1,5 +1,5 @@
 # Generated from core/conversations.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
-"""This machine's Claude Code and Codex conversations, running or not, for the Conversations column and herdr-fold's
+"""This machine's Claude Code and Codex conversations, running or not, for the Conversations panel and herdr-fold's
 formatted copy; nothing of Claude's, Codex's or herdr's is ever written. The files are large: each is read once, then
 only where it grew (INDEX, shared by every pane). An unreadable file is left out, a field of a wrong type as missing."""
 import contextlib
@@ -18,7 +18,8 @@ import statefile  # noqa: E402
 from github import since  # noqa: E402
 
 INDEX = "conversation-index.json"     # what was read of each file, and where it stopped
-SETTINGS = "conversations.json"       # the column's settings, the archived conversations among them
+SETTINGS = "conversations.json"       # the panel's settings, the archived conversations among them
+KEPT = ("archived", "show_archived", "resumed", "told_closed")     # SETTINGS' keys: an older version's go on a write
 INDEX_VERSION = 2                     # another version's index (its shape, its types) is not read: the files are
 PROMPT = 200                          # characters of a first prompt the index keeps: more than a row can ever show
 FIRST_LINE = 1 << 20                  # bytes of a Codex file's first line read for its folder (some 23 KB in use)
@@ -418,7 +419,7 @@ def local(state_dir, agents=(), resumed=None):
 
 
 def setting(state_dir):
-    """The column's settings, {} when there are none or they cannot be read."""
+    """The panel's settings, {} when there are none or they cannot be read."""
     try:
         with open(os.path.join(state_dir, SETTINGS), encoding="utf-8") as f:
             kept = json.load(f)
@@ -428,9 +429,10 @@ def setting(state_dir):
 
 
 def keep(state_dir, **values):
-    """VALUES kept in SETTINGS, whatever else it keeps staying."""
+    """VALUES kept in SETTINGS, the rest of KEPT staying."""
+    kept = {key: value for key, value in {**setting(state_dir), **values}.items() if key in KEPT}
     try:
-        statefile.write(os.path.join(state_dir, SETTINGS), {**setting(state_dir), **values})
+        statefile.write(os.path.join(state_dir, SETTINGS), kept)
     except OSError:
         pass
 

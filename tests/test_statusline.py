@@ -211,7 +211,7 @@ class ClaudeSettings(unittest.TestCase):
         self.assertEqual((data["statusLine"]["command"], data["env"]), ("bash herdr-fold.sh", {"A": "1"}))
 
     def test_it_is_drawn_again_every_few_seconds(self):
-        # Claude Code runs it on a new message, not when its pane gets narrower (the Conversations column opened):
+        # Claude Code runs it on a new message, not when its pane gets narrower (the right column dragged wider):
         # the line stayed cut short until the next answer; refreshInterval draws it again for the width it has now
         self.module.set_claude_statusline(self.settings, COMMAND, self.backup)
         with open(self.settings) as f:

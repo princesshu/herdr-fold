@@ -426,7 +426,7 @@ export const CHAT = [
   "]), _sys.modules['github'].__dict__)",
   "_sys.modules['conversations'] = _types.ModuleType('conversations')",
   "exec('\\n'.join([",
-  "'\"\"\"This machine\\'s Claude Code and Codex conversations, running or not, for the Conversations column " +
+  "'\"\"\"This machine\\'s Claude Code and Codex conversations, running or not, for the Conversations panel " +
     "and herdr-fold\\'s',",
   "\"formatted copy; nothing of Claude's, Codex's or herdr's is ever written. The files are large: each is " +
     "read once, then\",",
@@ -448,7 +448,9 @@ export const CHAT = [
   "'from github import since  # noqa: E402',",
   "'',",
   "'INDEX = \"conversation-index.json\"     # what was read of each file, and where it stopped',",
-  "'SETTINGS = \"conversations.json\"       # the column\\'s settings, the archived conversations among them',",
+  "'SETTINGS = \"conversations.json\"       # the panel\\'s settings, the archived conversations among them',",
+  "'KEPT = (\"archived\", \"show_archived\", \"resumed\", \"told_closed\")     # SETTINGS\\' keys: an older " +
+    "version\\'s go on a write',",
   "\"INDEX_VERSION = 2                     # another version's index (its shape, its types) is not read: the " +
     "files are\",",
   "'PROMPT = 200                          # characters of a first prompt the index keeps: more than a row can " +
@@ -891,7 +893,7 @@ export const CHAT = [
   "'',",
   "'',",
   "'def setting(state_dir):',",
-  "'    \"\"\"The column\\'s settings, {} when there are none or they cannot be read.\"\"\"',",
+  "'    \"\"\"The panel\\'s settings, {} when there are none or they cannot be read.\"\"\"',",
   "'    try:',",
   "'        with open(os.path.join(state_dir, SETTINGS), encoding=\"utf-8\") as f:',",
   "'            kept = json.load(f)',",
@@ -901,9 +903,10 @@ export const CHAT = [
   "'',",
   "'',",
   "'def keep(state_dir, **values):',",
-  "'    \"\"\"VALUES kept in SETTINGS, whatever else it keeps staying.\"\"\"',",
+  "'    \"\"\"VALUES kept in SETTINGS, the rest of KEPT staying.\"\"\"',",
+  "'    kept = {key: value for key, value in {**setting(state_dir), **values}.items() if key in KEPT}',",
   "'    try:',",
-  "'        statefile.write(os.path.join(state_dir, SETTINGS), {**setting(state_dir), **values})',",
+  "'        statefile.write(os.path.join(state_dir, SETTINGS), kept)',",
   "'    except OSError:',",
   "'        pass',",
   "'',",
@@ -1709,7 +1712,7 @@ export const CHAT_HOOK = [
   "]), _sys.modules['github'].__dict__)",
   "_sys.modules['conversations'] = _types.ModuleType('conversations')",
   "exec('\\n'.join([",
-  "'\"\"\"This machine\\'s Claude Code and Codex conversations, running or not, for the Conversations column " +
+  "'\"\"\"This machine\\'s Claude Code and Codex conversations, running or not, for the Conversations panel " +
     "and herdr-fold\\'s',",
   "\"formatted copy; nothing of Claude's, Codex's or herdr's is ever written. The files are large: each is " +
     "read once, then\",",
@@ -1731,7 +1734,9 @@ export const CHAT_HOOK = [
   "'from github import since  # noqa: E402',",
   "'',",
   "'INDEX = \"conversation-index.json\"     # what was read of each file, and where it stopped',",
-  "'SETTINGS = \"conversations.json\"       # the column\\'s settings, the archived conversations among them',",
+  "'SETTINGS = \"conversations.json\"       # the panel\\'s settings, the archived conversations among them',",
+  "'KEPT = (\"archived\", \"show_archived\", \"resumed\", \"told_closed\")     # SETTINGS\\' keys: an older " +
+    "version\\'s go on a write',",
   "\"INDEX_VERSION = 2                     # another version's index (its shape, its types) is not read: the " +
     "files are\",",
   "'PROMPT = 200                          # characters of a first prompt the index keeps: more than a row can " +
@@ -2174,7 +2179,7 @@ export const CHAT_HOOK = [
   "'',",
   "'',",
   "'def setting(state_dir):',",
-  "'    \"\"\"The column\\'s settings, {} when there are none or they cannot be read.\"\"\"',",
+  "'    \"\"\"The panel\\'s settings, {} when there are none or they cannot be read.\"\"\"',",
   "'    try:',",
   "'        with open(os.path.join(state_dir, SETTINGS), encoding=\"utf-8\") as f:',",
   "'            kept = json.load(f)',",
@@ -2184,9 +2189,10 @@ export const CHAT_HOOK = [
   "'',",
   "'',",
   "'def keep(state_dir, **values):',",
-  "'    \"\"\"VALUES kept in SETTINGS, whatever else it keeps staying.\"\"\"',",
+  "'    \"\"\"VALUES kept in SETTINGS, the rest of KEPT staying.\"\"\"',",
+  "'    kept = {key: value for key, value in {**setting(state_dir), **values}.items() if key in KEPT}',",
   "'    try:',",
-  "'        statefile.write(os.path.join(state_dir, SETTINGS), {**setting(state_dir), **values})',",
+  "'        statefile.write(os.path.join(state_dir, SETTINGS), kept)',",
   "'    except OSError:',",
   "'        pass',",
   "'',",
@@ -3621,7 +3627,7 @@ export const CONVERSATIONS = [
   "'    sys.exit(main(sys.argv))',",
   "'',",
   "]), _sys.modules['github'].__dict__)",
-  "\"\"\"This machine's Claude Code and Codex conversations, running or not, for the Conversations column and " +
+  "\"\"\"This machine's Claude Code and Codex conversations, running or not, for the Conversations panel and " +
     "herdr-fold's",
   "formatted copy; nothing of Claude's, Codex's or herdr's is ever written. The files are large: each is read " +
     "once, then",
@@ -3643,7 +3649,9 @@ export const CONVERSATIONS = [
   "from github import since  # noqa: E402",
   "",
   "INDEX = \"conversation-index.json\"     # what was read of each file, and where it stopped",
-  "SETTINGS = \"conversations.json\"       # the column's settings, the archived conversations among them",
+  "SETTINGS = \"conversations.json\"       # the panel's settings, the archived conversations among them",
+  "KEPT = (\"archived\", \"show_archived\", \"resumed\", \"told_closed\")     # SETTINGS' keys: an older " +
+    "version's go on a write",
   "INDEX_VERSION = 2                     # another version's index (its shape, its types) is not read: the " +
     "files are",
   "PROMPT = 200                          # characters of a first prompt the index keeps: more than a row can " +
@@ -4082,7 +4090,7 @@ export const CONVERSATIONS = [
   "",
   "",
   "def setting(state_dir):",
-  "    \"\"\"The column's settings, {} when there are none or they cannot be read.\"\"\"",
+  "    \"\"\"The panel's settings, {} when there are none or they cannot be read.\"\"\"",
   "    try:",
   "        with open(os.path.join(state_dir, SETTINGS), encoding=\"utf-8\") as f:",
   "            kept = json.load(f)",
@@ -4092,9 +4100,10 @@ export const CONVERSATIONS = [
   "",
   "",
   "def keep(state_dir, **values):",
-  "    \"\"\"VALUES kept in SETTINGS, whatever else it keeps staying.\"\"\"",
+  "    \"\"\"VALUES kept in SETTINGS, the rest of KEPT staying.\"\"\"",
+  "    kept = {key: value for key, value in {**setting(state_dir), **values}.items() if key in KEPT}",
   "    try:",
-  "        statefile.write(os.path.join(state_dir, SETTINGS), {**setting(state_dir), **values})",
+  "        statefile.write(os.path.join(state_dir, SETTINGS), kept)",
   "    except OSError:",
   "        pass",
   "",

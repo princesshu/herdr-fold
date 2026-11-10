@@ -18,11 +18,10 @@ One workspace per repo:
 ![The folder picker over the new workspace: Documents as a tree, driftwood chosen, Claude or Codex at its top
 right, Cancel and Open at the bottom](../assets/screenshots/new-workspace.webp)
 
-The workspace's main tab is named after the folder (the home folder's is `home`): the agent on the left, the
-Conversations column, and on the right the sidebar above a terminal. Drag the right column's edge to resize it in every
-tab. In a new folder the agent first asks whether you trust it: answer in the pane. A pane you close stays closed in its
-tab, after a restart too, until Cmd + Shift + O (Restore panels) or the sidebar's ⋯ menu brings it back; a new tab
-always comes with every pane.
+The workspace's main tab is named after the folder (the home folder's is `home`): the agent on the left, and on the
+right the sidebar above a terminal. Drag the right column's edge to resize it in every tab. In a new folder the agent
+first asks whether you trust it: answer in the pane. A pane you close stays closed in its tab, after a restart too,
+until Cmd + Shift + O (Restore panels) or the sidebar's ⋯ menu brings it back; a new tab always comes with every pane.
 
 A folder in the sidebar's Files view opens a workspace too: right-click it → **New Workspace**, and the folder picker
 opens on it, with the Claude / Codex toggle.
@@ -59,11 +58,11 @@ takes the mark off). The Herdr app's herdr-fold layout does the same: [Spaces](a
 ![The Spaces list: harbor-web's agent blocked and waiting 12 minutes, tidepool's done and waiting 3 minutes, beside
 their branch](../assets/screenshots/waiting.webp)
 
-A conversation goes by one name: in AI Sessions, on its pane's border, in the Conversations column, and on its
+A conversation goes by one name: in AI Sessions, on its pane's border, in the sidebar's Conversations, and on its
 tab when it has the tab to itself (a reopened one's); the workspace's main tab keeps the workspace's name. To rename it:
 
 - right-click its pane → **Rename pane** (**Clear pane name** brings back the conversation's own title);
-- or right-click it in the Conversations column → **Rename**, a closed one too;
+- or right-click it in the sidebar's Conversations → **Rename**, a closed one too;
 - or type `/rename New name` in the conversation, which also names it in the program's own `/resume` list; it shows
   after your next prompt, or when you switch tab or pane. A name set in herdr wins.
 
@@ -71,9 +70,10 @@ A tab you renamed yourself keeps your name until you rename the conversation.
 
 ## Conversations
 
-Every conversation of the workspaces under Spaces, running or closed, in the column before the sidebar:
+Every conversation of the workspaces under Spaces, running or closed, in the sidebar's first group:
 
-1. Cmd + Shift + R, from anywhere: the column opens in every tab, its filter empty, the keys going to it.
+1. Cmd + Shift + R, from anywhere: the group opens in the tab's sidebar (one closed by hand comes back), its filter
+   empty, the keys going to it.
 2. Type: the conversations of every workspace narrow at once.
 3. Enter goes to a running conversation, or reopens a closed one in a new tab of its workspace.
 
@@ -82,8 +82,8 @@ color, the closed ones faint](../assets/screenshots/conversations.webp)
 
 A right click on a conversation offers Open, Copy conversation (all of it, formatted for Notes, Mail or Docs), Rename
 and, for a closed one, Archive: it leaves the list and its file stays as it was, so `claude --resume` or `codex resume`
-still finds it; a right click elsewhere in the column offers Show archived. Cmd + Shift + H collapses the column to a
-rail in every tab, and opens it again as wide as you last dragged it.
+still finds it; a right click beside the conversations offers Show archived while any is. Cmd + Shift + H folds the
+group to its head, and opens it again.
 
 ## GitHub issues
 
@@ -141,7 +141,7 @@ The first push, from either, sets the upstream (`push -u`).
 ## Closing tabs
 
 Cmd + W closes the active tab, never the main tab. A tab with a conversation asks first (Enter or **Close** closes,
-Esc or **Cancel** keeps it); the conversation stays in the Conversations column, where Cmd + Shift + R finds it.
+Esc or **Cancel** keeps it); the conversation stays in the sidebar's Conversations, where Cmd + Shift + R finds it.
 
 ## Copying and searching
 
@@ -191,7 +191,7 @@ first).
 
 In a narrow pane Claude's line gets shorter until it fits: shorter reset times, the model name without its note,
 shorter labels (`ctx`, `5h`, `wk`), no context window size, then no reset times and no effort. Claude Code draws it
-again every 10 seconds (`refreshInterval`), so it fits a pane made narrower too, the Conversations column opened beside
+again every 10 seconds (`refreshInterval`), so it fits a pane made narrower too, the right column dragged wider beside
 it. Codex cuts its own line at the end, so its items go in the order of importance.
 
 ## Claude in herdr panes

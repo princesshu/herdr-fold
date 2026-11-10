@@ -268,6 +268,14 @@ class CommandLine(Conversations):
         self.cli("unarchive", "claude:s1")
         self.assertEqual(conversations.archived(self.state), {"codex:c2"})
 
+    def test_what_an_older_version_kept_goes_on_the_next_write(self):
+        # the Conversations column's width and fold (before it was a panel of the sidebar) are left behind nowhere
+        os.makedirs(self.state)
+        with open(os.path.join(self.state, conversations.SETTINGS), "w") as f:
+            json.dump({"ratio": 0.65, "collapsed": True, "show_archived": True}, f)
+        conversations.archive(self.state, {"claude:s1"})
+        self.assertEqual(conversations.setting(self.state), {"show_archived": True, "archived": ["claude:s1"]})
+
     def test_a_rename_is_kept_with_herdrs_names(self):
         self.claude("s1", prompt("Fix the login"))
         self.assertEqual(self.cli("rename", "s1", "Login fix"), (0, {"ok": True, "advice": None}))

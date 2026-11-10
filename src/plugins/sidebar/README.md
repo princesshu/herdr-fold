@@ -1,15 +1,29 @@
 # Files · Search · Git · Issues · AI Conversations
 
-A herdr plugin: Files, Search, Changes (git) and Issues (GitHub) in one pane, and a Conversations column beside it,
-the same on macOS, Linux and Windows.
+A herdr plugin: every workspace's Claude and Codex conversations, Files, Search, Changes (git) and Issues (GitHub) in
+one pane, the same on macOS, Linux and Windows.
 
-The panels stand in two groups, one under the other, each under its head as Adobe's panel groups: Files and Search,
-Changes and Issues. A head names its panels as tabs, the one shown bold in the accent, Changes with its count; its
-chevron folds the group to its head (a group without three rows to spare folds itself); dragging a head moves the
-edge above it. Each folder keeps which panel each group shows, the groups folded and their sizes (`dock.json`).
+The panels stand in three groups, one under the other, each under its head as Adobe's panel groups: Conversations, Files
+and Search, Changes and Issues. A head names its panels as tabs, the one shown bold in the accent, Changes with its
+count; its chevron folds the group to its head (a group without three rows to spare folds itself); dragging a head moves
+the edge above it. Each folder keeps which panel each group shows, the groups folded and their sizes (`dock.json`).
 
 ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the message
 Claude wrote, the issue it fixes and the Graph, Issues by priority](../../../assets/screenshots/sidebar.webp)
+
+- **Conversations:** the Claude Code and Codex conversations of herdr's workspaces, under them in the Spaces list's
+  order and typography, a running one's mark in its state's color and the closed ones faint. Typing filters; Enter or
+  a click goes to a running one, or reopens a closed one in a new tab of its workspace with the right column beside
+  it; a right click offers Open, Copy conversation (the whole of it, formatted on a Mac), Rename (the name AI
+  Sessions, a running one's pane and the tab it has to itself show too) and, for a closed one, Archive (off the list,
+  its file as it was), several at once when marked (Space, Shift + ↑ ↓, or the box at a closed row's start); a right
+  click beside them, while any is archived, Show archived (the archived ones back in sight, a shade fainter; Unarchive
+  puts one back). The action **Conversations: fold or open** (`actions.py toggle-conversations`) folds its group to
+  its head and opens it again; **Conversations: find** (`actions.py find-conversation`) opens it, empties the filter
+  and gives it the keys, in the tab's sidebar (one closed by hand comes back) or the workspace's first.
+
+  ![The Conversations column open beside Claude: each workspace's conversations, a running one's mark in its state's
+  color, the closed ones faint](../../../assets/screenshots/conversations.webp)
 
 - **Files:** the folder as a tree, with git's letter on each changed file and a dot on each folder holding changes; a
   new file or folder, renaming, moving to the Trash, copying a path. A click opens the file in a preview tab: an image
@@ -55,33 +69,13 @@ Claude wrote, the issue it fixes and the Graph, Issues by priority](../../../ass
   a reply, closing, reopening, assigning to you (the right click's menu).
 
 The preview opens in a tab of its own, one per workspace, laid out as the tab it was opened from: the preview where the
-agent is, and the Conversations column, the sidebar and the terminal beside it as they are there, its sidebar where the
-one that opened it was. The next file, diff, commit or issue opened shows there too; `q`, Esc or Ctrl + C closes the
-whole tab, its terminal too. A pipe or a device is never shown, and a program that does not finish in 30 s (`gh` asking
-GitHub) is stopped with what it showed. `bat` colors a file and `delta` lays out a diff when they are installed (else
-the file plain, the diff in git's colors); the built-in pager shows either. A changed picture shows as VS Code's image
-diff does: before and after side by side, each under its name and size (Index and Working Tree, staged HEAD and Index),
-one above the other in a pane taller than wide, the status row's turn, `v` or the right click turning them; a new one's
-after alone.
-
-- **Conversations** (a full-height pane named `conversations`, `python3 sidebar.py --conversations`, right before the
-  column the sidebar is in, sharing a split with it): the Claude Code and Codex conversations of herdr's workspaces,
-  under them in the Spaces list's order and typography, a running one's mark in its state's color and the closed ones
-  faint. Typing filters; Enter or a click goes to a running one, or reopens a closed one in a new tab of its workspace
-  with the columns beside it; a right click offers Open, Copy conversation (the whole of it, formatted on a Mac), Rename
-  (the name AI Sessions, a running one's pane and the tab it has to itself show too) and, for a closed one,
-  Archive (off the list, its file as it was), several at once when marked (Space, Shift + ↑ ↓, or the box at a closed
-  row's start); a right click elsewhere in the column offers the pane's own menu: Show archived (the archived ones back
-  in sight, a shade fainter; Unarchive puts one back), then each of the tab's other panes closed or shown back, and
-  Restore panels. Its button (two speech bubbles; « and » without icons) collapses it to a rail in every tab (the agent
-  takes the room) and opens it again; so does its action **Conversations: collapse or open**
-  (`conversations_pane.py --toggle`), which also brings it back to a tab where it was closed. Its action
-  **Conversations: find** (`conversations_pane.py --find`) opens the tab's column the same way, empties the filter and
-  gives it the keys. A tab whose right column does not have it yet gets it beside that: the sidebar starts again above
-  the terminal, which keeps running.
-
-  ![The Conversations column open beside Claude: each workspace's conversations, a running one's mark in its state's
-  color, the closed ones faint](../../../assets/screenshots/conversations.webp)
+agent is, and the sidebar and the terminal beside it as they are there, its sidebar where the one that opened it was.
+The next file, diff, commit or issue opened shows there too; `q`, Esc or Ctrl + C closes the whole tab, its terminal
+too. A pipe or a device is never shown, and a program that does not finish in 30 s (`gh` asking GitHub) is stopped with
+what it showed. `bat` colors a file and `delta` lays out a diff when they are installed (else the file plain, the diff
+in git's colors); the built-in pager shows either. A changed picture shows as VS Code's image diff does: before and
+after side by side, each under its name and size (Index and Working Tree, staged HEAD and Index), one above the other in
+a pane taller than wide, the status row's turn, `v` or the right click turning them; a new one's after alone.
 
 ## Keys
 
@@ -127,12 +121,10 @@ Alt + Enter commits from the message there too.
   rename`, `herdr tab focus`, `herdr pane process-info` to tell whether its pager still runs, `herdr tab close` on `q`
   and for a preview tab whose pager no longer runs), and to hand an issue to the tab's agent (`herdr pane send-text`:
   typed in, not sent; `herdr agent focus`).
-- herdr's socket, for the columns' widths: when the right column or the Conversations column is dragged wider or
-  narrower, the Conversations pane (in a tab without it, the sidebar) reads that tab's layout once it stays put, keeps
-  each tab's right column at least as wide as its sidebar's header (33 cells with three views, 39 with Issues),
-  remembers the widths to the cell (`column.json`, `conversations.json` in its state folder), and sets every other tab's
-  to them; the agent's border moves only the Conversations column, which collapses dragged narrower than half its
-  opening width; collapsed, it narrows itself to a rail, and either border resizes the right column.
+- herdr's socket, for the right column's width: when it is dragged wider or narrower, the sidebar reads that tab's
+  layout once it stays put, keeps each tab's right column at least as wide as its sidebar's widest head (23 cells
+  inside herdr's frame without Issues, 29 with them), remembers the width to the cell (`column.json` in its state
+  folder), and sets every other tab's to it.
 - For a repository with a remote on github.com: `gh`, the GitHub CLI, as you are signed in to it on that machine, for
   the issues (once a minute while the view is shown or lists any, for all the sidebars of a repository; `R` at once)
   and what you do with them there; a new issue and a comment are gh's own prompts, in a tab of their own. No token is
@@ -144,16 +136,15 @@ Alt + Enter commits from the message there too.
   files. The AI runs with no tools, memories or plugins, and Claude with none of your instructions (Codex still reads
   its own `~/.codex/AGENTS.md`), so a diff cannot make it read or send anything else. The AI tool sends what it gets to
   its own service; the sidebar itself sends nothing anywhere but the look for a newer herdr-fold (below).
-- The Conversations column reads Claude's and Codex's conversation files (`~/.claude/projects/`, `~/.codex/sessions/`,
+- Conversations reads Claude's and Codex's conversation files (`~/.claude/projects/`, `~/.codex/sessions/`,
   `~/.codex/session_index.jsonl`) and AI Sessions' names (`names.json` of `herdr-fold.sessions-view`), never
   writing the conversation files (Rename writes the name you give into that `names.json`, under AI Sessions' own
   lock); each file is read through once, then only where it grew, kept in `conversation-index.json` in its state folder.
-  Whether the column is collapsed, its width, the archived conversations, whether they are shown, the conversation a
-  pane reopens (until herdr knows its session), and whether the one-time note on a pane closed by hand was shown are in
-  `conversations.json` there. What each tab has had is in `panels.json` there: a pane closed by hand stays closed until
-  it is brought back: its key, Restore panels (`conversations_pane.py --restore`, Cmd+Shift+O in herdr-fold), or the
-  sidebar's ⋯ menu (a right click on its header too) and a right click in the Conversations column outside
-  a conversation (each other pane closed or shown back one by one, Restore panels). Copy conversation puts one on the
+  The archived conversations, whether they are shown, the conversation a pane reopens (until herdr knows its
+  session), and whether the one-time note on a pane closed by hand was shown are in `conversations.json` there. What
+  each tab has had is in `panels.json` there: a pane closed by hand stays closed until it is brought back: its key,
+  Restore panels (`panes.py --restore`, Cmd+Shift+O in herdr-fold), or the sidebar's ⋯ menu (a right click on a
+  group's head too: the terminal closed or shown back, Restore panels). Copy conversation puts one on the
   clipboard (`pbcopy` and, on a Mac, `osascript` for the formatted version). herdr's command line lists the running
   agents, goes to one (`herdr agent focus`), and reopens a closed conversation (`herdr tab create`, `herdr pane split`,
   `herdr agent start` with `--resume`), and names a running one's pane and its own tab on Rename (`herdr pane rename`,
@@ -192,13 +183,13 @@ herdr plugin install princesshu/herdr-fold/src/plugins/sidebar
 herdr plugin action invoke restore-panels --plugin herdr-fold.sidebar
 ```
 
-The second command (`restore-panels-windows` on Windows) lays out the tab you are in: the sidebar above a terminal, on
-the folder of the tab's panes, and the Conversations column beside the agent. To give it a key, a `[[keys.command]]`
-in herdr's config with `type = "plugin_action"` and `command = "herdr-fold.sidebar.restore-panels"`. From a copy of
-the folder, link it instead (`herdr plugin link /path/to/sidebar`), or start it by hand in a herdr pane named
-`sidebar` (`python3 /path/to/sidebar/sidebar.py ~/my-project`).
+The second command (`restore-panels-windows` on Windows) lays out the tab you are in: the sidebar above a terminal,
+beside the agent, on the folder of the tab's panes. To give it a key, a `[[keys.command]]` in herdr's config with
+`type = "plugin_action"` and `command = "herdr-fold.sidebar.restore-panels"`. From a copy of the folder, link it
+instead (`herdr plugin link /path/to/sidebar`), or start it by hand in a herdr pane named `sidebar` (`python3
+/path/to/sidebar/sidebar.py ~/my-project`).
 
-Its actions: the four that switch its view, Conversations: collapse or open, and find, and Restore panels; and the
+Its actions: the four that switch its view, Conversations: fold or open, and find, and Restore panels; and the
 one-time tip when a pane is closed by hand.
 
 ## Requirements

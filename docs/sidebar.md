@@ -22,8 +22,8 @@ page chosen](../assets/screenshots/split.webp)
 ## How it gets there
 
 - The installer copies it to `~/.config/herdr-fold/plugins/sidebar` and links it (`herdr plugin link`) for its actions
-  (the views, the Conversations column) and the one-time tip when a pane is closed by hand, and records the link in
-  `~/.local/state/herdr-fold/plugins.txt`.
+  (the panels, Conversations' fold and find, Restore panels) and the one-time tip when a pane is closed by hand, and
+  records the link in `~/.local/state/herdr-fold/plugins.txt`.
 - `machines.sh` copies it to each remote machine, where the same launcher starts it.
 - On its own, without the rest of herdr-fold: `herdr plugin install princesshu/herdr-fold/src/plugins/sidebar`, then
   `herdr plugin action invoke restore-panels --plugin herdr-fold.sidebar` (`restore-panels-windows` on Windows) lays

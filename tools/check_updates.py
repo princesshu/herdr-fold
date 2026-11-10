@@ -11,7 +11,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # What the package was last tried with: raise each once the package is checked with the newer one
 HERDR = "0.9.5"               # the installer, the plugins and AI Sessions against this herdr
-CLAUDE_MAJOR = 2              # Claude Code: the status line and the Conversations column
+CLAUDE_MAJOR = 2              # Claude Code: the status line and Conversations
 CODEX_MAJOR = 0               # Codex: the same
 
 SOURCES = {"starship": "https://api.github.com/repos/starship/starship/releases/latest",
@@ -58,7 +58,7 @@ def lines(fetch):
     for label, major, now, setting in (("Claude Code", CLAUDE_MAJOR, claude, "CLAUDE_MAJOR"),
                                        ("Codex", CODEX_MAJOR, codex, "CODEX_MAJOR")):
         if version(now)[0] > major:
-            yield (f"{label:<12}{now} out, a new major version: check the status line and the Conversations column "
+            yield (f"{label:<12}{now} out, a new major version: check the status line and Conversations "
                    f"with it, then raise {setting} in tools/check_updates.py"), True
         else:
             yield f"{label:<12}{major}.x: up to date", False

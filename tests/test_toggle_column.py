@@ -27,7 +27,7 @@ class Toggle(unittest.TestCase):
                 return {"panes": self.panes}
             return {}
         set_attrs(self, toggle_column, herdr=herdr, agent_pane_ids=lambda panes: {"w1:p1"})
-        set_attrs(self, toggle_column.conversations_pane,
+        set_attrs(self, toggle_column.panes,
                   bring=lambda call, tab, kinds, *rest: self.brought.append((tab, set(kinds))))
 
     def test_the_column_hidden_by_zooming_the_agent_and_shown_again(self):

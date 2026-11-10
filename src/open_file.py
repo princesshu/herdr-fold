@@ -10,7 +10,7 @@ import time
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from herdrlib import HERDR, PLUGIN_STATE  # noqa: E402
-import conversations_pane  # noqa: E402  the sidebar's, on the path herdrlib gives
+import panes  # noqa: E402  the sidebar's, on the path herdrlib gives
 import panels  # noqa: E402
 import preview  # noqa: E402
 import statefile  # noqa: E402
@@ -196,7 +196,7 @@ def open_found(h, found, root, pane, state_dir=PLUGIN_STATE):
 
     def lay_out(tab):
         statefile.write(preview.seed_file(state_dir, tab), seed)
-        conversations_pane.bring(h.call, tab, kinds, state_dir)
+        panes.bring(h.call, tab, kinds, state_dir)
 
     preview.open_preview(h, info["workspace_id"], place, preview.file_spec(place, found.path, found.line), state_dir,
                          lay_out, info["tab_id"])

@@ -2,9 +2,10 @@
 its short name on the rail and its glyph (core/icons.py's), defined once for both clients; tools/build.py copies it."""
 
 PANELS = {
+    "conversations": {"title": "Conversations", "short": "Chats", "glyph": "ai"},
     "files": {"title": "Files", "short": "Files", "glyph": "files"},
     "search": {"title": "Search", "short": "Search", "glyph": "search"},
     "changes": {"title": "Changes", "short": "Changes", "glyph": "git"},
     "issues": {"title": "Issues", "short": "Issues", "glyph": "issues"},
 }
-GROUPS = (("project", ("files", "search")), ("work", ("changes", "issues")))
+GROUPS = (("conversations", ("conversations",)), ("project", ("files", "search")), ("work", ("changes", "issues")))

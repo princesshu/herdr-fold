@@ -33,6 +33,7 @@ class Watcher:
         self.seen, self.git_seen = {}, None
         self.active_at = clock()
         self.last_status = None
+        self.unanswered = None                    # when a change no git status started since was first seen
 
     def git_stamp(self):
         if not self.git_dir:
@@ -66,13 +67,19 @@ class Watcher:
         return PACES[0] if idle <= ACTIVE else PACES[1] if idle <= QUIET else PACES[2]
 
     def status_due(self, changed, scm_shown):
+        """Whether a git status is due: after a change (kept until one answers it) as soon as the repository's speed
+        allows, else on the slow beat."""
+        if changed and self.unanswered is None:
+            self.unanswered = self.clock()
         if self.last_status is None:
             return True
         started, finished = self.last_status
         took, since = finished - started, self.clock() - finished
-        if changed:
+        if self.unanswered is not None:
             return since >= max(CHANGE_GAP, CHANGE_FACTOR * took)
         return since >= max(BEAT_SHOWN if scm_shown else BEAT_HIDDEN, BEAT_FACTOR * took)
 
     def status_done(self, started, finished):
         self.last_status = (started, finished)
+        if self.unanswered is not None and started >= self.unanswered:
+            self.unanswered = None

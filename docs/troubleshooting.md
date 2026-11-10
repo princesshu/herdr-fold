@@ -13,7 +13,7 @@
 | A machine will not connect | the installer says why: no such name (check it, and that Tailscale is on), no SSH server on it (it says how to turn one on), no answer (off, asleep or on another network), a key it does not take, or a host key that changed. For "key-based login failed", try `ssh dev@alpha.example` by hand; for a key with a passphrase, run `ssh-add --apple-use-keychain` first |
 | **Attention** next to a machine in herdr | run the command herdr shows (for example `herdr --remote dev@alpha.example`) in Terminal, then reopen Ghostty |
 | The sidebar and the terminal are gone | Cmd + Shift + E: hidden, it shows them; closed, it brings them back. An empty shell where the sidebar should be: `python3 ~/.config/herdr-fold/restore_panes.py` |
-| Only the terminal is in the right column | Cmd + Shift + E puts the sidebar back above it (so does Show sidebar in the Conversations column's menu); the terminal keeps what runs in it |
+| Only the terminal is in the right column | Cmd + Shift + E puts the sidebar back above it (so does Cmd + Shift + O, Restore panels); the terminal keeps what runs in it |
 | Claude's status line is empty | Claude has not been told to trust the folder yet: in the pane, `/exit`, then `claude --continue`, and answer yes |
 | An update put herdr-fold's status line back over your own | turn it off for good: `python3 ~/.config/herdr-fold/statusline_setup.py`, Space on Claude Code or Codex (your earlier one comes back) |
 | Claude does not start in the agent pane | start it by hand: `claude` (in a new folder, the trust question comes first) |

@@ -113,29 +113,28 @@ description = "open a file the pane's output names, at its line (Cmd+Shift+L)"
 width = "70%"
 height = "60%"
 
-# The Conversations column right before the right column, in every tab: collapse it to a rail everywhere at once, or
-# open it, the choice kept (Ghostty: Cmd+Shift+H → Ctrl+B, Shift+H)
+# The sidebar's Conversations: its group folded to its head, or open (Ghostty: Cmd+Shift+H → Ctrl+B, Shift+H)
 [[keys.command]]
 key = "prefix+shift+h"
-type = "shell"
-command = "/usr/bin/python3 ~/.config/herdr-fold/plugins/sidebar/conversations_pane.py --toggle"
-description = "Conversations column: collapse or open it everywhere (Cmd+Shift+H)"
+type = "plugin_action"
+command = "herdr-fold.sidebar.toggle-conversations"
+description = "sidebar: Conversations folded or open (Cmd+Shift+H)"
 
-# Restore panels: every pane closed by hand in this tab back — the sidebar, the terminal, the Conversations column — and
-# the right column shown (Ghostty: Cmd+Shift+O → Ctrl+B, Shift+O)
+# Restore panels: every pane closed by hand in this tab back — the sidebar, the terminal — and the right column shown
+# (Ghostty: Cmd+Shift+O → Ctrl+B, Shift+O)
 [[keys.command]]
 key = "prefix+shift+o"
-type = "shell"
-command = "/usr/bin/python3 ~/.config/herdr-fold/plugins/sidebar/conversations_pane.py --restore"
-description = "restore panels: sidebar, terminal and Conversations closed in this tab back (Cmd+Shift+O)"
+type = "plugin_action"
+command = "herdr-fold.sidebar.restore-panels"
+description = "restore panels: sidebar and terminal closed in this tab back (Cmd+Shift+O)"
 
-# Find a conversation: the Conversations column of this tab open, its filter empty and the keys going to it; Enter
-# goes to a running one or reopens a closed one in a new tab (Ghostty: Cmd+Shift+R → Ctrl+B, m)
+# Find a conversation: this tab's sidebar shows Conversations, its filter empty and the keys going to it; Enter goes
+# to a running one or reopens a closed one in a new tab (Ghostty: Cmd+Shift+R → Ctrl+B, m)
 [[keys.command]]
 key = "prefix+m"
-type = "shell"
-command = "/usr/bin/python3 ~/.config/herdr-fold/plugins/sidebar/conversations_pane.py --find"
-description = "find a conversation in the Conversations column (Cmd+Shift+R)"
+type = "plugin_action"
+command = "herdr-fold.sidebar.find-conversation"
+description = "find a conversation in the sidebar (Cmd+Shift+R)"
 
 # Mark the focused agent unread: its workspace says it waits on you again, until you come back to it after leaving it
 # (Ghostty: Cmd+Shift+U → Ctrl+B, Shift+U); again on a marked one takes the mark off

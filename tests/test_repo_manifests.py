@@ -133,15 +133,15 @@ def actions(plugin):
 
 
 class SidebarAlone(unittest.TestCase):
-    """The sidebar installed on its own (herdr's marketplace): one action lays the tab out, the sidebar and its
-    terminal and the Conversations column, as Restore panels does in herdr-fold."""
+    """The sidebar installed on its own (herdr's marketplace): one action lays the tab out, the sidebar above its
+    terminal, as Restore panels does in herdr-fold."""
 
     def test_restore_panels_is_an_action_on_every_system(self):
         found = actions("sidebar")
         self.assertEqual(found.get("restore-panels"),
-                         (["/usr/bin/python3", "conversations_pane.py", "--restore"], ["macos", "linux"]))
+                         (["/usr/bin/python3", "panes.py", "--restore"], ["macos", "linux"]))
         self.assertEqual(found.get("restore-panels-windows"),
-                         (["python", "conversations_pane.py", "--restore"], ["windows"]))
+                         (["python", "panes.py", "--restore"], ["windows"]))
 
 
 class Commands(unittest.TestCase):

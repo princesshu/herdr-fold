@@ -114,7 +114,7 @@ the default: the capital letter in `[Y/n]` (yes) or `[y/N]` (no). Each line it p
 | 5 Status line | `What should the status line show next to the model?`: one checkbox list, a group for Claude Code and one for Codex, its title off for your own status line | always (↑ ↓ move, Space toggles, one Enter for both) | everything on |
 | 5 Status line | `Trust them, so the status line shows there too? (Claude then also runs their own .claude settings and hooks)` | some of your Claude panes are in git repositories Claude does not trust yet (never a folder outside one, your home folder or a folder above it) | no |
 | 6 Plugins | `Show your conversations in herdr's Agents list?` | herdr was set up before | yes, or your last answer |
-| 6 Plugins | `Give every new tab the Conversations column, the sidebar and a terminal?` | herdr was set up before | yes, or your last answer |
+| 6 Plugins | `Give every new tab the sidebar and a terminal?` | herdr was set up before | yes, or your last answer |
 | 6 Plugins | `Set up herdr-fold in the Herdr app too?` | an update of the TUI alone, the Herdr app on this Mac and never asked about | yes: its mod, layout and keys in the app, and the remote machines there too ([The Herdr app](app.md)) |
 | 7 GitHub | `Sign in to GitHub now?` | the Mac is not signed in to GitHub | yes |
 | 7 GitHub | `Let git push through your GitHub sign-in?` | signed in, but git does not use it yet | yes |

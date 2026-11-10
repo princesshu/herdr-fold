@@ -1,6 +1,6 @@
-"""What the sidebar and the Conversations column share: the loop (draw only after a change, wait for the keys, a job's
-answer or the next poll, act on them), background jobs whose answers wake it, a new theme taken at once, and a new
-version of the plugin's own files (an update) handed over to in the same pane, where this one was."""
+"""The sidebar's loop: draw only after a change, wait for the keys, a job's answer or the next poll, act on them;
+background jobs whose answers wake it, a new theme taken at once, and a new version of the plugin's own files (an
+update) handed over to in the same pane, where this one was."""
 import json
 import os
 import queue

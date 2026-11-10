@@ -1,6 +1,6 @@
-"""The sidebar: Files, Search, Changes and, for a repository on GitHub, Issues in one pane. One process: the screen and
-keys on the main thread, slow commands on background threads that wake the loop, so the view never waits.
-Usage: python3 sidebar.py [FOLDER] (in the home folder: ~/Documents), or --conversations for the Conversations column"""
+"""The sidebar: Conversations, Files, Search, Changes and, for a repository on GitHub, Issues in one pane, as groups of
+tabs. One process: the screen and keys on the main thread, slow commands on background threads that wake the loop, so
+the view never waits. Usage: python3 sidebar.py [FOLDER] (in the home folder: ~/Documents)"""
 import base64
 import json
 import os
@@ -13,7 +13,7 @@ sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import column  # noqa: E402
 import commit_message  # noqa: E402
-import conversations_pane  # noqa: E402
+import panes  # noqa: E402
 import git  # noqa: E402
 import github  # noqa: E402
 import issue_work  # noqa: E402
@@ -24,6 +24,7 @@ import search  # noqa: E402
 import stack  # noqa: E402
 import statefile  # noqa: E402
 import update  # noqa: E402
+from conversations_panel import Conversations  # noqa: E402
 from explorer import Explorer  # noqa: E402
 from fileops import Ops  # noqa: E402
 from find import Find  # noqa: E402
@@ -40,6 +41,7 @@ import watch  # noqa: E402
 
 VIEW_KEYS = {"1": "files", "2": "search", "3": "changes", "4": "issues", "f9": "files", "f10": "search",
              "f11": "changes", "f12": "issues"}
+FIND, FOLD = "f7", "f6"       # the keys herdr's actions send (actions.py): find a conversation, fold its group
 GROUP_OF = {panel: group for group, panels in GROUPS for panel in panels}
 # linked: the issue each repository's next commit fixes, {repository: [number, title]}
 DEFAULTS = {"hidden": False, "icons": True, "commit_mode": "commit", "linked": {}, "folded": []}
@@ -137,13 +139,15 @@ class App(Loop):
         self.views = {"files": Explorer(self.tree, icons, self.repo), "search": Find(self.root, icons, clock),
                       "changes": Scm(self.settings["commit_mode"], icons, self.settings["folded"]),
                       "issues": Issues(icons)}
+        self.work = {"conversations": Conversations(self)}  # a panel's own work, where the sidebar does not do it
+        self.views["conversations"] = self.work["conversations"].view
         workspace = os.environ.get("HERDR_WORKSPACE_ID")
         self.views["files"].preview = preview.spec_file(state_dir, workspace) if workspace else None
         self.github = git.github_name(self.repo) if self.repo else None     # OWNER/NAME on GitHub, or None
         self.issues_asked = {}                            # when each query's issues were last asked for
         self.views["changes"].linked = self.linked()
         self.dock = stack.state(state_dir, self.root)    # each group's panel shown, the folded ones, their shares
-        self.focus = GROUPS[0][0]                         # the group whose panel has the keys
+        self.focus = GROUP_OF["files"]                    # the group with the keys: Files' at first
         self.slices = {}                                  # each group's rows, as last drawn: {group: (top, rows)}
         self.dragging = None                              # a head held: (its group, the row it went down on, weights)
         self.ops = Ops(self.root)
@@ -271,6 +275,7 @@ class App(Loop):
             if self.github and (self.showing("issues") or listing and listing.issues):
                 self.fresh_issues(STALE)
             self.next_poll = now + self.watcher.interval()
+        shown = self.work["conversations"].tick(now) or shown    # after the handover's turn: never during a look
         if "suggest" in self.running and now >= self.spun + SPIN:
             self.spun, shown = now, True
         search = self.views["search"].tick(now)
@@ -282,7 +287,8 @@ class App(Loop):
         again by the new version), or a name being typed or a question on screen. A menu does not hold it: the new
         version comes back without it, as a click elsewhere closes it."""
         files, scm, issues = self.views["files"], self.views["changes"], self.views["issues"]
-        return bool(self.running - {"update"}) or any((files.naming, files.confirm, scm.confirm, issues.confirm))
+        held = (files.naming, files.confirm, scm.confirm, issues.confirm, self.views["conversations"].naming)
+        return bool(self.running - {"update"}) or any(held)
 
     def left(self):
         find, files = self.views["search"], self.views["files"]
@@ -292,7 +298,7 @@ class App(Loop):
                 "message": self.views["changes"].field.text, "changes": self.views["changes"].kept(),
                 "query": find.field.text,
                 "switches": find.switches,
-                "issues": self.views["issues"].kept()}
+                "issues": self.views["issues"].kept(), "conversations": self.work["conversations"].left()}
 
     def moved_path(self, path):
         """PATH in its folder's new place, once the folder moved."""
@@ -332,6 +338,7 @@ class App(Loop):
         if left.get("show") in self.tabs():
             self.show(left["show"])
         self.views["issues"].take(left.get("issues"))
+        self.work["conversations"].take(left.get("conversations") or {})
         self.tree.expanded.update(p for p in left.get("expanded") or () if isinstance(p, str) and os.path.isdir(p))
         if isinstance(left.get("selected"), str):
             files = self.views["files"]
@@ -354,7 +361,8 @@ class App(Loop):
     def deadlines(self):
         tip = self.tip[4] if self.tip and self.tip[4] > self.clock() else self.next_poll
         spin = self.spun + SPIN if "suggest" in self.running else self.next_poll
-        return [self.next_poll, self.views["search"].deadline() or self.next_poll, tip, spin]
+        return [self.next_poll, self.views["search"].deadline() or self.next_poll, tip, spin,
+                self.work["conversations"].next_read]
 
     def point(self, target, x, y):
         """The mouse on TARGET at X, Y: a control shown by an icon says what it does once the mouse rests on it, a
@@ -426,10 +434,17 @@ class App(Loop):
             if name in VIEW_KEYS and (name.startswith("f") or not view.editing):
                 self.show(VIEW_KEYS[name])
                 return
+            if name == FIND:
+                self.show("conversations")
+                self.work["conversations"].find()
+                return
+            if name == FOLD:
+                self.fold("conversations")
+                return
             if name == "q" and not view.editing:
                 self.quit = True
                 return
-            self.act(view.handle(event))
+            self.act(view.handle(event), self.shown(self.focus))
             return
         target = self.canvas.hit(event.x, event.y) if self.canvas else None
         if event.kind == "move":
@@ -467,7 +482,12 @@ class App(Loop):
         if panel:
             if event.kind == "press":
                 self.focus = GROUP_OF[panel]
-            self.act(self.views[panel].handle(event))
+            self.act(self.views[panel].handle(event), panel)
+
+    def act(self, action, panel=None):
+        """ACTION done by its PANEL's own work where it has one (the Conversations list's), else by the sidebar."""
+        if action is not None:
+            getattr(self.work.get(panel, self), "do_" + action.name)(*action.args)
 
     def panel_at(self, y):
         """The panel drawn at row Y; None on a head or under the groups."""
@@ -503,7 +523,7 @@ class App(Loop):
         here = column.read(pane)
         if here and here.cells:
             least = cells + column.frame(here, pane, self.term.size()[0])
-            if column.cells(here)[2] < least:
+            if column.cells(here)[1] < least:
                 column.arrange(here, right=least / here.cells)
 
     # --- the pane's own menu: each of the tab's other panes closed or shown back
@@ -519,7 +539,7 @@ class App(Loop):
         tab = next((p["tab_id"] for p in panes if p.get("pane_id") == pane), None)
         present = {p.get("label") for p in panes if p.get("tab_id") == tab} & set(panels.KINDS)
         if tab:
-            menu = Menu(panels.menu(present, "sidebar") + self.about())
+            menu = Menu(panels.menu(present) + self.about())
             self.menu = (menu, y, x if right is None else right - menu.width(), tab, present)
 
     def about(self):
@@ -561,7 +581,7 @@ class App(Loop):
         if what == "close":
             self.job("panels", lambda: panels.close(self.herdr.call, tab, kinds))
         elif what == "show":
-            conversations_pane.bring_apart(tab, kinds)              # it may close this pane on the way
+            self.job("panels", lambda: panes.bring(self.herdr.call, tab, kinds, self.state_dir))
         return None
 
     def show(self, panel):
@@ -633,9 +653,7 @@ class App(Loop):
             def lay_out(tab):
                 kinds = panels.present(self.herdr.call("pane", "list").get("panes") or []).get(here)
                 statefile.write(preview.seed_file(self.state_dir, tab), seed)
-                if conversations_pane.NAME in (kinds or panels.KINDS):    # it starts there too: the tab waits for it
-                    statefile.write(preview.seed_file(self.state_dir, tab, conversations_pane.NAME), {})
-                conversations_pane.bring(self.herdr.call, tab, kinds or set(panels.KINDS), self.state_dir)
+                panes.bring(self.herdr.call, tab, kinds or set(panels.KINDS), self.state_dir)
                 made = next((p.get("pane_id") for p in self.herdr.call("pane", "list").get("panes") or []
                              if p.get("tab_id") == tab and p.get("label") == column.SIDEBAR), None)
                 if made:                                    # this tab's widths, before anything there draws
@@ -1008,14 +1026,10 @@ def main(argv):
         from keys_windows import WindowsTerminal as Terminal
     else:
         from keys_unix import UnixTerminal as Terminal
-    if argv[1:2] == ["--conversations"]:
-        from conversations_app import ConversationsApp
-        app = ConversationsApp(Terminal(), preview.Herdr(), state)
-    else:
-        folder = os.path.abspath(argv[1]) if len(argv) > 1 else os.getcwd()
-        if folder == home and os.path.isdir(os.path.join(home, "Documents")):
-            folder = os.path.join(home, "Documents")   # under home every repository would show at once
-        app = App(folder, Terminal(), preview.Herdr(), state)
+    folder = os.path.abspath(argv[1]) if len(argv) > 1 else os.getcwd()
+    if folder == home and os.path.isdir(os.path.join(home, "Documents")):
+        folder = os.path.join(home, "Documents")   # under home every repository would show at once
+    app = App(folder, Terminal(), preview.Herdr(), state)
     if app.run():
         restart([argv[0], app.moved] if getattr(app, "moved", None) else argv)
 

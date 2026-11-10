@@ -156,7 +156,7 @@ def has_session(agent):
 
 def sync_names(agents):
     """Names each session's pane after its title (which follows /rename too) until the user renames the pane. names.json
-    records each name and whose it is, so a manual name is kept and the Conversations column reuses it; a damaged
+    records each name and whose it is, so a manual name is kept and herdr-fold's Conversations reuses it; a damaged
     file is set aside, and only this run's changes are written."""
     names = load_names()
     if names is None:
@@ -188,7 +188,7 @@ def sync_names(agents):
             changes[key] = {"name": title, "given": True} if title else None
             name, chosen = title, False
         else:
-            # renamed in herdr since the last run (the Conversations column's Rename names the tab itself)
+            # renamed in herdr since the last run (herdr-fold's Conversations names the tab itself on Rename)
             name, chosen = label, names.get(key) != {"name": label, "given": False}
             changes[key] = {"name": label, "given": False}
         tab = tabs.get(agent.get("tab_id"))

@@ -34,7 +34,7 @@ plugins of its own.
 | `src/herdr_layout.py` | builds the workspace for a repo, on this Mac or on a remote machine |
 | `src/new_workspace.py` | the folder picker of a new workspace |
 | `src/open_file.py` | opens a file the focused pane's output names, at its line, in the sidebar's preview tab (Cmd + Shift + L) |
-| `src/restore_panes.py` | after a restart, starts the Conversations columns, the sidebars and the still-empty agent panes again |
+| `src/restore_panes.py` | after a restart, starts the sidebars and the still-empty agent panes again; closes an older install's Conversations columns |
 | `src/toggle_column.py` | hides and shows the right column (Cmd + Shift + E) |
 | `src/close_tab.py` | closes a tab (Cmd + W); asks first for a tab with a conversation |
 | `src/commit_push.py` | commit and push with an AI-written message (Cmd + Shift + C) |
@@ -58,7 +58,7 @@ plugins of its own.
 |---|---|
 | `src/plugins/sessions-view/` | AI Sessions: only sessions with a conversation, under their names, and how long an agent waits on you in the Spaces list, one you marked unread too ([its README](../src/plugins/sessions-view/README.md)) |
 | `src/plugins/tab-layout/` | a new workspace asks for a folder, a new tab gets the columns, a workspace takes its renamed folder's name; runs `restore_panes.py` when herdr starts ([its README](../src/plugins/tab-layout/README.md)) |
-| `src/plugins/sidebar/` | the sidebar plugin: Files, Search, Changes and Issues, the preview pager, the commit message writer `commit_push.py` uses too; the Conversations column (the conversation files read by `core/conversations.py`, the formatted copy too; `conversation_list.py`, `conversations_app.py`; `conversations_pane.py` its place in every tab, and Cmd+Shift+R); `panels.py` what each tab has had, so a pane closed by hand stays closed, and bringing one back; `richtext.py` puts Markdown on the clipboard formatted, for Copy conversation and the formatted copy; `stack.py` the panels' groups in the pane's rows (a fold, a drag, what each folder keeps); the loop both share (`loop.py`) ([its README](../src/plugins/sidebar/README.md); [The sidebar](sidebar.md)) |
+| `src/plugins/sidebar/` | the sidebar plugin: Conversations, Files, Search, Changes and Issues, the preview pager, the commit message writer `commit_push.py` uses too; Conversations (the conversation files read by `core/conversations.py`, the formatted copy too; `conversation_list.py` the list, `conversations_panel.py` its work); `panes.py` the right column in a new tab, a pane brought back, Restore panels; `panels.py` what each tab has had, so a pane closed by hand stays closed, and bringing one back; `richtext.py` puts Markdown on the clipboard formatted, for Copy conversation and the formatted copy; `stack.py` the panels' groups in the pane's rows (a fold, a drag, what each folder keeps); the loop (`loop.py`) ([its README](../src/plugins/sidebar/README.md); [The sidebar](sidebar.md)) |
 
 ### Shared core
 

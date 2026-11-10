@@ -1,5 +1,5 @@
-"""Tests for conversation_list.py: the Conversations column's list (the Spaces list's workspaces and their
-conversations), the filter, the collapsed rail, opening by key or click, the right-click menu, and archiving."""
+"""Tests for conversation_list.py: the Conversations panel's list (the Spaces list's workspaces and their
+conversations), the filter, opening by key or click, the right-click menu, and archiving."""
 import os
 import re
 import sys
@@ -8,8 +8,7 @@ import unittest
 from support import SRC, set_attrs, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
-import sidebar  # noqa: E402
-from conversation_list import RAIL, ConversationList  # noqa: E402
+from conversation_list import ConversationList  # noqa: E402
 import widgets  # noqa: E402
 from icons import glyphs  # noqa: E402
 from conversations import Conversation  # noqa: E402
@@ -27,7 +26,7 @@ STRAY = Conversation("claude", "s4", "Somewhere else", "/tmp/other", NOW)
 DRAFT = Conversation("claude", "s5", "Draft the README", "/repo/shop", NOW - 9000)
 PLACES = {"/repo/shop": "shop", "/repo/api": "api", "/notes": "notes"}
 SPACES = ["notes", "shop", "api", "empty"]                   # as the Spaces list has them
-HEADER = 3                                                   # the filter and the button, tall as the sidebar's buttons
+HEADER = 3                                                   # the filter, tall as the dock's other fields
 
 
 class List(unittest.TestCase):
@@ -60,12 +59,14 @@ class List(unittest.TestCase):
     def click(self, x, y, button=0):
         return self.view.handle(Mouse("press", x, y, button))
 
-    def test_the_filter_and_collapse_where_the_sidebars_buttons_are_then_the_spaces(self):
+    def test_the_filter_then_the_spaces(self):
         rows = self.draw()
-        self.assertIn("Filter", rows[1])                                     # the field's row, as the buttons'
-        self.assertTrue(rows[1].endswith("\ueac7"), rows[1])                 # Codicons' speech bubbles
-        self.assertEqual(rows[HEADER].split()[1], "notes", rows)           # the list where the sidebar's views start
-        self.assertNotIn("Conversations", "\n".join(rows))                  # herdr names the pane on its border
+        self.assertIn("Filter", rows[1])                                     # the field's row, as the dock's fields
+        self.assertEqual(rows[HEADER].split()[1], "notes", rows)
+        self.assertNotIn("Conversations", "\n".join(rows))                  # its group's head names it
+        low = self.draw(roomy=False)                                         # a low pane: the field a chip
+        self.assertIn("Filter", low[0])
+        self.assertEqual(low[2].split()[1], "notes", low)
 
     def test_the_spaces_in_their_order_the_current_one_open(self):
         shown = [line for line in self.draw()[HEADER:] if line.strip()]
@@ -217,16 +218,14 @@ class List(unittest.TestCase):
         self.assertEqual(shown[2:], ["Rename", "Unarchive"])
         self.assertEqual(self.click(7, y + 4), Action("unarchive", (PRICES,)))
 
-    def test_the_panes_own_menu_shows_the_archived_ones_marked_until_hide_archived(self):
+    def test_a_right_click_beside_the_conversations_offers_the_archived_ones_while_any_is(self):
         self.draw()
-        _, shown = self.menu_of("shop")                                     # nothing archived: the panes only
-        self.assertEqual(shown, ["Close sidebar", "Close terminal"])
-        self.press("esc")
+        self.assertIsNone(self.click(5, self.row_of("shop"), button=2))     # nothing archived: no menu at all
+        self.assertIsNone(self.view.menu)
         self.view.archived = {"codex:c1"}
         self.view.rebuild()
-        self.draw()
         y, shown = self.menu_of("shop")
-        self.assertEqual(shown[0], "Show archived")
+        self.assertEqual(shown, ["Show archived"])
         self.assertEqual(self.click(7, y + 1), Action("show_archived", (True,)))
         self.view.show_archived = True                                      # the app keeps it, for every tab
         self.view.rebuild()
@@ -238,24 +237,9 @@ class List(unittest.TestCase):
         self.press("esc")
         empty = len(self.draw()) - 2                                          # an empty row below the list
         self.assertIsNone(self.click(5, empty, button=2))
-        self.assertEqual(list(self.view.menu.menu.choices), ["Hide archived", "Close sidebar", "Close terminal"])
+        self.assertEqual(list(self.view.menu.menu.choices), ["Hide archived"])
         self.draw()
         self.assertEqual(self.press("enter"), Action("show_archived", (False,)))
-
-    def test_the_panes_own_menu_closes_or_brings_back_the_other_panes(self):
-        self.view.missing = {"terminal"}
-        self.draw()
-        y, shown = self.menu_of("shop")
-        self.assertEqual(shown, ["Close sidebar", "Show terminal", "Restore panels"])    # not itself
-        self.assertEqual(self.click(7, y + 2), Action("show_panels", ({"terminal"},)))
-        y, _ = self.menu_of("shop")
-        self.assertEqual(self.click(7, y + 1), Action("close_panel", ("sidebar",)))
-        self.view.missing = {"sidebar", "terminal"}                         # the whole right column
-        _, shown = self.menu_of("shop")
-        self.assertEqual(shown, ["Show sidebar", "Show terminal", "Restore panels"])
-        self.draw()
-        self.press("up")
-        self.assertEqual(self.press("enter"), Action("show_panels", ({"sidebar", "terminal"},)))
 
     def marking(self):
         """shop with two closed conversations under its running one: Draft the README, then Price list."""
@@ -377,33 +361,20 @@ class List(unittest.TestCase):
         self.draw()
         self.assertNotEqual(self.style("Price list").bg, "input")
 
-    def test_its_button_is_a_sidebar_view_button_with_the_sidebars_margin(self):
-        self.draw()
-        start = 44 - 1 - sidebar.MORE                                        # a cell's margin at the right edge
-        self.assertEqual([x for x in range(44) if self.canvas.hit(x, 1) == "collapse"], list(range(start, 43)))
-        self.view.collapsed = True
-        self.draw(cells=RAIL)
-        self.assertEqual(RAIL, 1 + sidebar.MORE + 1)                         # the rail: the button, a cell each side
-        self.assertEqual(text(self.canvas, 1), "   \ueac7   ")
-        self.view.icons = False                                             # the sidebar's icons turned off
-        self.draw(cells=RAIL)
-        self.assertEqual(text(self.canvas, 1), "   »   ")
-
-    def test_collapse_turns_it_into_a_rail_with_a_mark_per_space(self):
-        rows = self.draw()
-        self.assertEqual(self.click(len(rows[1]) - 2, 1), Action("collapse"))
-        self.view.collapsed = True
-        rail = self.draw(cells=RAIL)
-        self.assertEqual([line.strip() for line in rail[HEADER:HEADER + 4]], ["·", "●", "●", "·"])
-        api = HEADER + 2                                                    # api: its blocked one
-        self.assertEqual(self.canvas.rows[api][text(self.canvas, api).index("●")][1].fg, "deleted")
-        self.assertEqual(self.click(1, 10), Action("expand"))              # anywhere on the rail
-
-    def test_before_anything_is_read_it_says_so(self):
+    def test_before_anything_is_read_with_none_or_none_matching_it_says_so_as_the_app(self):
         view = ConversationList(now=lambda: NOW)
         canvas = Canvas(40, 10)
+        shown = lambda: "\n".join(text(canvas, y) for y in range(10))      # noqa: E731
         view.draw(canvas, 0, 10, False)
-        self.assertIn("Reading conversations…", "\n".join(text(canvas, y) for y in range(10)))
+        self.assertIn("Loading conversations…", shown())
+        view.set([], [], PLACES.get, None)                                  # no workspace (outside herdr)
+        view.draw(canvas, 0, 10, False)
+        self.assertIn("No conversations", shown())
+        view.set([LOGIN], SPACES, PLACES.get, "shop")
+        view.field.insert("zzz")
+        view.rebuild()
+        view.draw(canvas, 0, 10, False)
+        self.assertIn("No conversation matches", shown())
 
     def test_a_title_cannot_send_terminal_codes(self):
         evil = Conversation("claude", "s9", "Fix\x1b]52;c;ZXZpbA==\x07 it", "/repo/shop", NOW)

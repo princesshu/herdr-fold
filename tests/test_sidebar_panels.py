@@ -1,5 +1,6 @@
 """Tests for the sidebar plugin's panels.py: the panes each tab has had (so a pane closed by hand stays closed) and
 bringing a pane back. herdr is a recorder."""
+import json
 import os
 import shutil
 import sys
@@ -32,10 +33,19 @@ class Record(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.state)
 
     def test_what_a_tab_has_had_is_kept_and_a_pane_gone_from_it_was_closed(self):
-        panels.note(self.state, {"w1:t1": {"sidebar", "terminal", "conversations"}, "w1:t2": {"claude"}})
-        self.assertEqual(panels.had(self.state, "w1:t1"), {"sidebar", "terminal", "conversations"})
+        panels.note(self.state, {"w1:t1": {"sidebar", "terminal"}, "w1:t2": {"claude"}})
+        self.assertEqual(panels.had(self.state, "w1:t1"), {"sidebar", "terminal"})
         self.assertEqual(panels.had(self.state, "w1:t2"), set())                # none of the plugin's: nothing kept
-        self.assertEqual(panels.closed(self.state, "w1:t1", {"sidebar", "conversations"}), {"terminal"})
+        self.assertEqual(panels.closed(self.state, "w1:t1", {"sidebar"}), {"terminal"})
+
+    def test_a_kind_an_older_version_kept_is_not_taken(self):
+        # the Conversations column, before it was a panel of the sidebar: never brought back, gone on the next note
+        with open(os.path.join(self.state, panels.FILE), "w") as f:
+            json.dump({"w1:t1": ["conversations", "sidebar"]}, f)
+        self.assertEqual(panels.had(self.state, "w1:t1"), {"sidebar"})
+        panels.note(self.state, {"w1:t2": {"terminal"}})
+        with open(os.path.join(self.state, panels.FILE)) as f:
+            self.assertEqual(json.load(f), {"w1:t1": ["sidebar"], "w1:t2": ["terminal"]})
 
     def test_a_machines_tabs_are_kept_apart_and_the_tabs_gone_forgotten(self):
         panels.note(self.state, {"w1:t1": {"sidebar"}})
@@ -55,12 +65,11 @@ class Record(unittest.TestCase):
 
 class Menu(unittest.TestCase):
     def test_each_other_pane_closed_or_shown_back_in_screen_order(self):
-        every = {"conversations", "sidebar", "terminal"}
-        self.assertEqual(panels.menu(every, "sidebar"), ["Close conversations", "Close terminal"])
-        self.assertEqual(panels.menu({"conversations"}, "conversations"),
-                         ["Show sidebar", "Show terminal", "Restore panels"])
+        every = {"sidebar", "terminal"}
+        self.assertEqual(panels.menu(every), ["Close terminal"])
+        self.assertEqual(panels.menu({"sidebar"}), ["Show terminal", "Restore panels"])
         self.assertEqual(panels.chosen("Close terminal", every), ("close", "terminal"))
-        self.assertEqual(panels.chosen("Restore panels", {"sidebar"}), ("show", {"conversations", "terminal"}))
+        self.assertEqual(panels.chosen("Restore panels", {"sidebar"}), ("show", {"terminal"}))
         self.assertIsNone(panels.chosen("Copy conversation", every))
 
     def test_a_pane_closes_as_by_hand(self):

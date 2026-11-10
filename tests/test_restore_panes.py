@@ -4,15 +4,17 @@ pane's own name does not count) and its sidebar/terminal column, and rebuilds mi
 import contextlib
 import importlib.util
 import io
+import json
 import os
 import shutil
 import tempfile
 import unittest
 
-from support import catalog_text, set_attrs
+from support import FakeHerdrSocket, catalog_text, set_attrs, set_env
 
 import herdrlib
-import panels
+import conversations  # noqa: E402  (the sidebar plugin's, on the path herdrlib gives)
+import panels  # noqa: E402
 
 SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "restore_panes.py")
 
@@ -53,17 +55,8 @@ class Restore(unittest.TestCase):
                 return {"process_info": {"foreground_processes": [{"name": n} for n in programs[args[3]].split(",")]}}
             if args[:2] == ("pane", "split"):
                 return {"pane": {"pane_id": f"new{len(calls)}"}}
-            if args[:2] == ("pane", "neighbor"):                        # below a tab's sidebar: its terminal
-                tab = next(p["tab_id"] for p in listed if p["pane_id"] == args[3])
-                below = [p["pane_id"] for p in listed if p["tab_id"] == tab and p["label"] == "terminal"]
-                return {"neighbor": {"neighbor_pane_id": below[0]}} if below else {}
-            if args[:2] == ("pane", "layout"):                          # agent 0-99, conversations 100-129, column
-                tab = next(p["tab_id"] for p in listed if p["pane_id"] == args[3])
-                x = {"conversations": 100, "sidebar": 130, "terminal": 130}
-                shown = [{"pane_id": p["pane_id"], "rect": {"x": x.get(p["label"], 0), "y": 0, "height": 20,
-                                                             "width": 30 if p["label"] in x else 100}}
-                         for p in listed if p["tab_id"] == tab]
-                return {"layout": {"panes": shown}}
+            if args[:2] == ("pane", "close"):
+                listed[:] = [p for p in listed if p["pane_id"] != args[2]]
             return {}
         module.herdr, module.POLL = herdr, 0
         out = io.StringIO()
@@ -73,17 +66,12 @@ class Restore(unittest.TestCase):
         return calls
 
     def splits_of(self, calls):
-        """Where the columns were built, beside a pane of the tab (not where the Conversations column was put beside a
-        right column: that one is swapped to the left)."""
-        swapped = {c[5] for c in calls if c[:2] == ("pane", "swap")}
-        return [c[3] for n, c in enumerate(calls, 1)
-                if c[:2] == ("pane", "split") and "right" in c and not c[3].startswith("new")
-                and f"new{n}" not in swapped]
+        """Where the right columns were built: beside a pane of the tab."""
+        return [c[3] for c in calls if c[:2] == ("pane", "split") and "right" in c and not c[3].startswith("new")]
 
     def changes(self, calls):
         return [c for c in calls if c[:2] not in (("workspace", "list"), ("pane", "list"), ("agent", "list"),
-                                                  ("pane", "process-info"), ("tab", "list"), ("pane", "layout"),
-                                                  ("pane", "neighbor"))]
+                                                  ("pane", "process-info"), ("pane", "get"))]
 
     def renames(self, calls):
         return [c for c in calls if c[:2] == ("workspace", "rename")]
@@ -129,36 +117,43 @@ class Restore(unittest.TestCase):
                                   ("w1:t1", "terminal", "zsh")], agents={"w1:p1": "home-claude"}, space=space)
             self.assertEqual([c for c in calls if c[:2] == ("agent", "start")], [], space)
 
-    def test_the_conversations_column_gets_its_program_back(self):
-        calls = self.restore([("w1:t1", "claude", "zsh"), ("w1:t1", "conversations", "zsh"),
-                              ("w1:t1", "sidebar", "Python"), ("w1:t1", "terminal", "zsh")])
-        self.assertIn(("pane", "run", "w1:p2", "bash ~/.config/herdr-fold/sidebar.sh --conversations"), calls)
+    def test_an_older_installs_conversations_column_goes_its_room_back_to_the_agent(self):
+        # before it was a panel of the sidebar, the Conversations column stood between the agent and the right
+        # column: closed, its room goes to the right column, set back to the width remembered on this machine
+        tmp = tempfile.mkdtemp(dir="/tmp")                  # a short path: a socket's name has room for 104 bytes
+        self.addCleanup(shutil.rmtree, tmp)
+        set_env(self, HERDR_SOCKET_PATH=os.path.join(tmp, "h.sock"))
+        column = {"type": "split", "direction": "down", "ratio": 0.5, "first": {"type": "pane", "pane_id": "w1:p3",
+                  "label": "sidebar"}, "second": {"type": "pane", "pane_id": "w1:p4", "label": "terminal"}}
+        after = {"type": "split", "direction": "right", "ratio": 0.525, "second": column,     # as herdr leaves it
+                 "first": {"type": "pane", "pane_id": "w1:p1", "label": "claude"}}
+        fake = FakeHerdrSocket(os.path.join(tmp, "h.sock"), {"w1:t1": (after, False)})
+        self.addCleanup(fake.server.close)
+        calls = self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "conversations", "Python"),
+                              ("w1:t1", "sidebar", "Python"), ("w1:t1", "terminal", "zsh")], agents={"w1:p1": "app"})
+        self.assertEqual(self.changes(calls), [("pane", "close", "w1:p2")])
+        self.assertEqual([params for method, params in fake.calls if method == "layout.set_split_ratio"],
+                         [{"tab_id": "w1:t1", "path": [], "ratio": 0.75}])
+        self.assertIn(catalog_text("restore.column_gone", "this machine", "app"), self.out)
 
-    def test_every_tab_with_a_right_column_gets_the_conversations_column(self):
-        panes = [("w1:t1", "claude", "claude"), ("w1:t1", "sidebar", "Python"), ("w1:t1", "terminal", "zsh"),
-                 ("w1:t2", "claude", "claude"), ("w1:t2", "conversations", "Python"), ("w1:t2", "sidebar", "Python"),
-                 ("w1:t2", "terminal", "zsh")]
-        calls = self.restore(panes)
-        # only the tab without it: beside the terminal (swapped to its left), the sidebar started again above that
-        self.assertEqual([c[2:] for c in calls if c[:2] in (("pane", "close"), ("pane", "swap"))
-                          or c[:2] == ("pane", "split")],
-                         [("w1:p2",), ("--pane", "w1:p3", "--direction", "right", "--ratio", "0.4737", "--no-focus"),
-                          ("--source-pane", "w1:p3", "--target-pane", f"new{self.n_of(calls, 'right')}"),
-                          ("--pane", "w1:p3", "--direction", "down", "--ratio", "0.5", "--no-focus"),
-                          ("--source-pane", "w1:p3", "--target-pane", f"new{self.n_of(calls, 'down')}")])
-        self.assertIn(("pane", "run", f"new{self.n_of(calls, 'down')}", "bash ~/.config/herdr-fold/sidebar.sh"),
-                      calls)
-        self.assertIn(catalog_text("restore.conversations_added", "this machine", 1), self.out)
+    def test_what_an_older_install_kept_for_its_column_goes(self):
+        # the column's width and fold in conversations.json: gone at once, the rest kept; no file made where none was
+        conversations.keep(self.state, archived=["claude:s1"])
+        with open(os.path.join(self.state, conversations.SETTINGS)) as f:
+            kept = {**json.load(f), "ratio": 0.62, "collapsed": True}
+        with open(os.path.join(self.state, conversations.SETTINGS), "w") as f:
+            json.dump(kept, f)
+        self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "sidebar", "Python"), ("w1:t1", "terminal", "zsh")],
+                     agents={"w1:p1": "app"})
+        self.assertEqual(conversations.setting(self.state), {"archived": ["claude:s1"]})
+        os.remove(os.path.join(self.state, conversations.SETTINGS))
+        self.restore([("w1:t1", "claude", "claude")], agents={"w1:p1": "app"})
+        self.assertFalse(os.path.exists(os.path.join(self.state, conversations.SETTINGS)))
 
     def test_a_sidebar_running_another_program_keeps_its_tab_as_it_is(self):
         calls = self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "sidebar", "herdr-sidebar"),
                               ("w1:t1", "terminal", "zsh")], agents={"w1:p1": "app"})
         self.assertEqual([c for c in calls if c[:2] in (("pane", "close"), ("pane", "split"))], [])
-
-    @staticmethod
-    def n_of(calls, direction):
-        """The number in the name of the pane the first split in DIRECTION made (the fake names it new<n>)."""
-        return next(n for n, c in enumerate(calls, 1) if c[:2] == ("pane", "split") and direction in c)
 
     def test_a_fresh_herdrs_only_shell_gets_the_column(self):
         # herdr makes its very first workspace before the plugins start, so the new-tab event never reaches it
@@ -174,8 +169,8 @@ class Restore(unittest.TestCase):
 
     def test_a_pane_already_running_gets_no_line(self):
         # nothing was done to it, and what program runs there is none of the user's business
-        self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "conversations", "Python"),
-                      ("w1:t1", "sidebar", "Python"), ("w1:t1", "terminal", "zsh")], agents={"w1:p1": "app"})
+        self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "sidebar", "Python"), ("w1:t1", "terminal", "zsh")],
+                     agents={"w1:p1": "app"})
         self.assertEqual(self.out, "")
 
     def test_a_lone_other_program_is_left_alone(self):
@@ -183,8 +178,7 @@ class Restore(unittest.TestCase):
         self.assertEqual(self.splits_of(self.restore([("w1:t2", "", "less")])), [])
 
     def test_a_missing_terminal_is_added_under_the_sidebar(self):
-        calls = self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "sidebar", "Python"),
-                              ("w1:t1", "conversations", "Python")], agents={"w1:p1": "app"})
+        calls = self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "sidebar", "Python")], agents={"w1:p1": "app"})
         splits = [c for c in calls if c[:2] == ("pane", "split")]
         self.assertEqual([(c[3], c[5]) for c in splits], [("w1:p2", "down")])
         self.assertIn("terminal", [c[3] for c in calls if c[:2] == ("pane", "rename")])
@@ -205,14 +199,12 @@ class Restore(unittest.TestCase):
 
     def test_a_sidebar_closed_by_hand_stays_closed(self):
         self.closed_by_hand()
-        calls = self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "conversations", "Python"),
-                              ("w1:t1", "terminal", "zsh")], agents={"w1:p1": "app"})
+        calls = self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "terminal", "zsh")], agents={"w1:p1": "app"})
         self.assertEqual(self.sidebars_made(calls), [])
 
     def test_a_terminal_closed_by_hand_stays_closed(self):
         self.closed_by_hand()
-        calls = self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "sidebar", "Python"),
-                              ("w1:t1", "conversations", "Python")], agents={"w1:p1": "app"})
+        calls = self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "sidebar", "Python")], agents={"w1:p1": "app"})
         self.assertNotIn("terminal", [c[3] for c in calls if c[:2] == ("pane", "rename")])
 
     def test_an_agent_whose_panes_were_all_closed_by_hand_gets_none_back(self):
@@ -220,8 +212,8 @@ class Restore(unittest.TestCase):
         self.assertEqual(self.splits_of(self.restore([("w1:t1", "claude", "claude")], agents={"w1:p1": "app"})), [])
 
     def test_what_each_tab_has_is_kept(self):
-        self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "sidebar", "Python"), ("w1:t1", "terminal", "zsh"),
-                      ("w1:t1", "conversations", "Python")], agents={"w1:p1": "app"})
+        self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "sidebar", "Python"), ("w1:t1", "terminal", "zsh")],
+                     agents={"w1:p1": "app"})
         self.assertEqual(panels.had(self.state, "w1:t1"), set(panels.KINDS))
 
     def sidebars_made(self, calls):
@@ -231,15 +223,14 @@ class Restore(unittest.TestCase):
     def test_a_sidebar_on_windows_is_not_typed_into(self):
         # herdr on Windows names only the shell for a program that is not an agent: the sidebar may be running
         calls = self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "sidebar", "pwsh"),
-                              ("w1:t1", "terminal", "pwsh"), ("w1:t1", "conversations", "pwsh")],
-                             agents={"w1:p1": "app"}, cwd="C:\\Users\\dev\\app")
+                              ("w1:t1", "terminal", "pwsh")], agents={"w1:p1": "app"}, cwd="C:\\Users\\dev\\app")
         self.assertEqual([c for c in calls if c[:2] == ("pane", "run")], [])
 
     def test_a_sidebar_on_windows_starts_when_herdr_starts(self):
         calls = self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "sidebar", "pwsh"),
-                              ("w1:t1", "terminal", "pwsh"), ("w1:t1", "conversations", "pwsh")],
-                             agents={"w1:p1": "app"}, cwd="C:\\Users\\dev\\app", startup=True)
-        self.assertEqual([c[2] for c in calls if c[:2] == ("pane", "run")], ["w1:p2", "w1:p4"])
+                              ("w1:t1", "terminal", "pwsh")], agents={"w1:p1": "app"}, cwd="C:\\Users\\dev\\app",
+                             startup=True)
+        self.assertEqual([c[2] for c in calls if c[:2] == ("pane", "run")], ["w1:p2"])
 
 if __name__ == "__main__":
     unittest.main()

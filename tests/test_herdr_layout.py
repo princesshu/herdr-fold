@@ -49,20 +49,17 @@ class Layout(unittest.TestCase):
         self.assertEqual(create[create.index("--cwd") + 1], os.path.realpath(self.folder))
         self.assertIn(("pane", "rename", "w9:p1", "claude"), self.calls)
         self.assertIn(("tab", "rename", "w9:t1", "My App"), self.calls)            # the main tab: the workspace's name
-        self.assertEqual({c[3] for c in self.named("pane", "rename")}, {"claude", "sidebar", "terminal",
-                                                                   "conversations"})
+        self.assertEqual({c[3] for c in self.named("pane", "rename")}, {"claude", "sidebar", "terminal"})
         start = self.named("agent", "start")[0]
         self.assertEqual(start[2], "my-app")
         self.assertTrue(lines[-1].endswith("is ready (w9)"), lines)
 
-    def test_the_conversations_column_goes_before_the_right_column(self):
+    def test_the_right_column_goes_beside_the_agent(self):
         herdr_layout.build(None, "claude", self.folder, "My App")
-        # the Conversations column split off the agent's pane, then the right column off it: the two share a split
         rights = [c for c in self.named("pane", "split") if "right" in c]
-        self.assertEqual([(c[3], c[c.index("--ratio") + 1]) for c in rights], [("w9:p1", "0.525"), ("w9:p2", "0.4737")])
-        self.assertIn(("pane", "rename", "w9:p2", "conversations"), self.calls)
-        self.assertIn(("pane", "run", "w9:p2", "bash ~/.config/herdr-fold/sidebar.sh --conversations"), self.calls)
-        self.assertIn(("pane", "rename", "w9:p3", "sidebar"), self.calls)
+        self.assertEqual([(c[3], c[c.index("--ratio") + 1]) for c in rights], [("w9:p1", "0.75")])
+        self.assertIn(("pane", "rename", "w9:p2", "sidebar"), self.calls)
+        self.assertIn(("pane", "run", "w9:p2", "bash ~/.config/herdr-fold/sidebar.sh"), self.calls)
 
     def test_the_home_folders_workspace_is_called_home(self):
         set_attrs(self, herdr_layout, HOME=os.path.realpath(self.folder))
@@ -72,12 +69,11 @@ class Layout(unittest.TestCase):
         self.assertIn(("tab", "rename", "w9:t1", "home"), self.calls)
 
     def test_a_new_column_takes_the_width_last_chosen(self):
-        # the sidebar remembers the share before its column when it is dragged (column.json in its state folder);
-        # the agent takes 70% of that until the Conversations column is dragged
+        # the sidebar remembers the share before its column when it is dragged (column.json in its state folder)
         os.makedirs(self.state)
         saved = os.path.join(self.state, "column.json")
-        for content, ratio in ((None, "0.525"), ('{"ratio": 0.62}', "0.434"), ("{oops", "0.525"),
-                               ('{"ratio": 0.99}', "0.525")):
+        for content, ratio in ((None, "0.75"), ('{"ratio": 0.62}', "0.62"), ("{oops", "0.75"),
+                               ('{"ratio": 0.99}', "0.75")):
             if content is not None:
                 with open(saved, "w") as f:
                     f.write(content)

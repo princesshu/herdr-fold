@@ -1,5 +1,5 @@
-"""Shared herdr helpers: the herdr CLI, the agents and machines it reports, the right-hand column with the Conversations
-column before it (pane names in lowercase). herdr runs commands with a minimal PATH: herdr comes from HERDR_BIN_PATH."""
+"""Shared herdr helpers: the herdr CLI, the agents and machines it reports, the right-hand column (pane names in
+lowercase). herdr runs commands with a minimal PATH: herdr comes from HERDR_BIN_PATH."""
 import json
 import os
 import re
@@ -8,21 +8,19 @@ import subprocess
 import sys
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "plugins", "sidebar"))   # the column's place
-import conversations_pane  # noqa: E402
+import panes  # noqa: E402
 
 HERDR = os.environ.get("HERDR_BIN_PATH") or shutil.which("herdr") or next(
     (p for p in ("/opt/homebrew/bin/herdr", "/usr/local/bin/herdr") if os.path.exists(p)), "herdr")
 AGENTS = ("claude", "codex")
 # The shells a pane can run with nothing else in its foreground (Unix and Windows)
 SHELLS = {"zsh", "bash", "sh", "dash", "fish", "ksh", "nu", "pwsh", "powershell", "cmd"}
-# the sidebar plugin's state: the columns' widths as last dragged, whether the Conversations column is collapsed
+# the sidebar plugin's state: the right column's width as last dragged, what each tab has had
 PLUGIN_STATE = os.path.join(os.path.expanduser("~"), ".local", "state", "herdr", "plugins", "herdr-fold.sidebar")
 SIDEBAR_COMMAND = "bash ~/.config/herdr-fold/sidebar.sh"
-CONVERSATIONS_COMMAND = SIDEBAR_COMMAND + " --conversations"
 # On Windows the pane's shell is PowerShell: it expands $HOME; the ExecutionPolicy is bypassed for this call only
 WINDOWS_SIDEBAR_COMMAND = ('powershell -NoProfile -ExecutionPolicy Bypass '
                            '-File "$HOME\\.config\\herdr-fold\\sidebar.ps1"')
-WINDOWS_CONVERSATIONS_COMMAND = WINDOWS_SIDEBAR_COMMAND + " -Conversations"
 
 
 def herdr(*args, check=True):
@@ -56,17 +54,11 @@ def sidebar_command(cwd=None):
     return WINDOWS_SIDEBAR_COMMAND if on_windows(cwd) else SIDEBAR_COMMAND
 
 
-def conversations_command(cwd=None):
-    """The Conversations column's launch command (the sidebar's launcher, its column switch)."""
-    return WINDOWS_CONVERSATIONS_COMMAND if on_windows(cwd) else CONVERSATIONS_COMMAND
-
-
 def add_column(pane_id, cwd, h=herdr, machine=None):
-    """Adds the Conversations column, then the right column (sidebar over terminal), right of the pane, as wide as last
-    dragged; noted as the tab's, under MACHINE's name on a connected one. `h`: the herdr caller (`herdr --machine
-    <machine>` there, see restore_panes.py); `cwd` None: herdr inherits the pane's folder."""
-    conversations_pane.build(h, pane_id, cwd, PLUGIN_STATE, conversations_command(cwd), sidebar_command(cwd),
-                             machine or "")
+    """Adds the right column (sidebar over terminal) right of the pane, as wide as last dragged; noted as the tab's,
+    under MACHINE's name on a connected one. `h`: the herdr caller (`herdr --machine <machine>` there, see
+    restore_panes.py); `cwd` None: herdr inherits the pane's folder."""
+    panes.build(h, pane_id, cwd, PLUGIN_STATE, sidebar_command(cwd), machine or "")
 
 
 def program_names(processes):

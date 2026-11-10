@@ -124,20 +124,16 @@ def command(path, windows=os.name == "nt"):
     return Launch('"$HERDR_FOLD_PYTHON" -B "$HERDR_FOLD_PAGER" && exit', env)
 
 
-def seed_file(state_dir, tab, kind="sidebar"):
-    """Where a new preview TAB's pane of KIND finds what it starts with (the sidebar: where the one that opened it was),
-    taken just before it first draws: the tab is shown once every one is (seeded())."""
+def seed_file(state_dir, tab):
+    """Where a new TAB's sidebar finds what it starts with (in a preview tab, where the one that opened it was), taken
+    just before it first draws: a preview tab is shown once it is (seeded())."""
     name = "".join(ch if ch.isalnum() else "-" for ch in tab)
-    return os.path.join(state_dir, f"seed-{name}.json" if kind == "sidebar" else f"seed-{name}-{kind}.json")
+    return os.path.join(state_dir, f"seed-{name}.json")
 
 
 def seeded(state_dir, tab):
-    """Whether TAB's panes have all taken their seeds."""
-    name = os.path.basename(seed_file(state_dir, tab))[:-len(".json")]
-    try:
-        return not any(found == f"{name}.json" or found.startswith(f"{name}-") for found in os.listdir(state_dir))
-    except OSError:
-        return True
+    """Whether TAB's sidebar has taken its seed."""
+    return not os.path.exists(seed_file(state_dir, tab))
 
 
 def this_tab(herdr):

@@ -3,18 +3,18 @@ name = "Files · Search · Git · Issues · AI Conversations"
 version = "0.3.0"
 min_herdr_version = "0.9.5"
 description = """\
-  Files, Search, Changes (git) and GitHub Issues in a pane, with previews in a tab and AI commit messages, and the \
-  Conversations column with every workspace's Claude and Codex conversations. Created by princesshu"""
+  Every workspace's Claude and Codex conversations, Files, Search, Changes (git) and GitHub Issues in one pane, as \
+  groups of tabs that fold, with previews in a tab and AI commit messages. Created by princesshu"""
 platforms = ["macos", "linux", "windows"]
 
 # A pane of the plugin's closed by hand: the first time on this Mac, herdr says once how it comes back (Cmd+Shift+O)
 [[events]]
 on = "pane.closed"
-command = ["/usr/bin/python3", "conversations_pane.py", "--closed"]
+command = ["/usr/bin/python3", "panes.py", "--closed"]
 platforms = ["macos"]
 
-# The sidebar itself runs in a plain pane named "sidebar" (python3 sidebar.py [FOLDER]); these actions switch the
-# active tab's sidebar to a view by sending it F9, F10, F11 or F12.
+# The sidebar itself runs in a plain pane named "sidebar" (python3 sidebar.py [FOLDER]); these actions show a panel
+# in the active tab's sidebar by sending it F9, F10, F11 or F12.
 [[actions]]
 id = "show-files"
 title = "Sidebar: Files"
@@ -77,46 +77,42 @@ title = "Sidebar: select the field's text"
 command = ["python", "actions.py", "select-all"]
 platforms = ["windows"]
 
-# The Conversations column (a plain pane named "conversations": python3 sidebar.py --conversations, right before the
-# right column): collapse it to a rail in every tab at once, or open it, the choice kept; a tab whose column was
-# closed by hand gets it back
+# The sidebar's Conversations: its group folded or opened (F6), or found: the group open, its filter empty and the
+# keys going to it (F7)
 [[actions]]
 id = "toggle-conversations"
-title = "Conversations: collapse or open"
-command = ["/usr/bin/python3", "conversations_pane.py", "--toggle"]
+title = "Conversations: fold or open"
+command = ["/usr/bin/python3", "actions.py", "toggle-conversations"]
 platforms = ["macos", "linux"]
 
 [[actions]]
 id = "toggle-conversations-windows"
-title = "Conversations: collapse or open"
-command = ["python", "conversations_pane.py", "--toggle"]
+title = "Conversations: fold or open"
+command = ["python", "actions.py", "toggle-conversations"]
 platforms = ["windows"]
 
-# Find a conversation: the column of the tab open (brought back where it was closed by hand), its filter empty, the
-# keys going to it
 [[actions]]
 id = "find-conversation"
 title = "Conversations: find"
-command = ["/usr/bin/python3", "conversations_pane.py", "--find"]
+command = ["/usr/bin/python3", "actions.py", "find-conversation"]
 platforms = ["macos", "linux"]
 
 [[actions]]
 id = "find-conversation-windows"
 title = "Conversations: find"
-command = ["python", "conversations_pane.py", "--find"]
+command = ["python", "actions.py", "find-conversation"]
 platforms = ["windows"]
 
-# Restore panels: every pane of the plugin's the tab lacks back (in a tab without any, the whole layout: the sidebar
-# above a terminal and the Conversations column beside the agent), and the right column shown; installed on its own,
-# this opens the sidebar
+# Restore panels: every pane of the plugin's the tab lacks back (in a tab without any, the sidebar above a terminal
+# beside the agent), and the right column shown; installed on its own, this opens the sidebar
 [[actions]]
 id = "restore-panels"
 title = "Sidebar: restore panels"
-command = ["/usr/bin/python3", "conversations_pane.py", "--restore"]
+command = ["/usr/bin/python3", "panes.py", "--restore"]
 platforms = ["macos", "linux"]
 
 [[actions]]
 id = "restore-panels-windows"
 title = "Sidebar: restore panels"
-command = ["python", "conversations_pane.py", "--restore"]
+command = ["python", "panes.py", "--restore"]
 platforms = ["windows"]

@@ -165,7 +165,7 @@ class Open(Root):
             opened.append((workspace, root, spec["title"], spec["line"], state_dir, here))
             lay_out("w1:t5")
         set_attrs(self, open_file.preview, open_preview=open_preview)
-        set_attrs(self, open_file.conversations_pane, bring=lambda call, tab, kinds, state_dir: brought.append(
+        set_attrs(self, open_file.panes, bring=lambda call, tab, kinds, state_dir: brought.append(
             (tab, set(kinds), state_dir)))
         open_file.open_found(Herdr(), open_file.Found(self.path("src/web/page.tsx"), 12), self.root, "w1:p1", state)
         self.assertEqual(opened, [("w1", self.root, os.path.join("src", "web", "page.tsx"), 12, state, "w1:t1")])

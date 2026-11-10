@@ -63,7 +63,7 @@ class Big(AppScreen, unittest.TestCase):
     def setUp(self):
         self.state = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.state)
-        set_env(self, GIT_CONFIG_GLOBAL=os.devnull, HERDR_WORKSPACE_ID=None)
+        set_env(self, GIT_CONFIG_GLOBAL=os.devnull, HERDR_WORKSPACE_ID=None, HOME=os.path.join(self.state, "home"))
 
     def start(self):
         term = Recording()

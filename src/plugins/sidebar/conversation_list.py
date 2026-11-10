@@ -1,14 +1,12 @@
-"""The Conversations column's list: herdr's workspaces in its Spaces list's order and typography, each a group of its
+"""The Conversations panel's list: herdr's workspaces in its Spaces list's order and typography, each a group of its
 conversations (the active tab's first, then the newest; one outside every workspace is not shown), under a filter.
 Closed ones can be marked to archive together. The view only asks: what it does comes back as an Action for the app."""
 import time
 from dataclasses import dataclass
 
-import panels
 import widgets
 from github import since
-from icons import glyphs
-from screen import Style, centered, truncate, width
+from screen import Style, truncate, width
 from vt import Key, Mouse
 from widgets import Action, ListView, Menu, Popup, TextInput
 
@@ -16,8 +14,6 @@ from widgets import Action, ListView, Menu, Popup, TextInput
 # "ignored"); a closed conversation, which herdr has no state for, "·" in the faint guide color
 STATE_ROLE = {"blocked": "deleted", "done": "done", "working": "modified", "idle": "added", "unknown": "ignored"}
 STATE_MARK = {"blocked": "●", "done": "●", "working": "●", "idle": "○", "unknown": "·"}
-BUTTON = 5                    # the button's cells (it folds and unfolds the column), as the sidebar's view buttons have
-RAIL = 1 + BUTTON + 1         # the collapsed column: a button with the sidebar's margins (a pane this narrow, too)
 MENU = ("Open", "Copy conversation", "Rename")
 BOX, MARKED = "□", "■"        # a closed conversation's box, and a marked one's
 
@@ -39,6 +35,8 @@ class Naming:
 
 
 class ConversationList:
+    editing = True            # the filter takes every character typed: the app's own keys (1-4, q) wait
+
     def __init__(self, now=time.time):
         self.now = now
         self.items, self.spaces, self.place, self.here = None, [], None, None      # items None: not read yet
@@ -50,8 +48,6 @@ class ConversationList:
         self.naming = None                                          # a conversation's name being edited (Naming)
         self.front = set()                  # the panes of each workspace's active tab, whose conversations lead
         self.states = {}                    # each workspace's state, as herdr's Spaces list has it (the app sets it)
-        self.missing = set()                # the panes this tab lacks: the sidebar, the terminal (the app sets it)
-        self.collapsed = False                                      # the rail (the app sets it)
         self.icons = True                   # the sidebar's icons (its settings), or plain marks (the app sets it)
         self.list = ListView()
         self.hover = self.canvas = self.menu = None
@@ -172,21 +168,16 @@ class ConversationList:
     # --- drawing
 
     def draw(self, canvas, top, height, roomy):
-        """The view from row TOP, HEIGHT rows: the filter and the button, tall in a ROOMY pane as the sidebar's buttons
-        are, a line when there is something to say, the rows; or the rail. No title: herdr shows the pane's name on its
-        border."""
+        """The view from row TOP, HEIGHT rows: the filter, tall in a ROOMY slice as the dock's other fields are, a
+        line when there is something to say, the rows."""
         self.canvas, self.top, self.height, cells = canvas, top, height, canvas.width
         for y in range(top, top + height):
-            canvas.backdrop(y, 0, cells, "pane")                    # the pane's own menu, under everything else
-        if self.collapsed or cells <= RAIL:
-            self.draw_rail(canvas, top, roomy)
-            return
-        field = cells - 3 - BUTTON
+            canvas.backdrop(y, 0, cells, "blank")                   # its own menu, under everything else
+        field = cells - 2
         row, taken = canvas.control(top, 1, field, 1, "input", roomy)
         for y in range(top, top + taken):
             canvas.region(y, 1, 1 + field, "input")
         self.field.draw(canvas, row, 2, field - 2, 1, Style(bg="input"), focused=True)
-        self.button(canvas, top, cells - 1 - BUTTON, glyphs(self.icons)["fold"], "collapse", roomy)
         y = top + taken + (0 if roomy else 1)
         line = self.line()
         if line:
@@ -203,36 +194,16 @@ class ConversationList:
         if self.menu:
             self.draw_menu(canvas)
 
-    def button(self, canvas, top, x, mark, target, roomy):
-        lit = self.hover == target
-        row, taken = canvas.control(top, x, BUTTON, 1, "hover" if lit else "badge", roomy)
-        canvas.put(row, centered(x, BUTTON), mark, Style(fg="text" if lit else "muted", bg="hover" if lit else "badge",
-                                                        bold=True))
-        for y in range(top, top + taken):
-            canvas.region(y, x, x + BUTTON, target)
-        return taken
-
     def space_mark(self, name):
         """Workspace NAME's mark and its color, as herdr's Spaces list draws them."""
         return mark(self.states.get(name) or "unknown")
 
-    def draw_rail(self, canvas, top, roomy):
-        """The collapsed column: its button, then each workspace's mark in the Spaces list's order; a click anywhere
-        opens the column again."""
-        cells = canvas.width
-        taken = self.button(canvas, top, 1, glyphs(self.icons)["unfold"], "expand", roomy)
-        y = top + taken + (0 if roomy else 1)
-        for name in self.members():
-            shown, role = self.space_mark(name)
-            canvas.put(y, centered(1, BUTTON), shown, Style(fg=role))
-            y += 1
-        for y in range(canvas.height):
-            canvas.region(y, 0, cells, "expand")
-
     def line(self):
         if self.items is None:
-            return "Reading conversations…"
-        return "Nothing matches" if self.typed and not self.list.items else None
+            return "Loading conversations…"
+        if self.list.items:
+            return None
+        return "No conversation matches" if self.typed else "No conversations"
 
     def draw_row(self, canvas, y, index):
         """A workspace as herdr's Spaces list has it: its mark, its name (the current one's bold), and at the right
@@ -363,11 +334,9 @@ class ConversationList:
 
     def choices(self, item):
         """The right click's menu for ITEM: Archive for a closed one, Unarchive for an archived one; for None (anywhere
-        else in the pane) the pane's own: Show or Hide archived while any is, then each of the tab's other panes closed
-        or shown back, Restore panels while any is closed (panels.menu(), as the sidebar's ⋯ has them)."""
+        else in the list) Show or Hide archived while any is, else nothing."""
         if item is None:
-            shown = (("Hide archived" if self.show_archived else "Show archived"),) if self.archived else ()
-            return shown + tuple(panels.menu(self.present(), "conversations"))
+            return (("Hide archived" if self.show_archived else "Show archived"),) if self.archived else ()
         bulk = self.bulk() if self.archive_key(item) in self.marked else {}
         if bulk:
             return tuple(bulk) + ("Unmark all",)
@@ -375,9 +344,10 @@ class ConversationList:
             return MENU + ("Unarchive",)
         return MENU if item.state else MENU + ("Archive",)
 
-    def present(self):
-        """The plugin's panes this tab has: this one, and the sidebar and the terminal unless it lacks them."""
-        return set(panels.KINDS) - set(self.missing)
+    def open_menu(self, item, event):
+        """ITEM's menu where EVENT clicked; none where it would be empty."""
+        choices = self.choices(item)
+        self.menu = Popup(Menu(choices), item, event.y, event.x) if choices else None
 
     def pick(self, choice):
         item, self.menu = self.menu.on, None
@@ -395,9 +365,6 @@ class ConversationList:
             return None
         if choice in ("Show archived", "Hide archived"):
             return Action("show_archived", (choice == "Show archived",))
-        what, kinds = panels.chosen(choice, self.present()) or (None, None)
-        if what:
-            return Action("close_panel" if what == "close" else "show_panels", (kinds,))
         actions = {"Open": "open", "Copy conversation": "copy", "Archive": "archive", "Unarchive": "unarchive"}
         if actions[choice] in ("archive", "unarchive"):
             self.marked.discard(self.archive_key(item))
@@ -428,10 +395,8 @@ class ConversationList:
                     self.menu = menu
                     return self.pick(menu.menu.choices[int(target[5:])])
                 return None
-            if target in ("collapse", "expand"):
-                return Action(target)
-            if target == "pane" and event.button == 2:
-                self.menu = Popup(Menu(self.choices(None)), None, event.y, event.x)
+            if target == "blank" and event.button == 2:
+                self.open_menu(None, event)
                 return None
             if index is not None:
                 self.list.index = index
@@ -439,9 +404,8 @@ class ConversationList:
                 if target[0] == "mark" and event.button == 0:
                     self.mark_row(row)
                     return None
-                item = row[1] if row[0] == "item" else None
                 if event.button == 2:
-                    self.menu = Popup(Menu(self.choices(item)), item, event.y, event.x)
+                    self.open_menu(row[1] if row[0] == "item" else None, event)
                     return None
                 return self.choose(row) if event.button == 0 else None
         return None

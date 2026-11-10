@@ -42,7 +42,7 @@ FRAMES = 2.4
 ON_ACTIVE_ROW = 3.0
 # the sidebar's faintest text (a conversation's agent, the tree lines) against the panes' background: still legible
 GUIDE = 2.2
-# an archived conversation in the Conversations column: a shade behind the faint text, still legible
+# an archived conversation in the sidebar's Conversations: a shade behind the faint text, still legible
 ARCHIVED = 2.8
 
 

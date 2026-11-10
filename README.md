@@ -22,15 +22,15 @@ above a terminal](assets/screenshots/hero.webp)
 
 ## What you get
 
-- One workspace per repo: Claude or Codex on the left; on the right, a sidebar (Files, Search, Changes (git) and,
-  for a repo on GitHub, Issues) above a terminal. An issue goes to the agent in one key, and the next commit
+- One workspace per repo: Claude or Codex on the left; on the right, a sidebar (Conversations, Files, Search, Changes
+  (git) and, for a repo on GitHub, Issues) above a terminal. An issue goes to the agent in one key, and the next commit
   closes it; a file the agent names opens at its line in one key too, and a picture or a PDF shows as it looks.
 
   ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the message
   Claude wrote, the issue it fixes and the Graph, Issues by priority](assets/screenshots/sidebar.webp)
 
-- A Conversations column between them: every workspace's Claude and Codex conversations, running and closed, one
-  click away; it collapses to a rail.
+- Conversations at the sidebar's top: every workspace's Claude and Codex conversations, running and closed, one
+  click away; its group folds to its head.
 - AI Sessions in herdr's sidebar, with each conversation's state, and in the Spaces list how long an agent has waited
   on you. Cmd + D / Cmd + E step through the sessions, Cmd with the arrows through the workspaces and the panes, even
   while you type.
@@ -80,7 +80,7 @@ The parts, the questions, what each one changes, and the switches: [Installation
 
 - the settings of Ghostty, herdr and starship, and Claude Code's and Codex's status lines;
 - one marked block in `~/.zshrc`, active only inside herdr panes;
-- three herdr plugins of its own (the sidebar with the Conversations column, AI Sessions, the tab layout), and
+- three herdr plugins of its own (the sidebar with Conversations, AI Sessions, the tab layout), and
   herdr's Claude and Codex integrations;
 - in the Herdr app, herdr-fold's mod, layout, themes and keys.
 
@@ -93,7 +93,7 @@ Your own files are saved first, in `~/.local/state/herdr-fold/`. Your conversati
 |---|---|
 | Cmd + 1…9 | jump to a workspace |
 | Cmd + ↓ / Cmd + ↑ | next / previous workspace |
-| Cmd + → / Cmd + ← | next / previous pane: the agent, Conversations, the sidebar, the terminal |
+| Cmd + → / Cmd + ← | next / previous pane: the agent, the sidebar, the terminal |
 | Cmd + T / Cmd + R | next / previous tab |
 | Cmd + D / Cmd + E | next / previous session |
 | Cmd + Shift + U | mark the agent unread, to come back to |
@@ -101,9 +101,9 @@ Your own files are saved first, in `~/.local/state/herdr-fold/`. Your conversati
 | Ctrl + B, then Shift + N | new workspace |
 | Cmd + Shift + C | commit and push |
 | Cmd + Shift + L | open a file the agent named, at its line |
-| Cmd + Shift + R | find a conversation in the Conversations column |
+| Cmd + Shift + R | find a conversation in the sidebar's Conversations |
 | Cmd + Shift + E | show / hide the sidebar and terminal |
-| Cmd + Shift + H | collapse / open the Conversations column |
+| Cmd + Shift + H | fold / open the sidebar's Conversations |
 | Cmd + Shift + O | restore the panels closed in the tab |
 | Cmd + Shift + G / Cmd + Shift + I | the sidebar's Changes / Issues |
 | Cmd + A | select the whole text of the sidebar's field you are in |

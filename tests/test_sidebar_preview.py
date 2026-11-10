@@ -269,36 +269,34 @@ class Tabs(unittest.TestCase):
         self.assertEqual(calls[-1], "tab close w1:t2")
         self.assertNotIn("tab close w1:t1", calls)
 
-    def seeded(self, **taken):
-        """The layout a sidebar's open_preview gives: a seed for each kind of pane TAKEN names, which takes it (removes
-        it) that many seconds on (None: never), noted in the log."""
+    def seeded(self, after):
+        """The layout a sidebar's open_preview gives: the new sidebar's seed, which it takes (removes) AFTER seconds on
+        (None: never), noted in the log."""
         def lay_out(tab):
-            for kind, after in taken.items():
-                path = preview.seed_file(self.tmp, tab, kind)
-                with open(path, "w") as f:
-                    f.write("{}")
+            path = preview.seed_file(self.tmp, tab)
+            with open(path, "w") as f:
+                f.write("{}")
 
-                def take(path=path, kind=kind):
-                    os.remove(path)
-                    with open(self.log, "a") as f:
-                        f.write(f"{kind} took its seed\n")
-                if after is not None:
-                    threading.Timer(after, take).start()
+            def take():
+                os.remove(path)
+                with open(self.log, "a") as f:
+                    f.write("sidebar took its seed\n")
+            if after is not None:
+                threading.Timer(after, take).start()
         return lay_out
 
     def test_a_new_tab_comes_to_the_front_once_its_column_has_started(self):
-        """Made in the background, laid out, its pager run, shown once its sidebar and Conversations column have
-        started (each takes its seed just before it first draws): no half-drawn tab, no shell's prompt, on screen."""
-        preview.open_preview(self.herdr, "w1", "/repo", SPEC, self.tmp, self.seeded(sidebar=0.2, conversations=0.4),
-                             "w1:t1")
+        """Made in the background, laid out, its pager run, shown once its sidebar has started (it takes its seed just
+        before it first draws): no half-drawn tab, no shell's prompt, on screen."""
+        preview.open_preview(self.herdr, "w1", "/repo", SPEC, self.tmp, self.seeded(0.3), "w1:t1")
         calls = logged(self.log)
-        self.assertLess(calls.index("conversations took its seed"), calls.index("tab focus w1:t3"), calls)
+        self.assertLess(calls.index("sidebar took its seed"), calls.index("tab focus w1:t3"), calls)
         self.assertLess(next(n for n, call in enumerate(calls) if call.startswith("pane run w1:p9")),
                         calls.index("sidebar took its seed"))
 
     def test_a_column_that_never_starts_lets_the_tab_show_all_the_same(self):
         set_attrs(self, preview, READY=0.3)
-        preview.open_preview(self.herdr, "w1", "/repo", SPEC, self.tmp, self.seeded(sidebar=None), "w1:t1")
+        preview.open_preview(self.herdr, "w1", "/repo", SPEC, self.tmp, self.seeded(None), "w1:t1")
         self.assertIn("tab focus w1:t3", logged(self.log))
 
     def test_the_asking_panes_own_tab_closes_last(self):

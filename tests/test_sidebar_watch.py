@@ -63,14 +63,28 @@ class Watching(unittest.TestCase):
         self.now = 1
         self.assertFalse(watcher.status_due(changed=False, scm_shown=True))
         self.assertTrue(watcher.status_due(changed=True, scm_shown=False))
-        self.now = 6
+        watcher.status_done(started=1, finished=1.05)                              # the one it asked for
+        self.now = 7
         self.assertTrue(watcher.status_due(changed=False, scm_shown=True))         # the 5 s beat
         self.assertFalse(watcher.status_due(changed=False, scm_shown=False))       # 15 s when not shown
-        watcher.status_done(started=6, finished=7)                                 # a slow repository: 1 s
+        watcher.status_done(started=7, finished=8)                                 # a slow repository: 1 s
         self.now = 30
         self.assertFalse(watcher.status_due(changed=False, scm_shown=True))        # at least 50 × 1 s apart
-        self.now = 57.5
+        self.now = 58.5
         self.assertTrue(watcher.status_due(changed=False, scm_shown=True))
+
+    def test_a_change_seen_too_soon_waits_for_its_status_and_is_never_dropped(self):
+        # git init just after a status: its change comes before the gap allows another one; it gets its status once
+        # the gap allows, not on the slow beat
+        watcher = Watcher(lambda: [], None, clock=self.clock)
+        watcher.status_done(started=0.0, finished=0.1)                             # 0.1 s: changes 1 s apart
+        self.now = 0.5
+        self.assertFalse(watcher.status_due(changed=True, scm_shown=True))          # too soon
+        self.now = 1.2
+        self.assertTrue(watcher.status_due(changed=False, scm_shown=True))         # kept, not forgotten
+        watcher.status_done(started=1.2, finished=1.3)
+        self.now = 3
+        self.assertFalse(watcher.status_due(changed=False, scm_shown=True))        # answered: the beat again
 
 
 if __name__ == "__main__":

@@ -397,8 +397,8 @@ def drop_output(fd, seconds):
 
 class FakeHerdrSocket:
     """A stand-in for herdr's socket API at PATH serving TABS {tab_id: (layout tree, zoomed)}, each .width cells wide
-    (200); pane.current is in the first tab, and a split's first side is round(width x ratio) cells, as herdr gives it.
-    Every call is recorded in .calls; close it with .server.close()."""
+    (200); a split's first side is round(width x ratio) cells, as herdr gives it. Every call is recorded in .calls;
+    close it with .server.close()."""
 
     def __init__(self, path, tabs):
         self.tabs, self.calls, self.width = {tab: list(value) for tab, value in tabs.items()}, [], 200
@@ -430,8 +430,6 @@ class FakeHerdrSocket:
         return next(tab for tab, (root, _) in self.tabs.items() if any(p["pane_id"] == pane for p in self.panes(root)))
 
     def answer(self, method, params):
-        if method == "pane.current":                                    # the first tab is on screen
-            return {"pane": {"tab_id": next(iter(self.tabs))}}
         if method == "pane.list":
             return {"panes": [{"pane_id": p["pane_id"], "label": p.get("label"), "tab_id": tab}
                               for tab, (root, _) in self.tabs.items() for p in self.panes(root)]}

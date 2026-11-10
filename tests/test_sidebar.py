@@ -19,9 +19,11 @@ from support import SRC, AppScreen, FakeHerdrSocket, FakeTerminal, end_child, en
 
 PLUGIN = os.path.join(SRC, "plugins", "sidebar")
 sys.path.insert(0, PLUGIN)
+import actions  # noqa: E402
 import column  # noqa: E402
 import commit_message  # noqa: E402
 import loop  # noqa: E402
+import panels  # noqa: E402
 import preview  # noqa: E402
 import screen  # noqa: E402
 import sidebar  # noqa: E402
@@ -77,7 +79,8 @@ class Repo(unittest.TestCase):
         set_env(self, GIT_CONFIG_GLOBAL=os.devnull, GIT_AUTHOR_NAME="dev", GIT_AUTHOR_EMAIL="dev@example.com",
                 GIT_COMMITTER_NAME="dev", GIT_COMMITTER_EMAIL="dev@example.com", HERDR_LOG=self.log,
                 HERDR_WORKSPACE_ID="w1", HERDR_BIN_PATH=os.path.join(self.bin, "herdr"), HERDR_COMMIT_AI="claude",
-                PATH=self.bin + os.pathsep + os.environ["PATH"], HERDR_PLUGIN_STATE_DIR=self.state)
+                PATH=self.bin + os.pathsep + os.environ["PATH"], HERDR_PLUGIN_STATE_DIR=self.state,
+                HOME=os.path.join(tmp, "home"))                # never the user's conversations or commit rules
         os.makedirs(os.path.join(self.root, "src"))
         for rel, body in (("a.txt", "a needle here\n"), ("src/b.py", "print('b')\n"), (".hidden", "x\n")):
             self.write(rel, body)
@@ -96,7 +99,7 @@ class Repo(unittest.TestCase):
 class Harness(AppScreen, Repo):
     """The app on its own thread with the stand-in terminal, and ways to wait for what it shows."""
 
-    def start(self, cols=45, rows=30):
+    def start(self, cols=45, rows=45):
         term = FakeTerminal(cols, rows)
         self.run_app(sidebar.App(self.root, term, preview.Herdr(), self.state), term)
 
@@ -121,14 +124,15 @@ class Running(Harness):
 
     def test_each_group_heads_its_tabs_the_shown_one_in_the_accent(self):
         self.until(lambda s: "project" in s and "Changes 2" in s)              # a.txt changed, new.txt new
-        canvas, work = self.app.canvas, self.app.slices["work"][0]
-        files, changes = ("".join(ch for ch, _ in canvas.rows[y]) for y in (0, work))
-        self.assertEqual((files[3:16], changes[3:12]), ("Files  Search", "Changes 2"))
-        styles = [canvas.rows[0][3][1], canvas.rows[0][10][1], canvas.rows[work][3][1], canvas.rows[work][11][1]]
+        canvas, project, work = self.app.canvas, self.app.slices["project"][0], self.app.slices["work"][0]
+        chats, files, changes = ("".join(ch for ch, _ in canvas.rows[y]) for y in (0, project, work))
+        self.assertEqual((chats[3:16], files[3:16], changes[3:12]), ("Conversations", "Files  Search", "Changes 2"))
+        styles = [canvas.rows[project][3][1], canvas.rows[project][10][1], canvas.rows[work][3][1],
+                  canvas.rows[work][11][1]]
         self.assertEqual([(style.fg, style.bold) for style in styles],
                          [("accent", True), ("muted", False), ("accent", True), ("modified", False)])
-        self.assertEqual(work, 15)                                            # two open groups share the rows
-        self.assertEqual(files.rstrip()[-3:].strip(), "⋯")                    # the pane's own menu, at the first head
+        self.assertEqual(self.app.slices, {"conversations": (0, 15), "project": (15, 15), "work": (30, 15)})
+        self.assertEqual(chats.rstrip()[-3:].strip(), "⋯")                    # the pane's own menu, at the first head
         self.assertNotIn("badge", {style.bg for _, style in canvas.rows[-1]})
 
     def test_the_heads_fit_whole_at_the_narrowest_and_a_tab_under_the_mouse_lights_up(self):
@@ -136,14 +140,15 @@ class Running(Harness):
         narrow = sidebar.App(self.root, FakeTerminal(sidebar.narrowest(self.app.tabs()), 30), preview.Herdr(),
                              self.state)                                 # as narrow as it goes
         narrow.draw()
-        self.assertIn("Files  Search", "".join(ch for ch, _ in narrow.canvas.rows[0]))
-        self.assertEqual(self.app.canvas.rows[0][10][1].fg, "muted")
-        self.term.type(Mouse("move", 10, 0, 3))
-        self.until(lambda s: self.app.canvas.rows[0][10][1].fg == "text")
+        self.assertIn("Files  Search", "".join(ch for ch, _ in narrow.canvas.rows[narrow.slices["project"][0]]))
+        head = self.app.slices["project"][0]
+        self.assertEqual(self.app.canvas.rows[head][10][1].fg, "muted")
+        self.term.type(Mouse("move", 10, head, 3))
+        self.until(lambda s: self.app.canvas.rows[head][10][1].fg == "text")
 
     def test_a_panels_controls_are_tall_where_its_group_has_the_rows(self):
         self.stop()
-        for rows in (30, 40):                                             # 15 rows a group, then 20
+        for rows in (45, 60):                                             # 15 rows a group, then 20
             with self.subTest(rows=rows):
                 self.start(rows=rows)
                 self.term.type(Key("f10"))
@@ -154,9 +159,9 @@ class Running(Harness):
 
     def test_the_folder_name_and_its_tree_follow_the_head_without_a_gap(self):
         self.until(lambda s: "project" in s)
-        rows = self.screen().split("\n")
-        self.assertIn("project", rows[1])
-        self.assertNotEqual(rows[2].strip(), "")                                 # the tree's first entry
+        rows, head = self.screen().split("\n"), self.app.slices["project"][0]
+        self.assertIn("project", rows[head + 1])
+        self.assertNotEqual(rows[head + 2].strip(), "")                          # the tree's first entry
 
     def test_a_click_gives_its_group_the_keys(self):
         self.until(lambda s: "project" in s)
@@ -177,18 +182,18 @@ class Running(Harness):
         self.until(lambda s: "project" in s)
         work = self.app.slices["work"][0]
         self.term.type(Mouse("press", 1, work, 0))
-        self.until(lambda s: self.app.slices["work"] == (29, 1))
+        self.until(lambda s: self.app.slices["work"] == (44, 1))
         with open(os.path.join(self.state, "dock.json")) as f:
             self.assertEqual(json.load(f)[os.path.realpath(self.root)]["folded"], ["work"])
         self.stop()
         self.start()
-        self.until(lambda s: self.app.slices.get("work") == (29, 1))
+        self.until(lambda s: self.app.slices.get("work") == (44, 1))
 
     def test_a_head_held_and_dragged_moves_the_edge(self):
         self.until(lambda s: "project" in s)
         work = self.app.slices["work"][0]
         self.term.type(Mouse("press", 30, work, 0), Mouse("move", 30, work - 4, 0), Mouse("release", 30, work - 4, 0))
-        self.until(lambda s: self.app.slices["work"] == (11, 19))
+        self.until(lambda s: self.app.slices["work"] == (26, 19))
         with open(os.path.join(self.state, "dock.json")) as f:
             self.assertIn("weights", json.load(f)[os.path.realpath(self.root)])
 
@@ -449,7 +454,7 @@ class PreviewTab(Harness):
 
     def test_the_preview_tab_gets_this_tabs_panes_and_its_sidebar_this_ones_place(self):
         set_env(self, HERDR_PANE_ID="w1:p2")                                # FAKE_HERDR: in w1:t1, with no terminal
-        with mock.patch.object(sidebar.conversations_pane, "bring") as bring:
+        with mock.patch.object(sidebar.panes, "bring") as bring:
             self.start()
             self.term.type(Key("f11"), Key("char", "c"), *keys("feat: half"), Key("esc"), Key("f10"), *keys("needle"))
             self.until(lambda s: "a needle here" in s)
@@ -817,19 +822,20 @@ class PaneMenu(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp)
-        set_env(self, HERDR_PANE_ID="w1:p2")
+        set_env(self, HERDR_PANE_ID="w1:p2", HOME=self.tmp)
         self.brought = []
         self.app = sidebar.App(self.tmp, FakeTerminal(45, 30), self.Herdr(), os.path.join(self.tmp, "state"))
 
     def test_it_offers_the_other_panes_and_brings_the_one_chosen(self):
         self.app.draw()
         self.app.handle(Mouse("press", 40, 0, 2))                        # the header, past the view buttons
-        self.assertEqual(self.app.menu[0].choices, ["Show conversations", "Show terminal", "Restore panels"])
+        self.assertEqual(self.app.menu[0].choices, ["Show terminal", "Restore panels"])
         self.app.draw()
-        with mock.patch.object(sidebar.conversations_pane, "bring_apart",
-                               lambda tab, kinds: self.brought.append((tab, set(kinds)))):
+        with mock.patch.object(sidebar.panes, "bring",
+                               lambda call, tab, kinds, state_dir: self.brought.append((tab, set(kinds)))):
             self.app.handle(Key("enter"))
-        self.assertEqual(self.brought, [("w1:t1", {"conversations"})])   # apart: it closes this pane on the way
+            end_jobs()
+        self.assertEqual(self.brought, [("w1:t1", {"terminal"})])
         self.assertIsNone(self.app.menu)
 
     def menu_rows(self):
@@ -842,7 +848,7 @@ class PaneMenu(unittest.TestCase):
         self.app.draw()
         dots = "".join(ch for ch, _ in self.app.canvas.rows[0]).index("⋯")
         self.app.handle(Mouse("press", dots, 0, 0))                         # a left click
-        self.assertEqual(self.menu_rows(), ["Show conversations", "Show terminal", "Restore panels"])
+        self.assertEqual(self.menu_rows(), ["Show terminal", "Restore panels"])
         rows = ["".join(ch for ch, _ in row) for row in self.app.canvas.rows]
         top = next(y for y, row in enumerate(rows) if "┌" in row)
         self.assertEqual(top, 1)                                           # right under the ⋯ (one row high)
@@ -916,21 +922,21 @@ class PaneMenu(unittest.TestCase):
         self.assertIsNotNone(self.app.menu)
         self.app.handle(Key("esc"))
         files.open_menu(None, 5, 5)
-        search = next(x for x in range(45) if self.app.canvas.hit(x, 0) == "tab:search")
-        self.app.handle(Mouse("press", search, 0, 0))                    # another panel: the menu not kept behind
+        head = self.app.slices["project"][0]
+        search = next(x for x in range(45) if self.app.canvas.hit(x, head) == "tab:search")
+        self.app.handle(Mouse("press", search, head, 0))                 # another panel: the menu not kept behind
         self.assertTrue(self.app.showing("search"))
         self.assertIsNone(files.menu)
 
     def test_a_right_click_on_a_tab_opens_it_and_leaves_the_panel_shown(self):
         self.app.draw()
-        self.app.handle(Mouse("press", 10, 0, 2))                           # Search's tab
+        self.app.handle(Mouse("press", 10, self.app.slices["project"][0], 2))   # Search's tab
         self.assertIsNotNone(self.app.menu)
         self.assertTrue(self.app.showing("files"))
 
     def test_each_other_pane_closes_from_it_the_sidebar_itself_not(self):
         panes = self.Herdr().call("pane", "list")["panes"] + [
-            {"pane_id": "w1:p3", "tab_id": "w1:t1", "label": "terminal"},
-            {"pane_id": "w1:p4", "tab_id": "w1:t1", "label": "conversations"}]
+            {"pane_id": "w1:p3", "tab_id": "w1:t1", "label": "terminal"}]
         calls = []
 
         def call(*args):
@@ -939,8 +945,7 @@ class PaneMenu(unittest.TestCase):
         self.app.herdr = mock.Mock(call=call)
         self.app.draw()
         self.app.handle(Mouse("press", 40, 0, 2))
-        self.assertEqual(self.menu_rows(), ["Close conversations", "Close terminal"])     # not itself
-        self.app.handle(Key("down"))
+        self.assertEqual(self.menu_rows(), ["Close terminal"])                             # not itself
         self.app.handle(Key("enter"))
         deadline = time.monotonic() + 5
         while ("pane", "close", "w1:p3") not in calls and time.monotonic() < deadline:
@@ -969,6 +974,7 @@ class NewVersion(Ticks, unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp)
         self.root, self.code = os.path.join(self.tmp, "project"), os.path.join(self.tmp, "code")
         self.state = os.path.join(self.tmp, "state")
+        set_env(self, HOME=os.path.join(self.tmp, "home"))
         os.makedirs(os.path.join(self.root, "src"))
         os.makedirs(self.code)
         for path in (os.path.join(self.root, "src", "app.py"), os.path.join(self.code, "a.py"),
@@ -1220,7 +1226,7 @@ class FollowsItsFolder(Ticks, unittest.TestCase):
         os.makedirs(os.path.join(self.root, "src"))
         with open(os.path.join(self.root, "src", "app.py"), "w") as f:
             f.write("x = 1\n")
-        set_env(self, GIT_CONFIG_GLOBAL=os.devnull)
+        set_env(self, GIT_CONFIG_GLOBAL=os.devnull, HOME=os.path.join(self.tmp, "home"))
         self.addCleanup(os.environ.pop, loop.RESUME_ENV, None)
         self.addCleanup(os.chdir, os.getcwd())
         self.addCleanup(end_jobs)                       # the first cleanup: its ticks start jobs
@@ -1271,7 +1277,7 @@ class NewWorkspace(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp)
         self.root = os.path.join(self.tmp, "project")
         os.makedirs(os.path.join(self.root, "src"))
-        set_env(self, GIT_CONFIG_GLOBAL=os.devnull)
+        set_env(self, GIT_CONFIG_GLOBAL=os.devnull, HOME=os.path.join(self.tmp, "home"))
         self.calls = []
 
     def make(self, plugins):
@@ -1427,6 +1433,55 @@ class Actions(Repo):
         out = self.action("show-files", HERDR_ACTIVE_TAB_ID="w1:t9")
         self.assertNotEqual(out.returncode, 0)
         self.assertIn("no sidebar", out.stderr)
+
+    class Herdr:
+        """A workspace whose tabs t1 and t2 have a sidebar (p2, p5), t1 its terminal (p3); new panes new1, new2…"""
+
+        def __init__(self):
+            self.calls, self.made = [], 0
+            self.listed = [{"pane_id": "w1:p2", "tab_id": "w1:t1", "label": "sidebar"},
+                           {"pane_id": "w1:p3", "tab_id": "w1:t1", "label": "terminal"},
+                           {"pane_id": "w1:p5", "tab_id": "w1:t2", "label": "sidebar"}]
+
+        def call(self, *args):
+            self.calls.append(args)
+            if args[:2] == ("pane", "list"):
+                return {"panes": self.listed}
+            if args[:2] == ("pane", "split"):
+                self.made += 1
+                return {"pane": {"pane_id": f"new{self.made}"}}
+            if args[:2] == ("pane", "rename") and args[2].startswith("new"):
+                self.listed.append({"pane_id": args[2], "tab_id": "w1:t1", "label": args[3]})
+            return {}
+
+    def find(self, herdr, tab):
+        focused = []
+        return actions.find(herdr.call, tab, list(herdr.listed), self.state, focused.append), focused
+
+    def test_find_gives_the_tabs_sidebar_f7_and_the_keys(self):
+        herdr = self.Herdr()
+        self.assertEqual(self.find(herdr, "w1:t2"), ("w1:p5", ["w1:p5"]))
+        self.assertEqual(herdr.calls, [("pane", "send-keys", "w1:p5", sidebar.FIND)])
+
+    def test_find_in_a_tab_without_a_sidebar_goes_to_the_workspaces_first(self):
+        herdr = self.Herdr()                                                # w1:t4: the user's own shell tab
+        self.assertEqual(self.find(herdr, "w1:t4"), ("w1:p2", ["w1:p2"]))
+        self.assertEqual(herdr.calls, [("pane", "send-keys", "w1:p2", sidebar.FIND)])
+
+    def test_find_brings_back_a_sidebar_closed_by_hand_on_its_conversations(self):
+        panels.note(self.state, {"w1:t1": {"sidebar", "terminal"}})
+        herdr = self.Herdr()
+        herdr.listed.pop(0)                                                 # t1's sidebar closed by hand
+        self.assertEqual(self.find(herdr, "w1:t1"), ("new1", ["new1"]))
+        self.assertIn(("pane", "rename", "new1", "sidebar"), herdr.calls)
+        self.assertNotIn(("pane", "send-keys", "new1", sidebar.FIND), herdr.calls)   # not started yet: its seed
+        with open(preview.seed_file(self.state, "w1:t1")) as f:
+            self.assertEqual(json.load(f), {"show": "conversations"})
+
+    def test_a_seed_shows_conversations_with_the_keys(self):
+        app = sidebar.App(self.root, FakeTerminal(45, 30), preview.Herdr(), self.state)
+        app.take({"show": "conversations"})
+        self.assertEqual(app.focus, "conversations")
 
 
 if __name__ == "__main__":

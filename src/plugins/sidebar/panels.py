@@ -1,29 +1,28 @@
-"""The plugin's panes in a tab: the sidebar above a terminal (the right column) and the Conversations column before
-them. What a tab has had is kept in panels.json, so a pane closed by hand stays closed until the user brings it back;
-one it never had may be put in. A connected machine's tabs are kept apart under its name (SCOPE)."""
+"""The plugin's panes in a tab: the sidebar above a terminal (the right column). What a tab has had is kept in
+panels.json, so a pane closed by hand stays closed until the user brings it back; one it never had may be put in. A
+connected machine's tabs are kept apart under its name (SCOPE)."""
 import json
 import os
 
 import statefile
 
 FILE = "panels.json"
-KINDS = ("sidebar", "terminal", "conversations")
-ORDER = ("conversations", "sidebar", "terminal")        # as on screen: left to right, top to bottom
+KINDS = ("sidebar", "terminal")               # as on screen: top to bottom
 RESTORE = "Restore panels"
 
 
-def menu(present, own):
-    """The panes' own menus' lines for a tab with the PRESENT kinds, in the menu of the pane of kind OWN: each other
-    pane closed, or shown back, in screen order; Restore panels while any is closed."""
-    lines = [f"{'Close' if kind in present else 'Show'} {kind}" for kind in ORDER if kind != own]   # herdr's name
-    return lines + ([RESTORE] if set(ORDER) - set(present) else [])
+def menu(present):
+    """The sidebar's own menu's lines for a tab with the PRESENT kinds: each other pane, by its name in herdr, closed or
+    shown back, in screen order; Restore panels while any is closed."""
+    lines = [f"{'Close' if kind in present else 'Show'} {kind}" for kind in KINDS if kind != "sidebar"]
+    return lines + ([RESTORE] if set(KINDS) - set(present) else [])
 
 
 def chosen(line, present):
     """What a menu LINE asks for in a tab with the PRESENT kinds: ("close", kind), ("show", {kinds}), or None (not a
     panes' line)."""
     if line == RESTORE:
-        return "show", set(ORDER) - set(present)
+        return "show", set(KINDS) - set(present)
     what, _, name = line.partition(" ")
     kind = name if name in KINDS else None
     if what == "Close" and kind:
@@ -51,7 +50,7 @@ def load(state_dir):
         return {}
     if not isinstance(kept, dict):
         return {}
-    return {name: set(kinds) for name, kinds in kept.items() if isinstance(kinds, list)}
+    return {name: set(kinds) & set(KINDS) for name, kinds in kept.items() if isinstance(kinds, list)}
 
 
 def had(state_dir, tab, scope=""):
@@ -116,8 +115,8 @@ def show_terminal(call, sidebar, cwd):
 
 
 def show_column(call, beside, cwd, run, share):
-    """The right column back, right of BESIDE (the Conversations column, or the agent): the sidebar above a terminal,
-    SHARE of the split BESIDE's; the sidebar's pane id. RUN: the sidebar's command."""
+    """The right column back, right of BESIDE (the agent): the sidebar above a terminal, SHARE of the split BESIDE's;
+    the sidebar's pane id. RUN: the sidebar's command."""
     side = split(call, beside, "right", share, cwd)
     show_terminal(call, side, cwd)
     call("pane", "rename", side, "sidebar")

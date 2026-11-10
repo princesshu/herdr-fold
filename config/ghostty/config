@@ -95,11 +95,11 @@ keybind = super+f=text:\x02a
 # Cmd+Shift+L → open a file the focused pane's output names, at its line, in the sidebar's preview (herdr: Ctrl+B,
 # Shift+L)
 keybind = super+shift+l=text:\x02L
-# Cmd+Shift+H → collapse the Conversations column to a rail, or open it, in every tab at once (herdr: Ctrl+B, Shift+H)
+# Cmd+Shift+H → fold the sidebar's Conversations to its head, or open it (herdr: Ctrl+B, Shift+H)
 keybind = super+shift+h=text:\x02H
 # Cmd+Shift+O → restore panels: every pane closed by hand in the tab back (herdr: Ctrl+B, Shift+O)
 keybind = super+shift+o=text:\x02O
-# Cmd+Shift+R → find a conversation in the Conversations column (herdr: Ctrl+B, m)
+# Cmd+Shift+R → find a conversation in the sidebar's Conversations (herdr: Ctrl+B, m)
 keybind = super+shift+r=text:\x02m
 # Cmd+Shift+U → mark the focused agent unread: its workspace says it waits on you again (herdr: Ctrl+B, Shift+U)
 keybind = super+shift+u=text:\x02U

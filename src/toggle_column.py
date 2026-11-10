@@ -6,8 +6,7 @@ import sys
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from herdrlib import (PLUGIN_STATE, agent_pane_ids, conversations_command, conversations_pane, herdr,  # noqa: E402
-                      sidebar_command)
+from herdrlib import PLUGIN_STATE, agent_pane_ids, herdr, panes, sidebar_command  # noqa: E402
 from i18n import t  # noqa: E402
 
 
@@ -24,12 +23,12 @@ def main():
         if not gone:
             return
     if gone:                                    # closed by hand: back in the tab
-        conversations_pane.bring(herdr, tab, gone, PLUGIN_STATE, conversations_command, sidebar_command)
+        panes.bring(herdr, tab, gone, PLUGIN_STATE, sidebar_command)
         return
     agents, ids = agent_pane_ids(tab_panes), {p["pane_id"] for p in tab_panes}
-    panes = [p for p in lay["panes"] if p["pane_id"] in ids]
-    agent = next((p for p in panes if p["pane_id"] in agents), None) \
-        or max(panes, key=lambda p: p["rect"]["width"] * p["rect"]["height"])
+    shown = [p for p in lay["panes"] if p["pane_id"] in ids]
+    agent = next((p for p in shown if p["pane_id"] in agents), None) \
+        or max(shown, key=lambda p: p["rect"]["width"] * p["rect"]["height"])
     herdr("pane", "zoom", agent["pane_id"], "--toggle")
 
 

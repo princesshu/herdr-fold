@@ -3,8 +3,8 @@ name = "Tab Layout"
 version = "0.3.0"
 min_herdr_version = "0.9.5"
 description = """\
-  Keeps the layout: a new workspace asks for its folder, new tabs get the columns, and after a restart the \
-  Conversations columns, sidebars and agents come back. \
+  Keeps the layout: a new workspace asks for its folder, new tabs get the sidebar and a terminal, and after a \
+  restart the sidebars and agents come back. \
   Part of herdr-fold: install it with herdr-fold's installer. Created by princesshu"""
 platforms = ["macos", "linux", "windows"]
 

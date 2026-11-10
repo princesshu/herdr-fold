@@ -9,7 +9,7 @@ all.
 |---|---|
 | Cmd + 1…9 | jump to workspace 1…9 |
 | Cmd + ↓ / Cmd + ↑ | next / previous workspace, wrapping around |
-| Cmd + → / Cmd + ← | next / previous pane of the tab (the agent, the Conversations column, the sidebar, the terminal), wrapping around; in typing, Ctrl + A / Ctrl + E (or Fn + ← / Fn + →) go to the start or end of the line |
+| Cmd + → / Cmd + ← | next / previous pane of the tab (the agent, the sidebar, the terminal), wrapping around; in typing, Ctrl + A / Ctrl + E (or Fn + ← / Fn + →) go to the start or end of the line |
 | Ctrl + B, then w | make the Spaces list active: W / S or ↑ / ↓ move the highlight, Enter switches, Esc cancels, 1–9 jumps |
 | Ctrl + B, then Shift + N | new workspace, with the folder picker (the same as the **new** button under Spaces) |
 | Cmd + D / Cmd + E | next / previous session of the current workspace, even while typing; wraps around |
@@ -22,7 +22,7 @@ all.
 | Key | What it does |
 |---|---|
 | Cmd + Shift + E | show / hide the right column (sidebar and terminal); a sidebar or terminal closed by hand comes back |
-| Cmd + Shift + O | restore panels: every pane closed by hand in the tab comes back (sidebar, terminal, Conversations column), the right column shown |
+| Cmd + Shift + O | restore panels: every pane closed by hand in the tab comes back (sidebar, terminal), the right column shown |
 | Cmd + Shift + G | the sidebar's Changes view |
 | Cmd + Shift + I | the sidebar's Issues view, for a repository on GitHub |
 | Cmd + A | in the sidebar's field you are in (the commit message, a search): select its whole text, for Backspace, typing or a paste; in other panes it does nothing |
@@ -36,9 +36,9 @@ all.
 
 | Key | What it does |
 |---|---|
-| Cmd + Shift + H | collapse the Conversations column to a rail, or open it, in every tab at once; where it was closed by hand, it comes back |
-| Cmd + Shift + R | find a conversation: the Conversations column of this tab opens (collapsed, or closed by hand), its filter empty and the keys going to it; Enter goes to a running one or reopens a closed one in a new tab |
-| Space / Shift + ↑ ↓ | in the Conversations column, with nothing typed: mark closed conversations, to archive them together with a right click on one of them; Esc unmarks them |
+| Cmd + Shift + H | fold the sidebar's Conversations to its head, or open it |
+| Cmd + Shift + R | find a conversation: the sidebar's Conversations opens in this tab (folded too; a sidebar closed by hand comes back, a tab without one goes to the workspace's first), its filter empty and the keys going to it; Enter goes to a running one or reopens a closed one in a new tab |
+| Space / Shift + ↑ ↓ | in the sidebar's Conversations, with nothing typed: mark closed conversations, to archive them together with a right click on one of them; Esc unmarks them |
 | Cmd + F | search the Claude conversation: Enter accepts, `n` / `N` next / previous match, Esc goes back to typing |
 
 ## Copy and links

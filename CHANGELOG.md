@@ -25,18 +25,24 @@ All notable changes to this project are listed here. The format follows
 
 ### Changed
 
-- The TUI sidebar shows its panels as two groups one under the other, as Adobe's panel groups: Files and
-  Search, Changes and Issues, each under a head with its tabs (Changes with its count) and a fold; a head dragged
+- The TUI sidebar shows its panels as groups one under the other, as Adobe's panel groups: Conversations, Files
+  and Search, Changes and Issues, each under a head with its tabs (Changes with its count) and a fold; a head dragged
   moves the edge between them, and each folder keeps the panels shown, the groups folded and their sizes. The
   view buttons above them are gone.
-- The TUI folds with one chevron everywhere: the Conversations column's spaces and the issues' filter as the file tree
-  and the sections, and without a Nerd Font a plain chevron (› ⌄) for each.
+- The TUI's Conversations column, its rail and its own pane are gone, and so is a tab's third column: the list is
+  the sidebar's first group. Cmd + Shift + R opens it in the tab's sidebar, its filter empty, and Cmd + Shift + H
+  folds it to its head. On an existing install the update closes every tab's Conversations column and gives the
+  right column back the width last dragged; what the column kept goes from `conversations.json`.
+- The TUI folds with one chevron everywhere: the conversations' spaces and the issues' filter as the file tree and the
+  sections, and without a Nerd Font a plain chevron (› ⌄) for each.
 - A fold turns its chevron as it opens or shuts: the Herdr app springs its section open with no overshoot and crosses
   its two chevrons on the same spring (sections, Graph, the conversations' spaces, the chat's rows and cards); the TUI
-  turns it through a frame at 45° (the file tree, the sections, the Conversations column, the folder picker).
+  turns it through a frame at 45° (the file tree, the sections, the conversations' spaces, the folder picker).
 
 ### Fixed
 
+- The TUI's Changes no longer misses a change made just after its last git status (`git init`, a quick edit): it
+  showed only on the slow beat, 5 to 15 seconds later.
 - The TUI preview's key hints in a narrow pane: each left out whole, the last first, never cut (`c: co`).
 - Claude's status line writes the weekly reset as the machine writes hours (`Monday 13:00` on a Mac set to 24 hours),
   not always with am and pm.
