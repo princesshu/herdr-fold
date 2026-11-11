@@ -19,9 +19,10 @@ One workspace per repo:
 right, Cancel and Open at the bottom](../assets/screenshots/new-workspace.webp)
 
 The workspace's main tab is named after the folder (the home folder's is `home`): the agent on the left, and on the
-right the sidebar above a terminal. Drag the right column's edge to resize it in every tab; the » before the sidebar's ⋯
-folds it to a rail of icons in every tab, the terminal moving under the agent, a press on an icon opens that panel
-beside the rail, and « brings the sidebar back. In a new folder the agent first asks whether you trust it: answer in the
+right the sidebar above a terminal: its panels are tabs in a row at its top, one shown at a time. Drag the right
+column's edge to resize it in every tab; the » at the end of the sidebar's tab row folds it to a rail of icons in every
+tab, the terminal moving under the agent, a press on an icon opens that panel beside the rail, and « brings the sidebar
+back. In a new folder the agent first asks whether you trust it: answer in the
 pane. A pane you close stays closed in its tab, after a restart too, until Cmd + Shift + O (Restore panels) or the
 sidebar's ⋯ menu brings it back; a new tab always comes with every pane.
 
@@ -76,10 +77,10 @@ A tab you renamed yourself keeps your name until you rename the conversation.
 
 ## Conversations
 
-Every conversation of the workspaces under Spaces, running or closed, in the sidebar's first group:
+Every conversation of the workspaces under Spaces, running or closed, in the sidebar's first tab, Chats:
 
-1. Cmd + Shift + R, from anywhere: the group opens in the tab's sidebar (one closed by hand comes back), its filter
-   empty, the keys going to it.
+1. Cmd + Shift + R, from anywhere: Chats shows in the tab's sidebar (one closed by hand comes back), its filter empty,
+   the keys going to it.
 2. Type: the conversations of every workspace narrow at once.
 3. Enter goes to a running conversation, or reopens a closed one in a new tab of its workspace.
 
@@ -88,8 +89,7 @@ color, the closed ones faint](../assets/screenshots/conversations.webp)
 
 A right click on a conversation offers Open, Copy conversation (all of it, formatted for Notes, Mail or Docs), Rename
 and, for a closed one, Archive: it leaves the list and its file stays as it was, so `claude --resume` or `codex resume`
-still finds it; a right click beside the conversations offers Show archived while any is. Cmd + Shift + H folds the
-group to its head, and opens it again.
+still finds it; a right click beside the conversations offers Show archived while any is.
 
 ## GitHub issues
 

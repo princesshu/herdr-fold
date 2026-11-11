@@ -113,13 +113,6 @@ description = "open a file the pane's output names, at its line (Cmd+Shift+L)"
 width = "70%"
 height = "60%"
 
-# The sidebar's Conversations: its group folded to its head, or open (Ghostty: Cmd+Shift+H → Ctrl+B, Shift+H)
-[[keys.command]]
-key = "prefix+shift+h"
-type = "plugin_action"
-command = "herdr-fold.sidebar.toggle-conversations"
-description = "sidebar: Conversations folded or open (Cmd+Shift+H)"
-
 # Restore panels: every pane closed by hand in this tab back — the sidebar, the terminal — and the right column shown
 # (Ghostty: Cmd+Shift+O → Ctrl+B, Shift+O)
 [[keys.command]]

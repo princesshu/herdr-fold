@@ -35,7 +35,7 @@ class Naming:
 
 
 class ConversationList:
-    editing = True            # the filter takes every character typed: the app's own keys (1-4, q) wait
+    editing = True            # the filter takes every character typed: the app's own keys (1-5, q) wait
 
     def __init__(self, now=time.time):
         self.now = now

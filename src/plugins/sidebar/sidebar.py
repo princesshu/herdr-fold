@@ -1,6 +1,6 @@
-"""The sidebar: Conversations, Files, Search, Changes and, for a repository on GitHub, Issues in one pane, as groups of
-tabs. One process: the screen and keys on the main thread, slow commands on background threads that wake the loop, so
-the view never waits. Usage: python3 sidebar.py [FOLDER] (in the home folder: ~/Documents)"""
+"""The sidebar: Conversations, Files, Search, Changes and, for a repository on GitHub, Issues in one pane, one at a time
+under a row of tabs. One process: the screen and keys on the main thread, slow commands on background threads that wake
+the loop, so the view never waits. Usage: python3 sidebar.py [FOLDER] (in the home folder: ~/Documents)"""
 import json
 import os
 import subprocess
@@ -28,22 +28,20 @@ from dock import GROUPS, PANELS  # noqa: E402
 from screen import ROOMY, Canvas, Style, centered, truncate, width  # noqa: E402
 from tree import git_marks  # noqa: E402
 from vt import Focus, Key, Mouse, Resize  # noqa: E402
-import widgets  # noqa: E402
 from widgets import Menu, wrap  # noqa: E402
 import watch  # noqa: E402
 
-VIEW_KEYS = {"1": "files", "2": "search", "3": "changes", "4": "issues", "f9": "files", "f10": "search",
-             "f11": "changes", "f12": "issues"}
-FIND, FOLD = "f7", "f6"       # the keys herdr's actions send (actions.py): find a conversation, fold its group
-GROUP_OF = {panel: group for group, members in GROUPS for panel in members}
+# 1 to 5 in the tab row's order; F9 to F12 are what herdr's actions send (actions.py), as F7 to find a conversation
+VIEW_KEYS = {"1": "conversations", "2": "files", "3": "search", "4": "changes", "5": "issues", "f9": "files",
+             "f10": "search", "f11": "changes", "f12": "issues"}
+FIND = "f7"
+START = "files"               # the panel a folder starts on: its keys (n . q) work at once, Chats' filter takes them
 # linked: the issue each repository's next commit fixes, {repository: [number, title]}
 DEFAULTS = {"hidden": False, "icons": True, "commit_mode": "commit", "linked": {}, "folded": [], "hidden_panels": []}
 UPDATES = 3600.0              # seconds between two looks at update.json (GitHub itself is asked once a day at most)
 CHECK = "Check for Updates"   # the ⋯ menu's switch, a ✓ while it is on
 FAMILIES = (Conversations, Files, Changes)        # the panel families the dock hosts, in its groups' order
-MORE = 5                      # the cells of the ⋯ (the pane's own menu) at the first group's head
-FOLD_DOCK, OPEN_DOCK = "»", "«"   # the dock's head: » folds it to its rail, « opens it again
-COUNT = 3                     # the cells a count beside a tab's name takes at most (Changes: 999)
+FOLD_DOCK, OPEN_DOCK = "»", "«"   # at the tab row's end: » folds the dock to its rail, « on the rail opens it again
 NOTE = 4.0                    # seconds a note ("Archived", "Renamed") stays on the last row; an error stays till a key
 TIP_DELAY = 0.5               # seconds the mouse rests on a control shown by an icon before it says what it does
 # what each such control does, by its target (a row's buttons by their kind)
@@ -55,17 +53,15 @@ TIPS = {"suggest": "Write message", "mode": "Commit mode", "sync": "Sync", "pane
         "agent": "To agent", "web": "Open in browser", "remote": "More actions"}
 
 
-def head_width(tabs):
-    """The cells a group's head takes with the panels TABS: a cell of edge, the fold and a cell, each tab's name (and
-    Changes' count) two apart, a cell, the dock's » and a cell, the ⋯ and a cell of edge."""
-    names = sum(width(PANELS[panel]["title"]) + (1 + COUNT if panel == "changes" else 0) for panel in tabs)
-    return 1 + 2 + names + 2 * (len(tabs) - 1) + 1 + 2 + MORE + 1
+def grouped(tabs):
+    """GROUPS with the panels of TABS there, a group without any left out."""
+    return [(group, [panel for panel in members if panel in tabs]) for group, members in GROUPS
+            if any(panel in tabs for panel in members)]
 
 
 def narrowest(tabs):
-    """The cells the widest group's head takes with the panels TABS shown: what the column keeps to at least
-    (column.need())."""
-    return max(head_width([panel for panel in members if panel in tabs]) for _group, members in GROUPS)
+    """The cells the tab row takes with the panels TABS shown: what the column keeps to at least (column.need())."""
+    return stack.cells(grouped(tabs))
 
 
 def load_settings(path):
@@ -133,18 +129,16 @@ class App(Loop):
         self.families = [family(self) for family in FAMILIES]
         self.work = {panel: family for family in self.families for panel in family.PANELS}    # each panel's family
         self.views = {panel: view for family in self.families for panel, view in family.views.items()}
-        self.dock = stack.state(state_dir, self.root)    # each group's panel shown, the folded ones, their shares
+        self.dock = stack.state(state_dir, self.root)    # the panel shown in this folder
         self.railed = column.railed(state_dir)            # the dock folded to its rail, in every tab (column.json)
-        self.flyout = None                                # on the rail, the group opened beside it in this tab
+        self.beside = False                               # on the rail, the panel shown opened beside it in this tab
         self.owed = False                                 # this tab left as it was by a fold (its agent zoomed)
-        self.focus = GROUP_OF["files"]                    # the group with the keys: Files' at first
-        self.slices = {}                                  # each group's rows, as last drawn: {group: (top, rows)}
-        self.reach = 0                                    # the cells the groups take, as last drawn: up to the rail
-        self.dragging = None                              # a head held: (its group, the row it went down on, weights)
+        self.body = None                                  # the panel's rows, as last drawn: (top, rows)
+        self.reach = 0                                    # the cells the panel takes, as last drawn: up to the rail
         self.watcher = watch.Watcher(self.work["files"].tree.expanded_dirs, git.git_dir(self.root), clock)
-        self.pointed = None                               # the panel's tab (or the ⋯) under the mouse
+        self.pointed = None                               # under the mouse: a panel's tab, the ⋯, », an icon
         self.dots = (0, None, 0)                          # where the ⋯'s menu opens: open_menu()'s arguments
-        self.needs = None                                 # the cells this tab's header was said to take
+        self.needs = None                                 # the cells this tab's tab row was said to take
         self.menu = None                                  # the pane's own menu: (Menu, its row, its column, its tab)
         self.tip = None                         # the control under the mouse: (target, tip, x, y, when due, drawn)
         self.noted = (None, 0.0)                          # the note on the last row, and when it came
@@ -182,8 +176,8 @@ class App(Loop):
         self.fit()
 
     def fit(self):
-        """The cells the widest head takes now, said to the column when they changed (column.need()); once more when
-        they change while that runs, so the last change lands last."""
+        """The cells the tab row takes now, said to the column when they changed (column.need()); once more when they
+        change while that runs, so the last change lands last."""
         if narrowest(self.tabs()) != self.needs:
             self.needs = narrowest(self.tabs())
             self.tell_need()
@@ -200,45 +194,30 @@ class App(Loop):
             self.tell_need()
 
     def groups(self):
-        """GROUPS with the panels there, a group without any left out."""
-        tabs = self.tabs()
-        return [(group, [panel for panel in members if panel in tabs]) for group, members in GROUPS
-                if any(panel in tabs for panel in members)]
+        """The tab row's groups: GROUPS with the panels shown, a group without any left out."""
+        return grouped(self.tabs())
 
-    def shown(self, group):
-        """The panel GROUP shows: the one kept for this folder while it is there, else its first."""
-        members = dict(self.groups()).get(group) or []
-        kept = self.dock["shown"].get(group)
-        return kept if kept in members else (members[0] if members else None)
+    def shown(self):
+        """The panel shown: the one kept for this folder while it is a tab here (hidden, or Issues off GitHub, it comes
+        back with its tab), else Files, else the first tab."""
+        tabs, kept = self.tabs(), self.dock["shown"]
+        return kept if kept in tabs else START if START in tabs else tabs[0]
 
     def showing(self, panel):
-        """Whether PANEL is on screen: shown in its group, the group open (as last drawn; before that, not folded) or,
-        on the rail, opened beside it."""
-        group = GROUP_OF[panel]
-        rows = self.slices[group][1] if group in self.slices else None
-        if self.railed:
-            opened = group == self.flyout
-        else:
-            opened = rows > stack.HEAD if rows is not None else group not in self.dock["folded"]
-        return opened and self.shown(group) == panel
+        """Whether PANEL is on screen: the one shown, the dock open or, on the rail, PANEL opened beside it."""
+        return panel == self.shown() and (self.beside or not self.railed)
 
     def keyed(self):
-        """The panel with the keys: the focused group's while it is on screen, else the first one on screen (that group
-        folded, or its panels hidden); None with every group folded."""
-        candidates = (self.shown(group) for group in [self.focus] + [group for group, _members in self.groups()])
-        return next((panel for panel in candidates if panel and self.showing(panel)), None)
+        """The panel with the keys: the one shown while it is on screen; None on the rail alone."""
+        shown = self.shown()
+        return shown if self.showing(shown) else None
 
-    def keep_dock(self, shown=None, folded=(), opened=(), weights=None):
-        """SHOWN ({group: its panel}), the groups FOLDED and OPENED, the WEIGHTS: in this sidebar, and in what dock.json
-        holds then (another sidebar on this folder, a preview tab's, writes it too: what it changed stays)."""
-        def change(dock):
-            dock["shown"] = {**dock["shown"], **(shown or {})}
-            dock["folded"] = [group for group in dock["folded"] if group not in (*folded, *opened)] + list(folded)
-            dock["weights"] = dock["weights"] if weights is None else weights
-
-        change(self.dock)
+    def keep_dock(self, shown):
+        """SHOWN the panel this sidebar shows, and kept for its folder (dock.json: another sidebar on this folder, a
+        preview tab's, writes it too)."""
+        self.dock["shown"] = shown
         try:
-            stack.keep(self.state_dir, self.root, change)
+            stack.keep(self.state_dir, self.root, shown)
         except OSError as err:
             self.error = f"settings not saved: {err}"
 
@@ -272,7 +251,7 @@ class App(Loop):
 
     def got_status(self, answer):
         repo, self.github, self.status, marks, graph, started, finished, linked, (issue, head), self.own = answer
-        self.fit()                                      # Issues came or went: the heads' width with it
+        self.fit()                                      # Issues came or went: the tab row's width with it
         if repo != self.repo:
             self.repo = repo
             self.watcher.git_dir = git.git_dir(repo) if repo else None
@@ -333,8 +312,8 @@ class App(Loop):
         return bool(self.running - {"update"}) or any(held)
 
     def left(self):
-        shown = self.shown(self.focus)
-        left = {"show": shown} if shown and self.showing(shown) else {}      # a folded group stays folded
+        shown = self.shown()
+        left = {"show": shown} if self.showing(shown) else {}            # the rail alone stays so
         left["dock"] = self.dock                          # its own view, whatever another sidebar here changed since
         for family in self.families:
             left.update(family.left())
@@ -447,9 +426,6 @@ class App(Loop):
         if self.menu and isinstance(event, (Key, Mouse)) and (isinstance(event, Key) or event.kind == "press"):
             self.act(self.answer_menu(event))
             return
-        if isinstance(event, Mouse) and self.dragging and event.kind in ("move", "release"):
-            self.drag_head(event)
-            return
         if isinstance(event, Key):
             if event.name == "char" and event.ctrl and event.char == "c":
                 self.quit = True
@@ -465,17 +441,11 @@ class App(Loop):
                 self.show("conversations")
                 self.work["conversations"].find()
                 return
-            if name == FOLD:                            # hidden in the ⋯'s Panels: shown again
-                if "conversations" in self.tabs():
-                    self.fold(GROUP_OF["conversations"])
-                else:
-                    self.show("conversations")
-                return
             if name == "q" and not editing:
                 self.quit = True
                 return
-            if name == "esc" and self.flyout and not self.engaged(panel):
-                self.fly(None)
+            if name == "esc" and self.beside and not self.engaged(panel):
+                self.fly(False)
                 return
             if panel:
                 self.act(self.views[panel].handle(event), panel)
@@ -489,9 +459,8 @@ class App(Loop):
             self.error = self.note = None
             if self.railed and not self.reach and event.button == 2:
                 return                                # the rail alone: no room for a menu
-            head = target in ("pane", "sync", "panels", "to_rail", "to_dock") or str(target).startswith(
-                ("head:", "fold:", "tab:"))
-            if head:                                  # outside the panels: their menus close, as a click in one does
+            own = target in ("tabs", "sync", "panels", "to_rail", "to_dock") or str(target).startswith("tab:")
+            if own:                                   # outside the panels: their menus close, as a click in one does
                 for view in self.views.values():
                     view.close_menu()
             if target == "news":                                             # a newer version: its release
@@ -503,7 +472,7 @@ class App(Loop):
             if target in ("to_rail", "to_dock") and event.button != 2:
                 self.fold_dock(target == "to_rail")
                 return
-            if head and event.button == 2:            # a right click on a head or the status bar: there
+            if own and event.button == 2:             # a right click on the tab row: there
                 self.open_menu(event.y, event.x)
                 return
             kind, _, name = str(target).partition(":")
@@ -511,22 +480,14 @@ class App(Loop):
                 if event.button != 2:
                     self.press_icon(name)
                 return
-            if kind == "fold":
-                self.fold(name)
-                return
             if kind == "tab":
                 self.show(name)
-                return
-            if kind == "head":                        # held: the edge above it follows the mouse
-                self.dragging = (name, event.y, dict(self.dock["weights"]))
                 return
             if target == "sync":
                 self.work["changes"].do_sync()
                 return
         panel = self.panel_at(event.y, event.x)
         if panel:
-            if event.kind == "press":
-                self.focus = GROUP_OF[panel]
             self.act(self.views[panel].handle(event), panel)
 
     def act(self, action, panel=None):
@@ -536,23 +497,11 @@ class App(Loop):
             getattr(self.work[panel] if hasattr(self.work.get(panel), name) else self, name)(*action.args)
 
     def panel_at(self, y, x=0):
-        """The panel drawn at row Y and column X; None on a head, under the groups or on the rail."""
-        if x >= self.reach:
+        """The panel drawn at row Y and column X; None on the tab row, under the panel or on the rail."""
+        if x >= self.reach or not self.body:
             return None
-        for group, (top, rows) in self.slices.items():
-            if top + stack.HEAD <= y < top + rows:
-                return self.shown(group)
-        return None
-
-    def drag_head(self, event):
-        """A head held: the edge above it follows the mouse; kept once it is let go."""
-        group, start, weights = self.dragging
-        rows = sum(size for _top, size in self.slices.values())
-        names = [name for name, _panels in self.groups()]
-        self.dock["weights"] = stack.dragged(rows, names, set(self.dock["folded"]), weights, group, event.y - start)
-        if event.kind == "release":
-            self.dragging = None
-            self.keep_dock(weights=self.dock["weights"])
+        top, rows = self.body
+        return self.shown() if top <= y < top + rows else None
 
     def need(self, cells):
         """On the job's thread: this tab's right column takes CELLS at least inside its frame (column.need(): the
@@ -581,7 +530,7 @@ class App(Loop):
             return super().drag(pane)
         tab = column.read(pane)
         if tab and tab.cells:
-            column.arrange(tab, right=column.width(self.state_dir, tab, True, self.flyout is not None))
+            column.arrange(tab, right=column.width(self.state_dir, tab, True, self.beside))
         return 0
 
     # --- the pane's own menu: each of the tab's other panes closed or shown back
@@ -597,7 +546,7 @@ class App(Loop):
         tab = next((p["tab_id"] for p in listed if p.get("pane_id") == pane), None)
         present = {p.get("label") for p in listed if p.get("tab_id") == tab} & set(panels.KINDS)
         shown = self.tabs()
-        lines = [f"{'✓' if panel in shown else ' '} {PANELS[panel]['title']}" for panel in self.panels()]
+        lines = [f"{'✓' if panel in shown else ' '} {PANELS[panel]['name']}" for panel in self.panels()]
         for part in (panels.menu(present) if tab else [], self.about()):
             lines += [None] + part if part else []
         menu = Menu(lines)
@@ -631,7 +580,7 @@ class App(Loop):
             target = self.canvas.hit(event.x, event.y) if self.canvas else None
             choice = menu.choices[int(target[5:])] if str(target).startswith("menu:") else "cancel"
         self.menu = None
-        panel = next((name for name in self.panels() if choice[2:] == PANELS[name]["title"]), None)
+        panel = next((name for name in self.panels() if choice[2:] == PANELS[name]["name"]), None)
         if panel:                                       # a panel's ✓: hidden, or shown again
             self.hide(panel, choice.startswith("✓"))
             return None
@@ -650,27 +599,19 @@ class App(Loop):
         return None
 
     def show(self, panel):
-        """PANEL shown in its group (hidden in the ⋯'s Panels: shown again), the group open (on the rail, beside it),
-        and given the keys; what it needs as it comes (came()); one it cannot show here (Issues off GitHub) left as it
-        is, in every tab."""
+        """PANEL shown (hidden in the ⋯'s Panels: shown again; on the rail, beside it), with the keys; what it needs as
+        it comes (came()); one it cannot show here (Issues off GitHub) left as it is, in every tab."""
         if panel not in self.panels():
             return
         if panel in self.settings["hidden_panels"]:
             self.hide(panel, False)
         if panel not in self.tabs():
             return
-        group = GROUP_OF[panel]
-        self.focus = group
-        if self.railed:                             # the group's fold kept for the dock opened again
-            coming = self.flyout != group or self.shown(group) != panel
-            if self.shown(group) != panel:
-                self.keep_dock(shown={group: panel})
-            if self.flyout != group:
-                self.fly(group)
-        else:
-            coming = self.shown(group) != panel or group in self.dock["folded"]
-            if coming:
-                self.keep_dock(shown={group: panel}, opened=[group])
+        coming = not self.showing(panel)
+        if self.dock["shown"] != panel:                 # kept for the folder, the dock folded or not
+            self.keep_dock(panel)
+        if self.railed and not self.beside:
+            self.fly(True)
         if coming or panel == "issues":             # Issues shown already: asked again once their answer is old
             self.came(panel)
 
@@ -679,47 +620,28 @@ class App(Loop):
         in Files, Issues their list."""
         self.work[panel].came(panel)
 
-    def fold(self, group):
-        """GROUP folded to its head, or open again, its panel coming on screen: as drawn (one the pane has no rows for
-        is folded too), else as kept; on the rail, opened beside it or folded back to it."""
-        if self.railed:
-            if self.flyout == group:
-                self.fly(None)
-            else:
-                self.show(self.shown(group))
-            return
-        drawn = self.slices.get(group)
-        opening = drawn[1] <= stack.HEAD if drawn else group in self.dock["folded"]
-        widgets.TURNS.turn(("group", group))
-        if opening:
-            self.keep_dock(opened=[group])
-            self.came(self.shown(group))
-        else:
-            self.keep_dock(folded=[group])
-
     # --- the dock folded to its rail: the same in every tab, as the column's width
 
     def fold_dock(self, rail):
         """The dock folded to its RAIL, or opened again, in every tab: kept in column.json first (another tab's sidebar
         takes it at its next look), then each tab's column and terminal set (shape())."""
-        self.railed, self.flyout = rail, None
+        self.railed, self.beside = rail, False
         if not column.keep(self.state_dir, {"rail": rail}):
             self.error = "settings not saved"
         self.reshape(every=True)
 
     def press_icon(self, panel):
-        """PANEL's icon on the rail pressed: its group opened beside the rail on it, the icon lit; the lit one again
-        folds it back."""
-        if self.flyout == GROUP_OF[panel] and self.shown(self.flyout) == panel:
-            self.fly(None)
+        """PANEL's icon on the rail pressed: PANEL opened beside the rail, the icon lit; the lit one again folds it
+        back."""
+        if self.showing(panel):
+            self.fly(False)
         else:
             self.show(panel)
 
-    def fly(self, group):
-        """On the rail, GROUP opened beside it (None: folded back): this tab's column widened for it, or narrowed."""
-        self.flyout = group
-        if group:
-            self.focus = group
+    def fly(self, beside):
+        """On the rail, the panel shown opened BESIDE it, or folded back: this tab's column widened for it, or
+        narrowed."""
+        self.beside = beside
         self.reshape()
 
     def engaged(self, panel):
@@ -732,7 +654,7 @@ class App(Loop):
         kept = column.kept(self.state_dir)
         railed, changed = kept.get("rail") is True, (kept.get("rail") is True) != self.railed
         if changed:
-            self.railed, self.flyout = railed, None
+            self.railed, self.beside = railed, False
         self.owed = os.environ.get("HERDR_PANE_ID") in (kept.get("owed") if isinstance(kept.get("owed"), list) else [])
         if self.owed:
             self.reshape()
@@ -744,7 +666,7 @@ class App(Loop):
         if "dock" in self.running:
             self.again.add("dock-every" if every else "dock")
             return
-        rail, beside = self.railed, self.flyout is not None
+        rail, beside = self.railed, self.beside
         self.job("dock", lambda: self.shape(rail, beside, every), self.reshaped)
 
     def reshaped(self, failed):
@@ -786,10 +708,11 @@ class App(Loop):
         return len(self.status.staged) + len(self.status.changes) if self.status else 0
 
     def marks(self):
-        """Each panel's state on its rail icon: Chats' dot while a conversation waits for an answer, Changes' count."""
+        """Each panel's state after its tab's name and on its rail icon: Chats' dot while a conversation waits for an
+        answer, Changes' count."""
         found = {"conversations": ("●", "modified")} if self.work["conversations"].waiting() else {}
         if self.count():
-            found["changes"] = (str(min(self.count(), 10 ** COUNT - 1)), "modified")
+            found["changes"] = (str(min(self.count(), 10 ** stack.COUNT - 1)), "modified")
         return found
 
     # --- what every family asks for: the preview tab, a tab of its own, the browser, the icons
@@ -851,22 +774,24 @@ class App(Loop):
     def draw(self):
         cells, rows = self.term.size()
         canvas = Canvas(cells, rows)
-        groups = self.groups()
         edge = max(0, cells - column.RAIL)              # the rail's edge, where » and « stand in every state
-        beside = self.railed and self.flyout in dict(groups) and edge >= column.FEWEST     # once widened for it
-        self.reach, self.slices = edge if beside else 0 if self.railed else cells, {}
-        if beside:
+        # the panel beside the rail once the column is widened for it: as wide as the tab row it had, or FEWEST
+        beside = self.railed and self.beside and edge >= min(column.FEWEST, narrowest(self.tabs()))
+        self.reach, self.body = edge if beside else 0 if self.railed else cells, None
+        if beside:                                      # no tab row: the lit icon names it
             area = Canvas(edge, rows)
-            self.draw_groups(area, [(self.flyout, dict(groups)[self.flyout])])
+            self.draw_panel(area, 1)
             canvas.paste(area)
             self.dock_head(canvas, 0, True)
         elif not self.railed:
-            self.draw_groups(canvas, groups)
+            self.draw_panel(canvas, stack.TOP)
+            self.draw_tabs(canvas)
         else:
             self.dock_head(canvas, 0, True, more=False)     # no room for the ⋯ on the rail alone
         if self.railed:
-            lit = self.shown(self.flyout) if self.flyout else None
-            stack.rail(canvas, 1, rows - 1, lit, groups, self.marks(), self.settings["icons"], edge, self.pointed)
+            lit = self.shown() if self.beside else None
+            stack.rail(canvas, 1, rows - 1, lit, self.groups(), self.marks(), self.settings["icons"], edge,
+                       self.pointed)
         if self.menu:
             menu, y, x = self.menu[:3]
             menu.draw(canvas, *menu.at(y, x, cells, 0, rows))
@@ -876,26 +801,17 @@ class App(Loop):
         self.term.write(self.renderer.frame(canvas))
         self.term.flush()
 
-    def draw_groups(self, canvas, groups):
-        """GROUPS on CANVAS (the pane's, or its part left of the rail for the one opened beside it), one under the
-        other, what went wrong below them, else a newer version; in the pane, the dock's controls at the first head."""
-        cells, rows, beside = canvas.width, canvas.height, self.railed
+    def draw_panel(self, canvas, top):
+        """The panel shown on CANVAS (the pane's, or its part left of the rail) from row TOP down, what went wrong
+        under it, else a newer version."""
+        cells, rows = canvas.width, canvas.height
         news = f"herdr-fold {self.update['latest']} is out: {update.HOW}" if (self.update or {}).get("newer") else None
         line = self.error or self.note or news
-        height = max(1, rows - bool(line))
-        names = [group for group, _panels in groups]
-        self.slices = {names[0]: (0, height)} if beside else stack.heights(height, names, set(self.dock["folded"]),
-                                                                           self.dock["weights"])
+        self.body = (top, max(0, rows - top - bool(line)))
         for family in self.families:
             family.drawing()
-        for n, (group, tabs) in enumerate(groups):
-            top, size = self.slices[group]
-            self.group_head(canvas, top, group, tabs, size > stack.HEAD, first=n == 0 and not beside, fold=not beside)
-            if n == 0 and not beside:
-                self.dock_head(canvas, top, False)
-            if size > stack.HEAD:                       # its controls tall where its panel has the rows for them
-                body = size - stack.HEAD
-                self.views[self.shown(group)].draw(canvas, top + stack.HEAD, body, body >= ROOMY)
+        if self.body[1]:                                # its controls tall where it has the rows for them
+            self.views[self.shown()].draw(canvas, top, self.body[1], self.body[1] >= ROOMY)
         if line:
             canvas.put(rows - 1, 0, " " * cells)
             canvas.put(rows - 1, 1, truncate(line, cells - 2),
@@ -903,39 +819,27 @@ class App(Loop):
             if line is news:
                 canvas.region(rows - 1, 0, cells, "news")
 
-    def group_head(self, canvas, y, group, tabs, opened, first, fold=True):
-        """GROUP's head on row Y: its FOLD, its panels as TABS (the shown one bold in the accent, Changes with its
-        count), at the FIRST head's right end room for the dock's own controls; the rest of it drags the edge above."""
-        canvas.backdrop(y, 0, canvas.width, f"head:{group}")
-        if fold:
-            canvas.put(y, 1, widgets.TURNS.mark(self.settings["icons"], ("group", group), opened), Style(fg="muted"))
-            canvas.region(y, 0, 3, f"fold:{group}")
-        right = canvas.width - 4 - MORE if first else canvas.width - 1
-        x, shown = 3 if fold else 1, self.shown(group)
-        for panel in tabs:
-            lit = "accent" if panel == shown else "text" if panel == self.pointed else "muted"
-            end = canvas.put(y, x, truncate(PANELS[panel]["title"], max(0, right - x)),
-                             Style(fg=lit, bold=panel == shown))
-            count = self.count() if panel == "changes" else 0
-            if count:
-                end = canvas.put(y, end + 1, truncate(str(min(count, 10 ** COUNT - 1)), max(0, right - end - 1)),
-                                 Style(fg="modified"))
-            canvas.region(y, x, end, f"tab:{panel}")
-            x = end + 2
+    def draw_tabs(self, canvas):
+        """The tab row (stack.tab_row()), a blank row above and below it; at its right end the dock's » and ⋯. A right
+        click on it opens the ⋯'s menu there."""
+        canvas.backdrop(stack.ROW, 0, canvas.width, "tabs")
+        stack.tab_row(canvas, stack.ROW, self.groups(), self.shown(), self.marks(), self.pointed)
+        self.dock_head(canvas, stack.ROW, False)
 
     def dock_head(self, canvas, y, rail, more=True):
         """The dock's own controls at row Y's right end, over the rail's edge: » that folds the dock to its rail (RAIL:
         « that opens it again), and, MORE, the ⋯ (the pane's own menu)."""
-        dots, target = canvas.width - 1 - MORE, "to_dock" if rail else "to_rail"
+        dots, target = canvas.width - 1 - stack.MORE, "to_dock" if rail else "to_rail"
         x = max(1, dots - 2)
         canvas.put(y, x, OPEN_DOCK if rail else FOLD_DOCK, Style(fg="text" if self.pointed == target else "muted"))
         canvas.region(y, x - 1, x + 2, target)
         if more:
-            canvas.control(y, dots, MORE, 1, "badge", False)
-            canvas.put(y, centered(dots, MORE), "⋯", Style(fg="text" if self.pointed == "panels" else "muted",
-                                                            bg="badge"))
-            canvas.region(y, dots, dots + MORE, "panels")
-            self.dots = (y + 1, None, dots + MORE)          # its menu: right under it, its right edge with it
+            canvas.control(y, dots, stack.MORE, 1, "badge", False)
+            canvas.put(y, centered(dots, stack.MORE), "⋯", Style(fg="text" if self.pointed == "panels" else "muted",
+                                                                  bg="badge"))
+            canvas.region(y, dots, dots + stack.MORE, "panels")
+            self.dots = (y + 1, None, dots + stack.MORE)    # its menu: right under it, its right edge with it
+
 
 def main(argv):
     reap()

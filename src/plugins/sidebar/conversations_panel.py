@@ -16,7 +16,7 @@ from family import Family
 from fileops import system_clipboard
 
 POLL = 1.0                    # seconds between two looks at the conversations
-AWAY = 10.0                   # the same while it is off screen (hidden, folded): reopened panes cleared all the same
+AWAY = 10.0                   # the same off screen (behind another tab, hidden): reopened panes cleared all the same
 TAB_NAME = 24                 # characters of a conversation's name on its tab, as AI Sessions puts it there
 SESSION = re.compile(r"[0-9A-Za-z][0-9A-Za-z._-]*")     # a conversation's id, as claude --resume and codex resume take
 
@@ -104,8 +104,8 @@ class Conversations(Family):
         view.set(seen["found"], seen["order"], lambda folder: names.get(self.folders.get(folder)), names.get(self.here))
 
     def waiting(self):
-        """Whether a conversation waits for an answer (herdr's blocked: a question, a permission): the rail's Chats
-        shows a dot."""
+        """Whether a conversation waits for an answer (herdr's blocked: a question, a permission): Chats' tab and its
+        rail icon show a dot."""
         return any(item.state == "blocked" for item in self.view.items or ())
 
     def find(self):

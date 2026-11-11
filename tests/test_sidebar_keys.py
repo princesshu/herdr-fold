@@ -30,9 +30,9 @@ class Keys(unittest.TestCase):
                           Key("end")])
 
     def test_the_keys_herdrs_actions_send_the_sidebar(self):
-        # F6 folds Conversations, F7 finds one, F8 for Cmd + A, F9 to F12 for the panels
-        self.assertEqual(decode(b"\x1b[17~\x1b[18~\x1b[19~\x1b[20~\x1b[21~\x1b[23~\x1b[24~"),
-                         [Key("f6"), Key("f7"), Key("f8"), Key("f9"), Key("f10"), Key("f11"), Key("f12")])
+        # F7 finds a conversation, F8 for Cmd + A, F9 to F12 for the panels
+        self.assertEqual(decode(b"\x1b[18~\x1b[19~\x1b[20~\x1b[21~\x1b[23~\x1b[24~"),
+                         [Key("f7"), Key("f8"), Key("f9"), Key("f10"), Key("f11"), Key("f12")])
 
     def test_text_with_accents_and_symbols(self):
         self.assertEqual(decode("aé€".encode()), [Key("char", "a"), Key("char", "é"), Key("char", "€")])

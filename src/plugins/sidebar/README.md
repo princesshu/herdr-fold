@@ -5,16 +5,16 @@ one pane, the same on macOS, Linux and Windows. Every new empty tab gets it on t
 tab's own shell, as wide as in every other tab; when herdr starts, it comes back in every tab, but where a pane was
 closed by hand.
 
-The panels stand in three groups, one under the other, each under its head as Adobe's panel groups: Conversations, Files
-and Search, Changes and Issues. A head names its panels as tabs, the one shown bold in the accent, Changes with its
-count; its chevron folds the group to its head (a group without three rows to spare folds itself); dragging a head moves
-the edge above it. Each folder keeps which panel each group shows, the groups folded and their sizes (`dock.json`).
-The ⋯ lists the panels, each with a ✓ while shown: one unchecked is hidden in every tab, until a check or its key brings
-it back (`hidden_panels` in `settings.json`); one always stays.
+The panels are tabs in one row at the top, in the Herdr app's groups: Chats | Files Search | Changes Issues, a wider
+gap between two groups and a blank row above and below the row; one panel shows under it, the whole height. The tab
+shown is bold in the accent, Chats has a yellow dot while a conversation waits and Changes its count; a click on a tab,
+or its key, shows its panel, and each folder keeps the one it shows (`dock.json`). The ⋯ at the row's right end lists
+the panels, each with a ✓ while shown: one unchecked leaves the row in every tab, until a check or its key brings it
+back (`hidden_panels` in `settings.json`); one always stays.
 The » before the ⋯ folds the dock to its rail in every tab, as Adobe's Collapse to Icons: each panel's icon over its
-short name, a gap between groups, Chats with a yellow dot while a conversation waits and Changes with its count; the
-terminal moves under the agent. A press on an icon opens its group beside the rail, the column wider and the icon lit;
-the lit icon again, or Esc, folds it back. « opens the dock again, as wide as before (`column.json` keeps both).
+name, a gap between groups, Chats' dot and Changes' count beside their icons; the terminal moves under the agent. A
+press on an icon opens that panel beside the rail, the column wider and the icon lit; the lit icon again, or Esc, folds
+it back. « opens the dock again, as wide as before, on the tab last shown (`column.json` keeps the width and the rail).
 
 ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the message
 Claude wrote, the issue it fixes and the Graph, Issues by priority](../../../assets/screenshots/sidebar.webp)
@@ -26,8 +26,7 @@ Claude wrote, the issue it fixes and the Graph, Issues by priority](../../../ass
   Sessions, a running one's pane and the tab it has to itself show too) and, for a closed one, Archive (off the list,
   its file as it was), several at once when marked (Space, Shift + ↑ ↓, or the box at a closed row's start); a right
   click beside them, while any is archived, Show archived (the archived ones back in sight, a shade fainter; Unarchive
-  puts one back). The action **Conversations: fold or open** (`actions.py toggle-conversations`) folds its group to
-  its head and opens it again; **Conversations: find** (`actions.py find-conversation`) opens it, empties the filter
+  puts one back). The action **Conversations: find** (`actions.py find-conversation`) shows Chats, empties the filter
   and gives it the keys, in the tab's sidebar (one closed by hand comes back) or the workspace's first.
 
   ![The Conversations column open beside Claude: each workspace's conversations, a running one's mark in its state's
@@ -89,7 +88,7 @@ a pane taller than wide, the status row's turn, `v` or the right click turning t
 
 | Where | Keys |
 |---|---|
-| Everywhere | `1` `2` `3` `4` show a panel (its group opened, on the rail beside it) and give it the keys, `q` quits, unless a field, a menu or a question has the keys; F9 F10 F11 F12 the panels and Ctrl + C quits even then; a click gives its group the keys; Esc folds a panel opened beside the rail back, once its menu, a name being typed or a question is closed |
+| Everywhere | `1` to `5` show the tab row's panels, Chats to Issues (on the rail beside it), the keys going to the panel shown; `q` quits, unless a field, a menu or a question has the keys; F9 F10 F11 F12 show Files to Issues and Ctrl + C quits even then; Esc folds a panel opened beside the rail back, once its menu, a name being typed or a question is closed |
 | Files | ↑ ↓ ← → or `j` `k` `h` `l`, PgUp PgDn, Home End or `g` `G`, Enter or Space opens, `n` new file, `N` new folder, `r` rename, Delete to the Trash, `m` the menu, `.` hidden files, `i` plain icons, `R` refresh |
 | Search | type to search; a click or Alt + C, Alt + W, Alt + R the switches; Esc or the field's × clears the text and the folder or file; Tab or ↓ to the hits (PgUp PgDn Home End too), Enter opens a hit or folds a file's, Esc, Tab or another letter goes back to the field |
 | Changes | `c` or typing writes the message (Enter a new line; Esc, then Enter commits), `A` or the star beside the message has it written, Enter stages or unstages, Space shows the diff, `d` discards, `S` syncs |
@@ -133,9 +132,10 @@ Alt + Enter commits from the message there too.
   `herdr pane run`), and on the rail to move each tab's terminal under its agent and back (`herdr pane move`, through
   a tab of its own that goes by itself; its program runs on).
 - herdr's socket, for the right column's width: when it is dragged wider or narrower, the sidebar reads that tab's
-  layout once it stays put, keeps each tab's right column at least as wide as its sidebar's widest head (25 cells
-  inside herdr's frame without Issues, 31 with them), remembers the width to the cell (`column.json` in its state
-  folder), and sets every other tab's to it. Folded to its rail, every tab's column takes 9 cells inside the frame (a
+  layout once it stays put, keeps each tab's right column at least as wide as its sidebar's tab row (49 cells inside
+  herdr's frame without Issues, 57 with them), remembers the width to the cell (`column.json` in its state folder), and
+  sets every other tab's to it. A window too narrow for that leaves whole tabs out from the row's end, never the one
+  shown; their keys still show them. Folded to its rail, every tab's column takes 9 cells inside the frame (a
   tenth of the tab where that is more: herdr's narrowest split), and the width stays kept for the dock opened again.
 - For a repository with a remote on github.com: `gh`, the GitHub CLI, as you are signed in to it on that machine, for
   the issues (once a minute while the view is shown or lists any, for all the sidebars of a repository; `R` at once)
@@ -155,8 +155,8 @@ Alt + Enter commits from the message there too.
   The archived conversations, whether they are shown, the conversation a pane reopens (until herdr knows its
   session), and whether the one-time note on a pane closed by hand was shown are in `conversations.json` there. What
   each tab has had is in `panels.json` there: a pane closed by hand stays closed until it is brought back: its key,
-  Restore panels (`panes.py --restore`, Cmd+Shift+O in herdr-fold), or the sidebar's ⋯ menu (a right click on a
-  group's head too: the terminal closed or shown back, Restore panels). Copy conversation puts one on the
+  Restore panels (`panes.py --restore`, Cmd+Shift+O in herdr-fold), or the sidebar's ⋯ menu (a right click on the
+  tab row too: the terminal closed or shown back, Restore panels). Copy conversation puts one on the
   clipboard (`pbcopy` and, on a Mac, `osascript` for the formatted version). herdr's command line lists the running
   agents, goes to one (`herdr agent focus`), and reopens a closed conversation (`herdr tab create`, `herdr pane split`,
   `herdr agent start` with `--resume`), and names a running one's pane and its own tab on Rename (`herdr pane rename`,
@@ -202,8 +202,8 @@ beside the agent, on the folder of the tab's panes; a new tab after it gets them
 /path/to/sidebar`), or start it by hand in a herdr pane named `sidebar`
 (`python3 /path/to/sidebar/sidebar.py ~/my-project`).
 
-Its actions: the four that switch its view, Conversations: fold or open, and find, and Restore panels; and the
-one-time tip when a pane is closed by hand.
+Its actions: the four that switch its view, Conversations: find, and Restore panels; and the one-time tip when a pane
+is closed by hand.
 
 ## Requirements
 

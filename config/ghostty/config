@@ -95,8 +95,6 @@ keybind = super+f=text:\x02a
 # Cmd+Shift+L → open a file the focused pane's output names, at its line, in the sidebar's preview (herdr: Ctrl+B,
 # Shift+L)
 keybind = super+shift+l=text:\x02L
-# Cmd+Shift+H → fold the sidebar's Conversations to its head, or open it (herdr: Ctrl+B, Shift+H)
-keybind = super+shift+h=text:\x02H
 # Cmd+Shift+O → restore panels: every pane closed by hand in the tab back (herdr: Ctrl+B, Shift+O)
 keybind = super+shift+o=text:\x02O
 # Cmd+Shift+R → find a conversation in the sidebar's Conversations (herdr: Ctrl+B, m)

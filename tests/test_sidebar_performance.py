@@ -95,7 +95,7 @@ class Big(AppScreen, unittest.TestCase):
         self.assertTrue(self.wait(lambda: self.app.status is not None, 10))
         find = self.app.views["search"]
         started = time.monotonic()
-        self.term.type(Key("char", "2"), *[Key("char", ch) for ch in "needle_"], Key("enter"))
+        self.term.type(Key("char", "3"), *[Key("char", ch) for ch in "needle_"], Key("enter"))
         self.assertTrue(self.wait(lambda: find.result is not None and find.query() == Query("needle_"), 2))
         self.assertLess(time.monotonic() - started, 2)
         self.assertEqual((len(find.result.hits), find.result.total), (2000, 20000))

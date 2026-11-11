@@ -38,7 +38,7 @@ class Focus:
 
 CSI_KEYS = {"A": "up", "B": "down", "C": "right", "D": "left", "H": "home", "F": "end", "Z": "backtab"}
 TILDE_KEYS = {"1": "home", "3": "delete", "4": "end", "5": "pageup", "6": "pagedown", "7": "home", "8": "end",
-              "17": "f6", "18": "f7", "19": "f8", "20": "f9", "21": "f10", "23": "f11", "24": "f12"}
+              "18": "f7", "19": "f8", "20": "f9", "21": "f10", "23": "f11", "24": "f12"}
 CSI = re.compile(rb"\x1b\[([<?]?)([\d;]*)([A-Za-z~])")
 PASTE_START, PASTE_END = b"\x1b[200~", b"\x1b[201~"
 LONGEST = 32                  # an escape sequence longer than this is not one: its Esc is dropped

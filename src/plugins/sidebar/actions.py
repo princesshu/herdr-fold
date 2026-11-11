@@ -1,6 +1,6 @@
 """The sidebar's herdr actions: the active tab's sidebar gets a key no text field takes (KEYS), F7 (find a
 conversation) the keys too; F8, for Cmd + A, only a sidebar that has the keys: its field's text.
-Usage: actions.py show-files|show-search|show-git|show-issues|find-conversation|toggle-conversations|select-all"""
+Usage: actions.py show-files|show-search|show-git|show-issues|find-conversation|select-all"""
 import os
 import sys
 
@@ -14,7 +14,7 @@ from conversations import state_folder  # noqa: E402
 from preview import Herdr, seed_file  # noqa: E402
 
 KEYS = {"show-files": "f9", "show-search": "f10", "show-git": "f11", "show-issues": "f12",
-        "find-conversation": "f7", "toggle-conversations": "f6", "select-all": "f8"}
+        "find-conversation": "f7", "select-all": "f8"}
 
 
 def sidebar_of(listed, tab=None):

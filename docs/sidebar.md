@@ -22,8 +22,8 @@ page chosen](../assets/screenshots/split.webp)
 ## How it gets there
 
 - The installer copies it to `~/.config/herdr-fold/plugins/sidebar` and links it (`herdr plugin link`): it lays out
-  every new empty tab, comes back in every tab when herdr starts, and brings its actions (the panels, Conversations'
-  fold and find, Restore panels) and the one-time tip when a pane is closed by hand; the link is recorded in
+  every new empty tab, comes back in every tab when herdr starts, and brings its actions (the panels, Conversations:
+  find, Restore panels) and the one-time tip when a pane is closed by hand; the link is recorded in
   `~/.local/state/herdr-fold/plugins.txt`.
 - `machines.sh` copies it to each remote machine and links it there too.
 - On its own, without the rest of herdr-fold: `herdr plugin install princesshu/herdr-fold/src/plugins/sidebar`, then
@@ -47,13 +47,17 @@ it. Quitting it (`q`) leaves a shell; `python3 ~/.config/herdr-fold/restore_pane
 update it starts its new version by itself, where it was, and so it does on its folder's new place when the folder is
 renamed or moved.
 
+Its panels are tabs in one row at the top, grouped as the Herdr app's: Chats | Files Search | Changes Issues, with a
+blank row above and below it; the one shown fills the rest of the pane, and each folder keeps which one it is.
+
 The column keeps one width everywhere: drag it wider or narrower in one tab, and every other tab's column, in every
 workspace, gets that width at once; a new column opens at it too. A tab's column is never narrower than its sidebar's
-widest group head: 25 cells, 31 with Issues.
+tab row: 49 cells, 57 with Issues. In a window too narrow for that, the row leaves whole tabs out from its end, never
+the one shown, and their keys still show them.
 
-The » before the ⋯ folds the dock to its rail, in every tab as the width is: each panel's icon over its short name,
+The » at the tab row's end folds the dock to its rail, in every tab as the width is: each panel's icon over its name,
 Chats with a yellow dot while a conversation waits, Changes with its count; the terminal moves under the agent. A press
-on an icon opens its group beside the rail, the column wider; the lit icon again, or Esc, folds it back, and « opens
+on an icon opens that panel beside the rail, the column wider; the lit icon again, or Esc, folds it back, and « opens
 the dock again at the width it had.
 
 ## Keys
@@ -62,10 +66,10 @@ Cmd + Shift + G (Changes), Cmd + Shift + I (Issues), Cmd + Shift + E and Cmd + S
 [Keys](keybindings.md#panes-and-tabs). Cmd + Shift + L opens a file the focused pane's output names in its preview,
 at that line ([Opening a file the agent named](usage.md#opening-a-file-the-agent-named)).
 
-The ⋯ at the first group head's right edge (or a right click on a head) lists the panels first, each with a ✓ while
-shown, as Adobe's Window menu: one unchecked leaves its group in every tab (a group with none left goes), and a check
-or its key brings it back; one panel always stays. Below them it closes or shows back the tab's terminal and offers
-Restore panels while a pane is closed. The keys inside the sidebar are in its README.
+The ⋯ at the tab row's right end (or a right click on the row) lists the panels first, each with a ✓ while shown, as
+Adobe's Window menu: one unchecked leaves the row in every tab, and a check or its key brings it back; one panel always
+stays. Below them it closes or shows back the tab's terminal and offers Restore panels while a pane is closed. The keys
+inside the sidebar are in its README.
 
 ## Colors and icons
 

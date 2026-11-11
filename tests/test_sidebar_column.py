@@ -79,19 +79,19 @@ class Column(unittest.TestCase):
         self.assertEqual(self.sets(), [("w2:t1", [], 0.6)])
         self.assertEqual(column.drag(self.state, "w1:p2", 78), 0)               # nothing new: nothing set
 
-    def test_the_right_column_keeps_room_for_the_widest_head(self):
+    def test_the_right_column_keeps_room_for_the_tab_row(self):
         self.assertEqual(column.NARROWEST, sidebar.narrowest(sidebar.PANELS))  # every panel's tab, the » and ⋯
-        self.assertEqual(column.FEWEST, sidebar.narrowest(["files", "search", "changes"]))
+        self.assertEqual(column.FEWEST, sidebar.narrowest(["conversations", "files", "search", "changes"]))
         column.need(self.state, "w1:t1", column.NARROWEST, {"w1:t1"})
         self.herdr(tab(1, 0.9))                                             # dragged to 20 cells, 18 inside
         column.drag(self.state, "w1:p2", 18)
-        self.assertEqual(self.sets(), [("w1:t1", [], 0.835)])               # 33: 31 inside, the frame 2
-        self.assertEqual(column.saved(self.state), 0.835)
+        self.assertEqual(self.sets(), [("w1:t1", [], 0.705)])               # 59: 57 inside, the frame 2
+        self.assertEqual(column.saved(self.state), 0.705)
 
-    def test_each_tab_keeps_room_for_its_own_sidebars_heads(self):
+    def test_each_tab_keeps_room_for_its_own_sidebars_tab_row(self):
         column.need(self.state, "w9:t1", 23, {"w9:t1"})                     # a tab closed since: forgotten below
         column.need(self.state, "w1:t1", 23, {"w1:t1", "w3:t1"})            # no Issues here
-        column.need(self.state, "w3:t1", 29, {"w1:t1", "w3:t1"})            # Issues there: the widest head
+        column.need(self.state, "w3:t1", 29, {"w1:t1", "w3:t1"})            # Issues there: the wider row
         self.assertEqual((column.least(self.state, "w1:t1"), column.least(self.state, "w3:t1")), (23, 29))
         self.assertEqual(column.least(self.state, "w5:t1"), column.FEWEST)  # not said yet: the fewest
         self.assertIsNone((column.kept(self.state).get("least") or {}).get("w9:t1"))

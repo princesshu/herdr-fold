@@ -1,6 +1,6 @@
-"""Tests for the dock's groups in a pane's rows (src/plugins/sidebar/stack.py): an open group a share of the rows under
-its head, a folded one its head alone, a head dragged, what each folder keeps of them, and the dock folded to its
-rail."""
+"""Tests for the dock's layout (src/plugins/sidebar/stack.py): the tab row, its groups and marks, its cells and a row
+too narrow for it, what each folder keeps (the panel shown), and the dock folded to its rail."""
+import json
 import os
 import shutil
 import sys
@@ -14,44 +14,58 @@ import stack  # noqa: E402
 from icons import glyphs  # noqa: E402
 from screen import Canvas, Style  # noqa: E402
 
-GROUPS = ("project", "work")
+GROUPS = [("conversations", ["conversations"]), ("project", ["files", "search"]), ("work", ["changes", "issues"])]
+DOT, COUNT = ("●", "modified"), ("8", "modified")          # Chats' waiting dot, Changes' count
 
 
-class Heights(unittest.TestCase):
-    def test_open_groups_share_the_rows_a_folded_one_its_head(self):
-        self.assertEqual(stack.heights(40, GROUPS, set(), {}), {"project": (0, 20), "work": (20, 20)})
-        self.assertEqual(stack.heights(40, GROUPS, {"project"}, {}), {"project": (0, 1), "work": (1, 39)})
-        self.assertEqual(stack.heights(41, GROUPS, set(), {}), {"project": (0, 21), "work": (21, 20)})
+class TabRow(unittest.TestCase):
+    def row(self, cells, shown="files", marks=None, groups=GROUPS, pointed=None):
+        canvas = Canvas(cells, 1)
+        stack.tab_row(canvas, 0, groups, shown, marks or {}, pointed)
+        return canvas
 
-    def test_a_group_without_three_rows_folds_to_its_head(self):
-        self.assertEqual(stack.heights(6, GROUPS, set(), {}), {"project": (0, 5), "work": (5, 1)})
-        self.assertEqual(stack.heights(1, GROUPS, set(), {}), {"project": (0, 1), "work": (1, 1)})
+    def test_the_names_stand_in_their_groups_a_wider_gap_between_two(self):
+        canvas = self.row(57, marks={"conversations": DOT, "changes": COUNT})
+        self.assertEqual(text(canvas, 0).rstrip(), " Chats ●   Files  Search   Changes 8  Issues")
+        self.assertEqual(text(canvas, 0)[57 - stack.CONTROLS:].strip(), "")      # the dock's » and ⋯ go there
 
-    def test_a_head_dragged_moves_the_edge(self):
-        weights = stack.dragged(40, GROUPS, set(), {}, "work", -4)
-        self.assertEqual(stack.heights(40, GROUPS, set(), weights), {"project": (0, 16), "work": (16, 24)})
-        weights = stack.dragged(40, GROUPS, set(), weights, "work", 30)          # never past a group's least rows
-        self.assertEqual(stack.heights(40, GROUPS, set(), weights), {"project": (0, 36), "work": (36, 4)})
+    def test_the_shown_tab_is_bold_in_the_accent_the_one_under_the_mouse_lit(self):
+        canvas = self.row(57, shown="changes", marks={"conversations": DOT, "changes": COUNT}, pointed="search")
+        row = text(canvas, 0)
+        look = {name: canvas.rows[0][row.index(name)][1] for name in ("Chats", "Files", "Search", "Changes", "8", "●")}
+        self.assertEqual(look, {"Chats": Style(fg="muted"), "Files": Style(fg="muted"), "Search": Style(fg="text"),
+                                "Changes": Style(fg="accent", bold=True), "8": Style(fg="modified"),
+                                "●": Style(fg="modified")})
 
-    def test_a_drag_on_the_first_or_a_folded_groups_head_moves_nothing(self):
-        self.assertEqual(stack.dragged(40, GROUPS, set(), {}, "project", 5), {})
-        self.assertEqual(stack.dragged(40, GROUPS, {"work"}, {}, "work", 5), {})
+    def test_a_click_on_a_name_or_its_mark_shows_its_panel(self):
+        canvas = self.row(57, marks={"changes": COUNT})
+        row = text(canvas, 0)
+        changes = row.index("Changes")
+        self.assertEqual({canvas.hit(x, 0) for x in range(changes, changes + len("Changes 8"))}, {"tab:changes"})
+        self.assertEqual([canvas.hit(x, 0) for x in (0, changes - 1, row.index("Issues") - 1)], [None] * 3)
 
-    def test_a_drag_in_a_pane_too_low_for_the_groups_moves_nothing(self):
-        three = ("conversations",) + GROUPS
-        self.assertEqual(stack.dragged(5, three, set(), {}, "work", 2), {})           # no group has rows to give
-        self.assertEqual(stack.dragged(8, three, set(), {}, "project", -1), {})       # Project folded for want of rows
+    def test_chats_keeps_its_dots_cells_and_the_tabs_after_it_stay_put(self):
+        # a conversation starts or stops waiting at any moment: the names after it never move under the mouse
+        waiting, not_waiting = (text(self.row(57, marks=marks), 0) for marks in ({"conversations": DOT}, {}))
+        self.assertEqual(not_waiting.rstrip(), " Chats     Files  Search   Changes  Issues")
+        self.assertEqual(waiting.index("Files"), not_waiting.index("Files"))
 
-    def test_a_drag_keeps_a_folded_groups_share(self):
-        # Conversations folded, the edge below Files dragged: opened again, it takes its third, not half the pane
-        three = ("conversations",) + GROUPS
-        weights = stack.dragged(40, three, {"conversations"}, {}, "work", -4)
-        self.assertEqual(stack.heights(40, three, set(), weights)["conversations"], (0, 14))
+    def test_a_group_left_without_a_panel_leaves_no_gap(self):
+        canvas = self.row(57, groups=[("project", ["files"]), ("work", ["changes"])])
+        self.assertEqual(text(canvas, 0).rstrip(), " Files   Changes")
 
-    def test_a_share_of_nothing_counts_as_one(self):
-        # a share of 0 kept in dock.json (by an older version) never gives one group the whole body
-        self.assertEqual(stack.heights(40, GROUPS, set(), {"project": 1.0, "work": 0.0}),
-                         {"project": (0, 20), "work": (20, 20)})
+    def test_its_cells_are_every_name_and_mark_at_their_widest_and_the_controls(self):
+        self.assertEqual(stack.cells(GROUPS), 57)
+        self.assertEqual(stack.cells(GROUPS[:2] + [("work", ["changes"])]), 49)        # no Issues off GitHub
+        widest = {"conversations": DOT, "changes": ("9" * stack.COUNT, "modified")}
+        self.assertEqual(text(self.row(57, marks=widest), 0).split(),
+                         ["Chats", "●", "Files", "Search", "Changes", "999", "Issues"])
+
+    def test_a_row_too_narrow_leaves_whole_tabs_out_from_its_end_never_the_shown_one(self):
+        self.assertEqual(text(self.row(56, marks={"changes": ("999", "modified")}), 0).split(),
+                         ["Chats", "Files", "Search", "Changes", "999"])
+        self.assertEqual(text(self.row(40, shown="issues"), 0).split(), ["Chats", "Files", "Issues"])
+        self.assertEqual(text(self.row(16, shown="search"), 0).strip(), "")       # its name never cut short
 
 
 class Kept(unittest.TestCase):
@@ -62,49 +76,55 @@ class Kept(unittest.TestCase):
         for folder in (self.one, self.two):
             os.mkdir(folder)
 
-    def test_each_folder_keeps_its_own(self):
-        stack.keep(self.state, self.one, lambda dock: dock.update(shown={"work": "issues"}, folded=["project"]))
-        stack.keep(self.state, self.two, lambda dock: dock.update(weights={"project": 0.3, "work": 0.7}))
-        self.assertEqual(stack.state(self.state, self.one),
-                         {"shown": {"work": "issues"}, "folded": ["project"], "weights": {}})
-        self.assertEqual(stack.state(self.state, self.two),
-                         {"shown": {}, "folded": [], "weights": {"project": 0.3, "work": 0.7}})
-        self.assertEqual(stack.state(self.state, os.path.join(self.state, "three")),
-                         {"shown": {}, "folded": [], "weights": {}})
+    def kept(self):
+        with open(os.path.join(self.state, stack.FILE), encoding="utf-8") as f:
+            return json.load(f)
+
+    def test_each_folder_keeps_the_panel_it_shows(self):
+        stack.keep(self.state, self.one, "issues")
+        stack.keep(self.state, self.two, "search")
+        self.assertEqual([stack.state(self.state, folder) for folder in (self.one, self.two)],
+                         [{"shown": "issues"}, {"shown": "search"}])
+        self.assertEqual(stack.state(self.state, os.path.join(self.state, "three")), {"shown": None})
 
     def test_a_gone_folder_is_forgotten(self):
-        stack.keep(self.state, self.one, lambda dock: dock.update(folded=["work"]))
+        stack.keep(self.state, self.one, "changes")
         os.rmdir(self.one)
-        stack.keep(self.state, self.two, lambda dock: dock.update(folded=["project"]))
-        with open(os.path.join(self.state, stack.FILE), encoding="utf-8") as f:
-            self.assertNotIn(self.one, f.read())
+        stack.keep(self.state, self.two, "files")
+        self.assertEqual(self.kept(), {self.two: {"shown": "files"}})
 
     def test_two_sidebars_changing_at_once_keep_both_changes(self):
-        at_once(stack.statefile, lambda: stack.keep(self.state, self.one, lambda dock: dock["folded"].append("work")),
-                lambda: stack.keep(self.state, self.two, lambda dock: dock["shown"].update(work="issues")))
-        self.assertEqual((stack.state(self.state, self.one)["folded"], stack.state(self.state, self.two)["shown"]),
-                         (["work"], {"work": "issues"}))
+        at_once(stack.statefile, lambda: stack.keep(self.state, self.one, "changes"),
+                lambda: stack.keep(self.state, self.two, "issues"))
+        self.assertEqual(self.kept(), {self.one: {"shown": "changes"}, self.two: {"shown": "issues"}})
 
-    def test_what_it_cannot_read_is_the_defaults(self):
+    def test_what_it_cannot_read_is_nothing_kept(self):
         with open(os.path.join(self.state, stack.FILE), "w", encoding="utf-8") as f:
-            f.write('{"%s": {"shown": [1], "folded": "work", "weights": {"work": "x"}}}' % self.one)
-        self.assertEqual(stack.state(self.state, self.one), {"shown": {}, "folded": [], "weights": {}})
+            f.write('{"%s": {"shown": [1]}, "%s": "files"}' % (self.one, self.two))
+        self.assertEqual([stack.state(self.state, folder) for folder in (self.one, self.two)], [{"shown": None}] * 2)
+
+    def test_an_older_versions_groups_are_read_as_nothing_and_go_at_the_next_write(self):
+        # the stacked groups' file: each group's panel, the folded ones and their shares
+        older = {"shown": {"work": "issues"}, "folded": ["project"], "weights": {"project": 0.3, "work": 0.7}}
+        with open(os.path.join(self.state, stack.FILE), "w", encoding="utf-8") as f:
+            json.dump({self.one: older, self.two: older}, f)
+        self.assertEqual(stack.state(self.state, self.one), {"shown": None})
+        stack.keep(self.state, self.one, "files")
+        self.assertEqual(self.kept(), {self.one: {"shown": "files"}})
 
 
 class Rail(unittest.TestCase):
-    """The dock folded to its rail: each panel's icon over its short name (the App's own: test_sidebar.py, Rail)."""
-
-    PANELS = [("conversations", ["conversations"]), ("project", ["files", "search"]), ("work", ["changes", "issues"])]
+    """The dock folded to its rail: each panel's icon over its name (the App's own: test_sidebar.py, Rail)."""
 
     def test_a_panel_the_rows_have_no_room_for_is_left_out(self):
         canvas = Canvas(9, 8)
-        stack.rail(canvas, 0, 8, None, self.PANELS, icons=False)
+        stack.rail(canvas, 0, 8, None, GROUPS, icons=False)
         self.assertEqual([canvas.hit(0, y) for y in range(8)], ["icon:conversations"] * 2 + [None]
                          + ["icon:files"] * 2 + ["icon:search"] * 2 + [None])        # Changes' two rows: not one
 
     def test_it_stands_at_the_right_edge_the_panel_opened_beside_it_lit(self):
         canvas = Canvas(30, 13)
-        stack.rail(canvas, 1, 12, "changes", self.PANELS, icons=False, left=21)
+        stack.rail(canvas, 1, 12, "changes", GROUPS, icons=False, left=21)
         marks = glyphs(False)
         self.assertEqual(text(canvas, 9)[21:].rstrip(), f"▌   {marks['git']}")    # a bar at its edge, the icon in
         self.assertEqual(text(canvas, 10)[21:], " Changes ")                        # the middle, its name under it

@@ -3,8 +3,8 @@ name = "Sidebar"
 version = "0.3.0"
 min_herdr_version = "0.9.5"
 description = """\
-  Every workspace's Claude and Codex conversations, Files, Search, Changes (git) and GitHub Issues in one pane, as \
-  groups of tabs that fold, each panel shown or hidden from its menu, with previews in a tab and AI commit messages. \
+  Every workspace's Claude and Codex conversations, Files, Search, Changes (git) and GitHub Issues in one pane, one \
+  at a time under a row of tabs, each shown or hidden from its menu, with previews in a tab and AI commit messages. \
   A new tab gets it on the right, above a terminal, and it comes back when herdr starts. Created by princesshu"""
 platforms = ["macos", "linux", "windows"]
 
@@ -101,20 +101,7 @@ title = "Sidebar: select the field's text"
 command = ["python", "actions.py", "select-all"]
 platforms = ["windows"]
 
-# The sidebar's Conversations: its group folded or opened (F6), or found: the group open, its filter empty and the
-# keys going to it (F7)
-[[actions]]
-id = "toggle-conversations"
-title = "Conversations: fold or open"
-command = ["/usr/bin/python3", "actions.py", "toggle-conversations"]
-platforms = ["macos", "linux"]
-
-[[actions]]
-id = "toggle-conversations-windows"
-title = "Conversations: fold or open"
-command = ["python", "actions.py", "toggle-conversations"]
-platforms = ["windows"]
-
+# The sidebar's Conversations found: Chats shown, its filter empty and the keys going to it (F7)
 [[actions]]
 id = "find-conversation"
 title = "Conversations: find"

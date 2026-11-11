@@ -210,7 +210,7 @@ In the herdr-fold layout:
 
 | Key | What it does |
 |---|---|
-| Cmd + Shift + G | shows Changes, its group opened, as in the TUI (the dock a rail: floating beside it) |
+| Cmd + Shift + G | shows Changes, as in the TUI, its group opened (the dock a rail: floating beside it) |
 | Cmd + Shift + F | shows Search, its field taking the keys |
 | Cmd + Shift + C | commits and pushes in one step, as in the TUI: Claude or Codex writes the message into the field, and Commit says Commit & Push for this one commit; Enter commits and pushes, the field changes the message, ✦ writes another, Esc cancels; with nothing to commit, it offers to push the commits ahead, and Enter or Push pushes them |
 | Cmd + Shift + I | shows Issues, as in the TUI |

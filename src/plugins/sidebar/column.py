@@ -16,8 +16,8 @@ TOLERANCE = 0.002           # shares this close are the same width (a cell is ab
 LIMITS = (0.3, 0.9)         # a remembered share: outside this nobody chose it (a tab too small, or a stray value)
 SPLIT = (0.1, 0.9)          # the shares herdr lets a split have
 SETTLE = 0.2                # seconds a tab's widths stay put before a pane takes them as chosen
-NARROWEST = 31              # the right column's cells inside herdr's frame: the widest group's head, the » and ⋯
-FEWEST = 25                 # the same without Issues: what a tab's sidebar takes at least
+NARROWEST = 57              # the right column's cells inside herdr's frame: the tab row with every panel, » and ⋯
+FEWEST = 49                 # the same without Issues: what a tab's sidebar takes at least
 FRAME = 2                   # herdr's frame round a pane, in cells, where it is not measured
 RAIL = 9                    # the rail's cells inside herdr's frame: Changes under its icon, a cell of air each side
 
@@ -144,14 +144,14 @@ def change(state_dir, how):
 
 
 def least(state_dir, tab):
-    """The right column's fewest cells inside herdr's frame in TAB: what its sidebar's buttons take (need()), or FEWEST
-    until it has said (a sidebar with more widens its tab itself, at once)."""
+    """The right column's fewest cells inside herdr's frame in TAB: what its sidebar's tab row takes (need()), or
+    FEWEST until it has said (a sidebar with more widens its tab itself, at once)."""
     cells = (kept(state_dir).get("least") or {}).get(tab)
     return cells if isinstance(cells, int) and 0 < cells <= NARROWEST else FEWEST
 
 
 def need(state_dir, tab, cells, tabs):
-    """TAB's sidebar's buttons take CELLS: kept, for the TABS there are now only."""
+    """TAB's sidebar's tab row takes CELLS: kept, for the TABS there are now only."""
     def needed(found):
         known = found.get("least")
         known = {name: value for name, value in (known if isinstance(known, dict) else {}).items() if name in tabs}
@@ -271,7 +271,7 @@ def railed(state_dir):
 
 
 def width(state_dir, tab, rail=False, beside=False):
-    """TAB's right column's share (TAB.cells known): as wide as last chosen, never narrower than its sidebar's heads
+    """TAB's right column's share (TAB.cells known): as wide as last chosen, never narrower than its sidebar's tab row
     (least()); on the RAIL, RAIL cells inside the frame (herdr keeps a tenth of the tab at least: share()); with a
     panel opened BESIDE the rail, the width chosen and the rail's cells."""
     opened = max(1 - (saved(state_dir) or RIGHT), (least(state_dir, tab.tab) + FRAME) / tab.cells)

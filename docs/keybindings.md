@@ -36,8 +36,7 @@ all.
 
 | Key | What it does |
 |---|---|
-| Cmd + Shift + H | fold the sidebar's Conversations to its head, or open it |
-| Cmd + Shift + R | find a conversation: the sidebar's Conversations opens in this tab (folded too; a sidebar closed by hand comes back, a tab without one goes to the workspace's first), its filter empty and the keys going to it; Enter goes to a running one or reopens a closed one in a new tab |
+| Cmd + Shift + R | find a conversation: the sidebar shows Chats in this tab (on its rail too, beside it; a sidebar closed by hand comes back, a tab without one goes to the workspace's first), its filter empty and the keys going to it; Enter goes to a running one or reopens a closed one in a new tab |
 | Space / Shift + ↑ ↓ | in the sidebar's Conversations, with nothing typed: mark closed conversations, to archive them together with a right click on one of them; Esc unmarks them |
 | Cmd + F | search the Claude conversation: Enter accepts, `n` / `N` next / previous match, Esc goes back to typing |
 
@@ -75,7 +74,6 @@ In another terminal, the same commands are on herdr's keys:
 | Cmd + B | Ctrl + B, then b |
 | Cmd + Shift + E | Ctrl + B, then f |
 | Cmd + Shift + O | Ctrl + B, then Shift + O |
-| Cmd + Shift + H | Ctrl + B, then Shift + H |
 | Cmd + Shift + G | Ctrl + B, then u |
 | Cmd + Shift + I | Ctrl + B, then Shift + I |
 | Cmd + A | Ctrl + B, then Shift + A |

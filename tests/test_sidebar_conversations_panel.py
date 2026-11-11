@@ -1,5 +1,5 @@
 """Tests for the sidebar's Conversations panel (conversations_panel.py, conversation_list.py) with a stand-in
-terminal and a fake herdr: the list in the first group; going to, reopening, archiving, naming, copying one."""
+terminal and a fake herdr: the list behind the Chats tab; going to, reopening, archiving, naming, copying one."""
 import json
 import os
 import shutil
@@ -69,14 +69,19 @@ class Panel(AppScreen, unittest.TestCase):
     def make(self, herdr=None, **more):
         return sidebar.App(self.root, FakeTerminal(40, 40), herdr or preview.Herdr(), self.state, **more)
 
-    def start(self):
+    def start(self, chats=True):
+        """The sidebar running, its conversations read; on CHATS shown (its key), else on Files, as it starts."""
         term = FakeTerminal(40, 40)
         self.run_app(sidebar.App(self.root, term, preview.Herdr(), self.state), term)
-        self.until(lambda s: "Price list" in s)
+        if chats:
+            self.term.type(Key("char", "1"))
+            self.until(lambda s: "Price list" in s)
+        else:
+            self.until(lambda s: "Price list" in [item.title for item in self.app.views["conversations"].items or []])
 
     def listed(self):
-        """The Conversations group's rows under its filter, as shown."""
-        top, rows = self.app.slices["conversations"]
+        """Chats' rows under its filter, as shown."""
+        top, rows = self.app.body
         lines = self.screen().splitlines()[top:top + rows]
         start = next(n for n, line in enumerate(lines) if "Filter" in line) + 2
         return [line.strip() for line in lines[start:] if line.strip()]
@@ -101,9 +106,9 @@ class Panel(AppScreen, unittest.TestCase):
         at = next(n for n, line in enumerate(self.screen().splitlines()) if n > y and f"│{choice} " in line)
         self.term.type(Mouse("press", 7, at, 0))
 
-    def test_the_first_group_lists_the_spaces_in_their_order_their_conversations_under_them(self):
+    def test_chats_lists_the_spaces_in_their_order_their_conversations_under_them(self):
         self.start()
-        self.assertEqual(self.app.slices["conversations"][0], 0)
+        self.assertEqual(self.app.body[0], sidebar.stack.TOP)
         shown = self.listed()
         self.assertEqual((shown[0].split()[1], shown[0][-1]), ("app", glyphs(True)["open"]), shown)   # this pane's
         self.assertTrue(shown[1].startswith("├─ ● Fix the login"), shown)
@@ -112,8 +117,8 @@ class Panel(AppScreen, unittest.TestCase):
         self.assertNotIn("Old notes", self.screen())                        # /elsewhere: no workspace has it
 
     def test_a_running_one_is_gone_to(self):
-        self.start()
-        self.assertEqual(self.app.focus, "project")                         # the keys start with Files
+        self.start(chats=False)
+        self.assertEqual(self.app.keyed(), "files")                         # the keys start with Files
         self.term.type(Key(sidebar.FIND), Key("down"), Key("enter"))
         deadline = time.monotonic() + 5
         while "agent focus w1:p1" not in logged(self.log) and time.monotonic() < deadline:
@@ -125,21 +130,14 @@ class Panel(AppScreen, unittest.TestCase):
         self.start()
         self.until(lambda s: s.index("Fix the login") < s.index("Price list"))
 
-    def test_find_opens_the_group_empties_its_filter_and_gives_it_the_keys(self):
+    def test_find_shows_chats_empties_its_filter_and_gives_it_the_keys(self):
         self.start()
-        self.term.type(Key("f9"), Mouse("press", 1, 0, 0))                    # Files has the keys, the group folded
-        self.until(lambda s: self.app.slices["conversations"][1] == 1 and self.app.focus == "project")
+        self.term.type(Key("f9"))                                             # Files shown, with the keys
+        self.until(lambda s: self.app.keyed() == "files" and "Price list" not in s)
         self.app.views["conversations"].field.insert("zzz")
         self.term.type(Key(sidebar.FIND))
-        self.until(lambda s: self.app.focus == "conversations" and "Price list" in s)
+        self.until(lambda s: self.app.keyed() == "conversations" and "Price list" in s)
         self.assertEqual(self.app.views["conversations"].typed, "")
-
-    def test_fold_shuts_the_group_and_opens_it_again(self):
-        self.start()
-        self.term.type(Key(sidebar.FOLD))
-        self.until(lambda s: self.app.slices["conversations"][1] == 1)
-        self.term.type(Key(sidebar.FOLD))
-        self.until(lambda s: "Price list" in s)
 
     def test_copy_conversation_puts_the_whole_conversation_on_the_clipboard(self):
         path = os.path.join(self.home, ".claude", "projects", "-repo-app", "s2.jsonl")

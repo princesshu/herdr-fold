@@ -29,8 +29,8 @@ above a terminal](assets/screenshots/hero.webp)
   ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the message
   Claude wrote, the issue it fixes and the Graph, Issues by priority](assets/screenshots/sidebar.webp)
 
-- Conversations at the sidebar's top: every workspace's Claude and Codex conversations, running and closed, one
-  click away; its group folds to its head.
+- Conversations as the sidebar's first tab, Chats: every workspace's Claude and Codex conversations, running and
+  closed, one click away.
 - AI Sessions in herdr's sidebar, with each conversation's state, and in the Spaces list how long an agent has waited
   on you. Cmd + D / Cmd + E step through the sessions, Cmd with the arrows through the workspaces and the panes, even
   while you type.
@@ -103,7 +103,6 @@ Your own files are saved first, in `~/.local/state/herdr-fold/`. Your conversati
 | Cmd + Shift + L | open a file the agent named, at its line |
 | Cmd + Shift + R | find a conversation in the sidebar's Conversations |
 | Cmd + Shift + E | show / hide the sidebar and terminal |
-| Cmd + Shift + H | fold / open the sidebar's Conversations |
 | Cmd + Shift + O | restore the panels closed in the tab |
 | Cmd + Shift + G / Cmd + Shift + I | the sidebar's Changes / Issues |
 | Cmd + A | select the whole text of the sidebar's field you are in |
