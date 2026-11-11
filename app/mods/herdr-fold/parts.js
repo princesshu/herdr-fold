@@ -7,7 +7,7 @@ import { ringArc } from "./agents.js";
 import { ICONS } from "./icons.js";
 
 /** @typedef {import("./icons.js").IconName} IconName */
-import { LIST } from "./logic.js";
+import { LIST, PAD } from "./logic.js";
 
 export const GAP = 4;              // between two hover backgrounds side by side, everywhere: tabs, icon buttons
 // the scales every view keeps to, which the styleguide shows: padding and gaps on a 4 px grid, the type sizes, the
@@ -15,6 +15,8 @@ export const GAP = 4;              // between two hover backgrounds side by side
 export const SPACE = [2, 4, 6, 8, 12, 16, 20, 24, 32, 40, 48, 64];
 export const TEXT = [10, 11, 12, 13, 15, 20, 28];
 export const RADII = [4, 6, 8, 10];
+// a card's inside, the same on every side (a row's hover pad halfway in): from logic.js, whose dock sizes need it
+export { PAD };
 
 /** The mod's icon NAME (icons.js's, Lucide's), SIZE square, in the text's color.
  * @param {import("./icons.js").IconName} name @param {number} [size] */
@@ -45,13 +47,17 @@ export const BUTTON = 26;          // an icon button's square
 export const INDENT = 6 + 14 + 6;  // a row's content under its section's name: the head's padding, chevron and gap
 
 /** A button that is an icon (NAME), 26 square, saying TIP while the mouse rests on it (LEFT: to its left, as the
- * tab bar's end has them all, where the app's own tooltip picks its side itself); its press never drags what it sits
- * on. @param {import("./icons.js").IconName} name @param {string} tip @param {(cx: any) => void} act */
-export const iconButton = (t, id, name, tip, act, { size = 14, color = t.muted, left = false } = {}) => {
+ * tab bar's end has them, the app's own tip choosing its side itself); its press (PRESS gets it, for a menu under it)
+ * never drags what it sits on. @param {import("./icons.js").IconName} name @param {string} tip @param {any} act */
+export const iconButton = (t, id, name, tip, act, { size = 14, color = t.muted, left = false,
+  press = /** @type {((e: any) => void) | null} */ (null) } = {}) => {
   const button = div().id(id).relative().size(BUTTON).flex_none().flex().items_center().justify_center().rounded(6)
     .text_color(color).cursor_pointer().when(!left, (e) => e.tooltip(tip))
     .hover((s) => s.bg(t.hover).text_color(t.foreground))
-    .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => act(cx)).child(icon(name, size));
+    .on_mouse_down("left", (e, cx) => {
+      cx.stop_propagation();
+      press?.(e);
+    }).on_click((_e, cx) => act(cx)).child(icon(name, size));
   return left ? HoverCard.new(`${id}-tip`).anchor("top_right").open_delay(500).close_delay(0).trigger(button)
     .content(div().mt(4).px(8).py(2).rounded(6).border_1().border_color(t.border).bg(t.popover ?? t.raised)
       .text_size(12).text_color(t.foreground).child(tip)) : button;

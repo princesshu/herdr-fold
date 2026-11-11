@@ -154,11 +154,12 @@ def herdr_block(theme):
              f'  ["state_icon", {{ token = "pane", fg = "{h["text"]}", bold = true }}],',
              f'  ["state_text", {{ token = "agent", fg = "{agent_color(theme)}" }}],', "]"]
     body += ["",
-             "# The Spaces rows: herdr's own; beside the branch, how long an agent there waits on you in the theme's",
-             "# yellow (the sessions-view plugin says so), and deleted in its red when the space's folder is gone (the",
-             "# Workspaces plugin says so)", "[ui.sidebar.spaces]", "rows = [",
+             "# The Spaces rows: herdr's own; after its branch and git status, those of a repository inside a folder",
+             "# that is not one, how long an agent there waits on you in the theme's yellow, and deleted in its red",
+             "# when the folder is gone (the Workspaces plugin says the first and the last, AI Sessions the wait)",
+             "[ui.sidebar.spaces]", "rows = [",
              '  ["state_icon", "workspace"],',
-             f'  ["branch", "git_status", {{ token = "$waiting", fg = "{h["yellow"]}" }}, '
+             f'  ["branch", "git_status", "$repo", {{ token = "$waiting", fg = "{h["yellow"]}" }}, '
              f'{{ token = "$folder", fg = "{h["red"]}" }}],', "]"]
     return body + [END]
 

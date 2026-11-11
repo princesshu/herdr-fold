@@ -103,6 +103,11 @@ class Conversations(Family):
                                                               self.host.settings["icons"])
         view.set(seen["found"], seen["order"], lambda folder: names.get(self.folders.get(folder)), names.get(self.here))
 
+    def waiting(self):
+        """Whether a conversation waits for an answer (herdr's blocked: a question, a permission): the rail's Chats
+        shows a dot."""
+        return any(item.state == "blocked" for item in self.view.items or ())
+
     def find(self):
         """Cmd+Shift+R here: the filter empty and the keys in it (the dock shows the panel)."""
         self.view.field.clear()

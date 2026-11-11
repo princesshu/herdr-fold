@@ -7,14 +7,14 @@ import { spaces, panes, focused, exec, hc, home, nextCommand, theme, settings, l
   shared, setShared, readTextFile, run as command } from "herdr";
 import { COMMIT_MESSAGE, FILEOPS, GIT, SEARCH } from "./helper.js";
 import { activeTerminal, afterCommit, background, branchLabel, changeColor, changeName, commitMode, excerpt, fileIcon,
-  foldedSections, hovering, lastLine, launcher, letter, marked, MODES, panelRailed, panelToggle, pushOffer,
-  pythonCommand, railFollow, rowActions, said, searchRows, searchSummary, secretQuestion, swapDraft, syncLabel,
-  written }
+  foldedSections, hovering, lastLine, launcher, letter, marked, MODES, PANEL_NAMES, panelRailed, panelsFollow,
+  pushOffer, pythonCommand, railFollow, rowActions, said, searchRows, searchSummary, secretQuestion, swapDraft,
+  syncLabel, written }
   from "./logic.js";
-import { button, chip, END, field, fileMark, fold, GAP, icon, INDENT, small, SPRING } from "./parts.js";
+import { button, chip, END, field, fileMark, fold, GAP, icon, INDENT, PAD, small, SPRING } from "./parts.js";
 import { Menus, menuPopup } from "./menus.js";
-import { checkUpdates, followFolder, keptWidth, liveTabs, openRail, rail, runPanel, TABS, tabsState, VIEW, VIEW_NAMES }
-  from "./panel.js";
+import { checkUpdates, chosenTabs, followFolder, keepTabs, liveDockHead, liveGroupHead, liveRail, summon, SUMMON, TABS,
+  tabsState } from "./panel.js";
 import { Chat } from "./chat.js";
 import { ConversationsView } from "./conversations.js";
 import { FilesView } from "./files.js";
@@ -32,9 +32,10 @@ const WRITING = 6 * 60 * 1000;     // ms the message may take: both AIs, each as
 const SPINNER = [..."⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"];   // the message field's while ✦ writes in it, as the TUI's
 const LINES = 1500;                // a hit's file's lines shown at most
 const MODE = "herdr-fold.commit_mode", FOLDED = "herdr-fold.folded";   // kept (shared)
-/** The view's commands a folded panel hands to a float of the view that shows them, as its rail opens one. */
-const RAILED = { write: "changes", "commit-push": "changes", commit: "changes", sync: "changes", changes: "changes",
+/** A key's command, and the view whose copy runs it (the tab bar hands it on: a view hidden or folded hears none). */
+const VIEWS = { write: "changes", "commit-push": "changes", commit: "changes", sync: "changes", changes: "changes",
   search: "search", issues: "issues" };
+const FRESH = 5000;                // ms a key's ask waits for its view to show (a copy starting on it too)
 const QUIET = 150;                 // ms after typing stops before the search runs (Enter: at once)
 const FOUND = 1000;                // the hits a search brings at most (the count goes on)
 const ABOVE = 12;                  // a hit's file shown from these lines above it
@@ -112,8 +113,8 @@ async function stage(root, on) {
 
 export default class HerdrFold extends View {
   init(_props, cx) {
-    if ((this.launcher = launcher(props()))) {    // Cmd+Shift+G (mod.open): the right panel at herdr-fold, then gone
-      runPanel(panelToggle(layout(), keptWidth()));
+    if ((this.launcher = launcher(props()))) {    // mod.open: Changes shown, as Cmd+Shift+G, then gone
+      summon("changes");
       return void closeOverlay(this.launcher);
     }
     const part = props()?.part;                   // the layout's terminal stack: its header, its stand-in
@@ -122,19 +123,23 @@ export default class HerdrFold extends View {
       return void cx.timer.every(REFRESH, (cx) => this.terminal.look(cx));
     }
     if ((this.blank = part === "none")) return;
-    if ((this.tabs = part === "panel-tabs")) {           // the right panel's stack: its header, the group's tabs
+    if ((this.dock = part === "dock-head")) {            // the right dock's head: its ⋯ and »
       this.menus = new Menus();
       return void cx.spawn(async (cx) => {
-        for (;;) this.menus.answer(await nextCommand(), cx);                    // its menu about herdr-fold
+        for (;;) this.menus.answer(await nextCommand(), cx);                    // its ⋯'s panels, herdr-fold's lines
       });
     }
+    if (part === "group-head") return void (this.group = props().group);    // a group's tabs and fold
     if (part === "menu") {
       const { overlay, items, head } = props();
       return void (this.popup = { overlay, items, head });
     }
     if (part === "tabs") {                        // the tab bar, where the app's own was: always there, so it looks
-      this.bar = new TabsView();                  // for herdr-fold's newer releases too
+      this.bar = new TabsView();                  // for herdr-fold's newer releases too, and hands the keys on
       cx.timer.after(0, () => void checkUpdates(python));
+      cx.spawn(async () => {
+        for (;;) this.route(await nextCommand());
+      });
       return void cx.timer.every(UPDATES_EVERY, () => void checkUpdates(python));
     }
     if (part === "preview") {
@@ -154,7 +159,8 @@ export default class HerdrFold extends View {
     if ((this.rail = part === "rail")) return;          // the right panel folded: its rail
     if (part === "float-head") return void (this.head = { name: props().name, overlay: props().overlay });
     if (part === "float") {                       // a folded side's panel, floating beside its rail
-      this.float = { panel: props().panel, overlay: props().overlay, height: props().height, then: props().then };
+      this.float = { panel: props().panel, overlay: props().overlay, height: props().height };
+      this.pending = props().then;                // the rail's key's command, run once its view has looked
       const { panel, overlay } = this.float;
       if (panel === "spaces") return void cx.timer.every(TICK, (cx) => cx.notify());     // its waits, a minute on
       if (panel === "conversations" || panel === "files") {
@@ -189,8 +195,10 @@ export default class HerdrFold extends View {
       return void (this.guide = guide(HerdrFold.prototype, cx));
     }
     this.commits = []; this.status = null; this.message = ""; this.menus = new Menus();
-    const kept = this.float?.panel ?? shared(VIEW);
-    this.view = ["search", "issues"].includes(kept) ? kept : "changes";
+    const view = this.float?.panel ?? props()?.view;               // the layout's block of a view, or a float's
+    this.view = ["search", "issues"].includes(view) ? view : "changes";
+    /** a copy in a pane of its own (no layout's block, no float): its keys its own, its views switched in place */
+    this.alone = !this.float && !props()?.view;
     this.core = python;                           // the Issues view asks core/ through it
     this.issues = new IssuesView(this);
     this.switches = { case: false, word: false, regex: false };
@@ -225,11 +233,16 @@ export default class HerdrFold extends View {
     cx.spawn(async (cx) => {
       for (;;) {                                  // "herdr-fold.<command>": a bound key, or herdr-app do
         const asked = await nextCommand();
-        if (this.menus.answer(asked, cx) || this.float) continue;    // a float's menus only: the panel's copy has keys
-        if (RAILED[asked] && panelRailed(layout())) openRail(RAILED[asked], null, null, asked);   // folded: it shows
-        else this.dispatch(asked, cx);
+        if (this.menus.answer(asked, cx)) continue;
+        if (this.alone) this.dispatch(asked, cx);       // in the layout the tab bar hands the keys on (summon)
       }
     });
+  }
+
+  /** A key's command handed on (VIEWS) by the tab bar, which always shows: the view shown, its copy running it. */
+  route(asked) {
+    if (Object.hasOwn(VIEWS, asked)) summon(VIEWS[asked], asked);
+    else if (asked === "styleguide") command("tab.new", { mod: "herdr-fold", props: { part: "styleguide" } });
   }
 
   /** A command of the view's ("herdr-fold.<command>": a bound key, herdr-app do, or the rail's for its float). */
@@ -245,6 +258,7 @@ export default class HerdrFold extends View {
   /** The repository of the focused pane, its changes, how far it is from its upstream and its last commits, from
    * core/git.py. */
   refresh(cx) {
+    if (this.view === "search") return this.runPending(cx);      // a search asks git nothing
     const here = place(), key = JSON.stringify(here);
     if (key !== this.key) {                       // while ✦ writes too: its message never lands in another space
       const message = swapDraft(this.drafts, this.key, key, this.message);
@@ -262,11 +276,12 @@ export default class HerdrFold extends View {
         if (key !== this.key) return;
         if (top.code !== 0) return void (this.note = "Not a git repository");
         const root = top.stdout.trim(), status = await python(GIT, ["status", root], root, here.on);
-        const { commits } = await python(GIT, ["graph", root], root, here.on);
+        const changes = this.view === "changes";                     // Issues: the count for the heads, no Graph
+        const { commits } = changes ? await python(GIT, ["graph", root], root, here.on) : { commits: [] };
         const github = this.root === root ? this.github : (await python(GIT, ["github", root], root, here.on)).name;
         // the issue the next commit fixes, unlinked once a commit made anywhere closed it (core/commit_message.py)
-        const settled = github ? await python(COMMIT_MESSAGE, ["settle", root, ...(this.head ? [this.head] : [])],
-          root, here.on) : { linked: null, head: null };
+        const settled = github && changes ? await python(COMMIT_MESSAGE, ["settle", root,
+          ...(this.head ? [this.head] : [])], root, here.on) : { linked: null, head: null };
         if (key !== this.key) return;
         Object.assign(this, { root, on: here.on, status, commits, github, linked: settled.linked,
           head: settled.head ?? this.head, offer: this.offer && pushOffer(status) });   // asked anew: pushed, changed
@@ -277,29 +292,34 @@ export default class HerdrFold extends View {
       } finally {
         this.loading = false;
         this.publish();
-        const then = this.float?.then;
-        if (then && this.root) cx.timer.after(0, (cx) => this.dispatch(then, cx));    // the rail's, once, now
-        if (this.float) this.float.then = undefined;
+        this.runPending(cx);
         cx.notify();
       }
     });
   }
 
-  /** What the panel's tabs (panel.js, another copy) show of it: Issues or not, and the changed files' count. */
+  /** What the heads and the rail (panel.js, other copies) show of it: Issues or not, and the changed files' count. */
   publish() {
+    if (this.view === "search") return;
     const told = { github: Boolean(this.github), changed: this.changed };
     if (JSON.stringify(shared(TABS)) !== JSON.stringify(told)) setShared(TABS, told);
   }
 
-  /** The view the panel's tabs picked (VIEW, set in another copy) shown, once the render is over. */
-  follow(cx) {
-    const asked = shared(VIEW);
-    if (this.due || !asked || asked === this.view) return;
-    this.due = true;
-    cx.timer.after(0, (cx) => {
-      this.due = false;
-      this.show(/** @type {string} */ (asked), cx);
-    });
+  /** The command waiting for the view's first look (a key's, the rail's), run once, now: without a repository, none. */
+  runPending(cx) {
+    const then = this.pending;
+    this.pending = undefined;
+    if (then && (this.root || this.view === "search")) cx.timer.after(0, (cx) => this.dispatch(then, cx));
+  }
+
+  /** A key's ask for this view (SUMMON, the tab bar's), once, while fresh: run now, or once the view has looked. */
+  answer(cx) {
+    const asked = /** @type {{ view: string, command: string, at: number } | null} */ (shared(SUMMON));
+    if (this.alone || this.float || !asked || asked.view !== this.view || asked.at === this.answered ||
+      Date.now() - asked.at > FRESH) return;
+    this.answered = asked.at;
+    this.pending = asked.command;
+    if (this.root || this.view === "search") this.runPending(cx);
   }
 
   /** The row KEY chosen, and WHAT it is (a change's diff, a commit) shown in the space's preview tab, as the TUI
@@ -452,12 +472,13 @@ export default class HerdrFold extends View {
     this.act(cx, REMOTE[how], () => git(how, this.root, this.on));
   }
 
-  /** The view shown, kept for the next start; Search takes the keys. @param {string} view */
+  /** The view shown (a copy alone switches; a layout's has its own); Search takes the keys. @param {string} view */
   show(view, cx) {
+    const was = this.view;
     this.view = ["search", "issues"].includes(view) ? view : "changes";
-    setShared(VIEW, this.view);
     if (this.view === "search") this.find.focus();
     if (this.view === "issues" && !this.issues.listing) this.issues.load(cx);
+    if (this.view !== was && this.view !== "search") this.refresh(cx);
     cx.notify();
   }
 
@@ -550,9 +571,10 @@ export default class HerdrFold extends View {
     if (this.launcher) return div();
     const t = theme();
     if (this.blank) return standIn(t);
-    if (this.tabs) return liveTabs(t, this.menus, python);
+    if (this.dock) return liveDockHead(t, this, this.menus, python);
+    if (this.group) return liveGroupHead(t, this.group);
     if (this.popup) return menuPopup(t, this.popup.overlay, this.popup.items, this.popup.head);
-    if (this.rail) return rail(t, tabsState(), activeTerminal(layout()));
+    if (this.rail) return liveRail(t, activeTerminal(layout()));
     if (this.head) {
       this.offRail(this.head.overlay, cx);
       return floatHead(t, this.head.name, this.head.overlay, []);
@@ -570,15 +592,15 @@ export default class HerdrFold extends View {
       this.conversations.render(t, cx)) : this.conversations.render(t, cx);
     if (this.spaces) return this.spaces.render(t, cx);
     if (this.bar) {
-      this.followRail(cx);
+      this.followDock(cx);
       return this.bar.render(t);
     }
     if (this.files) return float ? floatPanel(t, "Files", float.overlay, undefined, [], this.files.render(t, cx))
       : this.files.render(t, cx);
     if (this.trigger) return sidebarTrigger(t);
-    if (JSON.stringify(place()) !== this.key) this.refresh(cx);
-    if (float) return floatPanel(t, VIEW_NAMES[this.view], float.overlay, undefined, [], this.panel(t));
-    this.follow(cx);
+    if (this.view !== "search" && JSON.stringify(place()) !== this.key) this.refresh(cx);
+    if (float) return floatPanel(t, PANEL_NAMES[this.view], float.overlay, undefined, [], this.panel(t));
+    this.answer(cx);
     return this.panel(t);
   }
 
@@ -588,19 +610,22 @@ export default class HerdrFold extends View {
     if (!panelRailed(layout())) cx.timer.after(0, () => closeOverlay(overlay));
   }
 
-  /** The right panel shown as its width says, a drag's too (logic.js's railFollow): from the tab bar's toggle, which
-   * every layout of herdr-fold's draws. */
-  followRail(cx) {
-    const commands = railFollow(layout());
+  /** The right panel shown as its width says, a drag's too (logic.js's railFollow), its groups as their panels say,
+   * each on its chosen tab while it can show it (panelsFollow): from the tab bar, which every layout of herdr-fold's
+   * draws. */
+  followDock(cx) {
+    const root = layout(), chosen = chosenTabs();
+    const commands = [...railFollow(root), ...panelsFollow(root, tabsState().github, chosen)];
     if (!commands.length || this.railing) return;
     this.railing = true;
     cx.timer.after(0, () => {
+      keepTabs(chosen);
       for (const [name, args] of commands) command(name, args);
       this.railing = false;
     });
   }
 
-  /** The view shown, under the stack's tabs (panel.js): Changes, Search, or Issues for a repository on GitHub (else
+  /** The view shown, under its group's head (panel.js): Changes, Search, or Issues for a repository on GitHub (else
    * Changes). */
   panel(t) {
     const frame = v_flex().id("herdr-fold").size_full().min_h(0).text_color(t.foreground).text_size(13);
@@ -614,7 +639,7 @@ export default class HerdrFold extends View {
 
   /** What went wrong last (a sync, a commit), and what to do. */
   problem(t) {
-    return div().px(12).py(6).text_size(11).text_color(t.ansi1).child(this.note ?? "");
+    return div().px(PAD).pt(PAD / 2).pb(PAD).text_size(11).text_color(t.ansi1).child(this.note ?? "");
   }
 
   /** Section KIND (staged, changes, graph) folded or opened again, and kept so, as the TUI sidebar keeps it.
@@ -647,7 +672,7 @@ export default class HerdrFold extends View {
       .child(label);
     const folder = (this.found ? this.searched?.cwd : place().cwd)?.split(/[\\/]/).pop() ?? "";
     const status = this.searching ? "Searching…" : this.found ? searchSummary(this.found) : `in ${folder}`;
-    return v_flex().flex_none().p(12).gap(6).border_b(1).border_color(t.border)
+    return v_flex().flex_none().p(PAD).gap(6).border_b(1).border_color(t.border)
       .child(field(t, "search", this.find, toggle("case", "Aa", "Match case"), toggle("word", "ab", "Whole word"),
         toggle("regex", ".*", "Regular expression")))
       .child(div().text_size(11).text_color(this.found?.error ? t.ansi1 : t.dim).truncate().child(status));
@@ -656,18 +681,18 @@ export default class HerdrFold extends View {
   /** The hits by file, the matches marked; a click shows the file there. */
   hits(t) {
     const row = (r) => r.kind === "file"
-      ? h_flex().id(`found-${r.path}`).w_full().h(24).flex_none().px(12).gap(6).items_center().tooltip(r.path)
+      ? h_flex().id(`found-${r.path}`).w_full().h(24).flex_none().px(PAD / 2).gap(6).items_center().tooltip(r.path)
         .child(fileMark(fileIcon(r.path.split("/").pop())))
         .child(div().font_semibold().child(r.path.split("/").pop()))
         .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim)
           .child(r.path.includes("/") ? r.path.slice(0, r.path.lastIndexOf("/")) : ""))
         .child(div().px(6).rounded(4).text_size(10).bg(t.raised).text_color(t.muted).child(String(r.count)))
-      : h_flex().id(`hit-${r.path}:${r.line}`).w_full().h(24).flex_none().px(12).gap(8).items_center()
+      : h_flex().id(`hit-${r.path}:${r.line}`).w_full().h(24).flex_none().px(PAD / 2).gap(8).items_center()
         .rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
         .when(this.peek === `${r.path}:${r.line}`, (e) => e.bg(t.selected))
         .child(div().w(34).flex_none().text_right().text_size(11).text_color(t.dim).child(String(r.line)))
         .child(this.line(t, r.text, r.spans));
-    return div().flex_1().min_h(0).relative().text_size(12)
+    return div().flex_1().min_h(0).relative().px(PAD / 2).pb(PAD / 2).text_size(12)
       .child(v_virtual_list("results", this.results.length, 24, (i) => String(i),
         (range) => this.results.slice(range.start, range.end).map(row)).size_full()
         .on_item_click((key, cx) => {                   // the list's own: a row may register no handler
@@ -690,7 +715,7 @@ export default class HerdrFold extends View {
       .when(Boolean(spans), (e) => e.bg(t.selected))
       .child(div().w(34).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
       .child(this.line(t, text, spans));
-    return div().flex_1().min_h(0).relative().border_t(1).border_color(t.border).text_size(11)
+    return div().flex_1().min_h(0).relative().pb(PAD / 2).border_t(1).border_color(t.border).text_size(11)
       .child(v_virtual_list("lines", this.peekRows.length, 20, (i) => String(i),
         (range) => this.peekRows.slice(range.start, range.end).map(row)).size_full())
       .child(Scrollbar.vertical("lines").viewport_from_layout().absolute().inset_0());
@@ -706,11 +731,11 @@ export default class HerdrFold extends View {
       .child(v_flex().id(`${kind}-files`).flex_none().overflow_hidden().h(this.folded.has(kind) ? 0 : files.length * 26)
         .spring("height", SPRING).children(files.map((f) => this.file(t, kind, f))));
     // as tall as its rows, less when the panel is short: the open Graph below keeps a third
-    return v_flex().id("changed").flex_grow(0).flex_shrink(1).h(Math.max(44, rows * 26 + 12))
-      .spring("height", SPRING).min_h(44).overflow_y_scrollbar().p(6)
+    return v_flex().id("changed").flex_grow(0).flex_shrink(1).h(Math.max(44, rows * 26 + PAD))
+      .spring("height", SPRING).min_h(44).overflow_y_scrollbar().p(PAD / 2)
       .when(staged.length > 0, part("staged", "Staged changes", staged))
       .when(changes.length > 0, part("changes", "Changes", changes))
-      .when(!rows, (e) => e.child(div().p(8).text_color(t.dim).child(empty)));
+      .when(!rows, (e) => e.child(div().px(PAD / 2).py(8).text_color(t.dim).child(empty)));
   }
 
   /** A section's heading, as the TUI sidebar's: its chevron folds it, its count on a chip; with the mouse on it, what
@@ -772,7 +797,7 @@ export default class HerdrFold extends View {
    * commit in the files' column, HEAD's marked, with its branches and tags and its author; a click previews it. */
   graph(t) {
     const folded = this.folded.has("graph");
-    const heading = h_flex().id("graph").h(26).flex_none().pl(12).pr(8).gap(6).items_center().cursor_pointer()
+    const heading = h_flex().id("graph").h(26).flex_none().pl(PAD).pr(8).gap(6).items_center().cursor_pointer()
       .border_t(1).border_color(t.border).hover((s) => s.bg(t.hover)).on_click((_e, cx) => this.fold("graph", cx))
       .child(fold("graph-fold", !folded, 14, t.muted))
       .child(div().font_bold().child("Graph"));
@@ -787,11 +812,13 @@ export default class HerdrFold extends View {
           .child(refs.join(" "))))
         .child(div().flex_none().text_size(11).text_color(t.muted).child(author));
     };
-    // at the bottom, as the TUI sidebar's: the room the changes leave, a third at least when open, its heading on top
-    return v_flex().flex_grow(1).flex_shrink(0).flex_basis(folded ? 26 : "33%").min_h(26).justify_end().child(heading)
+    // at the bottom, as the TUI sidebar's: the room the changes leave, a third at least when open, its heading on top;
+    // a row's pad under its last row, folded or not, as at the sides
+    return v_flex().flex_grow(1).flex_shrink(0).flex_basis(folded ? 26 + PAD / 2 : "33%").min_h(26 + PAD / 2)
+      .pb(PAD / 2).justify_end().child(heading)
       .when(this.commits.length > 0, (e) => e.child(v_flex().id("commits").flex_grow(0).flex_shrink(1)
-        .h(folded ? 0 : this.commits.length * 24 + 6).spring("height", SPRING).min_h(0).overflow_y_scrollbar()
-        .px(6).children(this.commits.map(commit)).child(div().h(6).flex_none())));
+        .h(folded ? 0 : this.commits.length * 24).spring("height", SPRING).min_h(0).overflow_y_scrollbar()
+        .px(PAD / 2).children(this.commits.map(commit))));
   }
 
   /** The Commit button's modes, its arrow's menu: a choice is kept for the next commit. */
@@ -823,7 +850,7 @@ export default class HerdrFold extends View {
         .child(small(t, "repository-more", icon("ellipsis"), "More actions", this.ready,
           () => this.menus.open(this.remote, this.pressed)).on_mouse_down("left", (e) => (this.pressed = e.bounds))));
     const folded = this.folded.has("repositories");
-    return v_flex().flex_none().px(6).pt(6).child(this.section(t, "repositories", "Repositories", []))
+    return v_flex().flex_none().px(PAD / 2).pt(PAD / 2).child(this.section(t, "repositories", "Repositories", []))
       .when(!folded && Boolean(this.root), (e) => e.child(row));
   }
 
@@ -833,7 +860,7 @@ export default class HerdrFold extends View {
     const commit = this.ready && (Boolean(this.message.trim()) || Boolean(this.offer));
     const label = this.busy ?? h_flex().gap(8).items_center().child(icon("check"))
       .child(this.offer ? "Push" : `${MODES[this.once ?? this.mode]}${this.asked ? " anyway" : ""}`);
-    return v_flex().flex_none().p(12).gap(8).border_b(1).border_color(t.border)
+    return v_flex().flex_none().p(PAD).gap(8).border_b(1).border_color(t.border)
       .child(h_flex().gap(8)
         .child(div().id("message").flex_1().min_w(0).h(32).px(12).flex().items_center().rounded(8).border_1()
           .border_color(t.border).cursor_text().on_key_down((e, cx) => e.key === "escape" && this.cancel(cx))

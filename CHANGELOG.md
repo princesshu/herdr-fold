@@ -8,6 +8,12 @@ All notable changes to this project are listed here. The format follows
 
 ### Added
 
+- The TUI sidebar folds to its rail by the » at its first head, in every tab, as Adobe's Collapse to Icons: each
+  panel's icon over its short name, Chats with a yellow dot while a conversation waits and Changes with its count, the
+  tab's terminal moved under the agent. A press on an icon opens its group beside the rail, the icon lit; the lit icon
+  again or Esc folds it back, and « opens the dock again as wide as before.
+- The Spaces list shows the branch of a repository inside a folder that is no repository itself, with ↑ to push and
+  ↓ to pull against its remote branch, in both clients: the active pane's repository where the folder holds several.
 - The TUI sidebar's ⋯ lists its panels first, each with a `✓` while shown, as Adobe's Window menu: one unchecked leaves
   its group in every tab (a group with none left goes) until a check or its key brings it back; one always stays. The
   menu's kinds of line stand apart by a rule, as herdr's own menus.
@@ -32,6 +38,12 @@ All notable changes to this project are listed here. The format follows
   and Search, Changes and Issues, each under a head with its tabs (Changes with its count) and a fold; a head dragged
   moves the edge between them, and each folder keeps the panels shown, the groups folded and their sizes. The
   view buttons above them are gone.
+- The Herdr app's right panel is a dock of two panel groups, as the TUI sidebar's: Files and Search, Changes and
+  Issues, each under a head with its tabs (Changes with its count) and a fold that leaves the head alone, the tab's
+  terminal at its foot. The dock's head holds ⋯, which shows or hides each panel by its `✓` and has herdr-fold's
+  version, and », which folds the dock to its rail (« at the tab bar's end opens it again). Cmd + Shift + G and
+  Cmd + Shift + I show Changes and Issues, Cmd + Shift + F Search, each in its group, opened; an update drops the
+  app's state of the old panel, so the groups open on their own tabs.
 - The sidebar plugin is named "Sidebar" on herdr's marketplace card.
 - The TUI's Conversations column, its rail and its own pane are gone, and so is a tab's third column: the list is
   the sidebar's first group. Cmd + Shift + R opens it in the tab's sidebar, its filter empty, and Cmd + Shift + H

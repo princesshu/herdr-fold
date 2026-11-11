@@ -1,10 +1,11 @@
 """Tests for the Workspaces plugin (workspaces.py) with fake herdr calls: the new button's workspace is called new while
-its folder is chosen, Windows has no folder picker, a workspace whose folder is gone says deleted, and a workspace
-follows its renamed folder."""
+its folder is chosen, Windows has no folder picker, a workspace whose folder is gone says deleted, a workspace
+follows its renamed folder, and a folder holding a repository shows that one's branch."""
 import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -261,6 +262,138 @@ class FollowOnFocus(unittest.TestCase):
         # Windows does not let a folder in use be renamed
         self.assertEqual(manifest_events("pane.focused"),
                          [('["macos", "linux"]', '["/usr/bin/python3", "workspaces.py"]')])
+
+
+class RepositoryInside(unittest.TestCase):
+    """A workspace whose folder is not a repository but holds one shows that one's branch and how far it is from its
+    upstream ($repo, after herdr's own branch and git status): herdr shows a branch only for a folder in a repository,
+    and one thing never gets two signals."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.folder = os.path.join(self.tmp, "archive")
+        os.makedirs(self.folder)
+        set_env(self, GIT_CONFIG_GLOBAL=os.devnull, GIT_AUTHOR_NAME="dev", GIT_AUTHOR_EMAIL="dev@example.com",
+                GIT_COMMITTER_NAME="dev", GIT_COMMITTER_EMAIL="dev@example.com", HOME=os.path.join(self.tmp, "home"),
+                HERDR_PLUGIN_STATE_DIR=os.path.join(self.tmp, "state"), HERDR_PLUGIN_EVENT="pane.focused")
+        self.tokens, self.reports, self.panes, self.commits = {}, [], [], 0
+
+        def herdr(*args, **kwargs):
+            if args[:2] == ("workspace", "list"):
+                return {"workspaces": [{"workspace_id": "w1", "label": "archive", "focused": True,
+                                        "active_tab_id": "w1:t1", "tokens": dict(self.tokens)}]}
+            if args[:2] == ("pane", "list"):
+                return {"panes": [dict(pane, workspace_id="w1", tab_id="w1:t1") for pane in self.panes]}
+            if args[:2] == ("workspace", "report-metadata"):                # as herdr: a patch of the tokens
+                self.reports.append(args[2:])
+                if "--token" in args:
+                    name, value = args[args.index("--token") + 1].split("=", 1)
+                    self.tokens[name] = value
+                else:
+                    self.tokens.pop(args[args.index("--clear-token") + 1], None)
+            return {}
+        set_attrs(self, workspaces, herdr=herdr)
+
+    def git(self, path, *args):
+        subprocess.run(["git", "-C", path, *args], check=True, capture_output=True)
+
+    def commit(self, path):
+        self.commits += 1                                   # a message of its own: never the same commit twice
+        self.git(path, "commit", "-q", "--allow-empty", "-m", f"change {self.commits}")
+
+    def repo(self, name, branch="main", upstream=True):
+        """A repository NAME in the workspace's folder with a commit on BRANCH, pushed to a bare remote it tracks."""
+        path = os.path.join(self.folder, name)
+        os.makedirs(path)
+        self.git(path, "init", "-q", "-b", branch)
+        self.commit(path)
+        if upstream:
+            remote = os.path.join(self.tmp, "remotes", name.replace(os.sep, "-") + ".git")
+            os.makedirs(remote)
+            self.git(remote, "init", "-q", "--bare")
+            self.git(path, "remote", "add", "origin", remote)
+            self.git(path, "push", "-q", "-u", "origin", branch)
+        return path
+
+    def focus(self, *cwds, active=None):
+        """The repo token reports of a pane's focus, the workspace's panes in CWDS (the first one's folder is the
+        workspace's, as herdr takes it), the one at ACTIVE focused."""
+        self.panes = [{"pane_id": f"w1:p{n}", "cwd": cwd, "focused": n == active} for n, cwd in enumerate(cwds)]
+        self.reports.clear()
+        workspaces.main()
+        return [report[3:] for report in self.reports if report[-1] == "repo" or report[-1].startswith("repo=")]
+
+    def test_a_folder_holding_one_repository_shows_its_branch_and_how_far_it_is_from_its_upstream(self):
+        app = self.repo("app")
+        self.commit(app)
+        self.git(app, "push", "-q")
+        self.git(app, "reset", "-q", "--hard", "HEAD~1")                    # one to pull
+        self.commit(app)                                                    # one to push
+        self.assertEqual(self.focus(self.folder), [("--token", "repo=main ↑1 ↓1")])
+        self.assertEqual(self.focus(self.folder), [])                       # said already
+
+    def test_a_repository_without_an_upstream_shows_its_branch_alone(self):
+        self.repo(os.path.join("code", "app"), branch="trunk", upstream=False)      # two folders down
+        self.assertEqual(self.focus(self.folder), [("--token", "repo=trunk")])
+
+    def test_a_repository_level_with_its_upstream_shows_its_branch_alone(self):
+        # as herdr's git status: nothing when there is nothing to push or pull
+        self.repo("app")
+        self.assertEqual(self.focus(self.folder), [("--token", "repo=main")])
+
+    def test_the_active_panes_repository_wins_and_stays_when_the_pane_leaves_it(self):
+        self.repo("one")
+        two = self.repo("two", branch="dev")
+        os.makedirs(os.path.join(two, "src"))
+        self.assertEqual(self.focus(self.folder), [])                       # two, and no pane was ever in one
+        self.assertEqual(self.focus(self.folder, os.path.join(two, "src"), active=1), [("--token", "repo=dev")])
+        self.assertEqual(self.focus(self.folder, self.folder, active=1), [])          # the one it was last in
+        self.assertEqual(self.tokens, {"repo": "dev"})
+
+    def test_a_folder_that_is_itself_a_repository_gets_no_token(self):
+        # herdr's own branch shows there, for a folder below a repository's top too
+        app = self.repo("app")
+        vendor = self.repo(os.path.join("app", "vendor"))
+        os.makedirs(os.path.join(app, "docs"))
+        self.assertEqual(self.focus(app, vendor, active=1), [])
+        self.assertEqual(self.focus(os.path.join(app, "docs"), vendor, active=1), [])
+        self.assertEqual(self.tokens, {})
+
+    def test_the_token_is_cleared_when_it_no_longer_applies(self):
+        app = self.repo("app", upstream=False)
+        clear = [("--clear-token", "repo")]
+        self.assertEqual(self.focus(self.folder), [("--token", "repo=main")])
+        self.assertEqual(self.focus(app), clear)                # the workspace's folder in it: herdr's own shows it
+        self.assertEqual(self.focus(self.folder), [("--token", "repo=main")])
+        shutil.rmtree(app)
+        self.assertEqual(self.focus(self.folder), clear)
+        self.assertEqual(self.tokens, {})
+
+    def test_the_home_folder_is_never_searched(self):
+        # it holds every repository of the user's (and macOS asks before its private folders are looked into)
+        home = os.environ["HOME"]
+        subprocess.run(["git", "init", "-q", "-b", "main", os.path.join(home, "app")], check=True, capture_output=True)
+        self.assertEqual(self.focus(home), [])
+
+    def test_the_search_is_core_gits_in_its_own_copy(self):
+        # one source for both clients (the Herdr app mod's Spaces list runs core/git.py too); its own copy, as
+        # herdrlib's sidebar modules bring the sidebar's
+        self.assertEqual(workspaces.git.__file__,
+                         os.path.join(os.path.dirname(os.path.abspath(workspaces.__file__)), "git.py"))
+
+    def test_git_runs_only_when_the_repository_changed(self):
+        app = self.repo("app")
+        calls, real = [], workspaces.git.run
+        set_attrs(self, workspaces.git, run=lambda *args, **kwargs: calls.append(args) or real(*args, **kwargs))
+        self.focus(self.folder)
+        asked = len(calls)
+        self.assertGreater(asked, 0)
+        self.focus(self.folder)
+        self.assertEqual(len(calls), asked)
+        self.commit(app)
+        self.assertEqual(self.focus(self.folder), [("--token", "repo=main ↑1")])
+        self.assertGreater(len(calls), asked)
 
 
 if __name__ == "__main__":

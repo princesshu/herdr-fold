@@ -5,6 +5,7 @@ import { div } from "gpui-kit";
 import { focused, spaces, terminals, machines, layout, hc, shared, setShared, run as command } from "herdr";
 import { lastLine, machineOf, orphanChats, said, strays, TERMINALS, terminalId, withoutTabs, withTerminal }
   from "./logic.js";
+import { PAD } from "./parts.js";
 
 const LABEL = "herdr-fold.tab";    // the core keeps a tab's terminal by this label, the tab's id its value
 const NOTE = "herdr-fold.terminal";      // why the focused tab has no terminal, for the stack's stand-in to say
@@ -114,7 +115,7 @@ export class TerminalFollower {
 /** The stack's stand-in, shown while the focused tab has no terminal: why (NOTE), if it could not start.
  * @param {string | null} [note] */
 export const standIn = (t, note = /** @type {string | null} */ (shared(NOTE) ?? null)) =>
-  div().size_full().p(12).text_size(12).text_color(t.ansi1).child(note ?? "");
+  div().size_full().p(PAD).text_size(12).text_color(t.ansi1).child(note ?? "");
 
 /** A terminal for TAB of SPACE, in its folder on its machine, with that machine's own shell; kept by the core (a lost
  * one gets a shell in its place) under herdr-fold's label. Its address, the machine's name and all.

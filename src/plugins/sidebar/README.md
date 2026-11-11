@@ -11,6 +11,10 @@ count; its chevron folds the group to its head (a group without three rows to sp
 the edge above it. Each folder keeps which panel each group shows, the groups folded and their sizes (`dock.json`).
 The ⋯ lists the panels, each with a ✓ while shown: one unchecked is hidden in every tab, until a check or its key brings
 it back (`hidden_panels` in `settings.json`); one always stays.
+The » before the ⋯ folds the dock to its rail in every tab, as Adobe's Collapse to Icons: each panel's icon over its
+short name, a gap between groups, Chats with a yellow dot while a conversation waits and Changes with its count; the
+terminal moves under the agent. A press on an icon opens its group beside the rail, the column wider and the icon lit;
+the lit icon again, or Esc, folds it back. « opens the dock again, as wide as before (`column.json` keeps both).
 
 ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the message
 Claude wrote, the issue it fixes and the Graph, Issues by priority](../../../assets/screenshots/sidebar.webp)
@@ -85,7 +89,7 @@ a pane taller than wide, the status row's turn, `v` or the right click turning t
 
 | Where | Keys |
 |---|---|
-| Everywhere | `1` `2` `3` `4` show a panel (its group opened) and give it the keys, `q` quits, unless a field, a menu or a question has the keys; F9 F10 F11 F12 the panels and Ctrl + C quits even then; a click gives its group the keys |
+| Everywhere | `1` `2` `3` `4` show a panel (its group opened, on the rail beside it) and give it the keys, `q` quits, unless a field, a menu or a question has the keys; F9 F10 F11 F12 the panels and Ctrl + C quits even then; a click gives its group the keys; Esc folds a panel opened beside the rail back, once its menu, a name being typed or a question is closed |
 | Files | ↑ ↓ ← → or `j` `k` `h` `l`, PgUp PgDn, Home End or `g` `G`, Enter or Space opens, `n` new file, `N` new folder, `r` rename, Delete to the Trash, `m` the menu, `.` hidden files, `i` plain icons, `R` refresh |
 | Search | type to search; a click or Alt + C, Alt + W, Alt + R the switches; Esc or the field's × clears the text and the folder or file; Tab or ↓ to the hits (PgUp PgDn Home End too), Enter opens a hit or folds a file's, Esc, Tab or another letter goes back to the field |
 | Changes | `c` or typing writes the message (Enter a new line; Esc, then Enter commits), `A` or the star beside the message has it written, Enter stages or unstages, Space shows the diff, `d` discards, `S` syncs |
@@ -124,13 +128,15 @@ Alt + Enter commits from the message there too.
 - herdr's command line, for the preview tab (`herdr tab create`, `herdr pane split`, `herdr pane run`, `herdr tab
   rename`, `herdr tab focus`, `herdr pane process-info` to tell whether its pager still runs, `herdr tab close` on `q`
   and for a preview tab whose pager no longer runs), to hand an issue to the tab's agent (`herdr pane send-text`:
-  typed in, not sent; `herdr agent focus`), and to lay out a new tab and bring each tab's panes back when herdr
+  typed in, not sent; `herdr agent focus`), to lay out a new tab and bring each tab's panes back when herdr
   starts (`herdr workspace list`, `herdr pane list`, `herdr agent list`, `herdr pane split`, `herdr pane rename`,
-  `herdr pane run`).
+  `herdr pane run`), and on the rail to move each tab's terminal under its agent and back (`herdr pane move`, through
+  a tab of its own that goes by itself; its program runs on).
 - herdr's socket, for the right column's width: when it is dragged wider or narrower, the sidebar reads that tab's
-  layout once it stays put, keeps each tab's right column at least as wide as its sidebar's widest head (23 cells
-  inside herdr's frame without Issues, 29 with them), remembers the width to the cell (`column.json` in its state
-  folder), and sets every other tab's to it.
+  layout once it stays put, keeps each tab's right column at least as wide as its sidebar's widest head (25 cells
+  inside herdr's frame without Issues, 31 with them), remembers the width to the cell (`column.json` in its state
+  folder), and sets every other tab's to it. Folded to its rail, every tab's column takes 9 cells inside the frame (a
+  tenth of the tab where that is more: herdr's narrowest split), and the width stays kept for the dock opened again.
 - For a repository with a remote on github.com: `gh`, the GitHub CLI, as you are signed in to it on that machine, for
   the issues (once a minute while the view is shown or lists any, for all the sidebars of a repository; `R` at once)
   and what you do with them there; a new issue and a comment are gh's own prompts, in a tab of their own. No token is

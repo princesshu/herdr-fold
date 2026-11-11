@@ -49,7 +49,12 @@ renamed or moved.
 
 The column keeps one width everywhere: drag it wider or narrower in one tab, and every other tab's column, in every
 workspace, gets that width at once; a new column opens at it too. A tab's column is never narrower than its sidebar's
-widest group head: 23 cells, 29 with Issues.
+widest group head: 25 cells, 31 with Issues.
+
+The » before the ⋯ folds the dock to its rail, in every tab as the width is: each panel's icon over its short name,
+Chats with a yellow dot while a conversation waits, Changes with its count; the terminal moves under the agent. A press
+on an icon opens its group beside the rail, the column wider; the lit icon again, or Esc, folds it back, and « opens
+the dock again at the width it had.
 
 ## Keys
 

@@ -6,7 +6,7 @@ import { v_flex, h_flex, InputState } from "gpui-base";
 import { agents, focused, hc, run as command } from "herdr";
 import { COMMIT_MESSAGE, GITHUB } from "./helper.js";
 import { hovering, issueAgent, priorityColor, said } from "./logic.js";
-import { button, choices, field, GAP, icon, small } from "./parts.js";
+import { button, choices, field, GAP, icon, PAD, small } from "./parts.js";
 import { showPreview } from "./preview.js";
 
 const LEVELS = ["Urgent", "High", "Medium", "Low"];      // GitHub's Priority field's options, core/github.py's ranks
@@ -168,7 +168,7 @@ export class IssuesView {
       .child(this.field(t))
       .child(this.states(t))
       .when(Boolean(this.line(shown)), (e) => e.child(this.status(t, shown)))
-      .child(v_flex().id("issues").flex_1().min_h(0).overflow_y_scrollbar().px(6).pb(6)
+      .child(v_flex().id("issues").flex_1().min_h(0).overflow_y_scrollbar().px(PAD / 2).pb(PAD / 2)
         .children(shown.map((issue) => this.row(t, issue))));
   }
 
@@ -189,7 +189,7 @@ export class IssuesView {
       .children(shown.flatMap(([word, color], i) => [...(i ? [div().text_color(t.muted).child("·")] : []),
         div().text_color(color).child(String(word))]))
       .child(icon("chevron-down", 12).text_color(t.muted));
-    return h_flex().flex_none().p(12).pb(6).gap(6).items_center()
+    return h_flex().flex_none().p(PAD).pb(6).gap(6).items_center()
       .child(field(t, "issue-search", this.find, filters).flex_1().min_w(0))
       .child(button(t, "issue-new", icon("plus", 15), Boolean(this.host.github), false,
         (cx) => this.terminal(["create"], cx)).tooltip("New issue"));
@@ -213,7 +213,7 @@ export class IssuesView {
   /** Open and Closed, as GitHub's list has them: the chosen one filled. */
   states(t) {
     return choices(t, "issues", Object.entries(STATES), this.query.state,
-      (state, cx) => this.load(cx, { ...this.query, state })).px(12).pb(8);
+      (state, cx) => this.load(cx, { ...this.query, state })).px(PAD).pb(8);
   }
 
   /** What to say above the list: busy, asking, a failure, nothing found, or what was done. @param {Listed[]} shown */
@@ -230,7 +230,7 @@ export class IssuesView {
 
   status(t, shown) {
     const [text, role] = /** @type {[string, string]} */ (this.line(shown));
-    return div().flex_none().px(12).pb(6).text_size(11).truncate().text_color(t[role]).child(text);
+    return div().flex_none().px(PAD).pb(6).text_size(11).truncate().text_color(t[role]).child(text);
   }
 
   /** An issue's two rows, as the TUI sidebar's: its priority's bar, its number in that color and its title; then its
@@ -280,9 +280,9 @@ export class IssuesView {
 }
 
 /** The issue NUMBER's Fixes line, as the TUI sidebar shows it under Commit: the next commit closes it; × unlinks it.
- * @param {[number, string]} linked @param {(cx: any) => void} unlink */
+ * In the composer, whose PAD it keeps. @param {[number, string]} linked @param {(cx: any) => void} unlink */
 export function fixesLine(t, linked, unlink) {
-  return h_flex().flex_none().px(12).pb(8).gap(6).items_center().text_size(12)
+  return h_flex().flex_none().gap(6).items_center().text_size(12)
     .child(div().flex_1().min_w(0).truncate().text_color(t.accent).child(`Fixes #${linked[0]} ${linked[1]}`))
     .child(small(t, "unlink", icon("x"), "Next commit fixes no issue", true, unlink));
 }

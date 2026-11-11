@@ -393,6 +393,13 @@ export function menuPlace(button, high, room, wide) {
   return { x, y: over >= MENU_EDGE ? over : Math.max(MENU_EDGE, room.height - MENU_EDGE - high) };
 }
 
+const MENU_ROW = 28, MENU_RULE = 9, MENU_GAP = 2, MENU_PAD = 4;      // px: a menu's row, its rule, between, round
+
+/** The height of a menu of ITEMS (null: a rule between its parts) under its HEAD. @param {(object | null)[]} items
+ * @param {object} [head] */
+export const menuHeight = (items, head) => items.reduce((h, item) => h + (item ? MENU_ROW : MENU_RULE) + MENU_GAP,
+  head ? MENU_ROW + MENU_GAP : 0) + 2 * MENU_PAD;
+
 /** The panel menu's lines about herdr-fold, as the TUI sidebar's ⋯ has them: its version (a newer one's, once out),
  * opening its releases, and Check for Updates; none before a look or where the installer never ran.
  * @param {any} found core/update.py's check */
@@ -415,9 +422,9 @@ export function lightsRoom(root, w, zoom) {
  * inside the work body's padding (layout ROOT's). @param {any} root @param {number} button */
 export const toggleRoom = (root, button) => (find(root, "work-body")?.padding ?? 0) + (RAIL - button) / 2;
 
-// the layout's right panel and the stack of its views: herdr-fold's own ids, so the app's Settings, which shows and
-// hides a panel under the app's ids, leaves it alone
-export const PANEL = "fold-panel", PANEL_BODY = "fold-panel-body";
+// the layout's right panel, its dock's head and its dock of groups: herdr-fold's own ids, so the app's Settings, which
+// shows and hides a panel under the app's ids, leaves them alone
+export const PANEL = "fold-panel", DOCK_HEAD = "fold-dock-head", DOCK = "fold-dock";
 export const RAIL_BLOCK = "panel-rail";      // the right panel's block while it is folded to its rail
 export const RAIL = 76;                      // px: the right panel folded to its rail, as the left sidebar folds
 export const PANEL_PX = 368;                 // px: the right panel open, unless it kept another width
@@ -498,19 +505,39 @@ export function placeLabel(place, tree, name) {
 }
 
 /** ROWS ({ w: a space, g: its place }) in order, each worktree under the first space of its checkout, TREE marking it;
- * one whose checkout has no space stays where it is. @template {{ g: any }} R @param {R[]} rows */
+ * one whose checkout has no space stays where it is, and so does one showing the repository inside its folder (its
+ * folder neither that checkout nor its worktree). @template {{ g: any }} R @param {R[]} rows */
 export function nested(rows) {
-  const checkouts = new Set(rows.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
-  const under = (/** @type {R} */ r) => Boolean(r.g?.linked && checkouts.has(r.g.repo));
+  const own = (/** @type {R} */ r) => (r.g?.inside ? null : r.g);
+  const checkouts = new Set(rows.filter((r) => own(r) && !r.g.linked).map((r) => r.g.repo));
+  const under = (/** @type {R} */ r) => Boolean(own(r)?.linked && checkouts.has(r.g.repo));
   const out = [], placed = new Set();
   for (const row of rows) {
     if (under(row)) continue;
     out.push({ ...row, tree: false });
-    if (!row.g || row.g.linked || placed.has(row.g.repo)) continue;
+    if (!own(row) || row.g.linked || placed.has(row.g.repo)) continue;
     placed.add(row.g.repo);
     out.push(...rows.filter((r) => under(r) && r.g.repo === row.g.repo).map((r) => ({ ...r, tree: true })));
   }
   return out;
+}
+
+/** Where space S is (PS: the app's panes()): its first terminal's live folder, else where it was made, on its machine.
+ * @param {any} s @param {any[]} ps */
+export function folderKey(s, ps) {
+  const tabs = new Set((s.tabs ?? []).map((/** @type {any} */ tab) => tab.id));
+  return JSON.stringify([s.machine ?? null, ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder]);
+}
+
+/** Space S's place's key: its folderKey, and where PLACES says that folder is no repository, its active pane's folder
+ * (its shown tab's focused pane) too, core/git.py's place showing the repository inside that pane is in (no pane's
+ * past is kept: never the one last in). @param {any} s @param {any[]} ps @param {Record<string, any>} places */
+export function placeKey(s, ps, places) {
+  const key = folderKey(s, ps), known = places[key], [on, folder] = JSON.parse(key);
+  const tab = (s.tabs ?? []).find((/** @type {any} */ t) => t.active)?.id;
+  const active = ps.find((p) => p.tab === tab && p.focused && p.cwd)?.cwd;
+  return known === undefined || (known && !known.inside) || !active || active === folder ? key
+    : JSON.stringify([on, folder, active]);
 }
 
 // a space's avatar color, as every app mod draws one: one strong color per hue, light and dark alike
@@ -576,15 +603,130 @@ export function panelShown(root) {
   return Boolean(panel && !panel.hidden);
 }
 
-/** The right panel's tab shown in layout ROOT: Files while its block shows, else VIEW (the view kept),
- * Issues only for a repository on GitHub (GITHUB), else Changes. @param {any} root @param {unknown} view
- * @param {boolean} github @returns {"changes" | "search" | "issues" | "files"} */
-export function shownTab(root, view, github) {
-  if (find(root, PANEL_BODY)?.active === "files") return "files";
-  return view === "search" || (view === "issues" && github) ? view : "changes";
+// the right dock's groups, as core/dock.py's GROUPS: each a column of its own (fold-project), its head over a stack of
+// its panels' blocks (fold-project-body); a panel hidden from the dock's ⋯ is its block hidden
+export const GROUPS_APP = { project: ["files", "search"], work: ["changes", "issues"] };
+export const PANEL_NAMES = { files: "Files", search: "Search", changes: "Changes", issues: "Issues" };
+// px inside a card, on every side: a terminal's text, a group's tabs, a view's words and fields; a row's hover pad
+// reaches halfway in (PAD / 2). Here, as the dock's sizes need it; parts.js hands it to the views.
+export const PAD = 12;
+export const GROUP_HEAD = PAD + 24;          // px: a group's head, its tabs (24 high) and its fold PAD under the top
+export const FOLDED_GROUP = GROUP_HEAD + PAD + 2;    // px: a group folded to its head, PAD under it, in its frame
+export const GROUP_WEIGHTS = { project: 2, work: 3 };    // the layout's own shares, a group opened again without one
+const column = (/** @type {string} */ group) => `fold-${group}`, body = (/** @type {string} */ group) =>
+  `fold-${group}-body`;
+
+/** The group PANEL is in, or null. @param {string} panel @returns {string | null} */
+export const groupOf = (panel) => Object.keys(GROUPS_APP).find((g) => GROUPS_APP[g].includes(panel)) ?? null;
+
+/** Whether PANEL can show here: Issues for a repository on GitHub (GITHUB) only. */
+const available = (/** @type {string} */ panel, /** @type {boolean} */ github) => panel !== "issues" || github;
+
+/** GROUP's tabs in layout ROOT: its panels whose blocks are there and not hidden, Issues only on GitHub (GITHUB).
+ * @param {any} root @param {string} group @param {boolean} github @returns {string[]} */
+export const groupTabs = (root, group, github) => (GROUPS_APP[group] ?? [])
+  .filter((panel) => available(panel, github) && find(root, panel) && !find(root, panel).hidden);
+
+/** Every panel layout ROOT shows, group by group. @param {any} root @param {boolean} github */
+export const shownPanels = (root, github) => Object.keys(GROUPS_APP).flatMap((g) => groupTabs(root, g, github));
+
+/** The tab GROUP shows in layout ROOT: its stack's child while it is a tab, else its first tab, else null.
+ * @param {any} root @param {string} group @param {boolean} github @returns {string | null} */
+export function shownTab(root, group, github) {
+  const tabs = groupTabs(root, group, github), active = find(root, body(group))?.active;
+  return tabs.includes(active) ? active : tabs[0] ?? null;
 }
 
-/** The popup Cmd+Shift+G's mod.open made, if this copy (PROPS) is it: the mod's own popups name their part.
+/** Whether GROUP is folded to its head in layout ROOT: its stack hidden. @param {any} root @param {string} group */
+export const groupFolded = (root, group) => Boolean(find(root, body(group))?.hidden);
+
+/** GROUP's size in layout ROOT ({ weight } or { px }), kept while it folds. @param {any} root @param {string} group */
+export const groupSize = (root, group) => find(root, column(group))?.size;
+
+/** The commands that fold GROUP in layout ROOT to its head, or open it again at SIZE (the size it had; a fold's own,
+ * or none: the layout's share). @param {any} root @param {string} group @param {any} size @returns {[string, any][]} */
+export function foldCommands(root, group, size) {
+  if (!find(root, body(group))) return [];
+  if (!groupFolded(root, group)) {
+    return [["layout.hide", { id: body(group) }], ["layout.resize", { id: column(group), px: FOLDED_GROUP }]];
+  }
+  const back = size?.weight ? { weight: size.weight } : size?.px > FOLDED_GROUP ? { px: size.px }
+    : { weight: GROUP_WEIGHTS[group] };
+  return [["layout.show", { id: body(group) }], ["layout.resize", { id: column(group), ...back }]];
+}
+
+/** Each group's tab kept in layout ROOT: CHOSEN's (the one last picked), else the one its stack is on.
+ * @param {any} root @param {Record<string, string>} chosen @returns {Record<string, string>} */
+export function keptTabs(root, chosen) {
+  const kept = { ...chosen };
+  for (const g of Object.keys(GROUPS_APP)) kept[g] ??= find(root, body(g))?.active;
+  return Object.fromEntries(Object.entries(kept).filter(([, tab]) => tab));
+}
+
+/** The commands that make layout ROOT's groups show what their panels say: a group with no tab hidden, the others
+ * shown, a stack on its CHOSEN tab while it can show it, else on another (Issues off GitHub: Changes meanwhile).
+ * @param {any} root @param {boolean} github @param {Record<string, string>} [chosen] @returns {[string, any][]} */
+export function panelsFollow(root, github, chosen = {}) {
+  const groups = Object.keys(GROUPS_APP).filter((g) => find(root, column(g)));
+  /** @type {[string, any][]} */
+  const shows = groups.flatMap((g) => {
+    const on = groupTabs(root, g, github).length > 0;
+    return !find(root, column(g)).hidden === on ? [] : [[on ? "layout.show" : "layout.hide", { id: column(g) }]];
+  });
+  /** @type {[string, any][]} */
+  const picks = groups.flatMap((g) => {
+    const tabs = groupTabs(root, g, github), active = find(root, body(g))?.active;
+    const want = tabs.includes(chosen[g]) ? chosen[g] : tabs.includes(active) ? active : tabs[0];
+    return want && want !== active ? [["layout.select", { stack: body(g), child: want }]] : [];
+  });
+  return [...shows, ...picks];
+}
+
+/** A panel's key or tab in layout ROOT: PANEL shown in its group, its new choice over CHOSEN's (hidden in the ⋯: shown
+ * again), the group opened (SIZES'), the dock too (KEPT px wide); none where it can't (GITHUB). @param {any} root
+ * @param {string} panel @param {{ github?: boolean, kept?: number, sizes?: any, chosen?: any }} [how] */
+export function pickCommands(root, panel, { github = false, kept = undefined, sizes = {}, chosen = {} } = {}) {
+  const group = groupOf(panel);
+  if (!group || !available(panel, github) || !find(root, panel) || !find(root, PANEL)) return [];
+  const after = JSON.parse(JSON.stringify(root)), stack = find(after, body(group));
+  /** @type {[string, any][]} */
+  const commands = [];
+  if (find(after, panel).hidden) {
+    commands.push(["layout.show", { id: panel }]);
+    find(after, panel).hidden = false;
+  }
+  if (stack.active !== panel) {
+    commands.push(["layout.select", { stack: body(group), child: panel }]);
+    stack.active = panel;
+  }
+  if (stack.hidden) {
+    commands.push(...foldCommands(after, group, sizes[group]));
+    stack.hidden = false;
+  }
+  commands.push(...panelsFollow(after, github, { ...chosen, [group]: panel }));
+  return find(after, PANEL).hidden || panelRailed(after) ? [...commands, ...railOpen(after, kept)] : commands;
+}
+
+/** The dock's ⋯'s panels, as the TUI's: each with its ✓ while shown (ON), Issues on GitHub only; the last one shown
+ * can't be unchecked (OFF). @param {any} root @param {boolean} github */
+export function panelChoices(root, github) {
+  const shown = shownPanels(root, github);
+  return Object.values(GROUPS_APP).flat().filter((panel) => available(panel, github) && find(root, panel))
+    .map((panel) => ({ panel, label: PANEL_NAMES[panel], on: shown.includes(panel),
+      off: shown.length === 1 && shown[0] === panel }));
+}
+
+/** The commands that hide PANEL from layout ROOT's dock (HIDE) or show it again, back on its group's CHOSEN tab;
+ * hidden: its group on its other tab, or gone with none left; never the last. @param {any} root @param {string} panel
+ * @param {boolean} hide @param {boolean} github @param {any} [chosen] @returns {[string, any][]} */
+export function hideCommands(root, panel, hide, github, chosen = {}) {
+  if (!find(root, panel) || (hide && !shownPanels(root, github).some((other) => other !== panel))) return [];
+  const after = JSON.parse(JSON.stringify(root));
+  find(after, panel).hidden = hide;
+  return [[hide ? "layout.hide" : "layout.show", { id: panel }], ...panelsFollow(after, github, chosen)];
+}
+
+/** The popup mod.open made, if this copy (PROPS) is it: the mod's own popups name their part.
  * @param {any} props @returns {string | null} */
 export const launcher = (props) => (props?.overlay && !props.part ? props.overlay : null);
 
@@ -595,13 +737,13 @@ export const panelPx = (root) => find(root, PANEL)?.size?.px ?? null;
 export const panelRailed = (root) => (panelPx(root) ?? Infinity) < RAIL_BELOW;
 
 /** The commands that make ROOT's right panel show what its width says, a drag's too: its rail's block, at RAIL px, or
- * its stacks; nothing while it is hidden. @param {any} root @returns {[string, any][]} */
+ * its dock's head and its dock; nothing while it is hidden. @param {any} root @returns {[string, any][]} */
 export function railFollow(root) {
   const panel = find(root, PANEL);
   if (!panel || panel.hidden) return [];
   const railed = panelRailed(root);
   /** @type {[string, boolean][]} */
-  const blocks = [[PANEL_BODY, !railed], [TERMINALS, !railed], [RAIL_BLOCK, railed]];
+  const blocks = [[DOCK_HEAD, !railed], [DOCK, !railed], [RAIL_BLOCK, railed]];
   return [...blocks.filter(([id, on]) => find(root, id) && !find(root, id).hidden !== on)
     .map(([id, on]) => /** @type {[string, any]} */ ([on ? "layout.show" : "layout.hide", { id }])),
   ...(railed && panel.size?.px !== RAIL ? [/** @type {[string, any]} */ (["layout.resize", { id: PANEL, px: RAIL }])]
@@ -627,21 +769,12 @@ function railOpen(root, kept) {
     ["layout.resize", { id: PANEL, px }]]);
 }
 
-/** The toggle's commands at the tab bar's right end: an open right panel folded to its rail, else opened (KEPT px
+/** The commands of the dock's » and the tab bar's «: an open right panel folded to its rail, else opened (KEPT px
  * wide when it was a rail). @param {any} root @param {number | undefined} kept */
 export function railToggle(root, kept) {
   const panel = find(root, PANEL);
   if (!panel) return [];
   return !panel.hidden && !panelRailed(root) ? railFold(root) : railOpen(root, kept);
-}
-
-/** What Cmd+Shift+G runs in layout ROOT: the right panel opened at Changes (KEPT px wide from its rail), or folded to
- * its rail when it shows Changes already. @param {any} root @param {number | undefined} kept */
-export function panelToggle(root, kept) {
-  const panel = find(root, PANEL), open = panel && !panel.hidden && !panelRailed(root);
-  if (!panel) return [];
-  if (open && find(root, PANEL_BODY)?.active === "changes") return railFold(root);
-  return [["layout.select", { stack: PANEL_BODY, child: "changes" }], ...(open ? [] : railOpen(root, kept))];
 }
 
 /** The stack under the panel's views showing the focused tab's own terminal, as the TUI's right column does; its

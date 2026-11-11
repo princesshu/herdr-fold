@@ -1,15 +1,17 @@
-"""The sidebar's git layer: nothing loses work silently (a pull is fast-forward only; no reset, clean or force push).
-Every command runs without optional locks or prompts, with a time limit, a file name never read as a pattern. The
-unasked status and diff run nothing a repository's config names (fsmonitor, filters, submodules); staging still does."""
+"""The git layer of the sidebar, Workspaces and the app mod: nothing loses work (a pull is fast-forward only; no reset,
+clean or force push). Every command runs without optional locks or prompts, with a time limit, a file name never read
+as a pattern. The unasked status and diff run nothing a repository's config names (fsmonitor, filters, submodules)."""
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 
 TIMEOUT = 60
+# a repository inside a folder that is none is looked for this many folders down, among at most LOOKS folders
+DEPTH, LOOKS = 2, 1000
 NO_STATUS = "No status: a filter in its git config cannot be turned off"
 NO_DIFF = "No diff: a filter in its git config cannot be turned off"
 GIT = shutil.which("git") or next(
@@ -42,6 +44,7 @@ class Place:
     behind: int
     repo: str                 # its .git folder, the same for each of its worktrees
     linked: bool              # a worktree beside the main checkout
+    inside: bool = False      # the repository inside a folder that is none (repo_inside)
 
 
 @dataclass(frozen=True)
@@ -101,22 +104,124 @@ def no_filters(root):
                         "-c", f"{name}.required=false")]
 
 
-def place(path):
-    """Where PATH is, as the Herdr app mod's Spaces list names it, or None outside a repository; no file is read, so
-    nothing a repository's config names runs. git that cannot answer (a folder gone) raises RuntimeError."""
+def tracking(path, timeout=TIMEOUT):
+    """PATH's branch (None: a detached HEAD) and how far it is from its upstream: (branch, ahead, behind)."""
+    branch = run(path, "symbolic-ref", "--short", "-q", "HEAD", timeout=timeout).stdout.strip() or None
+    counts = run(path, "rev-list", "--left-right", "--count", "HEAD...@{upstream}",
+                 timeout=timeout).stdout.split() if branch else []
+    ahead, behind = (int(n) for n in counts) if len(counts) == 2 else (0, 0)
+    return branch, ahead, behind
+
+
+def dot_git(root):
+    """ROOT's git folder when ROOT is a repository's top (a .git folder, or a worktree's .git file naming one), told as
+    herdr tells it: by the HEAD there. Read from the files: nothing a repository's config names runs."""
+    found = os.path.join(root, ".git")
+    if os.path.isfile(found):
+        try:
+            with open(found, encoding="utf-8") as f:
+                named = f.readline().strip()
+        except (OSError, UnicodeDecodeError):
+            return None
+        if not named.startswith("gitdir:"):
+            return None
+        found = os.path.join(root, named[len("gitdir:"):].strip())
+    return found if os.path.isfile(os.path.join(found, "HEAD")) else None
+
+
+def repo_top(path):
+    """The top of the repository PATH is in, looked for upwards as herdr does; None outside one."""
+    path = os.path.normpath(path)
+    while not dot_git(path):
+        parent = os.path.dirname(path)
+        if parent == path:
+            return None
+        path = parent
+    return path
+
+
+def within(path, folder):
+    return path.startswith(folder.rstrip(os.sep) + os.sep)
+
+
+def repos_under(folder, home):
+    """The repositories down to DEPTH folders below FOLDER, hidden folders and a repository's own left out; none for
+    the home folder or one above it (all the user's repositories, and macOS asks before its private folders are
+    looked into), nor when more than LOOKS folders are there."""
+    home = os.path.normpath(home)
+    if folder == home or within(home, folder):
+        return []
+    found, level, looked = [], [folder], 0
+    for _ in range(DEPTH):
+        below = []
+        for parent in level:
+            try:
+                with os.scandir(parent) as entries:
+                    folders = [entry.path for entry in entries
+                               if not entry.name.startswith(".") and entry.is_dir(follow_symlinks=False)]
+            except OSError:
+                continue
+            looked += len(folders)
+            if looked > LOOKS:
+                return []
+            for path in folders:
+                (found if dot_git(path) else below).append(path)
+        level = below
+    return sorted(found)
+
+
+def repo_inside(folder, active=None, last=None, home=None):
+    """The top of the repository a FOLDER in none holds, as both clients' Spaces rows show it: the one ACTIVE (its
+    active pane's folder) is in, else LAST (the one a pane was last in) while it is there, else the only one
+    repos_under finds (HOME: the user's, by default); None for a FOLDER in a repository (its own shows) or no choice."""
+    folder = os.path.normpath(folder)
+    if repo_top(folder):
+        return None
+    here = active and repo_top(active)
+    if here and within(here, folder):
+        return here
+    if last and within(last, folder) and dot_git(last):
+        return last
+    found = repos_under(folder, os.path.expanduser("~") if home is None else home)
+    return found[0] if len(found) == 1 else None
+
+
+def refs_stamp(root):
+    """When ROOT's HEAD, config and refs last changed: a commit, a checkout, a fetch or a push writes one of them (a
+    ref by renaming its new file into its folder, which changes the folder's time too)."""
+    own = dot_git(root) or os.path.join(root, ".git")
+    try:
+        with open(os.path.join(own, "commondir"), encoding="utf-8") as f:     # a linked worktree's refs are shared
+            common = os.path.join(own, f.read().strip())
+    except (OSError, UnicodeDecodeError):
+        common = own
+    paths = [os.path.join(own, "HEAD")] + [os.path.join(common, name) for name in ("config", "packed-refs", "reftable")]
+    paths += sorted(folder for folder, _, _ in os.walk(os.path.join(common, "refs")))
+    stamp = []
+    for path in paths:
+        try:
+            stamp.append(os.stat(path).st_mtime_ns)
+        except OSError:
+            stamp.append(None)
+    return stamp
+
+
+def place(path, active=None):
+    """Where PATH is, as the Herdr app mod's Spaces list names it; for a PATH in no repository, the one inside it marked
+    inside (repo_inside, ACTIVE its active pane's folder); else None. Only .git's own files are read, so nothing a
+    repository's config names runs. git that cannot answer (a folder gone) raises RuntimeError."""
     where = run(path, "rev-parse", "--show-toplevel", "--git-common-dir")
     if where.returncode != 0:
         if "not a git repository" in where.stderr:
-            return None
+            found = repo_inside(path, active)
+            found = found and place(found)
+            return found and replace(found, inside=True)
         raise RuntimeError(last_line(where) or "git did not answer")
     top, common = where.stdout.splitlines()[:2]
     common = os.path.realpath(os.path.join(path, common))      # relative to PATH before git 2.31's --path-format
     linked = common != os.path.realpath(os.path.join(top, ".git"))
     name = os.path.basename(os.path.dirname(common) if os.path.basename(common) == ".git" else common)
-    branch = run(path, "symbolic-ref", "--short", "-q", "HEAD").stdout.strip() or None
-    counts = run(path, "rev-list", "--left-right", "--count", "HEAD...@{upstream}").stdout.split()
-    ahead, behind = (int(n) for n in counts) if len(counts) == 2 else (0, 0)
-    return Place(name[:-4] if name.endswith(".git") else name, branch, ahead, behind, common, linked)
+    return Place(name[:-4] if name.endswith(".git") else name, *tracking(path), common, linked)
 
 
 def status(root):
@@ -335,22 +440,22 @@ def graph(root, n=20):
 
 
 # what the Herdr app mod asks for: the arguments each command takes after ROOT, at least and at most (None: any number)
-COMMANDS = {"status": (0, 0), "place": (0, 0), "diff": (1, 1), "show": (1, 1), "graph": (0, 0), "github": (0, 0),
+COMMANDS = {"status": (0, 0), "place": (0, 1), "diff": (1, 1), "show": (1, 1), "graph": (0, 0), "github": (0, 0),
             "stage": (0, None), "unstage": (1, None), "discard": (1, 1), "commit": (1, 1), "sync": (0, 0),
             "push": (0, 0), "pull": (0, 0)}
 
 
 def main(argv):
-    """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: status, place, graph,
-    github (its name on GitHub); diff, show (the text, else why there is none); stage (no PATH: every change), unstage,
-    discard, commit, sync, push, pull (whether each worked, else what to do). COMMANDS, the usage: their arguments."""
+    """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: status, place (FOLDER: its
+    active pane's), graph, github (its name on GitHub); diff, show (the text, else why none); stage (no PATH: every
+    change), unstage, discard, commit, sync, push, pull (whether each worked, else what to do). COMMANDS: arguments."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     least, most = COMMANDS.get(command, (0, -1))                # an unknown command: no count fits
     given = len(args) - 1                                        # after ROOT
     if not args or given < least or (most is not None and given > most):
-        print("usage: git.py status|place|graph|github|sync|push|pull ROOT, git.py diff|discard ROOT PATH, "
-              "git.py show ROOT HASH, git.py stage ROOT [PATH…], git.py unstage ROOT PATH…, "
-              "git.py commit ROOT MESSAGE", file=sys.stderr)
+        print("usage: git.py status|graph|github|sync|push|pull ROOT, git.py place ROOT [FOLDER], "
+              "git.py diff|discard ROOT PATH, git.py show ROOT HASH, git.py stage ROOT [PATH…], "
+              "git.py unstage ROOT PATH…, git.py commit ROOT MESSAGE", file=sys.stderr)
         return 2
     root, rest = args[0], args[1:]
     if command == "status":
@@ -358,7 +463,7 @@ def main(argv):
         answer = dict(asdict(st), ignored=sorted(st.ignored))
     elif command == "place":
         try:
-            found = place(root)
+            found = place(root, *rest)
         except RuntimeError as err:                             # not a no: the mod asks again later
             print(err, file=sys.stderr)
             return 1

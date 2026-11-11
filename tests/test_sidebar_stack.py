@@ -1,15 +1,18 @@
 """Tests for the dock's groups in a pane's rows (src/plugins/sidebar/stack.py): an open group a share of the rows under
-its head, a folded one its head alone, a head dragged, and what each folder keeps of them."""
+its head, a folded one its head alone, a head dragged, what each folder keeps of them, and the dock folded to its
+rail."""
 import os
 import shutil
 import sys
 import tempfile
 import unittest
 
-from support import SRC, at_once
+from support import SRC, at_once, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import stack  # noqa: E402
+from icons import glyphs  # noqa: E402
+from screen import Canvas, Style  # noqa: E402
 
 GROUPS = ("project", "work")
 
@@ -86,6 +89,29 @@ class Kept(unittest.TestCase):
         with open(os.path.join(self.state, stack.FILE), "w", encoding="utf-8") as f:
             f.write('{"%s": {"shown": [1], "folded": "work", "weights": {"work": "x"}}}' % self.one)
         self.assertEqual(stack.state(self.state, self.one), {"shown": {}, "folded": [], "weights": {}})
+
+
+class Rail(unittest.TestCase):
+    """The dock folded to its rail: each panel's icon over its short name (the App's own: test_sidebar.py, Rail)."""
+
+    PANELS = [("conversations", ["conversations"]), ("project", ["files", "search"]), ("work", ["changes", "issues"])]
+
+    def test_a_panel_the_rows_have_no_room_for_is_left_out(self):
+        canvas = Canvas(9, 8)
+        stack.rail(canvas, 0, 8, None, self.PANELS, icons=False)
+        self.assertEqual([canvas.hit(0, y) for y in range(8)], ["icon:conversations"] * 2 + [None]
+                         + ["icon:files"] * 2 + ["icon:search"] * 2 + [None])        # Changes' two rows: not one
+
+    def test_it_stands_at_the_right_edge_the_panel_opened_beside_it_lit(self):
+        canvas = Canvas(30, 13)
+        stack.rail(canvas, 1, 12, "changes", self.PANELS, icons=False, left=21)
+        marks = glyphs(False)
+        self.assertEqual(text(canvas, 9)[21:].rstrip(), f"▌   {marks['git']}")    # a bar at its edge, the icon in
+        self.assertEqual(text(canvas, 10)[21:], " Changes ")                        # the middle, its name under it
+        self.assertEqual([canvas.rows[9][25][1].fg, canvas.rows[10][22][1]], ["accent", Style(fg="accent", bold=True)])
+        self.assertEqual((text(canvas, 11)[25], canvas.rows[11][25][1].fg, canvas.rows[12][22][1].fg),
+                         (marks["issues"], "subtext", "muted"))
+        self.assertEqual("".join(text(canvas, y)[:21] for y in range(13)).strip(), "")
 
 
 if __name__ == "__main__":

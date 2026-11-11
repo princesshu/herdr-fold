@@ -1,6 +1,6 @@
-"""The plugin's panes in every tab with a right column (the sidebar above a terminal): --restore brings back the tab's
-panes closed by hand, --closed shows the closed-pane tip once, --new-tab lays out a new tab, --startup brings them back.
-Usage: python3 panes.py --restore | --closed | --new-tab | --startup"""
+"""The plugin's panes in every tab with a right column (the sidebar above a terminal, which the dock's rail puts under
+the agent): --restore brings back the tab's panes closed by hand, --closed shows the closed-pane tip once, --new-tab
+lays out a new tab, --startup brings them back. Usage: python3 panes.py --restore | --closed | --new-tab | --startup"""
 import json
 import os
 import re
@@ -101,11 +101,14 @@ def resume(state_dir, pane, id):
 
 
 def build(call, pane, cwd, state_dir, sidebar_run=None, scope=""):
-    """The right column right of PANE, as wide as in the other tabs: the sidebar above a terminal, noted as the tab's
-    (panels.py: SCOPE, a machine's name, or this one); the sidebar's pane id. SIDEBAR_RUN: its command (else this
-    plugin's)."""
-    share = column.saved(state_dir) or column.RIGHT
-    side = panels.show_column(call, pane, cwd, sidebar_run or sidebar_command(), share)
+    """The right column right of PANE, as wide as in the other tabs: the sidebar above a terminal (on the dock's rail,
+    the rail, the terminal under PANE), noted as the tab's (panels.py: SCOPE, a machine's name, or this one); the
+    sidebar's pane id. SIDEBAR_RUN: its command (else this plugin's)."""
+    run = sidebar_run or sidebar_command()
+    if column.railed(state_dir) and not scope:                  # the sidebar then sets the rail's width to the cell
+        side = panels.show_rail(call, pane, cwd, run, column.SPLIT[1])
+    else:
+        side = panels.show_column(call, pane, cwd, run, column.saved(state_dir) or column.RIGHT)
     tab = (call("pane", "get", side).get("pane") or {}).get("tab_id")
     if tab:
         panels.note(state_dir, {tab: set(panels.KINDS)}, scope)
@@ -121,18 +124,58 @@ def bring(call, tab, kinds, state_dir, sidebar_run=None, scope=""):
     cwd = next((p.get("cwd") for p in found if p.get("cwd")), None)
     run = sidebar_run(cwd) if sidebar_run else sidebar_command()
     wanted, side, term = set(kinds) - set(mine), mine.get("sidebar"), mine.get("terminal")
+    rail = bool(others) and not scope and column.railed(state_dir)        # the terminal under the agent, then
     brought = set()
     if not side and not term and wanted and others:
         side = build(call, others[0], cwd, state_dir, run, scope)
         brought |= set(panels.KINDS)
     if "sidebar" in wanted and not side and term:
-        side = panels.show_sidebar(call, term, cwd, run)
+        side = rail_beside(call, others[0], cwd, run) if rail and not held(term) else panels.show_sidebar(
+            call, term, cwd, run)
         brought.add("sidebar")
     if "terminal" in wanted and side and "terminal" not in brought and not term:
-        panels.show_terminal(call, side, cwd)
+        panels.show_terminal(call, others[0] if rail else side, cwd)
         brought.add("terminal")
     panels.note(state_dir, {tab: brought}, scope)
     return brought
+
+
+def held(pane):
+    """Whether PANE, the terminal, stands in a right column, as the open dock has it; not when herdr cannot say."""
+    found = column.layout(pane)
+    return bool(found) and column.columns(found, "terminal") is not None
+
+
+def rail_beside(call, agent, cwd, run):
+    """The sidebar back as the dock's rail right of AGENT, the terminal set under the agent before the sidebar runs:
+    nothing moves while it starts. Its pane id."""
+    side = panels.split(call, agent, "right", column.SPLIT[1], cwd)
+    call("pane", "rename", side, "sidebar")
+    place_terminal(call, side, True)
+    call("pane", "run", side, run)
+    return side
+
+
+def place_terminal(call, pane, rail):
+    """The terminal of PANE's tab (PANE: its sidebar) under the agent while the dock is a RAIL, else back under the
+    sidebar, as many rows tall: through a new tab, as herdr moves no pane inside its own; its program runs on, its pane
+    id kept. Whether it moved; RuntimeError when herdr refused."""
+    found = column.layout(pane)
+    tab = column.columns(found) if found else None
+    root = (found or {}).get("root") or {}
+    path = column.find(root, "terminal")
+    if tab is None or not path or path[:len(tab.outer) + 1] == tab.outer + [not rail]:
+        return False                                # none, or where it goes already: the agent's side, or the column
+    parent = column.at(root, path[:-1])
+    ratio = float(parent.get("ratio", 0.5)) if parent.get("direction") == "down" else 0.5
+    tall = 1 - ratio if path[-1] else ratio                         # its share of the rows
+    beside = column.at(root, tab.outer + [False]) if rail else column.at(root, column.find(root, column.SIDEBAR))
+    terminal = column.at(root, path).get("pane_id")
+    moved = call("pane", "move", terminal, "--new-tab", "--no-focus")
+    terminal = ((moved.get("move_result") or {}).get("pane") or {}).get("pane_id") or terminal
+    call("pane", "move", terminal, "--tab", tab.tab, "--target-pane", column.panes(beside)[0], "--split", "down",
+         "--ratio", f"{1 - tall:.4g}", "--no-focus")
+    return True
 
 
 def restore(call, state_dir, sidebar_run=None):

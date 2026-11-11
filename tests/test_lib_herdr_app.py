@@ -91,7 +91,7 @@ class Install(unittest.TestCase):
         installed = keys(self.home)
         self.assertEqual(installed["global"], {"cmd-t": "tab.new"})
         self.assertEqual(installed["layout:herdr-fold"]["cmd-k"], "x.y")
-        self.assertEqual(installed["layout:herdr-fold"]["cmd-shift-g"], "mod.open:herdr-fold")
+        self.assertEqual(installed["layout:herdr-fold"]["cmd-shift-g"], "herdr-fold.changes")
         herdr_app.uninstall(PACKAGE, self.home, self.state)
         self.assertEqual(keys(self.home), {"global": {"cmd-t": "tab.new"}, "layout:herdr-fold": {"cmd-k": "x.y"}})
 
@@ -205,9 +205,9 @@ class Install(unittest.TestCase):
 
     def test_shared_values_the_mod_no_longer_names_go(self):
         self.write("shared.json", json.dumps({"herdr-fold.graph_folded": True, "herdr-fold.view": "changes",
-                                              "sidebar.width": 268}))
+                                              "herdr-fold.panel-width": 420, "sidebar.width": 268}))
         herdr_app.install(PACKAGE, self.home, self.state)
-        self.assertEqual(shared(self.home), {"herdr-fold.view": "changes", "sidebar.width": 268})
+        self.assertEqual(shared(self.home), {"herdr-fold.panel-width": 420, "sidebar.width": 268})
 
     def test_uninstall_takes_herdr_folds_shared_values_off(self):
         self.write("shared.json", json.dumps({"herdr-fold.view": "changes", "herdr-fold.waits": {},
@@ -222,6 +222,32 @@ class Install(unittest.TestCase):
         herdr_app.install(PACKAGE, self.home, self.state, app_running=True)
         herdr_app.uninstall(PACKAGE, self.home, self.state, app_running=True)
         self.assertEqual(read(os.path.join(self.home, "shared.json")), text.encode())
+
+    def old_state(self):
+        """The app's state of the layout as the one panel stack left it: Changes chosen in it, the panel dragged."""
+        state = {"nodes": {"fold-panel-body": {"active": "changes"}, "fold-panel": {"size": {"px": 420}},
+                           "fold-terminals": {"active": "fold-terminal-t1"}}, "file": {"id": "root"}}
+        self.write("layouts/.state/herdr-fold.json", json.dumps(state))
+        return state
+
+    def test_an_update_prunes_the_apps_state_of_the_layout(self):
+        self.old_state()
+        herdr_app.install(PACKAGE, self.home, self.state)
+        with open(os.path.join(self.home, "layouts", ".state", "herdr-fold.json"), encoding="utf-8") as f:
+            self.assertEqual(sorted(json.load(f)["nodes"]), ["fold-panel", "fold-terminals"])
+
+    def test_an_update_brings_a_group_saved_folded_back_at_the_folded_height_of_now(self):
+        # an earlier version folded a group to 34 px; this one's folded group is 50 (its head 36, PAD 12, its frame)
+        self.write("layouts/.state/herdr-fold.json", json.dumps({"nodes": {"fold-project": {"size": {"px": 34}},
+                                                                           "fold-project-body": {"hidden": True}}}))
+        herdr_app.install(PACKAGE, self.home, self.state)
+        with open(os.path.join(self.home, "layouts", ".state", "herdr-fold.json"), encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["nodes"]["fold-project"], {"size": {"px": 50}})
+
+    def test_a_running_apps_state_of_the_layout_is_left_to_it(self):
+        text = json.dumps(self.old_state())
+        herdr_app.install(PACKAGE, self.home, self.state, app_running=True)
+        self.assertEqual(read(os.path.join(self.home, "layouts", ".state", "herdr-fold.json")), text.encode())
 
     def test_a_folder_named_like_a_theme_is_left_alone(self):
         os.makedirs(os.path.join(self.home, "themes", "herdr-fold-mine.json"))
@@ -252,6 +278,35 @@ def with_tab_terminals(home, *addresses):
                           for i, address in enumerate(addresses)]
     with open(path, "w", encoding="utf-8") as f:
         json.dump(layout, f)
+
+
+class State(unittest.TestCase):
+    def test_the_layout_state_loses_the_nodes_the_layout_has_no_more(self):
+        """The old layout's state (its one panel stack on Search, Changes' block): the stack gone, so the new groups'
+        stacks, which it never had, open on their own tabs; what is still there keeps its clicks."""
+        with open(os.path.join(PACKAGE, "app", "layouts", "herdr-fold.json"), encoding="utf-8") as f:
+            layout = json.load(f)
+        old = {"nodes": {"fold-panel-body": {"active": "search"}, "changes": {"hidden": False},
+                         "fold-panel": {"size": {"px": 420}}, "gone": {"hidden": True}}, "file": {"id": "root"}}
+        pruned = herdr_app.prune_state(old, layout)
+        self.assertEqual(pruned, {"nodes": {"changes": {"hidden": False}, "fold-panel": {"size": {"px": 420}}},
+                                  "file": {"id": "root"}})
+        self.assertFalse({"fold-project-body", "fold-work-body"} & set(pruned["nodes"]))
+        self.assertEqual(herdr_app.prune_state(["not", "a", "state"], layout), ["not", "a", "state"])
+
+    def test_a_group_saved_folded_takes_the_folded_height_of_now(self):
+        """A group folded is its head, PAD under it and its frame (logic.js's FOLDED_GROUP): one saved folded at another
+        height takes that one; one saved open, or folded with no size of its own, keeps what it had."""
+        with open(os.path.join(PACKAGE, "app", "layouts", "herdr-fold.json"), encoding="utf-8") as f:
+            layout = json.load(f)
+        old = {"nodes": {"fold-project": {"size": {"px": 34}}, "fold-project-body": {"hidden": True},
+                         "fold-work": {"size": {"px": 300}}, "fold-work-body": {"active": "issues"}}}
+        pruned = herdr_app.prune_state(old, layout, 12)["nodes"]
+        self.assertEqual([pruned["fold-project"], pruned["fold-work"]], [{"size": {"px": 50}}, {"size": {"px": 300}}])
+        folded = {"nodes": {"fold-work-body": {"hidden": True}}}
+        self.assertEqual(herdr_app.prune_state(folded, layout, 12), folded)
+        self.assertEqual(herdr_app.prune_state(old, layout)["nodes"]["fold-project"], {"size": {"px": 34}})  # no PAD
+        self.assertEqual(herdr_app.card_pad(os.path.join(PACKAGE, "app")), 12)       # logic.js's
 
 
 class Terminals(unittest.TestCase):

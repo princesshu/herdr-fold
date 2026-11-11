@@ -83,10 +83,10 @@ class WholeWay(unittest.TestCase):
         self.addCleanup(self.quit, window)
         self.wait_for(lambda: self.run_here(app, "status").returncode == 0, "the Herdr app", 120)
         self.on_machine("cd app && echo four > a.txt")
-        # the right panel shown at herdr-fold, as mod.open does from a hidden one (again it would hide it): a hidden
-        # copy gets no commands
+        # the right dock shown at Changes, as its key does from a hidden one: a hidden copy gets no commands, the tab
+        # bar hands them on to the view's
         for args in (["space.new", "--machine", "lab", "--folder", root], ["layout.switch", "--name", "herdr-fold"],
-                     ["layout.select", "--stack", "fold-panel-body", "--child", "changes"],
+                     ["layout.select", "--stack", "fold-work-body", "--child", "changes"],
                      ["layout.show", "--id", "fold-panel"]):
             out = self.run_here(app, "do", *args)
             self.assertEqual(out.returncode, 0, out.stdout + out.stderr)

@@ -4,9 +4,9 @@ version = "0.3.0"
 min_herdr_version = "0.9.5"
 description = """\
   Keeps the workspaces: a new workspace asks for its folder, a workspace named after its folder follows its new \
-  name, one whose folder is gone says deleted, a tab holding a conversation asks before it closes, and herdr-fold's \
-  agents start again after a restart. Part of herdr-fold: install it with herdr-fold's installer. \
-  Created by princesshu"""
+  name, one whose folder holds a repository shows that one's branch, one whose folder is gone says deleted, a tab \
+  holding a conversation asks before it closes, and herdr-fold's agents start again after a restart. Part of \
+  herdr-fold: install it with herdr-fold's installer. Created by princesshu"""
 platforms = ["macos", "linux", "windows"]
 
 # New tab (including a new workspace's first tab): for the "new" button's workspace it opens the folder picker, any
@@ -16,8 +16,8 @@ on = "tab.created"
 platforms = ["macos", "linux"]
 command = ["/usr/bin/python3", "workspaces.py"]
 
-# A pane's focus: a workspace named after its folder takes the folder's new name (Windows does not let a folder in use
-# be renamed)
+# A pane's focus: a workspace named after its folder takes the folder's new name, one whose folder holds a repository
+# shows its branch (Windows does not let a folder in use be renamed)
 [[events]]
 on = "pane.focused"
 platforms = ["macos", "linux"]

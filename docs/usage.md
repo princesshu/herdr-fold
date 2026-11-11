@@ -19,9 +19,11 @@ One workspace per repo:
 right, Cancel and Open at the bottom](../assets/screenshots/new-workspace.webp)
 
 The workspace's main tab is named after the folder (the home folder's is `home`): the agent on the left, and on the
-right the sidebar above a terminal. Drag the right column's edge to resize it in every tab. In a new folder the agent
-first asks whether you trust it: answer in the pane. A pane you close stays closed in its tab, after a restart too,
-until Cmd + Shift + O (Restore panels) or the sidebar's ⋯ menu brings it back; a new tab always comes with every pane.
+right the sidebar above a terminal. Drag the right column's edge to resize it in every tab; the » before the sidebar's ⋯
+folds it to a rail of icons in every tab, the terminal moving under the agent, a press on an icon opens that panel
+beside the rail, and « brings the sidebar back. In a new folder the agent first asks whether you trust it: answer in the
+pane. A pane you close stays closed in its tab, after a restart too, until Cmd + Shift + O (Restore panels) or the
+sidebar's ⋯ menu brings it back; a new tab always comes with every pane.
 
 A folder in the sidebar's Files view opens a workspace too: right-click it → **New Workspace**, and the folder picker
 opens on it, with the Claude / Codex toggle.
@@ -48,6 +50,10 @@ Add `--agent codex` for Codex.
 herdr's sidebar lists the current workspace's conversations under Sessions, each with its state: working, blocked (it
 needs you: an approval, an answer or a choice), done (finished since you last looked) or idle (ready for your next
 prompt). Cmd + D and Cmd + E step through them.
+
+A workspace whose folder is no repository but holds one, as a folder of notes around a project's repository, shows
+that repository's branch in the Spaces list, with ↑ the commits to push and ↓ to pull against its remote branch (any
+git host); where it holds several, the one its active pane is in.
 
 The Spaces list says how long an agent has waited on you, blocked or done, beside its workspace's branch: `waiting 12m`
 in the theme's yellow, the longest wait when several agents wait there. It counts on while you work elsewhere and goes

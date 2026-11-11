@@ -6,8 +6,8 @@ import { h_flex, v_flex } from "gpui-base";
 import { agents, focused, hc, layout, machines, openOverlay, panes, setShared, shared, spaces, watchFolder, window,
   run as command } from "herdr";
 import { GIT } from "./helper.js";
-import { avatarFill, headed, LIST, listBody, listHeight, nested, nextWaits, placeLabel, spaceColors, spaceWaits,
-  toggleUnread, hovering, waited, withMax } from "./logic.js";
+import { avatarFill, folderKey, headed, LIST, listBody, listHeight, nested, nextWaits, placeKey, placeLabel,
+  spaceColors, spaceWaits, toggleUnread, hovering, waited, withMax } from "./logic.js";
 import { icon, iconButton, listHead } from "./parts.js";
 
 const WAITS = "herdr-fold.waits";                  // each agent waiting on you: since when, and Cmd + Shift + U's mark
@@ -39,13 +39,6 @@ export function spaceColorsKept() {
   return next ?? kept;
 }
 
-/** Where space S is now: its first terminal's live folder, else where it was made, on its machine. PS: panes().
- * @param {any} s @param {any[]} ps */
-function where(s, ps) {
-  const tabs = new Set((s.tabs ?? []).map((tab) => tab.id));
-  return JSON.stringify([s.machine ?? null, ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder]);
-}
-
 /** @typedef {{ id: string, name: string, active: boolean, color: string, tree: boolean, label: string, ahead: number,
  *   behind: number, wait: string | null }} Row */
 /** @typedef {{ machine: string | null, connected: boolean, state: string, rebuilt: boolean, error: string | null,
@@ -56,17 +49,17 @@ export class SpacesView {
    * on: string | null) => Promise<any>} python */
   constructor(python, cx) {
     this.python = python;
-    /** @type {Record<string, any>} where() → its place (core/git.py's; repo with its machine), null: none */
+    /** @type {Record<string, any>} placeKey() → its place (core/git.py's; repo with its machine), null: none */
     this.places = {};
     /** @type {Record<string, number>} */
     this.checked = {};
-    this.unsure = new Set();           // where()s git could not answer for (a machine away)
-    this.pending = new Set();          // where()s to look at next
+    this.unsure = new Set();           // placeKey()s git could not answer for (a machine away)
+    this.pending = new Set();          // placeKey()s to look at next
     /** @type {Record<string, boolean>} pane → an agent working or a program in front of its shell */
     this.busy = {};
     /** @type {Record<string, boolean>} */
     this.ready = {};
-    /** @type {Record<string, string>} space → its where() at the last look */
+    /** @type {Record<string, string>} space → its placeKey() at the last look */
     this.at = {};
     this.watching = new Set();
     this.shown = new Set(spaces().map((s) => s.id));
@@ -102,13 +95,13 @@ export class SpacesView {
     }
   }
 
-  /** The places whose git could have changed, as the app's list looks: new ones (a new space, a cd), where a command
-   * or an agent's turn just ended, those on a machine back again, and the shown ones whose FALLBACK is due.
-   * @param {number} now @param {any[]} list @param {any[]} ps */
+  /** The places whose git could have changed, as the app's list looks: new ones (a new space, a cd, another active
+   * pane where the folder is no repository), where a command or an agent's turn just ended, those on a machine back
+   * again, and the shown ones whose FALLBACK is due. @param {number} now @param {any[]} list @param {any[]} ps */
   due(now, list, ps) {
     /** @type {Record<string, string>} */
     const at = {};
-    for (const s of list) at[s.id] = where(s, ps);
+    for (const s of list) at[s.id] = placeKey(s, ps, this.places);
     const keys = new Set(Object.values(at).filter((k) => JSON.parse(k)[1]));
     const due = new Set([...keys].filter((k) => !(k in this.places)));
     for (const [id, k] of Object.entries(at)) if (this.at[id] && this.at[id] !== k && keys.has(k)) due.add(k);
@@ -226,14 +219,14 @@ export class SpacesView {
     });
   }
 
-  /** KEY's place (core/git.py place): only git's own "no" is kept as none; anything else is asked again later.
-   * @param {string} key */
+  /** KEY's place (core/git.py place, with the active pane's folder where the space's is no repository): only git's
+   * own "no" is kept as none; anything else is asked again later. @param {string} key */
   async check(key, cx) {
-    const [on, cwd] = JSON.parse(key);
+    const [on, cwd, active] = JSON.parse(key);
     this.checked[key] = Date.now();
     this.unsure.delete(key);
     try {
-      const found = await this.python(GIT, ["place", cwd], cwd, on);
+      const found = await this.python(GIT, ["place", cwd, ...(active ? [active] : [])], cwd, on);
       this.places[key] = found && { ...found, repo: JSON.stringify([on, found.repo]) };
       if (found && !on) this.watch(found.repo, cx);
     } catch {
@@ -269,13 +262,19 @@ export class SpacesView {
       machines().some((m) => m.name === name && m.layout === "ready")));
   }
 
+  /** Space W's place as known, its folder's while its active pane's is looked at; undefined: neither known yet.
+   * @param {any} w @param {any[]} ps */
+  placeOf(w, ps) {
+    return this.places[placeKey(w, ps, this.places)] ?? this.places[folderKey(w, ps)];
+  }
+
   /** The spaces in order, each worktree's under its checkout's, as shown; the app's order moved to it (space.move,
    * each move counted in for the next). */
   ordered() {
     const list = spaces(), ps = panes(), now = Date.now();
-    const settled = (w) => where(w, ps) in this.places || now - (this.born[w.id] ??= now) > SETTLE;
+    const settled = (w) => this.placeOf(w, ps) !== undefined || now - (this.born[w.id] ??= now) > SETTLE;
     for (const w of list) if (!this.shown.has(w.id) && settled(w)) this.shown.add(w.id);
-    const rows = nested(list.map((w) => ({ w, g: this.places[where(w, ps)] ?? null })));
+    const rows = nested(list.map((w) => ({ w, g: this.placeOf(w, ps) ?? null })));
     const order = list.map((w) => w.id), target = rows.map((r) => r.w.id);
     const key = JSON.stringify([order, target, machines()]);
     if (order.every((id, i) => id === target[i])) this.ordering = null;

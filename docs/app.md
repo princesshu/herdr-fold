@@ -32,18 +32,23 @@ The TUI's themes come along, for any layout: Settings lists each under its file'
 | `herdr-fold-nord.json` | Nord |
 | `herdr-fold-solarized.json` | Solarized |
 
-Its views are tabs of one panel group, as Adobe's panels are grouped, in VS Code's order: Files, Search, Changes and,
-for a repository on GitHub, Issues; the shown one on a raised pad, Changes with its changed files' count in a round
-badge, as VS Code's; it keeps the one shown. The toggle at the tab bar's right end (or Cmd + Shift + G) folds the panel
-to a rail, as the left sidebar folds, and opens it again as wide as it was; dragged narrower than 160 px, it folds too.
-The rail, as Adobe's collapsed panels: Files, Search, Changes with its count, Issues on GitHub and the tab's Terminal,
-each a square with its name under it; a press floats that view beside the rail, nearly as tall as the window, one at a
-time, its head dragging it and its × closing it; a key of a view's (Cmd + Shift + C, Cmd + Shift + I) floats it too. ×
-at the end of the tabs hides the panel, and the toggle shows it again. The tab bar is herdr-fold's, drawn as the app's
-own: the space's tabs, the first one named as the space until it is renamed (as the TUI's main tab), dragged into order,
-a double click renaming one, a right click the app's menu, the wheel stepping through them; + after the last tab (New
-tab) starts a terminal or an agent, and every button there says what it does. A file, a picture, a diff, a commit or an
-issue opens in the space's preview tab, as in the TUI.
+The right panel is a dock, as Adobe's: its views in two panel groups one under the other, Files and Search, then Changes
+and, for a repository on GitHub, Issues, as the TUI sidebar groups them, and the tab's terminal at its foot. Each group
+is a framed card, as the terminal under them and the tab beside them, all three 12 px inside on every side. A group's
+head holds its fold and its views as tabs, the shown one on a raised pad, Changes with its changed files' count in a
+round accent badge, as VS Code's; folded, a group is its head alone, its tabs still there, and a click on one opens it
+again. The edge between two open groups drags; the app keeps each group's tab, its fold and its size; Issues, given way
+to Changes outside GitHub, shows again in a repository on GitHub. Over the groups, the dock's head holds ⋯ and ». ⋯
+lists the panels, each with a check while it shows, as Adobe's Window menu: one unchecked leaves its group, a group with
+none left goes, and one always stays; below them herdr-fold's version and Check for Updates. » folds the dock to a rail,
+as the left sidebar folds, and « at the tab bar's right end opens it again as wide as it was; dragged narrower than 160
+px, it folds too. The dock is open or a rail, never hidden. The rail, as Adobe's collapsed panels: each panel shown and
+the tab's Terminal, each a square with its name under it, Changes with its count; a press floats that view beside the
+rail, nearly as tall as the window, one at a time, its head dragging it and its × closing it; a view's key floats it
+too. The tab bar is herdr-fold's, drawn as the app's own: the space's tabs, the first one named as the space until it is
+renamed (as the TUI's main tab), dragged into order, a double click renaming one, a right click the app's menu, the
+wheel stepping through them; + after the last tab (New tab) starts a terminal or an agent, and every button there says
+what it does. A file, a picture, a diff, a commit or an issue opens in the space's preview tab, as in the TUI.
 
 ## Files
 
@@ -130,7 +135,7 @@ an agent in a space waits on you, as the TUI's Space rows do:
 
 | Part | What it does |
 |---|---|
-| A space | its avatar in the color every app mod gives it (a worktree's, the branch icon, under its checkout's space), its name, then its branch, main too, as the TUI shows it, with the repository where it is not the name (never what its name says already), ↑ the commits to push and ↓ to pull; and `waiting 12m` in yellow while an agent there waits on you, blocked or done and not seen yet, the longest wait when several do. A click shows it, a drag puts it elsewhere among its machine's spaces, a right click opens the app's own menu for it |
+| A space | its avatar in the color every app mod gives it (a worktree's, the branch icon, under its checkout's space), its name, then its branch (where its folder only holds a repository, that one's: the active pane's among several), main too, as the TUI shows it, with the repository where it is not the name (never what its name says already), ↑ the commits to push and ↓ to pull; and `waiting 12m` in yellow while an agent there waits on you, blocked or done and not seen yet, the longest wait when several do. A click shows it, a drag puts it elsewhere among its machine's spaces, a right click opens the app's own menu for it |
 | A machine | once another machine is known, a head for each: this computer first, then the others by name, how each is (asleep, unreachable…), + for a new space there on its hover, its dot green while connected; a click folds its spaces away, and folded, it says their longest wait. A machine rebuilt or replaced says so, and Connect adds it again the way it was added |
 | + | a new space |
 
@@ -187,10 +192,10 @@ herdr-app do layout.switch --name herdr-fold
 
 The first puts the mod, the layout, its themes and its keys (the `layout:herdr-fold` section of `keys.json`) into the
 app's home (`~/.config/herdr-app`, or `HERDR_APP_HOME`); run again after an update, it takes off what the earlier
-version put there and this one no longer brings. Your own layout stays as it was: Cmd + Shift + L switches between the
-layouts. To remove it all, switch to another layout, end the terminals it started for tabs (`python3
-lib/herdr_app.py end-terminals`), close the app (while it runs, it keeps herdr-fold's settings and writes them back),
-then `python3 lib/herdr_app.py uninstall .`.
+version put there and this one no longer brings, and what the app kept of a part of the layout that is gone. Your own
+layout stays as it was: Cmd + Shift + L switches between the layouts. To remove it all, switch to another layout, end
+the terminals it started for tabs (`python3 lib/herdr_app.py end-terminals`), close the app (while it runs, it keeps
+herdr-fold's settings and writes them back), then `python3 lib/herdr_app.py uninstall .`.
 
 The `app/` folder is laid out as the app's home, the way the app's catalog of shared layouts takes one:
 `app/RECIPE.md` is the brief another agent can build the layout from (what you see, how it behaves, what it is
@@ -205,7 +210,8 @@ In the herdr-fold layout:
 
 | Key | What it does |
 |---|---|
-| Cmd + Shift + G | opens the right panel at Changes; again folds it to its rail |
+| Cmd + Shift + G | shows Changes, its group opened, as in the TUI (the dock a rail: floating beside it) |
+| Cmd + Shift + F | shows Search, its field taking the keys |
 | Cmd + Shift + C | commits and pushes in one step, as in the TUI: Claude or Codex writes the message into the field, and Commit says Commit & Push for this one commit; Enter commits and pushes, the field changes the message, ✦ writes another, Esc cancels; with nothing to commit, it offers to push the commits ahead, and Enter or Push pushes them |
 | Cmd + Shift + I | shows Issues, as in the TUI |
 | Cmd + Shift + R | gives Conversations' filter the keys, as in the TUI |
@@ -214,8 +220,9 @@ In the herdr-fold layout:
 The mod takes commands for keys of your own: `herdr-fold.commit-push`, `herdr-fold.write`, `herdr-fold.commit` and
 `herdr-fold.sync`, and `herdr-fold.changes`, `herdr-fold.search` and `herdr-fold.issues`, which show that view (Search
 with the keys in its field), `herdr-fold.conversations`, which gives Conversations' filter the keys, and
-`herdr-fold.unread`, which marks the focused agent unread; they reach a herdr-fold that shows. `herdr-fold.styleguide`
-opens the mod's parts, each in each of its states, in a tab: [Styleguide](styleguide.md).
+`herdr-fold.unread`, which marks the focused agent unread; they reach a herdr-fold that shows, and in its layout the tab
+bar hands a view's on to it, the view shown first. `herdr-fold.styleguide` opens the mod's parts, each in each of its
+states, in a tab: [Styleguide](styleguide.md).
 
 ## On another machine
 

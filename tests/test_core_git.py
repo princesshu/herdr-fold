@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from support import PACKAGE, set_env, sign_head, stubs, trap
+from support import PACKAGE, set_attrs, set_env, sign_head, stubs, trap
 
 sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import git  # noqa: E402
@@ -236,7 +236,7 @@ class CommandLine(Repo):
         self.commit_all()
         self.assertEqual(self.cli("place", self.root), {
             "name": os.path.basename(self.root), "branch": "main", "ahead": 0, "behind": 0,
-            "repo": os.path.realpath(os.path.join(self.root, ".git")), "linked": False})
+            "repo": os.path.realpath(os.path.join(self.root, ".git")), "linked": False, "inside": False})
         self.assertIsNone(self.cli("place", self.folder()))
 
     def test_a_files_diff_a_new_ones_as_all_added(self):
@@ -542,7 +542,8 @@ class Actions(Repo):
 
 class Place(Repo):
     """Where a space is, as the Herdr app mod's Spaces list says it: its repository's name, the branch, how far from its
-    upstream, and whether the folder is a worktree, listed under its checkout; read without opening a file."""
+    upstream, and whether the folder is a worktree, listed under its checkout; read without opening a repository's
+    file."""
 
     def test_a_checkout_goes_by_its_folders_name_on_its_branch(self):
         self.write("a.txt")
@@ -580,6 +581,148 @@ class Place(Repo):
 
     def test_a_folder_outside_any_repository_has_none(self):
         self.assertIsNone(git.place(self.folder()))
+
+
+class RepositoryInside(unittest.TestCase):
+    """A folder that is no repository but holds one, as both clients' Spaces rows show it (the TUI's Workspaces token,
+    the Herdr app mod's list): the repository its active pane is in, else the one a pane was last in, else the only one
+    two folders down; found from the files, git asked only for the branch and how far it is from its upstream."""
+
+    def setUp(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp)
+        self.tmp = os.path.realpath(tmp)
+        self.folder, self.home = os.path.join(self.tmp, "archive"), os.path.join(self.tmp, "home")
+        os.makedirs(self.folder)
+        set_env(self, GIT_CONFIG_GLOBAL=os.devnull, GIT_AUTHOR_NAME="dev", GIT_AUTHOR_EMAIL="dev@example.com",
+                GIT_COMMITTER_NAME="dev", GIT_COMMITTER_EMAIL="dev@example.com", HOME=self.home)
+        self.commits = 0
+
+    def git(self, path, *args):
+        subprocess.run(["git", "-C", path, *args], check=True, capture_output=True)
+
+    def commit(self, path):
+        self.commits += 1                                   # a message of its own: never the same commit twice
+        self.git(path, "commit", "-q", "--allow-empty", "-m", f"change {self.commits}")
+
+    def repo(self, rel, branch="main", upstream=False, base=None):
+        """A repository REL in the folder (or in BASE) with a commit on BRANCH; UPSTREAM: pushed to a bare remote it
+        tracks."""
+        path = os.path.join(base or self.folder, rel)
+        os.makedirs(path)
+        self.git(path, "init", "-q", "-b", branch)
+        self.commit(path)
+        if upstream:
+            remote = os.path.join(self.tmp, "remotes", rel.replace(os.sep, "-") + ".git")
+            os.makedirs(remote)
+            self.git(remote, "init", "-q", "--bare")
+            self.git(path, "remote", "add", "origin", remote)
+            self.git(path, "push", "-q", "-u", "origin", branch)
+        return path
+
+    def test_the_only_repository_down_to_two_folders(self):
+        app = self.repo(os.path.join("code", "app"))
+        self.assertEqual(git.repo_inside(self.folder), app)
+
+    def test_one_three_folders_down_is_not_looked_for(self):
+        self.repo(os.path.join("a", "b", "app"))
+        self.assertIsNone(git.repo_inside(self.folder))
+
+    def test_two_repositories_and_no_pane_in_either_is_none(self):
+        self.repo("one")
+        self.repo("two")
+        self.assertIsNone(git.repo_inside(self.folder))
+
+    def test_the_active_panes_repository_wins_however_deep(self):
+        self.repo("one")
+        two = self.repo(os.path.join("a", "b", "two"))
+        os.makedirs(os.path.join(two, "src"))
+        self.assertEqual(git.repo_inside(self.folder, os.path.join(two, "src")), two)
+
+    def test_a_pane_outside_the_folder_or_in_no_repository_chooses_nothing(self):
+        one = self.repo("one")
+        elsewhere = self.repo("elsewhere", base=self.tmp)
+        self.assertEqual(git.repo_inside(self.folder, elsewhere), one)              # the only one
+        self.assertEqual(git.repo_inside(self.folder, self.folder), one)
+
+    def test_the_one_a_pane_was_last_in_while_it_is_there(self):
+        one, two = self.repo("one"), self.repo("two")
+        self.assertEqual(git.repo_inside(self.folder, last=one), one)
+        self.assertEqual(git.repo_inside(self.folder, two, last=one), two)          # the active pane's first
+        shutil.rmtree(one)
+        self.assertEqual(git.repo_inside(self.folder, last=one), two)               # the only one left
+
+    def test_a_folder_in_a_repository_has_none_inside(self):
+        # its own repository shows there, for a folder below its top too
+        app = self.repo("app")
+        vendor = self.repo(os.path.join("app", "vendor"))
+        os.makedirs(os.path.join(app, "docs"))
+        self.assertIsNone(git.repo_inside(app))
+        self.assertIsNone(git.repo_inside(os.path.join(app, "docs"), vendor))
+
+    def test_hidden_folders_and_a_repositorys_own_are_not_looked_into(self):
+        self.repo(os.path.join(".cache", "app"))
+        app = self.repo("app")
+        self.repo(os.path.join("app", "vendor"))
+        self.assertEqual(git.repo_inside(self.folder), app)
+
+    def test_a_worktree_inside_is_known_by_its_git_file(self):
+        checkout = self.repo("checkout", base=self.tmp)
+        tree = os.path.join(self.folder, "spike")
+        self.git(checkout, "worktree", "add", "-q", "-b", "spike", tree)
+        self.assertEqual(git.repo_inside(self.folder), tree)
+
+    def test_the_home_folder_and_those_above_it_are_never_searched(self):
+        # they hold every repository of the user's, and macOS asks before its private folders are looked into
+        app = self.repo("app", base=self.home)
+        self.assertIsNone(git.repo_inside(self.home))
+        self.assertIsNone(git.repo_inside(self.tmp))
+        self.assertEqual(git.repo_inside(self.home, app), app)                      # a pane in it is no search
+
+    def test_a_folder_holding_too_many_folders_is_not_searched(self):
+        set_attrs(self, git, LOOKS=3)
+        app = self.repo("app")
+        for name in ("a", "b", "c"):
+            os.makedirs(os.path.join(self.folder, name))
+        self.assertIsNone(git.repo_inside(self.folder))
+        os.rmdir(os.path.join(self.folder, "c"))
+        self.assertEqual(git.repo_inside(self.folder), app)
+
+    def test_the_branch_and_how_far_it_is_from_its_upstream(self):
+        app = self.repo("app", upstream=True)
+        self.commit(app)
+        self.git(app, "push", "-q")
+        self.git(app, "reset", "-q", "--hard", "HEAD~1")                    # one to pull
+        self.commit(app)                                                    # one to push
+        self.assertEqual(git.tracking(app), ("main", 1, 1))
+        self.git(app, "checkout", "-q", "--detach")
+        self.assertEqual(git.tracking(app), (None, 0, 0))
+
+    def test_its_stamp_changes_with_a_commit_not_with_a_look(self):
+        # a client keeps the branch it read while the stamp stays: git runs again only after a change
+        app = self.repo("app")
+        stamp = git.refs_stamp(app)
+        git.tracking(app)
+        git.place(app)
+        self.assertEqual(git.refs_stamp(app), stamp)
+        self.commit(app)
+        self.assertNotEqual(git.refs_stamp(app), stamp)
+
+    def test_the_app_mod_asks_for_the_place_inside_on_the_spaces_machine(self):
+        one = self.repo("one", upstream=True)
+        self.commit(one)                                                    # one to push
+        self.repo("two", branch="dev")
+
+        def cli(*args):
+            out = subprocess.run([sys.executable, "-B", git.__file__, "place", *args], capture_output=True, text=True,
+                                 timeout=60)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            return json.loads(out.stdout)
+        self.assertIsNone(cli(self.folder))                                 # two, and no pane in either
+        self.assertEqual(cli(self.folder, one), {
+            "name": "one", "branch": "main", "ahead": 1, "behind": 0,
+            "repo": os.path.realpath(os.path.join(one, ".git")), "linked": False, "inside": True})
+        self.assertFalse(cli(one, self.folder)["inside"])                   # a repository's own: no search
 
 
 class GitHubName(unittest.TestCase):

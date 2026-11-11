@@ -1,6 +1,7 @@
 """New tab: a workspace from herdr's "new" button gets the folder picker (new_workspace.py), unless a git worktree's;
-any other new tab is left alone (its column is the dock's). On a pane's focus: the workspace in front noted, a
-workspace whose folder is gone said deleted, and one named after its folder takes the folder's new name."""
+any other new tab is left alone (its column is the dock's). On a pane's focus: the workspace in front noted, one whose
+folder is gone said deleted, one holding a repository shown its branch, one named after its folder renamed with it."""
+import importlib.util
 import json
 import os
 import re
@@ -11,15 +12,25 @@ import time
 
 # herdrlib.py is two folders up, where the plugin is installed (and in the package): never another copy on the machine
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
-sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.normpath(os.path.join(HERE, "..", "..")))
 from herdrlib import free_label, herdr, space_labels  # noqa: E402
+
+# its own copy of core/git.py (tools/build.py's), by its path: herdrlib's sidebar modules bring the sidebar's as git
+SPEC = importlib.util.spec_from_file_location("workspaces_git", os.path.join(HERE, "git.py"))
+git = sys.modules[SPEC.name] = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(git)
 
 # the "new" button's workspace while its folder is chosen: herdr names it after the folder it inherits (~, or the
 # active workspace's own name a second time); the picker builds the chosen folder's and closes this one
 PLACEHOLDER = "new"
 # in the state folder: each followed workspace's name, folder and the folder's identity (a renamed folder keeps it);
-# the workspace in front and the one before it (Esc in the folder picker goes back there)
+# the workspace in front and the one before it (Esc in the folder picker goes back there), with the repository each
+# workspace's pane was last in and each repository's branch as last read
 SPACES, FOCUS = "spaces.json", "focus.json"
+# git gets GIT_WAIT seconds for a repository's branch (on each pane's focus); herdr keeps a token's first VALUE
+# characters
+GIT_WAIT, VALUE = 2, 80
 
 
 def linked_worktree(path):
@@ -122,6 +133,43 @@ def held_conversations(path, home):
     return os.path.isdir(os.path.join(home, ".claude", "projects", re.sub(r"[^A-Za-z0-9]", "-", path)))
 
 
+def branch_row(root):
+    """ROOT's branch and how far it is from its upstream, as herdr's Spaces row writes its own: "main ↑2 ↓1", the
+    branch alone without an upstream or with nothing to push or pull; None on a detached HEAD (herdr shows none)."""
+    branch, ahead, behind = git.tracking(root, GIT_WAIT)
+    if not branch:
+        return None
+    status = " ".join(([f"↑{ahead}"] if ahead else []) + ([f"↓{behind}"] if behind else []))
+    return f"{branch[:VALUE - len(status) - 1]} {status}" if status else branch[:VALUE]
+
+
+def repo_rows(workspaces, panes, kept, home):
+    """Each workspace's repo token where its folder is in no repository (else herdr's row shows its own): the branch row
+    of the one inside core/git.py's repo_inside picks by its active pane and the one a pane was last in; and what is
+    kept after it: {"repos": workspace → repository, "branches": repository → its stamp and row}."""
+    last, read = kept.get("repos") or {}, kept.get("branches") or {}
+    rows, repos, branches = {}, {}, {}
+    for space in workspaces:
+        ws = space["workspace_id"]
+        mine = [pane for pane in panes if pane.get("workspace_id") == ws and pane.get("cwd")]
+        if not mine:
+            continue
+        active = next((pane["cwd"] for pane in mine if pane.get("focused")
+                       and pane.get("tab_id") == space.get("active_tab_id", pane.get("tab_id"))), None)
+        # herdr's folder for it: its first pane's (first tab's root)
+        repo = git.repo_inside(mine[0]["cwd"], active, last.get(ws), home)
+        if repo is None:
+            continue
+        if repo in (active and git.repo_top(active), last.get(ws)):
+            repos[ws] = repo
+        if repo not in branches:
+            stamp = git.refs_stamp(repo)
+            seen = read.get(repo) or {}
+            branches[repo] = seen if seen.get("stamp") == stamp else {"stamp": stamp, "row": branch_row(repo)}
+        rows[ws] = branches[repo]["row"]
+    return rows, {"repos": repos, "branches": branches}
+
+
 def load(name):
     state = os.environ.get("HERDR_PLUGIN_STATE_DIR") or os.path.join(
         os.path.expanduser("~"), ".local", "state", "herdr", "plugins", "herdr-fold.workspaces")
@@ -148,24 +196,39 @@ def came_from(placeholder):
 
 
 def on_focus():
-    """The workspace in front kept, with the one before it; a workspace whose folder is gone said deleted; each
-    followed one whose folder was renamed takes its new name, and so does its main tab (named as it)."""
+    """The workspace in front kept, with the one before it; a workspace whose folder is gone said deleted, one whose
+    folder holds a repository given that one's branch row; each followed one whose folder was renamed takes its new
+    name, and so does its main tab (named as it)."""
     workspaces = herdr("workspace", "list", check=False).get("workspaces")
     if not workspaces:                                  # herdr not answering: what is known stays
         return
     state, focus = load(FOCUS)
+    kept = dict(focus)
     front = next((w["workspace_id"] for w in workspaces if w.get("focused")), None)
     if front and focus.get("now") != front:
-        save(state, FOCUS, {"now": front, "before": focus.get("now")})
+        kept.update(now=front, before=focus.get("now"))
     panes = herdr("pane", "list", check=False).get("panes") or []
+    home = os.path.expanduser("~")
+    rows, repos = repo_rows(workspaces, panes, focus, home)
+    for key, value in repos.items():
+        if value:
+            kept[key] = value
+        else:
+            kept.pop(key, None)
+    if kept != focus:
+        save(state, FOCUS, kept)
     deleted = gone(panes)
-    for space in workspaces:                            # the theme's Space rows show $folder beside the branch
-        said = (space.get("tokens") or {}).get("folder") == "deleted"
+    for space in workspaces:                            # the theme's Space rows show $repo and $folder by the branch
+        tokens = space.get("tokens") or {}
+        said = tokens.get("folder") == "deleted"
         if (space["workspace_id"] in deleted) != said:
             herdr("workspace", "report-metadata", space["workspace_id"], "--source", "herdr-fold.workspaces",
                   *(["--clear-token", "folder"] if said else ["--token", "folder=deleted"]), check=False)
+        row = rows.get(space["workspace_id"])
+        if row != tokens.get("repo"):
+            herdr("workspace", "report-metadata", space["workspace_id"], "--source", "herdr-fold.workspaces",
+                  *(["--token", f"repo={row}"] if row else ["--clear-token", "repo"]), check=False)
     state, known = load(SPACES)
-    home = os.path.expanduser("~")
     renames, now = follow_folders(workspaces, panes, known, home, lambda path: held_conversations(path, home))
     for ws, old, new in renames:
         herdr("workspace", "rename", ws, new, check=False)

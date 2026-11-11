@@ -41,6 +41,19 @@ class InstallApp(AppInstall, unittest.TestCase):
                 if os.path.exists(os.path.join(self.app_home, "mods", "herdr-fold", name))]
         self.assertEqual(left, [])
 
+    def test_an_update_prunes_the_apps_state_of_the_layout(self):
+        """The app's state of the layout as the one panel stack left it: its stack gone after the update, so the
+        right dock's groups open on their own tabs; the panel's width kept."""
+        self.with_app()
+        state = os.path.join(self.app_home, "layouts", ".state", "herdr-fold.json")
+        os.makedirs(os.path.dirname(state))
+        with open(state, "w") as f:
+            json.dump({"nodes": {"fold-panel-body": {"active": "changes"}, "fold-panel": {"size": {"px": 420}}},
+                       "file": {"id": "root"}}, f)
+        self.run_script("install.sh")
+        with open(state) as f:
+            self.assertEqual(json.load(f)["nodes"], {"fold-panel": {"size": {"px": 420}}})
+
     def test_a_running_app_shows_the_layout(self):
         self.with_app(running=True)
         out = self.run_script("install.sh")

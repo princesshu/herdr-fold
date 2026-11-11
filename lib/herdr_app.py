@@ -173,6 +173,59 @@ def tidy(home, keep=None):
         write_json(path, tidied)
 
 
+def card_pad(app):
+    """logic.js's PAD in APP (the app's home, or the package's app/): a card's inside on every side, which a folded
+    group keeps under its head; None without it."""
+    try:
+        with open(os.path.join(app, MOD, "logic.js"), encoding="utf-8") as f:
+            found = re.search(r"^export const PAD = (\d+);", f.read(), re.M)
+    except OSError:
+        return None
+    return int(found.group(1)) if found else None
+
+
+def folded_groups(layout, pad):
+    """LAYOUT's groups, each (its column's id, its stack's id, its height folded: its head, PAD under it, its frame,
+    as logic.js's FOLDED_GROUP)."""
+    for node in nodes(layout):
+        kids = node.get("children") or []
+        if len(kids) == 2 and ((kids[0].get("content") or {}).get("props") or {}).get("part") == "group-head":
+            edge = (node.get("border") or {}).get("width", 0)
+            yield node.get("id"), kids[1].get("id"), kids[0]["size"]["px"] + pad + 2 * edge
+
+
+def prune_state(state, layout, pad=None):
+    """STATE (the app's of a layout: its clicks by node) without the nodes LAYOUT no longer has, so a node by a new
+    id opens as the layout says; with PAD, a group saved folded at another height at this one's; anything else as it
+    was."""
+    if not isinstance(state, dict) or not isinstance(state.get("nodes"), dict):
+        return state
+    ids = {node.get("id") for node in nodes(layout) if isinstance(node, dict)}
+    kept = {key: value for key, value in state["nodes"].items() if key in ids}
+    for group, stack, folded in folded_groups(layout, pad) if pad is not None else ():
+        saved = kept.get(group)
+        if (kept.get(stack) or {}).get("hidden") is True and isinstance((saved or {}).get("size"), dict) \
+                and "px" in saved["size"]:
+            kept[group] = {**saved, "size": {"px": folded}}
+    return {**state, "nodes": kept}
+
+
+def prune(home):
+    """The app's state of herdr-fold's layout in HOME pruned to the layout there, a group saved folded at the height the
+    mod there folds it to. Never with the app running: it holds the state and writes it back."""
+    path = os.path.join(home, LAYOUT_STATE)
+    try:
+        with open(path, encoding="utf-8") as f:
+            state = json.load(f)
+        with open(os.path.join(home, LAYOUT), encoding="utf-8") as f:
+            layout = json.load(f)
+    except (OSError, ValueError):
+        return
+    pruned = prune_state(state, layout, card_pad(home))
+    if pruned != state:
+        write_json(path, pruned)
+
+
 def named(package):
     """The shared values PACKAGE's mod keeps: every "herdr-fold.NAME" its files spell out."""
     found = set()
@@ -231,7 +284,7 @@ def package_keys(package):
 def install(package, home, state, app_running=False, theme=None):
     """PACKAGE's mod, layout (in THEME, a number or name of themes.js's; none: the one it had) and keys into the app's
     HOME, what an earlier version put there and this one does not have taken off: the exit code (0, 3 or 4) the usage
-    names; a running app's shared values are left to it."""
+    names; a running app's shared values and state of the layout are left to it."""
     if os.path.lexists(os.path.join(home, MOD)) and not herdr_folds(os.path.join(home, MOD)):
         return 4
     had = apply.layout_theme(os.path.join(home, LAYOUT))
@@ -251,6 +304,7 @@ def install(package, home, state, app_running=False, theme=None):
         apply.set_layout_theme(os.path.join(home, LAYOUT), name)
     if not app_running:
         tidy(home, named(package))
+        prune(home)
     mine = read_keys(os.path.join(home, KEYS))
     if mine is None:
         return 3

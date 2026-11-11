@@ -1,5 +1,5 @@
 """Tests for tools/build.py: the shared data layer lives once, in core/, and each piece that installs on its own (the
-TUI sidebar, the Herdr app mod) carries a copy of what it needs; a copy that differs from core/ fails here."""
+TUI sidebar, Workspaces, the Herdr app mod) carries a copy of what it needs; a copy differing from core/ fails here."""
 import ast
 import importlib.util
 import json
@@ -40,6 +40,12 @@ class Copies(unittest.TestCase):
                 self.assertEqual(os.path.join(sidebar, name) in build.outputs(), name not in build.MOD_ONLY, name)
         in_helpers = {name for sources in build.HELPERS.values() for name in sources.values()}
         self.assertLessEqual(build.MOD_ONLY, in_helpers)
+
+    def test_workspaces_gets_core_git_and_what_it_imports(self):
+        # its Spaces row's repository inside a folder is core/git.py's, as the Herdr app mod's Spaces list's is
+        folder = os.path.join("src", "plugins", "workspaces")
+        made = sorted(os.path.basename(rel) for rel in build.outputs() if os.path.dirname(rel) == folder)
+        self.assertEqual(made, sorted(["git.py"] + [module + ".py" for module in build.imports("git.py")]))
 
 
 class Literal(unittest.TestCase):

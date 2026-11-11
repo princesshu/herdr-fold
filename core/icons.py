@@ -9,12 +9,10 @@ NERD_GLYPHS = {"closed": "\ueab6", "open": "\ueab4", "folder": "\uea83", "folder
                "new_file": "\uea7f", "new_folder": "\uea80", "refresh": "\ueb37", "collapse": "\ueac5",
                "check": "\ueab2", "more": "\ueab4", "stage": "\uea60", "unstage": "\ueb3b", "discard": "\ueae2",
                "diff": "\ueae1", "files": "\ueaf0", "search": "\uea6d", "git": "\uea68", "ai": "\uec10",
-               "issues": "\ueb00", "agent": "\uec0f", "web": "\ueb14", "fold": "\ueac7", "unfold": "\ueac7",
-               "repo": "\uea62"}
+               "issues": "\ueb00", "agent": "\uec0f", "web": "\ueb14", "repo": "\uea62"}
 PLAIN_GLYPHS = {"closed": "›", "open": "⌄", "new_file": "+", "new_folder": "⊞", "refresh": "↻", "collapse": "⊟",
                 "check": "✓", "more": "⌄", "stage": "+", "unstage": "−", "discard": "↺", "diff": "⇄", "files": "▤",
-                "search": "⌕", "git": "⎇", "ai": "✦", "issues": "#", "agent": "»", "web": "↗", "fold": "«",
-                "unfold": "»", "repo": "▣"}
+                "search": "⌕", "git": "⎇", "ai": "✦", "issues": "#", "agent": "»", "web": "↗", "repo": "▣"}
 FILE_TYPES = (("\ue73c", "python", "py pyi"), ("\ue74e", "javascript", "js mjs cjs"), ("\ue628", "typescript", "ts"),
               ("\ue7ba", "javascript-react", "jsx"), ("\ue7ba", "typescript-react", "tsx"),
               ("\ue60b", "json", "json jsonc"), ("\uf48a", "markdown", "md markdown"), ("\ue736", "html", "html htm"),

@@ -1,9 +1,12 @@
 """The dock's groups in a pane's rows (core/dock.py's GROUPS), one under the other: an open one a share of the rows
-under its head, a folded one its head alone, a head dragged moving the edge above it; and what each folder keeps of
-them in dock.json: the panel shown in each group, the groups folded, their shares."""
+under its head, a folded one its head alone, a head dragged moving the edge above it, or folded, the rail of their
+panels' icons; and what each folder keeps of them in dock.json: the panel shown in each group, the folds, the shares."""
 import os
 
 import statefile
+from dock import PANELS
+from icons import glyphs
+from screen import Style, centered, truncate, width
 
 HEAD = 1                      # a group's head: its fold and its tabs
 LEAST = 3                     # the rows an open group's panel has under its head at least
@@ -66,6 +69,30 @@ def dragged(rows, groups, folded, weights, group, dy):
     bodies[group] = both - bodies[above]
     scale = sum(part(weights, name) for name in bodies) / sum(bodies.values())
     return {**weights, **{name: body * scale for name, body in bodies.items()}}
+
+
+def rail(canvas, top, rows, lit, groups, marks=None, icons=True, left=0, pointed=None):
+    """The dock folded to its rail in ROWS rows from TOP, from column LEFT on: each panel of GROUPS ([(group, [panel])])
+    its glyph over its short name, a blank row between two groups, one without the rows left out; LIT's (opened beside
+    it) in the accent, a bar at its edge; POINTED's ("icon:PANEL") lit; MARKS {panel: (text, role)} beside the icon."""
+    cells, y = canvas.width - left, top
+    for n, (_group, panels) in enumerate(groups):
+        y += 1 if n else 0
+        for panel in panels:
+            if y + 2 > top + rows:
+                return
+            target, x, name = f"icon:{panel}", centered(left, cells), PANELS[panel]["short"]
+            look = "accent" if panel == lit else "text" if target == pointed else None
+            canvas.put(y, x, glyphs(icons)[PANELS[panel]["glyph"]], Style(fg=look or "subtext"))
+            if panel == lit:
+                canvas.put(y, left, "▌", Style(fg="accent"))
+            text, role = (marks or {}).get(panel) or ("", None)
+            canvas.put(y, x + 2, truncate(text, max(0, canvas.width - x - 2)), Style(fg=role))
+            canvas.put(y + 1, left + max(0, (cells - width(name)) // 2), truncate(name, cells),
+                       Style(fg=look or "muted", bold=panel == lit))
+            for row in (y, y + 1):
+                canvas.region(row, left, canvas.width, target)
+            y += 2
 
 
 def state(state_dir, folder):

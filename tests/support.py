@@ -398,10 +398,11 @@ def drop_output(fd, seconds):
 class FakeHerdrSocket:
     """A stand-in for herdr's socket API at PATH serving TABS {tab_id: (layout tree, zoomed)}, each .width cells wide
     (200); a split's first side is round(width x ratio) cells, as herdr gives it. Every call is recorded in .calls;
-    close it with .server.close()."""
+    close it with .server.close(). Its cli() is herdr's command line over the same tabs: pane list, pane move."""
 
     def __init__(self, path, tabs):
         self.tabs, self.calls, self.width = {tab: list(value) for tab, value in tabs.items()}, [], 200
+        self.moves, self.commands, self.lock = [], [], threading.Lock()
         self.server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.server.bind(path)
         self.server.listen()
@@ -429,7 +430,76 @@ class FakeHerdrSocket:
     def tab_of(self, pane):
         return next(tab for tab, (root, _) in self.tabs.items() if any(p["pane_id"] == pane for p in self.panes(root)))
 
+    @staticmethod
+    def path_to(node, pane, path=()):
+        if node.get("type") == "pane":
+            return list(path) if node["pane_id"] == pane else None
+        return (FakeHerdrSocket.path_to(node["first"], pane, (*path, False))
+                or FakeHerdrSocket.path_to(node["second"], pane, (*path, True)))
+
+    def node(self, pane):
+        """PANE's node in its tab's tree, and the tab."""
+        tab = self.tab_of(pane)
+        node = self.tabs[tab][0]
+        for second in self.path_to(node, pane):
+            node = node["second" if second else "first"]
+        return node, tab
+
+    def cli(self, *args):
+        """herdr's command line: pane list, get, split (a new pane nN second, the pane keeping --ratio), rename, run,
+        and move (into a new tab of its own, which goes by itself once the pane leaves it, or beside --target-pane in
+        --tab, split --split, the target keeping --ratio), its pane id kept; calls in .commands, a move in .moves."""
+        self.commands.append(args)
+        if args[:2] == ("pane", "list"):
+            return self.answer("pane.list", {})
+        if args[:2] in (("pane", "get"), ("pane", "rename"), ("pane", "split")):
+            with self.lock:
+                node, tab = self.node(args[2] if args[1] != "split" else args[args.index("--pane") + 1])
+                if args[1] == "rename":
+                    node["label"] = args[3]
+                if args[1] == "split":
+                    options = dict(zip(args[2::2], args[3::2]))
+                    made = {"type": "pane", "pane_id": f"{tab.split(':')[0]}:n{len(self.commands)}", "label": None}
+                    beside = dict(node)
+                    node.clear()
+                    node.update({"type": "split", "direction": options["--direction"],
+                                 "ratio": float(options["--ratio"]), "first": beside, "second": made})
+                    return {"pane": {"pane_id": made["pane_id"], "tab_id": tab}}
+                return {"pane": {"pane_id": args[2], "tab_id": tab}}
+        if args[:2] != ("pane", "move"):
+            return {}
+        self.moves.append(args)
+        pane, options = args[2], dict(zip(args[3::2], args[4::2]))
+        with self.lock:
+            tab = self.tab_of(pane)
+            root = self.tabs[tab][0]
+            path = self.path_to(root, pane)
+            if not path:                                    # alone in its tab: the tab goes with it
+                node = self.tabs.pop(tab)[0]
+            else:
+                parent = root
+                for second in path[:-1]:
+                    parent = parent["second" if second else "first"]
+                node, other = parent["second" if path[-1] else "first"], parent["first" if path[-1] else "second"]
+                parent.clear()
+                parent.update(other)                        # its split's other side in the split's place
+            if "--new-tab" in args:
+                self.tabs[f"passing:{pane}"] = [node, False]
+            else:
+                target = self.tabs[options["--tab"]][0]
+                for second in self.path_to(target, options["--target-pane"]):
+                    target = target["second" if second else "first"]
+                beside = dict(target)
+                target.clear()
+                target.update({"type": "split", "direction": options["--split"],
+                               "ratio": float(options["--ratio"]), "first": beside, "second": node})
+        return {"move_result": {"pane": {"pane_id": pane}, "previous_pane_id": pane}}
+
     def answer(self, method, params):
+        with self.lock:
+            return self.answered(method, params)
+
+    def answered(self, method, params):
         if method == "pane.list":
             return {"panes": [{"pane_id": p["pane_id"], "label": p.get("label"), "tab_id": tab}
                               for tab, (root, _) in self.tabs.items() for p in self.panes(root)]}

@@ -1,6 +1,6 @@
-"""Writes the copies of core/, the shared data layer: into the TUI sidebar (src/plugins/sidebar/) and into the Herdr app
-mod (helper.js, the source it runs with Python's -c on the space's machine; icons.js, the icons); and the app layout's
-theme, made from the TUI's. Edit those, then run this: tests/test_tools_build.py fails while a copy differs."""
+"""Writes the copies of core/, the shared data layer: into the TUI sidebar (src/plugins/sidebar/), Workspaces (git.py)
+and the Herdr app mod (helper.js, the source it runs with Python's -c on the space's machine; icons.js, the icons); and
+the app layout's theme, from the TUI's. Edit those, then run this: tests/test_tools_build.py fails on an old copy."""
 import importlib.util
 import json
 import os
@@ -10,6 +10,8 @@ import sys
 sys.dont_write_bytecode = True    # core's modules it loads leave no bytecode behind
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SIDEBAR = os.path.join("src", "plugins", "sidebar")
+# Workspaces' copies: core/git.py, its Spaces row's repository inside a folder (the app's list's too), and its imports
+WORKSPACES, WORKSPACES_CORE = os.path.join("src", "plugins", "workspaces"), ["git.py"]
 WIDTH = 110                   # a string literal's cells on a line of helper.js
 # the Herdr app mod's helper.js: the name it imports each module's source by, and the module
 HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"CHAT": "chat.py",
@@ -50,6 +52,11 @@ def runnable(name):
                    + "".join(f"{line!r},\n" for line in core(m + ".py").split("\n"))
                    + f"]), _sys.modules[{m!r}].__dict__)\n" for m in needed)      # its lines kept, one per line
     return f"import sys as _sys, types as _types\n{made}{source}" if needed else source
+
+
+def with_imports(names):
+    """NAMES (core/'s files) and the core files they import."""
+    return sorted({one for name in names for one in [name] + [module + ".py" for module in imports(name)]})
 
 
 def note(name):
@@ -146,6 +153,8 @@ def outputs():
     """{path from the package's root: its content}."""
     made = {os.path.join(SIDEBAR, name): f"# {note(name)}\n" + core(name)
             for name in sorted(os.listdir(os.path.join(ROOT, "core"))) if name.endswith(".py") and name not in MOD_ONLY}
+    made.update({os.path.join(WORKSPACES, name): f"# {note(name)}\n" + core(name)
+                 for name in with_imports(WORKSPACES_CORE)})
     for path, sources in HELPERS.items():
         lines = js_note()
         lines += [f"export const {const} = {literal(runnable(name))};" for const, name in sources.items()]

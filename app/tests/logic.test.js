@@ -3,19 +3,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterCommit, background, branchLabel, changeColor, changeName, commitMode, commitRows, conversationChoices,
   conversationRows, coreAgents, diffRows, excerpt, fileRows, floatHeight, folderIcon, foldedSections, foldedWidth,
-  folderSpaces, issueAgent, lastLine, launcher, letter, machineOf, marked, MODES, PANEL, PANEL_BODY, panelShown,
-  panelToggle, previewName, previewTab, priorityColor, pushOffer, pythonCommand, railed, resumeArgv, rowActions,
-  safeMarkdown, said, searchRows, searchSummary, secretQuestion, shownTab, strays, syncLabel, tabLabel, TALL,
-  terminalId, TERMINALS, urgent, withMax, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread,
-  spaceWaits, placeLabel, nested, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow,
-  railToggle, RAIL, RAIL_BLOCK, PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom, mediaKind,
-  aboutLines, stacks, swapDraft, browsable, opener, changeSides, fileIcon, stillResumed, CHAT_TAB, orphanChats,
-  menuPlace } from "../mods/herdr-fold/logic.js";
+  folderSpaces, issueAgent, lastLine, launcher, letter, machineOf, marked, MODES, PANEL, panelShown, previewName,
+  previewTab, priorityColor, pushOffer, pythonCommand, railed, resumeArgv, rowActions, safeMarkdown, said, searchRows,
+  searchSummary, secretQuestion, shownTab, strays, syncLabel, tabLabel, TALL, terminalId, TERMINALS, urgent, withMax,
+  withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread, spaceWaits, placeLabel, nested, folderKey,
+  placeKey, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow, railToggle, RAIL, RAIL_BLOCK,
+  PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom, mediaKind, aboutLines, stacks, swapDraft,
+  browsable, opener, changeSides, fileIcon, stillResumed, CHAT_TAB, orphanChats, menuPlace, menuHeight, GROUPS_APP,
+  GROUP_WEIGHTS, GROUP_HEAD, FOLDED_GROUP, DOCK, DOCK_HEAD, groupTabs, groupFolded, groupSize, shownPanels,
+  panelsFollow, pickCommands, foldCommands, panelChoices, hideCommands, keptTabs, PAD }
+  from "../mods/herdr-fold/logic.js";
 
 test("a tab nobody named after its program, an agent's first, else Terminal; an agent's icon; zoomed marked", () => {
   const space = { tabs: [{ id: "t1", name: "1", named: false, active: true, status: "working" },
@@ -140,8 +142,8 @@ test("the search's summary, in the TUI sidebar's words", () => {
   assert.equal(searchSummary({ total: 0, files: 0, hits: [], error: "invalid regex: x" }), "invalid regex: x");
 });
 
-/** A layout as herdr-fold's has it: the panel, its views above, its tabs' terminals below (the stand-in first). */
-const tree = () => ({ id: "root", children: [{ id: PANEL, children: [{ id: PANEL_BODY, children: [] },
+/** A layout as herdr-fold's has it: the panel, its groups above, its tabs' terminals below (the stand-in first). */
+const tree = () => ({ id: "root", children: [{ id: PANEL, children: [{ id: "fold-project", children: [] },
   { id: TERMINALS, active: "fold-terminal-none",
     children: [{ id: "fold-terminal-none", content: { mod: "x" } }] }] }] });
 
@@ -429,33 +431,138 @@ test("files named like secrets are asked about before a commit, in the TUI sideb
     "a.key, b.key, c.key and 2 more look like secrets. Commit them anyway?");
 });
 
-test("Cmd+Shift+G opens the right panel at Changes, or folds it to its rail from there", () => {
-  /** @param {boolean} hidden @param {string} active @param {number} [px] */
-  const tree = (hidden, active, px = PANEL_PX) => ({ id: "root", children: [{ id: "work", children: [{ id: PANEL,
-    hidden, size: { px }, children: [{ id: PANEL_BODY, type: "stack", active, children: [{ id: "files" },
-      { id: "changes" }] }] }] }] });
-  const select = ["layout.select", { stack: PANEL_BODY, child: "changes" }];
-  assert.deepEqual(panelToggle(tree(true, "changes"), undefined),
-    [select, ["layout.show", { id: PANEL }], ["layout.resize", { id: PANEL, px: PANEL_PX }]]);
-  assert.deepEqual(panelToggle(tree(false, "files"), undefined), [select]);
-  assert.deepEqual(panelToggle(tree(false, "changes"), undefined),
-    [["layout.resize", { id: PANEL, px: RAIL }], ["layout.hide", { id: PANEL_BODY }]]);
-  assert.deepEqual(panelToggle(tree(false, "changes", RAIL), 400), [select, ["layout.resize", { id: PANEL, px: 400 }]]);
-  assert.deepEqual([PANEL, PANEL_BODY], ["fold-panel", "fold-panel-body"]);     // not the app's: its tab bar keeps out
-  assert.equal(panelShown(tree(false, "files")), true);
-  assert.equal(panelShown(tree(true, "changes")), false);
-  assert.equal(panelShown({ id: "root" }), false);
+/** The right dock as the layout has it: its head, the dock (the two groups, the terminals), the rail; OVER changes a
+ * node by its id. @param {Record<string, any>} [over] */
+function dock(over = {}) {
+  const node = (/** @type {string} */ id, rest = {}) => ({ id, ...rest, ...(over[id] ?? {}) });
+  const group = (/** @type {"project" | "work"} */ g) => node(`fold-${g}`, { type: "column",
+    size: { weight: GROUP_WEIGHTS[g] }, children: [node(`fold-${g}-head`), node(`fold-${g}-body`, { type: "stack",
+      active: GROUPS_APP[g][0], children: GROUPS_APP[g].map((id) => node(id)) })] });
+  return { id: "root", children: [node(PANEL, { size: { px: PANEL_PX }, children: [node(DOCK_HEAD),
+    node(DOCK, { children: [group("project"), group("work"), node(TERMINALS)] }),
+    node(RAIL_BLOCK, { hidden: true })] })] };
+}
+
+test("a group's head shows its tabs, the shown one, its fold", () => {
+  assert.deepEqual(GROUPS_APP, { project: ["files", "search"], work: ["changes", "issues"] });    // core/dock.py's
+  const root = dock();
+  assert.deepEqual(groupTabs(root, "work", true), ["changes", "issues"]);
+  assert.deepEqual(groupTabs(root, "work", false), ["changes"]);                  // Issues on GitHub only
+  assert.equal(shownTab(root, "project", true), "files");
+  assert.equal(groupFolded(root, "project"), false);
+  const folded = dock({ "fold-project-body": { hidden: true, active: "search" }, files: { hidden: true } });
+  assert.equal(groupFolded(folded, "project"), true);                             // its tabs still there
+  assert.deepEqual(groupTabs(folded, "project", true), ["search"]);               // hidden in the ⋯: no tab
+  assert.equal(shownTab(folded, "project", true), "search");
+  assert.equal(shownTab(dock({ "fold-work-body": { active: "issues" } }), "work", false), "changes");
+  assert.equal(shownTab(dock({ files: { hidden: true }, search: { hidden: true } }), "project", true), null);
+  assert.deepEqual(shownPanels(dock({ search: { hidden: true } }), false), ["files", "changes"]);
+  assert.deepEqual(groupTabs({ id: "root" }, "work", true), []);                  // another layout: none
 });
 
-test("the right panel folds to its rail and opens again, as its toggle and a drag do it", () => {
+test("a key picks its group's tab and unfolds it", () => {
+  const folded = dock({ "fold-project-body": { hidden: true }, "fold-project": { size: { px: FOLDED_GROUP } } });
+  assert.deepEqual(pickCommands(folded, "search", { github: true, sizes: { project: { weight: 4 } } }), [
+    ["layout.select", { stack: "fold-project-body", child: "search" }],
+    ["layout.show", { id: "fold-project-body" }], ["layout.resize", { id: "fold-project", weight: 4 }]]);
+  assert.deepEqual(pickCommands(folded, "files", { github: true })[1], ["layout.resize",
+    { id: "fold-project", weight: GROUP_WEIGHTS.project }]);                       // shown already: only unfolded
+  assert.deepEqual(pickCommands(dock(), "files", { github: true }), []);           // shown and open: nothing to do
+  assert.deepEqual(pickCommands(dock({ changes: { hidden: true }, issues: { hidden: true },
+    "fold-work": { hidden: true } }), "changes", { github: true }),
+  [["layout.show", { id: "changes" }], ["layout.show", { id: "fold-work" }]]);    // hidden in the ⋯: shown again
+  assert.deepEqual(pickCommands(dock(), "issues", { github: false }), []);         // off GitHub: left as it is
+  assert.deepEqual(pickCommands(dock(), "bogus", { github: true }), []);
+  const railed = dock({ [PANEL]: { size: { px: RAIL } }, [DOCK_HEAD]: { hidden: true }, [DOCK]: { hidden: true },
+    [RAIL_BLOCK]: { hidden: false } });
+  assert.deepEqual(pickCommands(railed, "issues", { github: true, kept: 420 }), [
+    ["layout.select", { stack: "fold-work-body", child: "issues" }], ["layout.resize", { id: PANEL, px: 420 }],
+    ["layout.show", { id: DOCK_HEAD }], ["layout.show", { id: DOCK }], ["layout.hide", { id: RAIL_BLOCK }]]);
+  assert.deepEqual(pickCommands(dock({ [PANEL]: { hidden: true } }), "changes", { github: true }),
+    [["layout.show", { id: PANEL }], ["layout.resize", { id: PANEL, px: PANEL_PX }]]);
+});
+
+test("a group folds to its head and opens again to the size it had", () => {
+  assert.equal(FOLDED_GROUP, GROUP_HEAD + PAD + 2);                               // its head, PAD, its frame
+  assert.deepEqual(foldCommands(dock(), "work", undefined), [["layout.hide", { id: "fold-work-body" }],
+    ["layout.resize", { id: "fold-work", px: FOLDED_GROUP }]]);
+  const folded = dock({ "fold-work-body": { hidden: true }, "fold-work": { size: { px: FOLDED_GROUP } } });
+  const open = (/** @type {any} */ size) => [["layout.show", { id: "fold-work-body" }],
+    ["layout.resize", { id: "fold-work", ...size }]];
+  assert.deepEqual(foldCommands(folded, "work", { weight: 5 }), open({ weight: 5 }));
+  assert.deepEqual(foldCommands(folded, "work", { px: 300 }), open({ px: 300 }));
+  assert.deepEqual(foldCommands(folded, "work", { px: FOLDED_GROUP }), open({ weight: GROUP_WEIGHTS.work }));
+  assert.deepEqual(foldCommands(folded, "work", undefined), open({ weight: GROUP_WEIGHTS.work }));
+  assert.deepEqual(groupSize(dock(), "work"), { weight: GROUP_WEIGHTS.work });
+  assert.deepEqual(foldCommands({ id: "root" }, "work", undefined), []);
+});
+
+test("the dock's ⋯ lists the panels with their ✓; one hidden takes its tab, its group once empty, never the last",
+  () => {
+  assert.deepEqual(panelChoices(dock({ search: { hidden: true } }), true), [
+    { panel: "files", label: "Files", on: true, off: false },
+    { panel: "search", label: "Search", on: false, off: false },
+    { panel: "changes", label: "Changes", on: true, off: false },
+    { panel: "issues", label: "Issues", on: true, off: false }]);
+  assert.deepEqual(panelChoices(dock(), false).map((c) => c.panel), ["files", "search", "changes"]);
+  const last = dock({ files: { hidden: true }, search: { hidden: true }, issues: { hidden: true } });
+  assert.deepEqual(panelChoices(last, true)[2], { panel: "changes", label: "Changes", on: true, off: true });
+  assert.deepEqual(hideCommands(dock(), "files", true, true), [["layout.hide", { id: "files" }],
+    ["layout.select", { stack: "fold-project-body", child: "search" }]]);       // its group shows the other
+  assert.deepEqual(hideCommands(dock({ search: { hidden: true } }), "files", true, true),
+    [["layout.hide", { id: "files" }], ["layout.hide", { id: "fold-project" }]]);  // its group's last: the group
+  assert.deepEqual(hideCommands(last, "changes", true, true), []);                // one panel stays shown
+  assert.deepEqual(hideCommands(dock({ files: { hidden: true }, search: { hidden: true },
+    "fold-project": { hidden: true } }), "search", false, true), [["layout.show", { id: "search" }],
+    ["layout.show", { id: "fold-project" }], ["layout.select", { stack: "fold-project-body", child: "search" }]]);
+});
+
+test("the groups follow their panels: one with none shown hidden, a stack never on a tab it cannot show", () => {
+  assert.deepEqual(panelsFollow(dock(), true), []);
+  assert.deepEqual(panelsFollow(dock({ "fold-work-body": { active: "issues" } }), false),
+    [["layout.select", { stack: "fold-work-body", child: "changes" }]]);       // off GitHub: Changes
+  assert.deepEqual(panelsFollow(dock({ changes: { hidden: true }, "fold-work-body": { active: "issues" } }), false),
+    [["layout.hide", { id: "fold-work" }]]);
+  assert.deepEqual(panelsFollow({ id: "root" }, true), []);
+});
+
+test("a group keeps the tab picked: off GitHub Issues gives way to Changes, back on GitHub Issues shows again", () => {
+  const onIssues = dock({ "fold-work-body": { active: "issues" } }), onChanges = dock();
+  assert.deepEqual(keptTabs(onIssues, {}), { project: "files", work: "issues" });   // none picked: the stacks' own
+  assert.deepEqual(keptTabs(onIssues, { work: "changes" }), { project: "files", work: "changes" });
+  assert.deepEqual(keptTabs({ id: "root" }, {}), {});
+  assert.deepEqual(panelsFollow(onIssues, false, { work: "issues" }),
+    [["layout.select", { stack: "fold-work-body", child: "changes" }]]);         // off GitHub: Changes meanwhile
+  assert.deepEqual(panelsFollow(onChanges, false, { work: "issues" }), []);       // still off: Changes stays
+  assert.deepEqual(panelsFollow(onChanges, true, { work: "issues" }),
+    [["layout.select", { stack: "fold-work-body", child: "issues" }]]);          // back on GitHub: Issues again
+  assert.deepEqual(panelsFollow(onChanges, true, { work: "changes" }), []);
+  assert.deepEqual(panelsFollow(dock({ issues: { hidden: true } }), true, { work: "issues" }), []);  // off in the ⋯
+  // a pick is the new choice: the one kept before never takes the group back
+  assert.deepEqual(pickCommands(onIssues, "changes", { github: true, chosen: { work: "issues" } }),
+    [["layout.select", { stack: "fold-work-body", child: "changes" }]]);
+  assert.deepEqual(hideCommands(dock({ issues: { hidden: true } }), "issues", false, true, { work: "issues" }),
+    [["layout.show", { id: "issues" }], ["layout.select", { stack: "fold-work-body", child: "issues" }]]);
+});
+
+test("a card keeps PAD inside on every side: the terminals' text, a group's tabs, under a folded group's head", () => {
+  const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
+  const parts = readFileSync(new URL("../mods/herdr-fold/parts.js", import.meta.url), "utf8");
+  const space = /^export const SPACE = \[([\d, ]+)\];/m.exec(parts)?.[1].split(",").map(Number) ?? [];
+  assert.ok(space.includes(PAD) && space.includes(PAD / 2), "PAD and a row's pad, halfway in, on the scale");
+  assert.ok(/^export \{ PAD \};/m.test(parts), "parts.js hands logic.js's PAD to the views, no value of its own");
+  assert.deepEqual(root.terminal_padding, [PAD, PAD]);                          // the centre's and the dock's
+  assert.equal(GROUP_HEAD, PAD + 24);                                           // its tabs, 24 high, PAD under the top
+  assert.equal(FOLDED_GROUP, GROUP_HEAD + PAD + 2);                             // folded: PAD under them, in its frame
+});
+
+test("the right dock folds to its rail and opens again, as its » and « and a drag do it", () => {
   /** @param {number} px @param {{ hidden?: boolean, rail?: boolean }} [shown] */
-  const tree = (px, { hidden = false, rail = false } = {}) => ({ id: "root", children: [{ id: PANEL, hidden,
-    size: { px }, children: [{ id: PANEL_BODY, hidden: rail }, { id: TERMINALS, hidden: rail },
-      { id: RAIL_BLOCK, hidden: !rail }] }] });
+  const tree = (px, { hidden = false, rail = false } = {}) => dock({ [PANEL]: { hidden, size: { px } },
+    [DOCK_HEAD]: { hidden: rail }, [DOCK]: { hidden: rail }, [RAIL_BLOCK]: { hidden: !rail } });
   /** @param {boolean} open */
-  const blocks = (open) => [[open ? "layout.show" : "layout.hide", { id: PANEL_BODY }],
-    [open ? "layout.show" : "layout.hide", { id: TERMINALS }],
-    [open ? "layout.hide" : "layout.show", { id: RAIL_BLOCK }]];
+  const blocks = (open) => [[open ? "layout.show" : "layout.hide", { id: DOCK_HEAD }],
+    [open ? "layout.show" : "layout.hide", { id: DOCK }], [open ? "layout.hide" : "layout.show", { id: RAIL_BLOCK }]];
   assert.equal(panelRailed(tree(RAIL, { rail: true })), true);
   assert.equal(panelRailed(tree(PANEL_PX)), false);
   assert.deepEqual(railToggle(tree(420), 368), [["layout.resize", { id: PANEL, px: RAIL }], ...blocks(false)]);
@@ -465,21 +572,46 @@ test("the right panel folds to its rail and opens again, as its toggle and a dra
     ["layout.resize", { id: PANEL, px: PANEL_PX }]);
   assert.deepEqual(railToggle(tree(420, { hidden: true }), 368), [["layout.show", { id: PANEL }],
     ["layout.resize", { id: PANEL, px: 420 }]]);
-  // dragged narrow: the rail, at its own width; dragged wide again: the stacks; hidden: nothing
+  // dragged narrow: the rail, at its own width; dragged wide again: the dock; hidden: nothing
   assert.deepEqual(railFollow(tree(120)), [...blocks(false), ["layout.resize", { id: PANEL, px: RAIL }]]);
   assert.deepEqual(railFollow(tree(300, { rail: true })), blocks(true));
   assert.deepEqual(railFollow(tree(RAIL, { rail: true })), []);
   assert.deepEqual(railFollow(tree(120, { hidden: true })), []);
+  assert.equal(panelShown(tree(420)), true);
+  assert.equal(panelShown(tree(420, { hidden: true })), false);
+  assert.equal(panelShown({ id: "root" }), false);
+  assert.equal(PANEL, "fold-panel");                       // herdr-fold's own id: the app's Settings leaves it alone
 });
 
-test("the right panel's tab shown: Files while the app's Files shows, else the view kept, Issues on GitHub", () => {
-  const tree = (active) => ({ id: "root", children: [{ id: PANEL, children: [{ id: PANEL_BODY, active }] }] });
-  assert.equal(shownTab(tree("files"), "search", true), "files");
-  assert.equal(shownTab(tree("changes"), "search", true), "search");
-  assert.equal(shownTab(tree("changes"), "issues", true), "issues");
-  assert.equal(shownTab(tree("changes"), "issues", false), "changes");
-  assert.equal(shownTab(tree("changes"), null, false), "changes");
-  assert.equal(shownTab(tree("changes"), "bogus", true), "changes");
+test("the layout's right dock: its head, the two groups, each a head over a stack of its panels, the terminals", () => {
+  const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
+  /** @type {Map<string, any>} */
+  const nodes = new Map();
+  const walk = (/** @type {any} */ node) => {
+    assert.equal(nodes.has(node.id), false, `${node.id} twice`);
+    nodes.set(node.id, node);
+    (node.children ?? []).forEach(walk);
+  };
+  walk(root);
+  const ids = (/** @type {string} */ id) => nodes.get(id).children.map((/** @type {any} */ c) => c.id);
+  assert.deepEqual(ids(PANEL), [DOCK_HEAD, DOCK, RAIL_BLOCK]);
+  assert.equal(nodes.get(PANEL).resizable, false);                               // the dock's head never drags
+  assert.deepEqual(nodes.get(DOCK_HEAD).content, { mod: "herdr-fold", props: { part: "dock-head" } });
+  assert.deepEqual(ids(DOCK), ["fold-project", "fold-work", TERMINALS]);
+  for (const [group, panels] of Object.entries(GROUPS_APP)) {
+    const column = nodes.get(`fold-${group}`), [head, body] = column.children;
+    assert.deepEqual([column.resizable, column.size], [false, { weight: GROUP_WEIGHTS[group] }]);
+    assert.deepEqual([head.size, head.content.props], [{ px: GROUP_HEAD }, { part: "group-head", group }]);
+    assert.deepEqual([body.id, body.type, body.active], [`fold-${group}-body`, "stack", panels[0]]);
+    assert.deepEqual(body.children.map((/** @type {any} */ c) => [c.id, c.content.props]), panels.map((id) =>
+      [id, id === "files" ? { part: "files" } : { view: id }]));
+  }
+});
+
+test("a menu as tall as its rows, a rule between its parts thinner", () => {
+  assert.equal(menuHeight([{ label: "a" }, { label: "b" }]), 2 * 30 + 8);
+  assert.equal(menuHeight([{ label: "a" }, null, { label: "b" }]), 2 * 30 + 11 + 8);
+  assert.equal(menuHeight([{ label: "a" }], { label: "head" }), 2 * 30 + 8);
 });
 
 test("a floating panel as tall as its content, up to TALL: Spaces' rows, Conversations' groups and open ones", () => {
@@ -674,6 +806,33 @@ test("a worktree's space under its checkout's, in order; one whose checkout has 
     row("other", null), row("wt2", { repo: "r", linked: true }), row("lone", { repo: "q", linked: true })]);
   assert.deepEqual(rows.map((r) => [r.w.id, r.tree]),
     [["main", false], ["wt1", true], ["wt2", true], ["other", false], ["lone", false]]);
+});
+
+test("a space showing the repository inside its folder is no checkout, nor a worktree under one", () => {
+  // its folder is no repository: core/git.py's place found one inside it (marked inside), which its row names
+  const row = (id, g) => ({ w: { id }, g });
+  const rows = nested([row("archive", { repo: "r", linked: false, inside: true }),
+    row("wt", { repo: "r", linked: true }), row("box", { repo: "r", linked: true, inside: true }),
+    row("main", { repo: "r", linked: false })]);
+  assert.deepEqual(rows.map((r) => [r.w.id, r.tree]),
+    [["archive", false], ["box", false], ["main", false], ["wt", true]]);
+});
+
+test("a space whose folder is no repository is looked up with its active pane's folder too", () => {
+  // the repository inside it shown is the one its active pane (the focused one of its shown tab) is in
+  const s = { machine: null, folder: "/w/made-in", tabs: [{ id: "t1", active: false }, { id: "t2", active: true }] };
+  const ps = [{ tab: "t1", cwd: "/w/archive" }, { tab: "t2", cwd: "/w/archive/one/src", focused: true },
+    { tab: "t1", cwd: "/w/archive/two", focused: true }];
+  const plain = JSON.stringify([null, "/w/archive"]);
+  const active = JSON.stringify([null, "/w/archive", "/w/archive/one/src"]);
+  assert.equal(folderKey(s, ps), plain);                                   // its first terminal's live folder
+  assert.equal(folderKey({ ...s, machine: "lab" }, []), JSON.stringify(["lab", "/w/made-in"]));
+  assert.equal(placeKey(s, ps, {}), plain);                                // not looked at yet
+  assert.equal(placeKey(s, ps, { [plain]: { repo: "r", inside: false } }), plain);     // a repository: its own
+  assert.equal(placeKey(s, ps, { [plain]: null }), active);
+  assert.equal(placeKey(s, ps, { [plain]: { repo: "r", inside: true } }), active);
+  assert.equal(placeKey(s, [ps[0], { ...ps[1], cwd: "/w/archive" }], { [plain]: null }), plain);   // in the folder
+  assert.equal(placeKey(s, [ps[0], ps[2]], { [plain]: null }), plain);    // no pane focused in its shown tab
 });
 
 test("a space without a color gets the one fewest use, as every app mod gives it; the home folder's none", () => {

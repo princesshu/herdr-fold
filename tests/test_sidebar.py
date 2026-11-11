@@ -13,10 +13,11 @@ import tempfile
 import threading
 import time
 import unittest
+from dataclasses import replace
 from unittest import mock
 
 from support import (SRC, AppScreen, FakeHerdrSocket, FakeTerminal, at_once, end_child, end_jobs, logged, set_env,
-                     stubs)
+                     stubs, text)
 
 PLUGIN = os.path.join(SRC, "plugins", "sidebar")
 sys.path.insert(0, PLUGIN)
@@ -29,6 +30,9 @@ import panels  # noqa: E402
 import preview  # noqa: E402
 import screen  # noqa: E402
 import sidebar  # noqa: E402
+from conversations import Conversation  # noqa: E402
+from git import Status  # noqa: E402
+from icons import glyphs  # noqa: E402
 from vt import Focus, Key, Mouse, Resize  # noqa: E402
 from widgets import Action  # noqa: E402
 
@@ -1176,6 +1180,190 @@ class Dock(unittest.TestCase):
         self.app.take({"show": "conversations"})
         self.assertTrue(self.app.showing("conversations"))
         self.assertNotIn("conversations", self.app.settings["hidden_panels"])
+
+
+def column_tab(n, ratio=0.75):
+    """A tab as herdr-fold lays it out: the agent, the right column of the sidebar above a terminal; panes wN:p1…3."""
+    def pane(pane_id, label):
+        return {"type": "pane", "pane_id": pane_id, "label": label}
+    return {"type": "split", "direction": "right", "ratio": ratio, "first": pane(f"w{n}:p1", "claude"),
+            "second": {"type": "split", "direction": "down", "ratio": 0.5, "first": pane(f"w{n}:p2", "sidebar"),
+                       "second": pane(f"w{n}:p3", "terminal")}}
+
+
+class Rail(unittest.TestCase):
+    """The dock folded to its rail by the head's », in every tab: each panel's icon over its short name, a press opening
+    its group beside the rail, « opening the dock again; every tab's column and terminal with it."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(dir="/tmp")                 # a socket's name has room for 104 bytes
+        self.addCleanup(shutil.rmtree, self.tmp)
+        sock = os.path.join(self.tmp, "h.sock")
+        set_env(self, HERDR_PANE_ID="w1:p2", HOME=self.tmp, HERDR_SOCKET_PATH=sock)
+        self.fake = FakeHerdrSocket(sock, {"w1:t1": (column_tab(1), False), "w2:t1": (column_tab(2), False)})
+        self.addCleanup(self.fake.server.close)
+        self.addCleanup(end_jobs)                       # before the folders go: a job of the dock's writes there
+        self.state = os.path.join(self.tmp, "state")
+        self.app = self.sidebar()
+
+    def sidebar(self):
+        return sidebar.App(self.tmp, FakeTerminal(45, 30), mock.Mock(call=self.fake.cli), self.state)
+
+    def settle(self, app=None):
+        """The dock's jobs done and answered, one asked again meanwhile too."""
+        for _ in range(3):
+            end_jobs()
+            (app or self.app).collect()
+
+    def press(self, target):
+        """A click on what answers to TARGET as last drawn."""
+        self.app.draw()
+        y, x = next((y, x0) for y, x0, _x1, found in reversed(self.app.canvas.regions) if found == target)
+        self.app.handle(Mouse("press", x, y, 0))
+        self.settle()
+
+    def folded(self):
+        """The dock folded to its rail, the pane as narrow as herdr then makes it: 9 cells inside its frame."""
+        self.press("to_rail")
+        self.app.term.cols = 9
+
+    def rows(self):
+        self.app.draw()
+        return [text(self.app.canvas, y).rstrip() for y in range(self.app.canvas.height)]
+
+    def ratio(self, tab="w1:t1"):
+        return self.fake.tabs[tab][0]["ratio"]
+
+    def test_the_rail_draws_each_panel_its_short_name_under_its_icon(self):
+        marks = glyphs(True)
+        self.app.hide("search", True)                                      # hidden in the ⋯: left out
+        waiting = Conversation("claude", "c1", "Fix the page", self.tmp, 0.0, "blocked", "w1:p1")
+        self.app.work["conversations"].view.items = [waiting]
+        self.app.status = Status(staged=["a.py"], changes=["b.py"])
+        self.folded()
+        self.assertEqual(self.rows()[:10], [" «", f"    {marks['ai']} ●", "  Chats", "", f"    {marks['files']}",
+                                            "  Files", "", f"    {marks['git']} 2", " Changes", ""])
+        canvas = self.app.canvas
+        self.assertEqual([canvas.rows[1][6][1].fg, canvas.rows[7][6][1].fg], ["modified", "modified"])
+        self.assertEqual([canvas.rows[1][4][1].fg, canvas.rows[2][2][1].fg], ["subtext", "muted"])
+        self.app.work["conversations"].view.items = [replace(waiting, state="working")]
+        self.assertEqual(self.rows()[1], f"    {marks['ai']}")                 # none waits: no dot
+
+    def test_a_press_opens_its_group_beside_the_rail_and_lights_it(self):
+        self.folded()
+        self.press("icon:changes")
+        # the column as wide as chosen (the default quarter of 200 cells) and the rail's 9 cells besides
+        self.assertIn(("layout.set_split_ratio", {"tab_id": "w1:t1", "path": [], "ratio": 0.705}), self.fake.calls)
+        self.assertEqual(self.ratio("w2:t1"), 0.9)                          # another tab's stays the rail
+        self.app.status = Status(changes=["b.py"])                          # after the look its coming asked for
+        self.app.term.cols = 57                                             # as herdr then makes it
+        rows, canvas, edge = self.rows(), self.app.canvas, 57 - 9
+        self.assertEqual(rows[0][:edge].rstrip(), " Changes 1")                  # its group's head, no fold
+        self.assertEqual((canvas.rows[0][1][1].fg, canvas.rows[0][1][1].bold), ("accent", True))
+        self.assertEqual((rows[0][edge + 1], canvas.hit(edge + 1, 0), rows[0].strip()[-1]), ("«", "to_dock", "⋯"))
+        self.assertEqual((rows[9][edge], canvas.rows[9][edge + 4][1].fg), ("▌", "accent"))       # Changes lit
+        self.assertEqual(canvas.rows[10][edge + 1][1], screen.Style(fg="accent", bold=True))
+        self.assertEqual([y for y in range(30) if "Search" in rows[y][:edge]], [])  # no other group beside it
+        self.assertEqual(self.app.keyed(), "changes")
+
+    def test_the_lit_icon_or_esc_folds_it_back(self):
+        self.folded()
+        self.press("icon:changes")
+        self.press("icon:changes")                                          # the lit one again
+        self.assertEqual((self.app.flyout, self.ratio()), (None, 0.9))      # the rail's width again
+        self.press("icon:files")
+        files = self.app.views["files"]
+        files.open_menu(None, 5, 5)
+        self.app.handle(Key("esc"))                                         # its menu first
+        self.assertEqual((files.menu, self.app.flyout), (None, "project"))
+        self.app.handle(Key("esc"))
+        self.settle()
+        self.assertEqual((self.app.flyout, self.ratio()), (None, 0.9))
+
+    def test_the_heads_double_chevron_folds_every_tabs_dock_and_the_rails_opens_it(self):
+        self.app.draw()
+        self.assertEqual((text(self.app.canvas, 0)[45 - 8], self.app.canvas.hit(45 - 8, 0)), ("»", "to_rail"))
+        self.app.point("to_rail", 37, 0)
+        self.assertEqual(self.app.tip[1], "Collapse to icons")
+        self.folded()
+        self.assertTrue(sidebar.column.railed(self.state))
+        for n in (1, 2):                                                    # each tab's terminal under its agent
+            self.assertEqual((self.ratio(f"w{n}:t1"), self.fake.tabs[f"w{n}:t1"][0]["first"]["second"]["pane_id"]),
+                             (0.9, f"w{n}:p3"))
+        self.assertEqual((self.rows()[0], self.app.canvas.hit(1, 0)), (" «", "to_dock"))
+        self.app.point("to_dock", 1, 0)
+        self.assertEqual(self.app.tip[1], "Expand panels")
+        self.press("to_dock")
+        self.assertFalse(sidebar.column.railed(self.state))
+        self.assertEqual(self.fake.tabs, {"w1:t1": [column_tab(1), False], "w2:t1": [column_tab(2), False]})
+
+    def test_another_tabs_sidebar_follows_at_its_next_look(self):
+        other = self.sidebar()
+        self.folded()
+        other.next_poll = 0
+        other.tick()
+        self.assertTrue(other.railed)
+
+    def test_on_the_rail_a_panels_key_opens_it_beside_the_rail(self):
+        self.folded()
+        self.assertEqual([panel for panel in self.app.panels() if self.app.showing(panel)], [])
+        self.app.handle(Key("f10"))
+        self.settle()
+        self.assertEqual((self.app.flyout, self.app.shown("project")), ("project", "search"))
+        self.assertEqual([panel for panel in self.app.panels() if self.app.showing(panel)], ["search"])
+
+    def test_a_sidebar_started_on_the_rail_sets_its_tab(self):
+        # a new tab's, a preview tab's: its column the rail, its terminal under its agent; another tab's left as is
+        sidebar.column.keep(self.state, {"rail": True})
+        new = self.sidebar()
+        new.resume()
+        self.settle(new)
+        self.assertEqual((self.ratio(), self.fake.tabs["w1:t1"][0]["first"]["second"]["pane_id"]), (0.9, "w1:p3"))
+        self.assertEqual(self.fake.tabs["w2:t1"], [column_tab(2), False])
+
+    def test_a_rail_never_widens_for_its_heads(self):
+        self.folded()
+        self.app.need(sidebar.column.NARROWEST)
+        self.assertEqual(self.ratio(), 0.9)
+
+    def test_the_menus_show_terminal_on_the_rail_brings_it_under_the_agent(self):
+        self.folded()
+        self.press("icon:changes")
+        self.app.term.cols = 57                                             # the ⋯ beside the rail
+        root = self.fake.tabs["w1:t1"][0]
+        root["first"] = root["first"]["first"]                              # the terminal closed by hand
+        self.press("panels")
+        self.press(f"menu:{self.app.menu[0].choices.index('Show terminal')}")
+        self.assertEqual([root["first"]["first"]["pane_id"], root["first"]["second"]["label"], root["second"]["label"]],
+                         ["w1:p1", "terminal", "sidebar"])
+
+    def test_a_tab_whose_agent_was_zoomed_catches_up_once_shown(self):
+        self.fake.tabs["w2:t1"][1] = True                                   # its column off screen: left as it was
+        self.folded()
+        self.assertEqual((self.fake.tabs["w2:t1"][0], sidebar.column.kept(self.state)["owed"]),
+                         (column_tab(2), ["w2:p2"]))
+        set_env(self, HERDR_PANE_ID="w2:p2")
+        other = self.sidebar()                                              # that tab's own sidebar
+        other.next_poll = 0
+        other.tick()
+        self.settle(other)
+        self.assertEqual(self.fake.tabs["w2:t1"][0], column_tab(2))         # still zoomed
+        self.assertLessEqual(other.next_poll - time.monotonic(), 1.0)       # looked at again soon
+        self.fake.tabs["w2:t1"][1] = False                                  # shown again
+        other.next_poll = 0
+        other.tick()
+        self.settle(other)
+        self.assertEqual((self.ratio("w2:t1"), self.fake.tabs["w2:t1"][0]["first"]["second"]["pane_id"]),
+                         (0.9, "w2:p3"))
+        self.assertEqual(sidebar.column.kept(self.state)["owed"], [])
+
+    def test_a_panel_opened_beside_the_rail_comes_back_after_a_handover(self):
+        self.folded()
+        self.press("icon:changes")
+        new = self.sidebar()
+        new.take(self.app.left())
+        self.settle(new)
+        self.assertEqual(new.flyout, "work")
 
 
 class Ticks:

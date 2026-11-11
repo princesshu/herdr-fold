@@ -1,6 +1,6 @@
-"""The right column's width, the same in every tab: dragged in one tab, it sets every other tab's. A tab splits as
-agent | right column. Set through herdr's socket API (its command line cannot set a split), to the cell: a first side
-is round(width x ratio)."""
+"""The right column's width, the same in every tab: dragged in one tab, it sets every other tab's; and so is the dock
+folded to its rail, kept beside the width it opens to. A tab splits as agent | right column. Set through herdr's
+socket API (its command line cannot set a split), to the cell: a first side is round(width x ratio)."""
 import json
 import os
 import socket
@@ -16,9 +16,10 @@ TOLERANCE = 0.002           # shares this close are the same width (a cell is ab
 LIMITS = (0.3, 0.9)         # a remembered share: outside this nobody chose it (a tab too small, or a stray value)
 SPLIT = (0.1, 0.9)          # the shares herdr lets a split have
 SETTLE = 0.2                # seconds a tab's widths stay put before a pane takes them as chosen
-NARROWEST = 29              # the right column's cells inside herdr's frame: the widest group's head and the ⋯
-FEWEST = 23                 # the same without Issues: what a tab's sidebar takes at least
+NARROWEST = 31              # the right column's cells inside herdr's frame: the widest group's head, the » and ⋯
+FEWEST = 25                 # the same without Issues: what a tab's sidebar takes at least
 FRAME = 2                   # herdr's frame round a pane, in cells, where it is not measured
+RAIL = 9                    # the rail's cells inside herdr's frame: Changes under its icon, a cell of air each side
 
 
 def socket_path():
@@ -89,11 +90,11 @@ def find(node, label, path=()):
     return find(node.get("first") or {}, label, (*path, False)) or find(node.get("second") or {}, label, (*path, True))
 
 
-def columns(found):
+def columns(found, label=SIDEBAR):
     """The columns in FOUND (a tab's layout.export), or None when it has no right column: the innermost split to the
-    right whose second side holds the sidebar."""
+    right whose second side holds the sidebar (or the pane named LABEL)."""
     root = found.get("root") or {}
-    path = find(root, SIDEBAR)
+    path = find(root, label)
     if path is None:
         return None
     for depth in range(len(path) - 1, -1, -1):
@@ -229,15 +230,54 @@ def settled(pane):
     return second
 
 
-def others(pane):
-    """Every other tab's columns: a tab with a sidebar."""
+def sidebars():
+    """{tab: its sidebar's pane} of every tab with one; none without herdr."""
     try:
         panes = call("pane.list", {}).get("panes") or []
     except OSError:
-        return []
-    sidebars = {p["tab_id"]: p["pane_id"] for p in panes if p.get("label") == SIDEBAR}
-    here = next((p["tab_id"] for p in panes if p.get("pane_id") == pane), None)
-    return [tab for tab in (read(other) for name, other in sidebars.items() if name != here) if tab]
+        return {}
+    return {p["tab_id"]: p["pane_id"] for p in panes if p.get("label") == SIDEBAR}
+
+
+def others(pane):
+    """Every other tab's columns than that of PANE, its sidebar: a tab with a sidebar."""
+    return [tab for tab in (read(other) for other in sidebars().values() if other != pane) if tab]
+
+
+def hidden(pane):
+    """Whether PANE's tab has its agent zoomed, its right column off screen."""
+    try:
+        return bool((call("layout.export", {"pane_id": pane}).get("layout") or {}).get("zoomed"))
+    except OSError:
+        return False
+
+
+def owe(state_dir, done, skipped, alive=None):
+    """FILE's "owed": the sidebars whose tab the dock's fold left as it was (its agent zoomed: SKIPPED), each to set
+    its own once shown again; the ones set now (DONE) off it, and with ALIVE (every sidebar there is) the gone ones."""
+    def owed(found):
+        before = found.get("owed") if isinstance(found.get("owed"), list) else []
+        left = {pane for pane in before if pane not in done and (alive is None or pane in alive)}
+        return {**found, "owed": sorted(left | set(skipped))}
+
+    found = kept(state_dir)
+    if owed(found)["owed"] != (found.get("owed") or []):
+        change(state_dir, owed)
+
+
+def railed(state_dir):
+    """Whether the dock is folded to its rail, in every tab (FILE's "rail", beside the width it opens to)."""
+    return kept(state_dir).get("rail") is True
+
+
+def width(state_dir, tab, rail=False, beside=False):
+    """TAB's right column's share (TAB.cells known): as wide as last chosen, never narrower than its sidebar's heads
+    (least()); on the RAIL, RAIL cells inside the frame (herdr keeps a tenth of the tab at least: share()); with a
+    panel opened BESIDE the rail, the width chosen and the rail's cells."""
+    opened = max(1 - (saved(state_dir) or RIGHT), (least(state_dir, tab.tab) + FRAME) / tab.cells)
+    if not rail:
+        return opened
+    return opened + RAIL / tab.cells if beside else (RAIL + FRAME) / tab.cells
 
 
 def frame(tab, pane, inside):

@@ -6,7 +6,7 @@ import { h_flex, v_flex, Input, InputState } from "gpui-base";
 import { home, setShared, shared, spaces, window, run as command } from "herdr";
 import { FILEOPS, MEDIA, TREE } from "./helper.js";
 import { changeColor, changeName, fileIcon, fileRows, folderIcon, letter, mediaKind, opener, said } from "./logic.js";
-import { END, fileMark, GAP, icon, iconButton, small } from "./parts.js";
+import { BUTTON, END, fileMark, GAP, icon, iconButton, PAD, small } from "./parts.js";
 import { Menus } from "./menus.js";
 import { followFolder } from "./panel.js";
 import { showPreview, shownPreviewTab } from "./preview.js";
@@ -240,15 +240,16 @@ export class FilesView {
     return v_flex().id("files").size_full().min_h(0).text_color(t.foreground).text_size(13)
       .on_key_down((e, cx) => e.key === "escape" && this.drop(cx))
       .child(this.toolbar(t))
-      .child(this.root ? this.tree(t) : div().p(16).text_size(12).text_color(t.dim).child("No folder"))
-      .when(Boolean(this.note), (e) => e.child(div().px(12).py(6).text_size(11).text_color(t.ansi1)
+      .child(this.root ? this.tree(t) : div().p(PAD).text_size(12).text_color(t.dim).child("No folder"))
+      .when(Boolean(this.note), (e) => e.child(div().px(PAD).pt(PAD / 2).pb(PAD).text_size(11).text_color(t.ansi1)
         .child(this.note ?? "")));
   }
 
   /** The folder's name, and as VS Code's Explorer has them: New File, New Folder, Refresh, Collapse; hidden files. */
   toolbar(t) {
     const name = this.root?.split(/[\\/]/).pop() ?? "";
-    return h_flex().h(36).flex_none().px(8).gap(GAP).items_center()
+    // its buttons' pads halfway in from the card's side and the head, their icons PAD in, as every first row's
+    return h_flex().h(PAD + BUTTON).flex_none().pl(PAD).pr(PAD / 2).gap(GAP).items_center()
       .child(div().flex_1().min_w(0).truncate().text_size(11).font_semibold().text_color(t.muted)
         .child(name.toUpperCase()))
       .child(iconButton(t, "files-new-file", "file-plus", "New File", (cx) => this.name("new-file", "", cx)))
@@ -269,7 +270,8 @@ export class FilesView {
       rows.splice(at, 0, { naming: true, depth, dir: naming.action === "new-folder" });
     }
     const draw = (r) => (r.naming ? this.newRow(t, r) : r.path === null ? this.moreRow(t, r) : this.row(t, r));
-    return v_flex().id("files-tree").flex_1().min_h(0).overflow_y_scrollbar().px(4).pb(6).children(rows.map(draw));
+    return v_flex().id("files-tree").flex_1().min_h(0).overflow_y_scrollbar().px(PAD / 2).pb(PAD / 2)
+      .children(rows.map(draw));
   }
 
   /** An entry's row, as the TUI's: a folder's arrow, its icon, its name in git's color (what git ignores faint); a

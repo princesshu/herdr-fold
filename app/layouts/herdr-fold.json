@@ -11,7 +11,7 @@
   ],
   "background": "canvas",
   "terminal_padding": [
-    14,
+    12,
     12
   ],
   "divider": {
@@ -172,82 +172,176 @@
               },
               "min": 76,
               "max": 900,
+              "resizable": false,
+              "gap": 8,
               "children": [
                 {
-                  "id": "fold-panel-body",
-                  "type": "stack",
-                  "active": "changes",
-                  "background": "background",
-                  "border": {
-                    "width": 1,
-                    "color": "border"
-                  },
-                  "radius": 10,
-                  "header": {
-                    "content": {
-                      "mod": "herdr-fold",
-                      "props": {
-                        "part": "panel-tabs"
-                      }
-                    },
-                    "height": 40
-                  },
-                  "children": [
-                    {
-                      "id": "files",
-                      "type": "block",
-                      "content": {
-                        "mod": "herdr-fold",
-                        "props": {
-                          "part": "files"
-                        }
-                      }
-                    },
-                    {
-                      "id": "changes",
-                      "type": "block",
-                      "content": {
-                        "mod": "herdr-fold"
-                      }
-                    }
-                  ],
+                  "id": "fold-dock-head",
+                  "type": "block",
                   "size": {
-                    "weight": 3
+                    "px": 36
+                  },
+                  "content": {
+                    "mod": "herdr-fold",
+                    "props": {
+                      "part": "dock-head"
+                    }
                   }
                 },
                 {
-                  "id": "fold-terminals",
-                  "type": "stack",
-                  "size": {
-                    "weight": 2
-                  },
-                  "min": 120,
-                  "background": "background",
-                  "border": {
-                    "width": 1,
-                    "color": "border"
-                  },
-                  "radius": 10,
-                  "header": {
-                    "content": {
-                      "mod": "herdr-fold",
-                      "props": {
-                        "part": "terminal"
-                      }
-                    },
-                    "height": 0
-                  },
-                  "active": "fold-terminal-none",
+                  "id": "fold-dock",
+                  "type": "column",
+                  "gap": 8,
                   "children": [
                     {
-                      "id": "fold-terminal-none",
-                      "type": "block",
-                      "content": {
-                        "mod": "herdr-fold",
-                        "props": {
-                          "part": "none"
+                      "id": "fold-project",
+                      "type": "column",
+                      "size": {
+                        "weight": 2
+                      },
+                      "resizable": false,
+                      "background": "background",
+                      "border": {
+                        "width": 1,
+                        "color": "border"
+                      },
+                      "radius": 10,
+                      "children": [
+                        {
+                          "id": "fold-project-head",
+                          "type": "block",
+                          "size": {
+                            "px": 36
+                          },
+                          "content": {
+                            "mod": "herdr-fold",
+                            "props": {
+                              "part": "group-head",
+                              "group": "project"
+                            }
+                          }
+                        },
+                        {
+                          "id": "fold-project-body",
+                          "type": "stack",
+                          "active": "files",
+                          "children": [
+                            {
+                              "id": "files",
+                              "type": "block",
+                              "content": {
+                                "mod": "herdr-fold",
+                                "props": {
+                                  "part": "files"
+                                }
+                              }
+                            },
+                            {
+                              "id": "search",
+                              "type": "block",
+                              "content": {
+                                "mod": "herdr-fold",
+                                "props": {
+                                  "view": "search"
+                                }
+                              }
+                            }
+                          ]
                         }
-                      }
+                      ]
+                    },
+                    {
+                      "id": "fold-work",
+                      "type": "column",
+                      "size": {
+                        "weight": 3
+                      },
+                      "resizable": false,
+                      "background": "background",
+                      "border": {
+                        "width": 1,
+                        "color": "border"
+                      },
+                      "radius": 10,
+                      "children": [
+                        {
+                          "id": "fold-work-head",
+                          "type": "block",
+                          "size": {
+                            "px": 36
+                          },
+                          "content": {
+                            "mod": "herdr-fold",
+                            "props": {
+                              "part": "group-head",
+                              "group": "work"
+                            }
+                          }
+                        },
+                        {
+                          "id": "fold-work-body",
+                          "type": "stack",
+                          "active": "changes",
+                          "children": [
+                            {
+                              "id": "changes",
+                              "type": "block",
+                              "content": {
+                                "mod": "herdr-fold",
+                                "props": {
+                                  "view": "changes"
+                                }
+                              }
+                            },
+                            {
+                              "id": "issues",
+                              "type": "block",
+                              "content": {
+                                "mod": "herdr-fold",
+                                "props": {
+                                  "view": "issues"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "fold-terminals",
+                      "type": "stack",
+                      "size": {
+                        "weight": 2
+                      },
+                      "min": 120,
+                      "background": "background",
+                      "border": {
+                        "width": 1,
+                        "color": "border"
+                      },
+                      "radius": 10,
+                      "header": {
+                        "content": {
+                          "mod": "herdr-fold",
+                          "props": {
+                            "part": "terminal"
+                          }
+                        },
+                        "height": 0
+                      },
+                      "active": "fold-terminal-none",
+                      "children": [
+                        {
+                          "id": "fold-terminal-none",
+                          "type": "block",
+                          "content": {
+                            "mod": "herdr-fold",
+                            "props": {
+                              "part": "none"
+                            }
+                          }
+                        }
+                      ]
                     }
                   ]
                 },
@@ -262,8 +356,7 @@
                     }
                   }
                 }
-              ],
-              "gap": 8
+              ]
             }
           ]
         },

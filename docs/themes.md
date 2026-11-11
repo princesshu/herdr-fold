@@ -24,7 +24,7 @@ icon](../assets/screenshots/themes.webp)
 
 - Ghostty's colors;
 - herdr's colors, the Spaces and Sessions highlight too, and the Spaces list's labels: `waiting 12m` in the theme's
-  yellow, `deleted` in its red;
+  yellow, `deleted` in its red, and a repository's branch inside a folder that is not one in the labels' gray;
 - the prompt's colors;
 - the sidebar's colors (`herdr-fold.sidebar`), in its state folder; a running sidebar switches at once;
 - in the Herdr app, herdr-fold's layout: its `theme` names the theme's `themes/herdr-fold-<id>.json`, and a running

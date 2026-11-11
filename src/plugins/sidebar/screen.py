@@ -159,6 +159,14 @@ class Canvas:
         """As region(), but under every other one, whenever it is laid."""
         self.regions.insert(0, (y, x0, x1, target))
 
+    def paste(self, part):
+        """PART, a canvas as tall and narrower, over this one's left side: its cells, what answers its clicks, its
+        cursor."""
+        for row, cells in zip(self.rows, part.rows):
+            row[:len(cells)] = cells
+        self.regions += part.regions
+        self.cursor = part.cursor or self.cursor
+
     def hit(self, x, y):
         for ry, x0, x1, target in reversed(self.regions):
             if ry == y and x0 <= x < x1:

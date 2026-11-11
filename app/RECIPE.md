@@ -11,13 +11,15 @@ in the space's preview tab. Twelve themes come with it.
 
 - Left, the sidebar, 268 px (76 to 480; folded, a 76 px dock): the app's own brand row (46 px), then Spaces and
   Conversations sharing the rest (each 90 px at least, the edge between them dragged), the app's footer (69 px).
-- Top, 42 px: herdr-fold's own tab bar, the space's tabs as pills 28 px high, radius 6, + after the last one, the
-  right panel's toggle at the end; off macOS the window's buttons too.
+- Top, 42 px: herdr-fold's own tab bar, the space's tabs as pills 28 px high, radius 6, + after the last one, « at
+  the end while the dock is a rail; off macOS the window's buttons too.
 - Middle, the active tab's panes, 8 px apart and from the edges, radius 10, a 1 px border, the focused one in the
-  accent color; terminals in Menlo 13 (padding 14 by 12).
-- Right, the panel, 368 px (76 to 900): a panel group of Files, Search, Changes (its changed files' count in a round
-  badge) and, for a repository on GitHub, Issues, as tabs on its 40 px header; under it (two fifths of the height,
-  120 px at least) the tab's own terminal.
+  accent color; terminals in Menlo 13 (padding 12 on every side).
+- Right, the dock, 368 px (76 to 900): its head, 36 px, with ⋯ and »; under it two panel groups, Files and Search
+  (two sevenths of the height), then Changes (its changed files' count in a round accent badge) and, for a repository
+  on GitHub, Issues (three sevenths), each rounded 10 with a 1 px border, a 36 px head (its fold, its tabs 24 px high
+  12 px under its top, the shown one raised) over its view, 12 px inside on every side; then (two sevenths, 120 px at
+  least) the tab's own terminal; 8 px between them. The dock is open or its rail, never hidden.
 - Bottom, the app's status bar, 28 px.
 - Colors are the theme's roles (canvas, chrome, background, border, accent, the ansi colors for states); fonts the
   app's, code in Menlo.
@@ -40,20 +42,26 @@ in the space's preview tab. Twelve themes come with it.
   page, a PDF or a picture on this Mac), New Workspace (a folder).
 - Search: ripgrep (else git grep) as you type, with case, word and regex switches. Issues: by priority, filters,
   hand one to the tab's agent, reply, assign, close.
-- The panel's toggle or Cmd + Shift + G folds the panel to a rail of icons; a press floats a view beside it. The
-  left sidebar folds the same way.
-- Keys (`layout:herdr-fold`): Cmd + Shift + G the panel, Cmd + Shift + C commit and push, Cmd + Shift + I Issues,
-  Cmd + Shift + R Conversations, Cmd + Shift + U mark the agent unread.
+- A group's chevron folds it to its head, a tab shows its view and opens it; each group's tab, fold and size are
+  kept. The dock's ⋯ shows or hides each panel (one always stays) and has herdr-fold's version; » folds the dock to
+  a rail of icons, « at the tab bar's end opens it again; a press floats a view beside the rail. The left sidebar
+  folds the same way.
+- Keys (`layout:herdr-fold`): Cmd + Shift + G Changes, Cmd + Shift + F Search, Cmd + Shift + I Issues, each shown in
+  its group, opened; Cmd + Shift + C commit and push, Cmd + Shift + R Conversations, Cmd + Shift + U mark the agent
+  unread.
 
 ## Built from
 
 - `layouts/herdr-fold.json`: a row of `sidebar` (column: `brand` block, `sidebar-lists` column of `spaces` and
   `conversations` blocks, `sidebar-footer` block) and `work` (column: `top` row of `sidebar-trigger` and `tabs`
-  blocks, `work-body` row of `main` (the active tab) and `fold-panel` (column: `fold-panel-body` stack of `files` and
-  `changes` with a 40 px header, `fold-terminals` stack, `panel-rail` block), `status` block). Theme `herdr-fold`
+  blocks, `work-body` row of `main` (the active tab) and `fold-panel` (column: `fold-dock-head` block, `fold-dock`
+  column of the groups `fold-project` and `fold-work`, each a column of its `-head` block over its `-body` stack of
+  `files` and `search`, `changes` and `issues`, then the `fold-terminals` stack; `panel-rail` block), `status`
+  block). Theme `herdr-fold`
   (or `herdr-fold-<theme>` from herdr-fold's installer), font Menlo 13, no titlebar, traffic lights at 12, 16.
-- `mods/herdr-fold/`, one mod drawn by its `props.part`: `spaces`, `conversations`, `trigger`, `tabs`, `panel-tabs`,
-  `files`, Changes (no part), `terminal` (the stack's header), `none`, `rail`; as overlays `float`, `float-head`,
+- `mods/herdr-fold/`, one mod drawn by its `props.part`: `spaces`, `conversations`, `trigger`, `tabs`, `dock-head`,
+  `group-head` (its `group`), `files`, a view (no part, its `view`: `changes`, `search`, `issues`), `terminal` (the
+  stack's header), `none`, `rail`; as overlays `float`, `float-head`,
   `menu`; as tabs `preview` and `styleguide`. The shipped `workspace-chrome` (brand, footer) and `workspace-status`.
 - herdr functions: `spaces`, `panes`, `agents`, `knownAgents`, `focused`, `machines`, `terminals`, `layout`,
   `settings`, `theme`, `props`, `shared` / `setShared`, `readTextFile`, `watchFolder`, `exec`, `hc`, `home`, `run`,
@@ -76,6 +84,8 @@ in the space's preview tab. Twelve themes come with it.
 - `.tooltip()` cannot choose its side: a tip at the right edge is a `HoverCard` anchored to open left.
 - `overflow_x_scrollbar()` grows its container; `overflow_x_scroll()` does not.
 - A running app keeps shared values and writes them back: close it before taking them off.
+- `<mod>.<command>` reaches shown copies only: the tab bar, always shown, hands a key on to its view's copy through a
+  shared value, the view shown first (a copy starts the first time it shows).
 - Many tabs of the mod opened and closed, or many reloads, can run the script engine out of memory: the app then
   draws the last good frame; quitting and opening it again helps.
 - Without Python 3 and git on a machine, its spaces show nothing; Issues need gh signed in there.
@@ -90,4 +100,5 @@ in the space's preview tab. Twelve themes come with it.
 - In a repository on GitHub, Issues lists the issues by priority, and To agent hands one to the tab's Claude.
 - A file clicked in Files opens in the preview tab; an image or a PDF is drawn there.
 - Spaces says `waiting` beside a space whose agent waits on you; Conversations reopens a closed conversation.
-- Cmd + Shift + G folds the panel to its rail and opens it again; the tab's terminal runs on the space's machine.
+- » folds the dock to its rail and « opens it again; Cmd + Shift + F shows Search, its field taking the keys; a
+  panel unchecked in ⋯ leaves its group; the tab's terminal runs on the space's machine.

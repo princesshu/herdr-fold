@@ -4,14 +4,14 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState, TextareaState } from "gpui-base";
 import { BY_EXTENSION, BY_NAME, FILE, ICONS } from "./icons.js";
-import { aboutLines, commitRows, conversationRows, diffRows, foldedSections, listHeight, pushOffer, RAIL, searchRows }
-  from "./logic.js";
+import { aboutLines, commitRows, conversationRows, diffRows, FOLDED_GROUP, foldedSections, GROUP_HEAD, GROUPS_APP,
+  listHeight, menuHeight, panelChoices, PANEL_NAMES, pushOffer, RAIL, searchRows } from "./logic.js";
 import { Answer } from "./card.js";
 import { Chat } from "./chat.js";
 import { ConversationsView } from "./conversations.js";
 import { IssuesView } from "./issues.js";
-import { button, chip, fileMark, icon, small, SPACE } from "./parts.js";
-import { panelTabs, rail } from "./panel.js";
+import { button, chip, fileMark, icon, PAD, small, SPACE } from "./parts.js";
+import { dockHead, groupHead, rail } from "./panel.js";
 import { Menus, menuPopup } from "./menus.js";
 import { Preview } from "./preview.js";
 import { dock, floatHead, floatPanel, sidebarTrigger, spacesFloat } from "./sidebar.js";
@@ -31,6 +31,10 @@ const INERT = ["act", "change", "choose", "commit", "fold", "later", "pick", "re
   "submit", "sync", "unask", "unlink", "watch", "write"];
 const INERT_ISSUES = ["act", "change", "filter", "load", "open", "terminal", "toAgent", "unask"];
 const INERT_CONVERSATIONS = ["ask", "copy", "load", "look", "open", "pick", "rename", "watch"];
+const INERT_HEAD = { pick: () => {}, fold: () => {} };      // a group head's clicks
+/** A layout's right dock with Search hidden from its ⋯, for the ⋯'s panels. */
+const DOCKED = { id: "root", children: Object.values(GROUPS_APP).flat()
+  .map((id) => ({ id, hidden: id === "search" })) };
 
 const STAGED = [{ path: "src/lumen/routes/books.py", code: "M" }];
 const CHANGES = [{ path: "docs/api.md", code: "M" }, { path: "src/lumen/pagination.py", code: "?" },
@@ -264,9 +268,12 @@ export function guide(proto, cx) {
   const nothing = { total: 0, files: 0, hits: [], error: null };
   return {
     base: at(),
-    tabs: ["files", "search", "changes", "issues"].map((shown) => [`${shown[0].toUpperCase()}${shown.slice(1)} shown`,
-      { shown, github: true, changed: CHANGED }]).concat([["Not on GitHub", { shown: "changes", github: false,
-      changed: CHANGED }]]),
+    heads: [["Default: Files shown", { group: "project", shown: "files" }],
+      ["Hover: the pointer on Search", { group: "project", shown: "files", hovered: "search" }],
+      ["Folded: its head alone", { group: "project", shown: "files", folded: true }],
+      ["Changes shown, its count in the accent badge", { group: "work", shown: "changes" }],
+      ["Issues shown", { group: "work", shown: "issues" }],
+      ["Not on GitHub: no Issues", { group: "work", shown: "changes", tabs: ["changes"] }]],
     repository: [["In sync", at({ status: { ...STATUS, ahead: 0, behind: 0 } })], ["Behind and ahead", at()],
       ["No upstream", at({ status: { ...STATUS, upstream: null } })],
       ["Folded", at({ folded: foldedSections(["repositories"]) })]],
@@ -383,10 +390,14 @@ function sections(g, t) {
   // the preview tab's specimens, each [name, preview, height], two side by side, the first with what it is made of
   const tabs = (id, specimens) => specimens.map(([name, preview, h], i) => specimen(t, `${id}-${i}`, name,
     fixed(h, preview.render(t, "Menlo")), { width: TAB, spec: i ? "" : "Menlo 13 · h 22 · numbered once" }));
-  // a view as the right panel's stack frames it, under the group's tabs
-  const stack = (shown, view) => fixed(600, v_flex().size_full().rounded(10).overflow_hidden().border_1()
-    .border_color(t.border).child(div().h(40).flex_none()
-      .child(panelTabs(t, { shown, github: true, changed: CHANGED }))).child(view));
+  // a group's head as its layout block draws it: its tabs (on GitHub, Changes with its count), the shown one, its fold
+  const head = ({ group, shown, folded = false, hovered = null, tabs = GROUPS_APP[group] }) => div().h(GROUP_HEAD)
+    .flex_none().child(groupHead(t, { group, tabs: tabs.map((id) => [id, PANEL_NAMES[id]]), shown, folded,
+      counts: { changes: CHANGED }, hovered }, INERT_HEAD));
+  // a group as the right dock frames it: its head over the view it shows; folded, its head alone
+  const framed = (h, content) => fixed(h, v_flex().size_full().rounded(10).overflow_hidden().border_1()
+    .border_color(t.border).bg(t.background).child(content));
+  const stack = (group, shown, view) => framed(600, v_flex().size_full().child(head({ group, shown })).child(view));
   const trees = (id, list, spec) => list.map(([name, view], i) => specimen(t, `${id}-${i}`, name,
     fixed(320, view.draw(t)), { spec: i ? "" : spec }));
   const [lucide, fileTypes] = icons(t);
@@ -429,10 +440,13 @@ function sections(g, t) {
         { width: 2 * PANEL, spec: "h 28 · px 12, 8 by the × · radius 6 · gap 4, 6 inside · × shown and on hover" }),
       specimen(t, "tab-bar-buttons", "Off macOS: the window's buttons",
         div().h(42).child(tabBar(t, { maximized: false }, null)),
-        { width: 2 * PANEL, spec: "+ after the last tab · the panel's toggle, the window's own: tips to the left" }),
+        { width: 2 * PANEL, spec: "+ after the last tab · « while the dock is a rail · the window's own: tips left" }),
     ])]],
-    ["tabs", [group(t, "Panel tabs", [...g.tabs.map(([name, state], i) => specimen(t, `tabs-${i}`, name,
-        div().h(40).child(panelTabs(t, state)), { spec: i ? "" : "h 28 · radius 6 · gap 4 · the shown one raised" }))]),
+    ["tabs", [group(t, "Group head", g.heads.map(([name, state], i) => specimen(t, `head-${i}`, name,
+        head(state),
+        { spec: i ? "" : "h 36 · tabs h 24, 12 under the top · the fold's chevron 12 in · px 8 · radius 6 · gap 4" }))),
+      group(t, "Dock head", [specimen(t, "dock-head", "Over the groups: ⋯ and »", div().h(36)
+        .child(dockHead(t, {}, () => {})), { spec: "h 36 · ⋯ the Panels and herdr-fold · » collapses to icons" })]),
       group(t, "Search field", g.query.map(([name, state], i) => specimen(t, `query-${i}`, name, state.query(t))))]],
     ["rail", [group(t, "The panel folded to its rail", [
         specimen(t, "rail-github", "On GitHub, with changes", div().w(RAIL).h(330).child(rail(t,
@@ -443,7 +457,7 @@ function sections(g, t) {
           { spec: "as wide as the panel · its head drags it" })])]],
     ["sections", [
       group(t, "Section header", g.sections.map(([name, state], i) => specimen(t, `section-${i}`, name,
-        div().p(6).child(state.section(t, "changes", "Changes", CHANGES)),
+        div().p(PAD / 2).child(state.section(t, "changes", "Changes", CHANGES)),
         { spec: i ? "" : "h 26 · 13 bold · chip" }))),
       group(t, "Count chip", [specimen(t, "chip", "Default", h_flex().gap(8).child(chip(t, "1")).child(chip(t, "12")),
         { width: 180, small: true, spec: "raised · px 6 · radius 4 · 11 semibold" })])]],
@@ -455,11 +469,12 @@ function sections(g, t) {
       ["Issues' filters", g.issues.issues.filters(t)], ["An issue's right click", b.issues.picks(LISTED[0])],
       ["A file's right click, a preview open", g.files[0][1].items({ path: "docs/pagination.html", dir: false })],
       ["The preview's right click", g.page.items()],
-      ["The panel's right click", aboutLines({ version: "0.3.0", on: true, releases: "https://example.com" })],
+      ["The dock's ⋯: Search hidden", [...panelChoices(DOCKED, true), null,
+        ...aboutLines({ version: "0.3.0", on: true, releases: "https://example.com" })]],
       ["A conversation's right click", g.conversations[0][1].choices(TALKS[3])],
       ["The list's right click", g.conversations[0][1].choices(null)]]
       .map(([name, items], i) => specimen(t, `menu-${i}`, name, div().p(20).child(div().w(180)
-        .h(items.length * 30 + 8).rounded(8).border_1().border_color(t.border).bg(t.popover ?? t.raised)
+        .h(menuHeight(items)).rounded(8).border_1().border_color(t.border).bg(t.popover ?? t.raised)
         .child(menuPopup(t, "", items))),
       { width: 220,
         spec: i ? "" : "under its button, right-aligned, above it where it does not fit; a right click's at it" })))]],
@@ -514,9 +529,14 @@ function sections(g, t) {
       fixed(360, g.conversation.timeline(t, "Menlo")),
       { width: CHAT, spec: "a dot a step: done, failed ansi1, running accent, waiting ansi3 and fading" })])]]]],
     ["Patterns", [["panels", [group(t, "Panels", [
-      specimen(t, "panel-changes", "Changes", stack("changes", g.changes.panel(t))),
-      specimen(t, "panel-search", "Search", stack("search", g.search.panel(t))),
-      specimen(t, "panel-issues", "Issues", stack("issues", g.issues.panel(t))),
+      specimen(t, "panel-changes", "Changes", stack("work", "changes", g.changes.panel(t))),
+      specimen(t, "panel-search", "Search", stack("project", "search", g.search.panel(t))),
+      specimen(t, "panel-issues", "Issues", stack("work", "issues", g.issues.panel(t))),
+      specimen(t, "panel-dock", "The right dock: its head, Files and Search folded, Changes open", v_flex().gap(8)
+        .child(div().h(36).child(dockHead(t, {}, () => {})))
+        .child(framed(FOLDED_GROUP, head({ group: "project", shown: "files", folded: true })))
+        .child(stack("work", "changes", g.changes.panel(t))),
+      { spec: "each a card 12 inside on every side, as the terminal · 8 between them, no rule" }),
     ])]]]],
   ];
 }
@@ -565,7 +585,7 @@ function spacing(t) {
       .child(div().w(px).h(24).bg(t.accent)).child(div().text_size(11).text_color(t.dim)
         .child(String(px))))))
     .child(div().text_size(11).text_color(t.dim).child("4 between two buttons · 6 an icon and its words · 8 a row's " +
-      "end · 12 inside a panel · 16 a list's start"))]);
+      "end · 12 inside a card, every side · 16 a list's start"))]);
 }
 
 /** Radii and heights, each shown at its size. */
@@ -579,7 +599,7 @@ function shape(t) {
   return group(t, "Shape and size", [
     h_flex().gap(16).children([[10, "Panel"], [8, "Control"], [6, "Row"], [4, "Chip"]].map(([px, use]) =>
       radius(/** @type {number} */ (px), /** @type {string} */ (use)))),
-    v_flex().gap(12).children([[48, "Issue"], [40, "Panel tabs"], [32, "Control"], [28, "Tab"], [26, "Row"],
+    v_flex().gap(12).children([[48, "Issue"], [36, "Dock head, group head"], [32, "Control"], [28, "Tab"], [26, "Row"],
       [24, "Commit, hit"], [22, "Preview line"], [20, "A hit's file line"]].map(([px, use]) =>
       height(/** @type {number} */ (px), /** @type {string} */ (use))))]);
 }

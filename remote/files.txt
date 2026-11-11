@@ -14,6 +14,7 @@ src/plugins/sessions-view/sessions.py       | .config/herdr-fold/plugins/session
 src/plugins/sessions-view/LICENSE           | .config/herdr-fold/plugins/sessions-view/LICENSE | all | tui
 src/plugins/workspaces/herdr-plugin.toml    | .config/herdr-fold/plugins/workspaces/herdr-plugin.toml | all | tui
 src/plugins/workspaces/workspaces.py        | .config/herdr-fold/plugins/workspaces/workspaces.py | all | tui
+src/plugins/workspaces/git.py               | .config/herdr-fold/plugins/workspaces/git.py | all | tui
 src/plugins/workspaces/LICENSE              | .config/herdr-fold/plugins/workspaces/LICENSE | all | tui
 src/plugins/sidebar/herdr-plugin.toml       | .config/herdr-fold/plugins/sidebar/herdr-plugin.toml | all | tui
 src/plugins/sidebar/*.py                    | .config/herdr-fold/plugins/sidebar/ | all | tui

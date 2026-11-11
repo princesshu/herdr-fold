@@ -1,8 +1,9 @@
 {
   "layout:herdr-fold": {
-    "cmd-shift-g": "mod.open:herdr-fold",
-    "cmd-shift-c": "herdr-fold.commit-push",
+    "cmd-shift-g": "herdr-fold.changes",
     "cmd-shift-i": "herdr-fold.issues",
+    "cmd-shift-f": "herdr-fold.search",
+    "cmd-shift-c": "herdr-fold.commit-push",
     "cmd-shift-r": "herdr-fold.conversations",
     "cmd-shift-u": "herdr-fold.unread"
   }

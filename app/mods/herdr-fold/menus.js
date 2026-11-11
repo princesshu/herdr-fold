@@ -4,15 +4,15 @@
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { closeOverlay, openOverlay, run as command } from "herdr";
-import { menuPlace } from "./logic.js";
+import { menuHeight, menuPlace } from "./logic.js";
 import { checked } from "./parts.js";
 
 const MENU = 180;                  // a menu's width: its longest choice, Commit & Sync, with its check
 const ROW = 28;
 
-/** A choice: what it does (ACT, run where the menu was opened; or URL, opened), a check when ON can be set, its
- * label's COLOR, or OFF: shown, not chosen. @typedef {{ label: string, act?: (cx: any) => void, url?: string,
- * on?: boolean, color?: string, off?: boolean }} Item */
+/** A choice (null among them: a rule): what it does (ACT, run where the menu was opened; URL, opened), a check when ON
+ * can be set, its label's COLOR, or OFF: shown, not chosen. @typedef {{ label: string, act?: (cx: any) => void,
+ * url?: string, on?: boolean, color?: string, off?: boolean }} Item */
 
 export class Menus {
   constructor() {
@@ -23,14 +23,14 @@ export class Menus {
   }
 
   /** ITEMS opened as a menu under BOUNDS (the pressed button's; above, where it does not fit), else at the pointer;
-   * HEAD names what they act on above them, its NOTE at its right. @param {Item[]} items @param {any} [bounds]
+   * HEAD names what they act on above them, its NOTE at its right. @param {(Item | null)[]} items @param {any} [bounds]
    * @param {{ label: string, note?: string }} [head] */
   open(items, bounds, head) {
     const token = (this.token = Math.random().toString(36).slice(2, 10));
-    this.acts = items.map((item) => item.act ?? (() => {}));
-    const rows = items.map(({ label, url, on, color, off }, n) => ({ label, url, on, color, off,
-      command: `menu-${token}-${n}` }));
-    const height = (items.length + (head ? 1 : 0)) * (ROW + 2) + 8;
+    this.acts = items.map((item) => item?.act ?? (() => {}));
+    const rows = items.map((item, n) => item && { label: item.label, url: item.url, on: item.on, color: item.color,
+      off: item.off, command: `menu-${token}-${n}` });
+    const height = menuHeight(items, head);
     openOverlay({ mod: "herdr-fold", kind: "popup", props: { part: "menu", items: rows, head }, width: MENU, height,
       ...(bounds ? { at: menuPlace(bounds, height, window.viewport_size(), MENU) } : {}) });
   }
@@ -46,17 +46,17 @@ export class Menus {
   }
 }
 
-/** The menu (OVERLAY, its popup): its HEAD, then ITEMS a row each, a check before the ones on when any can be; a
- * choice sends its command back, or opens its URL, and closes it. @param {string} overlay
- * @param {(Item & { command?: string })[]} items @param {{ label: string, note?: string }} [head] */
+/** The menu (OVERLAY, its popup): its HEAD, then ITEMS a row each (null: a rule), a check before the ones on when any
+ * can be; a choice sends its command back, or opens its URL, and closes it. @param {string} overlay
+ * @param {((Item & { command?: string }) | null)[]} items @param {{ label: string, note?: string }} [head] */
 export function menuPopup(t, overlay, items, head) {
-  const checks = items.some((item) => item.on !== undefined);
+  const checks = items.some((item) => item?.on !== undefined);
   return v_flex().size_full().p(4).gap(2).text_size(12).text_color(t.foreground)
     .when(Boolean(head), (e) => e.child(h_flex().h(ROW).flex_none().px(8).gap(8).items_center()
       .child(div().font_semibold().child(head?.label ?? "")).child(div().flex_1())
       .child(div().text_color(t.muted).child(head?.note ?? ""))))
-    .children(items.map((item, i) => h_flex().id(`menu-${i}`).h(ROW).flex_none().px(8).gap(8).items_center()
-      .rounded(6).when(Boolean(item.off), (e) => e.text_color(t.dim))
+    .children(items.map((item, i) => !item ? rule(t) : h_flex().id(`menu-${i}`).h(ROW).flex_none().px(8).gap(8)
+      .items_center().rounded(6).when(Boolean(item.off), (e) => e.text_color(t.dim))
       .when(!item.off, (e) => e.cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => {
         if (item.url) cx.open_url(item.url);
         else command(`herdr-fold.${item.command}`);
@@ -65,3 +65,6 @@ export function menuPopup(t, overlay, items, head) {
       .when(checks, (e) => e.child(checked(t, Boolean(item.on))))
       .child(div().truncate().when(Boolean(item.color), (e) => e.text_color(item.color)).child(item.label))));
 }
+
+/** A rule between two parts of a menu, as the TUI's ⋯ has them: 9 high, the line in its middle. */
+const rule = (t) => div().h(9).flex_none().py(4).px(8).child(div().h(1).w_full().bg(t.border));

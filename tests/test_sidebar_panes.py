@@ -256,6 +256,60 @@ class Panes(unittest.TestCase):
         self.assertIn(f"--cwd {folder}", " ".join(c for c in herdr.calls if c.startswith("pane split")))
 
 
+def labels(node):
+    """A layout tree by its panes' names: (direction, ratio, first, second), a pane its label."""
+    if node["type"] == "pane":
+        return node["label"]
+    return node["direction"], node["ratio"], labels(node["first"]), labels(node["second"])
+
+
+class OnTheRail(unittest.TestCase):
+    """Restore panels while the dock is folded to its rail, from the key or the sidebar's ⋯ (both bring()): the
+    terminal under the agent, the sidebar in the rail's column beside both, through herdr's socket and command line."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(dir="/tmp")                 # a socket's name has room for 104 bytes
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.state = os.path.join(self.tmp, "state")
+        set_env(self, HERDR_SOCKET_PATH=os.path.join(self.tmp, "h.sock"))
+        os.makedirs(self.state)
+        with open(os.path.join(self.state, "column.json"), "w") as f:
+            json.dump({"rail": True}, f)
+
+    def herdr(self, root):
+        self.fake = FakeHerdrSocket(os.path.join(self.tmp, "h.sock"), {"w1:t1": (root, False)})
+        self.addCleanup(self.fake.server.close)
+        return self.fake
+
+    @staticmethod
+    def pane(pane_id, label):
+        return {"type": "pane", "pane_id": pane_id, "label": label}
+
+    @staticmethod
+    def split(direction, ratio, first, second):
+        return {"type": "split", "direction": direction, "ratio": ratio, "first": first, "second": second}
+
+    def test_the_terminal_comes_back_under_the_agent(self):
+        fake = self.herdr(self.split("right", 0.9, self.pane("w1:p1", "claude"), self.pane("w1:p2", "sidebar")))
+        self.assertEqual(panes.bring(fake.cli, "w1:t1", {"terminal"}, self.state), {"terminal"})
+        self.assertEqual(labels(fake.tabs["w1:t1"][0]), ("right", 0.9, ("down", 0.5, "claude", "terminal"), "sidebar"))
+
+    def test_the_sidebar_comes_back_in_the_rails_column_beside_the_agent_and_its_terminal(self):
+        fake = self.herdr(self.split("down", 0.6, self.pane("w1:p1", "claude"), self.pane("w1:p3", "terminal")))
+        self.assertEqual(panes.bring(fake.cli, "w1:t1", {"sidebar"}, self.state), {"sidebar"})
+        self.assertEqual(labels(fake.tabs["w1:t1"][0]), ("right", 0.9, ("down", 0.6, "claude", "terminal"), "sidebar"))
+        self.assertEqual(fake.tabs["w1:t1"][0]["first"]["second"]["pane_id"], "w1:p3")     # its program runs on
+        ran = [n for n, args in enumerate(fake.commands) if args[:2] == ("pane", "run")]
+        moved = [n for n, args in enumerate(fake.commands) if args[:2] == ("pane", "move")]
+        self.assertTrue(ran and moved and max(moved) < ran[0])     # it starts with everything in place: never moves
+
+    def test_a_tab_with_neither_gets_the_rails_column_at_once(self):
+        fake = self.herdr(self.pane("w1:p1", "claude"))
+        self.assertEqual(panes.bring(fake.cli, "w1:t1", set(panels.KINDS), self.state), set(panels.KINDS))
+        self.assertEqual(labels(fake.tabs["w1:t1"][0]), ("right", 0.9, ("down", 0.5, "claude", "terminal"), "sidebar"))
+        self.assertEqual(fake.moves, [])
+
+
 class Shells(unittest.TestCase):
     def test_a_shell_alone_is_only_a_shell(self):
         for names in (["-zsh"], ["C:\\Program Files\\PowerShell\\7\\pwsh.exe"], ["powershell.exe"], ["bash", "sh"]):

@@ -40,8 +40,9 @@ preview tab and 11 for a hit's file.
 ![The spacing scale, the radii and the heights](../assets/styleguide/shape.webp)
 
 Padding and gaps keep to a 4 px grid (`SPACE` in `parts.js`: 2, 4, 6, 8, 12, 16 and up): 4 between two buttons, 6
-between an icon and its words, 12 inside a panel. Panels are rounded 10, controls 8, rows 6 and chips 4. A test checks
-every padding, gap, text size and corner against these scales.
+between an icon and its words, 12 inside a card on every side (`PAD`: a terminal's text, a group's tabs, a view's words
+and fields, its last row at the bottom; a row's hover pad reaches halfway in). Panels are rounded 10, controls 8, rows
+6 and chips 4. A test checks every padding, gap, text size and corner against these scales.
 
 ### Motion
 
@@ -100,23 +101,29 @@ push, and the issue the next commit fixes](../assets/styleguide/commit.webp)
 one done; off macOS, with the window's buttons](../assets/styleguide/tab-bar.webp)
 
 herdr-fold's own, in place of the app's: a tab 28 high, its × on the active one and under the pointer, + after the
-last tab; at its right end the panel's toggle and, off macOS, the window's buttons, their tips opening to the left.
+last tab; at its right end « while the dock is a rail and, off macOS, the window's buttons, their tips opening to the
+left.
 
-### Panel tabs and the search field
+### Group heads, the dock's head and the search field
 
-![The right panel's tabs, the shown one raised, Changes with its count, Issues on GitHub only; and the search field
-with its switches](../assets/styleguide/tabs.webp)
+![A group's head: its fold and its tabs, the shown one raised, one under the pointer, folded; Changes with its count,
+Issues on GitHub only; the dock's head with ⋯ and »; and the search field with its
+switches](../assets/styleguide/tabs.webp)
 
-The right panel is one of Adobe's panel groups: herdr-fold's views, Files among them, as its tabs, on the header of
-the stack that holds them. Two hover backgrounds side by side keep 4 apart (`GAP`), tabs and icon buttons alike.
+The right panel is a dock of Adobe's panel groups, each a framed card. A group's head (36 high) is its fold, its
+chevron 12 in, over its rows' chevrons, then its panels as tabs (24 high, 12 under the card's top, radius 6, the shown
+one raised), Changes' count in the accent badge; folded, the group is its head alone, 12 under it too, its tabs still
+there. The dock's head (36 high) over the groups holds ⋯, its panels with their checks and herdr-fold's version, and
+», which folds the dock to its rail: the dock is open or a rail, never hidden. Two hover backgrounds side by side keep
+4 apart (`GAP`), tabs and icon buttons alike.
 
 ### The panel folded to its rail
 
 ![The right panel folded to its rail: on GitHub with changes, without GitHub or a terminal yet; a view floating
 beside it](../assets/styleguide/rail.webp)
 
-Folded, the panel is a rail of its views' icons, as the left sidebar folds; a press floats a view beside it, as wide
-as the panel, its head dragging it.
+Folded, the dock is a rail of its panels' icons, those hidden in its ⋯ left out, as the left sidebar folds; a press
+floats a view beside it, as wide as the dock, its head dragging it.
 
 ### Section header and count chip
 
@@ -132,14 +139,15 @@ as the panel, its head dragging it.
 
 ### Menus
 
-![The mod's menus: Commit's modes, the repository's ⋯, the issues' filters, an issue's, a file's (a preview open), the
-preview's, the panel's and a conversation's right click](../assets/styleguide/menus.webp)
+![The mod's menus: Commit's modes, the repository's ⋯, the issues' filters, an issue's, a file's (a preview open) and
+the preview's right click, the dock's ⋯, and a conversation's right click](../assets/styleguide/menus.webp)
 
 Every menu is a popup (`Menus` in menus.js), as the app's own: under the button that opened it, its right edge with
 the button's, above the button where it does not fit under it (the chat's bar), or at the pointer for a right
 click; it lays over what is below it, and a press beside it closes it. The TUI's menus open the same way.
 A button that opens a list to choose from (Commit's modes, the chat's model and mode) carries ⌄ at its right end;
-one that acts at once carries none.
+one that acts at once carries none. A rule parts a menu's kinds of line, as the dock's ⋯ its panels from
+herdr-fold's.
 
 ### Problems and empty states
 
@@ -220,7 +228,8 @@ Each step's dot says how it went: done, failed (ansi1), running (accent), waitin
 
 ## Patterns
 
-![The Changes, Search and Issues panels](../assets/styleguide/panels.webp)
+![The Changes, Search and Issues panels under their group's head, and the right dock: its head, Files and Search
+folded, Changes open](../assets/styleguide/panels.webp)
 
 ## A new part
 

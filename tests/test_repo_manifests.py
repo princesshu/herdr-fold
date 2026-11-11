@@ -67,6 +67,18 @@ class Manifests(unittest.TestCase):
         self.check(rows("remote/files.txt", "unix", "both"))
         self.check(rows("remote/files.txt", "windows", "both"))
 
+    def test_workspaces_copies_go_where_it_goes(self):
+        # it loads its copy of core/git.py by its path (herdrlib's sidebar modules bring the sidebar's as git): no
+        # import names it for the checks above
+        folder = os.path.join("src", "plugins", "workspaces")
+        script = os.path.join(folder, "workspaces.py")
+        own = sorted(os.path.join(folder, name) for name in os.listdir(os.path.join(PACKAGE, folder))
+                     if name.endswith(".py"))
+        self.assertIn(os.path.join(folder, "git.py"), own)
+        for listed in (rows("files.txt"), rows("remote/files.txt", "unix"), rows("remote/files.txt", "windows")):
+            self.assertEqual({rel: os.path.dirname(listed.get(rel, "")) for rel in own},
+                             dict.fromkeys(own, os.path.dirname(listed[script])))
+
     def test_every_line_names_its_part(self):
         for rel, column in (("files.txt", 2), (os.path.join("remote", "files.txt"), 3)):
             with open(os.path.join(PACKAGE, rel), encoding="utf-8") as f:

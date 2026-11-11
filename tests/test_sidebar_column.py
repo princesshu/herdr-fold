@@ -1,16 +1,19 @@
 """Tests for column.py's widths through a stand-in herdr socket: the columns in a tab's layout, the share a dragged pane
-keeps (not while zoomed), set on every tab to the cell."""
+keeps (not while zoomed), set on every tab to the cell; the dock folded to its rail in every tab, its terminal under
+the agent."""
 import json
 import os
 import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
-from support import SRC, FakeHerdrSocket, at_once, set_attrs, set_env
+from support import SRC, FakeHerdrSocket, FakeTerminal, at_once, end_jobs, set_attrs, set_env
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import column  # noqa: E402
+import panes  # noqa: E402
 import sidebar  # noqa: E402
 from column import Columns  # noqa: E402
 
@@ -77,13 +80,13 @@ class Column(unittest.TestCase):
         self.assertEqual(column.drag(self.state, "w1:p2", 78), 0)               # nothing new: nothing set
 
     def test_the_right_column_keeps_room_for_the_widest_head(self):
-        self.assertEqual(column.NARROWEST, sidebar.narrowest(sidebar.PANELS))  # every panel's tab, the ⋯
+        self.assertEqual(column.NARROWEST, sidebar.narrowest(sidebar.PANELS))  # every panel's tab, the » and ⋯
         self.assertEqual(column.FEWEST, sidebar.narrowest(["files", "search", "changes"]))
         column.need(self.state, "w1:t1", column.NARROWEST, {"w1:t1"})
         self.herdr(tab(1, 0.9))                                             # dragged to 20 cells, 18 inside
         column.drag(self.state, "w1:p2", 18)
-        self.assertEqual(self.sets(), [("w1:t1", [], 0.845)])               # 31: 29 inside, the frame 2
-        self.assertEqual(column.saved(self.state), 0.845)
+        self.assertEqual(self.sets(), [("w1:t1", [], 0.835)])               # 33: 31 inside, the frame 2
+        self.assertEqual(column.saved(self.state), 0.835)
 
     def test_each_tab_keeps_room_for_its_own_sidebars_heads(self):
         column.need(self.state, "w9:t1", 23, {"w9:t1"})                     # a tab closed since: forgotten below
@@ -131,6 +134,50 @@ class Column(unittest.TestCase):
         self.assertTrue(column.remember(self.state, 0.6))
         with open(os.path.join(self.state, column.FILE)) as f:
             self.assertEqual(json.load(f), {"least": {"w1:t1": 23}, "ratio": 0.6})
+
+    def test_folding_keeps_the_open_width(self):
+        # folded, every tab's column the rail, as narrow as herdr lets one be; opened, as wide as last chosen again
+        self.write_saved(0.6)
+        fake = self.herdr(tab(1, 0.6), **{"w2:t1": tab(2, 0.6)})
+        set_env(self, HERDR_PANE_ID="w1:p2", HOME=self.tmp)
+        self.addCleanup(end_jobs)
+        app = sidebar.App(self.tmp, FakeTerminal(45, 30), mock.Mock(call=fake.cli), self.state)
+
+        def done():
+            for _ in range(3):
+                end_jobs()
+                app.collect()
+
+        app.fold_dock(True)
+        done()
+        self.assertEqual(sorted(self.sets()), [("w1:t1", [], 0.9), ("w2:t1", [], 0.9)])     # 11 cells: herdr keeps 20
+        self.assertEqual((column.saved(self.state), column.railed(self.state)), (0.6, True))
+        fake.tabs["w1:t1"][0]["ratio"] = 0.7                                 # the rail dragged wider, or the window
+        app.drag("w1:p2")
+        self.assertEqual((fake.tabs["w1:t1"][0]["ratio"], column.saved(self.state)), (0.9, 0.6))
+        app.fold_dock(False)
+        done()
+        self.assertEqual([fake.tabs[name][0]["ratio"] for name in ("w1:t1", "w2:t1")], [0.6, 0.6])
+        self.assertFalse(column.railed(self.state))
+
+    def test_the_terminal_moves_under_the_agent_on_the_rail_and_back(self):
+        # herdr moves no pane inside its own tab: through a new one, which goes by itself; it keeps its rows
+        def side(sidebar_share):
+            return split("down", sidebar_share, pane("w1:p2", "sidebar"), pane("w1:p3", "terminal"))
+
+        fake = self.herdr(split("right", 0.75, pane("w1:p1", "claude"), side(0.7)))
+        self.assertTrue(panes.place_terminal(fake.cli, "w1:p2", True))
+        under = split("right", 0.75, split("down", 0.7, pane("w1:p1", "claude"), pane("w1:p3", "terminal")),
+                      pane("w1:p2", "sidebar"))
+        self.assertEqual(fake.tabs, {"w1:t1": [under, False]})                  # its pane id kept, no tab left over
+        self.assertEqual(fake.moves, [("pane", "move", "w1:p3", "--new-tab", "--no-focus"),
+                                      ("pane", "move", "w1:p3", "--tab", "w1:t1", "--target-pane", "w1:p1", "--split",
+                                       "down", "--ratio", "0.7", "--no-focus")])
+        self.assertFalse(panes.place_terminal(fake.cli, "w1:p2", True))         # there already: nothing moves
+        self.assertTrue(panes.place_terminal(fake.cli, "w1:p2", False))
+        self.assertEqual(fake.tabs, {"w1:t1": [split("right", 0.75, pane("w1:p1", "claude"), side(0.7)), False]})
+        self.assertEqual(fake.moves[-1][3:9], ("--tab", "w1:t1", "--target-pane", "w1:p2", "--split", "down"))
+        self.assertEqual(len(fake.moves), 4)
 
     def test_without_a_herdr_or_a_remembered_width_nothing_happens(self):
         self.assertIsNone(column.read("w1:p2"))                                # no herdr listening

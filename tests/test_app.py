@@ -79,14 +79,17 @@ class Shape(unittest.TestCase):
         self.assertEqual(root.get("font_size"), size)
 
     def test_the_layout_is_the_apps_own_with_herdr_fold_where_changes_was(self):
-        """layouts/herdr-fold.json is the app's main layout, the right panel's Changes block showing herdr-fold, under
-        ids of its own, so the app's Settings, which shows and hides its panel, leaves it alone."""
+        """layouts/herdr-fold.json is the app's main layout, its right panel herdr-fold's dock of two groups (logic.js's
+        GROUPS_APP, its node test the rest), under ids of its own, so the app's Settings, which shows and hides its
+        panel, leaves it alone."""
         with open(os.path.join(APP, "layouts", "herdr-fold.json"), encoding="utf-8") as f:
             nodes = list(walk(json.load(f)))
         self.assertEqual({"panel", "panel-body"} & {n.get("id") for n in nodes}, set())
-        stack = next(n for n in nodes if n.get("id") == "fold-panel-body")
-        self.assertEqual([c["id"] for c in stack["children"]], ["files", "changes"])
-        self.assertEqual(stack["children"][1]["content"], {"mod": "herdr-fold"})
+        stacks = {n["id"]: [c["id"] for c in n["children"]] for n in nodes if n.get("id", "").endswith("-body")
+                  and n.get("type") == "stack"}
+        self.assertEqual(stacks, {"fold-project-body": ["files", "search"], "fold-work-body": ["changes", "issues"]})
+        self.assertEqual(next(n for n in nodes if n.get("id") == "changes")["content"],
+                         {"mod": "herdr-fold", "props": {"view": "changes"}})
         self.assertNotIn("changes", [n.get("content", {}).get("mod") for n in nodes])
 
     def nodes(self):
