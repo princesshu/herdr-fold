@@ -708,6 +708,33 @@ class RepositoryInside(unittest.TestCase):
         self.commit(app)
         self.assertNotEqual(git.refs_stamp(app), stamp)
 
+    def test_a_commondir_naming_a_folder_that_is_no_git_folder_is_not_followed(self):
+        # a cloned repository's own .git files are untrusted: one may name any folder with a big refs tree in it
+        app = self.repo("app")
+        mine = git.refs_stamp(app)
+        elsewhere = os.path.join(self.tmp, "elsewhere")
+        os.makedirs(os.path.join(elsewhere, "refs", "a"))
+        with open(os.path.join(app, ".git", "commondir"), "w") as f:
+            f.write(os.path.relpath(elsewhere, os.path.join(app, ".git")))
+        self.assertEqual(git.refs_stamp(app), mine)
+
+    def test_refs_that_are_a_link_are_not_walked(self):
+        app = self.repo("app")
+        elsewhere = os.path.join(self.tmp, "elsewhere")
+        for n in range(5):
+            os.makedirs(os.path.join(elsewhere, f"d{n}"))
+        refs = os.path.join(app, ".git", "refs")
+        shutil.rmtree(refs)
+        os.symlink(elsewhere, refs)
+        self.assertEqual(len(git.refs_stamp(app)), 4)                       # HEAD, config, packed-refs, reftable
+
+    def test_a_refs_tree_past_the_cap_gives_no_stamp(self):
+        # no stamp: the client asks git again each time, as for a repository it never saw
+        app = self.repo("app")
+        for n in range(git.REFS_FOLDERS + 1):
+            os.makedirs(os.path.join(app, ".git", "refs", "x", f"d{n}"))
+        self.assertIsNone(git.refs_stamp(app))
+
     def test_the_app_mod_asks_for_the_place_inside_on_the_spaces_machine(self):
         one = self.repo("one", upstream=True)
         self.commit(one)                                                    # one to push

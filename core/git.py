@@ -186,17 +186,30 @@ def repo_inside(folder, active=None, last=None, home=None):
     return found[0] if len(found) == 1 else None
 
 
+REFS_FOLDERS = 1000           # refs' folders refs_stamp walks at most
+
+
 def refs_stamp(root):
     """When ROOT's HEAD, config and refs last changed: a commit, a checkout, a fetch or a push writes one of them (a
-    ref by renaming its new file into its folder, which changes the folder's time too)."""
+    ref by renaming its new file into its folder, which changes the folder's time too); None past REFS_FOLDERS. A
+    repository's own files are untrusted: only a git folder they name is followed, and no link."""
     own = dot_git(root) or os.path.join(root, ".git")
+    common = own
     try:
         with open(os.path.join(own, "commondir"), encoding="utf-8") as f:     # a linked worktree's refs are shared
-            common = os.path.join(own, f.read().strip())
+            named = os.path.realpath(os.path.join(own, f.read().strip()))
+        if os.path.isdir(os.path.join(named, "objects")):
+            common = named
     except (OSError, UnicodeDecodeError):
-        common = own
+        pass
     paths = [os.path.join(own, "HEAD")] + [os.path.join(common, name) for name in ("config", "packed-refs", "reftable")]
-    paths += sorted(folder for folder, _, _ in os.walk(os.path.join(common, "refs")))
+    refs, folders = os.path.join(common, "refs"), []
+    if os.path.isdir(refs) and not os.path.islink(refs):
+        for folder, _, _ in os.walk(refs):                  # os.walk follows no link further down either
+            folders.append(folder)
+            if len(folders) > REFS_FOLDERS:
+                return None
+    paths += sorted(folders)
     stamp = []
     for path in paths:
         try:

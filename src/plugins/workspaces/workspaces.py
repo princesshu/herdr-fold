@@ -165,7 +165,8 @@ def repo_rows(workspaces, panes, kept, home):
         if repo not in branches:
             stamp = git.refs_stamp(repo)
             seen = read.get(repo) or {}
-            branches[repo] = seen if seen.get("stamp") == stamp else {"stamp": stamp, "row": branch_row(repo)}
+            fresh = stamp is not None and seen.get("stamp") == stamp           # no stamp (past its cap): read again
+            branches[repo] = seen if fresh else {"stamp": stamp, "row": branch_row(repo)}
         rows[ws] = branches[repo]["row"]
     return rows, {"repos": repos, "branches": branches}
 

@@ -333,6 +333,14 @@ class RepositoryInside(unittest.TestCase):
         self.assertEqual(self.focus(self.folder), [("--token", "repo=main ↑1 ↓1")])
         self.assertEqual(self.focus(self.folder), [])                       # said already
 
+    def test_a_repository_without_a_stamp_is_read_again_on_each_look(self):
+        # past refs_stamp's cap there is no stamp to keep a read by: git is asked each time
+        app = self.repo("app", upstream=False)
+        set_attrs(self, workspaces.git, refs_stamp=lambda root: None)
+        self.assertEqual(self.focus(self.folder), [("--token", "repo=main")])
+        self.git(app, "checkout", "-q", "-b", "other")
+        self.assertEqual(self.focus(self.folder), [("--token", "repo=other")])
+
     def test_a_repository_without_an_upstream_shows_its_branch_alone(self):
         self.repo(os.path.join("code", "app"), branch="trunk", upstream=False)      # two folders down
         self.assertEqual(self.focus(self.folder), [("--token", "repo=trunk")])
