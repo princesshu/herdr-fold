@@ -99,8 +99,8 @@ class RepoFiles(unittest.TestCase):
 
     def test_prose_names_the_sidebar_in_lower_case(self):
         # "the sidebar", as any other part; "Sidebar" only as a name: herdr-sidebar's pane label ("Sidebar"), the
-        # plugin's display name, its action titles ("Sidebar: files") and the class
-        name = re.compile(r'"Sidebar"|Sidebar \(herdr-fold\)|Sidebar:|class Sidebar|Sidebar\(')
+        # plugin's display name (its README's title too), its action titles ("Sidebar: files") and the class
+        name = re.compile(r'"Sidebar"|Sidebar \(herdr-fold\)|Sidebar:|class Sidebar|Sidebar\(|^# Sidebar$')
         found = [f"{rel}:{n}" for rel, data in text_files() if rel != "tests/test_repo_files.py"
                  for n, line in enumerate(data.decode("utf-8", "replace").splitlines(), 1)
                  if re.search(r"\bSidebar\b", name.sub("", line))]

@@ -824,17 +824,19 @@ class PaneMenu(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp)
         set_env(self, HERDR_PANE_ID="w1:p2", HOME=self.tmp)
+        self.addCleanup(end_jobs)                       # before the folders go: a job of the dock's writes there
         self.brought = []
         self.app = sidebar.App(self.tmp, FakeTerminal(45, 30), self.Herdr(), os.path.join(self.tmp, "state"))
+
+    PANELS = ["✓ Conversations", "✓ Files", "✓ Search", "✓ Changes", None]       # Issues: on GitHub only
 
     def test_it_offers_the_other_panes_and_brings_the_one_chosen(self):
         self.app.draw()
         self.app.handle(Mouse("press", 40, 0, 2))                        # the header, past the view buttons
-        self.assertEqual(self.app.menu[0].choices, ["Show terminal", "Restore panels"])
-        self.app.draw()
+        self.assertEqual(self.app.menu[0].choices, self.PANELS + ["Show terminal", "Restore panels"])
         with mock.patch.object(sidebar.panes, "bring",
                                lambda call, tab, kinds, state_dir: self.brought.append((tab, set(kinds)))):
-            self.app.handle(Key("enter"))
+            self.pick("Show terminal")
             end_jobs()
         self.assertEqual(self.brought, [("w1:t1", {"terminal"})])
         self.assertIsNone(self.app.menu)
@@ -845,11 +847,64 @@ class PaneMenu(unittest.TestCase):
         rows = ["".join(ch for ch, _ in row) for row in self.app.canvas.rows]
         return [m.group(1).strip() for m in (re.search(r"│([^│]+)│", row) for row in rows) if m]
 
+    def pick(self, choice, app=None):
+        """CHOICE clicked in the ⋯'s menu, opened first if it is not."""
+        app = app or self.app
+        if not app.menu:
+            app.draw()
+            app.handle(Mouse("press", 40, 0, 2))
+        app.draw()
+        rows = ["".join(ch for ch, _ in row) for row in app.canvas.rows]
+        y = next(n for n, row in enumerate(rows) if re.search(r"│" + re.escape(choice) + r" *│", row))
+        app.handle(Mouse("press", rows[y].index(choice), y, 0))
+
+    def test_a_panel_unchecked_leaves_its_group_and_comes_back_checked(self):
+        # as Adobe's Window menu: every panel the dock has, a ✓ on the ones shown
+        self.pick("✓ Search")
+        self.assertEqual(self.app.tabs(), ["conversations", "files", "changes"])
+        self.app.draw()
+        head = "".join(ch for ch, _ in self.app.canvas.rows[self.app.slices["project"][0]])
+        self.assertIn("Files", head)
+        self.assertNotIn("Search", head)
+        with open(os.path.join(self.tmp, "state", "settings.json")) as f:
+            self.assertEqual(json.load(f)["hidden_panels"], ["search"])
+        self.pick("  Search")
+        self.assertIn("search", self.app.tabs())
+
+    def test_a_group_without_a_panel_shown_goes(self):
+        self.pick("✓ Conversations")
+        self.app.draw()
+        self.assertNotIn("conversations", self.app.slices)
+        self.assertEqual(self.app.slices["project"][0], 0)
+
+    def test_a_hidden_panel_stays_hidden_in_every_tab(self):
+        self.pick("✓ Changes")
+        other = sidebar.App(self.tmp, FakeTerminal(45, 30), self.Herdr(), os.path.join(self.tmp, "state"))
+        self.assertNotIn("changes", other.tabs())                          # a tab's sidebar started later
+        self.pick("  Changes", other)
+        self.app.next_poll = 0
+        self.app.tick()                                                    # one already running: at its next look
+        self.assertIn("changes", self.app.tabs())
+
+    def test_the_last_panel_shown_stays(self):
+        for choice in ("✓ Conversations", "✓ Files", "✓ Search"):
+            self.pick(choice)
+        self.pick("✓ Changes")
+        self.assertEqual(self.app.tabs(), ["changes"])
+        self.assertEqual(self.app.note, "One panel stays shown")
+
+    def test_a_key_for_a_hidden_panel_shows_it_again(self):
+        self.pick("✓ Search")
+        self.app.handle(Key("f10"))                                       # its key, as a click on its ✓
+        self.assertTrue(self.app.showing("search"))
+        with open(os.path.join(self.tmp, "state", "settings.json")) as f:
+            self.assertEqual(json.load(f)["hidden_panels"], [])
+
     def test_the_dots_at_the_headers_right_edge_open_it(self):
         self.app.draw()
         dots = "".join(ch for ch, _ in self.app.canvas.rows[0]).index("⋯")
         self.app.handle(Mouse("press", dots, 0, 0))                         # a left click
-        self.assertEqual(self.menu_rows(), ["Show terminal", "Restore panels"])
+        self.assertEqual(self.menu_rows(), [row for row in self.PANELS if row] + ["Show terminal", "Restore panels"])
         rows = ["".join(ch for ch, _ in row) for row in self.app.canvas.rows]
         top = next(y for y, row in enumerate(rows) if "┌" in row)
         self.assertEqual(top, 1)                                           # right under the ⋯ (one row high)
@@ -870,9 +925,8 @@ class PaneMenu(unittest.TestCase):
         self.app.update = sidebar.update.check(ask=lambda: "0.3.0")
         self.app.draw()
         self.app.handle(Mouse("press", 40, 0, 2))
-        self.assertEqual(self.app.menu[0].choices[-2:], ["herdr-fold 0.3.0", "✓ Check for Updates"])
-        self.app.handle(Key("up"))
-        self.app.handle(Key("enter"))
+        self.assertEqual(self.app.menu[0].choices[-3:], [None, "herdr-fold 0.3.0", "✓ Check for Updates"])
+        self.pick("✓ Check for Updates")
         end_jobs()
         self.app.collect()
         with open(os.path.join(folder, "update.json")) as f:
@@ -946,8 +1000,9 @@ class PaneMenu(unittest.TestCase):
         self.app.herdr = mock.Mock(call=call)
         self.app.draw()
         self.app.handle(Mouse("press", 40, 0, 2))
-        self.assertEqual(self.menu_rows(), ["Close terminal"])                             # not itself
-        self.app.handle(Key("enter"))
+        self.assertEqual(self.menu_rows()[-1], "Close terminal")                           # not itself
+        self.assertNotIn("Close sidebar", self.menu_rows())
+        self.pick("Close terminal")
         deadline = time.monotonic() + 5
         while ("pane", "close", "w1:p3") not in calls and time.monotonic() < deadline:
             time.sleep(0.02)

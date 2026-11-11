@@ -1,4 +1,4 @@
-# Files · Search · Git · Issues · AI Conversations
+# Sidebar
 
 A herdr plugin: every workspace's Claude and Codex conversations, Files, Search, Changes (git) and Issues (GitHub) in
 one pane, the same on macOS, Linux and Windows.
@@ -7,6 +7,8 @@ The panels stand in three groups, one under the other, each under its head as Ad
 and Search, Changes and Issues. A head names its panels as tabs, the one shown bold in the accent, Changes with its
 count; its chevron folds the group to its head (a group without three rows to spare folds itself); dragging a head moves
 the edge above it. Each folder keeps which panel each group shows, the groups folded and their sizes (`dock.json`).
+The ⋯ lists the panels, each with a ✓ while shown: one unchecked is hidden in every tab, until a check or its key brings
+it back (`hidden_panels` in `settings.json`); one always stays.
 
 ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the message
 Claude wrote, the issue it fixes and the Graph, Issues by priority](../../../assets/screenshots/sidebar.webp)
@@ -157,16 +159,16 @@ Alt + Enter commits from the message there too.
   Trash (the Recycle Bin on Windows, which asks first when an item cannot be recycled); an untracked file you discard
   goes there too. It never deletes for good on its own, pulls only fast-forward, and never touches `~/.claude`,
   `~/.codex` or `~/.local/state/herdr`, nor moves a folder that holds one of them.
-- Its settings (hidden files, icons, the commit mode, the view, the issue each repository's next commit fixes) are in
-  `settings.json` in its state folder, `~/.local/state/herdr/plugins/herdr-fold.sidebar/`. A `colors.json` there,
+- Its settings (hidden files, icons, the commit mode, the panels hidden, the issue each repository's next commit fixes)
+  are in `settings.json` in its state folder, `~/.local/state/herdr/plugins/herdr-fold.sidebar/`. A `colors.json` there,
   written by herdr-fold's theme setter, gives the theme's exact colors; without it the sidebar uses the terminal's own
   16. What a workspace's preview tab shows is in `preview-<workspace>.json` there until the tab closes (`q`, Close
   Preview, or herdr's own close); a new preview tab's sidebar finds where the one that opened it was in a
   `seed-<tab>.json`, and deletes it. Either one left untouched for an hour goes when a sidebar starts (a pager ended
   without a chance to clean up leaves it); the next preview then opens a new preview tab in place of an old one. The
   issues of each repository and filter as last asked, a private repository's titles too, are in an `issues-….json`
-  there, readable by you alone, for its other sidebars to take instead of asking GitHub again within the minute; one
-  an hour old goes when a sidebar starts, and all of them when herdr-fold is removed.
+  there, readable by you alone, for its other sidebars to take instead of asking GitHub again within the minute; one an
+  hour old goes when a sidebar starts, and all of them when herdr-fold is removed.
 - When an update changes its own files, it starts the new version in the same pane, once every file is in place,
   nothing of its own is running (a status or a search either: the program it runs would be left behind) and no
   question or name being typed is on screen, with the view, the open folders, the search and the message it had; an

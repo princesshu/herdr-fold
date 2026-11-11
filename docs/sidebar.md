@@ -55,9 +55,10 @@ Cmd + Shift + G (Changes), Cmd + Shift + I (Issues), Cmd + Shift + E and Cmd + S
 [Keys](keybindings.md#panes-and-tabs). Cmd + Shift + L opens a file the focused pane's output names in its preview,
 at that line ([Opening a file the agent named](usage.md#opening-a-file-the-agent-named)).
 
-The ⋯ at the first group head's right edge (or a right click on a head) closes or shows back the
-tab's other panes, one by one (Close conversations, Show terminal…), and offers Restore panels while any is closed. The
-keys inside the sidebar are in its README.
+The ⋯ at the first group head's right edge (or a right click on a head) lists the panels first, each with a ✓ while
+shown, as Adobe's Window menu: one unchecked leaves its group in every tab (a group with none left goes), and a check
+or its key brings it back; one panel always stays. Below them it closes or shows back the tab's terminal and offers
+Restore panels while a pane is closed. The keys inside the sidebar are in its README.
 
 ## Colors and icons
 

@@ -346,14 +346,15 @@ MENU_WIDEST = 14              # a menu's cells at least, as herdr's own
 
 class Menu:
     """A choice a row: ↑ ↓ and Enter, or a click; drawn as herdr's own menus: a frame in the accent on the panel's
-    background, the chosen row lit in the accent."""
+    background, the chosen row lit in the accent. A None among CHOICES: a rule between two kinds, never chosen."""
 
     def __init__(self, choices):
-        self.choices, self.index = list(choices), 0
+        self.choices = list(choices)
+        self.index = next((n for n, choice in enumerate(self.choices) if choice is not None), 0)
 
     def width(self):
         """The cells it takes, as herdr's own: its widest choice and four more (the frame, two of air)."""
-        return max(MENU_WIDEST, max(width(choice) for choice in self.choices) + 4)
+        return max(MENU_WIDEST, max(width(choice) for choice in self.choices if choice is not None) + 4)
 
     def height(self):
         return len(self.choices) + 2
@@ -368,7 +369,10 @@ class Menu:
 
     def handle(self, key):
         if key.name in ("up", "down"):
-            self.index = (self.index + (1 if key.name == "down" else -1)) % len(self.choices)
+            step = 1 if key.name == "down" else -1
+            self.index = (self.index + step) % len(self.choices)
+            while self.choices[self.index] is None:     # a rule: on to the next choice
+                self.index = (self.index + step) % len(self.choices)
         elif key.name == "enter":
             return self.choices[self.index]
         elif key.name == "esc":
@@ -379,6 +383,9 @@ class Menu:
         frame = Style(fg="accent", bg="panel")
         canvas.put(y, x, "┌" + "─" * (cells - 2) + "┐", frame)
         for i, choice in enumerate(self.choices, 1):
+            if choice is None:
+                canvas.put(y + i, x, "├" + "─" * (cells - 2) + "┤", frame)
+                continue
             style = (Style(fg="button_text", bg="button", bold=True) if i - 1 == self.index
                      else Style(fg="text", bg="panel"))
             canvas.put(y + i, x, "│", frame)

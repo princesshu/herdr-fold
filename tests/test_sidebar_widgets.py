@@ -307,6 +307,19 @@ class Menus(unittest.TestCase):
                          (("button_text", "button", True), ("text", "panel")))      # the chosen row in the accent
         self.assertEqual(menu.at(30, 35, 40, 0, 20), (16, 19, 21))                  # moved in to stay on screen
 
+    def test_a_separator_parts_its_choices_and_is_never_chosen(self):
+        # None: a rule between two kinds of choice, as herdr's own menus part theirs
+        menu = Menu(["✓ Files", None, "Restore panels"])
+        canvas = Canvas(40, 6)
+        menu.draw(canvas, 0, 0, menu.width())
+        self.assertEqual("".join(ch for ch, _ in canvas.rows[2])[:menu.width()], "├" + "─" * (menu.width() - 2) + "┤")
+        self.assertEqual(canvas.hit(3, 2), None)                                    # a click on it chooses nothing
+        menu.handle(Key("down"))
+        self.assertEqual(menu.handle(Key("enter")), "Restore panels")              # the arrow steps over it
+        menu.handle(Key("up"))
+        self.assertEqual(menu.choices[menu.index], "✓ Files")
+        self.assertEqual(Menu([None, "a"]).index, 1)                                 # never starting on it
+
     def test_it_opens_above_the_row_when_it_does_not_fit_under_it(self):
         menu = Menu(["Open", "Copy conversation"])                                   # 4 rows high, 21 wide
         self.assertEqual(menu.at(5, 0, 40, 0, 20), (5, 0, 21))                      # room under: there

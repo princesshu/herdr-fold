@@ -8,6 +8,9 @@ All notable changes to this project are listed here. The format follows
 
 ### Added
 
+- The TUI sidebar's ⋯ lists its panels first, each with a `✓` while shown, as Adobe's Window menu: one unchecked leaves
+  its group in every tab (a group with none left goes) until a check or its key brings it back; one always stays. The
+  menu's kinds of line stand apart by a rule, as herdr's own menus.
 - The preview's code and picture one under the other: an SVG's or a page's code above its picture where the room is
   taller than wide, as Xcode's canvas, or as chosen (the turn in the status row, `v` and the right click in the TUI;
   the button beside Code, Split and Picture and the right click in the Herdr app), its divider dragged as the side by
@@ -29,6 +32,7 @@ All notable changes to this project are listed here. The format follows
   and Search, Changes and Issues, each under a head with its tabs (Changes with its count) and a fold; a head dragged
   moves the edge between them, and each folder keeps the panels shown, the groups folded and their sizes. The
   view buttons above them are gone.
+- The sidebar plugin is named "Sidebar" on herdr's marketplace card.
 - The TUI's Conversations column, its rail and its own pane are gone, and so is a tab's third column: the list is
   the sidebar's first group. Cmd + Shift + R opens it in the tab's sidebar, its filter empty, and Cmd + Shift + H
   folds it to its head. On an existing install the update closes every tab's Conversations column and gives the

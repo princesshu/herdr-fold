@@ -1,10 +1,11 @@
 id = "herdr-fold.sidebar"
-name = "Files · Search · Git · Issues · AI Conversations"
+name = "Sidebar"
 version = "0.3.0"
 min_herdr_version = "0.9.5"
 description = """\
   Every workspace's Claude and Codex conversations, Files, Search, Changes (git) and GitHub Issues in one pane, as \
-  groups of tabs that fold, with previews in a tab and AI commit messages. Created by princesshu"""
+  groups of tabs that fold, each panel shown or hidden from its menu, with previews in a tab and AI commit messages. \
+  Created by princesshu"""
 platforms = ["macos", "linux", "windows"]
 
 # A pane of the plugin's closed by hand: the first time on this Mac, herdr says once how it comes back (Cmd+Shift+O)

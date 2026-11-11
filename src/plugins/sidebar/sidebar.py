@@ -37,7 +37,7 @@ VIEW_KEYS = {"1": "files", "2": "search", "3": "changes", "4": "issues", "f9": "
 FIND, FOLD = "f7", "f6"       # the keys herdr's actions send (actions.py): find a conversation, fold its group
 GROUP_OF = {panel: group for group, panels in GROUPS for panel in panels}
 # linked: the issue each repository's next commit fixes, {repository: [number, title]}
-DEFAULTS = {"hidden": False, "icons": True, "commit_mode": "commit", "linked": {}, "folded": []}
+DEFAULTS = {"hidden": False, "icons": True, "commit_mode": "commit", "linked": {}, "folded": [], "hidden_panels": []}
 UPDATES = 3600.0              # seconds between two looks at update.json (GitHub itself is asked once a day at most)
 CHECK = "Check for Updates"   # the ⋯ menu's switch, a ✓ while it is on
 FAMILIES = (Conversations, Files, Changes)        # the panel families the dock hosts, in its groups' order
@@ -149,9 +149,28 @@ class App(Loop):
         for family in self.families:
             family.stop()
 
-    def tabs(self):
-        """The panels there: its families', Issues only for a repository on GitHub."""
+    def panels(self):
+        """The panels it can show here: its families', Issues only for a repository on GitHub."""
         return [panel for panel in PANELS if panel in self.views and (panel != "issues" or self.github)]
+
+    def tabs(self):
+        """The panels shown: the ones not hidden in the ⋯'s Panels."""
+        return [panel for panel in self.panels() if panel not in self.settings["hidden_panels"]]
+
+    def hide(self, panel, hidden):
+        """PANEL hidden (HIDDEN) or shown again, in every tab; never the last one shown."""
+        if hidden and self.tabs() == [panel]:
+            self.note = "One panel stays shown"
+            return
+        others = [name for name in self.settings["hidden_panels"] if name != panel]
+        self.save(hidden_panels=others + [panel] if hidden else others)
+        self.fit()
+
+    def fit(self):
+        """The cells the widest head takes now, said to the column when they changed (column.need())."""
+        if narrowest(self.tabs()) != self.needs:
+            self.needs = narrowest(self.tabs())
+            self.job("need", lambda cells=self.needs: self.need(cells))
 
     def groups(self):
         """GROUPS with the panels there, a group without any left out."""
@@ -209,9 +228,7 @@ class App(Loop):
 
     def got_status(self, answer):
         repo, self.github, self.status, marks, graph, started, finished, linked, (issue, head), self.own = answer
-        if narrowest(self.tabs()) != self.needs:                # Issues came or went: the header's width with it
-            self.needs = narrowest(self.tabs())
-            self.job("need", lambda cells=self.needs: self.need(cells))
+        self.fit()                                      # Issues came or went: the heads' width with it
         if repo != self.repo:
             self.repo = repo
             self.watcher.git_dir = git.git_dir(repo) if repo else None
@@ -242,6 +259,10 @@ class App(Loop):
                 if not self.busy():
                     self.hand_over()
                 return shown
+            hidden = load_settings(os.path.join(self.state_dir, "settings.json"))["hidden_panels"]
+            if hidden != self.settings["hidden_panels"]:      # hidden or shown again in another tab's ⋯
+                self.settings["hidden_panels"], shown = hidden, True
+                self.fit()
             changed = self.watcher.poll()
             folders = [path for path in changed if path != "git"]
             if folders:
@@ -340,9 +361,9 @@ class App(Loop):
     # --- settings
 
     def save(self, **changes):
-        self.settings.update(changes)
+        """CHANGES kept on what settings.json holds now: another tab's sidebar and the app write it too."""
         path = os.path.join(self.state_dir, "settings.json")
-        self.settings["linked"] = load_settings(path)["linked"]      # commit_message.link() writes them, the app too
+        self.settings = {**load_settings(path), **changes}
         try:
             statefile.write(path, self.settings, indent=2)
         except OSError as err:
@@ -375,7 +396,8 @@ class App(Loop):
                 self.quit = True
                 return
             self.error = self.note = None
-            view = self.views[self.shown(self.focus) or self.tabs()[0]]
+            panel = self.shown(self.focus) or self.tabs()[0]    # its group hidden: the first panel shown
+            view = self.views[panel]
             name = event.char if event.name == "char" and not (event.ctrl or event.alt) else event.name
             if name in VIEW_KEYS and (name.startswith("f") or not view.editing):
                 self.show(VIEW_KEYS[name])
@@ -384,13 +406,13 @@ class App(Loop):
                 self.show("conversations")
                 self.work["conversations"].find()
                 return
-            if name == FOLD:
-                self.fold("conversations")
+            if name == FOLD:                            # hidden in the ⋯'s Panels: shown again
+                self.show("conversations") if "conversations" not in self.tabs() else self.fold("conversations")
                 return
             if name == "q" and not view.editing:
                 self.quit = True
                 return
-            self.act(view.handle(event), self.shown(self.focus))
+            self.act(view.handle(event), panel)
             return
         target = self.canvas.hit(event.x, event.y) if self.canvas else None
         if event.kind == "move":
@@ -475,18 +497,21 @@ class App(Loop):
     # --- the pane's own menu: each of the tab's other panes closed or shown back
 
     def open_menu(self, y, x, right=None):
-        """The ⋯ menu at Y, X (with RIGHT, its right edge there instead): each of the tab's other panes closed or shown
-        back, Restore panels while any is closed (panels.menu())."""
+        """The ⋯ menu at Y, X (with RIGHT, its right edge there instead): the panels, each with a ✓ while shown, as
+        Adobe's Window menu; each of the tab's other panes closed or shown back (panels.menu()); About's lines."""
         pane = os.environ.get("HERDR_PANE_ID")
         try:
             panes = self.herdr.call("pane", "list").get("panes") or []
         except RuntimeError:
-            return
+            panes = []
         tab = next((p["tab_id"] for p in panes if p.get("pane_id") == pane), None)
         present = {p.get("label") for p in panes if p.get("tab_id") == tab} & set(panels.KINDS)
-        if tab:
-            menu = Menu(panels.menu(present) + self.about())
-            self.menu = (menu, y, x if right is None else right - menu.width(), tab, present)
+        shown = self.tabs()
+        lines = [f"{'✓' if panel in shown else ' '} {PANELS[panel]['title']}" for panel in self.panels()]
+        for part in (panels.menu(present) if tab else [], self.about()):
+            lines += [None] + part if part else []
+        menu = Menu(lines)
+        self.menu = (menu, y, x if right is None else right - menu.width(), tab, present)
 
     def about(self):
         """The ⋯ menu's last lines: herdr-fold's version (a newer one's, once out), its releases opened in the browser,
@@ -516,6 +541,10 @@ class App(Loop):
             target = self.canvas.hit(event.x, event.y) if self.canvas else None
             choice = menu.choices[int(target[5:])] if str(target).startswith("menu:") else "cancel"
         self.menu = None
+        panel = next((name for name in self.panels() if choice[2:] == PANELS[name]["title"]), None)
+        if panel:                                       # a panel's ✓: hidden, or shown again
+            self.hide(panel, choice.startswith("✓"))
+            return None
         if choice.startswith("herdr-fold "):
             self.do_open_url(update.RELEASES)
             return None
@@ -531,7 +560,10 @@ class App(Loop):
         return None
 
     def show(self, panel):
-        """PANEL shown in its group, the group open, and given the keys; what it needs as it comes (came())."""
+        """PANEL shown in its group (hidden in the ⋯'s Panels: shown again), the group open, and given the keys; what it
+        needs as it comes (came())."""
+        if panel in self.settings["hidden_panels"]:
+            self.hide(panel, False)
         if panel not in self.tabs():
             return
         group = GROUP_OF[panel]
