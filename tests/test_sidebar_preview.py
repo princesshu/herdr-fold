@@ -265,7 +265,7 @@ class Tabs(unittest.TestCase):
         self.assertEqual(len(self.laid), 1)
         tab, at = self.laid[0]
         self.assertEqual(tab, "w1:t3")
-        self.assertTrue(rename < at <= run, calls)                    # named (tab-layout leaves it), laid out, run
+        self.assertTrue(rename < at <= run, calls)                    # named (the dock leaves it), laid out, run
         self.assertEqual(calls[-1], "tab close w1:t2")
         self.assertNotIn("tab close w1:t1", calls)
 

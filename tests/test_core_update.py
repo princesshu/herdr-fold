@@ -7,7 +7,7 @@ import sys
 import tempfile
 import unittest
 
-from support import PACKAGE, set_env
+from support import PACKAGE, at_once, set_env
 
 sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import update  # noqa: E402
@@ -24,6 +24,11 @@ class Check(unittest.TestCase):
         os.makedirs(self.state)
         self.installed("0.3.0")
         self.asked = []
+
+    def test_two_changes_at_once_are_both_kept(self):
+        # one sidebar says a version was told while another, or the app, switches the check off
+        at_once(update.statefile, lambda: update.keep(told="0.4.0"), lambda: update.keep(on=False))
+        self.assertEqual({key: update.kept().get(key) for key in ("told", "on")}, {"told": "0.4.0", "on": False})
 
     def installed(self, version):
         with open(os.path.join(self.state, "version"), "w") as f:

@@ -1,42 +1,38 @@
-"""Restores herdr-fold's panes after herdr restarts (the layout survives; herdr resumes only agents with conversations):
-its started agents (not in HOME_SPACE, where the main conversation runs) and columns, only in an empty shell, never by
-pane name alone. A pane closed by hand stays closed; herdr's first shell, made before plugins start, gets the column."""
+"""Restores herdr-fold's started agents after herdr restarts (herdr resumes only agents with conversations), only in an
+empty shell and never in HOME_SPACE, where the main conversation runs; the ~ workspace is named HOME_SPACE. Without
+--startup the dock's columns come back too (the sidebar's panes.py; at herdr's start its own [[startup]] does it)."""
 import os
 import sys
-import time
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from herdrlib import (AGENTS, HOME_SPACE, PLUGIN_STATE, SHELLS, add_column, agents, herdr, machines,  # noqa: E402
-                      on_windows, program_names, sidebar_command)
+from herdrlib import (AGENTS, HOME_SPACE, PLUGIN_STATE, agents, herdr, machines, panes,  # noqa: E402
+                      sidebar_command)
 from i18n import line, t  # noqa: E402
-import column  # noqa: E402  (the sidebar plugin's, on the path herdrlib gives)
-import conversations  # noqa: E402
-import panels  # noqa: E402
-
-# At startup herdr is still running its own `claude --resume` commands (those without a conversation exit after a few
-# seconds): a pane is decided about only once its state is the same over this many consecutive checks (every POLL s).
-STEADY, POLL, STARTUP_LIMIT = 3, 2, 120
 
 
-def state_of(h, pane):
-    """"shell", the names of the foreground programs, or None if the pane has not started yet."""
-    info = h("pane", "process-info", "--pane", pane["pane_id"], check=False)
-    names = program_names((info.get("process_info") or {}).get("foreground_processes") or [])
-    if not names:
-        return None
-    return "shell" if all(n in SHELLS for n in names) else ",".join(names)
-
-
-def start(h, pane, role, name, machine=None):
+def started(role):
+    """What restore.done says was started in a pane of ROLE: the column, the sidebar or an agent."""
     if role == "column":
-        add_column(pane["pane_id"], pane.get("cwd"), h, machine)
         return t("restore.column_added")
-    if role == "sidebar":
-        h("pane", "run", pane["pane_id"], sidebar_command(pane.get("cwd")))
-        return t("restore.sidebar_started")
-    h("agent", "start", name, "--kind", role, "--pane", pane["pane_id"], "--timeout", "60000")
-    return t("restore.agent_started")
+    return t("restore.sidebar_started") if role == "sidebar" else t("restore.agent_started")
+
+
+def told(where):
+    """How each move on WHERE shows, the dock's (panes.restore_all's SAY) and this script's: its line in the catalog,
+    SAY(mark, what, workspace, *details)."""
+    texts = {
+        "sidebar_back": lambda label: t("restore.sidebar_back", where, label),
+        "sidebar_back_failed": lambda label, err: t("restore.sidebar_back_failed", where, label, err),
+        "terminal_added": lambda label: t("restore.terminal_added", where, label),
+        "terminal_failed": lambda label, err: t("restore.terminal_failed", where, label, err),
+        "column_next_to": lambda label, name: t("restore.column_next_to", where, label, name or t("restore.the_agent")),
+        "column_failed": lambda label, err: t("restore.column_failed", where, label, err),
+        "column_gone": lambda label: t("restore.column_gone", where, label),
+        "done": lambda label, role: t("restore.done", where, label, role, started(role)),
+        "start_failed": lambda label, role, err: t("restore.start_failed", where, label, role, err),
+    }
+    return lambda mark, what, label, *details: print(line(mark, texts[what](label, *details)))
 
 
 def named(h, ws, label):
@@ -47,112 +43,30 @@ def named(h, ws, label):
     return label
 
 
-def gone(h, workspaces, where, local):
-    """An install from before: each tab's Conversations column closed, its list in the sidebar now; on this machine
-    (LOCAL: herdr's socket is this one's) the right column, which took its room, as wide as remembered again, and
-    what the column kept (its width, its fold) gone from conversations.json."""
-    right = 1 - (column.saved(PLUGIN_STATE) or column.RIGHT)        # before a sidebar takes the new width as chosen
-    if local and set(conversations.setting(PLUGIN_STATE)) - set(conversations.KEPT):
-        conversations.keep(PLUGIN_STATE)
-    for ws, label in workspaces:
-        found = h("pane", "list", "--workspace", ws, check=False).get("panes", [])
-        old = {p["pane_id"]: p["tab_id"] for p in found if p.get("label") == "conversations"}
-        for pane in old:
-            h("pane", "close", pane, check=False)
-        if not old:
-            continue
-        print(line("ok", t("restore.column_gone", where, label)))
-        for pane in found if local else ():
-            tab = column.read(pane["pane_id"]) if pane.get("label") == "sidebar" and pane["tab_id"] in old.values() \
-                else None
-            if tab:
-                column.arrange(tab, right=right)
-
-
 def restore(machine=None, startup=False):
     h = (lambda *a, **k: herdr("--machine", machine, *a, **k)) if machine else herdr
-    where, scope = machine or t("restore.this_machine"), machine or ""
+    say = told(machine or t("restore.this_machine"))
     workspaces = [(w["workspace_id"], named(h, w["workspace_id"], w["label"]))
                   for w in h("workspace", "list").get("workspaces", [])]
-    seen, done, columned = {}, set(), set()
-    gone(h, workspaces, where, not machine)
-    deadline = time.time() + (STARTUP_LIMIT if startup else 0)
-    while True:
-        waiting = False
+    if not startup:
+        panes.restore_all(h, PLUGIN_STATE, sidebar_command, machine or "", say=say)
+
+    def look():
         started = {a["pane_id"]: a for a in agents(h) if a.get("name") and a.get("agent") in AGENTS}
-        listed = {ws: h("pane", "list", "--workspace", ws, check=False).get("panes", []) for ws, _ in workspaces}
-        fresh = sum(map(len, listed.values())) == 1       # herdr's very first workspace, nothing else yet
-        for ws, label in workspaces:
-            panes = listed[ws]
-            alone = {p["pane_id"] for p in panes if sum(q["tab_id"] == p["tab_id"] for q in panes) == 1}
-            with_terminal = {p["tab_id"] for p in panes if p.get("label") == "terminal"}
-            with_sidebar = {p["tab_id"] for p in panes if p.get("label") == "sidebar"}
-            for pane in panes:
-                name = pane.get("label") or ""
-                had = panels.had(PLUGIN_STATE, pane["tab_id"], scope)     # what the tab has had: closed by hand stays
-                # a column whose sidebar was never there gets one above the terminal; the terminal keeps what runs
-                # in it (split below it, then swapped)
-                if name == "terminal" and pane["tab_id"] not in with_sidebar and "sidebar" not in had:
-                    with_sidebar.add(pane["tab_id"])
-                    try:
-                        panels.show_sidebar(h, pane["pane_id"], pane.get("cwd"), sidebar_command(pane.get("cwd")))
-                        print(line("ok", t("restore.sidebar_back", where, label)))
-                    except (RuntimeError, KeyError) as err:
-                        print(line("warn", t("restore.sidebar_back_failed", where, label, err)))
-                # a column whose terminal was never there gets one under the sidebar
-                if name == "sidebar" and pane["tab_id"] not in with_terminal and "terminal" not in had:
-                    with_terminal.add(pane["tab_id"])
-                    try:
-                        panels.show_terminal(h, pane["pane_id"], pane.get("cwd"))
-                        print(line("ok", t("restore.terminal_added", where, label)))
-                    except (RuntimeError, KeyError) as err:
-                        print(line("warn", t("restore.terminal_failed", where, label, err)))
-                # a started agent alone in its tab — running or not — gets the right-hand column next to it, unless its
-                # columns were closed by hand
-                if pane["pane_id"] in alone and pane["pane_id"] not in columned and pane["pane_id"] in started \
-                        and not had:
-                    columned.add(pane["pane_id"])
-                    try:
-                        add_column(pane["pane_id"], pane.get("cwd"), h, machine)
-                        print(line("ok", t("restore.column_next_to", where, label, name or t("restore.the_agent"))))
-                    except RuntimeError as err:
-                        print(line("warn", t("restore.column_failed", where, label, err)))
-                if pane["pane_id"] in started:
-                    role = started[pane["pane_id"]]["agent"]
-                elif fresh and not name and pane["pane_id"] not in columned:
-                    role = "column"
-                else:
-                    role = name
-                restarted = role in AGENTS and label != HOME_SPACE and pane["pane_id"] in started
-                if pane["pane_id"] in done or not (role in ("sidebar", "column") or restarted):
-                    continue
-                state = state_of(h, pane)
-                if state == "shell" and role == "sidebar" and not startup and on_windows(pane.get("cwd")):
-                    # herdr on Windows names only the shell for a program that is not an agent: the sidebar may be
-                    # running there, so nothing is typed into it (when herdr starts, every pane is a fresh shell)
-                    continue
-                if startup and state == "shell" and pane.get("agent_session"):
-                    state = "resuming"             # herdr may still resume the conversation in it
-                history = seen.setdefault(pane["pane_id"], [])
-                history.append(state)
-                if startup and (state in (None, "resuming") or history[-STEADY:] != [state] * STEADY):
-                    waiting = True
-                    continue
-                done.add(pane["pane_id"])
-                if state != "shell":                           # running already: left as it is, without a line
-                    continue
-                try:
-                    name = started.get(pane["pane_id"], {}).get("name")
-                    print(line("ok", t("restore.done", where, label, role, start(h, pane, role, name, machine))))
-                except RuntimeError as err:
-                    print(line("warn", t("restore.start_failed", where, label, role, err)))
-        if not waiting or time.time() > deadline:
-            # what each tab has now, kept: a pane closed by hand from here on stays closed
-            now = [pane for ws, _ in workspaces
-                   for pane in h("pane", "list", "--workspace", ws, check=False).get("panes", [])]
-            panels.note(PLUGIN_STATE, panels.present(now), scope, {p["tab_id"] for p in now})
-            return
-        time.sleep(POLL)
+        return [(pane, (label, started[pane["pane_id"]])) for ws, label in workspaces if label != HOME_SPACE
+                for pane in h("pane", "list", "--workspace", ws, check=False).get("panes", [])
+                if pane["pane_id"] in started]
+
+    def act(pane, what):
+        label, agent = what
+        kind = agent["agent"]
+        try:
+            h("agent", "start", agent["name"], "--kind", kind, "--pane", pane["pane_id"], "--timeout", "60000")
+            say("ok", "done", label, kind)
+        except RuntimeError as err:
+            say("warn", "start_failed", label, kind, err)
+
+    panes.when_steady(h, startup, look, act)
 
 
 def main():

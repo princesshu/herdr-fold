@@ -9,12 +9,10 @@ import sys
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "plugins", "sidebar"))   # the column's place
 import panes  # noqa: E402
+from panes import AGENTS, on_windows  # noqa: E402  (the dock's own: the agents herdr-fold starts, a folder's system)
 
 HERDR = os.environ.get("HERDR_BIN_PATH") or shutil.which("herdr") or next(
     (p for p in ("/opt/homebrew/bin/herdr", "/usr/local/bin/herdr") if os.path.exists(p)), "herdr")
-AGENTS = ("claude", "codex")
-# The shells a pane can run with nothing else in its foreground (Unix and Windows)
-SHELLS = {"zsh", "bash", "sh", "dash", "fish", "ksh", "nu", "pwsh", "powershell", "cmd"}
 # the sidebar plugin's state: the right column's width as last dragged, what each tab has had
 PLUGIN_STATE = os.path.join(os.path.expanduser("~"), ".local", "state", "herdr", "plugins", "herdr-fold.sidebar")
 SIDEBAR_COMMAND = "bash ~/.config/herdr-fold/sidebar.sh"
@@ -43,12 +41,6 @@ def agent_pane_ids(panes):
     return {p["pane_id"] for p in panes if p["pane_id"] in running or p.get("label") in AGENTS}
 
 
-def on_windows(cwd=None):
-    """Whether a pane in folder CWD is on a Windows machine: this machine itself, or a connected machine's C:\\… style
-    folder."""
-    return os.name == "nt" or bool(re.match(r"^[A-Za-z]:[\\/]", cwd or ""))
-
-
 def sidebar_command(cwd=None):
     """The sidebar launch command for the pane's shell: the PowerShell launcher on Windows, elsewhere the bash one."""
     return WINDOWS_SIDEBAR_COMMAND if on_windows(cwd) else SIDEBAR_COMMAND
@@ -59,18 +51,6 @@ def add_column(pane_id, cwd, h=herdr, machine=None):
     under MACHINE's name on a connected one. `h`: the herdr caller (`herdr --machine <machine>` there, see
     restore_panes.py); `cwd` None: herdr inherits the pane's folder."""
     panes.build(h, pane_id, cwd, PLUGIN_STATE, sidebar_command(cwd), machine or "")
-
-
-def program_names(processes):
-    """The plain names of a pane's foreground programs: no folder, no .exe, no login dash, lowercase."""
-    return [re.sub(r"(?i)\.exe$", "", p["name"].replace("\\", "/").split("/")[-1]).lstrip("-").lower()
-            for p in processes]
-
-
-def only_shells(processes):
-    """True if nothing but a shell runs in the pane's foreground (Unix: -zsh; Windows: pwsh.exe / cmd.exe)."""
-    names = program_names(processes)
-    return bool(names) and all(n in SHELLS for n in names)
 
 
 # A workspace's name for its folder, and its main tab's (the workspace's first tab is named as the workspace)

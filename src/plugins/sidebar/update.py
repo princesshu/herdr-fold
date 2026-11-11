@@ -20,16 +20,12 @@ DAY = 86400
 
 def kept():
     """What update.json keeps: when GitHub was last asked, its answer, the version told about, whether it is on."""
-    try:
-        with open(os.path.join(statefile.folder(), "update.json"), encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
+    return statefile.read(os.path.join(statefile.folder(), "update.json"))
 
 
 def keep(**changes):
-    statefile.write(os.path.join(statefile.folder(), "update.json"), {**kept(), **changes})
+    """CHANGES made to update.json as it is then (statefile.update): every sidebar and the app write it."""
+    statefile.update(os.path.join(statefile.folder(), "update.json"), lambda found: {**found, **changes})
 
 
 def installed():

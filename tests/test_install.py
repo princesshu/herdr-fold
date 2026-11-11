@@ -13,8 +13,8 @@ import tempfile
 import time
 import unittest
 
-from support import (DEFAULTS_STUB, GH_STUB, HERDR_STUB, PACKAGE, PackageHome, catalog_text, copy_package,
-                     from_homebrew, run_in_terminal, stubs)
+from support import (DEFAULTS_STUB, FORGET_PLUGIN, GH_STUB, HERDR_STUB, PACKAGE, PackageHome, catalog_text,
+                     copy_package, from_homebrew, run_in_terminal, stubs)
 
 with open(os.path.join(PACKAGE, "herdr-plugin.toml"), encoding="utf-8") as _f:
     VERSION = re.search(r'^version = "(.*)"$', _f.read(), re.M).group(1)      # the package's, its last line names it
@@ -405,7 +405,7 @@ class InstallCleanup(PackageHome, unittest.TestCase):
         self.install()
         shown = self.install_answering({})                                  # Enter: the earlier choices
         self.assertIn(catalog_text("install.update_ask"), shown)
-        for key in ("lib.press_enter_to_start", "status.question", "install.sessions_ask", "install.tab_layout_ask",
+        for key in ("lib.press_enter_to_start", "status.question", "install.sessions_ask", "install.workspaces_ask",
                     "install.github_login_ask"):
             self.assertNotIn(catalog_text(key), shown, key)
         self.assertNotIn(catalog_text("install.theme_ask") + " [", shown)          # the question, not the step
@@ -460,7 +460,7 @@ class InstallCleanup(PackageHome, unittest.TestCase):
                          ["[✓] " + catalog_text("status.herdr_folds", "Claude Code, Codex") + "; "
                           + catalog_text("status.codex_restart")])
         plugins = ", ".join(catalog_text(key) for key in ("install.plugin_sidebar", "install.plugin_sessions",
-                                                           "install.plugin_tab_layout"))
+                                                           "install.plugin_workspaces"))
         self.assertEqual(self.lines_of(out, "install.step_plugins"),
                          ["[✓] " + catalog_text("install.plugins", plugins),
                           "[✓] " + catalog_text("install.integrations", "Claude Code, Codex")])
@@ -526,8 +526,8 @@ class InstallCleanup(PackageHome, unittest.TestCase):
     def test_the_summary_names_only_their_plugins(self):
         self.write(".config/herdr/config.toml", THEIR_CONFIG)
         self.set_plugins(*({"plugin_id": p, "events": [], "plugin_root": ""}
-                           for p in ("herdr-fold.sidebar", "herdr-fold.sessions-view", "herdr-fold.tab-layout",
-                                     "x.mine")))
+                           for p in ("herdr-fold.sidebar", "herdr-fold.sessions-view", "herdr-fold.workspaces",
+                                     "herdr-fold.tab-layout", "x.mine")))
         out = self.install()
         self.assertIn(catalog_text("install.existing_plugins", "x.mine"), out)
 
@@ -545,7 +545,7 @@ class InstallCleanup(PackageHome, unittest.TestCase):
         # one that lays out new tabs too: the two would fight over a new tab
         self.set_plugins({"plugin_id": "x.layout", "events": [{"on": "tab.created"}], "plugin_root": ""})
         out = self.install()
-        self.assertIn(catalog_text("install.plugin_like_tab_layout", "x.layout"), out)
+        self.assertIn(catalog_text("install.plugin_like_workspaces", "x.layout"), out)
 
     def test_no_take_over_without_its_own_copy(self):
         # the installer's own sidebar is not in place: the marketplace's stays rather than leaving none
@@ -558,7 +558,7 @@ class InstallCleanup(PackageHome, unittest.TestCase):
     def test_a_plugin_named_like_herdr_folds_is_still_theirs(self):
         self.set_plugins({"plugin_id": "herdr-fold.x", "events": [{"on": "tab.created"}], "plugin_root": ""})
         out = self.install()
-        self.assertIn(catalog_text("install.plugin_like_tab_layout", "herdr-fold.x"), out)
+        self.assertIn(catalog_text("install.plugin_like_workspaces", "herdr-fold.x"), out)
 
     def test_a_plugin_list_cannot_forge_a_line(self):
         # an id with a line break in it would read as a second plugin: one of herdr-fold's, from the marketplace
@@ -569,7 +569,7 @@ class InstallCleanup(PackageHome, unittest.TestCase):
     def test_a_plugin_of_herdr_folds_from_the_marketplace_is_taken_over(self):
         # installed alone from herdr's marketplace first: the installer's own copy takes its place, and says so
         github = {"kind": "github", "owner": "princesshu", "repo": "herdr-fold"}
-        plugins = ("sidebar", "sessions-view", "tab-layout")
+        plugins = ("sidebar", "sessions-view", "workspaces")
         self.set_plugins(*({"plugin_id": f"herdr-fold.{p}", "events": [], "plugin_root": "", "source": github}
                            for p in plugins))
         out = self.install()
@@ -635,12 +635,12 @@ class InstallCleanup(PackageHome, unittest.TestCase):
         self.write(".config/herdr/config.toml", THEIR_CONFIG)
         shown = self.install_answering({catalog_text("install.sessions_ask"): "n"})
         self.assertIn(catalog_text("install.sessions_ask"), shown)
-        self.assertIn(catalog_text("install.tab_layout_ask"), shown)
+        self.assertIn(catalog_text("install.workspaces_ask"), shown)
         linked = [call for call in self.herdr_calls() if call.startswith("herdr plugin link")]
-        self.assertEqual([call.rsplit("/", 1)[-1] for call in linked], ["sidebar", "tab-layout"])
+        self.assertEqual([call.rsplit("/", 1)[-1] for call in linked], ["sidebar", "workspaces"])
         self.assertIn("herdr plugin unlink herdr-fold.sessions-view", self.herdr_calls())
         self.assertEqual(sorted(self.read(".local/state/herdr-fold/plugins.txt").split()),
-                         ["declined:herdr-fold.sessions-view", "herdr-fold.sidebar", "herdr-fold.tab-layout"])
+                         ["declined:herdr-fold.sessions-view", "herdr-fold.sidebar", "herdr-fold.workspaces"])
 
     def test_a_plugin_said_no_to_stays_unlinked(self):
         self.write(".config/herdr/config.toml", THEIR_CONFIG)
@@ -667,8 +667,80 @@ class InstallCleanup(PackageHome, unittest.TestCase):
         self.assertEqual(len(linked), 3)
         self.assertIn("herdr plugin link " + self.path(".config/herdr-fold/plugins/sidebar"), linked)
         plugins = self.read(".local/state/herdr-fold/plugins.txt").split()
-        for plugin in ("herdr-fold.sessions-view", "herdr-fold.tab-layout", "herdr-fold.sidebar"):
+        for plugin in ("herdr-fold.sessions-view", "herdr-fold.workspaces", "herdr-fold.sidebar"):
             self.assertIn(plugin, plugins)
+
+    TAB_LAYOUT = ".local/state/herdr/plugins/herdr-fold.tab-layout/"
+    WORKSPACES = ".local/state/herdr/plugins/herdr-fold.workspaces/"
+
+    def had_tab_layout(self, record=("herdr-fold.tab-layout",), unlinks=True):
+        """An earlier install's retired Tab Layout: RECORD on its plugins.txt, linked in herdr with herdr's folder of
+        it and the workspaces it followed; herdr's unlink takes it off herdr's list (UNLINKS false: herdr not running).
+        """
+        self.write(".local/state/herdr-fold/plugins.txt",
+                   "".join(line + "\n" for line in ("herdr-fold.sidebar", "herdr-fold.sessions-view") + record))
+        self.set_plugins(*({"plugin_id": p, "events": [{"on": "tab.created"}], "plugin_root": ""}
+                           for p in ("herdr-fold.sidebar", "herdr-fold.sessions-view", "herdr-fold.tab-layout")))
+        self.write(self.TAB_LAYOUT + "spaces.json", '{"w1": {"label": "app", "folder": "/srv/app"}}\n')
+        self.write(self.TAB_LAYOUT + "focus.json", '{"now": "w1", "before": "w2"}\n')
+        self.write(self.TAB_LAYOUT + ".spaces.json.x1.tmp", "{")                # a write cut short
+        os.makedirs(self.path(".config/herdr/plugins/config/herdr-fold.tab-layout"))
+        unlink = FORGET_PLUGIN + ' "$STUB_PLUGINS" "$3"' if unlinks else "exit 1"
+        with open(os.path.join(self.tmp, "stubs", "herdr"), "w") as f:
+            f.write(HERDR_STUB.replace('case "$*" in', f'case "$*" in\n  "plugin unlink "*) {unlink} ;;'))
+
+    def test_an_install_with_tab_layout_gives_its_workspaces_to_workspaces(self):
+        self.had_tab_layout(record=("herdr-fold.tab-layout", "taken:herdr-fold.tab-layout"))
+        out = self.install()
+        calls = self.herdr_calls()
+        off = calls.index("herdr plugin unlink herdr-fold.tab-layout")
+        self.assertLess(off, calls.index("herdr plugin link " + self.path(".config/herdr-fold/plugins/workspaces")))
+        self.assertIn("[✓] " + catalog_text("install.tab_layout_retired"), out)
+        self.assertNotIn(catalog_text("install.plugin_like_workspaces", "herdr-fold.tab-layout"), out)
+        self.assertEqual(self.read(self.WORKSPACES + "spaces.json"), '{"w1": {"label": "app", "folder": "/srv/app"}}\n')
+        self.assertEqual(self.read(self.WORKSPACES + "focus.json"), '{"now": "w1", "before": "w2"}\n')
+        self.assertEqual([rel for rel in (self.TAB_LAYOUT, ".config/herdr/plugins/config/herdr-fold.tab-layout")
+                          if os.path.exists(self.path(rel))], [], out)
+        record = self.read(".local/state/herdr-fold/plugins.txt").split()      # its marketplace way back gone too
+        self.assertIn("herdr-fold.workspaces", record)
+        self.assertEqual([line for line in record if "tab-layout" in line], [])
+
+    def test_workspaces_own_state_stays_over_tab_layouts(self):
+        self.had_tab_layout()
+        self.write(self.WORKSPACES + "spaces.json", '{"w3": {"label": "docs", "folder": "/srv/docs"}}\n')
+        out = self.install()
+        self.assertEqual(self.read(self.WORKSPACES + "spaces.json"),
+                         '{"w3": {"label": "docs", "folder": "/srv/docs"}}\n')
+        self.assertEqual(self.read(self.WORKSPACES + "focus.json"), '{"now": "w1", "before": "w2"}\n')
+        self.assertFalse(os.path.exists(self.path(self.TAB_LAYOUT)), out)
+
+    def test_a_tab_layout_said_no_to_leaves_workspaces_said_no_to(self):
+        self.had_tab_layout(record=("declined:herdr-fold.tab-layout",))
+        self.set_plugins({"plugin_id": "herdr-fold.sidebar", "events": [], "plugin_root": ""})
+        out = self.install()
+        self.assertFalse([call for call in self.herdr_calls() if call.endswith("plugins/workspaces")], out)
+        self.assertIn("[-] " + catalog_text("install.plugin_declined", "herdr-fold.workspaces"), out)
+        self.assertIn("declined:herdr-fold.workspaces", self.read(".local/state/herdr-fold/plugins.txt").split())
+        self.assertEqual(self.read(self.WORKSPACES + "spaces.json"), '{"w1": {"label": "app", "folder": "/srv/app"}}\n')
+
+    def test_a_tab_layout_from_herdrs_marketplace_is_uninstalled(self):
+        # installed alone from herdr's marketplace, never taken over: herdr's copy, which an unlink leaves
+        self.had_tab_layout()
+        self.set_plugins({"plugin_id": "herdr-fold.tab-layout", "events": [], "plugin_root": "",
+                          "source": {"kind": "github", "owner": "princesshu", "repo": "herdr-fold"}})
+        out = self.install()
+        self.assertIn("herdr plugin uninstall herdr-fold.tab-layout", self.herdr_calls())
+        self.assertNotIn("herdr plugin unlink herdr-fold.tab-layout", self.herdr_calls())
+        self.assertIn("[✓] " + catalog_text("install.tab_layout_retired"), out)
+
+    def test_a_tab_layout_herdr_does_not_take_off_stays_on_the_record(self):
+        # only a running herdr takes a plugin off: named, and kept on the record for the next run or the uninstaller
+        self.had_tab_layout(unlinks=False)
+        out = self.install()
+        self.assertIn("[!] " + catalog_text("install.tab_layout_left", "herdr plugin unlink herdr-fold.tab-layout"),
+                      out)
+        self.assertIn("herdr-fold.tab-layout", self.read(".local/state/herdr-fold/plugins.txt").split())
+        self.assertEqual(self.read(self.WORKSPACES + "spaces.json"), '{"w1": {"label": "app", "folder": "/srv/app"}}\n')
 
     def test_connected_machines_are_updated_without_a_question(self):
         log = os.path.join(self.tmp, "machines-calls")

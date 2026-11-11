@@ -131,9 +131,9 @@ class Uninstall(PackageHome, unittest.TestCase):
 
     def test_plugins_it_put_there_are_taken_out(self):
         _, out = self.install_and_uninstall(
-            between=lambda: self.linked("herdr-fold.sessions-view", "herdr-fold.tab-layout", "herdr-fold.sidebar"))
+            between=lambda: self.linked("herdr-fold.sessions-view", "herdr-fold.workspaces", "herdr-fold.sidebar"))
         calls = logged(self.log)
-        for plugin in ("herdr-fold.sessions-view", "herdr-fold.tab-layout", "herdr-fold.sidebar"):
+        for plugin in ("herdr-fold.sessions-view", "herdr-fold.workspaces", "herdr-fold.sidebar"):
             self.assertIn("herdr plugin unlink " + plugin, calls)
             self.assertIn(catalog_text("uninstall.plugin_removed", plugin), out)
         self.assertFalse([c for c in calls if "herdr-sidebar" in c])
@@ -192,15 +192,15 @@ class Uninstall(PackageHome, unittest.TestCase):
         self.assertIn(catalog_text("uninstall.plugin_left", "herdr-fold.sidebar",
                                    "herdr plugin unlink herdr-fold.sidebar"), out)
 
-    def plugin_folders(self, ids):
-        """What herdr keeps of plugins IDS after unlinking them: their config folders; the tab layout's state folder,
-        with the workspaces it follows (a write cut short too); and AI Sessions' conversation names, beside its waits
-        and locks. Returns the folders that ought to go."""
+    def plugin_folders(self, ids, follows="herdr-fold.workspaces"):
+        """What herdr keeps of plugins IDS after unlinking them: their config folders; the state folder of FOLLOWS
+        (Workspaces, or an earlier install's Tab Layout), with the workspaces it follows (a write cut short too); and
+        AI Sessions' conversation names, beside its waits and locks. Returns the folders that ought to go."""
         for plugin_id in ids:
             os.makedirs(self.path(".config/herdr/plugins/config/" + plugin_id), exist_ok=True)
-        self.write(".local/state/herdr/plugins/herdr-fold.tab-layout/spaces.json", '{"w1": {"label": "app"}}\n')
-        self.write(".local/state/herdr/plugins/herdr-fold.tab-layout/.spaces.json.x1.tmp", "{")
-        self.write(".local/state/herdr/plugins/herdr-fold.tab-layout/focus.json", '{"now": "w1"}\n')
+        self.write(f".local/state/herdr/plugins/{follows}/spaces.json", '{"w1": {"label": "app"}}\n')
+        self.write(f".local/state/herdr/plugins/{follows}/.spaces.json.x1.tmp", "{")
+        self.write(f".local/state/herdr/plugins/{follows}/focus.json", '{"now": "w1"}\n')
         sessions = ".local/state/herdr/plugins/herdr-fold.sessions-view/"
         self.write(sessions + "names.json", '{"s1": "my work"}\n')
         self.write(sessions + "waits.json", '{"w1:p1": {"seq": 1, "since": 1.0}}\n')
@@ -208,10 +208,10 @@ class Uninstall(PackageHome, unittest.TestCase):
         for lock in ("names.json.lock", "waits.json.lock", "clock.lock"):
             self.write(sessions + lock, "")
         return [self.path(".config/herdr/plugins/config/" + plugin_id) for plugin_id in ids] + [
-            self.path(".local/state/herdr/plugins/herdr-fold.tab-layout")]
+            self.path(".local/state/herdr/plugins/" + follows)]
 
     def test_no_empty_plugin_folder_is_left_and_the_names_stay(self):
-        ids = ("herdr-fold.sessions-view", "herdr-fold.tab-layout", "herdr-fold.sidebar")
+        ids = ("herdr-fold.sessions-view", "herdr-fold.workspaces", "herdr-fold.sidebar")
         folders = []
 
         def between():
@@ -222,6 +222,20 @@ class Uninstall(PackageHome, unittest.TestCase):
         self.assertEqual(os.listdir(self.path(".local/state/herdr/plugins/herdr-fold.sessions-view")), ["names.json"])
         self.assertEqual(self.read(".local/state/herdr/plugins/herdr-fold.sessions-view/names.json"),
                          '{"s1": "my work"}\n')
+
+    def test_an_earlier_installs_tab_layout_goes_with_its_state(self):
+        # the retired plugin on the record of an install made before it left the package
+        ids = ("herdr-fold.sessions-view", "herdr-fold.tab-layout", "herdr-fold.sidebar")
+        folders = []
+
+        def between():
+            self.write(".local/state/herdr-fold/plugins.txt", "".join(i + "\n" for i in ids))
+            self.linked(*ids)
+            folders.extend(self.plugin_folders(ids, follows="herdr-fold.tab-layout"))
+        _, out = self.install_and_uninstall(between)
+        self.assertIn("herdr plugin unlink herdr-fold.tab-layout", logged(self.log))
+        self.assertIn(catalog_text("uninstall.plugin_removed", "herdr-fold.tab-layout"), out)
+        self.assertEqual([folder for folder in folders if os.path.exists(folder)], [], out)
 
     def test_a_plugin_herdr_did_not_take_off_keeps_its_folders(self):
         self.env["STUB_NO_SERVER"] = "1"
@@ -234,8 +248,8 @@ class Uninstall(PackageHome, unittest.TestCase):
 
     def test_a_plugin_herdr_no_longer_has_is_left_alone(self):
         _, out = self.install_and_uninstall(between=lambda: self.linked("herdr-fold.sidebar"))
-        self.assertNotIn("herdr plugin unlink herdr-fold.tab-layout", logged(self.log))
-        self.assertNotIn(catalog_text("uninstall.plugin_removed", "herdr-fold.tab-layout"), out)
+        self.assertNotIn("herdr plugin unlink herdr-fold.workspaces", logged(self.log))
+        self.assertNotIn(catalog_text("uninstall.plugin_removed", "herdr-fold.workspaces"), out)
 
     def test_the_integrations_it_put_there_are_taken_out(self):
         self.install_and_uninstall()
@@ -281,6 +295,8 @@ class Uninstall(PackageHome, unittest.TestCase):
             self.write(f"{folder}/conversation-index.json", "{}\n")                   # what it read of the files
             self.write(f"{folder}/panels.json", '{"w1:t1": ["sidebar"]}\n')           # what each tab has had
             self.write(f"{folder}/.panels.json.k3j9x2.tmp", "{")                       # a write cut short
+            for name in ("settings", "dock", "conversations", "column", "panels"):   # each one's lock
+                self.write(f"{folder}/{name}.json.lock", "")
         _, out = self.install_and_uninstall(between=used)
         self.assertFalse(os.path.exists(self.path(folder)), out)
         self.assertTrue(os.path.isfile(self.path(".local/state/herdr/plugins/other/state.json")))
@@ -294,6 +310,11 @@ class Uninstall(PackageHome, unittest.TestCase):
         _, out = self.install_and_uninstall(between=used)
         self.assertFalse(os.path.exists(self.path(colors)), out)
         self.assertFalse(os.path.exists(self.path(cut)), out)
+
+    def test_the_update_checks_file_and_its_lock_go(self):
+        files = (".local/state/herdr-fold/update.json", ".local/state/herdr-fold/update.json.lock")
+        _, out = self.install_and_uninstall(between=lambda: [self.write(path, "{}\n") for path in files])
+        self.assertEqual([path for path in files if os.path.exists(self.path(path))], [], out)
 
     def test_the_themes_app_icon_goes(self):
         include, icons = ".config/ghostty/herdr-fold-icon", ".local/state/herdr-fold/ghostty-icon"

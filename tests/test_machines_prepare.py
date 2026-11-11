@@ -171,7 +171,9 @@ class Prepared(Prepare):
                      os.path.join(sidebar, ".panels.json.k3j9x2.tmp"), os.path.join(sidebar, "seed-w1-t3.json"),
                      os.path.join(sidebar, "preview-w1.json"), os.path.join(sidebar, "issues-0123456789abcdef.json"),
                      os.path.join(sidebar, "column.json"), os.path.join(sidebar, "conversations.json"),
-                     os.path.join(sidebar, "conversation-index.json"), os.path.join(sidebar, "panels.json"), herdrs):
+                     os.path.join(sidebar, "conversation-index.json"), os.path.join(sidebar, "panels.json"),
+                     os.path.join(sidebar, "dock.json"), os.path.join(sidebar, "settings.json.lock"),
+                     os.path.join(sidebar, "dock.json.lock"), herdrs):
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, "w") as f:
                 f.write("{}\n")
@@ -180,24 +182,30 @@ class Prepared(Prepare):
         self.assertTrue(os.path.isfile(herdrs), out)                     # herdr's own state is never touched
 
     def test_removing_the_machine_leaves_no_empty_plugin_folders(self):
+        # herdr-fold's plugins there: the sidebar, AI Sessions, Workspaces, and the retired Tab Layout of an earlier
+        # prepare that machines.sh did not get to take off
+        ids = ("herdr-fold.sidebar", "herdr-fold.sessions-view", "herdr-fold.workspaces", "herdr-fold.tab-layout")
         self.prepare()
-        self.plugins_listed("herdr-fold.sessions-view", "herdr-fold.tab-layout")
+        self.plugins_listed(*ids)
         config = os.path.join(self.profile, ".config", "herdr", "plugins", "config")
         state = os.path.join(self.profile, ".local", "state", "herdr", "plugins")
-        folders = [os.path.join(config, "herdr-fold.sessions-view"), os.path.join(config, "herdr-fold.tab-layout"),
-                   os.path.join(state, "herdr-fold.tab-layout"), os.path.join(state, "herdr-fold.sessions-view")]
+        folders = [os.path.join(config, plugin_id) for plugin_id in ids] + [
+            os.path.join(state, plugin_id) for plugin_id in ids[1:]]
         for folder in folders:
             os.makedirs(folder)
-        if self.kind == "unix":                     # the workspaces it follows: never made on Windows
-            for name, text in (("spaces.json", '{"w1": {"label": "app"}}\n'), ("focus.json", '{"now": "w1"}\n')):
-                with open(os.path.join(folders[2], name), "w") as f:
-                    f.write(text)
+        if self.kind == "unix":                     # the workspaces they follow: never made on Windows
+            for plugin_id in ids[2:]:
+                for name, text in (("spaces.json", '{"w1": {"label": "app"}}\n'), ("focus.json", '{"now": "w1"}\n')):
+                    with open(os.path.join(state, plugin_id, name), "w") as f:
+                        f.write(text)
         # AI Sessions' waits and locks (no conversation names: they would stay)
         for name in ("waits.json", "waits.json.lock", "clock.lock", "names.json.lock"):
-            with open(os.path.join(folders[3], name), "w") as f:
+            with open(os.path.join(state, "herdr-fold.sessions-view", name), "w") as f:
                 f.write("{}\n" if name.endswith(".json") else "")
         out = self.remove()
         self.assertEqual([folder for folder in folders if os.path.exists(folder)], [], out)
+        calls = self.herdr_calls()
+        self.assertEqual([plugin_id for plugin_id in ids if f"herdr plugin unlink {plugin_id}" not in calls], [], out)
 
     def test_removing_the_machine_keeps_the_conversation_names_and_says_where(self):
         self.prepare()
@@ -252,10 +260,10 @@ class Prepared(Prepare):
         with open(own, "w") as f:
             f.write("mine\n")
         self.prepare()
-        dropped = ".config/herdr-fold/plugins/tab-layout/tab_layout.py"
+        dropped = ".config/herdr-fold/plugins/sessions-view/sessions.py"
         path = os.path.join(self.package, "remote", "files.txt")
         with open(path, encoding="utf-8") as f:
-            rows = [row for row in f if "tab-layout/tab_layout.py" not in row]
+            rows = [row for row in f if "sessions-view/sessions.py" not in row]
         with open(path, "w", encoding="utf-8") as f:
             f.writelines(rows)
         out = self.prepare()
@@ -268,11 +276,11 @@ class Prepared(Prepare):
         self.prepare()
         path = os.path.join(self.package, "remote", "files.txt")
         with open(path, encoding="utf-8") as f:
-            rows = [row for row in f if "plugins/tab-layout/" not in row]
+            rows = [row for row in f if "plugins/workspaces/" not in row]
         with open(path, "w", encoding="utf-8") as f:
             f.writelines(rows)
         out = self.prepare()
-        self.assertFalse(os.path.exists(os.path.join(self.profile, ".config", "herdr-fold", "plugins", "tab-layout")),
+        self.assertFalse(os.path.exists(os.path.join(self.profile, ".config", "herdr-fold", "plugins", "workspaces")),
                          out)
         self.assertTrue(os.path.isdir(os.path.join(self.profile, ".config", "herdr-fold", "plugins", "sessions-view")))
 
@@ -324,11 +332,11 @@ class UnixPrepare(Prepared, unittest.TestCase):
 
     def test_a_dropped_file_the_installation_still_uses_stays(self):
         self.prepare()
-        dropped = ".config/herdr-fold/plugins/tab-layout/tab_layout.py"
+        dropped = ".config/herdr-fold/plugins/sessions-view/sessions.py"
         self.installer_record(dropped)
         path = os.path.join(self.package, "remote", "files.txt")
         with open(path, encoding="utf-8") as f:
-            rows = [row for row in f if "tab-layout/tab_layout.py" not in row]
+            rows = [row for row in f if "sessions-view/sessions.py" not in row]
         with open(path, "w", encoding="utf-8") as f:
             f.writelines(rows)
         out = self.prepare()
@@ -353,6 +361,18 @@ class UnixPrepare(Prepared, unittest.TestCase):
             with open(os.path.join(self.profile, rel)) as f:
                 self.assertEqual(f.read(), text, rel)
         self.assertFalse([call for call in self.herdr_calls() if "unlink" in call or "uninstall" in call])
+
+    def test_the_retired_tab_layouts_workspaces_become_workspaces(self):
+        # an earlier prepare's Tab Layout followed them; once herdr has it no more, its folder goes
+        state = os.path.join(self.profile, ".local", "state", "herdr", "plugins")
+        os.makedirs(os.path.join(state, "herdr-fold.tab-layout"))
+        with open(os.path.join(state, "herdr-fold.tab-layout", "spaces.json"), "w") as f:
+            f.write('{"w1": {"label": "app"}}\n')
+        self.plugins_listed("herdr-fold.sessions-view")
+        out = self.prepare()
+        with open(os.path.join(state, "herdr-fold.workspaces", "spaces.json")) as f:
+            self.assertEqual(f.read(), '{"w1": {"label": "app"}}\n', out)
+        self.assertFalse(os.path.exists(os.path.join(state, "herdr-fold.tab-layout")), out)
 
     def test_removing_the_machine_gives_its_shell_settings_back(self):
         with open(os.path.join(self.profile, ".bashrc"), "w") as f:
@@ -470,7 +490,7 @@ class WindowsPrepare(Prepared, unittest.TestCase):
         herdr = os.path.join(self.profile, ".config", "herdr-fold")
         for rel in ("herdrlib.py", "restore_panes.py", "statusline_setup.py", "i18n.py", "sidebar.ps1",
                     os.path.join("lang", "en.txt"), os.path.join("plugins", "sessions-view", "sessions.py"),
-                    os.path.join("plugins", "tab-layout", "tab_layout.py")):
+                    os.path.join("plugins", "sidebar", "panes.py")):
             self.assertTrue(os.path.isfile(os.path.join(herdr, rel)), rel)
         self.assertTrue(os.path.isfile(os.path.join(herdr, "statusline.py")))
         self.assertTrue(os.path.isfile(os.path.join(herdr, "statusline.json")))    # statusline_setup.py --apply ran

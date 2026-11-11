@@ -1,7 +1,9 @@
 # Sidebar
 
 A herdr plugin: every workspace's Claude and Codex conversations, Files, Search, Changes (git) and Issues (GitHub) in
-one pane, the same on macOS, Linux and Windows.
+one pane, the same on macOS, Linux and Windows. Every new empty tab gets it on the right, above a terminal, beside the
+tab's own shell, as wide as in every other tab; when herdr starts, it comes back in every tab, but where a pane was
+closed by hand.
 
 The panels stand in three groups, one under the other, each under its head as Adobe's panel groups: Conversations, Files
 and Search, Changes and Issues. A head names its panels as tabs, the one shown bold in the accent, Changes with its
@@ -40,7 +42,7 @@ Claude wrote, the issue it fixes and the Graph, Issues by priority](../../../ass
   the right click's Open in Browser, opens a page, a PDF or an image in the default browser (a picture no browser shows,
   as a PSD or an EXR, in Preview: Open in Preview) (never over SSH: a browser there would open on the machine, out of
   sight). While the workspace has a preview tab, the right click offers Close Preview, as `q` there. With herdr-fold's
-  tab layout, a folder's right click offers New Workspace: herdr-fold's folder picker opens on it.
+  Workspaces plugin, a folder's right click offers New Workspace: its folder picker opens on it.
 - **Search:** as you type (typing on narrows the hits at once, before the search answers), with match case, whole word
   and regular expression; the hits by file. A hit opens the preview at its line. A folder or file you chose in Files (an
   arrow key or a click on it) is the one searched, named above the field, a file even when git ignores it (a link chosen
@@ -121,8 +123,10 @@ Alt + Enter commits from the message there too.
   from its own bytes, so nothing reaches the network. Each picture is made in a folder of its own, gone with the tab.
 - herdr's command line, for the preview tab (`herdr tab create`, `herdr pane split`, `herdr pane run`, `herdr tab
   rename`, `herdr tab focus`, `herdr pane process-info` to tell whether its pager still runs, `herdr tab close` on `q`
-  and for a preview tab whose pager no longer runs), and to hand an issue to the tab's agent (`herdr pane send-text`:
-  typed in, not sent; `herdr agent focus`).
+  and for a preview tab whose pager no longer runs), to hand an issue to the tab's agent (`herdr pane send-text`:
+  typed in, not sent; `herdr agent focus`), and to lay out a new tab and bring each tab's panes back when herdr
+  starts (`herdr workspace list`, `herdr pane list`, `herdr agent list`, `herdr pane split`, `herdr pane rename`,
+  `herdr pane run`).
 - herdr's socket, for the right column's width: when it is dragged wider or narrower, the sidebar reads that tab's
   layout once it stays put, keeps each tab's right column at least as wide as its sidebar's widest head (23 cells
   inside herdr's frame without Issues, 29 with them), remembers the width to the cell (`column.json` in its state
@@ -186,10 +190,11 @@ herdr plugin action invoke restore-panels --plugin herdr-fold.sidebar
 ```
 
 The second command (`restore-panels-windows` on Windows) lays out the tab you are in: the sidebar above a terminal,
-beside the agent, on the folder of the tab's panes. To give it a key, a `[[keys.command]]` in herdr's config with
-`type = "plugin_action"` and `command = "herdr-fold.sidebar.restore-panels"`. From a copy of the folder, link it
-instead (`herdr plugin link /path/to/sidebar`), or start it by hand in a herdr pane named `sidebar` (`python3
-/path/to/sidebar/sidebar.py ~/my-project`).
+beside the agent, on the folder of the tab's panes; a new tab after it gets them by itself. To give it a key, a
+`[[keys.command]]` in herdr's config with `type = "plugin_action"` and
+`command = "herdr-fold.sidebar.restore-panels"`. From a copy of the folder, link it instead (`herdr plugin link
+/path/to/sidebar`), or start it by hand in a herdr pane named `sidebar`
+(`python3 /path/to/sidebar/sidebar.py ~/my-project`).
 
 Its actions: the four that switch its view, Conversations: fold or open, and find, and Restore panels; and the
 one-time tip when a pane is closed by hand.

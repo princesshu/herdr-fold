@@ -57,7 +57,7 @@ def build(machine, agent, folder, label=None):
         return [line("skip", t("layout.exists", label))]
     made = h("workspace", "create", "--cwd", path, "--label", label, "--no-focus")
     main = made["root_pane"]["pane_id"]
-    h("pane", "rename", main, agent)            # named, so the new-tab plugin (tab-layout) leaves it alone
+    h("pane", "rename", main, agent)            # named, so no new-tab hook lays it out as an empty tab
     h("tab", "rename", made["tab"]["tab_id"], label)              # the main tab, named as the workspace
     add_column(main, path, h, machine)
     lines = []

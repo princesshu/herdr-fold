@@ -11,7 +11,7 @@ import tempfile
 import time
 import unittest
 
-from support import PACKAGE, finished, jsonl, set_env
+from support import PACKAGE, at_once, finished, jsonl, set_env
 
 sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import conversations  # noqa: E402
@@ -238,6 +238,14 @@ class Conversations(unittest.TestCase):
             for root, _, files in os.walk(os.path.join(self.home, top)):
                 for name in files:
                     self.assertIn(os.path.join(root, name), paths)
+
+
+class Kept(Conversations):
+    def test_a_job_and_the_main_thread_keeping_at_once_lose_neither(self):
+        # the Conversations panel's read job notes a reopened pane while the main thread archives a conversation
+        at_once(conversations.statefile, lambda: conversations.keep(self.state, resumed={"w1:p9": "s2"}),
+                lambda: conversations.archive(self.state, {"claude:s1"}))
+        self.assertEqual(conversations.setting(self.state), {"resumed": {"w1:p9": "s2"}, "archived": ["claude:s1"]})
 
 
 class CommandLine(Conversations):

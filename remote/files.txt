@@ -12,9 +12,10 @@ src/statusline.py                           | .config/herdr-fold/statusline.py |
 src/plugins/sessions-view/herdr-plugin.toml | .config/herdr-fold/plugins/sessions-view/herdr-plugin.toml | all | tui
 src/plugins/sessions-view/sessions.py       | .config/herdr-fold/plugins/sessions-view/sessions.py | all | tui
 src/plugins/sessions-view/LICENSE           | .config/herdr-fold/plugins/sessions-view/LICENSE | all | tui
-src/plugins/tab-layout/herdr-plugin.toml    | .config/herdr-fold/plugins/tab-layout/herdr-plugin.toml | all | tui
-src/plugins/tab-layout/tab_layout.py        | .config/herdr-fold/plugins/tab-layout/tab_layout.py | all | tui
-src/plugins/tab-layout/LICENSE              | .config/herdr-fold/plugins/tab-layout/LICENSE | all | tui
+src/plugins/workspaces/herdr-plugin.toml    | .config/herdr-fold/plugins/workspaces/herdr-plugin.toml | all | tui
+src/plugins/workspaces/workspaces.py        | .config/herdr-fold/plugins/workspaces/workspaces.py | all | tui
+src/plugins/workspaces/LICENSE              | .config/herdr-fold/plugins/workspaces/LICENSE | all | tui
+src/plugins/sidebar/herdr-plugin.toml       | .config/herdr-fold/plugins/sidebar/herdr-plugin.toml | all | tui
 src/plugins/sidebar/*.py                    | .config/herdr-fold/plugins/sidebar/ | all | tui
 src/plugins/sidebar/LICENSE                 | .config/herdr-fold/plugins/sidebar/LICENSE | all | tui
 src/close_tab.py                            | .config/herdr-fold/close_tab.py | unix | tui

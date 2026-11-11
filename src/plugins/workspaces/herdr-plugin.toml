@@ -1,0 +1,55 @@
+id = "herdr-fold.workspaces"
+name = "Workspaces"
+version = "0.3.0"
+min_herdr_version = "0.9.5"
+description = """\
+  Keeps the workspaces: a new workspace asks for its folder, a workspace named after its folder follows its new \
+  name, one whose folder is gone says deleted, a tab holding a conversation asks before it closes, and herdr-fold's \
+  agents start again after a restart. Part of herdr-fold: install it with herdr-fold's installer. \
+  Created by princesshu"""
+platforms = ["macos", "linux", "windows"]
+
+# New tab (including a new workspace's first tab): for the "new" button's workspace it opens the folder picker, any
+# other tab it leaves alone (see workspaces.py); not on Windows, where the picker's key handling does not work
+[[events]]
+on = "tab.created"
+platforms = ["macos", "linux"]
+command = ["/usr/bin/python3", "workspaces.py"]
+
+# A pane's focus: a workspace named after its folder takes the folder's new name (Windows does not let a folder in use
+# be renamed)
+[[events]]
+on = "pane.focused"
+platforms = ["macos", "linux"]
+command = ["/usr/bin/python3", "workspaces.py"]
+
+# The folder picker (new_workspace.py): workspaces.py opens it in the "new" button's workspace, the sidebar's Files on
+# a folder (New Workspace)
+[[panes]]
+id = "new-workspace"
+platforms = ["macos", "linux"]
+title = "New workspace"
+placement = "popup"
+width = "70%"
+height = "70%"
+command = ["/bin/sh", "-c", "exec /usr/bin/python3 \"$HOME/.config/herdr-fold/new_workspace.py\""]
+
+# Close-tab confirmation (close_tab.py --confirm): close_tab.py (Cmd+W) opens it if the tab has a conversation.
+[[panes]]
+id = "close-confirm"
+platforms = ["macos", "linux"]
+title = "Close tab"
+placement = "popup"
+width = "60%"
+height = 11
+command = ["/bin/sh", "-c", "exec /usr/bin/python3 \"$HOME/.config/herdr-fold/close_tab.py\" --confirm"]
+
+# herdr's start (after the session is restored): herdr-fold's started agents only have an empty shell, restore_panes.py
+# --startup starts them again (it leaves conversations resumed by herdr alone, the right columns to the sidebar)
+[[startup]]
+platforms = ["macos", "linux"]
+command = ["/bin/sh", "-c", "exec /usr/bin/python3 \"$HOME/.config/herdr-fold/restore_panes.py\" --startup"]
+
+[[startup]]
+platforms = ["windows"]
+command = ["python", "..\\..\\restore_panes.py", "--startup"]

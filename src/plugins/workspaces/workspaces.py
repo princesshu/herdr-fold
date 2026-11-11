@@ -1,6 +1,6 @@
 """New tab: a workspace from herdr's "new" button gets the folder picker (new_workspace.py), unless a git worktree's;
-any other new tab gets the right-hand column, only while empty (one unnamed shell pane after 1.5 s: no builder's or
-preview tab). On a pane's focus, a workspace named after its folder takes the folder's new name."""
+any other new tab is left alone (its column is the dock's). On a pane's focus: the workspace in front noted, a
+workspace whose folder is gone said deleted, and one named after its folder takes the folder's new name."""
 import json
 import os
 import re
@@ -12,7 +12,7 @@ import time
 # herdrlib.py is two folders up, where the plugin is installed (and in the package): never another copy on the machine
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")))
-from herdrlib import add_column, free_label, herdr, only_shells, space_labels  # noqa: E402
+from herdrlib import free_label, herdr, space_labels  # noqa: E402
 
 # the "new" button's workspace while its folder is chosen: herdr names it after the folder it inherits (~, or the
 # active workspace's own name a second time); the picker builds the chosen folder's and closes this one
@@ -124,7 +124,7 @@ def held_conversations(path, home):
 
 def load(name):
     state = os.environ.get("HERDR_PLUGIN_STATE_DIR") or os.path.join(
-        os.path.expanduser("~"), ".local", "state", "herdr", "plugins", "herdr-fold.tab-layout")
+        os.path.expanduser("~"), ".local", "state", "herdr", "plugins", "herdr-fold.workspaces")
     try:
         with open(os.path.join(state, name), encoding="utf-8") as f:
             found = json.load(f)
@@ -162,7 +162,7 @@ def on_focus():
     for space in workspaces:                            # the theme's Space rows show $folder beside the branch
         said = (space.get("tokens") or {}).get("folder") == "deleted"
         if (space["workspace_id"] in deleted) != said:
-            herdr("workspace", "report-metadata", space["workspace_id"], "--source", "herdr-fold.tab-layout",
+            herdr("workspace", "report-metadata", space["workspace_id"], "--source", "herdr-fold.workspaces",
                   *(["--clear-token", "folder"] if said else ["--token", "folder=deleted"]), check=False)
     state, known = load(SPACES)
     home = os.path.expanduser("~")
@@ -182,25 +182,16 @@ def main():
         return
     event = json.loads(os.environ.get("HERDR_PLUGIN_EVENT_JSON") or "{}")
     tab = ((event.get("data") or {}).get("tab") or {}).get("tab_id")
-    if not tab:
+    if not tab or os.name == "nt":               # no folder picker on Windows (its key handling is Unix-only)
         return
     ws = tab.split(":")[0]
     time.sleep(0.3)                              # the "new" button brings it to the front after creating it
-    if os.name != "nt" and new_workspace(ws):        # no folder picker on Windows (its key handling is Unix-only)
-        herdr("workspace", "rename", ws, PLACEHOLDER, check=False)    # a name it keeps does not stop the picker
-        came = came_from(ws)
-        herdr("plugin", "pane", "open", "--plugin", "herdr-fold.tab-layout", "--entrypoint", "new-workspace", "--focus",
-              "--env", f"HERDR_NEW_WORKSPACE={ws}", *(["--env", f"HERDR_CAME_FROM={came}"] if came else []))
+    if not new_workspace(ws):
         return
-    time.sleep(1.2)
-    panes = [p for p in herdr("pane", "list", "--workspace", ws)["panes"] if p["tab_id"] == tab]
-    if len(panes) != 1 or panes[0].get("label"):
-        return
-    pane = panes[0]
-    if not only_shells(
-            herdr("pane", "process-info", "--pane", pane["pane_id"])["process_info"]["foreground_processes"]):
-        return
-    add_column(pane["pane_id"], pane.get("cwd") or os.path.expanduser("~"))
+    herdr("workspace", "rename", ws, PLACEHOLDER, check=False)        # a name it keeps does not stop the picker
+    came = came_from(ws)
+    herdr("plugin", "pane", "open", "--plugin", "herdr-fold.workspaces", "--entrypoint", "new-workspace", "--focus",
+          "--env", f"HERDR_NEW_WORKSPACE={ws}", *(["--env", f"HERDR_CAME_FROM={came}"] if came else []))
 
 
 if __name__ == "__main__":

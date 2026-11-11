@@ -21,8 +21,8 @@ remove_marked() {
 }
 
 # drop_plugin_folders ID… — the empty folders herdr keeps of a plugin after `plugin unlink` (its config folder, its
-# state folder once nothing of the plugin's is left in it, the tab layout's and AI Sessions' own records gone first,
-# the conversation names kept); nothing of a plugin herdr still lists, nothing at all when herdr cannot say what it has
+# state folder once nothing of the plugin's is left in it, Workspaces', Tab Layout's and AI Sessions' records gone
+# first, the conversation names kept); nothing of a plugin herdr still lists, nothing when herdr cannot say what it has
 drop_plugin_folders() {
   local listed id state
   listed=$(herdr plugin list --json 2>/dev/null | python3 -c '
@@ -35,13 +35,28 @@ except (ValueError, KeyError, TypeError):
     grep -qxF "$id" <<< "$listed" && continue
     state="$HOME/.local/state/herdr/plugins/$id"
     case "$id" in
-      herdr-fold.tab-layout) rm -f "$state"/{spaces,focus}.json "$state"/.{spaces,focus}.json.*.tmp ;;
+      herdr-fold.workspaces|herdr-fold.tab-layout) rm -f "$state"/{spaces,focus}.json \
+        "$state"/.{spaces,focus}.json.*.tmp ;;
       herdr-fold.sessions-view) rm -f "$state"/{waits.json,clock.lock} "$state"/{names,waits}.json.lock \
         "$state"/.{names,waits}.json.*.tmp ;;
     esac
     rmdir "$HOME/.config/herdr/plugins/config/$id" "$state" 2>/dev/null
   done
   return 0
+}
+
+# retire_tab_layout — the retired Tab Layout's state (the workspaces it followed, the one in front) becomes
+# Workspaces', each file unless Workspaces has its own; its folders go once herdr has it no more
+retire_tab_layout() {
+  local states="$HOME/.local/state/herdr/plugins" name
+  [ -d "$states/herdr-fold.tab-layout" ] || [ -d "$HOME/.config/herdr/plugins/config/herdr-fold.tab-layout" ] \
+    || return 0
+  for name in spaces.json focus.json; do
+    [ -f "$states/herdr-fold.tab-layout/$name" ] && [ ! -e "$states/herdr-fold.workspaces/$name" ] || continue
+    mkdir -p "$states/herdr-fold.workspaces" \
+      && mv "$states/herdr-fold.tab-layout/$name" "$states/herdr-fold.workspaces/$name"
+  done
+  drop_plugin_folders herdr-fold.tab-layout
 }
 
 # recorded_sum STATE REL — the SHA-256 the installer recorded for REL right after installing it

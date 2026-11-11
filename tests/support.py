@@ -580,6 +580,30 @@ def end_jobs():
             thread.join(5)
 
 
+def at_once(statefile, job, then):
+    """JOB on a thread of its own and THEN on this one, each writing a state file through the module STATEFILE, as a
+    job and the main thread can: the job's write held until THEN has run (or 0.3 s, while THEN waits for it)."""
+    write, inside, go = statefile.write, threading.Event(), threading.Event()
+
+    def held(path, value, **dump):
+        if threading.current_thread() is not threading.main_thread() and not go.is_set():
+            inside.set()
+            go.wait(5)
+        write(path, value, **dump)
+
+    statefile.write = held
+    try:
+        thread = threading.Thread(target=job)
+        thread.start()
+        inside.wait(5)
+        threading.Timer(0.3, go.set).start()
+        then()
+        go.set()
+        thread.join(5)
+    finally:
+        statefile.write = write
+
+
 class AppScreen:
     """For a test running a sidebar app (self.app) on a FakeTerminal."""
 

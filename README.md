@@ -80,7 +80,7 @@ The parts, the questions, what each one changes, and the switches: [Installation
 
 - the settings of Ghostty, herdr and starship, and Claude Code's and Codex's status lines;
 - one marked block in `~/.zshrc`, active only inside herdr panes;
-- three herdr plugins of its own (the sidebar with Conversations, AI Sessions, the tab layout), and
+- three herdr plugins of its own (the sidebar with Conversations, AI Sessions, Workspaces), and
   herdr's Claude and Codex integrations;
 - in the Herdr app, herdr-fold's mod, layout, themes and keys.
 

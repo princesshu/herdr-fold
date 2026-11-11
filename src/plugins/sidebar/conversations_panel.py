@@ -16,6 +16,7 @@ from family import Family
 from fileops import system_clipboard
 
 POLL = 1.0                    # seconds between two looks at the conversations
+AWAY = 10.0                   # the same while it is off screen (hidden, folded): reopened panes cleared all the same
 TAB_NAME = 24                 # characters of a conversation's name on its tab, as AI Sessions puts it there
 SESSION = re.compile(r"[0-9A-Za-z][0-9A-Za-z._-]*")     # a conversation's id, as claude --resume and codex resume take
 
@@ -45,17 +46,17 @@ class Conversations(Family):
         super().__init__(host)
         self.view = ConversationList()
         self.views = {"conversations": self.view}
-        self.next_read = 0.0
+        self.read_at = None                   # when the list was last read
         self.here = os.environ.get("HERDR_WORKSPACE_ID")
         self.folders = {}                     # a folder a workspace's pane is in → that workspace
         self.clipboard = system_clipboard(sys.platform)
 
     def tick(self, now):
-        """The list read again every POLL seconds; the archived ones shown or hidden in another tab: here too. Whether
-        anything shown changed."""
-        if now < self.next_read:
+        """The list read again every POLL seconds, AWAY while it is off screen; the archived ones shown or hidden in
+        another tab: here too. Whether anything shown changed."""
+        if now < self.next_read():
             return False
-        self.next_read = now + POLL
+        self.read_at = now
         if "read" not in self.host.running:
             self.host.job("read", self.read, self.got)
         archived = conversations.setting(self.host.state_dir).get("show_archived") is True
@@ -78,9 +79,11 @@ class Conversations(Family):
             agents, spaces, found = [], [], []
         else:                                   # a reopened one's pane: forgotten once herdr knows its session
             untold = {agent.get("pane_id") for agent in agents if not (agent.get("agent_session") or {}).get("value")}
-            if set(reopened) - untold:
-                reopened = {pane: id for pane, id in reopened.items() if pane in untold}
-                conversations.keep(state, resumed=reopened)
+            gone = set(reopened) - untold
+            reopened = {pane: id for pane, id in reopened.items() if pane in untold}
+            if gone:                            # on what it holds then: a reopen job may have noted one meanwhile
+                conversations.change(state, lambda kept: {**kept, "resumed": {
+                    pane: id for pane, id in panes.reopened(kept).items() if pane not in gone}})
         names = {space["workspace_id"]: space.get("label") or space["workspace_id"] for space in spaces}
         folders = {}
         for pane in found:
@@ -105,8 +108,13 @@ class Conversations(Family):
         self.view.field.clear()
         self.view.rebuild()
 
+    def next_read(self):
+        if self.read_at is None:
+            return 0.0
+        return self.read_at + (POLL if self.host.showing("conversations") else AWAY)
+
     def deadlines(self):
-        return [self.next_read]
+        return [self.next_read()]
 
     def holds(self):
         return (self.view.naming,)
@@ -192,8 +200,8 @@ class Conversations(Family):
     def do_open(self, item):
         if item.pane:
             self.host.job("go", lambda: self.host.herdr.call("agent", "focus", item.pane))
-        else:
-            self.host.job("reopen", lambda: self.reopen(item))
+        elif f"reopen-{item.id}" not in self.host.running:      # a second Enter while it opens: still one tab
+            self.host.job(f"reopen-{item.id}", lambda: self.reopen(item))
 
     def reopen(self, item):
         """A new tab with ITEM in the workspace of its folder: the agent resuming it on the left, the right column

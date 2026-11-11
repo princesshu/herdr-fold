@@ -20,9 +20,10 @@ asks first `Take off`: `1` the TUI, `2` the Herdr app or `3` both (the default);
 One part goes and the other keeps working: what both use goes with the last.
 
 - **The TUI**: its files, the `~/.zshrc` block, herdr-fold's part of herdr's settings, its herdr plugins and
-  integrations, Ghostty's icon, and the sidebar's own state (the theme's colors, the column, the panels, each
-  folder's groups, the handovers, previews and issues it keeps). The remote machines stay in the Herdr app, and
-  connected in herdr: `herdr machine remove <id>` disconnects one.
+  integrations (an earlier install's Tab Layout too), Ghostty's icon, the sidebar's own state (the theme's colors, the
+  column, the panels, each folder's groups, the handovers, previews and issues it keeps) and Workspaces' (the
+  workspaces it follows, the one in front). The remote machines stay in the Herdr app, and connected in herdr:
+  `herdr machine remove <id>` disconnects one.
 - **The Herdr app**: herdr-fold's mod, layout, themes, keys and settings in it, its chats' own files (what Claude waits
   on, the answers, the bar's numbers; the conversations stay), and the machines herdr-fold added there, as below. An
   update of the TUI does not offer it again; choosing it in the installer brings it back.

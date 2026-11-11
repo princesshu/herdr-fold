@@ -131,6 +131,8 @@ if [ -z "$remove" ] && [ -z "$own" ]; then
   # The status line items as chosen on the Mac (statusline.json came with the files; statusline.py reads it, Codex
   # gets them in its own settings)
   python3 "$HOME/.config/herdr-fold/statusline_setup.py" --apply
+  # the retired Tab Layout's state goes to Workspaces (machines.sh takes the plugin off herdr after this)
+  retire_tab_layout
 
   # Prompt and apps in herdr panes (the TUI's), for the login shell: one marked block, replaced on every run
   if [ -n "$tui" ]; then
@@ -144,11 +146,12 @@ if [ -z "$remove" ] && [ -z "$own" ]; then
   fi
 elif [ -n "$remove" ] && [ -z "$own" ]; then
   for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do remove_marked_block "$rc"; done
-  # herdr-fold's plugins, and the empty folders herdr keeps of them (the conversation names stay)
-  for id in herdr-fold.sessions-view herdr-fold.tab-layout; do
+  # herdr-fold's plugins (an earlier prepare's Tab Layout too), and the empty folders herdr keeps of them (the
+  # conversation names stay)
+  for id in herdr-fold.sidebar herdr-fold.sessions-view herdr-fold.workspaces herdr-fold.tab-layout; do
     herdr plugin unlink "$id" >/dev/null 2>&1
   done
-  drop_plugin_folders herdr-fold.sessions-view herdr-fold.tab-layout
+  drop_plugin_folders herdr-fold.sidebar herdr-fold.sessions-view herdr-fold.workspaces herdr-fold.tab-layout
   # what Python and the status line setup made here next to the package's files
   find "$HOME/.config/herdr-fold" -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null
   rm -f "$HOME/.config/herdr-fold/statusline.json"
@@ -157,8 +160,9 @@ elif [ -n "$remove" ] && [ -z "$own" ]; then
   sidebar_state="$HOME/.local/state/herdr/plugins/herdr-fold.sidebar"
   rm -f "$sidebar_state/settings.json" "$sidebar_state/colors.json" "$sidebar_state/column.json" \
     "$sidebar_state/conversations.json" "$sidebar_state/conversation-index.json" "$sidebar_state/panels.json" \
-    "$sidebar_state"/resume-*.json "$sidebar_state"/seed-*.json "$sidebar_state"/preview-*.json \
-    "$sidebar_state"/issues-*.json \
+    "$sidebar_state/dock.json" "$sidebar_state"/resume-*.json "$sidebar_state"/seed-*.json \
+    "$sidebar_state"/preview-*.json "$sidebar_state"/issues-*.json \
+    "$sidebar_state"/*.json.lock \
     "$sidebar_state"/.*.tmp                                                   # .*.tmp: a write cut short
   rmdir "$sidebar_state" 2>/dev/null
 fi

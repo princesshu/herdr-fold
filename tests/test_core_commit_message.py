@@ -10,7 +10,7 @@ import sys
 import tempfile
 import unittest
 
-from support import PACKAGE, logged, set_attrs, set_env, sign_head, stubs, trap
+from support import PACKAGE, at_once, logged, set_attrs, set_env, sign_head, stubs, trap
 
 sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import commit_message as cm  # noqa: E402
@@ -377,6 +377,15 @@ class Fixes(unittest.TestCase):
         self.assertEqual(cm.linked_issue("/srv/app", state), (42, "Login fails"))
         self.assertIsNone(cm.linked_issue("/srv/other", state))
         self.assertIsNone(cm.linked_issue("/srv/none", state))
+
+    def test_two_links_at_once_are_both_kept(self):
+        # the sidebar of one tab and the Herdr app link an issue each at the same moment
+        state = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, state)
+        at_once(cm.statefile, lambda: cm.link("/srv/app", (42, "Login fails"), state),
+                lambda: cm.link("/srv/other", (7, "Sort by title"), state))
+        self.assertEqual((cm.linked_issue("/srv/app", state), cm.linked_issue("/srv/other", state)),
+                         ((42, "Login fails"), (7, "Sort by title")))
 
 class Link(unittest.TestCase):
     """The issue a repository's next commit fixes, linked from the TUI sidebar or the Herdr app mod alike: one entry of

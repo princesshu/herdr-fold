@@ -204,8 +204,9 @@ Claude that was already running switches on its next start.
 
 Cmd + Q quits Ghostty after a question: herdr and the agents keep running, and reopening Ghostty picks up where you left
 off. After the Mac restarts (or `herdr server stop`), the local agents stop, but every workspace comes back when herdr
-starts, and Claude and Codex continue the same conversations. The tab-layout plugin restarts the Conversations
-columns, the sidebars and the still-empty agent panes a few seconds after herdr starts. By hand:
+starts, and Claude and Codex continue the same conversations. A few seconds after herdr starts, the sidebar plugin
+brings back each tab's sidebar and terminal (a pane closed by hand stays closed), and Workspaces starts the still-empty
+agent panes again. By hand:
 
 ```bash
 python3 ~/.config/herdr-fold/restore_panes.py                      # this Mac

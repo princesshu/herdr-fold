@@ -124,18 +124,19 @@ def saved(state_dir):
 
 
 def kept(state_dir):
-    try:
-        with open(os.path.join(state_dir, FILE), encoding="utf-8") as f:
-            found = json.load(f)
-    except (OSError, ValueError):
-        return {}
-    return found if isinstance(found, dict) else {}
+    return statefile.read(os.path.join(state_dir, FILE))
 
 
 def keep(state_dir, values):
     """VALUES kept in FILE, whatever else it keeps staying; whether they were."""
+    return change(state_dir, lambda found: {**found, **values})
+
+
+def change(state_dir, how):
+    """FILE changed by HOW (given what it holds then, its answer kept) under statefile.update: every tab's sidebar
+    writes it. Whether it was."""
     try:
-        statefile.write(os.path.join(state_dir, FILE), {**kept(state_dir), **values})
+        statefile.update(os.path.join(state_dir, FILE), how)
     except OSError:
         return False
     return True
@@ -150,10 +151,14 @@ def least(state_dir, tab):
 
 def need(state_dir, tab, cells, tabs):
     """TAB's sidebar's buttons take CELLS: kept, for the TABS there are now only."""
+    def needed(found):
+        known = found.get("least")
+        known = {name: value for name, value in (known if isinstance(known, dict) else {}).items() if name in tabs}
+        return {**found, "least": {**known, tab: cells}}
+
     known = kept(state_dir).get("least")
-    known = {name: value for name, value in (known if isinstance(known, dict) else {}).items() if name in tabs}
-    if known.get(tab) != cells:
-        keep(state_dir, {"least": {**known, tab: cells}})
+    if not isinstance(known, dict) or known.get(tab) != cells:
+        change(state_dir, needed)
 
 
 def remember(state_dir, ratio):

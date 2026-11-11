@@ -114,7 +114,9 @@ def sets_the_view(root):
             except (OSError, UnicodeDecodeError):
                 pass
     return False
-herdr_fold_ids = {"herdr-fold", "herdr-fold.sidebar", "herdr-fold.sessions-view", "herdr-fold.tab-layout"}
+# the retired Tab Layout among them, from an earlier install: this run takes it off
+herdr_fold_ids = {"herdr-fold", "herdr-fold.sidebar", "herdr-fold.sessions-view", "herdr-fold.workspaces",
+                  "herdr-fold.tab-layout"}
 valid = re.compile(r"[A-Za-z0-9._:-]+")             # the id characters herdr allows: no line or field break
 for p in plugins:
     pid = str(p.get("plugin_id", ""))
@@ -356,7 +358,7 @@ if of_parts tui $parts && [ -f "$herdr_config" ] && ! grep -qxF .config/herdr/co
     section "$(t install.existing_herdr)"
     note "$(t install.existing_config)"
     theirs=$(printf '%s\n' "$facts" | cut -d'|' -f1 \
-      | grep -vE '^(herdr-fold(\.(sessions-view|tab-layout|sidebar))?)?$' \
+      | grep -vE '^(herdr-fold(\.(sessions-view|workspaces|tab-layout|sidebar))?)?$' \
       | paste -sd, - | sed 's/,/, /g')
     [ -z "$theirs" ] || note "$(t install.existing_plugins "$theirs")"
     case "${HERDR_FOLD_CONFIG:-}" in
@@ -503,7 +505,8 @@ step "$(t install.step_plugins)"
 # the layout, and through the integration Claude/Codex continue the same conversation.
 # The plugins this installer put there (plugins.txt): the uninstaller takes out exactly these
 plugins="$state/plugins.txt"; : > "$plugins.new"
-grep '^taken:' "$plugins" >> "$plugins.new" 2>/dev/null       # an earlier run's take-over stays on the record
+# an earlier run's take-over stays on the record, but the retired Tab Layout's: it has no way back
+grep '^taken:' "$plugins" 2>/dev/null | grep -vxF taken:herdr-fold.tab-layout >> "$plugins.new"
 linked=() hooked=()                           # said in one line each at the end of the step
 # herdr's own part, with the TUI only: herdr-fold's plugins, then herdr's hooks into Claude and Codex
 if of_parts tui $parts; then
@@ -519,10 +522,11 @@ if of_parts tui $parts; then
   # question — its default the last answer, so one said no to stays unlinked unless you say yes
   doing() {   # doing tab.created|agent.view.set: the ids of the plugins not herdr-fold's that do it
     printf '%s\n' "$facts" | awk -F'|' -v does="$1" \
-      '$1 !~ /^herdr-fold(\.(sidebar|sessions-view|tab-layout))?$/ && index($3, does) { print $1 }'
+      '$1 !~ /^herdr-fold(\.(sidebar|sessions-view|workspaces|tab-layout))?$/ && index($3, does) { print $1 }'
   }
-  wanted() {   # wanted <id> <question>
-    if grep -qxF "declined:$1" "$plugins" 2>/dev/null; then ! updating && ask "$2" n && return 0  # a no stays
+  wanted() {   # wanted <id> <question> [<the id it had before>]
+    if grep -qxF -e "declined:$1" -e "declined:${3:-$1}" "$plugins" 2>/dev/null; then   # a no stays
+      ! updating && ask "$2" n && return 0
     elif [ "$config_mode" = package ] || updating || ask "$2" y; then return 0; fi
     echo "declined:$1" >> "$plugins.new"
     return 1
@@ -544,17 +548,29 @@ if of_parts tui $parts; then
     herdr plugin unlink herdr-fold.sessions-view >/dev/null 2>&1
     skip "$(t install.plugin_declined herdr-fold.sessions-view)"
   fi
-  for other in $(doing tab.created); do warn "$(t install.plugin_like_tab_layout "$other")"; done
-  if wanted herdr-fold.tab-layout "$(t install.tab_layout_ask)"; then
-    take_over herdr-fold.tab-layout "$HOME/.config/herdr-fold/plugins/tab-layout"
-    if herdr plugin link "$HOME/.config/herdr-fold/plugins/tab-layout" >/dev/null 2>&1; then
-      echo herdr-fold.tab-layout >> "$plugins.new"
-      linked+=("$(t install.plugin_tab_layout)")
+  # an earlier install's Tab Layout, retired (a new tab's column is the sidebar's now, the rest Workspaces'): off herdr
+  # before Workspaces comes (herdr's marketplace copy uninstalled), its state Workspaces'; one herdr keeps (it is not
+  # running) stays on the record for a later run
+  case $(printf '%s\n' "$facts" | awk -F'|' '$1 == "herdr-fold.tab-layout" { print $4 }') in
+    "") off= ;;
+    github) off="herdr plugin uninstall herdr-fold.tab-layout" ;;
+    *) off="herdr plugin unlink herdr-fold.tab-layout" ;;
+  esac
+  if [ -z "$off" ]; then :
+  elif $off >/dev/null 2>&1; then ok "$(t install.tab_layout_retired)"
+  else warn "$(t install.tab_layout_left "$off")"; echo herdr-fold.tab-layout >> "$plugins.new"; fi
+  retire_tab_layout
+  for other in $(doing tab.created); do warn "$(t install.plugin_like_workspaces "$other")"; done
+  if wanted herdr-fold.workspaces "$(t install.workspaces_ask)" herdr-fold.tab-layout; then
+    take_over herdr-fold.workspaces "$HOME/.config/herdr-fold/plugins/workspaces"
+    if herdr plugin link "$HOME/.config/herdr-fold/plugins/workspaces" >/dev/null 2>&1; then
+      echo herdr-fold.workspaces >> "$plugins.new"
+      linked+=("$(t install.plugin_workspaces)")
     else
-      warn "$(t install.tab_layout_failed)"
+      warn "$(t install.workspaces_failed)"
     fi
   else
-    herdr plugin unlink herdr-fold.tab-layout >/dev/null 2>&1; skip "$(t install.plugin_declined herdr-fold.tab-layout)"
+    herdr plugin unlink herdr-fold.workspaces >/dev/null 2>&1; skip "$(t install.plugin_declined herdr-fold.workspaces)"
   fi
   # herdr ↔ Claude / Codex: recorded (plugins.txt) when this installer put it there — not there before, or
   # herdr-fold's already

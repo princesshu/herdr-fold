@@ -16,6 +16,9 @@ import tempfile
 import unicodedata
 from dataclasses import asdict, dataclass, field, replace
 
+sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
+import statefile  # noqa: E402
+
 MAX_DIFF = 60_000
 # file names that look like a secret's: named before such a file is committed, its contents never shown to an AI
 SECRET_LOOKING = (".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx", "id_rsa*", "id_ecdsa*", "id_ed25519*",
@@ -328,23 +331,14 @@ def linked_issue(repo, state=None):
 def link(repo, issue, state=None):
     """ISSUE ((number, title), or None) as the one REPO's next commit fixes, whichever client links it: that entry of
     the sidebar's settings in STATE (its state folder by default) changed, every other setting as it was."""
-    folder = state or SIDEBAR_STATE
-    path = os.path.join(folder, "settings.json")
-    try:
-        with open(path, encoding="utf-8") as f:
-            settings = json.load(f)
-    except (OSError, ValueError):
-        settings = {}
-    settings = settings if isinstance(settings, dict) else {}
-    linked = settings.get("linked") if isinstance(settings.get("linked"), dict) else {}
-    settings["linked"] = {key: value for key, value in linked.items() if key != repo}
-    if issue:
-        settings["linked"][repo] = [int(issue[0]), str(issue[1])]
-    os.makedirs(folder, exist_ok=True)
-    fd, temp = tempfile.mkstemp(dir=folder, prefix=".settings.")
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump(settings, f, indent=2)
-    os.replace(temp, path)
+    def linked(settings):
+        found = settings.get("linked") if isinstance(settings.get("linked"), dict) else {}
+        found = {key: value for key, value in found.items() if key != repo}
+        if issue:
+            found[repo] = [int(issue[0]), str(issue[1])]
+        return {**settings, "linked": found}
+
+    statefile.update(os.path.join(state or SIDEBAR_STATE, "settings.json"), linked, indent=2)
 
 
 def settle(repo, seen, state=None):

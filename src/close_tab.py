@@ -1,5 +1,5 @@
 """Close the active tab (Cmd+W). A workspace's main tab never closes, so Claude cannot stop by accident; a tab with a
-Claude/Codex conversation asks first, through this script again (`--confirm`) in the tab-layout plugin's popup."""
+Claude/Codex conversation asks first, through this script again (`--confirm`) in the Workspaces plugin's popup."""
 import os
 import shutil
 import sys
@@ -21,7 +21,7 @@ def close(tab):
         herdr("notification", "show", t("close.main_stays"), "--body", t("close.main_stays_body"), "--sound", "none",
               check=False)
     elif conversations(tab):
-        herdr("plugin", "pane", "open", "--plugin", "herdr-fold.tab-layout", "--entrypoint", "close-confirm", "--focus",
+        herdr("plugin", "pane", "open", "--plugin", "herdr-fold.workspaces", "--entrypoint", "close-confirm", "--focus",
               "--env", f"HERDR_CLOSE_TAB={tab}", check=False)
     else:
         herdr("tab", "close", tab, check=False)

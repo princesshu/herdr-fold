@@ -83,16 +83,26 @@ class RemoteSidebar(unittest.TestCase):
     def linked(self, calls):
         return [call.split(" plugin link ", 1)[1] for call in calls if " plugin link " in call]
 
+    # the dock is one plugin everywhere: the sidebar, which lays out a new tab, beside AI Sessions and Workspaces
+    LINKED = ["~/.config/herdr-fold/plugins/sidebar", "~/.config/herdr-fold/plugins/sessions-view",
+              "~/.config/herdr-fold/plugins/workspaces"]
+
     def test_a_machines_plugins_are_linked_where_it_got_them(self):
         calls, out = self.prepare("linux")
-        self.assertEqual([path.replace(self.profile, "~") for path in self.linked(calls)],
-                         ["~/.config/herdr-fold/plugins/sessions-view", "~/.config/herdr-fold/plugins/tab-layout"], out)
+        self.assertEqual([path.replace(self.profile, "~") for path in self.linked(calls)], self.LINKED, out)
+        self.assertIn(catalog_text("install.plugins", ", ".join(catalog_text(key) for key in (
+            "install.plugin_sidebar", "install.plugin_sessions", "install.plugin_workspaces"))), out)
+
+    def test_the_retired_tab_layout_is_taken_off_a_machine_first(self):
+        calls, out = self.prepare("linux")
+        off = calls.index("herdr --machine box plugin unlink herdr-fold.tab-layout")
+        self.assertLess(off, next(n for n, call in enumerate(calls) if " plugin link " in call), out)
 
     @unittest.skipUnless(PWSH, "no PowerShell (pwsh) on this machine")
     def test_a_windows_machines_plugins_are_linked_where_it_got_them(self):
         calls, out = self.prepare("windows")
         self.assertEqual([path.replace(self.profile, "~").replace("\\", "/") for path in self.linked(calls)],
-                         ["~/.config/herdr-fold/plugins/sessions-view", "~/.config/herdr-fold/plugins/tab-layout"], out)
+                         self.LINKED, out)
 
     @unittest.skipUnless(PWSH, "no PowerShell (pwsh) on this machine")
     def test_someones_own_herdr_sidebar_on_a_windows_machine_is_named_and_left_alone(self):

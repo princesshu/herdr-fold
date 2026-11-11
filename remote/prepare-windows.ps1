@@ -189,13 +189,15 @@ if ($Remove) {
         Remove-Item -Force $Record
     }
     if (-not $Blocked) { foreach ($p in $Profiles) { Set-Block $p '' } }
-    # herdr-fold's plugins, and the empty folders herdr keeps of them (the conversation names stay)
+    # herdr-fold's plugins (an earlier prepare's Tab Layout too), and the empty folders herdr keeps of them (the
+    # conversation names stay)
     $h = (Get-Command herdr -ErrorAction SilentlyContinue).Source
     if (-not $h) { $h = "$env:LOCALAPPDATA\Programs\Herdr\bin\herdr.exe" }
+    $plugins = 'herdr-fold.sidebar', 'herdr-fold.sessions-view', 'herdr-fold.workspaces', 'herdr-fold.tab-layout'
     if (Test-Path $h) {
-        foreach ($id in 'herdr-fold.sessions-view', 'herdr-fold.tab-layout') { & $h plugin unlink $id *> $null }
+        foreach ($id in $plugins) { & $h plugin unlink $id *> $null }
     }
-    Remove-PluginFolders 'herdr-fold.sessions-view', 'herdr-fold.tab-layout'
+    Remove-PluginFolders $plugins
     # what Python and the status line setup made next to the package's files
     $fold = Join-Path $env:USERPROFILE '.config\herdr-fold'
     Remove-Item -Recurse -Force (Join-Path $fold '__pycache__'),
@@ -206,9 +208,10 @@ if ($Remove) {
     Remove-Item -Force -ErrorAction SilentlyContinue -Path (Join-Path $sidebarState 'settings.json'),
         (Join-Path $sidebarState 'colors.json'), (Join-Path $sidebarState 'column.json'),
         (Join-Path $sidebarState 'conversations.json'), (Join-Path $sidebarState 'conversation-index.json'),
-        (Join-Path $sidebarState 'panels.json'), (Join-Path $sidebarState 'resume-*.json'),
-        (Join-Path $sidebarState 'seed-*.json'), (Join-Path $sidebarState 'preview-*.json'),
-        (Join-Path $sidebarState 'issues-*.json'),
+        (Join-Path $sidebarState 'panels.json'), (Join-Path $sidebarState 'dock.json'),
+        (Join-Path $sidebarState 'resume-*.json'), (Join-Path $sidebarState 'seed-*.json'),
+        (Join-Path $sidebarState 'preview-*.json'), (Join-Path $sidebarState 'issues-*.json'),
+        (Join-Path $sidebarState '*.json.lock'),
         (Join-Path $sidebarState '.*.tmp')                                         # a write cut short
     if ((Test-Path $sidebarState) -and -not (Get-ChildItem -Force $sidebarState)) {
         Remove-Item -Force $sidebarState

@@ -508,8 +508,8 @@ EOF
 }
 
 # Step 2 (after connecting, with herdr running on the machine): the herdr ↔ Claude/Codex integration, a
-#    herdr-sidebar of the machine's own named (Linux, macOS, Windows), then from the central Mac: linking the sessions
-#    and tab-layout plugins, and the sidebar back in every column
+#    herdr-sidebar of the machine's own named (Linux, macOS, Windows), then from the central Mac: linking the sidebar,
+#    AI Sessions and Workspaces (the retired Tab Layout off), and the sidebar back in every column
 finish_machine() {
   local name=$1 target=$2 os=$3 out rc
   if [ "$os" = windows ]; then
@@ -541,23 +541,26 @@ if ((& $h plugin list 2>$null | Out-String) -match "herdr-sidebar \(herdr-sideba
   loading "$(t machines.linking)" link_plugins "$name" "$target" "$os"
 }
 
-# link_plugins <name> <target> <os> — AI Sessions and the tab layout linked on the machine (said in one line),
-# then the right column put back in its workspaces: a dozen commands over SSH, so it runs under the loading
+# link_plugins <name> <target> <os> — the retired Tab Layout taken off the machine where it was (before the sidebar,
+# which lays out a new tab now), the sidebar, AI Sessions and Workspaces linked (said in one line), then the right
+# column put back in its workspaces: a dozen commands over SSH, so it runs under the loading
 link_plugins() {
-  local name=$1 target=$2 os=$3 home plugin tl linked=()
+  local name=$1 target=$2 os=$3 home plugins linked=()
   home=$(remote_home "$target" "$os")
-  plugin="$home/.config/herdr-fold/plugins/sessions-view" tl="$home/.config/herdr-fold/plugins/tab-layout"
-  if [ "$os" = windows ]; then
-    plugin="$home\\.config\\herdr-fold\\plugins\\sessions-view" tl="$home\\.config\\herdr-fold\\plugins\\tab-layout"
-  fi
-  herdr --machine "$name" plugin link "$plugin" >/dev/null 2>&1 \
+  plugins="$home/.config/herdr-fold/plugins/"
+  [ "$os" != windows ] || plugins="$home\\.config\\herdr-fold\\plugins\\"
+  herdr --machine "$name" plugin unlink herdr-fold.tab-layout >/dev/null 2>&1
+  herdr --machine "$name" plugin link "${plugins}sidebar" >/dev/null 2>&1 \
+    && linked+=("$(t install.plugin_sidebar)") \
+    || warn "$(t machines.sidebar_failed "$name" "${plugins}sidebar")"
+  herdr --machine "$name" plugin link "${plugins}sessions-view" >/dev/null 2>&1 \
     && { herdr --machine "$name" plugin action invoke "$([ "$os" = windows ] && echo apply-windows || echo apply)" \
            --plugin herdr-fold.sessions-view >/dev/null 2>&1
          linked+=("$(t install.plugin_sessions)"); } \
-    || warn "$(t machines.sessions_failed "$name" "$plugin")"
-  herdr --machine "$name" plugin link "$tl" >/dev/null 2>&1 \
-    && linked+=("$(t install.plugin_tab_layout)") \
-    || warn "$(t machines.tab_layout_failed "$name" "$tl")"
+    || warn "$(t machines.sessions_failed "$name" "${plugins}sessions-view")"
+  herdr --machine "$name" plugin link "${plugins}workspaces" >/dev/null 2>&1 \
+    && linked+=("$(t install.plugin_workspaces)") \
+    || warn "$(t machines.workspaces_failed "$name" "${plugins}workspaces")"
   [ ${#linked[@]} = 0 ] || ok "$(t install.plugins "$(joined "${linked[@]}")")"
   # workspaces left without the right column (sidebar + terminal) get it back
   python3 "$HOME/.config/herdr-fold/restore_panes.py" --machine "$name"

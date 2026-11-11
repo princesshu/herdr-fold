@@ -206,7 +206,7 @@ class PackageSettings(unittest.TestCase):
         self.assertNotIn("$nav", self.herdr)
 
     def test_a_space_says_how_long_an_agent_waits_and_whether_its_folder_is_gone_beside_its_branch(self):
-        # herdr's own Space rows; after the branch AI Sessions' $waiting in the theme's yellow, then the tab layout's
+        # herdr's own Space rows; after the branch AI Sessions' $waiting in the theme's yellow, then Workspaces'
         # $folder in its red (it reports "deleted")
         for theme in apply.load_themes():
             h = theme["colors"]["herdr"]

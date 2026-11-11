@@ -1,7 +1,6 @@
 """The plugin's panes in a tab: the sidebar above a terminal (the right column). What a tab has had is kept in
 panels.json, so a pane closed by hand stays closed until the user brings it back; one it never had may be put in. A
 connected machine's tabs are kept apart under its name (SCOPE)."""
-import json
 import os
 
 import statefile
@@ -43,13 +42,11 @@ def key(tab, scope=""):
 
 
 def load(state_dir):
-    try:
-        with open(os.path.join(state_dir, FILE), encoding="utf-8") as f:
-            kept = json.load(f)
-    except (OSError, ValueError):
-        return {}
-    if not isinstance(kept, dict):
-        return {}
+    return loaded(statefile.read(os.path.join(state_dir, FILE)))
+
+
+def loaded(kept):
+    """{tab: the kinds it has had} in what FILE KEPT."""
     return {name: set(kinds) & set(KINDS) for name, kinds in kept.items() if isinstance(kinds, list)}
 
 
@@ -60,18 +57,21 @@ def had(state_dir, tab, scope=""):
 
 def note(state_dir, present, scope="", tabs=None):
     """PRESENT ({tab: kinds it has now}) added to what each tab has had; with TABS (every tab there is in SCOPE now),
-    the tabs gone forgotten."""
-    kept = load(state_dir)
-    for tab, kinds in present.items():
-        known = {kind for kind in kinds if kind in KINDS}
-        if known:
-            kept.setdefault(key(tab, scope), set()).update(known)
-    if tabs is not None:
-        alive = {key(tab, scope) for tab in tabs}
-        kept = {name: kinds for name, kinds in kept.items()
-                if name in alive or (name.split("/", 1)[0] if "/" in name else "") != scope}
+    the tabs gone forgotten; on what FILE holds then (statefile.update: every tab's sidebar writes it)."""
+    def noted(found):
+        kept = loaded(found)
+        for tab, kinds in present.items():
+            known = {kind for kind in kinds if kind in KINDS}
+            if known:
+                kept.setdefault(key(tab, scope), set()).update(known)
+        if tabs is not None:
+            alive = {key(tab, scope) for tab in tabs}
+            kept = {name: kinds for name, kinds in kept.items()
+                    if name in alive or (name.split("/", 1)[0] if "/" in name else "") != scope}
+        return {name: sorted(kinds) for name, kinds in sorted(kept.items())}
+
     try:
-        statefile.write(os.path.join(state_dir, FILE), {name: sorted(kinds) for name, kinds in sorted(kept.items())})
+        statefile.update(os.path.join(state_dir, FILE), noted)
     except OSError:
         pass
 

@@ -148,23 +148,27 @@ if [ -n "$tui" ]; then
     else warn "$out"; fi
   fi
 fi
-# This Mac's state (the machine list and the private word list stay: written by you), and the sidebar plugin's: its
-# own with the TUI (the theme's colors, the column, the panels, handovers, previews, issues), with the last part what
-# the app shares (the settings, which hold the linked issues, the archived conversations and their index)
+# This Mac's state (the machine list and the private word list stay: written by you), and the sidebar plugin's (each
+# file with its lock): its own with the TUI (the colors, the column, the panels, handovers, previews, issues), with the
+# last part what the app shares (the settings, which hold the linked issues, the archived conversations, their index)
 [ -z "$tui" ] || rm -f "$HOME/.config/herdr-fold/setup-folder"
 [ -z "$last" ] || rm -f "$HOME/.config/herdr-fold/statusline.json"
 remove_empty_dirs "$HOME/.config/herdr-fold"
 sidebar_state="$HOME/.local/state/herdr/plugins/herdr-fold.sidebar"
 [ -z "$tui" ] || rm -f "$sidebar_state/colors.json" "$sidebar_state/column.json" "$sidebar_state/dock.json" \
   "$sidebar_state/panels.json" "$sidebar_state"/resume-*.json "$sidebar_state"/seed-*.json \
-  "$sidebar_state"/preview-*.json "$sidebar_state"/issues-*.json
+  "$sidebar_state"/preview-*.json "$sidebar_state"/issues-*.json "$sidebar_state/column.json.lock" \
+  "$sidebar_state/dock.json.lock" "$sidebar_state/panels.json.lock"
 [ -z "$last" ] || rm -f "$sidebar_state/settings.json" "$sidebar_state/conversations.json" \
-  "$sidebar_state/conversation-index.json" "$sidebar_state"/.*.tmp           # .*.tmp: a write cut short
+  "$sidebar_state/conversation-index.json" "$sidebar_state/settings.json.lock" \
+  "$sidebar_state/conversations.json.lock" "$sidebar_state"/.*.tmp           # .*.tmp: a write cut short
 rmdir "$sidebar_state" 2>/dev/null                                  # only when nothing else is in it
-# the empty folders herdr keeps of the plugins taken off above (the conversation names stay); with the last part, the
-# whole environment's marks once it is off (left on, it would offer the installer again on herdr's start)
+# the empty folders herdr keeps of the plugins taken off above (the conversation names stay), an earlier install's
+# Tab Layout's too; with the last part, the whole environment's marks once it is off (left on, it would offer the
+# installer again on herdr's start)
 [ -z "$last" ] || [ -n "${whole_left:-}" ] || rm -f "$HOME/.local/state/herdr/plugins/herdr-fold"/offered-*
-drop_plugin_folders ${last:+herdr-fold} ${tui:+herdr-fold.sidebar herdr-fold.sessions-view herdr-fold.tab-layout}
+drop_plugin_folders ${last:+herdr-fold} \
+  ${tui:+herdr-fold.sidebar herdr-fold.sessions-view herdr-fold.workspaces herdr-fold.tab-layout}
 [ -z "$tui" ] || herdr server reload-config >/dev/null 2>&1         # a running herdr drops herdr-fold's keys
 
 if [ -n "$last" ]; then
@@ -174,7 +178,8 @@ if [ -n "$last" ]; then
   rm -rf "$state"/[0-9]*-[0-9]*
   rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/herdr-fold"          # the preview's helpers, compiled on first use
   rm -f "$record" "$state/installed.sha256" "$state/version" "$state/plugins.txt" "$state/loading-colors.txt" \
-    "$state"/.loading-colors.txt.*.tmp "$state/update.json" "$state"/.update.json.*.tmp "$state/time.json"
+    "$state"/.loading-colors.txt.*.tmp "$state/update.json" "$state/update.json.lock" "$state"/.update.json.*.tmp \
+    "$state/time.json"
   [ -d "$state/original" ] && find "$state/original" -depth -type d -empty -delete
   names="$HOME/.local/state/herdr/plugins/herdr-fold.sessions-view/names.json"
   [ -f "$names" ] && note "$(t uninstall.kept_names "$(shown "$names")")"

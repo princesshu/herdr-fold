@@ -12,8 +12,9 @@ It prepares each machine for the parts installed on the Mac, the TUI, the Herdr 
    settings in place (with the Herdr app alone, only the status line's);
 2. with the TUI: connects the machine to herdr, which installs herdr there (a single file, no admin rights);
 3. with the TUI: installs the herdr integrations for Claude and Codex, names a herdr-sidebar of the machine's own, and
-   links AI Sessions and the tab layout; the sidebar comes with the settings, in the Mac's theme colors (a theme
-   picked later reaches a machine with its next update), and runs with the machine's Python;
+   links the sidebar, AI Sessions and Workspaces (an earlier install's Tab Layout taken off); the sidebar comes with
+   the settings, in the Mac's theme colors (a theme picked later reaches a machine with its next update), and runs
+   with the machine's Python;
 4. with the Herdr app ([The Herdr app](app.md)): adds the machine to the app, whose core (herdr-core) copies itself
    there, a single file as herdr's; a machine the app has already is left as it is.
 

@@ -104,8 +104,7 @@ class Loop:
             self.again.add("column")
             return
 
-        def then(result):
-            self.dragged(result)
+        def then(_result):
             if "column" in self.again:
                 self.again.discard("column")
                 self.resized()
@@ -116,9 +115,6 @@ class Loop:
         """On the job's thread: PANE (the sidebar's) changed size: its right column's width for every tab."""
         return column.drag(self.state_dir, pane, self.term.size()[0])
 
-    def dragged(self, result):
-        """On the main thread: what drag() found."""
-
     def take_right_clicks(self):
         """On the job's thread: a right click in this pane comes to it (its own menu), not to herdr's pane menu."""
         pane = os.environ.get("HERDR_PANE_ID")
@@ -127,10 +123,6 @@ class Loop:
                 self.herdr.call("pane", "input", pane, "--right-click", "pane")
             except RuntimeError:
                 pass                                # a herdr without it: its own menu stays
-
-    def act(self, action):
-        if action is not None:
-            getattr(self, "do_" + action.name)(*action.args)
 
     def timeout(self):
         turning = widgets.TURNS.deadline()                 # a fold's chevron at rest again

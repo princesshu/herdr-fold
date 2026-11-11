@@ -90,7 +90,7 @@ install.step_plugins = 6/8 Plugins and integrations
 install.plugins = herdr plugins: %s
 install.plugin_sidebar = sidebar with Conversations
 install.plugin_sessions = AI Sessions
-install.plugin_tab_layout = tab layout
+install.plugin_workspaces = Workspaces
 install.integrations = herdr ↔ %s
 install.herdr_sidebar_too = herdr-sidebar is installed too: it does what herdr-fold's sidebar does
 install.sidebar_failed = sidebar not linked — later: herdr plugin link %s
@@ -107,14 +107,16 @@ install.package_kept = herdr-fold is kept in %s: Shift+M, its updates and its un
 install.package_not_herdr_folds = %s is someone else's: move it out of ~/.local/share, then open the installer again
 install.package_not_kept = herdr-fold could not be kept in %s: nothing was changed
 install.plugin_taken_over = %s came from herdr's marketplace: herdr-fold's own copy takes its place
-install.plugin_like_tab_layout = %s lays out new tabs too — both would act on every new tab
+install.plugin_like_workspaces = %s acts on new tabs too — both would act on every new tab
 install.sessions_ask = Show your conversations in herdr's Agents list?
-install.tab_layout_ask = Give every new tab the sidebar and a terminal?
+install.workspaces_ask = Let a new workspace ask for its folder, and herdr-fold's agents start again after a restart?
 install.plugin_declined = %s not linked
 install.sessions_failed = sessions plugin not linked — later: herdr plugin link \
   ~/.config/herdr-fold/plugins/sessions-view
-install.tab_layout_failed = tab-layout plugin not linked — later: herdr plugin link \
-  ~/.config/herdr-fold/plugins/tab-layout
+install.workspaces_failed = workspaces plugin not linked — later: herdr plugin link \
+  ~/.config/herdr-fold/plugins/workspaces
+install.tab_layout_retired = Tab Layout taken off: the sidebar lays out a new tab now, Workspaces keeps the workspaces
+install.tab_layout_left = Tab Layout is still in herdr: start herdr, then run %s
 install.claude_integration_failed = Claude integration not installed — later: herdr integration install claude
 install.codex_not_found = Codex not found — once you install it and sign in: herdr integration install codex
 install.codex_not_run = Codex has not run on this machine yet — sign in (codex), then: herdr integration install codex
@@ -225,7 +227,7 @@ machines.connected = connected to herdr
 machines.preparing = apps and settings onto the machine
 machines.phase_sending = sending the files
 machines.finishing = agent integrations on the machine
-machines.linking = AI Sessions and the tab layout on the machine
+machines.linking = the sidebar, AI Sessions and Workspaces on the machine
 machines.taken_over = %s: taken over from herdr onto the machine list (%s)
 machines.take_over_unreachable = %s is connected in herdr but not reachable now — it goes onto the machine list when \
   it is
@@ -284,7 +286,8 @@ machines.agent_missing = %s not on this machine
 machines.codex_sign_in = codex: sign in first (codex), then: ./machines.sh prepare
 machines.integration_failed = herdr ↔ %s failed
 machines.sessions_failed = sessions plugin not linked — later: herdr --machine %s plugin link '%s'
-machines.tab_layout_failed = tab-layout plugin not linked — later: herdr --machine %s plugin link '%s'
+machines.workspaces_failed = workspaces plugin not linked — later: herdr --machine %s plugin link '%s'
+machines.sidebar_failed = sidebar not linked — later: herdr --machine %s plugin link '%s'
 
 # remote/prepare-unix.sh: on a Linux / macOS machine
 prepare.unix.unsupported = unsupported machine: %s

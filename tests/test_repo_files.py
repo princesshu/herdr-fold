@@ -329,7 +329,7 @@ class Credits(unittest.TestCase):
     def test_each_plugin_says_it_is_part_of_herdr_fold(self):
         # herdr's marketplace lists every manifest of the repository as a plugin of its own, by its name, linked to its
         # folder (its README): the id tells where it comes from, the name what it does (the card names the repository
-        # above it), the README is titled with that name, and the tab layout, which needs the rest, says how it installs
+        # above it), the README is titled with that name, and each plugin needing the rest says how it installs
         problems = []
         for plugin in sorted(os.listdir(os.path.join(PACKAGE, "src", "plugins"))):
             manifest = os.path.join("src", "plugins", plugin, "herdr-plugin.toml")
@@ -343,9 +343,8 @@ class Credits(unittest.TestCase):
                 problems.append(f"{manifest}: name {top.get('name')}")
             elif package_text(f"src/plugins/{plugin}/README.md").split("\n", 1)[0] != "# " + top["name"]:
                 problems.append(f"{plugin}: its README's title is not its name, the one the marketplace shows")
-        tab_layout = package_text(os.path.join("src", "plugins", "tab-layout", "herdr-plugin.toml"))
-        if "herdr-fold's installer" not in tab_layout.split("\n[", 1)[0]:
-            problems.append("tab-layout: its description does not name herdr-fold's installer")
+        if "herdr-fold's installer" not in package_text("src/plugins/workspaces/herdr-plugin.toml").split("\n[", 1)[0]:
+            problems.append("workspaces: its description does not name herdr-fold's installer")
         self.assertEqual(problems, [])
 
     def test_herdrs_marketplace_finds_four_plugins(self):
@@ -353,7 +352,7 @@ class Credits(unittest.TestCase):
         # environment, sorts first
         found = sorted(rel for rel in publishable_files() if os.path.basename(rel) == "herdr-plugin.toml")
         self.assertEqual(found, ["herdr-plugin.toml"] + [f"src/plugins/{plugin}/herdr-plugin.toml"
-                                                          for plugin in ("sessions-view", "sidebar", "tab-layout")])
+                                                          for plugin in ("sessions-view", "sidebar", "workspaces")])
         for rel in found:
             head = package_text(rel).split("\n[", 1)[0]
             self.assertEqual([key for key in ("id", "name", "version", "min_herdr_version")

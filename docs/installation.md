@@ -114,7 +114,7 @@ the default: the capital letter in `[Y/n]` (yes) or `[y/N]` (no). Each line it p
 | 5 Status line | `What should the status line show next to the model?`: one checkbox list, a group for Claude Code and one for Codex, its title off for your own status line | always (↑ ↓ move, Space toggles, one Enter for both) | everything on |
 | 5 Status line | `Trust them, so the status line shows there too? (Claude then also runs their own .claude settings and hooks)` | some of your Claude panes are in git repositories Claude does not trust yet (never a folder outside one, your home folder or a folder above it) | no |
 | 6 Plugins | `Show your conversations in herdr's Agents list?` | herdr was set up before | yes, or your last answer |
-| 6 Plugins | `Give every new tab the sidebar and a terminal?` | herdr was set up before | yes, or your last answer |
+| 6 Plugins | `Let a new workspace ask for its folder, and herdr-fold's agents start again after a restart?` | herdr was set up before | yes, or your last answer (a no to the earlier Tab Layout counts) |
 | 6 Plugins | `Set up herdr-fold in the Herdr app too?` | an update of the TUI alone, the Herdr app on this Mac and never asked about | yes: its mod, layout and keys in the app, and the remote machines there too ([The Herdr app](app.md)) |
 | 7 GitHub | `Sign in to GitHub now?` | the Mac is not signed in to GitHub | yes |
 | 7 GitHub | `Let git push through your GitHub sign-in?` | signed in, but git does not use it yet | yes |
@@ -168,10 +168,10 @@ For the TUI:
 - `~/.config/herdr/config.toml`: replaced, or, if you answer yes to the question above, herdr-fold's are added to yours
   between `# >>> herdr-fold >>>` and `# <<< herdr-fold <<<` marks.
 - `~/.zshrc`: one marked block that loads the herdr pane environment, only inside herdr panes.
-- herdr plugins (the sidebar, AI Sessions, the tab layout) and the herdr integrations for Claude and Codex; a
+- herdr plugins (the sidebar, AI Sessions, Workspaces) and the herdr integrations for Claude and Codex; a
   herdr-sidebar of your own stays, and is named ([The sidebar](sidebar.md)).
 - The theme's colors for the sidebar, in `~/.local/state/herdr/plugins/herdr-fold.sidebar/colors.json`.
-- In `~/.local/state/herdr/plugins/herdr-fold.tab-layout/`: the workspaces named after their folder (`spaces.json`),
+- In `~/.local/state/herdr/plugins/herdr-fold.workspaces/`: the workspaces named after their folder (`spaces.json`),
   so a renamed folder renames its workspace, and the workspace in front with the one before it (`focus.json`), so Esc
   in the folder picker goes back there.
 - `~/.config/ghostty/herdr-fold-icon`: which app icon Ghostty shows (the theme's), written into
@@ -208,6 +208,11 @@ Run `./install.sh` again any time, for example after getting a newer `herdr-fold
 the other part ([above](#the-tui-the-herdr-app-or-both)). What is done is skipped, what changed is updated, and what an
 earlier version left behind is listed and removed once you say yes (it is saved first). Your parts, theme, status line
 choices and machine list stay.
+
+An earlier install's Tab Layout (`herdr-fold.tab-layout`) is taken off herdr (uninstalled when it came from herdr's
+marketplace): the sidebar lays out a new tab now, and Workspaces does the rest, with Tab Layout's `spaces.json` and
+`focus.json` moved into its own state folder. A no to Tab Layout stays a no to Workspaces. When herdr cannot take it
+off (it is not running), the installer names the command, and the next run tries again.
 
 ### A newer version
 

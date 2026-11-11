@@ -420,32 +420,38 @@ def local(state_dir, agents=(), resumed=None):
 
 def setting(state_dir):
     """The panel's settings, {} when there are none or they cannot be read."""
-    try:
-        with open(os.path.join(state_dir, SETTINGS), encoding="utf-8") as f:
-            kept = json.load(f)
-    except (OSError, ValueError):
-        return {}
-    return kept if isinstance(kept, dict) else {}
+    return statefile.read(os.path.join(state_dir, SETTINGS))
 
 
-def keep(state_dir, **values):
-    """VALUES kept in SETTINGS, the rest of KEPT staying."""
-    kept = {key: value for key, value in {**setting(state_dir), **values}.items() if key in KEPT}
+def change(state_dir, how):
+    """SETTINGS changed by HOW (given what it holds then, its answer kept, KEPT's keys only) under statefile.update:
+    every tab's sidebar and the app's helper write it. Nothing when it cannot be written."""
     try:
-        statefile.write(os.path.join(state_dir, SETTINGS), kept)
+        statefile.update(os.path.join(state_dir, SETTINGS),
+                         lambda kept: {key: value for key, value in how(kept).items() if key in KEPT})
     except OSError:
         pass
 
 
+def keep(state_dir, **values):
+    """VALUES kept in SETTINGS, the rest of KEPT staying."""
+    change(state_dir, lambda kept: {**kept, **values})
+
+
 def archived(state_dir):
     """The conversations taken off the list, as "<agent>:<id>"."""
-    kept = setting(state_dir).get("archived")
-    return {key for key in kept if isinstance(key, str)} if isinstance(kept, list) else set()
+    return archived_in(setting(state_dir))
+
+
+def archived_in(kept):
+    found = kept.get("archived")
+    return {key for key in found if isinstance(key, str)} if isinstance(found, list) else set()
 
 
 def archive(state_dir, keys, off=True):
     """The conversations KEYS ("<agent>:<id>") off the list (OFF), or back on it; their files stay as they are."""
-    keep(state_dir, archived=sorted(archived(state_dir) | keys if off else archived(state_dir) - keys))
+    change(state_dir, lambda kept: {**kept, "archived": sorted(archived_in(kept) | keys if off
+                                                               else archived_in(kept) - keys)})
 
 
 def state_folder():

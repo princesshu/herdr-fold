@@ -7,7 +7,7 @@ import sys
 import tempfile
 import unittest
 
-from support import SRC, FakeHerdrSocket, set_attrs, set_env
+from support import SRC, FakeHerdrSocket, at_once, set_attrs, set_env
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import column  # noqa: E402
@@ -56,6 +56,12 @@ class Column(unittest.TestCase):
     def sets(self):
         return [(params["tab_id"], params["path"], params["ratio"])
                 for method, params in self.fake.calls if method == "layout.set_split_ratio"]
+
+    def test_two_jobs_keeping_at_once_lose_neither(self):
+        # the dock's need job and the loop's column job write column.json on threads of their own
+        at_once(column.statefile, lambda: column.need(self.state, "w1:t1", 30, {"w1:t1"}),
+                lambda: column.remember(self.state, 0.6))
+        self.assertEqual(column.kept(self.state), {"least": {"w1:t1": 30}, "ratio": 0.6})
 
     def test_the_columns_in_a_tab(self):
         self.assertEqual(column.columns({"tab_id": "w1:t1", "root": tab(1)}), Columns("w1:t1", [], 0.75, 0.25))

@@ -5,7 +5,7 @@ min_herdr_version = "0.9.5"
 description = """\
   Every workspace's Claude and Codex conversations, Files, Search, Changes (git) and GitHub Issues in one pane, as \
   groups of tabs that fold, each panel shown or hidden from its menu, with previews in a tab and AI commit messages. \
-  Created by princesshu"""
+  A new tab gets it on the right, above a terminal, and it comes back when herdr starts. Created by princesshu"""
 platforms = ["macos", "linux", "windows"]
 
 # A pane of the plugin's closed by hand: the first time on this Mac, herdr says once how it comes back (Cmd+Shift+O)
@@ -13,6 +13,29 @@ platforms = ["macos", "linux", "windows"]
 on = "pane.closed"
 command = ["/usr/bin/python3", "panes.py", "--closed"]
 platforms = ["macos"]
+
+# New tab (a new workspace's first tab too): one still an unnamed pane running a shell gets the right column, never
+# the "new" button's workspace while Workspaces' folder picker is open in it (see panes.py)
+[[events]]
+on = "tab.created"
+platforms = ["macos", "linux"]
+command = ["/usr/bin/python3", "panes.py", "--new-tab"]
+
+# The same on Windows with Python (prepare-windows.ps1 fills in the full path of the machine's Python)
+[[events]]
+on = "tab.created"
+platforms = ["windows"]
+command = ["python", "panes.py", "--new-tab"]
+
+# herdr's start (after the session is restored): each tab's right column back but for a pane closed by hand, herdr's
+# first shell's, an empty sidebar shell running the sidebar again (herdr-fold's Workspaces starts the agents)
+[[startup]]
+platforms = ["macos", "linux"]
+command = ["/usr/bin/python3", "panes.py", "--startup"]
+
+[[startup]]
+platforms = ["windows"]
+command = ["python", "panes.py", "--startup"]
 
 # The sidebar itself runs in a plain pane named "sidebar" (python3 sidebar.py [FOLDER]); these actions show a panel
 # in the active tab's sidebar by sending it F9, F10, F11 or F12.

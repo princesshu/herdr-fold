@@ -204,8 +204,8 @@ def label(text):
 
 def open_tab(herdr, workspace, root, name, launch, pane_name="issue", lay_out=None, ready=lambda: True):
     """A new tab in ROOT labeled NAME, LAUNCH running in it once LAY_OUT(tab) has laid it out, shown once READY() says
-    what started there draws; other tabs stay. Its pane is named first: a layout plugin (herdr-fold's tab-layout)
-    leaves a new tab alone once its pane has a name."""
+    what started there draws; other tabs stay. Its pane is named first: the dock (panes.py --new-tab) leaves a new
+    tab alone once its pane has a name."""
     env = [arg for key, value in launch.env.items() for arg in ("--env", f"{key}={value}")]
     created = herdr.call("tab", "create", "--workspace", workspace, "--cwd", root, "--label", label(name), *env,
                          "--no-focus")

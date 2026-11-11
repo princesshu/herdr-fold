@@ -1,24 +1,11 @@
-"""Tests for herdrlib.py's shared helpers: shell-only panes, a pane's agent name, herdr's agents and machines, whether
-an agent holds a conversation, and the sidebar's launcher for a folder's system. herdr is a fake (a recorded call list).
-"""
+"""Tests for herdrlib.py's shared helpers: a pane's agent name, herdr's agents and machines, whether an agent holds a
+conversation, and the sidebar's launcher for a folder's system (the shell names are the sidebar's panes.py's, tested
+there). herdr is a fake (a recorded call list)."""
 import unittest
 
 import support  # noqa: F401  (puts src/ on the import path)
 
 import herdrlib  # noqa: E402
-
-
-class Shells(unittest.TestCase):
-    def test_a_shell_alone_is_only_a_shell(self):
-        for names in (["-zsh"], ["C:\\Program Files\\PowerShell\\7\\pwsh.exe"], ["powershell.exe"], ["bash", "sh"]):
-            self.assertTrue(herdrlib.only_shells([{"name": n} for n in names]), names)
-
-    def test_a_program_in_the_foreground_is_not(self):
-        self.assertFalse(herdrlib.only_shells([{"name": "pwsh.exe"}, {"name": "node.exe"}]))
-        self.assertFalse(herdrlib.only_shells([]))
-
-    def test_program_names_are_plain(self):
-        self.assertEqual(herdrlib.program_names([{"name": "C:\\Tools\\Node.EXE"}, {"name": "-zsh"}]), ["node", "zsh"])
 
 
 class AgentName(unittest.TestCase):

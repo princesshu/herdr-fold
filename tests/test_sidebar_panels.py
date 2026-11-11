@@ -7,7 +7,7 @@ import sys
 import tempfile
 import unittest
 
-from support import SRC
+from support import SRC, at_once
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import panels  # noqa: E402
@@ -31,6 +31,12 @@ class Record(unittest.TestCase):
     def setUp(self):
         self.state = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.state)
+
+    def test_two_tabs_noting_at_once_are_both_kept(self):
+        at_once(panels.statefile, lambda: panels.note(self.state, {"w1:t1": {"sidebar"}}),
+                lambda: panels.note(self.state, {"w1:t2": {"terminal"}}))
+        self.assertEqual((panels.had(self.state, "w1:t1"), panels.had(self.state, "w1:t2")),
+                         ({"sidebar"}, {"terminal"}))
 
     def test_what_a_tab_has_had_is_kept_and_a_pane_gone_from_it_was_closed(self):
         panels.note(self.state, {"w1:t1": {"sidebar", "terminal"}, "w1:t2": {"claude"}})

@@ -21,10 +21,11 @@ page chosen](../assets/screenshots/split.webp)
 
 ## How it gets there
 
-- The installer copies it to `~/.config/herdr-fold/plugins/sidebar` and links it (`herdr plugin link`) for its actions
-  (the panels, Conversations' fold and find, Restore panels) and the one-time tip when a pane is closed by hand, and
-  records the link in `~/.local/state/herdr-fold/plugins.txt`.
-- `machines.sh` copies it to each remote machine, where the same launcher starts it.
+- The installer copies it to `~/.config/herdr-fold/plugins/sidebar` and links it (`herdr plugin link`): it lays out
+  every new empty tab, comes back in every tab when herdr starts, and brings its actions (the panels, Conversations'
+  fold and find, Restore panels) and the one-time tip when a pane is closed by hand; the link is recorded in
+  `~/.local/state/herdr-fold/plugins.txt`.
+- `machines.sh` copies it to each remote machine and links it there too.
 - On its own, without the rest of herdr-fold: `herdr plugin install princesshu/herdr-fold/src/plugins/sidebar`, then
   `herdr plugin action invoke restore-panels --plugin herdr-fold.sidebar` (`restore-panels-windows` on Windows) lays
   out the tab you are in ([its README](../src/plugins/sidebar/README.md#install)).
@@ -37,13 +38,14 @@ page chosen](../assets/screenshots/split.webp)
 
 ## How it starts
 
-It runs in a plain herdr pane named `sidebar`, started by `src/sidebar.sh` (`src/sidebar.ps1` on Windows) with the
-system Python: the workspace builder, the tab-layout plugin and `restore_panes.py` run it. In your home folder it opens
-`~/Documents` instead. In a workspace whose folder is no repository itself (your home folder, a folder of projects),
-Changes shows the repository of the folder or file chosen in Files, however deep, its name in the repository row
-above the message: its changes, commit and sync, Files' marks and the Issues view follow it. Quitting it (`q`) leaves a
-shell; `python3 ~/.config/herdr-fold/restore_panes.py` starts it there again. After an update it starts its new version
-by itself, where it was, and so it does on its folder's new place when the folder is renamed or moved.
+It runs in a plain herdr pane named `sidebar`, with the system Python: the workspace builder and `restore_panes.py`
+start it through `src/sidebar.sh` (`src/sidebar.ps1` on Windows), the plugin itself in a new tab and when herdr starts.
+In your home folder it opens `~/Documents` instead. In a workspace whose folder is no repository itself (your home
+folder, a folder of projects), Changes shows the repository of the folder or file chosen in Files, however deep, its
+name in the repository row above the message: its changes, commit and sync, Files' marks and the Issues view follow
+it. Quitting it (`q`) leaves a shell; `python3 ~/.config/herdr-fold/restore_panes.py` starts it there again. After an
+update it starts its new version by itself, where it was, and so it does on its folder's new place when the folder is
+renamed or moved.
 
 The column keeps one width everywhere: drag it wider or narrower in one tab, and every other tab's column, in every
 workspace, gets that width at once; a new column opens at it too. A tab's column is never narrower than its sidebar's

@@ -103,7 +103,7 @@ def outside_needs(folder):
 
 class Standalone(unittest.TestCase):
     """The herdr marketplace lists every plugin of the repository as installable on its own: the sidebar and
-    AI Sessions run without the rest of the package; the tab layout, which does not, says so."""
+    AI Sessions run without the rest of the package; Workspaces, which does not, says so."""
 
     def test_the_sidebar_and_the_sessions_list_need_nothing_else(self):
         for plugin in ("sidebar", "sessions-view"):
@@ -116,20 +116,30 @@ class Standalone(unittest.TestCase):
             f.write("import os\nfrom herdrlib import herdr\nCONFIG = '~/.config/herdr-fold/settings.json'\n")
         self.assertEqual(outside_needs(folder), ["view.py imports herdrlib", "view.py names ~/.config/herdr-fold"])
 
-    def test_the_tab_layout_says_it_needs_the_installer(self):
-        with open(os.path.join(PACKAGE, "src", "plugins", "tab-layout", "herdr-plugin.toml"), encoding="utf-8") as f:
+    def test_workspaces_says_it_needs_the_installer(self):
+        with open(os.path.join(PACKAGE, "src", "plugins", "workspaces", "herdr-plugin.toml"), encoding="utf-8") as f:
             self.assertIn("install it with herdr-fold's installer", f.read())
 
 
-def actions(plugin):
-    """{id: (command, platforms)} of a plugin's [[actions]], as its manifest writes them (one line each)."""
+def tables(plugin, kind):
+    """The id, on, command and platforms of each of a plugin's [[KIND]] tables (actions, events, startup, panes), as
+    its manifest writes them (one line each): {field: its text}."""
     with open(os.path.join(PACKAGE, "src", "plugins", plugin, "herdr-plugin.toml"), encoding="utf-8") as f:
-        blocks = f.read().split("[[actions]]")[1:]
-    found = {}
-    for block in blocks:
-        fields = dict(re.findall(r"^(id|command|platforms) = (.*)$", block.split("\n[[", 1)[0], re.MULTILINE))
-        found[fields["id"].strip('"')] = (ast.literal_eval(fields["command"]), ast.literal_eval(fields["platforms"]))
-    return found
+        found = f.read().split(f"[[{kind}]]")[1:]
+    return [dict(re.findall(r"^(id|on|command|platforms) = (.*)$", table.split("\n[[", 1)[0], re.MULTILINE))
+            for table in found]
+
+
+def actions(plugin):
+    """{id: (command, platforms)} of a plugin's [[actions]]."""
+    return {table["id"].strip('"'): (ast.literal_eval(table["command"]), ast.literal_eval(table["platforms"]))
+            for table in tables(plugin, "actions")}
+
+
+def hooks(plugin, kind, on=None):
+    """(command, platforms) of each of a plugin's [[KIND]] tables (events, startup), the events herdr's ON only."""
+    return [(ast.literal_eval(table["command"]), ast.literal_eval(table["platforms"])) for table in tables(plugin, kind)
+            if on is None or table.get("on") == f'"{on}"']
 
 
 class SidebarAlone(unittest.TestCase):
@@ -142,6 +152,38 @@ class SidebarAlone(unittest.TestCase):
                          (["/usr/bin/python3", "panes.py", "--restore"], ["macos", "linux"]))
         self.assertEqual(found.get("restore-panels-windows"),
                          (["python", "panes.py", "--restore"], ["windows"]))
+
+
+class Hooks(unittest.TestCase):
+    """What herdr runs by itself: the dock lays out a new tab and comes back when herdr starts, Workspaces brings back
+    herdr-fold's agents, each on every system."""
+
+    def test_the_dock_lays_out_a_new_tab(self):
+        self.assertEqual(hooks("sidebar", "events", "tab.created"),
+                         [(["/usr/bin/python3", "panes.py", "--new-tab"], ["macos", "linux"]),
+                          (["python", "panes.py", "--new-tab"], ["windows"])])
+
+    def test_the_dock_comes_back_when_herdr_starts(self):
+        self.assertEqual(hooks("sidebar", "startup"),
+                         [(["/usr/bin/python3", "panes.py", "--startup"], ["macos", "linux"]),
+                          (["python", "panes.py", "--startup"], ["windows"])])
+
+    def test_workspaces_brings_back_the_agents_when_herdr_starts(self):
+        self.assertEqual(hooks("workspaces", "startup"),
+                         [(["/bin/sh", "-c", 'exec /usr/bin/python3 "$HOME/.config/herdr-fold/restore_panes.py" '
+                                             "--startup"], ["macos", "linux"]),
+                          (["python", "..\\..\\restore_panes.py", "--startup"], ["windows"])])
+
+    def test_a_windows_command_starts_as_the_windows_setup_finds_it(self):
+        # prepare-windows.ps1 puts the machine's Python's full path in where a command starts so, word for word
+        odd = []
+        for plugin in sorted(os.listdir(os.path.join(PACKAGE, "src", "plugins"))):
+            if not os.path.isfile(os.path.join(PACKAGE, "src", "plugins", plugin, "herdr-plugin.toml")):
+                continue
+            odd += [f"{plugin} {kind}: {table['command']}" for kind in ("actions", "events", "startup", "panes")
+                    for table in tables(plugin, kind)
+                    if table.get("platforms") == '["windows"]' and not table["command"].startswith('["python", ')]
+        self.assertEqual(odd, [])
 
 
 class Commands(unittest.TestCase):

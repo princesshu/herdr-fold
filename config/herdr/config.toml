@@ -27,7 +27,7 @@ rows = [
 
 # The Spaces rows: herdr's own; beside the branch, how long an agent there waits on you in the theme's
 # yellow (the sessions-view plugin says so), and deleted in its red when the space's folder is gone (the
-# tab-layout plugin says so)
+# Workspaces plugin says so)
 [ui.sidebar.spaces]
 rows = [
   ["state_icon", "workspace"],

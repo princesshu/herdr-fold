@@ -290,6 +290,30 @@ class Panel(AppScreen, unittest.TestCase):
             time.sleep(0.05)
         self.assertEqual(panes.resumed(self.state), {})
 
+    def test_a_second_enter_while_it_reopens_opens_no_second_tab(self):
+        app = self.make()
+        family = app.work["conversations"]
+        item = conversations.Conversation("claude", "s2", "Price list", "/repo/app", 0)
+        family.folders = {"/repo/app": "w1"}
+        family.do_open(item)
+        family.do_open(item)                                    # before the first is done
+        end_jobs()
+        self.assertEqual(sum(line.startswith("tab create") for line in logged(self.log)), 1)
+
+    def test_a_pane_reopened_while_the_list_is_read_stays_noted(self):
+        # the read forgets the panes herdr knows the session of; one a reopen notes meanwhile is not among them
+        panes.resume(self.state, "w1:p1", "s1")                # herdr knows w1:p1's session
+        state = self.state
+
+        class Reopening(preview.Herdr):
+            def call(self, *args):
+                if args[:2] == ("agent", "list"):
+                    panes.resume(state, "w1:p9", "s2")         # a reopen job's, while the read waits for herdr
+                return super().call(*args)
+
+        self.make(Reopening()).work["conversations"].read()
+        self.assertEqual(panes.resumed(self.state), {"w1:p9": "s2"})
+
     def test_a_click_in_another_pane_closes_its_menu(self):
         app = self.make(self.Recorder())
         closed = []

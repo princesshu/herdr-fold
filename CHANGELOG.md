@@ -37,6 +37,18 @@ All notable changes to this project are listed here. The format follows
   the sidebar's first group. Cmd + Shift + R opens it in the tab's sidebar, its filter empty, and Cmd + Shift + H
   folds it to its head. On an existing install the update closes every tab's Conversations column and gives the
   right column back the width last dragged; what the column kept goes from `conversations.json`.
+- Tab Layout (`herdr-fold.tab-layout`) is gone, its work split between two plugins: the sidebar lays out every new
+  empty tab (its shell on the left, the sidebar above a terminal on the right, as wide as in every other tab) and
+  comes back in every tab when herdr starts; Workspaces (`herdr-fold.workspaces 0.3.0`) keeps the rest: the **new**
+  button's folder picker, a workspace's name following its folder and its deleted mark, the question before a tab
+  with a conversation closes, and herdr-fold's agents started again after a restart. Without Workspaces, herdr's own
+  **new** button works as herdr's, and every new tab still gets the sidebar. herdr's marketplace card lists Workspaces
+  in Tab Layout's place.
+- An update takes Tab Layout off herdr (uninstalled when it came from herdr's marketplace) and moves its state, the
+  workspaces it followed and the one in front, into Workspaces' folder; a no to Tab Layout stays a no to Workspaces.
+  The installer asks `Let a new workspace ask for its folder, and herdr-fold's agents start again after a restart?`
+  in place of `Give every new tab the sidebar and a terminal?`: the sidebar does that now. A remote machine gets the
+  sidebar, AI Sessions and Workspaces linked, and Tab Layout taken off.
 - The TUI folds with one chevron everywhere: the conversations' spaces and the issues' filter as the file tree and the
   sections, and without a Nerd Font a plain chevron (› ⌄) for each.
 - A fold turns its chevron as it opens or shuts: the Herdr app springs its section open with no overshoot and crosses
@@ -47,6 +59,10 @@ All notable changes to this project are listed here. The format follows
 
 - The TUI's Changes no longer misses a change made just after its last git status (`git init`, a quick edit): it
   showed only on the slow beat, 5 to 15 seconds later.
+- Changes made at the same moment are all kept: a conversation archived while the TUI sidebar reads its list, a
+  reopened one's mark, the right column's width as it is dragged, and a setting changed in two places (two tabs'
+  sidebars, or a sidebar and the Herdr app linking an issue or switching the update check).
+- A second Enter or click on a closed conversation while it reopens no longer opens it in a second tab.
 - The TUI preview's key hints in a narrow pane: each left out whole, the last first, never cut (`c: co`).
 - Claude's status line writes the weekly reset as the machine writes hours (`Monday 13:00` on a Mac set to 24 hours),
   not always with am and pm.

@@ -156,7 +156,7 @@ def herdr_block(theme):
     body += ["",
              "# The Spaces rows: herdr's own; beside the branch, how long an agent there waits on you in the theme's",
              "# yellow (the sessions-view plugin says so), and deleted in its red when the space's folder is gone (the",
-             "# tab-layout plugin says so)", "[ui.sidebar.spaces]", "rows = [",
+             "# Workspaces plugin says so)", "[ui.sidebar.spaces]", "rows = [",
              '  ["state_icon", "workspace"],',
              f'  ["branch", "git_status", {{ token = "$waiting", fg = "{h["yellow"]}" }}, '
              f'{{ token = "$folder", fg = "{h["red"]}" }}],', "]"]

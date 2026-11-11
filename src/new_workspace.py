@@ -1,4 +1,4 @@
-"""The folder picker for a new workspace, opened by the tab-layout plugin after herdr's "new" button: herdr alone would
+"""The folder picker for a new workspace, opened by the Workspaces plugin after herdr's "new" button: herdr alone would
 reuse the active workspace's folder. herdr_layout.py builds the chosen folder's workspace (or it jumps to an existing
 one), and the empty one is closed."""
 import collections

@@ -18,7 +18,7 @@ class UninstallParts(PartsInstall, unittest.TestCase):
         self.with_app()
         with open(self.env["STUB_PLUGINS"], "w") as f:                 # what herdr has: herdr-fold's, once linked
             json.dump({"result": {"plugins": [{"plugin_id": f"herdr-fold.{name}"}
-                                              for name in ("sidebar", "sessions-view", "tab-layout")]}}, f)
+                                              for name in ("sidebar", "sessions-view", "workspaces")]}}, f)
 
     def there(self, rel):
         return os.path.exists(self.path(rel))
@@ -36,6 +36,7 @@ class UninstallParts(PartsInstall, unittest.TestCase):
         self.assertFalse(self.there(".config/ghostty/config"))
         self.assertNotIn("herdr-fold", self.read(".zshrc") if self.there(".zshrc") else "")
         self.assertIn("herdr plugin unlink herdr-fold.sidebar", self.herdr_calls())
+        self.assertIn("herdr plugin unlink herdr-fold.workspaces", self.herdr_calls())
         self.assertTrue(self.there(".config/herdr-fold/statusline.py"))
         self.assertTrue(self.in_app("mods/herdr-fold/main.js"))
         self.assertEqual(self.parts(), ["app"])

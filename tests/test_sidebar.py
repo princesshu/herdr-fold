@@ -15,7 +15,8 @@ import time
 import unittest
 from unittest import mock
 
-from support import SRC, AppScreen, FakeHerdrSocket, FakeTerminal, end_child, end_jobs, logged, set_env, stubs
+from support import (SRC, AppScreen, FakeHerdrSocket, FakeTerminal, at_once, end_child, end_jobs, logged, set_env,
+                     stubs)
 
 PLUGIN = os.path.join(SRC, "plugins", "sidebar")
 sys.path.insert(0, PLUGIN)
@@ -893,6 +894,34 @@ class PaneMenu(unittest.TestCase):
         self.assertEqual(self.app.tabs(), ["changes"])
         self.assertEqual(self.app.note, "One panel stays shown")
 
+    def test_two_tabs_hiding_panels_at_once_keep_both(self):
+        other = sidebar.App(self.tmp, FakeTerminal(45, 30), self.Herdr(), os.path.join(self.tmp, "state"))
+        self.pick("✓ Search")
+        self.pick("✓ Changes", other)                                     # before its next look: Search still there
+        with open(os.path.join(self.tmp, "state", "settings.json")) as f:
+            self.assertEqual(sorted(json.load(f)["hidden_panels"]), ["changes", "search"])
+
+    def test_the_last_panel_shown_stays_whatever_another_tab_hid(self):
+        other = sidebar.App(self.tmp, FakeTerminal(45, 30), self.Herdr(), os.path.join(self.tmp, "state"))
+        for choice in ("✓ Conversations", "✓ Files", "✓ Search"):
+            self.pick(choice)
+        self.pick("✓ Changes", other)
+        self.assertEqual(other.note, "One panel stays shown")
+        with open(os.path.join(self.tmp, "state", "settings.json")) as f:
+            self.assertEqual(sorted(json.load(f)["hidden_panels"]), ["conversations", "files", "search"])
+
+    def test_every_panel_hidden_by_another_tab_leaves_the_first_shown(self):
+        # a tab on GitHub hid every panel but Issues, which this folder, on no GitHub, does not have
+        os.makedirs(os.path.join(self.tmp, "state"), exist_ok=True)
+        with open(os.path.join(self.tmp, "state", "settings.json"), "w") as f:
+            json.dump({"hidden_panels": ["conversations", "files", "search", "changes"]}, f)
+        self.app.next_poll = 0
+        self.app.tick()
+        self.assertEqual(self.app.tabs(), ["conversations"])
+        self.app.handle(Key("char", "x"))
+        self.app.draw()
+        self.assertIn("Conversations", "".join(ch for ch, _ in self.app.canvas.rows[0]))
+
     def test_a_key_for_a_hidden_panel_shows_it_again(self):
         self.pick("✓ Search")
         self.app.handle(Key("f10"))                                       # its key, as a click on its ✓
@@ -1008,6 +1037,145 @@ class PaneMenu(unittest.TestCase):
             time.sleep(0.02)
         self.assertIn(("pane", "close", "w1:p3"), calls)                    # as closed by hand: it stays closed
         self.assertIsNone(self.app.menu)
+
+
+class Dock(unittest.TestCase):
+    """The dock's groups: where a key goes while one is folded, one folded for want of rows, what two sidebars on one
+    folder keep, a seed's panel."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        set_env(self, HERDR_PANE_ID="w1:p2", HOME=self.tmp)
+        self.addCleanup(end_jobs)                       # before the folders go: a job of the dock's writes there
+        self.state = os.path.join(self.tmp, "state")
+        self.app = self.sidebar()
+
+    def sidebar(self, rows=30):
+        return sidebar.App(self.tmp, FakeTerminal(45, rows), PaneMenu.Herdr(), self.state)
+
+    def chevron(self, app, group):
+        app.draw()
+        app.handle(Mouse("press", 1, app.slices[group][0], 0))
+        app.draw()
+
+    def test_a_key_never_reaches_a_folded_group(self):
+        self.chevron(self.app, "project")                                 # Files had the keys
+        self.app.handle(Key("char", "."))                                 # its hidden files: never switched unseen
+        self.assertFalse(self.app.settings["hidden"])
+        self.chevron(self.app, "project")
+        self.app.handle(Key("char", "."))
+        self.assertTrue(self.app.settings["hidden"])
+
+    def test_i_in_files_switches_every_panels_icons(self):
+        # the keys start in Files; its view asks for the icons, which the dock keeps for every panel
+        self.app.draw()
+        self.app.handle(Key("char", "i"))
+        self.assertFalse(self.app.settings["icons"])
+        self.assertFalse(self.app.views["changes"].icons)
+
+    def test_a_group_folded_for_want_of_rows_opens_with_one_click(self):
+        low = self.sidebar(rows=10)                                       # rows for two open groups: Work folds
+        low.draw()
+        self.assertEqual(low.slices["work"][1], 1)
+        self.chevron(low, "work")
+        self.assertNotIn("work", low.dock["folded"])
+        low.term.rows = 30                                                # the pane taller: Work open
+        low.draw()
+        self.assertGreater(low.slices["work"][1], 1)
+
+    def test_two_sidebars_on_one_folder_keep_what_each_changed(self):
+        other = self.sidebar()                                            # a preview tab's, on the same folder
+        self.chevron(self.app, "work")
+        other.show("search")                                              # it has not seen Work fold
+        kept = sidebar.stack.state(self.state, os.path.realpath(self.tmp))
+        self.assertEqual((kept["folded"], kept["shown"]), (["work"], {"project": "search"}))
+        self.assertEqual(self.app.dock["shown"], {})                      # each shows what it chose itself
+
+    def test_a_folded_group_stays_folded_after_a_handover(self):
+        self.chevron(self.app, "project")                                 # Files had the keys
+        new = self.sidebar()                                              # the new version, or a preview tab's
+        new.take(self.app.left())
+        self.assertIn("project", new.dock["folded"])
+
+    def test_a_note_goes_by_itself_an_error_stays(self):
+        now = [100.0]
+        app = sidebar.App(self.tmp, FakeTerminal(45, 30), PaneMenu.Herdr(), self.state, clock=lambda: now[0])
+        app.note = "Archived"
+        app.tick()
+        self.assertIn(100.0 + sidebar.NOTE, app.deadlines())                # the loop wakes up for it
+        now[0] += sidebar.NOTE
+        app.tick()
+        self.assertIsNone(app.note)
+        app.error = "settings not saved: disk full"
+        now[0] += 60
+        app.tick()
+        self.assertEqual(app.error, "settings not saved: disk full")       # until a key or a click
+
+    def test_two_tabs_changing_settings_at_once_keep_both(self):
+        other = self.sidebar()
+        at_once(sidebar.statefile, lambda: other.save(icons=False), lambda: self.app.hide("search", True))
+        self.assertEqual({key: sidebar.load_settings(os.path.join(self.state, "settings.json"))[key]
+                          for key in ("icons", "hidden_panels")}, {"icons": False, "hidden_panels": ["search"]})
+
+    def test_the_columns_room_follows_the_last_change(self):
+        # two panels hidden in a row: the room the first asked for never lands after the second's
+        calls, first = [], threading.Event()
+        real = sidebar.column.need
+
+        def need(state_dir, tab, cells, tabs):
+            calls.append(cells)
+            if len(calls) == 1:
+                first.wait(2)                                              # the first one slow
+            real(state_dir, tab, cells, tabs)
+
+        with mock.patch.object(sidebar.column, "need", need):
+            self.app.hide("search", True)
+            self.app.hide("conversations", True)
+            first.set()
+            for _ in range(3):
+                end_jobs()
+                self.app.collect()
+        self.assertEqual(sidebar.column.kept(self.state)["least"]["w1:t1"], sidebar.narrowest(self.app.tabs()))
+
+    def test_the_conversations_are_read_less_often_while_off_screen(self):
+        now, reads = [100.0], []
+        app = sidebar.App(self.tmp, FakeTerminal(45, 30), PaneMenu.Herdr(), self.state, clock=lambda: now[0])
+        family = app.work["conversations"]
+        family.read, family.got = (lambda: reads.append(now[0])), (lambda seen: None)
+        app.hide("conversations", True)
+        for at in (100.0, 101.5, 110.5):                                   # hidden: every AWAY seconds
+            now[0] = at
+            app.tick()
+            end_jobs()
+            app.collect()
+        app.show("conversations")
+        now[0] = 111.6                                                     # on screen again: every POLL seconds
+        app.tick()
+        end_jobs()
+        self.assertEqual(reads, [100.0, 110.5, 111.6])
+
+    def test_issues_key_off_github_leaves_them_hidden_in_every_tab(self):
+        self.app.save(hidden_panels=["issues"])                            # hidden in a tab on GitHub
+        self.app.handle(Key("f12"))                                        # no Issues here: nothing to show
+        self.assertEqual(self.app.settings["hidden_panels"], ["issues"])
+
+    def test_a_handover_keeps_this_sidebars_own_view(self):
+        # another sidebar on the folder opened Work since this one folded it: the new version comes back as this was
+        self.chevron(self.app, "work")
+        other = self.sidebar()                                            # started since: Work folded there too
+        other.fold("work")                                                # and opened there again
+        self.assertEqual(sidebar.stack.state(self.state, os.path.realpath(self.tmp))["folded"], [])
+        new = self.sidebar()
+        new.take(self.app.left())
+        self.assertIn("work", new.dock["folded"])
+
+    def test_a_seed_shows_a_panel_hidden_in_the_menu_again(self):
+        # Cmd+Shift+R in a tab whose sidebar was closed by hand: the new one comes on Conversations (actions.find)
+        self.app.hide("conversations", True)
+        self.app.take({"show": "conversations"})
+        self.assertTrue(self.app.showing("conversations"))
+        self.assertNotIn("conversations", self.app.settings["hidden_panels"])
 
 
 class Ticks:
@@ -1325,8 +1493,8 @@ class FollowsItsFolder(Ticks, unittest.TestCase):
 
 
 class NewWorkspace(unittest.TestCase):
-    """New Workspace on a folder, once herdr-fold's tab layout is there: its folder picker opens on that folder, with
-    the Claude / Codex toggle, as herdr's new button opens it."""
+    """New Workspace on a folder, once herdr-fold's Workspaces plugin is there: its folder picker opens on that folder,
+    with the Claude / Codex toggle, as herdr's new button opens it."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -1358,19 +1526,19 @@ class NewWorkspace(unittest.TestCase):
                 thread.join(5)
         self.app.collect()
 
-    def test_it_is_offered_once_herdr_folds_tab_layout_is_there(self):
-        self.assertTrue(self.make(["herdr-fold.sidebar", "herdr-fold.tab-layout"]).views["files"].opens_workspace)
-        self.assertFalse(self.make(["herdr-fold.sidebar"]).views["files"].opens_workspace)
+    def test_it_is_offered_once_herdr_folds_workspaces_plugin_is_there(self):
+        self.assertTrue(self.make(["herdr-fold.sidebar", "herdr-fold.workspaces"]).views["files"].opens_workspace)
+        self.assertFalse(self.make(["herdr-fold.sidebar", "herdr-fold.tab-layout"]).views["files"].opens_workspace)
         app = self.make(None)                                   # herdr not answering: nothing offered, no error shown
         self.assertFalse(app.views["files"].opens_workspace)
         self.assertIsNone(app.error)
 
     def test_it_opens_the_folder_picker_on_the_folder(self):
-        app = self.make(["herdr-fold.tab-layout"])
+        app = self.make(["herdr-fold.workspaces"])
         folder = os.path.join(app.root, "src")
         app.act(Action("new_workspace", (folder,)), "files")
         self.settle()
-        self.assertIn(("plugin", "pane", "open", "--plugin", "herdr-fold.tab-layout", "--entrypoint", "new-workspace",
+        self.assertIn(("plugin", "pane", "open", "--plugin", "herdr-fold.workspaces", "--entrypoint", "new-workspace",
                        "--focus", "--env", f"HERDR_NEW_WORKSPACE_FOLDER={folder}"), self.calls)
 
 
