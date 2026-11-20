@@ -68,19 +68,26 @@ class Layout(unittest.TestCase):
         self.assertEqual(create[create.index("--label") + 1], "home")
         self.assertIn(("tab", "rename", "w9:t1", "home"), self.calls)
 
-    def test_a_new_column_takes_the_width_last_chosen(self):
-        # the sidebar remembers the share before its column when it is dragged (column.json in its state folder)
+    def test_a_new_column_opens_at_the_sidebars_width_not_an_older_ratio(self):
+        # the width is the sidebar's own (column.split_share, tested with the dock): measured from herdr's tab, else
+        # RIGHT; the share an older version kept in column.json is not read any more
+        import column
         os.makedirs(self.state)
         saved = os.path.join(self.state, "column.json")
-        for content, ratio in ((None, "0.75"), ('{"ratio": 0.62}', "0.62"), ("{oops", "0.75"),
-                               ('{"ratio": 0.99}', "0.75")):
-            if content is not None:
-                with open(saved, "w") as f:
-                    f.write(content)
-            self.calls.clear()
-            herdrlib.add_column("w9:p1", None, h=herdr_layout.herdr)
-            right = next(c for c in self.calls if c[:2] == ("pane", "split") and "right" in c)
-            self.assertEqual(right[right.index("--ratio") + 1], ratio, content)
+        for measured, share in ((None, 0.75), (200, column.share(1 - (column.IDEAL + column.FRAME) / 200))):
+            def call(method, params, width=measured):
+                if width is None:
+                    raise OSError("no herdr")
+                return {"layout": {"panes": [{"pane_id": params["pane_id"], "rect": {"width": width}}]}}
+            set_attrs(self, column, call=call)
+            for content in (None, '{"ratio": 0.62}', "{oops"):
+                if content is not None:
+                    with open(saved, "w") as f:
+                        f.write(content)
+                self.calls.clear()
+                herdrlib.add_column("w9:p1", None, h=herdr_layout.herdr)
+                right = next(c for c in self.calls if c[:2] == ("pane", "split") and "right" in c)
+                self.assertAlmostEqual(float(right[right.index("--ratio") + 1]), share, 2, (measured, content))
 
     def test_an_existing_workspace_is_not_made_twice(self):
         self.labels = ["My App"]

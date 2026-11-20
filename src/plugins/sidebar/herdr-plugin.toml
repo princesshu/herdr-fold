@@ -3,10 +3,10 @@ name = "Sidebar"
 version = "0.4.0"
 min_herdr_version = "0.9.5"
 description = """\
-  Every workspace's Claude and Codex chats, Files, Search, Changes (git), GitHub Issues and the agent's setup in \
-  one pane, one at a time under a row of tabs, each shown or hidden from its menu, with previews in a tab and AI \
-  commit messages. A new tab gets it on the right, above a terminal, and it comes back when herdr starts. Created by \
-  princesshu"""
+  Every workspace's Claude and Codex chats, Files, Search, Changes (git), GitHub Issues and the Agent view (the \
+  agent's setup, its limits and costs, a Usage view, its graph as a tree) in one pane, one at a time under a row of \
+  tabs, each shown or hidden from its menu, with previews in a tab and AI commit messages. A new tab gets it on the \
+  right, above a terminal, and it comes back when herdr starts. Created by princesshu"""
 platforms = ["macos", "linux", "windows"]
 
 # A pane of the plugin's closed by hand: the first time on this Mac, herdr says once how it comes back (Cmd+Shift+O)

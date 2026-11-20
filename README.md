@@ -31,7 +31,7 @@ above a terminal](assets/screenshots/hero.webp)
 
 - Chats over the sidebar, a click or Cmd + Shift + R away: every workspace's Claude and Codex chats, running and
   closed.
-- The agent's setup, its limits and what it costs, in the sidebar's [Agent view](docs/sidebar.md#the-agent-view).
+- The agent's setup, limits, costs and graph in the sidebar's [Agent view](docs/sidebar.md#the-agent-view).
 - AI Sessions in herdr's sidebar, with each chat's state, and in the Spaces list how long an agent has waited
   on you. Cmd + D / Cmd + E step through the sessions, Cmd with the arrows through the workspaces and the panes, even
   while you type.
@@ -40,8 +40,8 @@ above a terminal](assets/screenshots/hero.webp)
   theme's colors. A status line with the model, effort, context with its window size and limits, the same for Claude
   and Codex.
 - Workspaces on Linux, macOS and Windows machines over SSH; the agents keep running there when the Mac sleeps.
-- In herdr's desktop app too, as a layout of its own: the sidebar's views beside the tab and its own terminal
-  under them, the chats a press of ✦ away, Spaces with the waits on the left, the twelve themes; on remote machines
+- In herdr's desktop app too, as a layout of its own: the chat drawn as a timeline, the Agent panel, the Agents tab
+  with the graph and the usage report, the sidebar's views and a terminal, Spaces with the waits; on remote machines
   alike: [The Herdr app](docs/app.md).
 
 ![An issue from the sidebar goes to Claude, which fixes it, and the message it writes closes the

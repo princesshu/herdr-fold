@@ -6,6 +6,9 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+The whole environment `herdr-fold 0.4.0` and its plugins `herdr-fold.sidebar 0.4.0`, `herdr-fold.sessions-view 0.4.0`
+and `herdr-fold.workspaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for herdr's desktop app.
+
 ### Added
 
 - Delete… for a chat, in Chats, in the TUI sidebar and the Herdr app. Archive stays the everyday way to tidy the list;

@@ -1,6 +1,7 @@
 # Workspaces
 
-A herdr plugin of herdr-fold that keeps the workspaces:
+A herdr plugin of herdr-fold that keeps herdr's workspaces, the rows of the Spaces list. It draws no list of its
+own: herdr draws Spaces, and Workspaces looks after what is in it:
 
 - A new workspace from herdr's **new** button (or Ctrl + B, then Shift + N) opens the folder picker instead of reusing
   the active workspace's folder. A workspace of a git worktree keeps its own folder. The sidebar's New Workspace on a

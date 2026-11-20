@@ -3,10 +3,10 @@ name = "Workspaces"
 version = "0.4.0"
 min_herdr_version = "0.9.5"
 description = """\
-  Keeps the workspaces: a new workspace asks for its folder, a workspace named after its folder follows its \
-  new name, one whose folder holds a repository shows that one's branch, one whose folder is gone says \
-  deleted, the home folder's workspace is always there and first, a workspace closed with its last tab is made \
-  again in its place, a tab holding a chat asks before it closes, and herdr-fold's agents start again after a \
+  Keeps herdr's workspaces, the rows of the Spaces list: a new one asks for its folder, home is always there \
+  and the first row, one named after its folder follows its new name, one whose folder holds a repository \
+  shows that one's branch, one whose folder is gone says deleted, one closed with its last tab is made again \
+  in its place, a tab holding a chat asks before it closes, and herdr-fold's agents start again after a \
   restart. Part of herdr-fold: install it with herdr-fold's installer. Created by princesshu"""
 platforms = ["macos", "linux", "windows"]
 

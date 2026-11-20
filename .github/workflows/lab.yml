@@ -44,7 +44,7 @@ jobs:
 
   unit:
     runs-on: macos-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
     env:
       DO_NOT_TRACK: "1"
       HERDR_TELEMETRY: "0"
@@ -57,8 +57,28 @@ jobs:
         run: |
           curl -fsSL https://releases.herdr.dev/app/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: The unit tests, PowerShell's for the Windows scripts too
-        run: /usr/bin/python3 -m unittest discover -s tests
+      - name: The unit tests but the installer's, PowerShell's for the Windows scripts too
+        run: /usr/bin/python3 lab/ci/units.py rest
+        env:
+          GH_TOKEN: ${{ github.token }}                     # the privacy test reads the repository's About with it
+
+  installer:
+    runs-on: macos-latest
+    timeout-minutes: 75
+    env:
+      DO_NOT_TRACK: "1"
+      HERDR_TELEMETRY: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0                                    # the privacy test reads every commit, tag and branch
+      - name: The Herdr app, for its own check of the mod
+        run: |
+          curl -fsSL https://releases.herdr.dev/app/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: The installer's unit tests (install, uninstall, machines_prepare), beside the rest
+        run: /usr/bin/python3 lab/ci/units.py installer
         env:
           GH_TOKEN: ${{ github.token }}                     # the privacy test reads the repository's About with it
 

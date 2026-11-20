@@ -86,7 +86,7 @@ class WholeWay(unittest.TestCase):
         # the right dock shown at Changes, as its key does from a hidden one: a hidden copy gets no commands, the tab
         # bar hands them on to the view's
         for args in (["space.new", "--machine", "lab", "--folder", root], ["layout.switch", "--name", "herdr-fold"],
-                     ["layout.select", "--stack", "fold-work-body", "--child", "changes"],
+                     ["layout.select", "--stack", "fold-views", "--child", "changes"],
                      ["layout.show", "--id", "fold-panel"]):
             out = self.run_here(app, "do", *args)
             self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
