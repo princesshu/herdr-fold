@@ -77,13 +77,13 @@ type = "plugin_action"
 command = "herdr-fold.sidebar.select-all"
 description = "sidebar: select the field's text (Cmd+A)"
 
-# Close the active tab (Ghostty: Cmd+W → Ctrl+B, t) — asks first if the tab has a conversation; never
+# Close the active tab (Ghostty: Cmd+W → Ctrl+B, t) — asks first if the tab has a chat; never
 # closes the main tab (a workspace's first, named as the workspace)
 [[keys.command]]
 key = "prefix+t"
 type = "shell"
 command = "/usr/bin/python3 ~/.config/herdr-fold/close_tab.py"
-description = "close tab, asks first if it has a conversation; never the main tab (Cmd+W)"
+description = "close tab, asks first if it has a chat; never the main tab (Cmd+W)"
 
 # Commit + push in one step, with an AI-written message (Claude, or Codex if Claude is missing) — in a small window
 # (Ghostty: Cmd+Shift+C → Ctrl+B, y). Works on the repository of the focused pane.
@@ -95,13 +95,13 @@ description = "commit & push with an AI-written message (Cmd+Shift+C)"
 width = "70%"
 height = "60%"
 
-# Search the Claude conversation (Ghostty: Cmd+F → Ctrl+B, a): opens the transcript view in the focused Claude pane
+# Search the Claude chat (Ghostty: Cmd+F → Ctrl+B, a): opens the transcript view in the focused Claude pane
 # and starts a search in it (Ctrl+O, /) — does nothing in other panes
 [[keys.command]]
 key = "prefix+a"
 type = "shell"
 command = "/usr/bin/python3 ~/.config/herdr-fold/claude_search.py"
-description = "search the Claude conversation (Cmd+F)"
+description = "search the Claude chat (Cmd+F)"
 
 # Open a file the focused pane's output names, at its line, in the sidebar's preview tab — in a small window
 # (Ghostty: Cmd+Shift+L → Ctrl+B, Shift+L): the files its recent lines name that are there, the newest first
@@ -121,13 +121,13 @@ type = "plugin_action"
 command = "herdr-fold.sidebar.restore-panels"
 description = "restore panels: sidebar and terminal closed in this tab back (Cmd+Shift+O)"
 
-# Find a conversation: this tab's sidebar shows Conversations, its filter empty and the keys going to it; Enter goes
+# Find a chat: this tab's sidebar shows Chats, its filter empty and the keys going to it; Enter goes
 # to a running one or reopens a closed one in a new tab (Ghostty: Cmd+Shift+R → Ctrl+B, m)
 [[keys.command]]
 key = "prefix+m"
 type = "plugin_action"
-command = "herdr-fold.sidebar.find-conversation"
-description = "find a conversation in the sidebar (Cmd+Shift+R)"
+command = "herdr-fold.sidebar.find-chat"
+description = "find a chat in the sidebar (Cmd+Shift+R)"
 
 # Mark the focused agent unread: its workspace says it waits on you again, until you come back to it after leaving it
 # (Ghostty: Cmd+Shift+U → Ctrl+B, Shift+U); again on a marked one takes the mark off
@@ -161,6 +161,11 @@ height = "60%"
 # Ghostty keeps Cmd+C only for its own selection (performable:), otherwise it passes it on to herdr.
 [ui]
 copy_on_select = false
+
+# An agent in another tab that starts waiting on you says so once, in herdr's own toast at the bottom right: "claude
+# needs attention" (a question) or "claude finished" (an answer not read yet), with its space and tab
+[ui.toast]
+delivery = "herdr"
 
 # No "copied to clipboard" toast after copying: Cmd+C copies reliably (formatted, too, from replies)
 [ui.toast.clipboard]

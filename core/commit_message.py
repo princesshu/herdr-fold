@@ -2,8 +2,6 @@
 Claude Haiku, then Codex, both without tools, write it from the staged changes only. A message with a secret or private
 name the changes lack is dropped (a diff can steer an AI); a squashed one is asked again. Returns data, not words."""
 import fnmatch
-import getpass
-import glob
 import json
 import os
 import re
@@ -17,6 +15,7 @@ from dataclasses import asdict, dataclass, field, replace
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 import statefile  # noqa: E402
+from locate import find, tool_env  # noqa: E402
 
 MAX_DIFF = 60_000
 # file names that look like a secret's: named before such a file is committed, its contents never shown to an AI
@@ -84,30 +83,6 @@ class Suggestion:
     message: str = None
     backend: str = None
     problems: list = field(default_factory=list)
-
-
-def search_path():
-    home = os.path.expanduser("~")
-    extra = [os.path.join(home, ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin",
-             os.path.join(home, ".bun", "bin"), os.path.join(home, ".npm-global", "bin")]
-    extra += sorted(glob.glob(os.path.join(home, ".nvm", "versions", "node", "*", "bin")), reverse=True)
-    return os.pathsep.join([os.environ.get("PATH", ""), *extra])
-
-
-def find(name):
-    """NAME on the PATH or in the usual places (herdr may start this process with a minimal PATH)."""
-    return shutil.which(name, path=search_path())
-
-
-def tool_env(binary):
-    """The environment for an AI: the node next to an nvm-installed one on the PATH, the user name Claude finds its
-    login by, and no herdr pane identity (an AI started here must not become the pane's agent)."""
-    env = dict(os.environ, PATH=os.pathsep.join([os.path.dirname(binary), search_path()]))
-    user = os.environ.get("USER") or getpass.getuser()
-    env.update(USER=user, LOGNAME=os.environ.get("LOGNAME") or user)
-    for name in ("HERDR_PANE_ID", "HERDR_PANE_RUNTIME_ID"):
-        env.pop(name, None)
-    return env
 
 
 def git(root, *args):

@@ -1,11 +1,12 @@
 id = "herdr-fold.sidebar"
 name = "Sidebar"
-version = "0.3.0"
+version = "0.4.0"
 min_herdr_version = "0.9.5"
 description = """\
-  Every workspace's Claude and Codex conversations, Files, Search, Changes (git) and GitHub Issues in one pane, one \
-  at a time under a row of tabs, each shown or hidden from its menu, with previews in a tab and AI commit messages. \
-  A new tab gets it on the right, above a terminal, and it comes back when herdr starts. Created by princesshu"""
+  Every workspace's Claude and Codex chats, Files, Search, Changes (git), GitHub Issues and the agent's setup in \
+  one pane, one at a time under a row of tabs, each shown or hidden from its menu, with previews in a tab and AI \
+  commit messages. A new tab gets it on the right, above a terminal, and it comes back when herdr starts. Created by \
+  princesshu"""
 platforms = ["macos", "linux", "windows"]
 
 # A pane of the plugin's closed by hand: the first time on this Mac, herdr says once how it comes back (Cmd+Shift+O)
@@ -36,6 +37,27 @@ command = ["/usr/bin/python3", "panes.py", "--startup"]
 [[startup]]
 platforms = ["windows"]
 command = ["python", "panes.py", "--startup"]
+
+# herdr-fold's Settings, More's last line (settings.py): General (the sidebar's icons) and About (the version, the
+# update check and its switch, What's new); herdr's popup, its 13 rows and 58 cells inside herdr's frame (2 rows,
+# 3 cells), closed by its ×, Esc or a click outside it
+[[panes]]
+id = "settings"
+platforms = ["macos", "linux"]
+title = "herdr-fold Settings"
+placement = "popup"
+width = 61
+height = 15
+command = ["/usr/bin/python3", "settings.py"]
+
+# The Usage view (usage_view.py), opened from the Agent view's Usage head on its period: what the agents used and what
+# that cost, over the tab's panes (herdr's overlay), closed by its ×, Esc or a click outside it
+[[panes]]
+id = "usage"
+platforms = ["macos", "linux"]
+title = "Usage"
+placement = "overlay"
+command = ["/usr/bin/python3", "usage_view.py"]
 
 # The sidebar itself runs in a plain pane named "sidebar" (python3 sidebar.py [FOLDER]); these actions show a panel
 # in the active tab's sidebar by sending it F9, F10, F11 or F12.
@@ -101,17 +123,17 @@ title = "Sidebar: select the field's text"
 command = ["python", "actions.py", "select-all"]
 platforms = ["windows"]
 
-# The sidebar's Conversations found: Chats shown, its filter empty and the keys going to it (F7)
+# The sidebar's Chats found: the ✦'s list open, its filter empty and the keys going to it (F7)
 [[actions]]
-id = "find-conversation"
-title = "Conversations: find"
-command = ["/usr/bin/python3", "actions.py", "find-conversation"]
+id = "find-chat"
+title = "Chats: find"
+command = ["/usr/bin/python3", "actions.py", "find-chat"]
 platforms = ["macos", "linux"]
 
 [[actions]]
-id = "find-conversation-windows"
-title = "Conversations: find"
-command = ["python", "actions.py", "find-conversation"]
+id = "find-chat-windows"
+title = "Chats: find"
+command = ["python", "actions.py", "find-chat"]
 platforms = ["windows"]
 
 # Restore panels: every pane of the plugin's the tab lacks back (in a tab without any, the sidebar above a terminal

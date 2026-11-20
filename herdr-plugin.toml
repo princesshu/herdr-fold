@@ -1,10 +1,10 @@
 id = "herdr-fold"
 name = "Full Setup"
-version = "0.3.0"
+version = "0.4.0"
 min_herdr_version = "0.9.5"
 description = """\
   The whole herdr-fold setup on a Mac, from one installer in a herdr tab: files, search, git and GitHub issues, AI \
-  sessions and conversations, AI commit messages, Ghostty and its themes, the status line, and Linux, macOS and \
+  sessions and chats, AI commit messages, Ghostty and its themes, the status line, and Linux, macOS and \
   Windows machines over SSH. Created by princesshu"""
 platforms = ["macos"]
 

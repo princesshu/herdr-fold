@@ -26,6 +26,7 @@ src/i18n.py            | .config/herdr-fold/i18n.py | both
 src/parts.py           | .config/herdr-fold/parts.py | both
 src/lang/*.txt         | .config/herdr-fold/lang/ | both
 LICENSE                | .config/herdr-fold/LICENSE | both
+CHANGELOG.md           | .config/herdr-fold/CHANGELOG.md | both
 THIRD_PARTY_NOTICES.md | .config/herdr-fold/THIRD_PARTY_NOTICES.md | both
 src/themes/apply.py    | .config/herdr-fold/themes/apply.py | both
 src/themes/picker.py   | .config/herdr-fold/themes/picker.py | tui
@@ -40,8 +41,11 @@ src/plugins/sessions-view/LICENSE           | .config/herdr-fold/plugins/session
 src/plugins/workspaces/herdr-plugin.toml    | .config/herdr-fold/plugins/workspaces/herdr-plugin.toml | tui
 src/plugins/workspaces/workspaces.py        | .config/herdr-fold/plugins/workspaces/workspaces.py | tui
 src/plugins/workspaces/git.py               | .config/herdr-fold/plugins/workspaces/git.py | tui
+src/plugins/workspaces/locate.py            | .config/herdr-fold/plugins/workspaces/locate.py | tui
 src/plugins/workspaces/LICENSE              | .config/herdr-fold/plugins/workspaces/LICENSE | tui
 src/plugins/sidebar/herdr-plugin.toml       | .config/herdr-fold/plugins/sidebar/herdr-plugin.toml | tui
 src/plugins/sidebar/LICENSE                 | .config/herdr-fold/plugins/sidebar/LICENSE | tui
 src/plugins/sidebar/*.py                    | .config/herdr-fold/plugins/sidebar/ | tui
 config/starship.toml            | .config/starship.toml | tui
+app/mods/herdr-fold/fonts/*.ttf | Library/Fonts/ | tui
+app/mods/herdr-fold/fonts/OFL.txt | Library/Fonts/herdr-fold-Mono-OFL.txt | tui

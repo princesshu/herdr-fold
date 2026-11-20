@@ -14,7 +14,7 @@ import tempfile
 import unicodedata
 import unittest
 
-from support import PACKAGE, PNG_SIGNATURE, is_webp, publishable_files, set_env
+from support import PACKAGE, PNG_SIGNATURE, font_names, is_font, is_webp, publishable_files, set_env
 
 PRIVATE_WORDS = os.path.join(os.path.expanduser("~"), ".config", "herdr-fold", "private-words.txt")
 
@@ -312,6 +312,22 @@ def image_problems(where, data):
     return None
 
 
+def font_problems(where, data, words, names, addresses):
+    """What is personal in DATA's name records, if it is a font (None: it is none): a font's metadata, its names,
+    copyright and links; its glyph names are its source's."""
+    if not is_font(data):
+        return None
+    try:
+        records = font_names(data)
+    except (KeyError, ValueError, UnicodeDecodeError, struct.error):
+        return [f"{where}: a font whose names cannot be read"]
+    return [f"{where}: name {name_id}: {what}" for (_, name_id), text in sorted(records.items())
+            for _, what in findings(text, words, names, addresses)]
+
+
+BINARY = "binary file (only PNG and WebP images without metadata, and fonts, are allowed)"
+
+
 class Privacy(unittest.TestCase):
     def test_the_private_word_list_lives_outside_the_repo(self):
         if not os.path.exists(PRIVATE_WORDS):
@@ -325,13 +341,15 @@ class Privacy(unittest.TestCase):
             with open(os.path.join(PACKAGE, rel), "rb") as f:
                 data = f.read()
             image = image_problems(rel, data)
+            if image is None:
+                image = font_problems(rel, data, words, names, addresses)
             if image is not None:
                 problems += image
                 continue
             try:
                 text = data.decode("utf-8-sig")
             except UnicodeDecodeError:
-                problems.append(f"{rel}: binary file (only PNG and WebP images without metadata are allowed)")
+                problems.append(f"{rel}: {BINARY}")
                 continue
             problems += [f"{rel}:{n}: {what}" for n, what in findings(text, words, names, addresses)]
         self.assertEqual(problems, [], "\n" + "\n".join(problems))
@@ -363,7 +381,7 @@ class Privacy(unittest.TestCase):
 
     def test_no_file_in_the_history_is_an_image_with_metadata(self):
         """A file deleted since is still in the history: every binary file ever committed is a PNG or WebP image without
-        metadata."""
+        metadata, or a font whose names hold nothing personal."""
         objects = git("rev-list", "--all", "--objects")
         if objects is None:
             self.skipTest("not a git repository")
@@ -374,25 +392,30 @@ class Privacy(unittest.TestCase):
         out = subprocess.run(["git", "-C", PACKAGE, "cat-file", "--batch"], input=blobs.encode(), capture_output=True,
                              check=True).stdout
         problems, at = [], 0
+        words, (names, addresses) = private_words(), tailnet()
         while at < len(out):
             header, _, rest = out[at:].partition(b"\n")
             sha, _, size = header.decode().split()
             data = rest[:int(size)]
             at += len(header) + 1 + int(size) + 1
             image = image_problems(sha[:7], data)
+            if image is None:
+                image = font_problems(sha[:7], data, words, names, addresses)
             if image is not None:
                 problems += image
                 continue
             try:
                 data.decode("utf-8-sig")
             except UnicodeDecodeError:
-                problems.append(f"{sha[:7]}: binary file (only PNG and WebP images without metadata are allowed)")
+                problems.append(f"{sha[:7]}: {BINARY}")
         self.assertEqual(problems, [], "\n" + "\n".join(problems))
 
     def test_nothing_staged_holds_personal_data(self):
         words, (names, addresses), problems = private_words(), tailnet(), []
         for rel, blob in staged_blobs().items():
             image = image_problems(f"{rel} (staged)", blob)
+            if image is None:
+                image = font_problems(f"{rel} (staged)", blob, words, names, addresses)
             if image is not None:
                 problems += image
                 continue
@@ -561,6 +584,18 @@ class Patterns(unittest.TestCase):
         self.assertEqual(self.categories("see /private/tmp/cla" + "ude-501/x"), ["temporary session path"])
         self.assertEqual(self.categories("Co-Authored" + "-By: Bot <bot@example.com>"), ["AI attribution"])
         self.assertEqual(self.categories("the Sample-Word repo", ["sample-word"]), ["private word #1"])
+
+    def test_a_fonts_names_are_read(self):
+        # a font is binary, but its name records are text: a copyright line or a link could name someone; the sample
+        # in a font of one name record, put together from pieces
+        def font(text):
+            raw = text.encode("utf-16-be")
+            name = struct.pack(">HHHHHHHHH", 0, 1, 18, 3, 1, 0x409, 0, len(raw), 0) + raw
+            return struct.pack(">IHHHH", 0x10000, 1, 16, 0, 0) + struct.pack(">4sIII", b"name", 0, 28, len(name)) + name
+        self.assertEqual(font_problems("x.ttf", font("Copyright someone" + "@gmail.com"), [], (), ()),
+                         ["x.ttf: name 0: e-mail address"])
+        self.assertEqual(font_problems("x.ttf", font("Copyright 2026 princesshu"), [], (), ()), [])
+        self.assertIsNone(font_problems("x.txt", b"plain text, no font", [], (), ()))
 
     def test_catches_a_home_folder_written_otherwise(self):
         # Claude's project folders named after a home folder, a user's own temporary folder, the tilde-user form

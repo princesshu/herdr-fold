@@ -42,13 +42,17 @@ class InstallApp(AppInstall, unittest.TestCase):
         self.assertEqual(left, [])
 
     def test_an_update_prunes_the_apps_state_of_the_layout(self):
-        """The app's state of the layout as the one panel stack left it: its stack gone after the update, so the
-        right dock's groups open on their own tabs; the panel's width kept."""
+        """The app's state of the layout as the one panel stack, the left Chats block and the row's own block (hidden
+        while the dock was a rail) left it: all gone after the update, so the right dock's views open under the row on
+        their card and Spaces fills the sidebar; the panel's width kept."""
         self.with_app()
         state = os.path.join(self.app_home, "layouts", ".state", "herdr-fold.json")
         os.makedirs(os.path.dirname(state))
         with open(state, "w") as f:
-            json.dump({"nodes": {"fold-panel-body": {"active": "changes"}, "fold-panel": {"size": {"px": 420}}},
+            json.dump({"nodes": {"fold-panel-body": {"active": "changes"}, "fold-panel": {"size": {"px": 420}},
+                                 "spaces": {"size": {"px": 180}}, "chats": {"hidden": False},
+                                 "fold-work": {"size": {"px": 300}}, "fold-project-body": {"active": "search"},
+                                 "fold-dock-head": {"hidden": True}},
                        "file": {"id": "root"}}, f)
         self.run_script("install.sh")
         with open(state) as f:
@@ -59,6 +63,34 @@ class InstallApp(AppInstall, unittest.TestCase):
         out = self.run_script("install.sh")
         self.assertIn("herdr-app do layout.switch --name herdr-fold", self.app_calls())
         self.assertIn(catalog_text("install.app_layout"), out)
+
+    def test_an_update_closes_a_running_app_and_opens_it_again(self):
+        """A running app keeps the mod it loaded and writes its state of the layout back as it closes: closed for the
+        update (its terminals run on in its core), that state pruned, opened again behind the installer."""
+        self.with_app(running=True, layout="herdr-fold")
+        bundle = self.in_bundle()
+        self.run_script("install.sh")
+        self.assertNotIn("herdr-app do app.quit", self.app_calls())         # the first install: nothing loaded yet
+        state = os.path.join(self.app_home, "layouts", ".state", "herdr-fold.json")
+        os.makedirs(os.path.dirname(state))
+        with open(state, "w") as f:
+            json.dump({"nodes": {"chats": {"hidden": False}, "fold-panel": {"size": {"px": 420}}}}, f)
+        opened = os.path.join(self.tmp, "opened")
+        stubs(self.fakes, {"open": f'#!/bin/sh\necho "$*" >> {opened}\n'})
+        out = self.run_script("install.sh")
+        self.assertIn("herdr-app do app.quit", self.app_calls())
+        self.assertIn(catalog_text("install.app_closing"), out)
+        with open(state) as f:
+            self.assertEqual(json.load(f)["nodes"], {"fold-panel": {"size": {"px": 420}}})
+        with open(opened) as f:
+            self.assertEqual(f.read().splitlines(), [f"-g {bundle}"])
+
+    def test_an_update_whose_app_stays_open_says_what_it_still_shows(self):
+        self.with_app(running=True, layout="herdr-fold")
+        self.env["STUB_APP_STAYS"] = "1"
+        self.run_script("install.sh")
+        out = self.run_script("install.sh")
+        self.assertIn(catalog_text("install.app_still_open"), out)
 
     def test_an_earlier_no_stays(self):
         self.with_app()

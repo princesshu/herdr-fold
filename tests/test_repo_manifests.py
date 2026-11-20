@@ -198,6 +198,22 @@ class Hooks(unittest.TestCase):
         self.assertEqual(odd, [])
 
 
+class Panes(unittest.TestCase):
+    """The sidebar's own panes: Settings in herdr's popup, the Usage view over the tab, each a file of the plugin's."""
+
+    def test_the_sidebar_opens_settings_and_the_usage_view_on_macos_and_linux(self):
+        found = {table["id"].strip('"'): (ast.literal_eval(table["command"]), ast.literal_eval(table["platforms"]))
+                 for table in tables("sidebar", "panes")}
+        self.assertEqual(found, {"settings": (["/usr/bin/python3", "settings.py"], ["macos", "linux"]),
+                                 "usage": (["/usr/bin/python3", "usage_view.py"], ["macos", "linux"])})
+        for command, _ in found.values():
+            self.assertTrue(os.path.isfile(os.path.join(PACKAGE, "src", "plugins", "sidebar", command[1])), command)
+        with open(os.path.join(PACKAGE, "src", "plugins", "sidebar", "herdr-plugin.toml"), encoding="utf-8") as f:
+            usage = f.read().split('id = "usage"', 1)[1].split("\n[[", 1)[0]
+        self.assertIn('placement = "overlay"', usage)                   # the pane area whole: no size of its own
+        self.assertNotRegex(usage, r"(?m)^(width|height) = ")
+
+
 class Commands(unittest.TestCase):
     """What a machine runs is where the file lists put it."""
 

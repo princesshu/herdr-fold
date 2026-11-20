@@ -76,6 +76,71 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+A connector's brand (`app/mods/herdr-fold/icons/logos/`: Box, Dropbox, Figma, Google Drive, Linear, Notion, OneDrive
+and Sentry) is from [SVG Logos](https://github.com/gilbarbara/logos), which its author, Gil Barbara, gave to the public
+domain (CC0 1.0 Universal). Each mark is its owner's trademark, used only to name that service beside its connector.
+
+## The font
+
+herdr-fold Mono (`app/mods/herdr-fold/fonts/`, built by `tools/fonts.py`), the monospace font of both parts, is a
+Modified Version of [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) 2.304 as
+[Nerd Fonts](https://github.com/ryanoasis/nerd-fonts) 3.5.1 patched it (JetBrainsMono Nerd Font), under the SIL Open
+Font License 1.1: Copyright 2020 The JetBrains Mono Project Authors; herdr-fold Mono's changes Copyright 2026
+[princesshu](https://github.com/princesshu), under the same license. The license is `OFL.txt` beside the fonts (and
+`~/Library/Fonts/herdr-fold-Mono-OFL.txt` where the TUI's installer puts them). The changes: a name of its own, as the
+license asks, its line 10% taller, and the symbols Claude Code, Codex, herdr and starship print that it lacked, drawn
+from its own glyphs (⏺ from its ●, ⎿ from its └, ✳ from its ✕, ⏵ from its ▶, ✔ ✘ ✖ ℹ from its heavier weight's ✓ ✗ ✕ i,
+◐ ◑ ◒ ◓ as its ◔, ⇆ from its ⇉, ⇕ from its ⇔, ⇡ ⇣ from its ↑ ↓, ⁻ ₊ ₋ ₌ ⁽ ⁾ ₍ ₎ as its ⁼ ⁰ ₀).
+The icons Nerd Fonts added keep their own licenses:
+
+| Icon set | Project | License |
+|---|---|---|
+| Codicons | [microsoft/vscode-codicons](https://github.com/microsoft/vscode-codicons) | CC BY 4.0 |
+| Devicons | [devicons/devicon](https://github.com/devicons/devicon) | MIT |
+| extraglyphs | [source-foundry/Hack](https://github.com/source-foundry/Hack) | MIT |
+| Font Awesome | [FortAwesome/Font-Awesome](https://github.com/FortAwesome/Font-Awesome) | CC BY 4.0 |
+| Font Awesome Extension | [AndreLZGava/font-awesome-extension](https://github.com/AndreLZGava/font-awesome-extension) | MIT |
+| Font Logos | [lukas-w/font-logos](https://github.com/lukas-w/font-logos) | Unlicense |
+| Material Design Icons | [Templarian/MaterialDesign-Font](https://github.com/Templarian/MaterialDesign-Font) | Apache-2.0 |
+| Octicons | [primer/octicons](https://github.com/primer/octicons) | MIT |
+| Seti UI | [jesseweed/seti-ui](https://github.com/jesseweed/seti-ui) | MIT |
+| Pomicons | [gabrielelana/pomicons](https://github.com/gabrielelana/pomicons) | OFL-1.1 |
+| Powerline Extra Symbols | [ryanoasis/powerline-extra-symbols](https://github.com/ryanoasis/powerline-extra-symbols) | MIT |
+| Powerline Symbols | [powerline/powerline](https://github.com/powerline/powerline) | MIT |
+| IEC Power Symbols | [jloughry/Unicode](https://github.com/jloughry/Unicode) | MIT |
+| Weather Icons | [erikflowers/weather-icons](https://github.com/erikflowers/weather-icons) | OFL-1.1 |
+
+## The prices
+
+`core/price_table.py` (and the copies `tools/build.py` makes of it: the sidebar's, and inside the mod's `helper.js`)
+holds the token prices of Anthropic's and OpenAI's models from [LiteLLM](https://github.com/BerriAI/litellm)'s model
+cost map (`model_prices_and_context_window.json`), written by `tools/prices.py`: the figures unchanged, only the
+prices of those models kept. `core/prices.py` fetches the same map once a day for the newer ones.
+
+```text
+MIT License
+
+Copyright (c) 2023 Berri AI
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
 ## The Herdr app's Spaces list
 
 `app/mods/herdr-fold/spaces.js` draws the Spaces list as the Herdr app's own `spaces` mod does (herdr-app,
@@ -94,7 +159,6 @@ and a remote Windows machine gets Python from winget or python.org.
 | Ghostty | [ghostty-org/ghostty](https://github.com/ghostty-org/ghostty) | MIT |
 | starship | [starship/starship](https://github.com/starship/starship) | ISC |
 | gh | [cli/cli](https://github.com/cli/cli) | MIT |
-| JetBrains Mono Nerd Font | [JetBrains/JetBrainsMono](https://github.com/JetBrains/JetBrainsMono), patched by [ryanoasis/nerd-fonts](https://github.com/ryanoasis/nerd-fonts) | OFL-1.1 (the fonts), MIT (the Nerd Fonts patcher) |
 | bat | [sharkdp/bat](https://github.com/sharkdp/bat) | MIT or Apache-2.0 |
 | delta | [dandavison/delta](https://github.com/dandavison/delta) | MIT |
 | ripgrep | [BurntSushi/ripgrep](https://github.com/BurntSushi/ripgrep) | Unlicense or MIT |
@@ -105,8 +169,9 @@ Mac's own app icons. None of Ghostty's artwork is in it or in this repository.
 
 ## Trademarks
 
-Claude Code, Codex, VS Code, GitHub, Tailscale, herdr and Ghostty are trademarks of their respective owners. herdr-fold
-is an independent project, not affiliated with or endorsed by them.
+Claude Code, Codex, VS Code, GitHub, Tailscale, herdr and Ghostty, and Box, Dropbox, Figma, Google Drive, Linear,
+Notion, OneDrive and Sentry with their logos, are trademarks of their respective owners. herdr-fold is an independent
+project, not affiliated with or endorsed by them.
 
 herdr-fold's name and its logo, the sheep (`src/themes/logo.svg`, and the app icon in each theme's colors made from
 it), identify this project. The MIT license covers the code and the files, but gives no right to use the name or the

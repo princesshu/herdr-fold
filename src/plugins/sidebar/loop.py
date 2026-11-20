@@ -104,7 +104,9 @@ class Loop:
             self.again.add("column")
             return
 
-        def then(_result):
+        def then(result):
+            if self.dragged(result):                # its later reports were that same drag
+                self.again.discard("column")
             if "column" in self.again:
                 self.again.discard("column")
                 self.resized()
@@ -114,6 +116,10 @@ class Loop:
     def drag(self, pane):
         """On the job's thread: PANE (the sidebar's) changed size: its right column's width for every tab."""
         return column.drag(self.state_dir, pane, self.term.size()[0])
+
+    def dragged(self, answer):
+        """On the main thread: drag()'s ANSWER taken; whether it ended the drag (the pane's next reports left out)."""
+        return False
 
     def take_right_clicks(self):
         """On the job's thread: a right click in this pane comes to it (its own menu), not to herdr's pane menu."""
@@ -138,10 +144,7 @@ class Loop:
         """A new theme taken at once (herdr-fold's theme setter writes colors.json), a new version handed over to once
         all of it is in place and nothing would be cut short, the loop left when the code's folder is gone; whether
         anything shown changed."""
-        shown = False
-        colors = watch.stamp(os.path.join(self.state_dir, "colors.json"))
-        if colors != self.colors:
-            self.colors, self.renderer, shown = colors, Renderer(Theme.load(self.state_dir)), True
+        shown = self.follow_theme()
         code = watch.code(self.code_dir)
         if code is None:                            # its folder gone (uninstalled): out, no handover to bring back the
             self.quit = True                        # state folder just removed
@@ -151,6 +154,14 @@ class Loop:
         elif self.updated is not None and now - self.updated >= SETTLE and not self.busy():
             self.hand_over()
         return shown
+
+    def follow_theme(self):
+        """colors.json read again once its stamp changed (one stat otherwise); whether the theme changed."""
+        colors = watch.stamp(os.path.join(self.state_dir, "colors.json"))
+        if colors == self.colors:
+            return False
+        self.colors, self.renderer = colors, Renderer(Theme.load(self.state_dir))
+        return True
 
     def busy(self):
         """Whether a restart would cut something short: any job, even one only asked again (a status, a look), as the

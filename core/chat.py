@@ -1,4 +1,4 @@
-"""A Claude Code conversation as the Herdr app's chat draws it: its session file read into steps, only where it grew
+"""A Claude Code chat as the Herdr app's chat tab draws it: its session file read into steps, only where it grew
 (nothing of Claude's is ever written), and the files its hook and the app share. The format is Claude's own: a field
 of a wrong type is missing, a block the chat does not know a plain step, an entry it does not know left out."""
 import difflib
@@ -9,7 +9,7 @@ import sys
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 import statefile  # noqa: E402
-from conversations import NOT_A_PROMPT, obj, open_regular, parse, session_files, text, texts_of  # noqa: E402
+from chats import NOT_A_PROMPT, obj, open_regular, parse, session_files, text, texts_of          # noqa: E402
 
 READ = 4 << 20                  # bytes read at a time: a longer line is read whole, and the next call goes on
 OUTPUT = 4000                   # characters of a result's output kept
@@ -22,6 +22,11 @@ MAIN = {"Read": "file_path", "Edit": "file_path", "MultiEdit": "file_path", "Wri
 AGENT = ("Agent", "Task")       # a sub-agent's call (Task: its name before Claude Code 2.1)
 MARK = re.compile(r"^\s*(?:[-*]|\d+[.)])\s*")      # a plan's list mark, before its words
 HUNK = re.compile(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+NEEDS = b'"needsAuthMcpServers"'   # in a line of Claude's that lists the servers to sign in to
+NAMED = 80                      # characters of a server's name a step keeps
+UUID = re.compile(rb'"uuid":"([^"\\]{1,64})"')      # a line's id in its bytes, as Claude writes it
+EDGE = 80                       # bytes of a block read again with the next: an id cut by the block's end is whole there
+SEEN = "seen.json"              # in a chat's folder: the ids of the lines read so far, and where that read stopped
 SESSION = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")   # as Claude and the app make one
 
 
@@ -99,10 +104,79 @@ def other(block):
     return {"kind": "other", "type": text(block.get("type")) or "", "summary": words.split("\n")[0][:SUMMARY]}
 
 
+def needing(entry):
+    """The servers ENTRY (a deferred tools line of the conversation's own) says are to sign in to, their names as text
+    (no control character); None where it lists none."""
+    delta = obj(entry.get("attachment")) if entry.get("type") == "attachment" and not entry.get("isSidechain") else {}
+    names = delta.get("needsAuthMcpServers")
+    if delta.get("type") != "deferred_tools_delta" or not isinstance(names, list):
+        return None
+    return {"".join(ch for ch in name if ch.isprintable())[:NAMED] for name in names if isinstance(name, str)}
+
+
+def again(entry, ids):
+    """Whether ENTRY is a line Claude wrote before and writes again (the messages a compaction keeps, a chat taken up
+    in another folder: under the id it had): its id is one of IDS, which holds it from now on. One with no id is not."""
+    one = entry.get("uuid")
+    if not isinstance(one, str):
+        return False
+    known = one in ids
+    ids.add(one)
+    return known
+
+
+def ids_before(path, offset):
+    """The ids of the lines in PATH's first OFFSET bytes, found in its bytes (READ of them at a time, no line read as
+    JSON: the file may be hundreds of megabytes); none where it cannot be read."""
+    found, rest = set(), b""
+    try:
+        with open_regular(path, "rb") as f:
+            while offset > 0:
+                block = f.read(min(READ, offset))
+                if not block:
+                    break
+                offset -= len(block)
+                found.update(UUID.findall(rest + block))
+                rest = (rest + block)[-EDGE:]
+    except OSError:
+        pass
+    return {one.decode("utf-8", "replace") for one in found}
+
+
+def ids_kept(kept, offset):
+    """The ids the read that stopped at byte OFFSET left in KEPT (a chat's SEEN); None when the file holds another
+    read's, or none."""
+    was = read(kept) or {}
+    ids = was.get("ids")
+    if was.get("offset") != offset or not isinstance(ids, list):
+        return None
+    return {one for one in ids if isinstance(one, str)}
+
+
+def needed_before(path, offset):
+    """The servers to sign in to as PATH's lines before byte OFFSET last listed them (a line written again lists its
+    day's: not counted); None where none did."""
+    found, at, ids = None, 0, set()
+    try:
+        with open_regular(path, "rb") as f:
+            for raw in f:
+                at += len(raw)
+                if at > offset:
+                    break
+                if NEEDS in raw:
+                    entry = parse(raw.decode("utf-8", "replace"))
+                    listed = None if again(entry, ids) else needing(entry)
+                    found = found if listed is None else listed
+    except OSError:
+        return None
+    return found
+
+
 def said(entry, seen):
     """ENTRY's steps, each with its time; what it names of the model, the effort and the permission mode goes into
-    SEEN. Claude's helpers, its meta lines and its summary of a compacted conversation have none."""
-    if entry.get("isSidechain") or entry.get("isMeta") or entry.get("isCompactSummary"):
+    SEEN, as do the servers it lists to sign in to: one new on that list is a sign-in's step (the first list is the
+    conversation's start: none). Claude's helpers, meta lines, a compaction's summary and a line again() have none."""
+    if again(entry, seen["ids"]) or entry.get("isSidechain") or entry.get("isMeta") or entry.get("isCompactSummary"):
         return []
     kind, message = entry.get("type"), obj(entry.get("message"))
     content, found = message.get("content"), []
@@ -126,6 +200,10 @@ def said(entry, seen):
                 found.append({"kind": "thought", "ms": ms if isinstance(ms, int) else None})
             else:
                 found.append(call(block, text(entry.get("cwd"))) if block.get("type") == "tool_use" else other(block))
+    elif kind == "attachment" and needing(entry) is not None:
+        listed, known = needing(entry), seen.get("needs")
+        found = [{"kind": "signin", "server": name} for name in sorted(listed - known)] if known is not None else []
+        seen["needs"] = listed
     elif kind == "system" and entry.get("subtype") == "compact_boundary":
         found = [{"kind": "other", "type": "compact_boundary", "summary": text(entry.get("content")) or ""}]
     return [{**step, "at": text(entry.get("timestamp"))} for step in found]
@@ -144,15 +222,27 @@ def whole_lines(path, offset):
     return data[:end], offset + end
 
 
-def steps(path, offset=0):
-    """The steps of the conversation in PATH from byte OFFSET, where the read stopped, and the newest model, effort and
-    permission mode its lines name (None when they name none). No file (None) or one not there yet has no steps."""
+def steps(path, offset=0, kept=None):
+    """The steps of the chat in PATH from byte OFFSET, where the read stopped, and the newest model, effort and
+    permission mode its lines name (None when they name none). No file (None) or one not there yet has no steps. A
+    sign-in's step is told against the list before OFFSET, looked up only when these lines hold a list."""
+    # a line the file held before OFFSET is no step again: the ids before it are those the last read left in KEPT (a
+    # file of the chat's own, written anew by a read that found lines), else, or with no KEPT, the file's own
     seen = dict.fromkeys(("requested", "model", "effort", "mode"))
     try:
         data, offset = whole_lines(path, offset) if path else (b"", offset)
     except OSError:
         data = b""
+    start = offset - len(data)
+    seen["needs"] = needed_before(path, start) if NEEDS in data else None
+    known = ids_kept(kept, start) if data and kept and start else None
+    seen["ids"] = known if known is not None else ids_before(path, start) if data else set()
     found = [step for raw in data.splitlines() for step in said(parse(raw.decode("utf-8", "replace")), seen)]
+    if data and kept:
+        try:
+            statefile.write(kept, {"offset": offset, "ids": sorted(seen["ids"])}, separators=(",", ":"))
+        except OSError:
+            pass                                # not kept: the next read finds the ids in the file
     return {"offset": offset, "steps": found, "model": seen["requested"] or seen["model"], "effort": seen["effort"],
             "mode": seen["mode"]}
 
@@ -167,7 +257,7 @@ def checked(session):
 
 
 def session_file(session):
-    """The file of Claude's conversation with SESSION, wherever Claude keeps it; None before it writes one."""
+    """The file of Claude's chat with SESSION, wherever Claude keeps it; None before it writes one."""
     return next(iter(session_files("claude", checked(session))), None)
 
 
@@ -243,14 +333,15 @@ def status(session):
 
 def main(argv):
     """herdr-fold's Herdr app mod runs this on the space's machine, answering in JSON: steps SESSION OFFSET (the
-    conversation's steps from OFFSET and where the read stopped, what Claude waits on and the status line's numbers:
-    one read a poll) and answer SESSION REPLY ({"ok": whether it went to Claude})."""
+    chat's steps from OFFSET and where the read stopped, what Claude waits on and the status line's numbers:
+    one read a poll, its lines' ids kept for the next) and answer SESSION REPLY ({"ok": whether it went to Claude})."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     try:
         if command == "steps" and len(args) == 2 and int(args[1]) >= 0:
             asked = pending(args[0])
             change = asked_change(asked) if asked else None
-            found = {**steps(session_file(args[0]), int(args[1])), "status": status(args[0]),
+            kept = os.path.join(chat_dir(args[0]), SEEN)
+            found = {**steps(session_file(args[0]), int(args[1]), kept), "status": status(args[0]),
                      "pending": {**asked, "change": change} if change else asked}
         elif command == "answer" and len(args) == 2:
             reply = json.loads(args[1])

@@ -3,7 +3,9 @@
 // in one, and each row's time in this Mac's own zone and hour style.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { clock, format, setForms, timeline } from "../mods/herdr-fold/timeline.js";
+import { readFileSync } from "node:fs";
+import { bottomLayout, callWords, clock, connectorRow, format, RHYTHM, setForms, signinRow, stepLayout, timeline,
+  timelineMarkdown, userLayout } from "../mods/herdr-fold/timeline.js";
 
 const at = (minute) => `2026-11-08T14:${String(minute).padStart(2, "0")}:00.000Z`;
 const EDIT = { path: "src/books.py", lines: ["@@ -12,1 +12,1 @@", "-    return page", "+    return min(page, last)"] };
@@ -50,7 +52,7 @@ test("a skill, a sub-agent and a todo list take their results; a result with no 
     { kind: "result", id: "a1", ok: true, output: "In src/lumen/routes/books.py", change: null, at: at(3) },
     { kind: "todo", id: "d1", items: [{ text: "Write the test", done: true }], at: at(3) },
     { kind: "result", id: "gone", ok: true, output: "from a call before this read", change: null, at: at(4) },
-    { kind: "other", type: "compact_boundary", summary: "Conversation compacted", at: at(5) },
+    { kind: "other", type: "compact_boundary", summary: "Chat compacted", at: at(5) },
   ]);
   assert.deepEqual(rows.map((r) => r.kind), ["skill", "agent", "todo", "other"]);
   assert.deepEqual([rows[0].ok, rows[1].ok, rows[1].output], [true, true, "In src/lumen/routes/books.py"]);
@@ -96,4 +98,142 @@ test("a pattern's letters are the time's parts, a quoted word as it is", () => {
     assert.equal(format(when, "EEE dd.MM.yy H.mm"), "Mon 09.11.26 20.05");
     assert.equal(format(when, "''hh:mm''"), "'08:05'");
   });
+});
+
+// every kind of step the timeline draws with a dot on its line (the person's message has none: a turn starts there)
+const KINDS = ["thought", "tool", "skill", "agent", "todo", "text", "other"];
+
+test("every step's dot stands on the middle of its first line, whatever its kind", () => {
+  for (const kind of KINDS) {
+    const step = stepLayout(kind);
+    assert.equal(step.dotTop + step.dot / 2, step.pad + step.line / 2, kind);          // the dot's centre, the line's
+    assert.ok(Number.isInteger(step.dotTop), kind);                                     // whole pixels: a sharp dot
+  }
+});
+
+test("a one-line step has as much line above its dot as below it, the gap between steps split evenly", () => {
+  for (const kind of KINDS) {
+    const step = stepLayout(kind), high = step.pad + step.line + step.pad;             // the row of a one-line step
+    assert.equal(step.dotTop, high - step.dotTop - step.dot, kind);
+  }
+});
+
+test("a call's line is 24 high, Claude's words' 20, as center-chat.html has them; each dot on its middle", () => {
+  assert.deepEqual([stepLayout("tool").line, stepLayout("text").line, stepLayout("tool").dot], [24, 20, 8]);
+  for (const kind of KINDS.filter((k) => k !== "text")) assert.equal(stepLayout(kind).line, 24, kind);
+  assert.equal(stepLayout("tool").pad, 8);                                   // two steps 16 apart, the mockup's
+});
+
+test("a heading in Claude's words keeps the step's rhythm: bold on a line of its own, no margin of its own", () => {
+  assert.equal(timelineMarkdown("# Pagination\nThe last page is kept."), "**Pagination**\nThe last page is kept.");
+  assert.equal(timelineMarkdown("## What changed ##\n\n### Tests"), "**What changed**\n\n**Tests**");
+  assert.equal(timelineMarkdown("Summary\n=======\nDone."), "**Summary**\nDone.");          // a setext heading
+  assert.equal(timelineMarkdown("Notes\n---"), "**Notes**");
+  assert.equal(timelineMarkdown("Text.\n\n---\n\nMore."), "Text.\n\n---\n\nMore.");    // a rule stays one
+  assert.equal(timelineMarkdown("```md\n# not a heading\n```"), "```md\n# not a heading\n```");   // code kept
+  assert.equal(timelineMarkdown("#hashtag and 1. a list"), "#hashtag and 1. a list");
+  assert.equal(timelineMarkdown("- an item\n---"), "- an item\n---");                     // a list, then a rule
+  assert.equal(timelineMarkdown("#"), "#");
+});
+
+test("the card Claude waits on stands a step's gap under the last step, the line reaching its top edge", () => {
+  const step = stepLayout("text"), between = step.pad + step.pad;                // two steps' rows apart
+  const card = bottomLayout(true);
+  assert.equal(step.pad + card.rows + card.top, between);                       // the last line to the card's border
+  assert.equal(card.line, card.top);                                            // no break in the line before it
+  const prompt = bottomLayout(false);
+  assert.equal(prompt.line, 0);                                                 // the prompt is no step: no line
+  assert.ok(prompt.rows + prompt.top > card.rows + card.top);                   // it floats apart: a new turn
+});
+
+test("every part of the chat keeps to one spacing scale, on the design's grid", () => {
+  const r = RHYTHM, step = stepLayout("tool"), user = userLayout(), card = bottomLayout(true);
+  const prompt = bottomLayout(false);
+  const parts = readFileSync(new URL("../mods/herdr-fold/parts.js", import.meta.url), "utf8");
+  const grid = (/export const SPACE = \[([\d, ]+)\]/.exec(parts)?.[1] ?? "").split(",").map(Number);
+  for (const [name, px] of Object.entries(r)) if (!["line", "dot"].includes(name)) assert.ok(grid.includes(px), name);
+  const gaps = {                          // each part: the room from the line above it to its own top, as drawn
+    "step after step": step.pad + step.pad,
+    "the person's message after a step": step.pad + user.top,
+    "a step after the person's message": user.bottom + step.pad,
+    "a card after the last step": step.pad + card.rows + card.top,
+    "the prompt after the last step": step.pad + prompt.rows + prompt.top,
+  };
+  assert.deepEqual(gaps, { "step after step": r.step, "the person's message after a step": r.turn,
+    "a step after the person's message": r.step, "a card after the last step": r.step,
+    "the prompt after the last step": r.turn });
+  assert.equal(user.label, r.pad);                                    // its time over its box, as a label over a box
+  assert.equal(user.boxY, r.gap);
+});
+
+// the servers as agent_setup.py's setup tells them: claude.ai's by their account name, a project's by its own
+const SERVERS = [{ name: "claude.ai Google Drive", label: "Google Drive", brand: "google-drive", state: "on" },
+  { name: "claude.ai Box", label: "Box", brand: "box", state: "sign in" },
+  { name: "tidepool", label: "tidepool", brand: null, state: "on" },
+  { name: "tidepool__db", label: "tidepool db", brand: null, state: "on" }];
+
+test("a connector's call is drawn by its brand: the server's label and logo, the tool's own name", () => {
+  assert.deepEqual(connectorRow("mcp__claude_ai_Google_Drive__search_files", SERVERS),
+    { server: "claude.ai Google Drive", label: "Google Drive", brand: "google-drive", tool: "search_files" });
+  assert.deepEqual(connectorRow("mcp__tidepool__db__query", SERVERS),          // the longest server's key wins
+    { server: "tidepool__db", label: "tidepool db", brand: null, tool: "query" });
+  assert.deepEqual(connectorRow("mcp__tidepool__list_tables", SERVERS),
+    { server: "tidepool", label: "tidepool", brand: null, tool: "list_tables" });
+});
+
+test("a call of a server the setup does not name is drawn by its key: a letter tile's", () => {
+  assert.deepEqual(connectorRow("mcp__harbor-docs__search", SERVERS),
+    { server: null, label: "harbor-docs", brand: null, tool: "search" });
+  assert.deepEqual(connectorRow("mcp__harbor-docs__search", null),
+    { server: null, label: "harbor-docs", brand: null, tool: "search" });
+});
+
+test("Claude's own tools, and a name that is no server's tool, are no connector's", () => {
+  for (const name of ["Read", "mcp__", "mcp__box", "mcp____search", "mcp__box__", "", null, undefined]) {
+    assert.equal(connectorRow(/** @type {any} */ (name), SERVERS), null, String(name));
+  }
+});
+
+test("a connector's call says its first words: its input's first text, one line, cut where long", () => {
+  assert.equal(callWords({ query: "paging spec", limit: "5" }), "paging spec");
+  assert.equal(callWords({ id: "  Lumen API: paging, v2\nmore" }), "Lumen API: paging, v2");
+  assert.equal(callWords({ query: "x".repeat(200) }), `${"x".repeat(79)}…`);
+  assert.equal(callWords({ query: "a\x1b[2Jb" }), "a?[2Jb");                  // an escape code shown, never run
+  assert.equal(callWords({}), "");
+  assert.equal(callWords(null), "");
+});
+
+test("a sign-in's step asks while its server is to sign in, turns while it signs in, is done once it is on", () => {
+  const box = { server: "claude.ai Box", label: "Box", brand: "box", error: null };
+  assert.deepEqual(signinRow("claude.ai Box", SERVERS), { ...box, state: "ask", words: "needs you to sign in" });
+  assert.deepEqual(signinRow("claude.ai Box", SERVERS, { signing: { "claude.ai Box": { address: "t9", at: 1 } } }),
+    { ...box, state: "busy", words: "signing in…" });
+  const on = SERVERS.map((one) => (one.name === "claude.ai Box" ? { ...one, state: "on" } : one));
+  assert.deepEqual(signinRow("claude.ai Box", on), { ...box, state: "done", words: "signed in" });
+});
+
+test("a sign-in asked after the setup was last read asks, whatever that older setup says", () => {
+  const on = SERVERS.map((one) => ({ ...one, state: "on" }));
+  assert.equal(signinRow("claude.ai Box", on, { newer: true }).state, "ask");
+  assert.equal(signinRow("claude.ai Box", null, { newer: true }).state, "ask");
+});
+
+test("a sign-in that could not start says why and can be tried again", () => {
+  const row = signinRow("claude.ai Box", SERVERS, { failed: { "claude.ai Box": "claude: command not found" } });
+  assert.deepEqual([row.state, row.words, row.error], ["ask", "needs you to sign in", "claude: command not found"]);
+});
+
+test("a sign-in of a server no longer to sign in nor on is a thing of the past: no button", () => {
+  const off = SERVERS.map((one) => (one.name === "claude.ai Box" ? { ...one, state: "off here" } : one));
+  assert.deepEqual(signinRow("claude.ai Box", off), { server: "claude.ai Box", label: "Box", brand: "box",
+    state: "past", words: "needed a sign-in", error: null });
+  assert.deepEqual(signinRow("harbor-docs", SERVERS), { server: "harbor-docs", label: "harbor-docs", brand: null,
+    state: "past", words: "needed a sign-in", error: null });
+  assert.equal(signinRow("claude.ai Box", null).state, "past");                // the setup not read yet
+});
+
+test("a sign-in's step is a row of the timeline, in its place", () => {
+  const rows = timeline([{ kind: "text", text: "The notes are in Box.", at: at(1) },
+    { kind: "signin", server: "claude.ai Box", at: at(2) }]);
+  assert.deepEqual(rows[1], { kind: "signin", server: "claude.ai Box", at: at(2) });
 });

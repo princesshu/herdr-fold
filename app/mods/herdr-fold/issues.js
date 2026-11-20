@@ -1,18 +1,23 @@
 // @ts-check
 // The Issues view, as the TUI sidebar's: GitHub's issues by priority with its filters; a click opens one in the preview
-// tab, its buttons and right click's menu hand it to the tab's agent, the browser, a reply, assign, close or reopen.
+// tab, its buttons and menu hand it to the tab's agent (or a new one), the browser, a reply, assign, close or reopen.
 import { div } from "gpui-kit";
 import { v_flex, h_flex, InputState } from "gpui-base";
-import { agents, focused, hc, run as command } from "herdr";
+import { agents, focused, hc, spaces, terminals, run as command } from "herdr";
+import { newAgentIn } from "./chat.js";
 import { COMMIT_MESSAGE, GITHUB } from "./helper.js";
-import { hovering, issueAgent, priorityColor, said } from "./logic.js";
-import { button, choices, field, GAP, icon, PAD, small } from "./parts.js";
+import { hovering, issueAgent, issuesParts, priorityColor, said } from "./logic.js";
+import { BUTTON, button, choices, field, footNote, GAP, icon, iconButton, keepNote, PAD, small, SPINNER }
+  from "./parts.js";
 import { showPreview } from "./preview.js";
 
 const LEVELS = ["Urgent", "High", "Medium", "Low"];      // GitHub's Priority field's options, core/github.py's ranks
 const STATES = { open: "Open", closed: "Closed" };
 const BUSY = { close: "Closing…", reopen: "Reopening…", assign: "Assigning…" };
 const DONE = { close: "Closed", reopen: "Reopened", assign: "Assigned to you:" };
+const ROW = 48;                   // px: an issue's row, and what is said in the first one's place
+const done = (/** @type {string} */ text) => ({ text, error: false });          // a Note of what was done
+const failed = (/** @type {string} */ text) => ({ text, error: true });         // and of what went wrong
 
 /** @typedef {{ number: number, title: string, labels: string[], assignees: string[], state: string, url: string,
  * level: number | null, ranked_by: string | null, said: string, ago: string }} Listed */
@@ -38,6 +43,7 @@ export class IssuesView {
     this.chosen = null;
     /** @type {{ number: number, what: string } | null} the close or reopen asked about first */
     this.confirm = null;
+    /** @type {import("./parts.js").Note | null} what was done last, or went wrong; what is under way */
     this.note = null; this.busy = null;
   }
 
@@ -83,39 +89,48 @@ export class IssuesView {
     cx.notify();
   }
 
-  /** WORK with LABEL showing meanwhile; its answer (a line to show, or null), then the list asked again. */
+  /** WORK with LABEL on the foot's line meanwhile; its answer there (done, failed, or none), the list asked again. */
   act(cx, label, work) {
     if (this.busy) return;
     this.busy = label;
-    this.note = null;
+    keepNote(this, null, cx);
     cx.spawn(async (cx) => {
+      let note = null;
       try {
-        this.note = await work(cx);
+        note = await work(cx);
       } catch (e) {
-        this.note = said(e);
+        note = failed(said(e));
       } finally {
         this.busy = null;
+        keepNote(this, note, cx);
         this.load(cx);
-        cx.notify();
       }
     });
-    cx.notify();
   }
 
-  /** ISSUE to the focused tab's Claude or Codex with core/github.py's prompt for it, and linked to the next commit (its
-   * Fixes line in Changes), as the TUI sidebar's t does. @param {Listed} issue */
+  /** ISSUE to the focused tab's Claude or Codex (a pane's, or its chat's) with core/github.py's prompt for it, else to
+   * a new agent as + starts one (a chat, or a terminal), and linked to the next commit (its Fixes line in Changes), as
+   * the TUI sidebar's t does. @param {Listed} issue */
   toAgent(issue, cx) {
-    const agent = issueAgent(agents(), focused()?.tab);
-    if (!agent) return void ((this.note = "No Claude or Codex in this tab to hand the issue to"), cx.notify());
+    const agent = issueAgent(agents(), focused()?.tab, terminals());
     this.act(cx, "Sending…", async () => {
       const { root, on, github } = this.host;
       const { prompt } = await this.host.core(GITHUB, ["prompt", github, String(issue.number)], root, on);
-      const sent = await hc(["send", agent.address, prompt]);
-      if (sent.code !== 0) return (sent.stderr || sent.stdout).trim() || "not sent";
-      command("agent.focus", { terminal: agent.address });
+      let to = "";
+      if (agent) {
+        const sent = await hc(["send", agent.address, prompt]);
+        if (sent.code !== 0) return failed((sent.stderr || sent.stdout).trim() || "not sent");
+        if (!agent.chat) command("agent.focus", { terminal: agent.address });       // a chat's is in front already
+        to = `Sent to ${agent.program?.name ?? "the agent"}`;
+      } else {
+        const space = spaces().find((s) => s.active);
+        if (!space) return failed("No space to start an agent in");
+        const opened = await newAgentIn(space, prompt, root);
+        to = opened === "chat" ? "Sent to a new chat" : `Sent to a new ${opened}`;
+      }
       const answer = await this.host.core(COMMIT_MESSAGE, ["link", root, String(issue.number), issue.title], root, on);
       this.host.linked = answer.linked;
-      return `Sent to ${agent.program?.name ?? "the agent"}: #${issue.number}`;
+      return done(`${to}: #${issue.number}`);
     });
   }
 
@@ -130,7 +145,7 @@ export class IssuesView {
     const { root, on, github } = this.host;
     this.act(cx, BUSY[what], async () => {
       const answer = await this.host.core(GITHUB, ["change", github, String(issue.number), what], root, on);
-      return answer.ok ? `${DONE[what]} #${issue.number}` : answer.advice;
+      return answer.ok ? done(`${DONE[what]} #${issue.number}`) : failed(answer.advice);
     });
   }
 
@@ -163,13 +178,16 @@ export class IssuesView {
   }
 
   render(t) {
-    const shown = this.shown();
+    const shown = this.shown(), q = this.query, foot = this.busy ? done(this.busy) : this.note;
+    const parts = issuesParts({ asked: Boolean(this.asked), listing: this.listing, shown: shown.length, state: q.state,
+      filtered: Boolean(q.assigned || q.authored || q.label || this.level !== null || this.words.length) });
     return v_flex().size_full().min_h(0)
       .child(this.field(t))
-      .child(this.states(t))
-      .when(Boolean(this.line(shown)), (e) => e.child(this.status(t, shown)))
+      .child(this.states(t, parts))
       .child(v_flex().id("issues").flex_1().min_h(0).overflow_y_scrollbar().px(PAD / 2).pb(PAD / 2)
-        .children(shown.map((issue) => this.row(t, issue))));
+        .when(Boolean(parts.say), (e) => e.child(this.say(t, parts.say)))
+        .children(shown.map((issue) => this.row(t, issue))))
+      .when(Boolean(foot), (e) => e.child(footNote(t, foot)));
   }
 
   /** The search field, the new issue's button and the filters', as the TUI sidebar has them on one line. */
@@ -210,27 +228,24 @@ export class IssuesView {
       ...labels.map((label) => ({ label, on: q.label === label, act: (cx) => this.filter("label", label, cx) }))];
   }
 
-  /** Open and Closed, as GitHub's list has them: the chosen one filled. */
-  states(t) {
-    return choices(t, "issues", Object.entries(STATES), this.query.state,
-      (state, cx) => this.load(cx, { ...this.query, state })).px(PAD).pb(8);
+  /** Open and Closed, as GitHub's list has them (the chosen one filled), and the refresh at their row's end: a
+   * spinner in its place, as big, while a list shown is asked for again (PARTS, logic.js's issuesParts). */
+  states(t, parts) {
+    return h_flex().flex_none().pl(PAD).pr(PAD / 2).pb(8).gap(GAP).items_center()
+      .child(choices(t, "issues", Object.entries(STATES), this.query.state,
+        (state, cx) => this.load(cx, { ...this.query, state })))
+      .child(div().flex_1())
+      .child(parts.refresh === "spinner"
+        ? div().id("issue-loading").size(BUTTON).flex_none().flex().items_center().justify_center()
+          .text_size(15).text_color(t.muted).tooltip("Loading issues…").child(div().frames(SPINNER, 100))
+        : iconButton(t, "issue-refresh", "refresh-cw", "Refresh", (cx) => this.load(cx)));
   }
 
-  /** What to say above the list: busy, asking, a failure, nothing found, or what was done. @param {Listed[]} shown */
-  line(shown) {
-    if (this.busy) return [this.busy, "dim"];
-    if (this.note) return [this.note, "dim"];
-    if (this.asked) return ["Loading issues…", "dim"];
-    if (!this.listing) return null;
-    if (this.listing.error) return [this.listing.error, "ansi1"];
-    if (shown.length) return null;
-    const q = this.query, filtered = q.assigned || q.authored || q.label || this.level !== null || this.words.length;
-    return [filtered ? "No issues match" : `No ${q.state} issues`, "dim"];
-  }
-
-  status(t, shown) {
-    const [text, role] = /** @type {[string, string]} */ (this.line(shown));
-    return div().flex_none().px(PAD).pb(6).text_size(11).truncate().text_color(t[role]).child(text);
+  /** SAY's words and their role in the first row's place, as tall as a row: the rows take it in place.
+   * @param {[string, string]} say */
+  say(t, [text, role]) {
+    return h_flex().min_h(ROW).flex_none().px(PAD / 2).py(6).items_center().text_size(12).text_color(t[role])
+      .child(text);
   }
 
   /** An issue's two rows, as the TUI sidebar's: its priority's bar, its number in that color and its title; then its
@@ -243,7 +258,7 @@ export class IssuesView {
       ? ` +${issue.assignees.length - 1}` : ""}` : "";
     const asking = this.confirm?.number === issue.number ? this.confirm.what : null;
     const verb = asking === "close" ? "Close" : "Reopen";
-    return h_flex().id(key).h(48).flex_none().pr(8).gap(8).items_center().rounded(6).cursor_pointer()
+    return h_flex().id(key).h(ROW).flex_none().px(PAD / 2).gap(8).items_center().rounded(6).cursor_pointer()
       .when(this.chosen === issue.number, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover))
       .on_hover(hovering(this.host, key)).on_click((_e, cx) => this.open(issue, cx))
       .on_mouse_down("right", () => this.host.menus.open(this.picks(issue)))
@@ -279,10 +294,12 @@ export class IssuesView {
   }
 }
 
-/** The issue NUMBER's Fixes line, as the TUI sidebar shows it under Commit: the next commit closes it; × unlinks it.
- * In the composer, whose PAD it keeps. @param {[number, string]} linked @param {(cx: any) => void} unlink */
-export function fixesLine(t, linked, unlink) {
-  return h_flex().flex_none().gap(6).items_center().text_size(12)
-    .child(div().flex_1().min_w(0).truncate().text_color(t.accent).child(`Fixes #${linked[0]} ${linked[1]}`))
-    .child(small(t, "unlink", icon("x"), "Next commit fixes no issue", true, unlink));
+/** The issue the next commit closes (LINKED: its number, its title), in the message field's end: Fixes #N in the
+ * accent, its title in the tip; × unlinks it. Inside the field, so it moves nothing.
+ * @param {[number, string]} linked @param {(cx: any) => void} unlink */
+export function fixesChip(t, linked, unlink) {
+  return h_flex().id("fixes").flex_none().gap(2).items_center().text_size(11)
+    .tooltip(`Fixes #${linked[0]} ${linked[1]}: the next commit closes it`)
+    .child(div().text_color(t.accent).child(`Fixes #${linked[0]}`))
+    .child(small(t, "unlink", icon("x", 12), "Next commit fixes no issue", true, unlink));
 }

@@ -1,5 +1,5 @@
 """Markdown on the clipboard as HTML and RTF beside the plain text, so Docs, Mail, Word or Slack paste it formatted;
-macOS only (osascript). For Copy conversation and herdr-fold's formatted copy; HERDR_COPY_PASTEBOARD=<name> (tests)
+macOS only (osascript). For Copy chat and herdr-fold's formatted copy; HERDR_COPY_PASTEBOARD=<name> (tests)
 writes to a named pasteboard."""
 import html
 import json

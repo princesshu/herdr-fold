@@ -11,13 +11,14 @@ sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from herdr_layout import LayoutError, build  # noqa: E402
 from herdrlib import AGENTS, PLUGIN_STATE, agent_pane_ids, free_label, herdr  # noqa: E402
+from panes import last_agent, remember_agent  # noqa: E402  the sidebar's, on the path herdrlib gives
 from i18n import line, t  # noqa: E402
 from projects import repositories, start  # noqa: E402
 import widgets  # noqa: E402  the sidebar's, on the path herdrlib gives
 from icons import icon  # noqa: E402  the sidebar's, on the path herdrlib gives
 from screen import after, icons_on  # noqa: E402  the sidebar's, on the path herdrlib gives
-from tui import (GRAY, INVERT, MARGIN, RESET, button_at, buttons, clicked, getkey, mouse, printable,  # noqa: E402
-                 wait_and_exit)
+from tui import (CLOSE_ROOM, CLOSED, GRAY, INVERT, MARGIN, RESET, RIGHT, button_at, buttons, clicked,  # noqa: E402
+                 close_button, mouse, printable, read_key, wait_and_exit)
 
 HOME = os.path.expanduser("~")
 BOLD = "\x1b[1m"
@@ -63,9 +64,10 @@ def title_of(folder):
 
 
 def toggle_start(title, width):
-    """The toggle's first column (0-based) on the title row: at its right end, MARGIN from the edge, a cell from the
-    title at least."""
-    return MARGIN + len(title) + max(1, width - 2 * MARGIN - len(title) - len(" │ ".join(f" {a} " for a in AGENTS)))
+    """The toggle's first column (0-based) on the title row: at its right end, before the close button, a cell from
+    the title at least."""
+    toggle = len(" │ ".join(f" {a} " for a in AGENTS))
+    return MARGIN + len(title) + max(1, width - MARGIN - RIGHT - CLOSE_ROOM - len(title) - toggle)
 
 
 def picker_buttons(width):
@@ -77,8 +79,9 @@ class Picker:
     """The tree in the picker and what the keys and the mouse do with it, as in the sidebar's Files view: → opens a
     folder or steps into an open one, ← closes one or steps to its parent, and on the top row goes up a folder."""
 
-    def __init__(self, root, target=None):
-        self.root, self.opened, self.filt, self.agent = root, set(), "", AGENTS[0]
+    def __init__(self, root, target=None, agent=None):
+        self.root, self.opened, self.filt = root, set(), ""
+        self.agent = agent if agent in AGENTS else AGENTS[0]      # the toggle on the agent started last
         self.chosen = self.top = 0
         self.last = None                          # the click before: its time and row (a second one there opens)
         if target and os.path.isdir(target):      # the sidebar's New Workspace: on that folder, in its parent
@@ -211,6 +214,10 @@ def close_placeholder(ws, back=False):
 
 
 def open_folder(path, agent, placeholder):
+    try:
+        remember_agent(PLUGIN_STATE, agent)              # the next picker's, and a new agent's (Issues' To agent)
+    except OSError:
+        pass                                            # the toggle starts on the first one next time
     ws = open_workspaces().get(path)
     if not ws:
         workspaces = herdr("workspace", "list")["workspaces"]
@@ -236,7 +243,7 @@ def screen(picker, opened, height, width):
     toggle = " │ ".join(f"{INVERT} {a} {RESET}" if a == picker.agent else f" {a} " for a in AGENTS)
     title = title_of(picker.root)
     lines = [" " * MARGIN + f"{BOLD}{title}{RESET}" + " " * (toggle_start(title, width) - MARGIN - len(title)) + toggle
-             + " " * MARGIN, " " * MARGIN + f"{picker.filt}▏" if picker.filt else ""]
+             + " " * (CLOSE_ROOM + RIGHT), " " * MARGIN + f"{picker.filt}▏" if picker.filt else ""]
     for n, row in enumerate(rows, picker.top):
         mark = widgets.TURNS.mark(icons, ("folder", row.path), row.open) + after(icons)
         folder = icon(row.name, True, row.open) + after(True) if icons else ""
@@ -250,17 +257,24 @@ def screen(picker, opened, height, width):
 
 def main():
     placeholder = os.environ.get("HERDR_NEW_WORKSPACE")
-    picker = Picker(start(repositories()), os.environ.get("HERDR_NEW_WORKSPACE_FOLDER"))
-    opened = set(open_workspaces())
-    mouse(True)
+    picker = Picker(start(repositories()), os.environ.get("HERDR_NEW_WORKSPACE_FOLDER"), last_agent(PLUGIN_STATE))
+    opened, close = set(open_workspaces()), close_button()
+    mouse(True, moves=True)
     while True:
         height, width = max(3, os.get_terminal_size().lines - 6), shutil.get_terminal_size().columns
-        print(screen(picker, opened, height, width), end="", flush=True)
+
+        def draw():
+            print(screen(picker, opened, height, width) + close.overlay(width), end="", flush=True)
+
+        draw()
         turning = widgets.TURNS.deadline()                 # a folder's chevron at rest again: drawn anew
-        key = getkey(None if turning is None else max(0.0, turning - time.monotonic()))
+        key = read_key(close, width, draw, None if turning is None else max(0.0, turning - time.monotonic()))
         if key is None:
             widgets.TURNS.ended()
             continue
+        if key == CLOSED:                                  # whatever was typed: back, as Cancel
+            close_placeholder(placeholder, back=True)
+            return
         event = clicked(key)
         action = picker.click(event, time.monotonic(), width, height) if event else picker.press(key, height)
         if action == "open" and picker.chosen_path():

@@ -16,8 +16,8 @@ import unittest
 from dataclasses import replace
 from unittest import mock
 
-from support import (SRC, AppScreen, FakeHerdrSocket, FakeTerminal, at_once, end_child, end_jobs, logged, set_env,
-                     stubs, text)
+from support import (SRC, AppScreen, FakeHerdrSocket, FakeTerminal, at_once, end_child, end_jobs, logged, set_attrs,
+                     set_env, stubs, text)
 
 PLUGIN = os.path.join(SRC, "plugins", "sidebar")
 sys.path.insert(0, PLUGIN)
@@ -27,10 +27,11 @@ import column  # noqa: E402
 import commit_message  # noqa: E402
 import loop  # noqa: E402
 import panels  # noqa: E402
+import panes  # noqa: E402
 import preview  # noqa: E402
 import screen  # noqa: E402
 import sidebar  # noqa: E402
-from conversations import Conversation  # noqa: E402
+from chats import Chat                  # noqa: E402
 from git import Status  # noqa: E402
 from icons import glyphs  # noqa: E402
 from vt import Focus, Key, Mouse, Resize  # noqa: E402
@@ -71,11 +72,54 @@ TWO_ISSUES = json.dumps([{"number": number, "title": title, "state": "OPEN", "la
 SLOW_AI = "#!/bin/sh\nsleep 1.5\nprintf 'feat: from the ai\\n'\n"
 
 
-ROW = sidebar.stack.ROW       # the tab row's
+ROW, NAMES = sidebar.stack.ROW, sidebar.stack.NAMES       # the buttons' icons, and their names under them
+COLS = 69                     # the row's names without Issues: its views' texts fit in whole
+MARGIN, INSET = screen.MARGIN, screen.INSET     # a chosen row's highlight in from each side; everything else
+LIT = ("selection", "hover")                    # a chosen or a hovered row's highlight
+BESIDE = column.IDEAL + column.RAIL            # a pane with a view beside the rail, as herdr makes it
+RAILED = 0.895                # the agent's share by the rail alone in a 200-cell tab: herdr's tenth and a cell
 
 
 def keys(text):
     return [Key("char", ch) for ch in text]
+
+
+def banded(canvas, y, left=0, right=None):
+    """Whether row Y between columns LEFT and RIGHT is a chosen or hovered row's: lit from MARGIN in to MARGIN in."""
+    row, right = canvas.rows[y], canvas.width if right is None else right
+    return row[left + MARGIN][1].bg in LIT and row[right - 1 - MARGIN][1].bg == row[left + MARGIN][1].bg
+
+
+def drawn(canvas, y, left=0, right=None):
+    """The columns row Y draws in between LEFT and RIGHT: a character or a background, a highlight's own blank aside
+    (a chosen or hovered row's, a hovered button's block with its half rows: from edge to edge)."""
+    row, right = canvas.rows[y], canvas.width if right is None else right
+    band = banded(canvas, y, left, right)
+
+    def lit(ch, style):
+        return (style.bg == "hover" and not ch.strip()) or (ch in "▄▀" and style.fg == "hover")
+
+    return [x for x in range(left, right) if not lit(*row[x])
+            and (row[x][0].strip() or (row[x][1].bg and not (band and row[x][1].bg in LIT)))]
+
+
+def painted(canvas):
+    """The cells the hover paints: its background and its half rows (▄ ▀ in its color)."""
+    return {(y, x) for y, row in enumerate(canvas.rows) for x, (ch, style) in enumerate(row)
+            if style.bg == "hover" or (ch in "▄▀" and style.fg == "hover")}
+
+
+def strays(canvas, left=0, right=None):
+    """What CANVAS draws between columns LEFT and RIGHT outside the content's inset: [(row, column, character)]."""
+    right = canvas.width if right is None else right
+    return [(y, x, canvas.rows[y][x][0]) for y in range(canvas.height) for x in drawn(canvas, y, left, right)
+            if not left + INSET <= x < right - INSET]
+
+
+def reach(canvas, y, left=0, right=None):
+    """The first column row Y draws in and the one after its last."""
+    found = drawn(canvas, y, left, right)
+    return (found[0], found[-1] + 1) if found else None
 
 
 class Repo(unittest.TestCase):
@@ -89,7 +133,7 @@ class Repo(unittest.TestCase):
                 GIT_COMMITTER_NAME="dev", GIT_COMMITTER_EMAIL="dev@example.com", HERDR_LOG=self.log,
                 HERDR_WORKSPACE_ID="w1", HERDR_BIN_PATH=os.path.join(self.bin, "herdr"), HERDR_COMMIT_AI="claude",
                 PATH=self.bin + os.pathsep + os.environ["PATH"], HERDR_PLUGIN_STATE_DIR=self.state,
-                HOME=os.path.join(tmp, "home"))                # never the user's conversations or commit rules
+                HOME=os.path.join(tmp, "home"))                # never the user's chats or commit rules
         os.makedirs(os.path.join(self.root, "src"))
         for rel, body in (("a.txt", "a needle here\n"), ("src/b.py", "print('b')\n"), (".hidden", "x\n")):
             self.write(rel, body)
@@ -108,7 +152,7 @@ class Repo(unittest.TestCase):
 class Harness(AppScreen, Repo):
     """The app on its own thread with the stand-in terminal, and ways to wait for what it shows."""
 
-    def start(self, cols=column.FEWEST, rows=45):
+    def start(self, cols=COLS, rows=45):
         term = FakeTerminal(cols, rows)
         self.run_app(sidebar.App(self.root, term, preview.Herdr(), self.state), term)
 
@@ -116,8 +160,12 @@ class Harness(AppScreen, Repo):
         return next((line for line in self.screen().splitlines() if part in line), "")
 
     def body(self, screen):
-        """SCREEN under the tab row: the panel shown."""
+        """SCREEN under the row of buttons: the view shown."""
         return "\n".join(screen.split("\n")[sidebar.stack.TOP:])
+
+    def at(self, part, top=sidebar.stack.TOP):
+        """The first row from TOP on that shows PART."""
+        return next(y for y in range(top, self.app.canvas.height) if part in text(self.app.canvas, y))
 
 
 class Running(Harness):
@@ -130,52 +178,217 @@ class Running(Harness):
         self.assertNotIn(".hidden", self.screen())
         self.until(lambda s: self.row("a.txt").rstrip().endswith("M"))   # the temporary folder is behind a symlink
 
-    def test_the_tab_row_names_the_panels_in_their_groups_the_shown_one_in_the_accent(self):
-        self.until(lambda s: "project" in s and "Changes 2" in s)              # a.txt changed, new.txt new
-        canvas, row = self.app.canvas, text(self.app.canvas, sidebar.stack.ROW)
-        self.assertEqual(row[:36], " Chats     Files  Search   Changes 2")
-        self.assertEqual(row[36:].split(), ["»", "⋯"])                         # the dock's own, at the row's end
-        look = [canvas.rows[sidebar.stack.ROW][row.index(part)][1] for part in ("Chats", "Files", "Search", "2")]
-        self.assertEqual([(style.fg, style.bold) for style in look],
-                         [("muted", False), ("accent", True), ("muted", False), ("modified", False)])
-        self.assertNotIn("badge", {style.bg for _, style in canvas.rows[-1]})
+    def keeps_the_inset(self, view, whole=(), first=(), last=()):
+        """Nothing drawn outside the content's inset but a chosen row's highlight, from edge to edge; rows WHOLE reach
+        from its left edge to its right, rows FIRST start at its left edge, rows LAST end at its right."""
+        canvas = self.app.canvas
+        self.assertEqual(strays(canvas), [], f"{view}:\n{self.screen()}")
+        for y in range(canvas.height):
+            if canvas.rows[y][COLS // 2][1].bg == "selection" and banded(canvas, y):
+                self.assertEqual([canvas.rows[y][x][1].bg for x in (0, COLS - 1)], ["selection"] * 2, view)
+        for rows, part, edges in ((whole, slice(0, 2), (INSET, COLS - INSET)), (first, slice(0, 1), (INSET,)),
+                                  (last, slice(1, 2), (COLS - INSET,))):
+            for y in rows:
+                self.assertEqual(reach(canvas, y)[part], edges, f"{view}: {text(canvas, y)!r}")
 
-    def test_a_blank_row_above_and_below_the_tab_row_then_the_panel_full_height(self):
+    def test_every_element_starts_and_ends_where_a_chosen_rows_content_does(self):
+        # a chosen row's highlight from edge to edge; everything else a cell (INSET) in, as that row's content:
+        # the row of buttons and », headers, fields, buttons, lists, a line, a menu, a tip
+        self.until(lambda s: "src" in self.body(s) and self.row("a.txt").rstrip().endswith("M"))     # its git mark
+        self.term.type(Key("down"))
+        self.until(lambda s: any(row[COLS // 2][1].bg == "selection" for row in self.app.canvas.rows[5:]))
+        self.keeps_the_inset("files", whole=[self.at("project")], first=[self.at("src")], last=[self.at("a.txt")])
+        canvas = self.app.canvas                    # » on the icons' line, at the content's right edge
+        self.assertEqual((text(canvas, ROW).rstrip()[-1], text(canvas, ROW).rindex("»"), text(canvas, 0).strip()),
+                         ("»", COLS - 4, ""))                     # its block's middle, a cell in from the edge
+        more = max(x for x in range(COLS) if canvas.hit(x, NAMES) == "panels")
+        self.assertEqual([canvas.hit(x, NAMES) for x in (0, 1, more + 1, COLS - 2, COLS - 1)],
+                         ["row", "button:files", "row", "to_rail", "row"])    # a cell in from each side
+        self.term.type(Key("f11"))
+        self.until(lambda s: "new.txt" in self.body(s) and "Commit message" in s)
+        self.term.type(Key("down"), Key("down"), Key("down"))                   # new.txt
+        self.until(lambda s: any(row[COLS // 2][1].bg == "selection" for row in self.app.canvas.rows[8:]))
+        field, button = self.at("Commit message"), self.at("Commit ", self.at("Commit message") + 1)
+        self.keeps_the_inset("changes", whole=[field - 1, field, field + 1, button, self.at("Changes")],
+                             first=[self.at("Repositories")], last=[self.at("main")])
+        self.term.type(Key("f10"), *keys("needle"))
+        self.until(lambda s: "a.txt" in self.body(s) and "needle" in self.body(s))
+        self.term.type(Key("tab"))
+        self.until(lambda s: any(row[COLS // 2][1].bg == "selection" for row in self.app.canvas.rows[8:]))
+        field = self.at("needle")
+        self.keeps_the_inset("search", whole=[field - 1, field, field + 1, self.at("a.txt", field + 1)],
+                             first=[self.at("in a.txt"), self.at("1 result")])
+        self.term.type(Mouse("press", text(self.app.canvas, NAMES).index("Chats"), NAMES, 0))
+        self.until(lambda s: "No chats" in s)
+        field = self.at("Filter")
+        self.keeps_the_inset("chats", whole=[field - 1, field, field + 1], first=[self.at("No chats")])
+
+    def test_a_line_a_menu_and_a_tip_keep_the_inset_too(self):
+        name = "a-name-long-enough-to-be-cut-short-at-the-edge-of-the-pane.txt"
+        self.write(os.path.join("src", name), "x\n")
+        self.until(lambda s: "src" in self.body(s))
+        self.term.type(Key("char", "n"), *keys(name), Key("enter"))        # src is chosen, the name is there
+        self.until(lambda s: "already there" in s)
+        self.keeps_the_inset("a line", whole=[self.app.canvas.height - 1])
+        self.term.type(Mouse("press", MARGIN, self.at("a.txt"), 2))             # a row's menu, from its left edge
+        self.until(lambda s: "┌" in s)
+        self.keeps_the_inset("a menu at the left", first=[self.at("┌")])
+        self.term.type(Key("esc"), Mouse("press", text(self.app.canvas, NAMES).index("More"), NAMES, 0))
+        self.until(lambda s: self.app.menu and "┌" in s)
+        self.keeps_the_inset("More's menu")
+        self.term.type(Key("esc"), Mouse("move", COLS - INSET - 1, ROW, 3))      # », on the icons' line
+        self.until(lambda s: " Collapse to icons " in s, timeout=3)
+        self.keeps_the_inset("a tip", last=[self.at("Collapse to icons", 0)])
+
+    def test_the_row_starts_at_the_panes_side_a_cell_between_two_names_or_icons_alone(self):
+        # names from 69 cells (no Issues here), icons alone down to the column's least, the first version's tabs;
+        # » in its corner, the view under the row
+        self.stop()
+        for cols, names in ((80, True), (69, True), (68, False), (column.FEWEST, False)):
+            with self.subTest(cols=cols):
+                self.start(cols=cols)
+                self.until(lambda s: "project" in s and "●" in s.split("\n")[ROW])
+                canvas = self.app.canvas
+                blocks = [sorted(x for x in range(cols) if canvas.hit(x, ROW) == target)
+                          for target in ("button:files", "button:search", "button:changes", "button:agent",
+                                         "button:chats", "panels")]
+                self.assertEqual({len(block) for block in blocks}, {9, 10} if names else {5})
+                self.assertEqual((blocks[0][0], {b[0] - a[-1] for a, b in zip(blocks, blocks[1:])}), (1, {2}))
+                self.assertEqual(("Files" in text(canvas, NAMES), self.app.body[0]),
+                                 (names, sidebar.stack.TOP - (not names)))
+                self.assertEqual((text(canvas, ROW).rindex("»"), text(canvas, 0).strip(), strays(canvas)),
+                                 (cols - 4, "", []))
+                self.assertLessEqual(blocks[-1][-1], cols - sidebar.stack.ICON_BUTTON - 3)    # air before »'s
+                self.stop()
+
+    def test_the_row_names_each_view_under_its_icon_the_chosen_one_in_the_accent(self):
+        self.until(lambda s: "project" in s and " ● " in s.split("\n")[ROW])     # a.txt changed, new.txt new
+        canvas, marks = self.app.canvas, glyphs(True)
+        icons, names = text(canvas, ROW), text(canvas, NAMES)
+        self.assertEqual(names.split(), ["Files", "Search", "Changes", "Agent", "Chats", "More"])  # no Issues here
+        self.assertEqual(icons.split(), [marks["files"], marks["search"], marks["git"], "●", marks["robot"],
+                                         marks["ai"], "⋯", "»"])     # a dot beside its icon: it has changes
+        self.assertEqual((names.index("More"), icons.index("⋯")), (55, 56))     # More, the last
+        self.assertEqual((text(canvas, 0).strip(), icons.index("»"), canvas.hit(COLS - 3, ROW)),
+                         ("", COLS - 4, "to_rail"))                        # on the icons' line, at the right
+        look = [canvas.rows[NAMES][names.index(part)][1] for part in ("Chats", "Files", "Search")]
+        self.assertEqual([(style.fg, style.bold) for style in look],
+                         [("muted", False), ("accent", True), ("muted", False)])
+        self.assertEqual([canvas.rows[ROW][icons.index(part)][1].fg for part in (marks["files"], "●",
+                                                                                 "⋯")],
+                         ["accent", "modified", "subtext"])                 # More's icon as any icon
+        self.assertNotIn("badge", {style.bg for row in canvas.rows[:sidebar.stack.TOP] for _, style in row})
+
+    def test_a_blank_row_above_and_below_the_row_then_the_view_full_height(self):
         self.until(lambda s: "project" in s)
         rows = self.screen().split("\n")
-        self.assertEqual([rows[0].strip(), rows[2].strip()], ["", ""])
+        self.assertEqual([rows[0].strip(), rows[sidebar.stack.TOP - 1].strip(), rows[ROW].rstrip()[-1]],
+                         ["", "", "»"])                                            # » on the icons' line
         self.assertIn("project", rows[sidebar.stack.TOP])                        # Files' folder, its tree under it
         self.assertNotEqual(rows[sidebar.stack.TOP + 1].strip(), "")
         self.assertEqual(self.app.body, (sidebar.stack.TOP, 45 - sidebar.stack.TOP))
 
-    def test_a_tab_under_the_mouse_lights_up_and_a_click_shows_its_panel(self):
-        self.until(lambda s: "project" in s and "Changes 2" in s)
-        x = text(self.app.canvas, sidebar.stack.ROW).index("Changes")
-        self.assertEqual(self.app.canvas.rows[sidebar.stack.ROW][x][1].fg, "muted")
-        self.term.type(Mouse("move", x, sidebar.stack.ROW, 3))
-        self.until(lambda s: self.app.canvas.rows[sidebar.stack.ROW][x][1].fg == "text")
-        self.term.type(Mouse("press", x, sidebar.stack.ROW, 0))
+    def test_a_button_under_the_mouse_lights_up_and_a_click_shows_its_view(self):
+        self.until(lambda s: "project" in s and "Changes" in s)
+        x = text(self.app.canvas, NAMES).index("Changes")
+        self.assertEqual(self.app.canvas.rows[NAMES][x][1].fg, "muted")
+        self.term.type(Mouse("move", x, ROW, 3))                          # over its icon: its name lit too
+        self.until(lambda s: self.app.canvas.rows[NAMES][x][1].fg == "text")
+        self.term.type(Mouse("press", x, NAMES, 0))
         self.until(lambda s: self.app.shown() == "changes" and "new.txt" in self.body(s))
-        self.assertEqual(self.app.canvas.rows[sidebar.stack.ROW][x][1], screen.Style(fg="accent", bold=True))
+        self.assertEqual(self.app.canvas.rows[NAMES][x][1], screen.Style(fg="accent", bg="hover", bold=True))
         with open(os.path.join(self.state, "dock.json")) as f:
             self.assertEqual(json.load(f)[os.path.realpath(self.root)], {"shown": "changes"})
         self.stop()
         self.start()                                                      # the folder keeps it
         self.until(lambda s: "new.txt" in self.body(s) and self.app.shown() == "changes")
 
-    def test_each_panel_has_its_number_key_in_the_rows_order(self):
+    def hovered(self):
+        """The cells in the hover background: {(row, column)}."""
+        return {(y, x) for y, row in enumerate(self.app.canvas.rows) for x, (_, style) in enumerate(row)
+                if style.bg == "hover"}
+
+    def halves(self, button):
+        """Whether BUTTON's cells (columns) have half a row of the hover color above the row and below it."""
+        rows, style = self.app.canvas.rows, screen.Style(fg="hover")
+        return all(rows[ROW - 1][x] == ("▄", style) and rows[NAMES + 1][x] == ("▀", style) for x in button)
+
+    def menu_line(self, part):
+        """Where the menu line that shows PART is (row, a column of its text) and its cells inside the frame."""
+        y = self.at(part, 0)
+        line = text(self.app.canvas, y)
+        return (line.index(part), y), {(y, x) for x in range(line.index("│") + 1, line.rindex("│"))}
+
+    def test_a_button_and_a_menu_line_under_the_mouse_have_the_hover_background_until_it_leaves(self):
+        # a button: its widest line, a cell each side, the blank rows round the row; a menu's line: frame to frame
+        self.until(lambda s: "project" in s and "Changes" in s and " ● " in s.split("\n")[ROW])
+        x = text(self.app.canvas, NAMES).index("Changes")
+        row = text(self.app.canvas, ROW)
+        self.term.type(Mouse("move", x + 3, ROW, 3))
+        self.until(lambda s: self.hovered())
+        self.assertEqual((self.hovered(), self.halves(range(22, 31))),
+                         ({(y, cx) for y in (ROW, NAMES) for cx in range(22, 31)}, True))
+        self.assertEqual(text(self.app.canvas, ROW), row)                        # its icon and badge stay put
+        self.term.type(Mouse("move", COLS // 2, self.app.canvas.height - 3, 3))
+        self.until(lambda s: not self.hovered())
+        self.term.type(Mouse("press", text(self.app.canvas, NAMES).index("More"), NAMES, 0))
+        self.until(lambda s: "✓ Search" in s)
+        (cx, y), cells = self.menu_line("✓ Search")
+        self.term.type(Mouse("move", cx, y, 3))
+        self.until(lambda s: self.hovered() == cells)
+        self.term.type(Key("esc"), Mouse("press", MARGIN, self.at("a.txt"), 2))      # a row's menu in Files
+        self.until(lambda s: "Copy Path" in s)
+        (cx, y), cells = self.menu_line("Copy Path")
+        self.term.type(Mouse("move", cx, y, 3))
+        self.until(lambda s: self.hovered() == cells)
+        self.term.type(Key("esc"), Key("f11"))
+        self.until(lambda s: "Commit message" in s)
+        mode = next((x0, y0) for y0, x0, _x1, target in self.app.canvas.regions if target == "mode")
+        self.term.type(Mouse("press", *mode, 0))                                     # Changes' own menu
+        self.until(lambda s: "Commit & Sync" in s)
+        (cx, y), cells = self.menu_line("Commit & Sync")
+        self.term.type(Mouse("move", cx, y, 3))
+        self.until(lambda s: self.hovered() == cells)
+        self.term.type(Key("esc"), Mouse("press", text(self.app.canvas, NAMES).index("Chats"), NAMES, 0))
+        self.until(lambda s: "No chats" in s)                                        # the Chats list open
+        x = text(self.app.canvas, NAMES).index("Search")
+        self.term.type(Mouse("move", x, NAMES, 3))
+        block = {(y, cx) for y in (ROW, NAMES) for cx in range(11, 21)}
+        self.until(lambda s: self.hovered() == block and self.halves(range(11, 21)))
+
+    def test_a_commit_without_a_message_says_so_on_the_foot_line_until_a_key(self):
+        # as every view's failure: on the last row in its color, no row under the button, the list where it was
+        self.term.type(Key("f11"))
+        self.until(lambda s: "new.txt" in self.body(s) and "Commit message" in s)
+        before = self.screen().split("\n")
+        commit = next((x0, y) for y, x0, _x1, target in self.app.canvas.regions if target == "commit")
+        self.term.type(Mouse("press", *commit, 0))
+        self.until(lambda s: "The message is empty" in s.split("\n")[-1])
+        self.assertEqual((self.screen().split("\n")[:-1], self.app.canvas.rows[-1][INSET][1].fg),
+                         (before[:-1], "deleted"))                    # every other row as it was: tall controls too
+        self.term.type(Key("down"))
+        self.until(lambda s: "The message is empty" not in s)
+
+    def test_the_chosen_files_lights_up_under_the_mouse_from_its_first_cell(self):
+        self.until(lambda s: "project" in s)
+        self.term.type(Mouse("move", 1, 0, 3))                         # its first cell, on the blank row above it
+        self.until(lambda s: self.hovered() == {(y, x) for y in (ROW, NAMES) for x in range(1, 10)}
+                   and self.halves(range(1, 10)))
+        self.assertEqual(self.app.canvas.rows[ROW][5][1], screen.Style(fg="accent", bg="hover"))
+
+    def test_each_view_has_its_number_key_in_the_rows_order(self):
         self.until(lambda s: "a.txt" in s)
-        for key, panel in (("4", "changes"), ("2", "files"), ("1", "conversations")):
+        for key, panel in (("3", "changes"), ("1", "files"), ("2", "search")):
             self.term.type(Key("char", key))
             self.until(lambda s: self.app.shown() == panel)
-        self.term.type(Key("char", "2"))                                  # Chats' filter takes every character
-        self.until(lambda s: self.app.views["conversations"].typed == "2")
-        self.term.type(Key("f9"), Key("char", "3"))
-        self.until(lambda s: self.app.shown() == "search")
+        self.term.type(Key("char", "1"))                                  # Search's field takes every character
+        self.until(lambda s: self.app.views["search"].field.text == "1")
+        self.term.type(Key("f9"))                                         # herdr's action key: even then
+        self.until(lambda s: self.app.shown() == "files")
 
     def test_a_panels_controls_are_tall_where_the_pane_has_the_rows(self):
         self.stop()
-        for rows in (18, 19):                                             # the panel 15 rows high, then 16
+        for rows in (19, 20):                                             # the view 15 rows high, then 16
             with self.subTest(rows=rows):
                 self.start(rows=rows)
                 self.term.type(Key("f10"))
@@ -202,7 +415,7 @@ class Running(Harness):
         with open(os.path.join(self.bin, "claude"), "w") as f:
             f.write(SLOW_AI)
         subprocess.run(["git", "-C", self.root, "add", "a.txt"], check=True)
-        self.term.type(Key("char", "4"))
+        self.term.type(Key("char", "3"))
         self.until(lambda s: "Staged changes" in s)
         self.term.type(Key("char", "A"))
         self.until(lambda s: "Claude is writing the message" in s)
@@ -214,7 +427,7 @@ class Running(Harness):
         self.assertNotIn("from the ai", self.screen())
 
     def test_an_untracked_file_previews_as_the_file(self):
-        self.term.type(Key("char", "4"))
+        self.term.type(Key("char", "3"))
         self.until(lambda s: "new.txt" in self.body(s))
         rows = self.screen().splitlines()
         y = next(i for i, row in enumerate(rows) if i >= sidebar.stack.TOP and "new.txt" in row)
@@ -229,13 +442,13 @@ class Running(Harness):
         self.assertFalse(any("diff" in argv for argv in spec["pipeline"]))
 
     def test_search_after_a_pause(self):
-        self.term.type(Key("char", "3"), *keys("needle"))
+        self.term.type(Key("char", "2"), *keys("needle"))
         self.until(lambda s: "1 result in 1 file" in s and "a needle here" in s)
 
     def test_search_covers_the_folder_or_file_you_chose_in_files(self):
         # the first row is chosen by itself and narrows nothing (test_search_after_a_pause)
         self.until(lambda s: "src" in s)
-        self.term.type(Key("down"), Key("up"), Key("char", "3"), *keys("needle"))     # src, chosen by you
+        self.term.type(Key("down"), Key("up"), Key("char", "2"), *keys("needle"))     # src, chosen by you
         self.until(lambda s: "in src" in s and "No results found" in s)
         self.term.type(Key("f9"), Key("down"), Key("f10"))                            # a.txt: that file alone
         self.until(lambda s: "in a.txt" in s and "1 result in 1 file" in s)
@@ -247,7 +460,7 @@ class Running(Harness):
         self.until(lambda s: "in src" not in s and "needle" not in s)
 
     def test_the_changes_view_shows_the_changes(self):
-        self.term.type(Key("char", "4"))
+        self.term.type(Key("char", "3"))
         self.until(lambda s: "Changes" in s and "new.txt" in s and "a.txt" in s)
         self.until(lambda s: "init" in s)                                   # the graph
 
@@ -274,16 +487,16 @@ class Running(Harness):
 
     def test_a_hanging_ai_does_not_hang_the_view(self):
         with mock.patch.dict(commit_message.TIMEOUTS, {"claude": 1.5, "codex": 1.5}):
-            self.term.type(Key("char", "4"))
+            self.term.type(Key("char", "3"))
             self.until(lambda s: "a.txt" in self.body(s) and "new.txt" in self.body(s))   # the status read
             self.term.type(Key("char", "A"))                                 # nothing staged: it all goes in
             self.until(lambda s: "is writing the message" in s)
-            self.term.type(Key("char", "2"))
+            self.term.type(Key("char", "1"))
             self.until(lambda s: "project" in s, timeout=1.0)                # the view answers meanwhile
             self.until(lambda s: "claude failed" in s, timeout=15)          # however busy the machine
 
     def test_a_commit_with_nothing_staged_takes_every_change(self):
-        self.term.type(Key("char", "4"))
+        self.term.type(Key("char", "3"))
         self.until(lambda s: "a.txt" in self.body(s) and "new.txt" in self.body(s))
         self.term.type(*keys("feat: all of it"), Key("enter", alt=True))
         deadline = time.monotonic() + 15
@@ -316,7 +529,7 @@ class Running(Harness):
         self.assertEqual(self.app.renderer.theme.colors.get("accent"), "#123456")
 
     def test_f9_to_f11_switch_even_while_typing(self):
-        self.term.type(Key("char", "3"), *keys("q1"))
+        self.term.type(Key("char", "2"), *keys("q1"))
         self.until(lambda s: "q1" in s)                                      # q and 1 went into the field
         self.term.type(Key("f11"))
         self.until(lambda s: self.app.shown() == "changes")
@@ -348,7 +561,7 @@ class Tips(Harness):
         self.fail(f"no such region:\n{self.screen()}")
 
     def test_an_icons_tip_shows_once_the_mouse_rests_on_it_and_a_key_hides_it(self):
-        self.term.type(Key("char", "4"))
+        self.term.type(Key("char", "3"))
         self.until(lambda s: "a.txt" in s)
         self.term.type(Mouse("move", *self.region(lambda target: target == "suggest")))
         self.until(lambda s: " Write message " in s, timeout=3)
@@ -356,7 +569,7 @@ class Tips(Harness):
         self.until(lambda s: "Write message" not in s)
 
     def test_a_files_icons_tell_what_they_do(self):
-        self.term.type(Key("char", "4"))
+        self.term.type(Key("char", "3"))
         self.until(lambda s: "a.txt" in s)
         self.term.type(Mouse("move", *self.changed_row("a.txt")))
         self.term.type(Mouse("move", *self.region(lambda target: isinstance(target, tuple) and target[0] == "stage")))
@@ -371,22 +584,24 @@ class Tips(Harness):
 
     def test_a_changed_files_tip_is_its_whole_path_in_the_repository(self):
         self.write("src/b.py", "print('b, changed')\n")
-        self.term.type(Key("char", "4"))
+        self.term.type(Key("char", "3"))
         self.term.type(Mouse("move", *self.changed_row("b.py")))
         self.until(lambda s: " src/b.py " in s, timeout=3)
 
     def test_a_name_files_cuts_short_shows_whole_under_the_mouse(self):
-        name = "documents/the-release-checklist-for-every-version.md"      # its name cut in its row, whole in a tip
+        name = "documents/the-release-checklist-for-every-new-version-of-the-whole-app.md"    # cut, whole in a tip
         os.makedirs(os.path.join(self.root, "documents"))
         self.write(name, "x\n")
-        self.term.type(Key("char", "2"))
+        self.term.type(Key("char", "1"))
         self.until(lambda s: "documents" in s)
         self.term.type(Mouse("press", *self.region(lambda target: isinstance(target, tuple) and target[0] == "row"
                                                    and "documents" in self.row_text(target))))
         self.until(lambda s: "the-release" in s)
         self.term.type(Mouse("move", *self.region(lambda target: isinstance(target, tuple) and target[0] == "row"
                                                   and "the-release" in self.row_text(target))))
-        self.until(lambda s: " documents/" in s and " the-release-checklist-for-every-version.md " in s, timeout=3)
+        whole = " the-release-checklist-for-every-new-version-of-the-whole-app.md "
+        self.until(lambda s: " documents/" in s and whole in s,
+                   timeout=3)
 
     def row_text(self, target):
         """The text of the row TARGET's region is on."""
@@ -394,15 +609,15 @@ class Tips(Harness):
         return self.screen().splitlines()[y]
 
     def test_a_path_wider_than_the_pane_shows_whole_broken_after_its_slashes(self):
-        rel = "src/a-rather-long-folder-name/and-another-one/the-file.txt"
+        rel = "src/a-rather-long-folder-name/and-another-one-even-longer/the-file.txt"
         os.makedirs(os.path.join(self.root, os.path.dirname(rel)))
         self.write(rel, "x\n")
         subprocess.run(["git", "-C", self.root, "add", rel], check=True)
         subprocess.run(["git", "-C", self.root, "commit", "-q", "-m", "deep"], check=True)
         self.write(rel, "x, changed\n")
-        self.term.type(Key("char", "4"))
+        self.term.type(Key("char", "3"))
         self.term.type(Mouse("move", *self.changed_row("the-file.txt")))
-        self.until(lambda s: " src/a-rather-long-folder-name/and-another-one/ " in s
+        self.until(lambda s: " src/a-rather-long-folder-name/and-another-one-even-longer/ " in s
                    and " the-file.txt " in s, timeout=3)
 
 
@@ -416,7 +631,7 @@ class Message(Harness):
 
     def typed(self, text):
         """TEXT typed as the message, once Changes shows: where its first line starts in the field."""
-        self.term.type(Key("char", "4"))
+        self.term.type(Key("char", "3"))
         self.until(lambda s: "a.txt" in self.body(s))
         self.term.type(*keys(text))
         first, last = text.split("\n")[0], text.split("\n")[-1]
@@ -484,7 +699,9 @@ class IssuesTab(Harness):
         stubs(self.bin, {"gh": FAKE_GH, "claude": "#!/bin/sh\nprintf 'feat: fix the login on Safari\\n'\n"})
         set_env(self, GH_LOG=self.gh_log, HERDR_PANE_ID="w1:p2")
 
-    def start(self, cols=column.NARROWEST, rows=45):
+    NAMED = 80                # the row with every name, Issues' too: the width the column first opens to
+
+    def start(self, cols=NAMED, rows=45):
         super().start(cols, rows)
 
     def on_github(self):
@@ -498,14 +715,14 @@ class IssuesTab(Harness):
             return []
 
     def tabs(self):
-        """The panels named on the tab row: Issues among them only on GitHub."""
-        return text(self.app.canvas, sidebar.stack.ROW).split()[:-2]               # but » and ⋯
+        """The buttons named on the row: Issues among them only on GitHub."""
+        return text(self.app.canvas, NAMES).split()
 
-    def test_a_repository_not_on_github_has_no_issues_tab(self):
+    def test_a_repository_not_on_github_has_no_issues_button(self):
         self.start()
         self.until(lambda s: "project" in s and "Changes" in s)
-        self.assertEqual([name for name in self.tabs() if not name.isdigit()], ["Chats", "Files", "Search", "Changes"])
-        self.term.type(Key("f12"), Key("char", "5"))
+        self.assertEqual(self.tabs(), ["Files", "Search", "Changes", "Agent", "Chats", "More"])
+        self.term.type(Key("f12"), Key("char", "4"))
         time.sleep(0.3)
         self.assertEqual((self.app.shown(), self.app.showing("issues")), ("files", False))
         self.assertEqual(self.gh_calls(), [])
@@ -606,12 +823,41 @@ class IssuesTab(Harness):
         self.start()
         self.until(lambda s: "#42 Login fails on Safari" in s)
 
-    def test_every_tab_and_the_docks_controls_fit_whole_at_the_narrowest(self):
+    def test_every_button_and_the_docks_controls_fit_whole_at_the_columns_fewest_cells(self):
         self.on_github()
-        self.start(cols=column.NARROWEST)
+        marks = glyphs(True)
+        self.start()
+        self.until(lambda s: "project" in s and marks["issues"] in text(self.app.canvas, ROW))
+        icons, canvas = text(self.app.canvas, ROW), self.app.canvas
+        self.assertEqual((self.tabs(), icons.split()[-4:], icons.index("»")),
+                         (["Files", "Search", "Changes", "Issues", "Agent", "Chats", "More"],
+                          [marks["robot"], marks["ai"], "⋯", "»"], self.NAMED - 4))
+        self.assertEqual([canvas.hit(x, NAMES) for x in (1, self.NAMED - 8, self.NAMED - 6)],
+                         ["button:files", "panels", "to_rail"])
+
+    def test_its_field_filters_and_rows_keep_the_inset_of_a_chosen_rows_content(self):
+        # the field and its filters, Open and Closed, an issue's priority bar, number and age, a line above them
+        self.on_github()
+        set_env(self, GH_ISSUES=json.dumps([{"number": 42, "title": "Login fails on Safari", "state": "OPEN",
+                                             "labels": [{"name": "P1"}], "assignees": [],
+                                             "updatedAt": "2026-10-22T10:00:00Z",
+                                             "url": "https://github.com/acme/app/issues/42"}]))
+        self.start()
         self.until(lambda s: "project" in s and "Issues" in self.tabs())
-        self.assertEqual(text(self.app.canvas, sidebar.stack.ROW).split(),
-                         ["Chats", "Files", "Search", "Changes", "2", "Issues", "»", "⋯"])
+        self.term.type(Key("f12"))
+        self.until(lambda s: "#42 Login fails on Safari" in s)
+        canvas, y = self.app.canvas, self.at("#42")
+        field = self.at("Search issues")
+        self.assertEqual(strays(canvas), [], self.screen())
+        edges = (INSET, self.NAMED - INSET)
+        self.assertEqual([reach(canvas, row) for row in (field - 1, field, field + 1)], [edges] * 3)
+        self.assertEqual((reach(canvas, self.at("Open"))[0], reach(canvas, y)[0], reach(canvas, y + 1)),
+                         (INSET, INSET, edges))
+        self.assertEqual(text(canvas, y)[INSET], "▌")                       # its priority's bar first
+        set_env(self, GH_ISSUES="[]")
+        self.term.type(Key("char", "R"))
+        self.until(lambda s: "No open issues" in s)
+        self.assertEqual((reach(self.app.canvas, self.at("No open issues"))[0], strays(self.app.canvas)), (INSET, []))
 
     def test_enter_previews_the_issue(self):
         self.on_github()
@@ -702,6 +948,52 @@ class IssuesTab(Harness):
         self.until(lambda s: len([c for c in self.gh_calls() if c.startswith("issue list")]) >= 2)
 
 
+class NewAgentForAnIssue(unittest.TestCase):
+    """To agent in a tab with no Claude or Codex: the agent started last, in a new tab of the workspace, as Chats
+    reopens one (the right column beside it), ready for the prompt typed in."""
+
+    class Recorder:
+        def __init__(self):
+            self.calls = []
+
+        def call(self, *args):
+            self.calls.append(args)
+            return {"root_pane": {"pane_id": "w1:p9"}, "tab": {"tab_id": "w1:t3"}} if args[:2] == ("tab", "create") \
+                else {}
+
+    def test_the_agent_started_last_in_a_new_tab_named_after_the_issue(self):
+        state = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, state)
+        panes.remember_agent(state, "codex")
+        built = []
+        set_attrs(self, panes, build=lambda call, pane, cwd, state_dir: built.append((pane, cwd)))
+        herdr = self.Recorder()
+        host = mock.Mock(settings={**sidebar.DEFAULTS, "icons": False}, repo="/repo/app", root="/repo/app/src",
+                         state_dir=state, herdr=herdr)
+        pane = changes_panel.Changes(host).new_agent("w1", mock.Mock(number=42, title="Login fails on Safari"))
+        self.assertEqual(pane, "w1:p9")
+        self.assertEqual(herdr.calls, [
+            ("tab", "create", "--workspace", "w1", "--cwd", "/repo/app", "--label", "#42 Login fails on Safa…",
+             "--no-focus"),
+            ("pane", "rename", "w1:p9", "codex"),
+            ("agent", "start", "codex-42", "--kind", "codex", "--pane", "w1:p9", "--timeout", "60000"),
+            ("tab", "focus", "w1:t3")])
+        self.assertEqual(built, [("w1:p9", "/repo/app")])               # the right column, in the repository
+
+    def test_the_agent_started_last_is_kept_with_the_settings_claude_by_default(self):
+        state = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, state)
+        self.assertEqual(panes.last_agent(state), "claude")
+        panes.remember_agent(state, "codex")
+        self.assertEqual(panes.last_agent(state), "codex")
+        with open(os.path.join(state, "settings.json"), "w") as f:
+            json.dump({"agent": "../x", "icons": False}, f)                     # a stray value: the first again
+        self.assertEqual(panes.last_agent(state), "claude")
+        panes.remember_agent(state, "codex")
+        self.assertEqual(sidebar.load_settings(os.path.join(state, "settings.json")),       # the others kept
+                         {**sidebar.DEFAULTS, "icons": False, "agent": "codex"})
+
+
 class ColumnWidth(Harness):
     """The column dragged wider in one tab: every other tab's column gets that width at once, and it is remembered."""
 
@@ -719,11 +1011,12 @@ class ColumnWidth(Harness):
         self.addCleanup(fake.server.close)
         set_env(self, HERDR_SOCKET_PATH=os.path.join(sock, "h.sock"), HERDR_PANE_ID="w1:p2")
         self.start()
-        self.until(lambda s: "project" in s)
+        self.until(lambda s: "project" in s and fake.tabs["w1:t1"][0]["ratio"] == 0.59)    # first: every name
+        fake.tabs["w1:t1"][0]["ratio"] = 0.6                                # dragged to 80 cells
         self.term.type(Resize(40, 30))
         self.until(lambda s: ("layout.set_split_ratio", {"tab_id": "w2:t1", "path": [], "ratio": 0.6}) in fake.calls)
         with open(os.path.join(self.state, "column.json")) as f:
-            self.assertEqual(json.load(f)["ratio"], 0.6)
+            self.assertEqual(json.load(f)["open"], 80)                     # in cells: any window keeps it
 
 
 class NotYetARepository(Harness):
@@ -733,7 +1026,7 @@ class NotYetARepository(Harness):
         self.start()
 
     def test_it_works_once_the_folder_becomes_one(self):
-        self.term.type(Key("char", "4"))
+        self.term.type(Key("char", "3"))
         self.until(lambda s: "Not a git repository" in s)
         subprocess.run(["git", "-C", self.root, "init", "-q", "-b", "main"], check=True)
         # the whole list first: a row coming in later would move the first change from under the keys
@@ -773,18 +1066,18 @@ class ChosenInFiles(Harness):
         self.until(lambda s: "lib" in s)
 
     def test_without_a_folder_chosen_it_is_no_repository(self):
-        self.term.type(Key("char", "4"))
+        self.term.type(Key("char", "3"))
         self.until(lambda s: "Not a git repository" in s)
 
     def test_the_repository_of_the_folder_chosen_in_files_shows(self):
         self.choose_lib()
-        self.term.type(Key("char", "4"))
+        self.term.type(Key("char", "3"))
         self.until(lambda s: "lib.txt" in s and "lib" in self.row("⎇"), timeout=10)     # the repository row
         self.assertNotIn("app.txt", self.screen())
 
     def test_its_commit_goes_into_that_repository(self):
         self.choose_lib()
-        self.term.type(Key("char", "4"))
+        self.term.type(Key("char", "3"))
         self.until(lambda s: "lib.txt" in s, timeout=10)
         self.term.type(Key("down"), Key("down"), Key("enter"))                   # lib.txt staged
         self.until(lambda s: "Staged changes" in s, timeout=15)
@@ -805,8 +1098,8 @@ class ChosenInFiles(Harness):
 
 
 class PaneMenu(unittest.TestCase):
-    """The ⋯ at the tab row's end, or a right click on the row: the panels with a ✓ while shown, each of the tab's
-    other panes closed or shown back, About's lines."""
+    """The ⋯ at the row's end, or a right click on the row: the views with a ✓ while shown, each of the tab's other
+    panes closed or shown back, Settings… last."""
 
     class Herdr:
         def call(self, *args):
@@ -820,15 +1113,16 @@ class PaneMenu(unittest.TestCase):
         set_env(self, HERDR_PANE_ID="w1:p2", HOME=self.tmp)
         self.addCleanup(end_jobs)                       # before the folders go: a job of the dock's writes there
         self.brought = []
-        self.app = sidebar.App(self.tmp, FakeTerminal(45, 30), self.Herdr(), os.path.join(self.tmp, "state"))
+        self.app = sidebar.App(self.tmp, FakeTerminal(COLS, 30), self.Herdr(), os.path.join(self.tmp, "state"))
 
-    PANELS = ["✓ Chats", "✓ Files", "✓ Search", "✓ Changes", None]       # Issues: on GitHub only
-    PAST = 35                 # a cell of the tab row past its tabs, before » (45 cells: Changes ends at 34)
+    PANELS = ["✓ Files", "✓ Search", "✓ Changes", "✓ Agent", None]     # Issues: on GitHub only; Chats: the list's
+    PAST = 62                 # a cell of the row past its buttons (69 cells: More ends at 61, »'s block from 63)
 
     def test_it_offers_the_other_panes_and_brings_the_one_chosen(self):
         self.app.draw()
-        self.app.handle(Mouse("press", self.PAST, ROW, 2))              # the tab row, past its tabs
-        self.assertEqual(self.app.menu[0].choices, self.PANELS + ["Show terminal", "Restore panels"])
+        self.app.handle(Mouse("press", self.PAST, NAMES, 2))              # the row, past its buttons
+        self.assertEqual(self.app.menu[0].choices, self.PANELS + ["Show terminal", "Restore panels", None,
+                                                                  "Settings…"])
         with mock.patch.object(sidebar.panes, "bring",
                                lambda call, tab, kinds, state_dir: self.brought.append((tab, set(kinds)))):
             self.pick("Show terminal")
@@ -850,69 +1144,90 @@ class PaneMenu(unittest.TestCase):
             app.handle(Mouse("press", self.PAST, ROW, 2))
         app.draw()
         rows = ["".join(ch for ch, _ in row) for row in app.canvas.rows]
-        y = next(n for n, row in enumerate(rows) if re.search(r"│" + re.escape(choice) + r" *│", row))
+        y = next(n for n, row in enumerate(rows) if re.search(r"│ " + re.escape(choice) + r" *│", row))
         app.handle(Mouse("press", rows[y].index(choice), y, 0))
 
-    def test_a_panel_unchecked_leaves_the_tab_row_and_comes_back_checked(self):
-        # as Adobe's Window menu: every panel the dock has, a ✓ on the ones shown
+    def test_a_view_unchecked_leaves_the_row_and_comes_back_checked(self):
+        # as Adobe's Window menu: every view the dock has, a ✓ on the ones shown
         self.pick("✓ Search")
-        self.assertEqual(self.app.tabs(), ["conversations", "files", "changes"])
+        self.assertEqual(self.app.row(), ["files", "changes", "agent"])
         self.app.draw()
-        self.assertEqual(text(self.app.canvas, ROW).split()[:-2], ["Chats", "Files", "Changes"])
+        self.assertEqual(text(self.app.canvas, NAMES).split(), ["Files", "Changes", "Agent", "Chats", "More"])
         with open(os.path.join(self.tmp, "state", "settings.json")) as f:
             self.assertEqual(json.load(f)["hidden_panels"], ["search"])
         self.pick("  Search")
-        self.assertIn("search", self.app.tabs())
+        self.assertIn("search", self.app.row())
 
-    def test_a_group_left_without_a_panel_leaves_no_gap(self):
-        self.pick("✓ Chats")
+    def test_a_group_left_without_a_view_leaves_no_gap(self):
+        self.pick("✓ Files")
+        self.pick("✓ Search")
         self.app.draw()
-        self.assertTrue(text(self.app.canvas, ROW).startswith(" Files  Search   Changes"))
+        self.assertEqual(text(self.app.canvas, NAMES).rstrip(), "  Changes    Agent     Chats      More")
 
-    def test_a_hidden_panel_stays_hidden_in_every_tab(self):
+    def test_a_hidden_view_stays_hidden_in_every_tab(self):
         self.pick("✓ Changes")
-        other = sidebar.App(self.tmp, FakeTerminal(45, 30), self.Herdr(), os.path.join(self.tmp, "state"))
-        self.assertNotIn("changes", other.tabs())                          # a tab's sidebar started later
+        other = sidebar.App(self.tmp, FakeTerminal(COLS, 30), self.Herdr(), os.path.join(self.tmp, "state"))
+        self.assertNotIn("changes", other.row())                           # a tab's sidebar started later
         self.pick("  Changes", other)
         self.app.next_poll = 0
         self.app.tick()                                                    # one already running: at its next look
-        self.assertIn("changes", self.app.tabs())
+        self.assertIn("changes", self.app.row())
 
-    def test_the_last_panel_shown_stays(self):
-        for choice in ("✓ Chats", "✓ Files", "✓ Search"):
+    def test_the_last_view_shown_stays(self):
+        for choice in ("✓ Files", "✓ Search", "✓ Changes"):
             self.pick(choice)
-        self.pick("✓ Changes")
-        self.assertEqual(self.app.tabs(), ["changes"])
-        self.assertEqual((self.app.note, self.app.shown()), ("One panel stays shown", "changes"))
+        self.pick("✓ Agent")
+        self.assertEqual(self.app.row(), ["agent"])
+        self.assertEqual((self.app.note, self.app.shown()), ("One panel stays shown", "agent"))
 
     def test_two_tabs_hiding_panels_at_once_keep_both(self):
-        other = sidebar.App(self.tmp, FakeTerminal(45, 30), self.Herdr(), os.path.join(self.tmp, "state"))
+        other = sidebar.App(self.tmp, FakeTerminal(COLS, 30), self.Herdr(), os.path.join(self.tmp, "state"))
         self.pick("✓ Search")
         self.pick("✓ Changes", other)                                     # before its next look: Search still there
         with open(os.path.join(self.tmp, "state", "settings.json")) as f:
             self.assertEqual(sorted(json.load(f)["hidden_panels"]), ["changes", "search"])
 
-    def test_the_last_panel_shown_stays_whatever_another_tab_hid(self):
-        other = sidebar.App(self.tmp, FakeTerminal(45, 30), self.Herdr(), os.path.join(self.tmp, "state"))
-        for choice in ("✓ Chats", "✓ Files", "✓ Search"):
+    def test_the_last_view_shown_stays_whatever_another_tab_hid(self):
+        other = sidebar.App(self.tmp, FakeTerminal(COLS, 30), self.Herdr(), os.path.join(self.tmp, "state"))
+        for choice in ("✓ Files", "✓ Search", "✓ Changes"):
             self.pick(choice)
-        self.pick("✓ Changes", other)
+        self.pick("✓ Agent", other)
         self.assertEqual(other.note, "One panel stays shown")
         with open(os.path.join(self.tmp, "state", "settings.json")) as f:
-            self.assertEqual(sorted(json.load(f)["hidden_panels"]), ["conversations", "files", "search"])
+            self.assertEqual(sorted(json.load(f)["hidden_panels"]), ["changes", "files", "search"])
 
-    def test_every_panel_hidden_by_another_tab_leaves_the_first_shown(self):
-        # a tab on GitHub hid every panel but Issues, which this folder, on no GitHub, does not have
+    def test_every_view_hidden_by_another_tab_leaves_the_first_shown(self):
+        # a tab on GitHub hid every view but Issues, which this folder, on no GitHub, does not have; an older
+        # version's Chats among them is no view of the row
         os.makedirs(os.path.join(self.tmp, "state"), exist_ok=True)
         with open(os.path.join(self.tmp, "state", "settings.json"), "w") as f:
-            json.dump({"hidden_panels": ["conversations", "files", "search", "changes"]}, f)
+            json.dump({"hidden_panels": ["chats", "files", "search", "changes", "agent"]}, f)
         self.app.next_poll = 0
         self.app.tick()
-        self.assertEqual(self.app.tabs(), ["conversations"])
-        self.app.handle(Key("char", "x"))
+        self.assertEqual(self.app.row(), ["files"])
+        self.app.handle(Key("char", "."))
         self.app.draw()
-        self.assertEqual(text(self.app.canvas, ROW).split(), ["Chats", "»", "⋯"])
-        self.assertEqual(self.app.views["conversations"].typed, "x")                # the keys go to it
+        self.assertEqual(text(self.app.canvas, NAMES).split(), ["Files", "Chats", "More"])
+        self.assertTrue(self.app.settings["hidden"])                                # the keys go to Files
+
+    def test_the_icons_chosen_in_settings_are_taken_at_the_next_look(self):
+        # Settings' General (herdr's popup, or another tab's i in Files) wrote the sidebar's settings.json: every view
+        # and the row wear the set chosen, nothing written back
+        self.app.draw()
+        self.assertIn(glyphs(True)["files"], text(self.app.canvas, ROW))
+        path = os.path.join(self.tmp, "state", "settings.json")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            json.dump({"icons": False}, f)
+        self.app.next_poll = 0
+        self.assertTrue(self.app.tick())
+        self.app.draw()
+        self.assertNotIn(glyphs(True)["files"], text(self.app.canvas, ROW))
+        self.assertEqual({view.icons for view in self.app.views.values()}, {False})
+        with open(path) as f:
+            self.assertEqual(json.load(f), {"icons": False})
+        self.app.next_poll = 0
+        self.assertFalse(self.app.tick())                                  # as it is: nothing to draw again
 
     def test_a_key_for_a_hidden_panel_shows_it_again(self):
         self.pick("✓ Search")
@@ -921,15 +1236,16 @@ class PaneMenu(unittest.TestCase):
         with open(os.path.join(self.tmp, "state", "settings.json")) as f:
             self.assertEqual(json.load(f)["hidden_panels"], [])
 
-    def test_the_dots_at_the_tab_rows_right_end_open_it(self):
+    def test_more_at_the_rows_end_opens_it_under_itself(self):
         self.app.draw()
-        dots = text(self.app.canvas, ROW).index("⋯")
-        self.app.handle(Mouse("press", dots, ROW, 0))                       # a left click
-        self.assertEqual(self.menu_rows(), [row for row in self.PANELS if row] + ["Show terminal", "Restore panels"])
+        more = text(self.app.canvas, NAMES).index("More")
+        self.app.handle(Mouse("press", more, NAMES, 0))                     # a left click, on its name or its ⋯
+        self.assertEqual(self.menu_rows(), [row for row in self.PANELS if row] + ["Show terminal", "Restore panels",
+                                                                                   "Settings…"])
         rows = ["".join(ch for ch, _ in row) for row in self.app.canvas.rows]
         top = next(y for y, row in enumerate(rows) if "┌" in row)
-        self.assertEqual(top, ROW + 1)                                     # right under the ⋯ (one row high)
-        self.assertEqual(rows[top].rindex("┐"), dots + 2)                   # its right edge with the ⋯'s
+        self.assertEqual(top, NAMES + 1)                                   # right under it, over its name
+        self.assertTrue(rows[top].index("┌") <= more < rows[top].rindex("┐"), rows[top])
 
     def installed(self, version="0.3.0"):
         """herdr-fold installed here, this VERSION, in a home of the test's own."""
@@ -940,40 +1256,69 @@ class PaneMenu(unittest.TestCase):
             f.write(f"{version}\n")
         return folder
 
-    def test_it_names_herdr_folds_version_and_switches_the_update_check(self):
-        folder = self.installed()
-        set_env(self, HERDR_FOLD_NO_UPDATE_CHECK=None)
-        self.app.update = sidebar.update.check(ask=lambda: "0.3.0")
-        self.app.draw()
-        self.app.handle(Mouse("press", self.PAST, ROW, 2))
-        self.assertEqual(self.app.menu[0].choices[-3:], [None, "herdr-fold 0.3.0", "✓ Check for Updates"])
-        self.pick("✓ Check for Updates")
-        end_jobs()
-        self.app.collect()
-        with open(os.path.join(folder, "update.json")) as f:
-            self.assertIs(json.load(f)["on"], False)
-        self.assertFalse(self.app.update["on"])
+    NEWER = {"version": "0.3.0", "latest": "0.4.0", "newer": True, "on": True, "checked": 0, "error": None,
+             "updated": None}
 
-    def test_a_newer_version_is_told_once_and_shown_until_updated(self):
-        self.installed()
+    def test_more_offers_settings_and_opens_its_popup(self):
+        # one home for herdr-fold's own settings, the version and the update check: Settings…, herdr's popup, More's
+        # last line (settings.html); no About of its own beside it
+        calls, herdr = [], self.Herdr()
+        self.app.herdr = mock.Mock(call=lambda *args: calls.append(args) or herdr.call(*args))
+        self.app.update = {**self.NEWER, "latest": "0.3.0", "newer": False}
+        self.pick("Settings…")
+        end_jobs()
+        self.assertIn(("plugin", "pane", "open", "--plugin", "herdr-fold.sidebar", "--entrypoint", "settings",
+                       "--focus"), calls)
+        self.assertIsNone(self.app.menu)
+        self.app.handle(Mouse("press", self.PAST, ROW, 2))
+        self.assertEqual(self.app.menu[0].choices[-2:], [None, "Settings…"])               # nothing more of it here
+        self.assertNotIn("About", " ".join(self.menu_rows()))
+
+    def test_mores_dot_shows_while_a_newer_is_out(self):
+        # a newer version: a dot on More, in the accent, its tip saying which; none on Settings… in its menu (the
+        # popup opens at About then); the row moves nothing for it
+        self.app.update = self.NEWER
+        self.app.draw()
+        icons = text(self.app.canvas, ROW)
+        more = icons.index("⋯")
+        self.assertEqual(self.app.canvas.rows[ROW][more + 2], ("●", sidebar.Style(fg="accent")))
+        self.app.point("panels", more, ROW)
+        self.assertEqual((self.app.tip[1], self.app.tip[3]), ("More · herdr-fold 0.4.0 is out", NAMES + 1))
+        self.app.handle(Mouse("press", more, ROW, 0))
+        self.assertEqual(self.menu_rows()[-1], "Settings…")
+        self.assertEqual(self.app.menu[0].width(), len("│ Close terminal │"))    # as wide as without one out
+        self.app.menu = None
+        self.app.update = {**self.NEWER, "latest": "0.3.0", "newer": False}
+        self.app.draw()
+        self.assertEqual((text(self.app.canvas, ROW), self.app.canvas.rows[ROW][more + 2][0]), (icons[:more + 2] +
+                         " " + icons[more + 3:], " "))
+
+    def test_no_news_row_is_left(self):
+        # a newer version said on the pane's last row once; now More's dot alone says it
+        self.app.update = self.NEWER
+        self.app.draw()
+        self.assertEqual(text(self.app.canvas, self.app.canvas.height - 1).strip(), "")
+        self.assertNotIn("news", {target for _y, _x0, _x1, target in self.app.canvas.regions})
+
+    def test_an_update_is_said_once(self):
+        # Updated to herdr-fold 0.4.0, one herdr notification for every tab's sidebar and the app; no "is out" one
+        self.installed("0.4.0")
+        sidebar.update.keep(seen="0.3.0")
         calls = []
         self.app.herdr = mock.Mock(call=lambda *args: calls.append(args) or {})
-        found = {"version": "0.3.0", "latest": "0.4.0", "newer": True, "on": True, "told": None}
-        self.app.got_update(found)
+        found = sidebar.update.check(ask=lambda: "0.5.0")
+        self.assertEqual((found["updated"], found["newer"]), ("0.4.0", False))
+        other = sidebar.App(self.tmp, FakeTerminal(45, 30), self.app.herdr, os.path.join(self.tmp, "state"))
+        for app in (self.app, other):                                       # the same answer, in two tabs
+            app.got_update(found)
+            end_jobs()
+            app.collect()
+        self.assertEqual(calls, [("notification", "show", "Updated to herdr-fold 0.4.0", "--body",
+                                  "What's new: More › Settings › About", "--sound", "none")])
+        self.assertIsNone(sidebar.update.check(ask=lambda: None)["updated"])
+        self.app.got_update({**self.NEWER, "updated": None})               # a newer one out: no notification
         end_jobs()
-        self.app.collect()
-        self.assertEqual([c[:3] for c in calls], [("notification", "show", "herdr-fold 0.4.0 is out")])
-        self.assertEqual(sidebar.update.check(ask=lambda: None)["told"], "0.4.0")
-        self.app.got_update({**found, "told": "0.4.0"})                     # another sidebar's: not told again
-        end_jobs()
-        self.app.collect()
         self.assertEqual(len(calls), 1)
-        self.app.draw()
-        last = "".join(ch for ch, _ in self.app.canvas.rows[-1])
-        self.assertIn("herdr-fold 0.4.0 is out", last)
-        with mock.patch.object(sidebar.media, "open_in_browser", return_value=True) as opened:
-            self.app.handle(Mouse("press", 5, self.app.canvas.height - 1, 0))
-        opened.assert_called_once_with(sidebar.update.RELEASES)
 
     def test_a_click_in_another_pane_closes_every_menu(self):
         # herdr tells the pane it lost the keys (focus reporting): no menu stays open behind
@@ -989,7 +1334,7 @@ class PaneMenu(unittest.TestCase):
         self.app.handle(Focus(False))
         self.assertIsNone(files.menu)
 
-    def test_a_click_on_the_tab_row_closes_the_views_menu(self):
+    def test_a_click_on_the_row_closes_the_views_menu(self):
         self.app.draw()
         files = self.app.views["files"]
         files.open_menu(None, 5, 5)
@@ -998,14 +1343,14 @@ class PaneMenu(unittest.TestCase):
         self.assertIsNotNone(self.app.menu)
         self.app.handle(Key("esc"))
         files.open_menu(None, 5, 5)
-        search = next(x for x in range(45) if self.app.canvas.hit(x, ROW) == "tab:search")
-        self.app.handle(Mouse("press", search, ROW, 0))                  # another panel: the menu not kept behind
+        search = next(x for x in range(45) if self.app.canvas.hit(x, ROW) == "button:search")
+        self.app.handle(Mouse("press", search, ROW, 0))                  # another view: the menu not kept behind
         self.assertTrue(self.app.showing("search"))
         self.assertIsNone(files.menu)
 
-    def test_a_right_click_on_a_tab_opens_it_and_leaves_the_panel_shown(self):
+    def test_a_right_click_on_a_button_opens_it_and_leaves_the_view_shown(self):
         self.app.draw()
-        search = next(x for x in range(45) if self.app.canvas.hit(x, ROW) == "tab:search")
+        search = next(x for x in range(45) if self.app.canvas.hit(x, ROW) == "button:search")
         self.app.handle(Mouse("press", search, ROW, 2))
         self.assertIsNotNone(self.app.menu)
         self.assertTrue(self.app.showing("files"))
@@ -1021,7 +1366,7 @@ class PaneMenu(unittest.TestCase):
         self.app.herdr = mock.Mock(call=call)
         self.app.draw()
         self.app.handle(Mouse("press", self.PAST, ROW, 2))
-        self.assertEqual(self.menu_rows()[-1], "Close terminal")                           # not itself
+        self.assertEqual(self.menu_rows()[-2:], ["Close terminal", "Settings…"])           # not itself
         self.assertNotIn("Close sidebar", self.menu_rows())
         self.pick("Close terminal")
         deadline = time.monotonic() + 5
@@ -1032,8 +1377,8 @@ class PaneMenu(unittest.TestCase):
 
 
 class Dock(unittest.TestCase):
-    """The dock's tab row: the panel shown and where a key goes, what two sidebars on one folder keep, a handover and a
-    seed's panel, a note, the column's room."""
+    """The dock's row: the view shown and where a key goes, the counts, what two sidebars on one folder keep, a
+    handover and a seed's view, a note, the column's room."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -1043,26 +1388,43 @@ class Dock(unittest.TestCase):
         self.state = os.path.join(self.tmp, "state")
         self.app = self.sidebar()
 
-    def sidebar(self, rows=30):
-        return sidebar.App(self.tmp, FakeTerminal(column.FEWEST, rows), PaneMenu.Herdr(), self.state)
+    def sidebar(self, rows=30, cols=COLS):
+        return sidebar.App(self.tmp, FakeTerminal(cols, rows), PaneMenu.Herdr(), self.state)
 
     def test_it_starts_on_files_whose_keys_work_at_once(self):
-        # Chats' filter would take every character: n, . and q are Files' own at once
+        # n, . and q are Files' own at once
         self.assertEqual((self.app.shown(), self.app.keyed()), ("files", "files"))
         self.app.handle(Key("char", "."))
         self.assertTrue(self.app.settings["hidden"])
 
-    def test_the_tab_row_shows_chats_dot_while_one_waits_and_changes_count(self):
-        waiting = Conversation("claude", "c1", "Fix the page", self.tmp, 0.0, "blocked", "w1:p1")
-        self.app.work["conversations"].view.items = [waiting]
+    def test_a_count_is_a_dot_by_its_icon_its_number_in_the_tip(self):
+        # in the row and on the rail: Changes' in the changes' color, Chats' in the waiting one's; a Nerd Font or not
+        waiting = Chat("claude", "c1", "Fix the page", self.tmp, 0.0, "blocked", "w1:p1")
+        self.app.work["chats"].view.items = [waiting, replace(waiting, id="c2")]
+        self.app.status = Status(changes=[f"f{i}.py" for i in range(1234)])
+        dots = {"chats": ("●", "deleted"), "changes": ("●", "modified")}
+        self.assertEqual(self.app.marks(), dots)
+        self.app.save(icons=False)
+        self.assertEqual(self.app.marks(), dots)
+        for target, tip in (("button:changes", "Changes · 1.2k"), ("button:chats", "Chats · 2 waiting"),
+                            ("icon:changes", "Changes · 1.2k"), ("button:files", None)):
+            self.app.tip = None
+            self.app.point(target, 5, ROW)
+            self.assertEqual(self.app.tip and self.app.tip[1], tip, target)
+
+    def test_the_row_counts_the_chats_waiting_beside_the_star_and_the_changes(self):
+        waiting = Chat("claude", "c1", "Fix the page", self.tmp, 0.0, "blocked", "w1:p1")
+        self.app.work["chats"].view.items = [waiting, replace(waiting, id="c2"), replace(waiting, id="c3",
+                                                                                                  state="done")]
         self.app.status = Status(staged=["a.py"], changes=["b.py", "c.py"])
         self.app.draw()
-        row = text(self.app.canvas, ROW)
-        self.assertEqual(row[:37], " Chats ●   Files  Search   Changes 3 ")
-        self.assertEqual([self.app.canvas.rows[ROW][row.index(mark)][1].fg for mark in ("●", "3")], ["modified"] * 2)
-        self.app.work["conversations"].view.items = [replace(waiting, state="working")]
+        row, marks = text(self.app.canvas, ROW), glyphs(True)
+        self.assertEqual(row[:49], f"     {marks['files']}         {marks['search']}          {marks['git']} ●"
+                                   f"       {marks['robot']}         {marks['ai']} ●")
+        self.assertEqual([self.app.canvas.rows[ROW][x][1].fg for x in (28, 48)], ["modified", "deleted"])
+        self.app.work["chats"].view.items = [replace(waiting, state="working")]
         self.app.draw()
-        self.assertEqual(text(self.app.canvas, ROW)[:37], " Chats     Files  Search   Changes 3 ")
+        self.assertEqual(text(self.app.canvas, ROW), row[:48] + " " + row[49:])          # gone: nothing moves
 
     def test_i_in_files_switches_every_panels_icons(self):
         # the keys start in Files; its view asks for the icons, which the dock keeps for every panel
@@ -1071,12 +1433,12 @@ class Dock(unittest.TestCase):
         self.assertFalse(self.app.settings["icons"])
         self.assertFalse(self.app.views["changes"].icons)
 
-    def test_a_panel_hidden_in_the_menu_shown_gives_way_to_the_first_one_left(self):
+    def test_a_view_hidden_in_the_menu_shown_gives_way_to_the_first_one_left(self):
         self.app.show("search")
         self.app.hide("search", True)
         self.assertEqual(self.app.shown(), "files")
         self.app.hide("files", True)
-        self.assertEqual(self.app.shown(), "conversations")
+        self.assertEqual(self.app.shown(), "changes")
         self.app.hide("search", False)                                    # back: shown again, as the folder keeps it
         self.assertEqual(self.app.shown(), "search")
 
@@ -1107,8 +1469,8 @@ class Dock(unittest.TestCase):
         self.assertEqual({key: sidebar.load_settings(os.path.join(self.state, "settings.json"))[key]
                           for key in ("icons", "hidden_panels")}, {"icons": False, "hidden_panels": ["search"]})
 
-    def test_the_columns_room_is_the_tab_rows_and_follows_the_last_change(self):
-        # two panels hidden in a row: the room the first asked for never lands after the second's
+    def test_the_columns_room_is_the_rows_and_follows_the_last_change(self):
+        # two views hidden in a row: the room the first asked for never lands after the second's
         calls, first = [], threading.Event()
         real = sidebar.column.need
 
@@ -1120,27 +1482,29 @@ class Dock(unittest.TestCase):
 
         with mock.patch.object(sidebar.column, "need", need):
             self.app.hide("search", True)
-            self.app.hide("conversations", True)
+            self.app.hide("files", True)
             first.set()
             for _ in range(3):
                 end_jobs()
                 self.app.collect()
-        self.assertEqual(sidebar.column.kept(self.state)["least"]["w1:t1"], sidebar.narrowest(self.app.tabs()))
-        self.assertEqual(sidebar.narrowest(self.app.tabs()), len(" Files   Changes 999   »   ⋯   "))
+        self.assertEqual(sidebar.column.kept(self.state)["least"]["w1:t1"], sidebar.narrowest(self.app.row()))
+        # its icons alone: Changes', Agent's, Chats' and More's a cell apart, a cell of air, »'s block, a cell in
+        self.assertEqual(sidebar.narrowest(self.app.row()),
+                         2 * sidebar.stack.EDGE + 5 * sidebar.stack.ICON_BUTTON + 4 * sidebar.stack.GAP)
         self.assertEqual(sidebar.narrowest(list(sidebar.PANELS)), column.NARROWEST)
 
-    def test_the_conversations_are_read_less_often_while_off_screen(self):
+    def test_the_chats_are_read_less_often_while_off_screen(self):
         now, reads = [100.0], []
         app = sidebar.App(self.tmp, FakeTerminal(45, 30), PaneMenu.Herdr(), self.state, clock=lambda: now[0])
-        family = app.work["conversations"]
+        family = app.work["chats"]
         family.read, family.got = (lambda: reads.append(now[0])), (lambda seen: None)
         for at in (100.0, 101.5, 110.5):                                   # behind Files: every AWAY seconds
             now[0] = at
             app.tick()
             end_jobs()
             app.collect()
-        app.show("conversations")
-        now[0] = 111.6                                                     # on screen: every POLL seconds
+        app.open_chats()
+        now[0] = 111.6                                                     # open: every POLL seconds
         app.tick()
         end_jobs()
         self.assertEqual(reads, [100.0, 110.5, 111.6])
@@ -1150,8 +1514,8 @@ class Dock(unittest.TestCase):
         self.app.handle(Key("f12"))                                        # no Issues here: nothing to show
         self.assertEqual(self.app.settings["hidden_panels"], ["issues"])
 
-    def test_a_handover_keeps_this_sidebars_own_tab(self):
-        # another sidebar on the folder chose another tab since: the new version comes back as this one was
+    def test_a_handover_keeps_this_sidebars_own_view(self):
+        # another sidebar on the folder chose another view since: the new version comes back as this one was
         self.app.show("changes")
         other = self.sidebar()
         other.show("search")
@@ -1159,12 +1523,146 @@ class Dock(unittest.TestCase):
         new.take(self.app.left())
         self.assertEqual(new.shown(), "changes")
 
-    def test_a_seed_shows_a_panel_hidden_in_the_menu_again(self):
-        # Cmd+Shift+R in a tab whose sidebar was closed by hand: the new one comes on Conversations (actions.find)
-        self.app.hide("conversations", True)
-        self.app.take({"show": "conversations"})
-        self.assertTrue(self.app.showing("conversations"))
-        self.assertNotIn("conversations", self.app.settings["hidden_panels"])
+    def test_an_older_versions_id_in_the_settings_is_read_as_chats(self):
+        # Chats is the ✦'s list, never a view of the row: hidden, it goes on the next write
+        os.makedirs(self.state, exist_ok=True)
+        path = os.path.join(self.state, "settings.json")
+        with open(path, "w") as f:
+            json.dump({"hidden_panels": ["conversations", "search"]}, f)
+        self.assertEqual(sidebar.load_settings(path)["hidden_panels"], ["chats", "search"])
+        app = self.sidebar()
+        self.assertEqual(app.row(), ["files", "changes", "agent"])
+        app.hide("files", True)
+        with open(path) as f:
+            self.assertEqual(json.load(f)["hidden_panels"], ["search", "files"])
+
+    def test_its_icons_alone_each_named_in_its_tip(self):
+        app = self.sidebar(cols=40)                                       # under 47 cells: no names
+        app.draw()
+        for target, tip in (("button:search", "Search"), ("panels", "More"), ("to_rail", "Collapse to icons")):
+            app.tip = None
+            app.point(target, 12, ROW)
+            self.assertEqual(app.tip[1], tip)
+        wide = self.sidebar()
+        wide.draw()
+        for target in ("button:search", "panels"):
+            wide.point(target, 18, ROW)
+            self.assertIsNone(wide.tip)                                    # its name under it says it already
+
+    def test_a_seed_shows_a_view_hidden_in_the_menu_again(self):
+        # a new preview tab's sidebar comes on what the one that opened it showed, hidden in the ⋯ since
+        self.app.hide("search", True)
+        self.app.take({"show": "search"})
+        self.assertTrue(self.app.showing("search"))
+        self.assertNotIn("search", self.app.settings["hidden_panels"])
+
+
+class ChatsList(unittest.TestCase):
+    """The ✦ at the row's left: the Chats list over the sidebar under its button, the keys going to it while
+    it is open; closed by its lit button, Esc, a click outside it and the pane losing the keys."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        set_env(self, HERDR_PANE_ID="w1:p2", HOME=self.tmp)
+        self.addCleanup(end_jobs)                       # before the folders go: a job of the dock's writes there
+        self.state = os.path.join(self.tmp, "state")
+        self.app = self.sidebar()
+
+    def sidebar(self):
+        app = sidebar.App(self.tmp, FakeTerminal(COLS, 30), PaneMenu.Herdr(), self.state)
+        waiting = Chat("claude", "c1", "Fix the page", self.tmp, time.time(), "blocked", "w1:p1")
+        app.views["chats"].set([waiting], ["app"], lambda folder: "app", "app")
+        return app
+
+    def rows(self):
+        self.app.draw()
+        return [text(self.app.canvas, y) for y in range(self.app.canvas.height)]
+
+    def at(self, target, y):
+        """The first cell on row Y that answers TARGET."""
+        self.app.draw()
+        return next(x for x in range(self.app.canvas.width) if self.app.canvas.hit(x, y) == target)
+
+    def open(self):
+        self.app.handle(Mouse("press", self.at("button:chats", NAMES), NAMES, 0))
+        return self.rows()
+
+    def test_chats_opens_it_under_its_button_on_the_views_own_background(self):
+        rows, top = self.open(), sidebar.stack.TOP - 1
+        canvas = self.app.canvas
+        self.assertEqual(rows[top].strip(), "")                             # the blank row under the row stays
+        backgrounds = {style.bg for row in canvas.rows[top:30] for _, style in row}
+        self.assertEqual(backgrounds - {"input", "selection"}, {None})      # every cell the views' own, no second
+        self.assertFalse(any(ch in "┌┐┘" for row in rows[top:30] for ch in row))          # edge to edge, no frame
+        self.assertEqual(rows[top + 2].split()[0], "Filter")                 # its field, tall as the views' fields
+        self.assertEqual(rows[top + 5].index("Fix the page"), 8)            # the views' padding
+        chosen = next(y for y in range(top, 30) if canvas.rows[y][20][1].bg == "selection")
+        self.assertEqual([canvas.rows[chosen][x][1].bg for x in (0, 1, COLS - 2, COLS - 1)], ["selection"] * 4)
+        star = glyphs(True)["ai"]
+        look = [canvas.rows[ROW][rows[ROW].index(star)][1], canvas.rows[NAMES][rows[NAMES].index("Chats")][1],
+                canvas.rows[NAMES][rows[NAMES].index("Files")][1]]
+        self.assertEqual(look, [screen.Style(fg="accent"), screen.Style(fg="accent"), screen.Style(fg="muted")])
+        lit = {name for name in ("Files", "Search", "Changes", "Chats", "More")
+               if canvas.rows[NAMES][rows[NAMES].index(name)][1].fg == "accent"}
+        self.assertEqual(lit, {"Chats"})                                    # one lit: Files back once it closes
+        self.assertEqual((self.app.keyed(), canvas.cursor), ("chats", (top + 2, 2)))
+
+    def test_its_filter_takes_every_key_while_it_is_open(self):
+        self.open()
+        for ch in "3q.":
+            self.app.handle(Key("char", ch))
+        self.assertEqual((self.app.views["chats"].typed, self.app.shown(), self.app.quit), ("3q.", "files",
+                                                                                                   False))
+        self.assertFalse(self.app.settings["hidden"])                       # Files' . waited
+
+    def test_its_x_esc_a_click_outside_and_the_pane_losing_the_keys_close_it(self):
+        top = sidebar.stack.TOP - 1
+        closers = {"its lit button": lambda rows: Mouse("press", rows[NAMES].index("Chats"), NAMES, 0),
+                   "Esc": lambda rows: Key("esc"),
+                   "a click on the row": lambda rows: Mouse("press", rows[NAMES].index("Search"), NAMES, 0),
+                   "another pane": lambda rows: Focus(False)}
+        for name, close in closers.items():
+            with self.subTest(name):
+                self.app.handle(close(self.open()))
+                self.assertEqual((self.app.chats, self.app.keyed(), self.app.shown()), (False, "files", "files"))
+                self.assertNotIn("chats", self.rows()[top])
+        self.app.handle(Key("char", "."))                                  # the sidebar's keys back: Files' own
+        self.assertTrue(self.app.settings["hidden"])
+
+    def test_a_click_inside_reaches_the_list(self):
+        rows, calls = self.open(), []
+        self.app.herdr = mock.Mock(call=lambda *args: calls.append(args) or {})
+        y = next(y for y, row in enumerate(rows) if "Fix the page" in row)
+        self.app.handle(Mouse("press", 10, y, 2))                          # its own menu, inside it
+        self.app.draw()
+        self.assertEqual(self.app.views["chats"].menu.on.title, "Fix the page")
+        self.app.handle(Key("esc"))                                        # the menu first
+        self.assertEqual((self.app.views["chats"].menu, self.app.chats), (None, True))
+        self.app.handle(Mouse("press", 10, y, 0))
+        end_jobs()
+        self.assertIn(("agent", "focus", "w1:p1"), calls)
+
+    def test_f7_opens_it_with_the_filter_empty_a_views_action_key_shows_the_view(self):
+        self.app.views["chats"].field.insert("zzz")
+        self.app.handle(Key(sidebar.FIND))
+        self.assertEqual((self.app.chats, self.app.views["chats"].typed, self.app.keyed()),
+                         (True, "", "chats"))
+        self.app.handle(Key("f11"))                                        # Cmd + Shift + G: closed, Changes shown
+        self.assertEqual((self.app.chats, self.app.keyed()), (False, "changes"))
+
+    def test_a_handover_comes_back_with_it_open(self):
+        self.open()
+        new = self.sidebar()
+        new.take(self.app.left())
+        self.assertEqual((new.chats, new.keyed(), new.shown()), (True, "chats", "files"))
+
+
+def labels(node):
+    """A layout tree by its panes' names: (direction, ratio, first, second), a pane its label."""
+    if node["type"] == "pane":
+        return node["label"]
+    return node["direction"], node["ratio"], labels(node["first"]), labels(node["second"])
 
 
 def column_tab(n, ratio=0.75):
@@ -1177,8 +1675,9 @@ def column_tab(n, ratio=0.75):
 
 
 class Rail(unittest.TestCase):
-    """The dock folded to its rail by the tab row's », in every tab: each panel's icon over its name, a press opening
-    the panel beside the rail, « opening the dock again; every tab's column and terminal with it."""
+    """The dock folded to its rail by the row's », in every tab: each panel's icon over its name, a press opening the
+    panel beside the rail (the ✦'s list too), « where » was opening the dock again; every tab's column and terminal
+    with it."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp(dir="/tmp")                 # a socket's name has room for 104 bytes
@@ -1208,9 +1707,9 @@ class Rail(unittest.TestCase):
         self.settle()
 
     def folded(self):
-        """The dock folded to its rail, the pane as narrow as herdr then makes it: 9 cells inside its frame."""
+        """The dock folded to its rail, the pane as narrow as herdr makes it in a narrow tab: RAIL cells inside."""
         self.press("to_rail")
-        self.app.term.cols = 9
+        self.app.term.cols = sidebar.column.RAIL
 
     def rows(self):
         self.app.draw()
@@ -1219,43 +1718,244 @@ class Rail(unittest.TestCase):
     def ratio(self, tab="w1:t1"):
         return self.fake.tabs[tab][0]["ratio"]
 
-    def test_the_rail_draws_each_panel_its_name_under_its_icon(self):
+    def test_the_rail_draws_each_panels_icon_alone_on_its_five_cells(self):
         marks = glyphs(True)
         self.app.hide("search", True)                                      # hidden in the ⋯: left out
-        waiting = Conversation("claude", "c1", "Fix the page", self.tmp, 0.0, "blocked", "w1:p1")
-        self.app.work["conversations"].view.items = [waiting]
+        waiting = Chat("claude", "c1", "Fix the page", self.tmp, 0.0, "blocked", "w1:p1")
+        self.app.work["chats"].view.items = [waiting]
         self.app.status = Status(staged=["a.py"], changes=["b.py"])
         self.folded()
-        self.assertEqual(self.rows()[:10], [" «", f"    {marks['ai']} ●", "  Chats", "", f"    {marks['files']}",
-                                            "  Files", "", f"    {marks['git']} 2", " Changes", ""])
+        # as the row's icons alone, each with its own half rows (blank but under the mouse), « the same, no names
+        self.assertEqual(self.rows()[:15], ["", "  «", "", "", f"  {marks['files']}", "", "", f"  {marks['git']} ●",
+                                            "", "", f"  {marks['robot']}", "", "", f"  {marks['ai']} ●", ""])
         canvas = self.app.canvas
-        self.assertEqual([canvas.rows[1][6][1].fg, canvas.rows[7][6][1].fg], ["modified", "modified"])
-        self.assertEqual([canvas.rows[1][4][1].fg, canvas.rows[2][2][1].fg], ["subtext", "muted"])
-        self.app.work["conversations"].view.items = [replace(waiting, state="working")]
-        self.assertEqual(self.rows()[1], f"    {marks['ai']}")                 # none waits: no dot
+        self.assertEqual([canvas.rows[7][4][1].fg, canvas.rows[13][4][1].fg], ["modified", "deleted"])
+        self.assertEqual(canvas.rows[4][2][1].fg, "subtext")
+        self.app.work["chats"].view.items = [replace(waiting, state="working")]
+        self.assertEqual(self.rows()[13], f"  {marks['ai']}")              # none waits: no count
+
+    def test_a_rail_icons_tip_is_its_name_whole_in_the_rails_cells(self):
+        # its name, its count after it, under its hover's half row; edge to edge where the content's inset has no room
+        # for it, a cell of air round it where the pane has (9 cells: a 100-cell tab's tenth, odd)
+        self.app.status = Status(staged=["a.py"], changes=["b.py"])
+        self.folded()
+        for cells, target, y, lines in ((5, "icon:files", 4, ["Files"]), (9, "icon:changes", 10, [" Changes", " · 2"])):
+            with self.subTest(target):
+                self.app.term.cols = cells
+                self.rows()
+                self.app.point(target, cells // 2, y)
+                self.app.tip = (*self.app.tip[:4], 0, False)                      # due
+                self.assertEqual(self.rows()[y + 2:y + 2 + len(lines)], lines)
+
+    def test_the_icon_under_the_mouse_has_the_hover_background_until_it_leaves(self):
+        self.folded()
+        self.rows()
+        self.app.handle(Mouse("move", 2, 10, 3))                                    # Changes' icon
+        self.rows()
+        lit = {(y, x) for y, row in enumerate(self.app.canvas.rows) for x, (_, style) in enumerate(row)
+               if style.bg == "hover"}
+        self.assertEqual(lit, {(10, x) for x in range(0, 5)})                       # its five cells, edge to edge
+        rows = self.app.canvas.rows                                                 # half a row above and below
+        self.assertEqual([[rows[y][x][0] for x in range(0, 5)] for y in (9, 11)], [["▄"] * 5, ["▀"] * 5])
+        self.app.handle(Mouse("move", 2, 22, 3))                                    # under the last one
+        self.rows()
+        self.assertFalse(any(style.bg == "hover" for row in self.app.canvas.rows for _, style in row))
+
+    def test_alone_the_rail_takes_the_whole_pane_herdr_makes_as_much_air_each_side(self):
+        # herdr keeps a tenth of a tab at least (13 cells inside the frame of a 155-cell tab, 19 of a 200-cell one):
+        # the rail across all of them, each icon on its very middle, « in the content's last cell, the hover as wide
+        self.app.status = Status(staged=["a.py"], changes=["b.py"])
+        self.folded()
+        for cells in (13, 19):
+            with self.subTest(cells=cells):
+                self.app.term.cols = cells
+                self.rows()
+                canvas = self.app.canvas
+                icons = {x for row in canvas.rows for x, (ch, _) in enumerate(row) if ch in glyphs(True).values()}
+                self.assertEqual(icons, {cells // 2})
+                self.assertEqual((strays(canvas), reach(canvas, ROW)), ([], (cells // 2, cells // 2 + 1)))     # «
+                self.app.handle(Mouse("move", cells // 2, 10, 3))                  # Changes' icon
+                self.rows()
+                lit = sorted({x for row in self.app.canvas.rows for x, (_, style) in enumerate(row)
+                              if style.bg == "hover"})
+                self.assertEqual((lit[0], cells - 1 - lit[-1]), (cells // 2 - 2, cells // 2 - 2))
+
+    def test_the_collapse_buttons_are_blocks_of_an_icon_alone_as_the_rows(self):
+        # » at the row's right end, « over the rail's icons in their column: an icon alone's five cells, lit under the
+        # mouse as a button of the row's (▄, its line, ▀), its tip under it
+        self.app.draw()
+        self.app.handle(Mouse("move", 40, ROW, 3))
+        self.rows()
+        self.assertEqual((text(self.app.canvas, ROW)[41], painted(self.app.canvas), self.app.canvas.hit(38, ROW),
+                          self.app.canvas.hit(44, ROW)), ("»", {(y, x) for y in (0, 1, 2) for x in range(39, 44)},
+                                                          "row", "row"))     # a cell of air after it
+        self.folded()
+        for cells in (sidebar.column.RAIL, 13):
+            with self.subTest(cells=cells):
+                self.app.term.cols = cells
+                self.rows()
+                self.app.handle(Mouse("move", cells // 2, ROW, 3))
+                self.rows()
+                block = range(cells // 2 - 2, cells // 2 + 3)
+                self.assertEqual((text(self.app.canvas, ROW).index("«"), painted(self.app.canvas)),
+                                 (cells // 2, {(y, x) for y in (0, 1, 2) for x in block}))
+                self.assertEqual(text(self.app.canvas, 3).strip(), "")         # the first icon's own half row
+        self.app.point("to_dock", 2, ROW)
+        self.assertEqual(self.app.tip[3], ROW + 1)                              # under its block
+
+    def test_the_rail_and_the_view_beside_it_keep_the_inset_each_in_its_own_width(self):
+        # the rail's icons, « over them and ⋯ beside a view as a view's content; a dot on its icon's fifth cell, as in
+        # the row's icons alone
+        self.app.status = Status(staged=["a.py"], changes=["b.py"])
+        self.folded()
+        rail = sidebar.column.RAIL
+        self.rows()
+        self.assertEqual((strays(self.app.canvas), reach(self.app.canvas, ROW)),
+                         ([(10, rail - MARGIN - 1, "●")], (rail // 2, rail // 2 + 1)))
+        self.press("icon:changes")
+        self.app.term.cols, self.app.status = BESIDE, Status(staged=["a.py"], changes=["b.py"])   # as Changes reads it
+        self.rows()
+        canvas, edge = self.app.canvas, BESIDE - rail
+        self.assertEqual((strays(canvas, 0, edge), strays(canvas, edge, BESIDE)), ([], [(10, BESIDE - 1, "●")]))
+        self.assertEqual((reach(canvas, ROW, edge), text(canvas, 22)[edge:]), ((edge + 2, edge + 3), "  ⋯  "))
+
+    def test_a_newer_version_dots_the_rails_more_as_the_rows(self):
+        self.folded()
+        self.press("icon:changes")
+        self.app.term.cols = BESIDE
+        self.app.update = {"version": "0.3.0", "latest": "0.4.0", "newer": True}
+        self.rows()
+        canvas, edge = self.app.canvas, BESIDE - sidebar.column.RAIL
+        y = next(y for y in range(canvas.height) if text(canvas, y)[edge:].strip() == "⋯ ●")
+        self.assertEqual(canvas.rows[y][edge + 4], ("●", sidebar.Style(fg="accent")))       # its block's last cell
+
+    def test_folded_the_terminal_lies_collapsed_under_the_agent_and_its_icon_raises_it(self):
+        # herdr's least share, a tenth of the rows; raised as tall as it was in the right column, lit while it stands;
+        # back there at that height once the dock opens, raised again at the next fold as it was left
+        self.folded()
+        root, terminal = self.fake.tabs["w1:t1"][0], glyphs(True)["terminal"]
+        self.assertEqual((root["first"]["direction"], root["first"]["ratio"]), ("down", 0.9))
+        rows = self.rows()
+        self.assertEqual((rows[19], self.app.canvas.rows[19][2][1].fg), (f"  {terminal}", "subtext"))  # after Chats
+        self.app.point("terminal", 2, 19)
+        self.assertEqual((self.app.tip[1], self.app.tip[3]), ("Terminal", 20))       # under its block
+        self.press("terminal")
+        self.rows()
+        self.assertEqual((root["first"]["ratio"], self.app.canvas.rows[19][2][1].fg), (0.5, "accent"))
+        self.app.handle(Key("char", "6"))                                   # its key, after the views' 1 to 5
+        self.settle()
+        self.rows()
+        self.assertEqual((root["first"]["ratio"], self.app.canvas.rows[19][2][1].fg), (0.9, "subtext"))
+        self.press("terminal")
+        self.press("to_dock")
+        self.assertEqual(labels(root)[3], ("down", 0.5, "sidebar", "terminal"))      # as tall as it was there
+        self.app.term.cols = 45
+        self.press("to_rail")
+        self.assertEqual(labels(root)[2], ("down", 0.5, "claude", "terminal"))       # raised, as left
+
+    def test_a_rail_tip_stands_centred_under_its_icon_inside_the_pane(self):
+        # its middle on the icon's column wherever the mouse is on its line, right under its block's half row;
+        # shifted the least it takes to stay inside the pane
+        self.folded()
+        self.app.term.cols = 13
+        self.rows()
+        for target, x, y, lines in (("icon:search", 0, 7, ["Search"]), ("to_dock", 12, ROW, ["Expand", "panels"])):
+            with self.subTest(target):
+                self.app.point(target, x, y)
+                self.app.tip = (*self.app.tip[:4], 0, False)                      # due
+                rows, top = self.rows(), (y if target != "to_dock" else ROW) + 2
+                self.assertEqual([(row.strip(), row.index(row.strip())) for row in rows[top:top + len(lines)]],
+                                 [(line, 6 - (len(line) - 1) // 2) for line in lines])      # 6: the icons' column
+        self.press("icon:changes")
+        self.app.term.cols = BESIDE
+        self.rows()
+        self.app.point("icon:search", BESIDE - 2, 7)
+        self.app.tip = (*self.app.tip[:4], 0, False)
+        self.assertEqual(self.rows()[9].index("Search"), BESIDE - INSET - 1 - len("Search"))    # its air at the edge
+
+    def test_a_bare_shell_moved_or_resized_by_the_rail_redraws_its_prompt_at_the_top_once(self):
+        # Ctrl+L to the terminal once after each move or resize the sidebar makes (under the agent, raised, lowered,
+        # back in the column), only while nothing but a shell runs there; never on the pane's later reports
+        running, sent = {"w1:p3": "zsh", "w2:p3": "zsh"}, []
+
+        def call(*args):
+            if args[:2] == ("pane", "process-info"):
+                return {"process_info": {"foreground_processes": [{"name": running[args[3]]}]}}
+            if args[:2] == ("pane", "send-keys"):
+                sent.append(args[2:])
+                return {}
+            return self.fake.cli(*args)
+
+        set_attrs(self, sidebar.column, SETTLE=0)
+        set_attrs(self, sidebar.panes, REDRAW=0)
+        self.app = sidebar.App(self.tmp, FakeTerminal(45, 30), mock.Mock(call=call), self.state)
+        self.folded()
+        self.assertEqual(sent, [("w1:p3", "ctrl+l"), ("w2:p3", "ctrl+l")])         # every tab's, folded under
+        self.press("terminal")
+        self.press("terminal")
+        self.assertEqual(sent[2:], [("w1:p3", "ctrl+l")] * 2)                      # raised, lowered
+        running["w1:p3"] = "vim"
+        self.press("terminal")
+        self.assertEqual(len(sent), 4)                                             # a program running: left alone
+        running["w1:p3"] = "zsh"
+        self.app.resized()
+        self.app.resized()
+        self.settle()
+        self.assertEqual(len(sent), 4)                                             # herdr's reports of the pane
+        self.app.term.cols = 45
+        self.press("to_dock")
+        self.assertEqual(sent[4:], [("w1:p3", "ctrl+l"), ("w2:p3", "ctrl+l")])     # back in the column
+
+    def test_a_tab_without_a_terminal_shows_its_icon_unlit_and_a_press_does_nothing(self):
+        self.fake.tabs["w1:t1"][0]["second"] = {"type": "pane", "pane_id": "w1:p2", "label": "sidebar"}   # closed
+        self.folded()
+        self.press("terminal")
+        self.app.point("terminal", 2, 16)
+        self.assertEqual((self.app.tip[1], self.app.canvas.rows[16][2][1].fg), ("No terminal in this tab", "subtext"))
+        self.assertEqual([params for method, params in self.fake.calls
+                          if method == "layout.set_split_ratio" and params["path"] != []], [])
+
+    def test_a_drag_that_widens_the_rail_past_three_cells_opens_the_dock_once(self):
+        # as a collapsed sidebar dragged open: more than UNFOLD cells (3) past the rail's 21 (a 200-cell tab's tenth and
+        # a cell) opens the dock in every tab, as wide as it opens; a nudge goes back to the rail; one drag opens once
+        set_attrs(self, sidebar.column, SETTLE=0)
+        self.folded()
+        root = self.fake.tabs["w1:t1"][0]
+        root["ratio"] = 1 - (21 + sidebar.UNFOLD) / 200
+        self.app.resized()
+        self.settle()
+        self.assertEqual((sidebar.UNFOLD, self.app.railed, root["ratio"]), (3, True, RAILED))
+        root["ratio"] = 1 - (21 + sidebar.UNFOLD + 1) / 200
+        self.app.resized()
+        self.app.resized()                                                  # herdr's next report of the same drag
+        self.settle()
+        self.assertEqual((self.app.railed, sidebar.column.railed(self.state), root["ratio"], self.ratio("w2:t1")),
+                         (False, False, 0.59, 0.59))
+        self.assertEqual([params["ratio"] for method, params in self.fake.calls
+                          if method == "layout.set_split_ratio" and params["tab_id"] == "w1:t1"][-1:], [0.59])
+        self.assertEqual(sum(params == {"tab_id": "w1:t1", "path": [], "ratio": 0.59} for method, params in
+                             self.fake.calls if method == "layout.set_split_ratio"), 1)
 
     def test_a_press_opens_its_panel_beside_the_rail_and_lights_it(self):
         self.folded()
         self.press("icon:changes")
-        # the column as wide as its tab row (49 cells and the frame, over the default quarter of 200 cells) and the
-        # rail's 9 cells besides
-        self.assertIn(("layout.set_split_ratio", {"tab_id": "w1:t1", "path": [], "ratio": 0.7}), self.fake.calls)
-        self.assertEqual(self.ratio("w2:t1"), 0.9)                          # another tab's stays the rail
-        self.app.term.cols = 58                                             # as herdr then makes it
-        rows, canvas, edge = self.rows(), self.app.canvas, 58 - 9
-        self.assertEqual(rows[0][:edge].strip(), "")                        # no tab row: the lit icon names it
+        # the column as wide as it first opens (the names: 80 cells and the frame) and the rail's 5 besides
+        self.assertIn(("layout.set_split_ratio", {"tab_id": "w1:t1", "path": [], "ratio": 0.565}), self.fake.calls)
+        self.assertEqual(self.ratio("w2:t1"), RAILED)                          # another tab's stays the rail
+        self.app.term.cols = BESIDE                                         # as herdr then makes it
+        rows, canvas, edge = self.rows(), self.app.canvas, BESIDE - sidebar.column.RAIL
+        self.assertEqual(rows[0][:edge].strip(), "")                        # no row: the lit icon names it
         self.assertEqual((self.app.body, self.app.panel_at(1, 0), self.app.panel_at(1, edge)), ((1, 29), "changes",
                                                                                                 None))
-        self.assertEqual((rows[0][edge + 1], canvas.hit(edge + 1, 0), rows[0].strip()[-1]), ("«", "to_dock", "⋯"))
-        self.assertEqual((rows[9][edge], canvas.rows[9][edge + 4][1].fg), ("▌", "accent"))       # Changes lit
-        self.assertEqual(canvas.rows[10][edge + 1][1], screen.Style(fg="accent", bold=True))
+        self.assertEqual((rows[ROW][edge:], canvas.hit(edge + 2, ROW)), ("  «", "to_dock"))
+        self.assertEqual((rows[10][edge:], canvas.rows[10][edge + 2][1].fg), (f"  {glyphs(True)['git']}", "accent"))
         self.assertEqual(self.app.keyed(), "changes")
 
     def test_the_lit_icon_or_esc_folds_it_back(self):
         self.folded()
         self.press("icon:changes")
         self.press("icon:changes")                                          # the lit one again
-        self.assertEqual((self.app.beside, self.ratio()), (False, 0.9))     # the rail's width again
+        self.assertEqual((self.app.beside, self.ratio()), (False, RAILED))     # the rail's width again
         self.press("icon:files")
         files = self.app.views["files"]
         files.open_menu(None, 5, 5)
@@ -1263,26 +1963,26 @@ class Rail(unittest.TestCase):
         self.assertEqual((files.menu, self.app.beside, self.app.shown()), (None, True, "files"))
         self.app.handle(Key("esc"))
         self.settle()
-        self.assertEqual((self.app.beside, self.ratio()), (False, 0.9))
+        self.assertEqual((self.app.beside, self.ratio()), (False, RAILED))
 
-    def test_the_tab_rows_double_chevron_folds_every_tabs_dock_and_the_rails_opens_it(self):
+    def test_the_rows_double_chevron_folds_every_tabs_dock_and_the_rails_opens_it(self):
         self.app.draw()
-        self.assertEqual((text(self.app.canvas, ROW)[45 - 8], self.app.canvas.hit(45 - 8, ROW)), ("»", "to_rail"))
-        self.app.point("to_rail", 37, ROW)
+        self.assertEqual((text(self.app.canvas, ROW)[45 - 4], self.app.canvas.hit(45 - 4, ROW)), ("»", "to_rail"))
+        self.app.point("to_rail", 41, 0)
         self.assertEqual(self.app.tip[1], "Collapse to icons")
         self.folded()
         self.assertTrue(sidebar.column.railed(self.state))
         for n in (1, 2):                                                    # each tab's terminal under its agent
             self.assertEqual((self.ratio(f"w{n}:t1"), self.fake.tabs[f"w{n}:t1"][0]["first"]["second"]["pane_id"]),
-                             (0.9, f"w{n}:p3"))
-        self.assertEqual((self.rows()[0], self.app.canvas.hit(1, 0)), (" «", "to_dock"))
-        self.app.point("to_dock", 1, 0)
+                             (RAILED, f"w{n}:p3"))
+        self.assertEqual((self.rows()[ROW], self.app.canvas.hit(2, ROW)), ("  «", "to_dock"))   # over the icons
+        self.app.point("to_dock", 2, ROW)
         self.assertEqual(self.app.tip[1], "Expand panels")
         self.press("to_dock")
         self.assertFalse(sidebar.column.railed(self.state))
-        # each column as wide as before, but for the room its tab row takes: 49 cells and the frame of 200
-        self.assertEqual(self.fake.tabs, {"w1:t1": [column_tab(1, 0.745), False], "w2:t1": [column_tab(2, 0.745),
-                                                                                             False]})
+        # each column as wide as it first opens: the names, 80 cells, and the frame: 82 of 200
+        self.assertEqual(self.fake.tabs, {"w1:t1": [column_tab(1, 0.59), False], "w2:t1": [column_tab(2, 0.59),
+                                                                                          False]})
 
     def test_another_tabs_sidebar_follows_at_its_next_look(self):
         other = self.sidebar()
@@ -1305,18 +2005,33 @@ class Rail(unittest.TestCase):
         new = self.sidebar()
         new.resume()
         self.settle(new)
-        self.assertEqual((self.ratio(), self.fake.tabs["w1:t1"][0]["first"]["second"]["pane_id"]), (0.9, "w1:p3"))
+        self.assertEqual((self.ratio(), self.fake.tabs["w1:t1"][0]["first"]["second"]["pane_id"]), (RAILED, "w1:p3"))
+        self.assertEqual(self.fake.tabs["w2:t1"], [column_tab(2), False])
+
+    def test_a_sidebar_started_open_sets_its_tab_as_wide_as_chosen_or_first_at_every_name(self):
+        # herdr started again, a tab opened or reopened: its column the cells last dragged, whatever the window; an
+        # older version's share or cells forgotten, the row's ideal width once
+        for kept, ratio in (({}, 0.59), ({"open": 80}, 0.6), ({"width": 80}, 0.59),
+                            ({"cells": 80, "ratio": 0.6}, 0.59)):
+            with self.subTest(kept=kept):
+                os.makedirs(self.state, exist_ok=True)
+                with open(os.path.join(self.state, sidebar.column.FILE), "w") as f:
+                    json.dump(kept, f)
+                new = self.sidebar()
+                new.resume()
+                self.settle(new)
+                self.assertEqual(self.ratio(), ratio)
         self.assertEqual(self.fake.tabs["w2:t1"], [column_tab(2), False])
 
     def test_a_rail_never_widens_for_the_tab_row(self):
         self.folded()
         self.app.need(sidebar.column.NARROWEST)
-        self.assertEqual(self.ratio(), 0.9)
+        self.assertEqual(self.ratio(), RAILED)
 
     def test_the_menus_show_terminal_on_the_rail_brings_it_under_the_agent(self):
         self.folded()
         self.press("icon:changes")
-        self.app.term.cols = 58                                             # the ⋯ beside the rail
+        self.app.term.cols = BESIDE                                         # the ⋯ beside the rail
         root = self.fake.tabs["w1:t1"][0]
         root["first"] = root["first"]["first"]                              # the terminal closed by hand
         self.press("panels")
@@ -1341,7 +2056,7 @@ class Rail(unittest.TestCase):
         other.tick()
         self.settle(other)
         self.assertEqual((self.ratio("w2:t1"), self.fake.tabs["w2:t1"][0]["first"]["second"]["pane_id"]),
-                         (0.9, "w2:p3"))
+                         (RAILED, "w2:p3"))
         self.assertEqual(sidebar.column.kept(self.state)["owed"], [])
 
     def test_a_panel_opened_beside_the_rail_comes_back_after_a_handover(self):
@@ -1352,15 +2067,41 @@ class Rail(unittest.TestCase):
         self.settle(new)
         self.assertEqual((new.beside, new.shown()), (True, "changes"))
 
-    def test_folded_alone_the_tab_shown_is_kept_for_the_dock_opened_again(self):
+    def test_folded_alone_the_view_shown_is_kept_for_the_dock_opened_again(self):
         self.app.show("search")
         self.folded()
         self.assertEqual(self.app.left().get("show"), None)                 # a handover stays on the rail alone
         self.press("to_dock")
-        self.app.term.cols = 45
+        self.app.term.cols = COLS
         self.app.draw()
-        self.assertEqual((self.app.shown(), text(self.app.canvas, ROW).split()[:2]), ("search", ["Chats", "Files"]))
-        self.assertEqual(self.app.canvas.rows[ROW][text(self.app.canvas, ROW).index("Search")][1].fg, "accent")
+        self.assertEqual((self.app.shown(), text(self.app.canvas, NAMES).split()[:2]), ("search", ["Files", "Search"]))
+        self.assertEqual(self.app.canvas.rows[NAMES][text(self.app.canvas, NAMES).index("Search")][1].fg, "accent")
+
+    def test_the_stars_icon_opens_the_list_beside_the_rail_and_closing_it_folds_it_back(self):
+        self.folded()
+        self.press("icon:chats")
+        self.assertEqual((self.app.chats, self.app.beside, self.app.keyed()), (True, True, "chats"))
+        self.assertIn(("layout.set_split_ratio", {"tab_id": "w1:t1", "path": [], "ratio": 0.565}), self.fake.calls)
+        self.app.term.cols = BESIDE                                         # as herdr then makes it
+        rows, edge = self.rows(), BESIDE - sidebar.column.RAIL
+        self.assertEqual(rows[0][:edge].strip(), "")                        # no × of its own
+        self.assertEqual(self.app.canvas.rows[16][edge + 2][1].fg, "accent")                           # Chats lit
+        self.press("icon:chats")                                            # the lit icon again
+        self.assertEqual((self.app.chats, self.app.beside, self.ratio()), (False, False, RAILED))
+        self.press("icon:chats")
+        self.app.handle(Key("esc"))
+        self.settle()
+        self.assertEqual((self.app.chats, self.app.beside, self.ratio()), (False, False, RAILED))
+
+    def test_over_a_view_beside_the_rail_closing_the_list_leaves_the_view(self):
+        self.folded()
+        self.press("icon:changes")
+        self.app.handle(Key(sidebar.FIND))
+        self.settle()
+        self.assertEqual((self.app.chats, self.app.keyed()), (True, "chats"))
+        self.app.handle(Key("esc"))
+        self.settle()
+        self.assertEqual((self.app.chats, self.app.beside, self.app.keyed()), (False, True, "changes"))
 
 
 class Ticks:
@@ -1789,7 +2530,7 @@ class Terminal(Repo):
 
         try:
             read(10, b"project")
-            os.write(fd, b"3")                                             # the search view, to come back to
+            os.write(fd, b"2")                                             # the search view, to come back to
             read(5, b"Aa")
             updated = len(out)
             with open(os.path.join(code, "watch.py"), "a") as f:
@@ -1809,7 +2550,7 @@ class Terminal(Repo):
 
     def test_quitting_does_not_wait_for_a_hanging_ai(self):
         subprocess.run(["git", "-C", self.root, "add", "a.txt"], check=True)
-        out, ended = self.run_sidebar((b"4", "⎇"), b"A", b"q")                # A once Changes has the status
+        out, ended = self.run_sidebar((b"3", "⎇"), b"A", b"q")                # A once Changes has the status
         self.assertIn("is writing the message", out)
         self.assertTrue(ended, out[-500:])
 
@@ -1885,7 +2626,7 @@ class Actions(Repo):
         self.assertEqual(self.find(herdr, "w1:t4"), ("w1:p2", ["w1:p2"]))
         self.assertEqual(herdr.calls, [("pane", "send-keys", "w1:p2", sidebar.FIND)])
 
-    def test_find_brings_back_a_sidebar_closed_by_hand_on_its_conversations(self):
+    def test_find_brings_back_a_sidebar_closed_by_hand_on_its_chats(self):
         panels.note(self.state, {"w1:t1": {"sidebar", "terminal"}})
         herdr = self.Herdr()
         herdr.listed.pop(0)                                                 # t1's sidebar closed by hand
@@ -1893,12 +2634,12 @@ class Actions(Repo):
         self.assertIn(("pane", "rename", "new1", "sidebar"), herdr.calls)
         self.assertNotIn(("pane", "send-keys", "new1", sidebar.FIND), herdr.calls)   # not started yet: its seed
         with open(preview.seed_file(self.state, "w1:t1")) as f:
-            self.assertEqual(json.load(f), {"show": "conversations"})
+            self.assertEqual(json.load(f), {"show": "chats"})
 
-    def test_a_seed_shows_conversations_with_the_keys(self):
+    def test_a_seed_shows_chats_with_the_keys(self):
         app = sidebar.App(self.root, FakeTerminal(45, 30), preview.Herdr(), self.state)
-        app.take({"show": "conversations"})
-        self.assertEqual(app.keyed(), "conversations")
+        app.take({"show": "chats"})
+        self.assertEqual((app.chats, app.keyed()), (True, "chats"))
 
 
 if __name__ == "__main__":

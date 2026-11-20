@@ -1,8 +1,11 @@
 // @ts-check
-// Generated from core/icons.py and the icons/ folder by tools/build.py: change them there, then run
-// /usr/bin/python3 tools/build.py. Each icon by the path the app loads it.
+// Generated from core/icons.py, core/connectors.py and the icons/ folder by tools/build.py: change
+// them there, then run /usr/bin/python3 tools/build.py. Each icon by the path the app loads it.
 export const ICONS = {
   "arrow-up": "mods/herdr-fold/icons/lucide/arrow-up.svg",
+  "arrow-up-from-line": "mods/herdr-fold/icons/lucide/arrow-up-from-line.svg",
+  "at-sign": "mods/herdr-fold/icons/lucide/at-sign.svg",
+  "audio-lines": "mods/herdr-fold/icons/lucide/audio-lines.svg",
   "book-marked": "mods/herdr-fold/icons/lucide/book-marked.svg",
   "bot": "mods/herdr-fold/icons/lucide/bot.svg",
   "check": "mods/herdr-fold/icons/lucide/check.svg",
@@ -13,36 +16,47 @@ export const ICONS = {
   "chevrons-left": "mods/herdr-fold/icons/lucide/chevrons-left.svg",
   "chevrons-right": "mods/herdr-fold/icons/lucide/chevrons-right.svg",
   "circle-dot": "mods/herdr-fold/icons/lucide/circle-dot.svg",
+  "clock": "mods/herdr-fold/icons/lucide/clock.svg",
   "code": "mods/herdr-fold/icons/lucide/code.svg",
   "columns-2": "mods/herdr-fold/icons/lucide/columns-2.svg",
+  "command": "mods/herdr-fold/icons/lucide/command.svg",
   "copy": "mods/herdr-fold/icons/lucide/copy.svg",
+  "download": "mods/herdr-fold/icons/lucide/download.svg",
   "ellipsis": "mods/herdr-fold/icons/lucide/ellipsis.svg",
   "external-link": "mods/herdr-fold/icons/lucide/external-link.svg",
   "eye": "mods/herdr-fold/icons/lucide/eye.svg",
   "eye-off": "mods/herdr-fold/icons/lucide/eye-off.svg",
+  "file": "mods/herdr-fold/icons/lucide/file.svg",
   "file-plus": "mods/herdr-fold/icons/lucide/file-plus.svg",
   "files": "mods/herdr-fold/icons/lucide/files.svg",
   "folder-plus": "mods/herdr-fold/icons/lucide/folder-plus.svg",
   "git-branch": "mods/herdr-fold/icons/lucide/git-branch.svg",
   "hand": "mods/herdr-fold/icons/lucide/hand.svg",
   "layers": "mods/herdr-fold/icons/lucide/layers.svg",
+  "leaf": "mods/herdr-fold/icons/lucide/leaf.svg",
+  "link": "mods/herdr-fold/icons/lucide/link.svg",
   "loader-circle": "mods/herdr-fold/icons/lucide/loader-circle.svg",
-  "message-square": "mods/herdr-fold/icons/lucide/message-square.svg",
   "minus": "mods/herdr-fold/icons/lucide/minus.svg",
   "monitor": "mods/herdr-fold/icons/lucide/monitor.svg",
   "notebook": "mods/herdr-fold/icons/lucide/notebook.svg",
   "panel-left": "mods/herdr-fold/icons/lucide/panel-left.svg",
+  "plug": "mods/herdr-fold/icons/lucide/plug.svg",
   "plus": "mods/herdr-fold/icons/lucide/plus.svg",
   "refresh-cw": "mods/herdr-fold/icons/lucide/refresh-cw.svg",
   "rows-2": "mods/herdr-fold/icons/lucide/rows-2.svg",
   "search": "mods/herdr-fold/icons/lucide/search.svg",
   "server": "mods/herdr-fold/icons/lucide/server.svg",
   "settings": "mods/herdr-fold/icons/lucide/settings.svg",
+  "share-2": "mods/herdr-fold/icons/lucide/share-2.svg",
+  "shield": "mods/herdr-fold/icons/lucide/shield.svg",
+  "sparkle": "mods/herdr-fold/icons/lucide/sparkle.svg",
   "sparkles": "mods/herdr-fold/icons/lucide/sparkles.svg",
   "square": "mods/herdr-fold/icons/lucide/square.svg",
   "square-slash": "mods/herdr-fold/icons/lucide/square-slash.svg",
   "square-terminal": "mods/herdr-fold/icons/lucide/square-terminal.svg",
+  "terminal": "mods/herdr-fold/icons/lucide/terminal.svg",
   "undo-2": "mods/herdr-fold/icons/lucide/undo-2.svg",
+  "wrench": "mods/herdr-fold/icons/lucide/wrench.svg",
   "x": "mods/herdr-fold/icons/lucide/x.svg",
   "zap": "mods/herdr-fold/icons/lucide/zap.svg"
 };
@@ -206,5 +220,47 @@ export const FOLDER = {
 export const LETTER = {
   "?": "U",
   "U": "!"
+};
+export const BRANDS = {
+  "box": {
+    "name": "Box",
+    "logo": "mods/herdr-fold/icons/logos/box.svg",
+    "mono": false
+  },
+  "dropbox": {
+    "name": "Dropbox",
+    "logo": "mods/herdr-fold/icons/logos/dropbox.svg",
+    "mono": false
+  },
+  "figma": {
+    "name": "Figma",
+    "logo": "mods/herdr-fold/icons/logos/figma.svg",
+    "mono": false
+  },
+  "google-drive": {
+    "name": "Google Drive",
+    "logo": "mods/herdr-fold/icons/logos/google-drive-2020.svg",
+    "mono": false
+  },
+  "linear": {
+    "name": "Linear",
+    "logo": "mods/herdr-fold/icons/logos/linear-icon.svg",
+    "mono": true
+  },
+  "notion": {
+    "name": "Notion",
+    "logo": "mods/herdr-fold/icons/logos/notion-icon.svg",
+    "mono": false
+  },
+  "onedrive": {
+    "name": "OneDrive",
+    "logo": "mods/herdr-fold/icons/logos/microsoft-onedrive.svg",
+    "mono": false
+  },
+  "sentry": {
+    "name": "Sentry",
+    "logo": "mods/herdr-fold/icons/logos/sentry-icon.svg",
+    "mono": true
+  }
 };
 /** @typedef {keyof typeof ICONS} IconName */

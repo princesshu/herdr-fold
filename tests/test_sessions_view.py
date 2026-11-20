@@ -1,5 +1,5 @@
 """Tests for the sessions plugin's sync_names (fake herdr): a Sessions row shows only the pane name (herdr 0.9.5+) and a
-resumed conversation resends no title, so names come from the conversation's files, skipping pipes and damaged lines.
+resumed chat resends no title, so names come from the chat's files, skipping pipes and damaged lines.
 """
 import glob
 import json
@@ -63,7 +63,7 @@ class SyncNames(unittest.TestCase):
         sessions.sync_names([self.agent("w1:p2", "", kind="codex", session="s2")])
         self.assertEqual(self.renames, [("w1:p2", "codex")])
 
-    def test_conversation_title_replaces_the_placeholder(self):
+    def test_chat_title_replaces_the_placeholder(self):
         self.labels = {"w1:p1": "claude"}
         sessions.sync_names([self.agent("w1:p1", "Colors of fruits")])
         self.assertEqual(self.renames, [("w1:p1", "Colors of fruits")])
@@ -87,7 +87,7 @@ class SyncNames(unittest.TestCase):
         sessions.sync_names([self.agent("w1:p1", path)])
         self.assertEqual(self.renames, [("w1:p1", "claude")])
 
-    def test_a_shell_path_title_is_no_conversation(self):
+    def test_a_shell_path_title_is_no_chat(self):
         self.assertFalse(sessions.has_session(self.agent("w1:p1", "/bin/zsh")))
 
     def save_names(self, names):
@@ -134,32 +134,32 @@ class SyncNames(unittest.TestCase):
         self.assertEqual(names["s1"]["name"], "Colors of fruits")
         self.assertEqual([n for n in os.listdir(self.state) if n.startswith(".names.")], [])
 
-    def test_a_new_conversation_in_the_pane_replaces_the_old_title(self):
-        # the pane still carries the title given to its previous conversation (s0); now s1 runs in it (/clear, /resume)
+    def test_a_new_chat_in_the_pane_replaces_the_old_title(self):
+        # the pane still carries the title given to its previous chat (s0); now s1 runs in it (/clear, /resume)
         self.save_names({"s0": {"name": "Colors of fruits", "given": True}})
         self.labels = {"w1:p1": "Colors of fruits"}
         sessions.sync_names([self.agent("w1:p1", "Fix the login", session="s1")])
         self.assertEqual(self.renames, [("w1:p1", "Fix the login")])
 
-    def test_a_new_conversation_without_a_title_yet_gets_the_agent_name(self):
+    def test_a_new_chat_without_a_title_yet_gets_the_agent_name(self):
         self.save_names({"s0": {"name": "Colors of fruits", "given": True}})
         self.labels = {"w1:p1": "Colors of fruits"}
         sessions.sync_names([self.agent("w1:p1", "Claude Code", session="s1")])
         self.assertEqual(self.renames, [("w1:p1", "claude")])
 
-    def test_a_manual_name_survives_a_new_conversation(self):
+    def test_a_manual_name_survives_a_new_chat(self):
         self.save_names({"s0": {"name": "My own name", "given": False}})
         self.labels = {"w1:p1": "My own name"}
         sessions.sync_names([self.agent("w1:p1", "Fix the login", session="s1")])
         self.assertEqual(self.renames, [])
 
-    def test_a_transcript_without_messages_is_no_conversation(self):
+    def test_a_transcript_without_messages_is_no_chat(self):
         self.write(".claude/projects/-x/s1.jsonl", [{"type": "permission-mode"}, {"type": "mode"}, {"type": "system"}])
         self.assertFalse(sessions.has_session(self.agent("w1:p1", "Claude Code")))
         self.write(".claude/projects/-x/s1.jsonl", [{"type": "mode"}, {"type": "user"}])
         self.assertTrue(sessions.has_session(self.agent("w1:p1", "Claude Code")))
 
-    def test_title_of_a_resumed_claude_conversation_comes_from_its_transcript(self):
+    def test_title_of_a_resumed_claude_chat_comes_from_its_transcript(self):
         self.write(".claude/projects/-x/s1.jsonl", [{"type": "ai-title", "aiTitle": "First idea"}, {"type": "user"},
                                                   {"type": "ai-title", "aiTitle": "Colors of fruits"}])
         self.labels = {"w1:p1": "claude"}
@@ -179,12 +179,12 @@ class SyncNames(unittest.TestCase):
         os.makedirs(project)
         os.mkfifo(os.path.join(project, "s1.jsonl"))
         self.assertFalse(finished(self, lambda: sessions.has_messages(self.agent("w1:p1", ""))))
-        self.assertEqual(finished(self, lambda: sessions.conversation_title(self.agent("w1:p1", ""))), "")
+        self.assertEqual(finished(self, lambda: sessions.chat_title(self.agent("w1:p1", ""))), "")
         os.remove(os.path.join(project, "s1.jsonl"))
         with open(os.path.join(project, "s1.jsonl"), "w") as f:
             f.write("[" * 100_000 + "]" * 100_000 + "\n[1]\n" + json.dumps({"type": "ai-title", "aiTitle": "Fruits"})
                     + "\n")
-        self.assertEqual(sessions.conversation_title(self.agent("w1:p1", "")), "Fruits")
+        self.assertEqual(sessions.chat_title(self.agent("w1:p1", "")), "Fruits")
 
     def test_a_claude_title_is_read_in_one_pass(self):
         # a transcript is hundreds of megabytes: its rename and its generated title come from the same reading
@@ -192,7 +192,7 @@ class SyncNames(unittest.TestCase):
         opened = []
         real = sessions.open_regular
         set_attrs(self, sessions, open_regular=lambda *a, **k: opened.append(a[0]) or real(*a, **k))
-        self.assertEqual(sessions.conversation_title(self.agent("w1:p1", "")), "Colors of fruits")
+        self.assertEqual(sessions.chat_title(self.agent("w1:p1", "")), "Colors of fruits")
         self.assertEqual(len(opened), 1)
 
     def test_codex_thread_name_comes_from_its_index(self):
@@ -203,9 +203,9 @@ class SyncNames(unittest.TestCase):
         sessions.sync_names([self.agent("w1:p2", "", kind="codex", session="s2")])
         self.assertEqual(self.renames, [("w1:p2", "Fix the login")])
 
-    # --- the conversation's tab
+    # --- the chat's tab
 
-    def test_a_conversation_names_the_tab_it_has_to_itself(self):
+    def test_a_chat_names_the_tab_it_has_to_itself(self):
         self.labels = {"w1:p1": "claude"}
         self.tab("2")
         sessions.sync_names([self.agent("w1:p1", "Colors of fruits")])
@@ -223,7 +223,7 @@ class SyncNames(unittest.TestCase):
         sessions.sync_names([self.agent("w1:p1", "Colors of fruits"), self.agent("w1:p3", "Claude Code", session="s3")])
         self.assertEqual(self.tab_renames, [])
 
-    def test_a_conversation_without_a_title_leaves_its_tab_as_it_is(self):
+    def test_a_chat_without_a_title_leaves_its_tab_as_it_is(self):
         self.labels = {"w1:p1": ""}
         self.tab("2")
         sessions.sync_names([self.agent("w1:p1", "Claude Code")])

@@ -6,10 +6,11 @@ import { v_flex, h_flex, Textarea, TextareaState, TextView } from "gpui-base";
 import { cardFor, nextScope, promptText, replyFor } from "./agents.js";
 import { diffRows } from "./logic.js";
 import { fold, icon, keyCap } from "./parts.js";
+import { CARD_HEAD, RHYTHM as R } from "./timeline.js";
 
 const LINES = 8;                      // a change's old and new text: their lines shown at most, each
 const PLAN = 240;                     // px: a plan's height at most, scrolled past it
-const SCOPES = { session: "this conversation", project: "this project", user: "all projects" };
+const SCOPES = { session: "this chat", project: "this project", user: "all projects" };
 
 export class Answer {
   /** The card of what Claude waits on, if anything; SEND takes its reply.
@@ -121,8 +122,8 @@ export class Answer {
   render(t, code) {
     const card = /** @type {import("./agents.js").Card} */ (this.card);
     const box = v_flex().id("card").track_focus(this.focus).on_key_down((e, cx) => this.key(e, cx)).rounded(10)
-      .border(1).border_color(t.ansi3 + "59").bg(t.surface).text_size(13).overflow_hidden();
-    const head = h_flex().px(16).py(12).gap(8).items_center()
+      .border(1).border_color(t.ansi3 + "59").bg(t.chrome).text_size(13).overflow_hidden();
+    const head = h_flex().h(CARD_HEAD).flex_none().pl(R.card).pr(R.gap).gap(R.gap).items_center()     // the mockup's
       .child(div().flex_none().font_semibold().child(card.title))
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted)
         .font_family(card.kind === "change" && !this.folded ? code : "").child(this.about(card)))
@@ -134,7 +135,7 @@ export class Answer {
         }).child(fold("card-fold-mark", !this.folded, 14, t.dim, ["chevron-up", "chevron-down"])));
     if (this.folded) return box.child(head);
     return box.child(head)
-      .child(v_flex().px(16).pb(12).gap(8)
+      .child(v_flex().px(R.card).pb(R.pad).gap(R.gap)
         .when(card.kind === "command", (e) => e.child(this.command(t, code, card)))
         .when(card.kind === "change", (e) => e.child(this.change(t, code, card)))
         .when(card.kind === "plan", (e) => e.child(div().id("plan").max_h(PLAN).overflow_y_scrollbar()
@@ -154,10 +155,10 @@ export class Answer {
 
   /** A command: itself as a shell line, Claude's words for it and the folder it runs in. */
   command(t, code, card) {
-    return v_flex().gap(8)
-      .child(h_flex().px(12).py(8).gap(8).rounded(6).border(1).border_color(t.border).bg(t.background)
+    return v_flex().gap(R.gap)
+      .child(h_flex().px(R.inset).py(R.gap).gap(R.gap).rounded(6).border(1).border_color(t.border).bg(t.canvas)
         .font_family(code).text_size(12).child(div().text_color(t.dim).child("$")).child(card.sentence))
-      .when(Boolean(card.detail), (e) => e.child(h_flex().gap(8).text_size(12)
+      .when(Boolean(card.detail), (e) => e.child(h_flex().gap(R.gap).text_size(12)
         .child(div().flex_1().min_w(0).child(String(card.detail)))));
   }
 
@@ -166,17 +167,17 @@ export class Answer {
     const lines = card.change?.lines ?? [], added = lines.filter((l) => l.startsWith("+")).length;
     const removed = lines.filter((l) => l.startsWith("-")).length;
     const row = ({ kind, number, text }) => kind === "gap" ? div().h(8)
-      : h_flex().w_full().gap(12).px(8).when(kind === "+", (e) => e.bg(t.ansi2 + "18"))
+      : h_flex().w_full().gap(R.inset).px(R.gap).when(kind === "+", (e) => e.bg(t.ansi2 + "18"))
         .when(kind === "-", (e) => e.bg(t.ansi1 + "18"))
         .child(div().w(32).flex_none().text_right().text_color(t.dim).child(number === undefined ? "" : String(number)))
         .child(div().w(10).flex_none().text_color(kind === "+" ? t.ansi2 : kind === "-" ? t.ansi1 : t.dim)
           .child(kind === "+" || kind === "-" ? kind : ""))
         .child(div().flex_1().min_w(0).truncate().child(text));
-    return v_flex().rounded(6).border(1).border_color(t.border).bg(t.background).overflow_hidden()
-      .child(h_flex().px(8).py(4).gap(8).text_size(12)
+    return v_flex().rounded(6).border(1).border_color(t.border).bg(t.chrome).overflow_hidden()
+      .child(h_flex().px(R.gap).py(R.pad).gap(R.gap).text_size(12)
         .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(card.sentence.split("/").pop() ?? ""))
         .child(div().text_color(t.ansi2).child(`+${added}`)).child(div().text_color(t.ansi1).child(`−${removed}`)))
-      .child(div().id("change").max_h(PLAN).overflow_y_scrollbar().py(4).font_family(code).text_size(12)
+      .child(div().id("change").max_h(PLAN).overflow_y_scrollbar().py(R.pad).font_family(code).text_size(12)
         .child(v_flex().children(diffRows(lines.slice(0, LINES * 6)).map(row))));
   }
 
@@ -185,7 +186,7 @@ export class Answer {
   questions(t) {
     const all = this.card?.questions ?? [], question = all[this.question];
     const answered = all.filter((q) => this.answers[q.question]?.length).length;
-    return v_flex().gap(8)
+    return v_flex().gap(R.gap)
       .when(all.length > 1, (e) => e.child(h_flex().gap(16).children(all.map((q, n) => h_flex().id(`question-${n}`)
         .gap(6).pb(4).cursor_pointer().text_color(n === this.question ? t.foreground : t.muted)
         .when(n === this.question, (e) => e.border_b(2).border_color(t.accent))
@@ -223,8 +224,8 @@ export class Answer {
    * No with esc; a kept rule's scope under its own, ← → beside. */
   options(t) {
     if (this.card?.kind === "question") return div();
-    return v_flex().px(8).pb(8).gap(2).children((this.card?.options ?? []).map((option, n) => h_flex()
-      .id(`option-${n}`).gap(12).px(8).py(8).rounded(6).items_start().cursor_pointer()
+    return v_flex().px(R.gap).pb(R.gap).gap(2).children((this.card?.options ?? []).map((option, n) => h_flex()
+      .id(`option-${n}`).gap(R.inset).px(R.gap).py(R.gap).rounded(6).items_start().cursor_pointer()
       .when(n === this.chosen, (e) => e.bg(t.raised)).hover((s) => s.bg(t.hover))
       .on_click((_e, cx) => this.choose(option, cx))
       .child(keyCap(t, option.key).when(n === this.chosen, (e) => e.border_color(t.accent).text_color(t.accent)))
@@ -243,7 +244,7 @@ export class Answer {
 
   /** A No's words for Claude, in the prompt's place: Enter sends them (none is fine), Esc goes back to the answers. */
   wordsField(t) {
-    return div().m(8).rounded(8).border(1).border_color(t.accent).bg(t.canvas)
-      .child(Textarea.new(this.words).px(12).py(8).text_size(13));
+    return div().m(R.gap).rounded(8).border(1).border_color(t.accent).bg(t.canvas)
+      .child(Textarea.new(this.words).px(R.inset).py(R.gap).text_size(13));
   }
 }

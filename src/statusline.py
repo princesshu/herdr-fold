@@ -1,17 +1,21 @@
-"""The Claude Code status line (model, effort, context, 5-hour and weekly limits), on the standard library alone for
-macOS, Linux and Windows. Claude Code passes the session's JSON on stdin and the pane's width in COLUMNS; the items
-come from statusline.json (statusline_setup.py), and a narrow pane drops them step by step (STEPS)."""
+"""The Claude Code status line (model, effort, context, 5-hour and weekly limits, the session's cost), on the standard
+library alone for macOS, Linux and Windows. Claude Code passes the session's JSON on stdin and the pane's width in
+COLUMNS; the items are statusline.json's (statusline_setup.py), a narrow pane drops them step by step (STEPS)."""
 import json
+import math
 import os
 import plistlib
 import re
 import subprocess
 import sys
+import tempfile
 import time
 
 CHOICE = os.path.join(os.path.expanduser("~"), ".config", "herdr-fold", "statusline.json")
 # how this machine's user has hours written, kept a DAY (asked): a Mac's own setting is a process to ask at worst
 TIME = os.path.join(os.path.expanduser("~"), ".local", "state", "herdr-fold", "time.json")
+# the limits as last told, for herdr-fold's Usage: core/usage.py's reading, the same shape as its keep() writes
+LIMITS = os.path.join(os.path.expanduser("~"), ".local", "state", "herdr-fold", "limits", "claude.json")
 DAY = 86400
 HOURS = ("ObjC.import('Foundation'); "
          "$.NSDateFormatter.dateFormatFromTemplateOptionsLocale('j', 0, $.NSLocale.currentLocale).js")
@@ -33,9 +37,9 @@ SEP = f"{GRAY}|{RESET}"
 COLOR = re.compile(r"\x1b\[[0-9;]*m")
 NOTE = re.compile(r"\s*\(.*\)$")                       # the model name's note: "Opus 5.5 (1M context)"
 INDENT = 2                                              # Claude Code draws the line two cells in
-# What a narrower pane takes, one more each step: shorter reset times (/1h 36m, /Mon 1pm), the model name's note,
-# shorter labels (ctx, 5h, wk), the context window size, the weekly reset, the 5-hour reset, the effort
-SHORT_TIMES, NO_NOTE, SHORT_LABELS, NO_SIZE, NO_WEEKLY_RESET, NO_RESET, NO_EFFORT = range(1, 8)
+# What a narrower pane takes, one more each step: the cost, shorter reset times (/1h 36m, /Mon 1pm), the model name's
+# note, shorter labels (ctx, 5h, wk), the context window size, the weekly reset, the 5-hour reset, the effort
+NO_COST, SHORT_TIMES, NO_NOTE, SHORT_LABELS, NO_SIZE, NO_WEEKLY_RESET, NO_RESET, NO_EFFORT = range(1, 9)
 STEPS = NO_EFFORT
 LABELS = {"context": ("context:", "ctx"), "five_hour": ("current:", "5h"), "weekly": ("weekly:", "wk")}
 
@@ -50,7 +54,9 @@ def shown():
         claude = None
     if not isinstance(claude, dict):
         claude = {}
-    return {key: claude.get(key) is not False for key in ("effort", "context", "five_hour", "weekly")}
+    show = {key: claude.get(key) is not False for key in ("effort", "context", "five_hour", "weekly")}
+    show["cost"] = claude.get("cost") is True          # the one item to switch on: an update adds nothing unasked
+    return show
 
 
 def field(data, *keys):
@@ -209,7 +215,41 @@ def draw(data, show, now, step):
         reset = field(data, "rate_limits", "seven_day", "resets_at")
         extra = "" if reset is None or step >= NO_WEEKLY_RESET else weekday(reset, now, step >= SHORT_TIMES)
         line += f" {SEP} {GRAY}{label['weekly']}{RESET} {level(used)}{used}%{RESET}{GRAY}{extra}{RESET}"
+    spent = field(data, "cost", "total_cost_usd")       # Claude's own count of the session
+    if show["cost"] and number(spent) and spent >= 0.005 and step < NO_COST:
+        # Claude's count at list prices, an estimate on a plan (its API value) and with an API key: ~, as herdr-fold's
+        line += f" {SEP} {GRAY}~${spent:,.2f}{RESET}" if line else f"{GRAY}~${spent:,.2f}{RESET}"
     return line
+
+
+def number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def keep(data, now):
+    """The 5-hour and weekly use in DATA, with their resets and NOW, kept in LIMITS (its owner's only; nothing of the
+    session, folder or model); none before the first answer, nor without a subscription's limits (an API key)."""
+    kept = {}
+    for key, name in (("five_hour", "five_hour"), ("week", "seven_day")):
+        used, resets = (field(data, "rate_limits", name, part) for part in ("used_percentage", "resets_at"))
+        kept[key] = {"used": percent(used), "resets": int(resets) if number(resets) else None} if number(used) else None
+    if not any(kept.values()):
+        return
+    folder = os.path.dirname(LIMITS)
+    os.makedirs(folder, mode=0o700, exist_ok=True)
+    if os.name != "nt":
+        os.chmod(folder, 0o700)
+    fd, temporary = tempfile.mkstemp(dir=folder, prefix=".claude.json.", suffix=".tmp")      # made 0600
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump({**kept, "at": now}, f)
+        os.replace(temporary, LIMITS)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise
 
 
 def main():
@@ -217,8 +257,14 @@ def main():
         data = json.loads(sys.stdin.buffer.read().decode("utf-8-sig", "replace"))
     except ValueError:
         data = None
+    now = int(time.time())
     # bytes, not text: a Windows console's code page would not take every model name
-    sys.stdout.buffer.write(statusline(data, shown(), int(time.time()), room()).encode("utf-8"))
+    sys.stdout.buffer.write(statusline(data, shown(), now, room()).encode("utf-8"))
+    sys.stdout.buffer.flush()
+    try:
+        keep(data, now)
+    except OSError:
+        pass                    # the line is drawn all the same
 
 
 if __name__ == "__main__":

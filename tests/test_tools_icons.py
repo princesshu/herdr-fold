@@ -1,5 +1,6 @@
 """Tests for tools/icons.py, which fetches the Herdr app mod's icons from Iconify by name: the SVG files it writes keep
-to the repository's line width with their drawing unchanged, and the icons folders hold what its lists name."""
+to the repository's line width with their drawing unchanged, the icons folders hold what its lists name, and a set
+is fetched alone by its name."""
 import importlib.util
 import os
 import re
@@ -34,6 +35,26 @@ class Svg(unittest.TestCase):
     def test_an_answer_with_a_dtd_or_an_entity_is_refused(self):
         with self.assertRaises(ValueError):
             icons.svg('<!ENTITY x "y"><path d="M0 0"/>', 24, 24)
+
+
+class Sets(unittest.TestCase):
+    def test_the_logos_are_the_brands_core_knows(self):
+        spec = importlib.util.spec_from_file_location("core_connectors", os.path.join(PACKAGE, "core", "connectors.py"))
+        connectors = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(connectors)
+        self.assertEqual(sorted(icons.sets()["logos"]), sorted(one["logo"] for one in connectors.BRANDS.values()))
+        self.assertEqual(sorted(icons.sets()), ["catppuccin", "logos", "lucide"])
+
+    def test_a_set_is_fetched_alone_by_its_name(self):
+        # a set fetched again may have moved on at Iconify: one named leaves the others' files as they are
+        self.assertEqual(icons.chosen(["logos"]), {"logos": icons.sets()["logos"]})
+        self.assertEqual(icons.chosen(["lucide", "logos"]), {name: icons.sets()[name] for name in ("lucide", "logos")})
+        self.assertEqual(icons.chosen([]), icons.sets())
+        with self.assertRaises(SystemExit):
+            icons.chosen(["logos", "simple-icons"])
+
+    def test_the_request_names_a_tool_not_a_person(self):
+        self.assertRegex(icons.AGENT, r"^[a-z-]+$")
 
 
 class Folders(unittest.TestCase):

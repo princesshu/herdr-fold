@@ -10,6 +10,18 @@ sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import icons  # noqa: E402
 
 
+class Glyphs(unittest.TestCase):
+    def test_a_popups_close_button_has_its_own_glyph(self):
+        # Codicons' close, or the plain ×: the close button of every popup herdr-fold opens in the TUI
+        self.assertEqual((icons.glyphs(True)["close"], icons.glyphs(False)["close"]), ("\uea76", "×"))
+
+    def test_the_agent_view_has_its_robot_the_rows_other_icons_stay(self):
+        # Codicons' robot, or a plain ◇; Chats' sparkle and Issues' To agent arrow as the owner chose them
+        self.assertEqual((icons.glyphs(True)["robot"], icons.glyphs(False)["robot"]), ("\uec20", "◇"))
+        self.assertEqual([icons.glyphs(True)[name] for name in ("files", "search", "git", "issues", "ai", "agent")],
+                         ["\ueaf0", "\uea6d", "\uea68", "\ueb00", "\uec10", "\uec0f"])
+
+
 class FileType(unittest.TestCase):
     def test_a_files_type_goes_by_its_names_start_then_its_extension(self):
         cases = {"app.py": "python", "README.md": "readme", ".gitignore": "git", ".env.local": "env",

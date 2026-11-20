@@ -1,5 +1,5 @@
 """Rich copy: herdr's own pbcopy runs this after copying a selection as plain text. A Claude/Codex reply excerpt is
-found in the conversation file by the order of its visible words (the screen hides Markdown marks and wraps lines) and
+found in the chat file by the order of its visible words (the screen hides Markdown marks and wraps lines) and
 added as HTML and RTF, unless the clipboard changed meanwhile. Writes to the clipboard on macOS only."""
 import collections
 import itertools
@@ -10,11 +10,11 @@ import sys
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "plugins", "sidebar"))   # reader, format
-from conversations import TAIL, folder_files, messages, session_files  # noqa: E402
+from chats import TAIL, folder_files, messages, session_files          # noqa: E402
 from herdrlib import AGENTS, agents  # noqa: E402
 from i18n import t  # noqa: E402
 from richtext import copy_rich  # noqa: E402
-GUESSES = 3                                                     # conversations of a folder looked in, the newest
+GUESSES = 3                                                     # chats of a folder looked in, the newest
 WORD = re.compile(r"[^\W_]+")
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")                  # [text](url): the url is not visible
 FENCE = re.compile(r"^[ \t]*(```|~~~)([^\n]*)$", re.M)          # the code block's language is not visible
@@ -22,18 +22,18 @@ INLINE = ("**", "~~", "`")
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# The conversations' replies (newest first)
+# The chats' replies (newest first)
 # ---------------------------------------------------------------------------------------------------------------
 
 def replies(kind, path):
-    """The agent's replies in the conversation in PATH, the newest first: of its last TAIL bytes, where a reply still
-    on screen is (a conversation is hundreds of megabytes, and every open one is looked in on each copy)."""
+    """The agent's replies in the chat in PATH, the newest first: of its last TAIL bytes, where a reply still
+    on screen is (a chat is hundreds of megabytes, and every open one is looked in on each copy)."""
     return [text for role, text in messages(kind, path, tail=TAIL) if role == "assistant"][::-1]
 
 
 def open_sessions():
-    """(kind, conversation file) for the local agents running in herdr — the focused one first. Where herdr has no
-    conversation for an agent (it was not told one), the newest few started in the agent's folder."""
+    """(kind, chat file) for the local agents running in herdr — the focused one first. Where herdr has no
+    chat for an agent (it was not told one), the newest few started in the agent's folder."""
     try:
         running = agents()
     except OSError:                             # no herdr on this machine
@@ -147,7 +147,7 @@ def find_source(selection, texts):
 # ---------------------------------------------------------------------------------------------------------------
 
 def upgrade(selection):
-    """Puts the formatted version of the selection on the clipboard if it comes from a reply in an open conversation.
+    """Puts the formatted version of the selection on the clipboard if it comes from a reply in an open chat.
     True if it did."""
     if sys.platform != "darwin" or not selection.strip():
         return False

@@ -3,13 +3,20 @@
 // choice of a few.
 import { div, image, PathBuilder, svg } from "gpui-kit";
 import { h_flex, HoverCard, Input } from "gpui-base";
-import { ringArc } from "./agents.js";
-import { ICONS } from "./icons.js";
+import { exec, layout, settings } from "herdr";
+import { ringArc, tagColors, tagRole } from "./agents.js";
+import { BRANDS, ICONS } from "./icons.js";
+import { tile } from "./layers.js";
 
 /** @typedef {import("./icons.js").IconName} IconName */
-import { LIST, PAD } from "./logic.js";
+import { avatarFill, BADGE, badgeSpot, lastLine, LIST, NOTE_MS, PAD, shortCount } from "./logic.js";
 
 export const GAP = 4;              // between two hover backgrounds side by side, everywhere: tabs, icon buttons
+// fixed-width text's one font, every view's and the styleguide's: the layout's terminals' (herdr-fold's own, which
+// fonts/ brings), else the person's
+export const CODE_FONT = "herdr-fold Mono";
+/** @returns {string} */
+export const codeFont = () => /** @type {any} */ (layout())?.font ?? settings().font_family ?? CODE_FONT;
 // the scales every view keeps to, which the styleguide shows: padding and gaps on a 4 px grid, the type sizes, the
 // corners (tests/test_app.py checks each value against them)
 export const SPACE = [2, 4, 6, 8, 12, 16, 20, 24, 32, 40, 48, 64];
@@ -22,9 +29,10 @@ export { PAD };
  * @param {import("./icons.js").IconName} name @param {number} [size] */
 export const icon = (name, size = 14) => svg(ICONS[name]).size(size).flex_none();
 
-/** A key as a cap (KEY: 1, esc, ↩), its edge seen on a lit row too. @param {string} key */
-export const keyCap = (t, key) => div().h(18).min_w(18).px(4).flex_none().flex().items_center().justify_center()
-  .rounded(4).border(1).border_color(t.dim + "80").text_size(11).text_color(t.muted).child(key);
+/** A key as a cap (KEY: 1, esc, ↩), its edge seen on a lit row too; HIGH 18, 16 on a list row's line.
+ * @param {string} key @param {number} [high] */
+export const keyCap = (t, key, high = 18) => div().h(high).min_w(high).px(4).flex_none().flex().items_center()
+  .justify_center().rounded(4).border(1).border_color(t.dim + "80").text_size(11).text_color(t.muted).child(key);
 
 /** The context ring, 16 square: its track, and PERCENT of it from the top clockwise in COLOR, painted as GPUI paints
  * a path. @param {number} percent @param {string} color */
@@ -40,33 +48,54 @@ export function ring(t, percent, color) {
     .when(Boolean(share), (e) => e.child(layer(share, color)));
 }
 
+/** A connector's mark, SIZE square (connectors.html's .tile.xs): its BRAND's logo (icons.js's BRANDS) in its own
+ * colors, a one-color mark in the text's; one of no known brand its NAME's letter on a tile, in the spaces' avatars'
+ * colors. @param {string | null | undefined} brand @param {string} name @param {number} [size] */
+export function brandMark(t, brand, name, size = 16) {
+  const known = /** @type {Record<string, { logo: string, mono: boolean }>} */ (BRANDS)[brand ?? ""];
+  if (known) {
+    return known.mono ? svg(known.logo).size(size).flex_none().text_color(t.foreground)
+      : image(known.logo).size(size).flex_none();
+  }
+  const { letter, color } = tile(name);
+  return div().size(size).flex_none().flex().items_center().justify_center().rounded(4).bg(avatarFill(color, t))
+    .text_size(10).line_height(`${size}px`).font_bold().text_color("#ffffff").child(letter);
+}
+
+/** A sign-in's spinner (connectors.html's .spin): 12, in the accent, a turn in 0.9 s. */
+export const spinner = (t) => icon("loader-circle", 12).text_color(t.accent).spin(900);
+
 /** A file's icon (logic.js's fileIcon, a path), 16 square, in its own colors. @param {string} path */
 export const fileMark = (path) => image(path).size(16).flex_none();
 
 export const BUTTON = 26;          // an icon button's square
+export const DOT = 7, RINGED = DOT + 4;  // an icon button's dot, ringed 2 round, its centre on the icon's corner
 export const INDENT = 6 + 14 + 6;  // a row's content under its section's name: the head's padding, chevron and gap
 
-/** A button that is an icon (NAME), 26 square, saying TIP while the mouse rests on it (LEFT: to its left, as the
- * tab bar's end has them, the app's own tip choosing its side itself); its press (PRESS gets it, for a menu under it)
- * never drags what it sits on. @param {import("./icons.js").IconName} name @param {string} tip @param {any} act */
-export const iconButton = (t, id, name, tip, act, { size = 14, color = t.muted, left = false,
-  press = /** @type {((e: any) => void) | null} */ (null) } = {}) => {
+/** An icon (NAME) button, 26 square, TIP its tip (LEFT: to its left, as the bar's end has them; null: none); its press
+ * (PRESS gets it) never drags what it sits on; LIT in the accent; DOT a mark in that color on its icon's top-right
+ * corner, ringed in the bar's fill (canvas). @param {IconName} name @param {string | null} tip @param {any} act */
+export const iconButton = (t, id, name, tip, act, { size = 14, color = t.muted, left = false, lit = false,
+  dot = /** @type {string | null} */ (null), press = /** @type {((e: any) => void) | null} */ (null) } = {}) => {
   const button = div().id(id).relative().size(BUTTON).flex_none().flex().items_center().justify_center().rounded(6)
-    .text_color(color).cursor_pointer().when(!left, (e) => e.tooltip(tip))
-    .hover((s) => s.bg(t.hover).text_color(t.foreground))
+    .text_color(lit ? t.accent : color).cursor_pointer().when(!left && tip !== null, (e) => e.tooltip(String(tip)))
+    .hover((s) => s.bg(t.hover).text_color(lit ? t.accent : t.foreground))
     .on_mouse_down("left", (e, cx) => {
       cx.stop_propagation();
       press?.(e);
-    }).on_click((_e, cx) => act(cx)).child(icon(name, size));
-  return left ? HoverCard.new(`${id}-tip`).anchor("top_right").open_delay(500).close_delay(0).trigger(button)
-    .content(div().mt(4).px(8).py(2).rounded(6).border_1().border_color(t.border).bg(t.popover ?? t.raised)
-      .text_size(12).text_color(t.foreground).child(tip)) : button;
+    }).on_click((_e, cx) => act(cx)).child(icon(name, size))
+    .when(Boolean(dot), (e) => e.child(div().absolute().left((BUTTON + size - RINGED) / 2)
+      .top((BUTTON - size - RINGED) / 2).size(RINGED).rounded_full().bg(String(dot)).border_2()
+      .border_color(t.canvas)));
+  return left && tip !== null ? HoverCard.new(`${id}-tip`).anchor("top_right").open_delay(500).close_delay(0)
+    .trigger(button).content(div().mt(4).px(8).py(2).rounded(6).border_1().border_color(t.border)
+      .bg(t.popover ?? t.raised).text_size(12).text_color(t.foreground).child(tip)) : button;
 };
 
 /** A list's or a floating panel's NAME, as the app's lists: 11, medium, dim. @param {string} name */
 export const listName = (t, name) => div().text_size(11).font_medium().text_color(t.dim).child(name);
 
-/** A sidebar list's head, Spaces' and Conversations' alike: its NAME and its BUTTONS at the end.
+/** A sidebar list's head, as Spaces has it: its NAME and its BUTTONS at the end.
  * @param {string} name @param {...any} buttons */
 export const listHead = (t, name, ...buttons) => h_flex().h(LIST.head).flex_none().pl(16).pr(8).items_center()
   .justify_between().child(listName(t, name)).children(buttons);
@@ -83,6 +112,28 @@ export function button(t, id, label, enabled, solid, onClick) {
     .when(enabled, (e) => e.cursor_pointer().on_click((_e, cx) => onClick(cx))).child(label);
 }
 
+/** @typedef {{ text: string, error: boolean }} Note what was done (ERROR: what went wrong) */
+
+/** NOTE under a list, on the card's foot, as the TUI's last row and Files' and Changes' problems: never over the rows,
+ * so none moves; PAD in, PAD / 2 over it, 11, dim (an error ansi1), wrapping. @param {Note} note */
+export const footNote = (t, note) => div().flex_none().px(PAD).pt(PAD / 2).pb(PAD).text_size(11)
+  .text_color(note.error ? t.ansi1 : t.dim).child(note.text);
+
+/** NOTE (or none) on HOLDER's line, a done thing's gone after NOTE_MS unless another came meanwhile, an error's kept.
+ * @param {{ note: Note | null }} holder @param {Note | null} note */
+export function keepNote(holder, note, cx) {
+  holder.note = note;
+  if (note && !note.error) {
+    cx.timer.after(NOTE_MS, (/** @type {any} */ cx) => {
+      if (holder.note !== note) return;
+      holder.note = null;
+      cx.notify();
+    });
+  }
+  cx.notify();
+}
+
+export const SPINNER = [..."⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"];     // a request under way, as the TUI's: ✦ writing, Issues loading
 export const SPRING = { response: 240, damping: 1 };   // a fold opening or shutting, sprung by the app, no overshoot
 
 /** A fold's chevron, SIZE square in COLOR: SHUT's icon while shut, OPEN's while open, the one fading into the other as
@@ -93,21 +144,30 @@ export const fold = (id, open, size = 14, color = undefined, names = ["chevron-r
     .children(names.map((name, n) => icon(name, size).id(`${id}-${n}`).absolute().top_0().left_0()
       .opacity(Number(open) === n ? 1 : 0).spring("opacity", SPRING)));
 
-/** COUNT in a round badge, as VS Code's on its Source Control. @param {number} count */
-export const badge = (t, count) => div().h(16).min_w(16).px(4).flex().items_center().justify_center().rounded_full()
-  .bg(t.accent).text_color(t.accent_foreground ?? t.background).text_size(10).font_bold().child(String(count));
+/** COUNT in a round badge, short when large (1.2k), the accent's: as VS Code's activity bar has them on an icon,
+ * BADGE high and at least as wide, its number 10 semibold; after a tab's name HIGH (TAB_COUNT) and its number TEXT.
+ * @param {number} count */
+export const badge = (t, count, high = BADGE, text = 10) => div().h(high).min_w(high).px(4).flex().items_center()
+  .justify_center().rounded_full().bg(t.accent).text_color(t.accent_foreground ?? t.background)
+  .text_size(text).line_height(`${high}px`).font_semibold().child(shortCount(count));
 
-/** A square tab, as the panel heads its views and a folded side shows its panels: CONTENT, SIZE square, the shown one
- * (ACTIVE) on the selection, a state's DOT or a COUNT's badge at its corner; the mouse on it names it (TIP).
- * @param {any} content @param {any} how */
-export function iconTab(t, id, content, { size = 30, active = false, dot = null, count = 0, tip, act }) {
+/** COUNT's badge on an icon whose top-right corner is at X, Y in its relative box (logic.js's badgeSpot), none at 0;
+ * out of the flow, so the icon, its name and the buttons beside stay as a badge comes, goes or grows.
+ * @param {number} count @param {number} x @param {number} y */
+export const countBadge = (t, count, x, y, spot = badgeSpot(x, y)) => div().absolute().left(spot.left).top(spot.top)
+  .when(count > 0, (e) => e.child(badge(t, count)));
+
+/** A square tab, as the panel heads its views and a folded side shows its panels: CONTENT (a GLYPH square icon), SIZE
+ * square, the shown one (ACTIVE) on the selection, a state's DOT at its corner or a COUNT's badge on the icon's; the
+ * mouse on it names it (TIP). @param {any} content @param {any} how */
+export function iconTab(t, id, content, { size = 30, glyph = 15, active = false, dot = null, count = 0, tip, act }) {
   return div().id(id).relative().size(size).flex_none().flex().items_center().justify_center().rounded(6)
     .cursor_pointer().tooltip(tip).text_size(15).bg(active ? t.selected : t.raised)
     .text_color(active ? t.foreground : t.muted).hover((s) => s.bg(t.hover)).on_click((_e, cx) => act(cx))
     .child(content)
     .when(Boolean(dot), (e) => e.child(div().absolute().top(-3).right(-3).size(9).rounded_full()
-      .bg(/** @type {string} */ (dot)).border_2().border_color(t.chrome ?? t.background)))
-    .when(count > 0, (e) => e.child(badge(t, count).absolute().top(-6).right(-8)));
+      .bg(/** @type {string} */ (dot)).border_2().border_color(t.chrome)))
+    .child(countBadge(t, count, (size + glyph) / 2, (size - glyph) / 2));
 }
 
 /** A state's mark, as herdr marks an agent's: a disc in its color (working, blocked, done), a ring when idle, a faint
@@ -116,8 +176,9 @@ export function stateMark(t, state) {
   const color = state ? t[state] ?? t.dim : t.dim;
   const mark = state === "idle" ? div().size(7).rounded_full().border_1().border_color(color)
     : div().size(state ? 7 : 5).rounded_full().bg(color);
-  return div().w(10).flex_none().flex().items_center().justify_center().child(mark);
+  return div().w(STATE_MARK).flex_none().flex().items_center().justify_center().child(mark);
 }
+export const STATE_MARK = 10;      // px: a state mark's room
 
 /** A text field, as each of the mod's: bordered, no fill of its own, 32 high; INPUT, then MORE (switches) inside it.
  * @param {any} input @param {...any} more */
@@ -152,8 +213,103 @@ export function choices(t, id, list, chosen, pick) {
     .child(label)));
 }
 
+// a switch's pill, its knob and the knob's inset: center-chat.html's Ultracode's, and connectors.html's .sw on a
+// list's 16 line (the + menu's connectors)
+const SWITCH = { row: { wide: 34, high: 20, knob: 14, inset: 3 }, line: { wide: 28, high: 16, knob: 12, inset: 2 } };
+
+/** A switch: a pill (34 × 20, its 14 px knob 3 in; on a list's LINE 28 × 16, the knob 12, 2 in), the knob at the left
+ * while off, at the right on the accent while ON; while it cannot be pressed (ENABLED false), faint.
+ * @param {boolean} [line] */
+export const toggle = (t, id, on, enabled, act, line = false, { wide, high, knob, inset } = SWITCH[line ? "line"
+  : "row"]) => div().id(id).w(wide).h(high).flex_none().relative().rounded_full()
+  .bg(on ? t.accent : t.raised).when(!enabled, (e) => e.opacity(0.5))
+  .when(enabled, (e) => e.cursor_pointer().on_click((_e, cx) => act(cx)))
+  .child(div().absolute().top(inset).left(on ? wide - knob - inset : inset).size(knob).rounded_full()
+    .bg(on ? t.accent_foreground ?? t.background : t.muted));
+
+/** A source's tag (.tagu, .tagp, .tagl, .tagc): its WORD, 11, 16 high, on the window's level, in its role's color
+ * (tagColors: the accent, then the hues nearest the mockup's teal, peach and blue; Local muted), or in COLOR (a
+ * palette's group, muted). @param {string} word @param {string} [color] */
+export function scopeTag(t, word, color = tagColors(t)[tagRole(word)]) {
+  return div().h(16).flex_none().px(6).flex().items_center().rounded(4).bg(t.canvas).text_size(11)
+    .line_height("16px").text_color(color).child(word);
+}
+
+export const ACTION = 26;          // px: a properties button, center-chat.html's .btn
+
+/** A properties button (connectors.html's .btn, .go2, .ghost), ACTION high: LOOK "solid" on the accent, "raised",
+ * or "plain" in muted; one that cannot be pressed now (USABLE false) faint, a TIP saying why. @param {string} id
+ * @param {string} label @param {string} look @param {(cx: any) => void} press @param {string | null} [tip] */
+export function actButton(t, id, label, look, usable, press, tip = null) {
+  const solid = look === "solid", raised = look === "raised";
+  return div().id(id).h(ACTION).min_w(0).px(PAD).flex().items_center().rounded(8)
+    .when(solid, (e) => e.bg(t.solid).font_bold()).when(raised, (e) => e.bg(t.raised))
+    .text_color(solid ? t.solid_foreground : !usable ? t.dim : raised ? t.foreground : t.muted)
+    .when(usable, (e) => e.cursor_pointer().on_click((/** @type {any} */ _e, /** @type {any} */ cx) => press(cx)))
+    .when(usable && !solid, (e) => e.hover((/** @type {any} */ s) => s.bg(t.hover).text_color(t.foreground)))
+    .when(Boolean(tip), (e) => e.tooltip(tip ?? ""))
+    .child(div().min_w(0).truncate().child(label));
+}
+
+/** A properties LINE ([label, value, a third or null]), 20 high: its label dim in a column LABEL px wide, its value in
+ * the CODE font 11 (null: a phrase, in the text's), the third dim at the end. @param {string} id
+ * @param {[string, string, string | null]} line @param {number} label @param {string | null} code */
+export const propertyLine = (t, id, [name, value, third], label, code) => h_flex().id(id).h(20).flex_none().gap(8)
+  .items_center().tooltip(value).child(div().w(label).flex_none().text_color(t.dim).child(name))
+  .child(code ? div().flex_1().min_w(0).truncate().font_family(code).text_size(11).child(value)
+    : div().flex_1().min_w(0).truncate().child(value))
+  .when(Boolean(third), (e) => e.child(div().flex_none().text_color(t.dim).child(third ?? "")));
+
 /** A count on a chip, as the TUI sidebar's sections show theirs. */
 export function chip(t, text) {
   return div().flex_none().px(6).rounded(4).text_size(11).font_semibold().bg(t.raised).text_color(t.foreground)
     .child(text);
+}
+
+/** A choice of a few as one control (usage.html's .seg): LIST's [value, label] on the window's level, BUTTON high;
+ * the CHOSEN part raised, a press on another gives PICK its value. @param {string} id
+ * @param {[string, string][]} list @param {string | null} chosen @param {(value: string, cx: any) => void} pick */
+export function segmented(t, id, list, chosen, pick) {
+  return h_flex().id(id).h(BUTTON).flex_none().p(2).gap(2).items_center().rounded(8).border_1()
+    .border_color(t.border).bg(t.canvas).children(list.map(([value, label]) => div().id(`${id}-${value}`).h_full()
+      .px(8).flex().items_center().rounded(6).text_size(12).whitespace_nowrap()
+      .when(value === chosen, (e) => e.bg(t.raised).text_color(t.foreground))
+      .when(value !== chosen, (e) => e.text_color(t.muted).cursor_pointer()
+        .hover((/** @type {any} */ s) => s.bg(t.hover).text_color(t.foreground))
+        .on_click((/** @type {any} */ _e, /** @type {any} */ cx) => pick(value, cx)))
+      .child(label)));
+}
+
+/** A model's or a part's swatch (usage.html's .sw2): SIZE square, its corners 2, in COLOR. @param {string} color
+ * @param {number} [size] */
+export const swatch = (color, size = 8) => div().size(size).flex_none().rounded_xs().bg(color);
+
+export const SAVING = 600000;         // ms macOS's save panel or chooser waits: the most exec() waits
+// macOS's save panel (osascript's): ARGV its prompt, the file's name and the folder it opens on; "" for none
+// (cancelled)
+const SAVE = "function run(argv) { const app = Application.currentApplication(); app.includeStandardAdditions = true; "
+  + "app.activate(); try { return app.chooseFileName({ withPrompt: argv[0], defaultName: argv[1], "
+  + "defaultLocation: Path(argv[2]) }).toString(); } catch (e) { if (e.errorNumber === -128) return ''; throw e; } }";
+
+/** The file macOS's save panel names (PROMPT its words, NAME the file's at first, in FOLDER at first; a file there
+ * replaced only as the panel asks); "" when cancelled. Throws why it could not ask. @param {string} prompt
+ * @param {string} name @param {string} folder */
+export async function savePanel(prompt, name, folder) {
+  const done = await exec("osascript", ["-l", "JavaScript", "-e", SAVE, prompt, name, folder], { timeout: SAVING });
+  if (done.code !== 0) throw new Error(lastLine(done));
+  return done.stdout.trim();
+}
+
+// how this Mac's user has a time written (Language & Region): macOS's own pattern for each template, asked once a run
+const FORMS = "ObjC.import('Foundation'); const f = (t) => $.NSDateFormatter.dateFormatFromTemplateOptionsLocale(t, 0, "
+  + "$.NSLocale.currentLocale).js; JSON.stringify({ time: f('jmm'), day: f('MMMdjmm'), year: f('yMMMdjmm'), "
+  + "weekday: f('EEEMMMdjmm') })";
+/** @type {Promise<any> | null} */
+let forms = null;
+
+/** This Mac's forms of a time (timeline.js's setForms), asked of macOS once; null where it cannot say. */
+export function systemForms() {
+  forms = forms ?? exec("osascript", ["-l", "JavaScript", "-e", FORMS])
+    .then((done) => (done.code === 0 ? JSON.parse(done.stdout) : null)).catch(() => null);
+  return forms;
 }

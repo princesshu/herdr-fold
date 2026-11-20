@@ -9,7 +9,7 @@ import re
 import subprocess
 import unittest
 
-from support import PACKAGE, PNG_SIGNATURE, catalog_text, is_webp, package_text, publishable_files
+from support import PACKAGE, PNG_SIGNATURE, catalog_text, is_font, is_webp, package_text, publishable_files
 
 # what must never reach the repository: system and editor clutter, caches, secrets and keys, backups, the files of AI
 # tools, and the per-machine state that lives in the user's config folder
@@ -24,7 +24,7 @@ def text_files():
     for rel in publishable_files():
         with open(os.path.join(PACKAGE, rel), "rb") as f:
             data = f.read()
-        if not (data.startswith(PNG_SIGNATURE) or is_webp(data)):
+        if not (data.startswith(PNG_SIGNATURE) or is_webp(data) or is_font(data)):
             yield rel, data
 
 
@@ -222,6 +222,11 @@ class GhosttySettings(unittest.TestCase):
 
 
 class Brewfile(unittest.TestCase):
+    def test_no_font_comes_from_homebrew(self):
+        # herdr-fold Mono comes with the package (tools/fonts.py): a Nerd Font cask would be a second monospace font
+        with open(os.path.join(PACKAGE, "Brewfile")) as f:
+            self.assertEqual(re.findall(r'^cask "(font-[^"]+)"', f.read(), re.M), [])
+
     def test_it_brings_the_sidebars_tools(self):
         """bat colors a file's preview, delta a diff's and ripgrep searches fast; without them the sidebar's own pager
         shows them plainer and its search runs git grep or its own."""
@@ -236,13 +241,12 @@ class Brewfile(unittest.TestCase):
         self.assertNotIn("herdr-sidebar", notices)
 
     def test_the_installers_first_screen_names_its_programs(self):
-        """Every program the Brewfile brings is named before the first question (git-delta by its own name, delta);
-        the font is the one left out."""
+        """Every program the Brewfile brings is named before the first question (git-delta by its own name, delta)."""
         with open(os.path.join(PACKAGE, "Brewfile")) as f:
             names = re.findall(r'^(?:brew|cask) "([^"]+)"', f.read(), re.M)
         intro = catalog_text("install.intro").lower()
-        missing = [name for name in names if not name.startswith("font-")
-                   and not re.search(rf"\b{re.escape(name.removeprefix('git-'))}\b", intro)]
+        missing = [name for name in names
+                   if not re.search(rf"\b{re.escape(name.removeprefix('git-'))}\b", intro)]
         self.assertEqual(missing, [])
 
 
@@ -357,12 +361,16 @@ class Credits(unittest.TestCase):
             head = package_text(rel).split("\n[", 1)[0]
             self.assertEqual([key for key in ("id", "name", "version", "min_herdr_version")
                               if not re.search(rf'^{key} = "[^"]+"$', head, re.MULTILINE)], [], rel)
+        # one version for the whole package: an update brings every plugin of it at once, and the installer
+        # writes the root's as the installed one
+        versions = {rel: re.search(r'^version = "(.*)"$', package_text(rel), re.MULTILINE).group(1) for rel in found}
+        self.assertEqual(set(versions.values()), {versions["herdr-plugin.toml"]}, versions)
 
     def test_the_whole_environment_offers_the_installer_on_a_mac(self):
         manifest = package_text("herdr-plugin.toml")
         head = manifest.split("\n[", 1)[0]
         self.assertEqual(dict(re.findall(r'^(id|name|version|min_herdr_version) = "(.*)"$', head, re.MULTILINE)),
-                         {"id": "herdr-fold", "name": "Full Setup", "version": "0.3.0",
+                         {"id": "herdr-fold", "name": "Full Setup", "version": "0.4.0",
                           "min_herdr_version": "0.9.5"})
         self.assertIn('platforms = ["macos"]', head)
         self.assertIn("[[startup]]", manifest)

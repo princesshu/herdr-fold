@@ -1,21 +1,23 @@
-"""The Conversations panel's list: herdr's workspaces in its Spaces list's order and typography, each a group of its
-conversations (the active tab's first, then the newest; one outside every workspace is not shown), under a filter.
-Closed ones can be marked to archive together. The view only asks: what it does comes back as an Action for the app."""
+"""The Chats list the ✦ opens over the sidebar: herdr's workspaces in its Spaces list's order and typography, each a
+group of its chats (the active tab's first, then the newest; none outside every workspace), under a filter; closed ones
+marked to archive together, one deleted once asked. The view only asks: what it does comes back as an Action."""
 import time
 from dataclasses import dataclass
 
 import widgets
 from github import since
-from screen import Style, truncate, width
+from screen import PAD, PLAIN, Canvas, Style, truncate, width
 from vt import Key, Mouse
-from widgets import Action, ListView, Menu, Popup, TextInput
+from widgets import Action, Confirm, ListView, Menu, Popup, TextInput
 
 # herdr's states, as its Spaces list and AI Sessions mark and color them (unknown: its overlay0, the sidebar's
-# "ignored"); a closed conversation, which herdr has no state for, "·" in the faint guide color
+# "ignored"); a closed chat, which herdr has no state for, "·" in the faint guide color
 STATE_ROLE = {"blocked": "deleted", "done": "done", "working": "modified", "idle": "added", "unknown": "ignored"}
 STATE_MARK = {"blocked": "●", "done": "●", "working": "●", "idle": "○", "unknown": "·"}
-MENU = ("Open", "Copy conversation", "Rename")
-BOX, MARKED = "□", "■"        # a closed conversation's box, and a marked one's
+MENU = ("Open", "Copy chat", "Rename")
+DELETE = "Delete…"            # a closed chat's, asked first: its file to the system's Trash
+ASKED = 40                    # characters of a chat's name in that question
+BOX, MARKED = "□", "■"        # a closed chat's box, and a marked one's
 
 
 def printable(text):
@@ -30,23 +32,25 @@ def mark(state):
 
 @dataclass
 class Naming:
-    item: object              # the conversation renamed
+    item: object              # the chat renamed
     field: TextInput          # its new name, the old one to start with
 
 
-class ConversationList:
-    editing = True            # the filter takes every character typed: the app's own keys (1-5, q) wait
+class ChatList:
+    editing = True            # the filter takes every character typed: the app's own keys (1-4, q) wait
 
     def __init__(self, now=time.time):
         self.now = now
         self.items, self.spaces, self.place, self.here = None, [], None, None      # items None: not read yet
         self.field = TextInput(placeholder="Filter")
         self.opened, self.closed = set(), set()                     # groups opened or closed by hand
-        self.archived = set()                                       # "<agent>:<id>" of the conversations off the list
+        self.archived = set()                                       # "<agent>:<id>" of the chats off the list
         self.show_archived = False                                  # those in sight too (the app sets it)
         self.marked = set()                                         # "<agent>:<id>" of the ones marked to archive
-        self.naming = None                                          # a conversation's name being edited (Naming)
-        self.front = set()                  # the panes of each workspace's active tab, whose conversations lead
+        self.naming = None                                          # a chat's name being edited (Naming)
+        self.confirm = self.doomed = None                           # Delete…'s question, and the chat it asks about
+        self.gone = set()                                           # "<agent>:<id>" of those on their way to the Trash
+        self.front = set()                  # the panes of each workspace's active tab, whose chats lead
         self.states = {}                    # each workspace's state, as herdr's Spaces list has it (the app sets it)
         self.icons = True                   # the sidebar's icons (its settings), or plain marks (the app sets it)
         self.list = ListView()
@@ -58,10 +62,11 @@ class ConversationList:
         return self.field.text
 
     def set(self, items, spaces, place, here):
-        """ITEMS (the conversations), SPACES (the workspaces' names in the Spaces list's order), PLACE (a folder's
+        """ITEMS (the chats), SPACES (the workspaces' names in the Spaces list's order), PLACE (a folder's
         workspace, or None), HERE (the workspace this pane is in). The first time, HERE is the one chosen."""
         first = self.items is None
         self.items, self.spaces, self.place, self.here = items, spaces, place, here
+        self.gone &= {self.archive_key(item) for item in items}     # read without it: its file is in the Trash
         self.rebuild()
         if first:
             self.list.index = next((i for i, row in enumerate(self.list.items) if row[1] == here), 0)
@@ -90,11 +95,11 @@ class ConversationList:
 
     @staticmethod
     def markable(row):
-        """Whether ROW is a conversation that can be marked: a closed one (a running one is never archived)."""
+        """Whether ROW is a chat that can be marked: a closed one (a running one is never archived)."""
         return bool(row) and row[0] == "item" and not row[1].state
 
     def mark_row(self, row, on=None):
-        """ROW's conversation marked (ON), unmarked, or turned over (None); a running one or a group as it is."""
+        """ROW's chat marked (ON), unmarked, or turned over (None); a running one or a group as it is."""
         if self.markable(row):
             key = self.archive_key(row[1])
             if on is None:
@@ -112,15 +117,17 @@ class ConversationList:
         for action, back in (("archive", False), ("unarchive", True)):
             items = [item for item in marked if (self.archive_key(item) in self.archived) == back]
             if items:
-                noun = "conversation" if len(items) == 1 else "conversations"
+                noun = "chat" if len(items) == 1 else "chats"
                 choices[f"{action.capitalize()} {len(items)} {noun}"] = (action, items)
         return choices
 
     def members(self):
-        """{workspace: its conversations that match what was typed, the one in its active tab first, then the newest},
+        """{workspace: its chats that match what was typed, the one in its active tab first, then the newest},
         in the Spaces list's order; an archived one only while shown or something is typed."""
         groups = {name: [] for name in self.spaces}
         for item in self.items or ():
+            if self.archive_key(item) in self.gone:
+                continue
             if self.archive_key(item) in self.archived and not (self.typed or self.show_archived):
                 continue
             if self.group_of(item) in groups and self.matches(item):
@@ -129,7 +136,7 @@ class ConversationList:
                 for name, found in groups.items()}
 
     def rows(self):
-        """("group", name, its conversations, open) and ("item", conversation, last in its group) rows, in the order
+        """("group", name, its chats, open) and ("item", chat, last in its group) rows, in the order
         shown: every workspace, one that has nothing typed matches left out."""
         rows = []
         for name, found in self.members().items():
@@ -193,6 +200,8 @@ class ConversationList:
             self.draw_row(canvas, y + row, index)
         if self.menu:
             self.draw_menu(canvas)
+        if self.confirm:
+            self.draw_confirm(canvas)
 
     def space_mark(self, name):
         """Workspace NAME's mark and its color, as herdr's Spaces list draws them."""
@@ -200,14 +209,14 @@ class ConversationList:
 
     def line(self):
         if self.items is None:
-            return "Loading conversations…"
+            return "Loading chats…"
         if self.list.items:
             return None
-        return "No conversation matches" if self.typed else "No conversations"
+        return "No chat matches" if self.typed else "No chats"
 
     def draw_row(self, canvas, y, index):
         """A workspace as herdr's Spaces list has it: its mark, its name (the current one's bold), and at the right
-        edge how many it holds and its fold chevron; a conversation on herdr's tree lines: its mark, its name (a closed
+        edge how many it holds and its fold chevron; a chat on herdr's tree lines: its mark, its name (a closed
         one's faint), the agent (fainter still) and how long ago."""
         row, cells = self.list.items[index], canvas.width
         bg = "selection" if index == self.list.index else ("hover" if index == self.hover else None)
@@ -236,7 +245,7 @@ class ConversationList:
         start = x = cells - 1 - sum(width(part) for part, _ in right)
         for part, role in right:
             x = canvas.put(y, x, part, Style(fg=role, bg=bg))
-        canvas.put(y, 0, "   └─ " if last else "   ├─ ", Style(fg="guide", bg=bg))
+        canvas.put(y, 1, "  └─ " if last else "  ├─ ", Style(fg="guide", bg=bg))        # inside the margin
         if self.markable(row):                                  # its box, in the tree lines' indent
             canvas.region(y, 0, 3, ("mark", index))
             if self.marked or index == self.hover:
@@ -253,11 +262,28 @@ class ConversationList:
 
     def draw_menu(self, canvas):
         popup = self.menu
-        popup.menu.draw(canvas, *popup.menu.at(popup.y, popup.x, canvas.width, self.top, self.top + self.height))
+        popup.menu.draw(canvas, *popup.menu.at(popup.y, popup.x, canvas.width, self.top, self.top + self.height, PAD))
+
+    def draw_confirm(self, canvas):
+        """Delete…'s question over the list's foot, as the dock's views ask theirs."""
+        cells = canvas.width
+        rows = self.confirm.draw(Canvas(cells, self.height), 0, 0, cells)
+        y = max(self.top, self.top + self.height - rows - 1)
+        for row in range(y, self.top + self.height):
+            canvas.put(row, 0, " " * cells, PLAIN)
+            canvas.region(row, 0, cells, "question")
+        canvas.put(y, PAD, "─" * (cells - 2 * PAD), Style(fg="muted"))
+        self.confirm.draw(canvas, y + 1, 0, cells)
 
     def close_menu(self):
         """Its menu closed, as a click outside it closes it: the pane lost the keys."""
         self.menu = None
+
+    def shut(self):
+        """The list closed (its lit button, Esc, a click outside it, another pane): its menu, a name being typed, a
+        question and the marks go with it; what was typed stays for the next time."""
+        self.menu = self.naming = self.confirm = self.doomed = None
+        self.marked.clear()
 
     # --- keys and the mouse
 
@@ -266,6 +292,8 @@ class ConversationList:
             return self.mouse(event)
         if not isinstance(event, Key):
             return None
+        if self.confirm:
+            return self.answer(self.confirm.handle(event))
         if self.menu:
             choice = self.menu.menu.handle(event)
             if choice == "cancel":
@@ -300,19 +328,18 @@ class ConversationList:
                 self.toggle(row[1])
         elif name == "enter" and row:
             return self.choose(row)
-        elif name == "esc" and self.typed:
-            self.filter(lambda: self.field.clear())
-        elif name == "esc":
-            self.marked.clear()
         elif name == " " and not self.typed:
             self.mark_row(row)
+        elif name == "delete" and not self.typed:               # the filter empty: nothing of it to delete
+            if row and row[0] == "item":
+                return self.ask_delete(row[1]) if self.markable(row) else Action("no_delete", (row[1],))
         elif name in ("backspace", "delete") or (event.name == "char" and not (event.ctrl or event.alt)
                                                 and event.char.isprintable()):
             self.filter(lambda: self.field.handle(event))
         return None
 
     def close(self, row):
-        """← : a conversation's group chosen; an open group closed."""
+        """← : a chat's group chosen; an open group closed."""
         if row[0] == "item":
             group = self.group_of(row[1])
             self.list.index = next(i for i, r in enumerate(self.list.items) if r[0] == "group" and r[1] == group)
@@ -326,23 +353,48 @@ class ConversationList:
             return None
         return Action("open", (row[1],))
 
+    def ask_delete(self, item):
+        """Delete… asked about ITEM, by its name: nothing leaves before the yes."""
+        name = printable(item.title)
+        name = name if len(name) <= ASKED else name[:ASKED - 1].rstrip() + "…"
+        self.confirm, self.doomed = Confirm(f"Move the chat “{name}” to the Trash?", "Move"), item
+
+    def answer(self, yes):
+        """The question answered: on a yes the row leaves at once, the next one in its place, and its file follows."""
+        if yes is None:
+            return None
+        item, self.confirm, self.doomed = self.doomed, None, None
+        if not yes:
+            return None
+        self.gone.add(self.archive_key(item))
+        self.marked.discard(self.archive_key(item))
+        self.rebuild()
+        return Action("delete", (item,))
+
+    def back(self, item):
+        """ITEM in the list again: the Trash did not take it."""
+        self.gone.discard(self.archive_key(item))
+        self.rebuild()
+
     def named(self):
-        """The rename done: the conversation and its new name, unless it is empty or the same."""
+        """The rename done: the chat and its new name, unless it is empty or the same."""
         item, name = self.naming.item, self.naming.field.text.strip()
         self.naming = None
         return Action("rename", (item, name)) if name and name != item.title else None
 
     def choices(self, item):
-        """The right click's menu for ITEM: Archive for a closed one, Unarchive for an archived one; for None (anywhere
-        else in the list) Show or Hide archived while any is, else nothing."""
+        """The right click's menu for ITEM: Archive for a closed one, Unarchive for an archived one, Delete… for either
+        (a running one has neither); for None (anywhere else in the list) Show or Hide archived while any is, else
+        nothing."""
         if item is None:
             return (("Hide archived" if self.show_archived else "Show archived"),) if self.archived else ()
         bulk = self.bulk() if self.archive_key(item) in self.marked else {}
         if bulk:
             return tuple(bulk) + ("Unmark all",)
+        closed = () if item.state else (DELETE,)
         if self.archive_key(item) in self.archived:
-            return MENU + ("Unarchive",)
-        return MENU if item.state else MENU + ("Archive",)
+            return MENU + ("Unarchive",) + closed
+        return MENU + (("Archive",) if closed else ()) + closed
 
     def open_menu(self, item, event):
         """ITEM's menu where EVENT clicked; none where it would be empty."""
@@ -359,13 +411,16 @@ class ConversationList:
         if choice == "Unmark all":
             self.marked.clear()
             return None
+        if choice == DELETE:
+            self.ask_delete(item)
+            return None
         if choice == "Rename":
             self.naming = Naming(item, TextInput())
             self.naming.field.insert(item.title)
             return None
         if choice in ("Show archived", "Hide archived"):
             return Action("show_archived", (choice == "Show archived",))
-        actions = {"Open": "open", "Copy conversation": "copy", "Archive": "archive", "Unarchive": "unarchive"}
+        actions = {"Open": "open", "Copy chat": "copy", "Archive": "archive", "Unarchive": "unarchive"}
         if actions[choice] in ("archive", "unarchive"):
             self.marked.discard(self.archive_key(item))
         return Action(actions[choice], (item,))
@@ -382,9 +437,13 @@ class ConversationList:
         index = target[1] if isinstance(target, tuple) and target[0] in ("row", "mark") else None
         if event.kind == "move":
             self.hover = index if index is not None else target
+            if self.menu:
+                self.menu.menu.point(target)
         elif event.kind in ("wheel_up", "wheel_down"):
             self.list.scroll(3 if event.kind == "wheel_down" else -3)
         elif event.kind == "press":
+            if self.confirm:
+                return self.answer(target == "confirm:yes") if target in ("confirm:yes", "confirm:no") else None
             if self.naming:                                 # a click in its field leaves it be; elsewhere it ends
                 if target != "input":
                     self.naming = None

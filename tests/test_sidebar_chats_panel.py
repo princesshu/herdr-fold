@@ -1,5 +1,6 @@
-"""Tests for the sidebar's Conversations panel (conversations_panel.py, conversation_list.py) with a stand-in
-terminal and a fake herdr: the list behind the Chats tab; going to, reopening, archiving, naming, copying one."""
+"""Tests for the sidebar's Chats list (chats_panel.py, chat_list.py) with a stand-in
+terminal and a fake herdr: the list the ✦ opens over the sidebar; going to, reopening, archiving, naming, copying
+one."""
 import json
 import os
 import shutil
@@ -12,8 +13,9 @@ import unittest
 from support import SRC, AppScreen, FakeTerminal, end_jobs, jsonl, logged, set_attrs, set_env, stubs
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
-import conversations  # noqa: E402
-import conversations_panel  # noqa: E402
+import chats          # noqa: E402
+import chats_panel          # noqa: E402
+import fileops  # noqa: E402
 import panes  # noqa: E402
 import preview  # noqa: E402
 import sidebar  # noqa: E402
@@ -70,19 +72,19 @@ class Panel(AppScreen, unittest.TestCase):
         return sidebar.App(self.root, FakeTerminal(40, 40), herdr or preview.Herdr(), self.state, **more)
 
     def start(self, chats=True):
-        """The sidebar running, its conversations read; on CHATS shown (its key), else on Files, as it starts."""
+        """The sidebar running, its chats read; with CHATS their list open (F7), else on Files, as it starts."""
         term = FakeTerminal(40, 40)
         self.run_app(sidebar.App(self.root, term, preview.Herdr(), self.state), term)
         if chats:
-            self.term.type(Key("char", "1"))
+            self.term.type(Key(sidebar.FIND))
             self.until(lambda s: "Price list" in s)
         else:
-            self.until(lambda s: "Price list" in [item.title for item in self.app.views["conversations"].items or []])
+            self.until(lambda s: "Price list" in [item.title for item in self.app.views["chats"].items or []])
 
     def listed(self):
-        """Chats' rows under its filter, as shown."""
-        top, rows = self.app.body
-        lines = self.screen().splitlines()[top:top + rows]
+        """The list's rows under its filter, as shown."""
+        top, left, bottom, right = self.app.box
+        lines = [line[left:right + 1] for line in self.screen().splitlines()[top + 1:bottom + 1]]
         start = next(n for n, line in enumerate(lines) if "Filter" in line) + 2
         return [line.strip() for line in lines[start:] if line.strip()]
 
@@ -102,13 +104,13 @@ class Panel(AppScreen, unittest.TestCase):
         """CHOICE of the right click's menu on the row that shows ROW."""
         y = next(n for n, shown in enumerate(self.screen().splitlines()) if row in shown)
         self.term.type(Mouse("press", 5, y, 2))
-        self.until(lambda s: any(f"│{choice} " in line for line in s.splitlines()[y + 1:]))
-        at = next(n for n, line in enumerate(self.screen().splitlines()) if n > y and f"│{choice} " in line)
+        self.until(lambda s: any(f"│ {choice} " in line for line in s.splitlines()[y + 1:]))
+        at = next(n for n, line in enumerate(self.screen().splitlines()) if n > y and f"│ {choice} " in line)
         self.term.type(Mouse("press", 7, at, 0))
 
-    def test_chats_lists_the_spaces_in_their_order_their_conversations_under_them(self):
+    def test_it_lists_the_spaces_in_their_order_their_chats_under_them(self):
         self.start()
-        self.assertEqual(self.app.body[0], sidebar.stack.TOP)
+        self.assertEqual(self.app.box[0], self.app.body[0])              # in the view's place, under the blank row
         shown = self.listed()
         self.assertEqual((shown[0].split()[1], shown[0][-1]), ("app", glyphs(True)["open"]), shown)   # this pane's
         self.assertTrue(shown[1].startswith("├─ ● Fix the login"), shown)
@@ -125,28 +127,28 @@ class Panel(AppScreen, unittest.TestCase):
             time.sleep(0.05)
         self.assertIn("agent focus w1:p1", logged(self.log))
 
-    def test_the_conversation_of_the_active_tab_leads_though_another_was_written_to_later(self):
+    def test_the_chat_of_the_active_tab_leads_though_another_was_written_to_later(self):
         self.claude("s2", "/repo/app", "Price list", time.time())             # reopened and closed a moment ago
         self.start()
         self.until(lambda s: s.index("Fix the login") < s.index("Price list"))
 
-    def test_find_shows_chats_empties_its_filter_and_gives_it_the_keys(self):
+    def test_find_opens_the_list_empties_its_filter_and_gives_it_the_keys(self):
         self.start()
-        self.term.type(Key("f9"))                                             # Files shown, with the keys
+        self.term.type(Key("f9"))                                             # closed: Files shown, with the keys
         self.until(lambda s: self.app.keyed() == "files" and "Price list" not in s)
-        self.app.views["conversations"].field.insert("zzz")
+        self.app.views["chats"].field.insert("zzz")
         self.term.type(Key(sidebar.FIND))
-        self.until(lambda s: self.app.keyed() == "conversations" and "Price list" in s)
-        self.assertEqual(self.app.views["conversations"].typed, "")
+        self.until(lambda s: self.app.keyed() == "chats" and "Price list" in s)
+        self.assertEqual(self.app.views["chats"].typed, "")
 
-    def test_copy_conversation_puts_the_whole_conversation_on_the_clipboard(self):
+    def test_copy_chat_puts_the_whole_chat_on_the_clipboard(self):
         path = os.path.join(self.home, ".claude", "projects", "-repo-app", "s2.jsonl")
         with open(path, "a") as f:
             f.write(jsonl({"type": "assistant", "message": {"content": [{"type": "text", "text": "**Done.**"}]}}))
-        work, copied = self.make().work["conversations"], []
+        work, copied = self.make().work["chats"], []
         work.clipboard = lambda text: copied.append(text) or True
         set_attrs(self, sys.modules["richtext"], copy_rich=lambda markdown, plain: copied.append("formatted"))
-        item = conversations.Conversation("claude", "s2", "Price list", "/repo/app", 0)
+        item = chats.Chat("claude", "s2", "Price list", "/repo/app", 0)
         self.assertIsNone(work.copy(item))
         self.assertEqual(copied[0], "# Price list\n\n**You**\n\nPrice list\n\n**Claude**\n\n**Done.**\n")
         self.assertEqual(copied[1:], ["formatted"] if sys.platform == "darwin" else [])
@@ -155,14 +157,60 @@ class Panel(AppScreen, unittest.TestCase):
         self.start()
         self.choose("Price list", "Archive")
         self.until(lambda s: "Price list" not in s and "Archived" in s)
-        self.assertEqual(conversations.archived(self.state), {"claude:s2"})
+        self.assertEqual(chats.archived(self.state), {"claude:s2"})
         with open(os.path.join(self.home, ".claude", "projects", "-repo-app", "s2.jsonl"), encoding="utf-8") as f:
             self.assertIn("Price list", f.read())                  # its file as it was: resumable as before
         self.term.type(*[Key("char", ch) for ch in "archived"])
         self.until(lambda s: "Price list" in s)
         self.choose("Price list", "Unarchive")
         self.until(lambda s: "Back in the list" in s)
-        self.assertEqual(conversations.archived(self.state), set())
+        self.assertEqual(chats.archived(self.state), set())
+
+    def trash(self):
+        """The system's Trash stood in for by a folder outside the home (Linux's own is under the temporary home)."""
+        trashed = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, trashed)
+        set_env(self, XDG_DATA_HOME=None)
+        stand_in = lambda path: shutil.move(path, trashed)                     # noqa: E731
+        set_attrs(self, fileops, mac_trash=stand_in, windows_recycle=stand_in)
+        return os.path.join(self.home, ".claude", "projects", "-repo-app", "s2.jsonl")
+
+    def test_delete_moves_a_closed_ones_file_to_the_trash_once_asked(self):
+        path = self.trash()
+        chats.archive(self.state, {"claude:s2"})
+        self.start(chats=False)
+        self.term.type(Key(sidebar.FIND), *[Key("char", ch) for ch in "price"])    # an archived one: found by typing
+        self.until(lambda s: "Price list" in s)
+        self.choose("Price list", "Delete…")
+        self.until(lambda s: "Move the chat “Price list” to" in s)
+        self.assertTrue(os.path.isfile(path))                      # asked first: nothing has left
+        self.term.type(Key("char", "y"))
+        self.until(lambda s: "Price list" not in s and "Moved to the Trash" in s)
+        self.assertFalse(os.path.exists(path))
+        self.assertEqual(chats.archived(self.state), set())
+        self.assertTrue(os.path.isfile(os.path.join(os.path.dirname(path), "s1.jsonl")))
+
+    def test_a_trash_that_refuses_brings_the_row_back_and_says_why(self):
+        path = self.trash()
+
+        def refuse(*_, **__):
+            raise fileops.Refused("the Trash is full")
+        set_attrs(self, fileops, trash_chat=refuse)
+        self.start()
+        self.choose("Price list", "Delete…")
+        self.until(lambda s: "Move the chat “Price list” to" in s)
+        self.term.type(Key("char", "y"))
+        self.until(lambda s: "The Trash is full" in s)
+        self.until(lambda s: "Price list" in s)
+        self.assertTrue(os.path.isfile(path))
+
+    def test_the_delete_key_on_a_running_one_says_it_is_not_deleted(self):
+        self.trash()
+        self.start()
+        self.term.type(Key("down"), Key("delete"))                 # app's first chat: Fix the login, running
+        self.until(lambda s: "A running chat is not deleted" in s)
+        self.assertNotIn("Move the chat", self.screen())
+        self.assertTrue(os.path.isfile(os.path.join(self.home, ".claude", "projects", "-repo-app", "s1.jsonl")))
 
     def test_the_marked_ones_are_archived_together(self):
         self.claude("s4", "/repo/app", "Draft notes", time.time() - 7200)
@@ -172,10 +220,10 @@ class Panel(AppScreen, unittest.TestCase):
                        Key("down", shift=True))                              # Price list, Draft notes
         y = next(n for n, shown in enumerate(self.screen().splitlines()) if "Draft notes" in shown)
         self.term.type(Mouse("press", 12, y, 2))
-        self.until(lambda s: "Archive 2 conversations" in s.splitlines()[y + 1])
+        self.until(lambda s: "Archive 2 chats" in s.splitlines()[y + 1])
         self.term.type(Mouse("press", 14, y + 1, 0))
         self.until(lambda s: "Price list" not in s and "Draft notes" not in s and "2 archived" in s)
-        self.assertEqual(conversations.archived(self.state), {"claude:s2", "claude:s4"})
+        self.assertEqual(chats.archived(self.state), {"claude:s2", "claude:s4"})
 
     def names(self):
         with open(os.path.join(self.home, ".local", "state", "herdr", "plugins", "herdr-fold.sessions-view",
@@ -191,20 +239,20 @@ class Panel(AppScreen, unittest.TestCase):
         self.assertIn("tab rename w1:t1 Fix the signup", logged(self.log))        # the tab it has to itself
         self.assertEqual(self.names(), {"s1": {"name": "Fix the signup", "given": False}})
 
-    def test_own_tab_is_the_tab_a_conversation_has_to_itself(self):
+    def test_own_tab_is_the_tab_a_chat_has_to_itself(self):
         def herdr(agents, number):
             return lambda *args: ({"agents": agents} if args[:2] == ("agent", "list")
                                   else {"tab": {"tab_id": args[2], "number": number}})
         alone = [{"pane_id": "w1:p1", "tab_id": "w1:t2"}, {"pane_id": "w1:p5", "tab_id": "w1:t3"}]
         shared = alone + [{"pane_id": "w1:p6", "tab_id": "w1:t2"}]
-        self.assertEqual(conversations_panel.own_tab(herdr(alone, 2), "w1:p1"), "w1:t2")
-        self.assertIsNone(conversations_panel.own_tab(herdr(alone, 1), "w1:p1"))      # the main tab: the workspace's
-        self.assertIsNone(conversations_panel.own_tab(herdr(shared, 2), "w1:p1"))
-        self.assertIsNone(conversations_panel.own_tab(herdr(alone, 2), "w1:p9"))      # no agent there any more
+        self.assertEqual(chats_panel.own_tab(herdr(alone, 2), "w1:p1"), "w1:t2")
+        self.assertIsNone(chats_panel.own_tab(herdr(alone, 1), "w1:p1"))              # the main tab: the workspace's
+        self.assertIsNone(chats_panel.own_tab(herdr(shared, 2), "w1:p1"))
+        self.assertIsNone(chats_panel.own_tab(herdr(alone, 2), "w1:p9"))              # no agent there any more
 
     def test_a_tab_is_named_as_the_sessions_list_names_it(self):
-        for name in ("Price list", "Colors of fruits and vegetables in spring", "x" * conversations_panel.TAB_NAME):
-            self.assertEqual(conversations_panel.tab_name(name), sessions.tab_name(name))
+        for name in ("Price list", "Colors of fruits and vegetables in spring", "x" * chats_panel.TAB_NAME):
+            self.assertEqual(chats_panel.tab_name(name), sessions.tab_name(name))
 
     def test_rename_names_a_closed_one(self):
         self.start()
@@ -216,9 +264,9 @@ class Panel(AppScreen, unittest.TestCase):
 
     def test_show_archived_in_one_tab_shows_them_in_every_tab(self):
         self.start()
-        conversations.archive(self.state, {"claude:s2"})                 # archived in another tab
+        chats.archive(self.state, {"claude:s2"})                         # archived in another tab
         self.until(lambda s: "Fix the login" in s and "Price list" not in s)
-        conversations.keep(self.state, show_archived=True)                # Show archived in another tab
+        chats.keep(self.state, show_archived=True)                        # Show archived in another tab
         self.until(lambda s: "Price list" in s and "archived" in s)
         self.choose("Price list", "Unarchive")
         self.until(lambda s: "Back in the list" in s)
@@ -238,17 +286,17 @@ class Panel(AppScreen, unittest.TestCase):
 
     def reopen(self, item):
         herdr = self.Recorder()
-        work = self.make(herdr).work["conversations"]
+        work = self.make(herdr).work["chats"]
         work.folders = {"/repo/app": "w1"}
         work.reopen(item)
         return herdr.calls
 
-    def test_a_reopened_conversations_title_is_a_clean_label(self):
+    def test_a_reopened_chats_title_is_a_clean_label(self):
         # a title comes from a transcript: an escape code in it, or a leading dash herdr's command line takes for an
         # option, never reaches the tab's label or the pane's name
-        set_attrs(self, conversations, manual_names=lambda: {"s2": "\x1b]52;c;ZXZpbA==\x07-rf list"})
+        set_attrs(self, chats, manual_names=lambda: {"s2": "\x1b]52;c;ZXZpbA==\x07-rf list"})
         title = "\x1b]52;c;ZXZpbA==\x07-rf list"
-        calls = self.reopen(conversations.Conversation("claude", "s2", title, "/repo/app", 0))
+        calls = self.reopen(chats.Chat("claude", "s2", title, "/repo/app", 0))
         create = next(c for c in calls if c[:2] == ("tab", "create"))
         names = [c[3] for c in calls if c[:2] == ("pane", "rename")]
         for label in [create[create.index("--label") + 1]] + names:
@@ -257,7 +305,7 @@ class Panel(AppScreen, unittest.TestCase):
     def test_an_id_that_could_be_an_option_reopens_nothing(self):
         for bad in ("-x", "a b", "s2\x07"):
             with self.assertRaises(RuntimeError):
-                self.reopen(conversations.Conversation("claude", bad, "Price list", "/repo/app", 0))
+                self.reopen(chats.Chat("claude", bad, "Price list", "/repo/app", 0))
 
     def test_a_closed_one_reopens_in_a_new_tab_of_its_workspace_with_the_right_column(self):
         noted = []
@@ -290,8 +338,8 @@ class Panel(AppScreen, unittest.TestCase):
 
     def test_a_second_enter_while_it_reopens_opens_no_second_tab(self):
         app = self.make()
-        family = app.work["conversations"]
-        item = conversations.Conversation("claude", "s2", "Price list", "/repo/app", 0)
+        family = app.work["chats"]
+        item = chats.Chat("claude", "s2", "Price list", "/repo/app", 0)
         family.folders = {"/repo/app": "w1"}
         family.do_open(item)
         family.do_open(item)                                    # before the first is done
@@ -309,13 +357,13 @@ class Panel(AppScreen, unittest.TestCase):
                     panes.resume(state, "w1:p9", "s2")         # a reopen job's, while the read waits for herdr
                 return super().call(*args)
 
-        self.make(Reopening()).work["conversations"].read()
+        self.make(Reopening()).work["chats"].read()
         self.assertEqual(panes.resumed(self.state), {"w1:p9": "s2"})
 
     def test_a_click_in_another_pane_closes_its_menu(self):
         app = self.make(self.Recorder())
         closed = []
-        set_attrs(self, app.views["conversations"], close_menu=lambda: closed.append(True))
+        set_attrs(self, app.views["chats"], close_menu=lambda: closed.append(True))
         app.handle(Focus(True))
         app.handle(Focus(False))
         self.assertEqual(closed, [True])

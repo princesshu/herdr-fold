@@ -7,5 +7,4 @@ brew "bat"        # the sidebar's file previews, in color [tui]
 brew "git-delta"  # the sidebar's diff previews [tui]
 brew "ripgrep"    # the sidebar's search, fast in any folder [both]
 
-cask "ghostty"                        # terminal [tui]
-cask "font-jetbrains-mono-nerd-font"  # font with icons [tui]
+cask "ghostty"    # terminal [tui]

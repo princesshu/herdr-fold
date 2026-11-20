@@ -1,4 +1,4 @@
-"""Tests for core/conversations.py in a temporary HOME: the Claude Code and Codex conversations with title, folder,
+"""Tests for core/chats.py in a temporary HOME: the Claude Code and Codex chats with title, folder,
 time and state; a file read again only where it grew, unreadable files and damaged lines skipped, none of their files
 written."""
 import contextlib
@@ -10,11 +10,13 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 from support import PACKAGE, at_once, finished, jsonl, set_env
 
 sys.path.insert(0, os.path.join(PACKAGE, "core"))
-import conversations  # noqa: E402
+import chats          # noqa: E402
+import fileops        # noqa: E402
 
 
 def read(path):
@@ -26,7 +28,7 @@ def prompt(text, sidechain=False):
     return jsonl({"type": "user", "isSidechain": sidechain, "cwd": "/repo/app", "message": {"content": text}})
 
 
-class Conversations(unittest.TestCase):
+class Chats(unittest.TestCase):
     def setUp(self):
         self.home = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.home)
@@ -52,9 +54,9 @@ class Conversations(unittest.TestCase):
         return path
 
     def listed(self, agents=()):
-        return {c.id: c for c in conversations.local(self.state, agents)}
+        return {c.id: c for c in chats.local(self.state, agents)}
 
-    def test_a_claude_conversation_goes_by_its_rename_its_ai_title_or_its_first_prompt(self):
+    def test_a_claude_chat_goes_by_its_rename_its_ai_title_or_its_first_prompt(self):
         self.claude("s1", prompt("Fix the login"))
         self.claude("s2", prompt("Fix the login"), jsonl({"type": "ai-title", "aiTitle": "Login redirect fix"}))
         self.claude("s3", prompt("Fix the login"), jsonl({"type": "ai-title", "aiTitle": "Login redirect fix"}),
@@ -65,19 +67,70 @@ class Conversations(unittest.TestCase):
         self.assertEqual({(c.agent, c.folder, c.state) for c in found.values()}, {("claude", "/repo/app", "")})
 
     def test_the_index_keeps_no_more_of_a_prompt_than_a_row_can_show(self):
-        # the index is the plugin's own copy of every conversation's start: a whole pasted prompt does not belong there
+        # the index is the plugin's own copy of every chat's start: a whole pasted prompt does not belong there
         self.claude("s1", prompt("Fix the login " + "x" * 5000))
         self.listed()
-        with open(os.path.join(self.state, conversations.INDEX)) as f:
+        with open(os.path.join(self.state, chats.INDEX)) as f:
             kept = [entry.get("prompt") or "" for entry in json.load(f)["files"].values()]
-        self.assertEqual([len(text) <= conversations.PROMPT for text in kept], [True])
+        self.assertEqual([len(text) <= chats.PROMPT for text in kept], [True])
         self.assertTrue(kept[0].startswith("Fix the login"))
 
-    def test_a_claude_file_without_a_prompt_is_no_conversation(self):
+    def test_a_claude_file_without_a_prompt_is_no_chat(self):
         self.claude("s1", prompt("<command-name>/clear</command-name>"), prompt("subagent's", sidechain=True))
         self.assertEqual(self.listed(), {})
 
-    def test_a_codex_conversation_goes_by_its_thread_name_or_its_first_prompt(self):
+    def test_a_project_folder_linked_to_another_lists_its_chats_once(self):
+        # a folder's chats shared with another's by a link (projects/-repo-app-web -> -repo-app): one file, one row
+        path = self.claude("s1", prompt("Fix the login"))
+        os.symlink(os.path.dirname(path), os.path.join(self.home, ".claude", "projects", "-repo-app-web"))
+        self.assertEqual([c.id for c in chats.local(self.state)], ["s1"])
+        with open(os.path.join(self.state, chats.INDEX)) as f:
+            self.assertEqual(list(json.load(f)["files"]), [path])             # read once, kept once
+
+    def test_a_programs_run_through_the_agent_sdk_is_no_chat(self):
+        # a hook's review of every change, run through the Agent SDK, titles itself after the work it reviews: dozens
+        # of rows named like the chat they came from. claude -p's and the editors' are the user's own
+        def started(entrypoint):
+            return jsonl({"type": "user", "isSidechain": False, "cwd": "/repo/app", "entrypoint": entrypoint,
+                          "message": {"content": "Review this change"}}) \
+                + jsonl({"type": "ai-title", "aiTitle": "Login redirect fix"})
+        for session, entrypoint in (("s1", "cli"), ("s2", "sdk-py"), ("s3", "sdk-ts"), ("s4", "sdk-cli"),
+                                    ("s5", "claude-vscode"), ("s6", ["sdk-py"])):
+            self.claude(session, started(entrypoint))
+        self.assertEqual(sorted(self.listed()), ["s1", "s4", "s5", "s6"])
+
+    def test_what_a_version_before_kept_of_a_programs_run_is_read_again(self):
+        # 0.3.0's index knows no way a chat was started: kept as it is, a program's runs would stay listed
+        path = self.claude("s2", jsonl({"type": "user", "isSidechain": False, "cwd": "/repo/app",
+                                        "entrypoint": "sdk-py", "message": {"content": "Review this change"}}))
+        os.makedirs(self.state)
+        with open(os.path.join(self.state, chats.INDEX), "w") as f:
+            json.dump({"version": 2, "files": {path: {
+                "offset": os.path.getsize(path), "size": os.path.getsize(path), "mtime": os.path.getmtime(path),
+                "prompt": "Review this change", "folder": "/repo/app"}}}, f)
+        self.assertEqual(self.listed(), {})
+
+    def test_a_compacted_and_reopened_chat_stays_one_row_under_its_id(self):
+        # Claude Code 2.1 compacts and resumes in the chat's own file, under its id: its archive, its name hold
+        self.claude("s1", prompt("Fix the login"), changed=1000)
+        chats.archive(self.state, {"claude:s1"})
+        self.claude("s1", jsonl({"type": "system", "subtype": "compact_boundary", "parentUuid": None}),
+                    jsonl({"type": "user", "isSidechain": False, "isCompactSummary": True, "cwd": "/repo/app",
+                           "message": {"content": "This session is being continued from a previous one."}}),
+                    prompt("And the logout"), changed=2000)
+        self.assertEqual([(c.id, c.title, c.time) for c in chats.local(self.state)], [("s1", "Fix the login", 2000)])
+        self.assertEqual(chats.archived(self.state), {"claude:s1"})
+
+    def test_two_chats_begun_with_the_same_words_stay_two_rows(self):
+        self.claude("s1", prompt("Fix the login"))
+        self.claude("s2", prompt("Fix the login"))
+        for name, session in (("a", "c1"), ("b", "c2")):
+            self.codex(name, {"id": session, "cwd": "/repo/app"},
+                       jsonl({"payload": {"type": "message", "role": "user",
+                                         "content": [{"type": "input_text", "text": "Fix the login"}]}}))
+        self.assertEqual(sorted(self.listed()), ["c1", "c2", "s1", "s2"])
+
+    def test_a_codex_chat_goes_by_its_thread_name_or_its_first_prompt(self):
         self.codex("a", {"id": "c1", "cwd": "/repo/app"},
                    jsonl({"payload": {"type": "message", "role": "user",
                                      "content": [{"type": "input_text", "text": "<environment_context>x"}]}}),
@@ -119,19 +172,19 @@ class Conversations(unittest.TestCase):
         # as herdr's Rename pane gives one: AI Sessions keeps it and shows it too; its other names stay
         self.claude("s1", prompt("Fix the login"))
         self.names(json.dumps({"s2": {"name": "Prices", "given": True}}))
-        conversations.name_session("s1", "Login, by hand")
+        chats.name_session("s1", "Login, by hand")
         self.assertEqual(json.loads(self.names()), {"s2": {"name": "Prices", "given": True},
                                                     "s1": {"name": "Login, by hand", "given": False}})
         self.assertEqual(self.listed()["s1"].title, "Login, by hand")
 
     def test_a_name_is_given_without_a_names_file_too(self):
-        conversations.name_session("c1", "Invoices")
+        chats.name_session("c1", "Invoices")
         self.assertEqual(json.loads(self.names()), {"c1": {"name": "Invoices", "given": False}})
 
     def test_a_names_file_that_cannot_be_read_is_left_as_it_is(self):
         self.names("{broken")
         with self.assertRaises(OSError):
-            conversations.name_session("s1", "Login, by hand")
+            chats.name_session("s1", "Login, by hand")
         self.assertEqual(self.names(), "{broken")
 
     def test_the_running_ones_have_herdrs_state_and_pane(self):
@@ -146,21 +199,21 @@ class Conversations(unittest.TestCase):
         found = self.listed(agents)
         self.assertEqual((found["s1"].state, found["s1"].pane), ("working", "w1:p1"))
         self.assertEqual((found["s2"].state, found["s2"].pane), ("", ""))
-        # herdr was not told the Codex one's session: the newest Codex conversation of its folder is it
+        # herdr was not told the Codex one's session: the newest Codex chat of its folder is it
         self.assertEqual((found["c1"].state, found["c1"].pane), ("idle", "w1:p4"))
 
     def test_a_reopened_one_is_known_by_its_pane_before_herdr_knows_its_session(self):
         self.claude("s1", prompt("Fix the login"))
         self.claude("s2", prompt("Old one"))
         agents = [{"pane_id": "w1:p9", "agent": "claude", "agent_status": "blocked", "cwd": "/repo/app"}]
-        found = {item.id: item for item in conversations.local(self.state, agents, {"w1:p9": "s2"})}
+        found = {item.id: item for item in chats.local(self.state, agents, {"w1:p9": "s2"})}
         self.assertEqual((found["s2"].state, found["s2"].pane), ("blocked", "w1:p9"))   # waits at a question
         self.assertEqual(found["s1"].state, "")                     # not the newest of its folder
 
     def test_a_growing_file_is_read_on_from_where_it_was_left(self):
         path = self.claude("s1", prompt("Fix the login"))
         self.assertEqual(self.listed()["s1"].title, "Fix the login")
-        with open(os.path.join(self.state, conversations.INDEX)) as f:
+        with open(os.path.join(self.state, chats.INDEX)) as f:
             read = json.load(f)["files"][path]["offset"]
         self.assertEqual(read, os.path.getsize(path))
         self.claude("s1", jsonl({"type": "custom-title", "customTitle": "safari"}))
@@ -184,7 +237,7 @@ class Conversations(unittest.TestCase):
         self.assertEqual(self.listed()["s1"].title, "Fix the login")
 
     def test_a_file_that_cannot_be_read_leaves_the_others_listed(self):
-        # a pipe named like a conversation would hold the column for good; an unreadable file or a folder would end it
+        # a pipe named like a chat would hold the column for good; an unreadable file or a folder would end it
         self.claude("s1", prompt("Fix the login"))
         project = os.path.join(self.home, ".claude", "projects", "-repo-app")
         os.mkfifo(os.path.join(project, "pipe.jsonl"))
@@ -221,12 +274,12 @@ class Conversations(unittest.TestCase):
         # what an earlier version kept, of other types or shape, is not taken for this one's: the files are read anew
         path = self.claude("s1", prompt("Fix the login"))
         os.makedirs(self.state)
-        with open(os.path.join(self.state, conversations.INDEX), "w") as f:
+        with open(os.path.join(self.state, chats.INDEX), "w") as f:
             json.dump({path: {"offset": "x", "size": os.path.getsize(path), "mtime": os.path.getmtime(path),
                               "prompt": 5, "custom": ["a"]}}, f)
         self.assertEqual(self.listed()["s1"].title, "Fix the login")
 
-    def test_nothing_is_written_where_the_conversations_are(self):
+    def test_nothing_is_written_where_the_chats_are(self):
         paths = [self.claude("s1", prompt("Fix the login")),
                  self.codex("a", {"id": "c1", "cwd": "/repo/app"})]
         def snapshot():
@@ -240,67 +293,226 @@ class Conversations(unittest.TestCase):
                     self.assertIn(os.path.join(root, name), paths)
 
 
-class Kept(Conversations):
+class Kept(Chats):
     def test_a_job_and_the_main_thread_keeping_at_once_lose_neither(self):
-        # the Conversations panel's read job notes a reopened pane while the main thread archives a conversation
-        at_once(conversations.statefile, lambda: conversations.keep(self.state, resumed={"w1:p9": "s2"}),
-                lambda: conversations.archive(self.state, {"claude:s1"}))
-        self.assertEqual(conversations.setting(self.state), {"resumed": {"w1:p9": "s2"}, "archived": ["claude:s1"]})
+        # the Chats panel's read job notes a reopened pane while the main thread archives a chat
+        at_once(chats.statefile, lambda: chats.keep(self.state, resumed={"w1:p9": "s2"}),
+                lambda: chats.archive(self.state, {"claude:s1"}))
+        self.assertEqual(chats.setting(self.state), {"resumed": {"w1:p9": "s2"}, "archived": ["claude:s1"]})
+
+    def test_an_older_versions_files_carry_over_under_their_new_names(self):
+        # conversations.json and conversation-index.json: the archived ones and what was read stay
+        os.makedirs(self.state)
+        for name, kept in (("conversations.json", {"archived": ["claude:s1"]}),
+                           ("conversation-index.json", {"version": chats.INDEX_VERSION, "files": {}})):
+            with open(os.path.join(self.state, name), "w") as f:
+                json.dump(kept, f)
+        self.assertEqual(chats.archived(self.state), {"claude:s1"})
+        self.assertEqual(chats.load_index(self.state), {})
+        self.assertEqual(sorted(name for name in os.listdir(self.state) if not name.endswith(".lock")),
+                         ["chat-index.json", "chats.json"])
+        with open(os.path.join(self.state, chats.SETTINGS)) as f:
+            self.assertEqual(json.load(f), {"archived": ["claude:s1"]})
+
+    def test_a_new_file_wins_over_an_older_versions_left_beside_it(self):
+        os.makedirs(self.state)
+        for name, archived in (("conversations.json", ["claude:old"]), ("chats.json", ["claude:new"])):
+            with open(os.path.join(self.state, name), "w") as f:
+                json.dump({"archived": archived}, f)
+        self.assertEqual(chats.archived(self.state), {"claude:new"})
 
 
-class CommandLine(Conversations):
+class Deleting(Chats):
+    """Delete…: a closed chat's own file to the system's Trash (a stand-in here: a folder outside the temporary HOME),
+    never a running one's, and what was kept for it (its archive, its name) dropped."""
+
+    def setUp(self):
+        super().setUp()
+        self.bin = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.bin)
+
+    def delete(self, kind, session, agents=(), recycle=None):
+        return chats.delete(self.state, kind, session, agents, system="darwin",
+                            recycle=recycle or (lambda path: shutil.move(path, self.bin)))
+
+    def rollout(self, session, text="Price list", name=None):
+        return self.codex(name or f"2026-10-26T10-00-00-{session}", {"id": session, "cwd": "/repo/app"}, jsonl(
+            {"payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": text}]}}))
+
+    def test_a_claude_chat_goes_to_the_trash_with_its_sub_agents_folder(self):
+        path = self.claude("s1", prompt("Fix the login"))
+        kept = self.claude("s2", prompt("Price list"))
+        helpers = os.path.join(os.path.dirname(path), "s1", "subagents")
+        os.makedirs(helpers)
+        with open(os.path.join(helpers, "agent-a1.jsonl"), "w") as f:
+            f.write(prompt("Look it up", sidechain=True))
+        self.assertEqual(self.delete("claude", "s1"), "Trash")
+        self.assertEqual(sorted(os.listdir(self.bin)), ["s1", "s1.jsonl"])
+        self.assertEqual(os.listdir(os.path.join(self.bin, "s1", "subagents")), ["agent-a1.jsonl"])
+        self.assertEqual(sorted(os.listdir(os.path.dirname(path))), ["s2.jsonl"])
+        self.assertEqual(list(self.listed()), ["s2"])
+        self.assertTrue(os.path.isfile(kept))
+
+    def test_a_codex_chat_is_its_rollout_file(self):
+        path, other = self.rollout("c1"), self.rollout("c2")
+        self.delete("codex", "c1")
+        self.assertEqual(os.listdir(self.bin), [os.path.basename(path)])
+        self.assertTrue(os.path.isfile(other))
+        self.assertEqual(list(self.listed()), ["c2"])
+
+    def test_a_codex_file_only_named_like_it_stays(self):
+        # the name ends as the id does, the chat inside is another: the file says whose it is
+        self.rollout("c1")
+        other = self.rollout("xc1")
+        self.delete("codex", "c1")
+        self.assertTrue(os.path.isfile(other))
+        self.assertEqual(list(self.listed()), ["xc1"])
+
+    def test_a_running_chat_is_refused(self):
+        told = self.claude("s1", prompt("Fix the login"), changed=100)
+        newest = self.claude("s2", prompt("Price list"), folder="-repo-web", changed=200)
+        agents = [{"agent": "claude", "agent_status": "idle", "pane_id": "p1", "cwd": "/repo/web",
+                   "agent_session": {"value": "s1"}},
+                  {"agent": "claude", "agent_status": "working", "pane_id": "p2", "cwd": "/repo/app"}]
+        for session in ("s1", "s2"):               # the one herdr names, and the one it only knows the folder of
+            with self.assertRaises(fileops.Refused) as refused:
+                self.delete("claude", session, agents)
+            self.assertIn("running", str(refused.exception))
+        self.assertTrue(os.path.isfile(told) and os.path.isfile(newest))
+        self.assertEqual(os.listdir(self.bin), [])
+
+    def test_what_is_no_chat_of_the_list_is_refused(self):
+        program = self.claude("s1", jsonl({"type": "user", "isSidechain": False, "cwd": "/repo/app",
+                                           "entrypoint": "sdk-py", "message": {"content": "Review this change"}}))
+        for kind, session in (("claude", "s1"), ("claude", "gone"), ("claude", "*"), ("claude", "../x"),
+                              ("gemini", "s1"), ("codex", "s1")):
+            with self.assertRaises(fileops.Refused, msg=(kind, session)):
+                self.delete(kind, session)
+        self.assertTrue(os.path.isfile(program))
+        self.assertEqual(os.listdir(self.bin), [])
+
+    def test_a_chat_in_a_linked_project_folder_goes_once_from_its_real_place(self):
+        path = self.claude("s1", prompt("Fix the login"))
+        link = os.path.join(self.home, ".claude", "projects", "-repo")
+        os.symlink(os.path.dirname(path), link)
+        self.delete("claude", "s1")
+        self.assertEqual(os.listdir(self.bin), ["s1.jsonl"])
+        self.assertEqual(os.listdir(os.path.dirname(path)), [])
+        self.assertTrue(os.path.islink(link))
+        self.assertEqual(self.listed(), {})
+
+    def test_a_project_folder_linked_out_of_claudes_is_refused(self):
+        outside = os.path.join(self.bin, "elsewhere")
+        os.makedirs(outside)
+        os.makedirs(os.path.join(self.home, ".claude", "projects"))
+        os.symlink(outside, os.path.join(self.home, ".claude", "projects", "-repo-app"))
+        path = self.claude("s1", prompt("Fix the login"))
+        self.assertEqual(list(self.listed()), ["s1"])
+        with self.assertRaises(fileops.Refused):
+            self.delete("claude", "s1")
+        self.assertTrue(os.path.isfile(path))
+        self.assertEqual(os.listdir(outside), ["s1.jsonl"])
+
+    def test_an_archived_one_goes_too_and_its_archive_and_name_are_dropped(self):
+        self.claude("s1", prompt("Fix the login"))
+        self.claude("s2", prompt("Price list"))
+        chats.archive(self.state, {"claude:s1", "claude:s2"})
+        chats.name_session("s1", "Login fix")
+        chats.name_session("s2", "Prices")
+        self.delete("claude", "s1")
+        self.assertEqual(chats.archived(self.state), {"claude:s2"})
+        self.assertEqual(chats.manual_names(), {"s2": "Prices"})
+
+    def test_no_names_file_is_made_for_it(self):
+        self.claude("s1", prompt("Fix the login"))
+        self.delete("claude", "s1")
+        self.assertFalse(os.path.exists(os.path.dirname(chats.names_path())))
+
+    def test_a_trash_that_refuses_leaves_the_chat_as_it_was(self):
+        path = self.claude("s1", prompt("Fix the login"))
+        chats.archive(self.state, {"claude:s1"})
+        chats.name_session("s1", "Login fix")
+
+        def full(_):
+            raise fileops.Refused("the Trash is full")
+        with self.assertRaises(fileops.Refused) as refused:
+            self.delete("claude", "s1", recycle=full)
+        self.assertEqual(str(refused.exception), "the Trash is full")
+        self.assertTrue(os.path.isfile(path))
+        self.assertEqual((chats.archived(self.state), chats.manual_names()), ({"claude:s1"}, {"s1": "Login fix"}))
+
+
+class CommandLine(Chats):
     """The app mod's: its answers as JSON on stdout, in the same state folder as the TUI's column."""
 
     def cli(self, *args):
         out = io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-            code = conversations.main(["conversations.py", *args])
+            code = chats.main(["chats.py", *args])
         return code, json.loads(out.getvalue()) if code == 0 else None
 
     def test_the_list_marks_the_running_ones_and_names_the_archived(self):
         self.claude("s1", prompt("Fix the login"), changed=100)
         self.claude("s2", prompt("Price list"), changed=200)
-        conversations.archive(self.state, {"claude:s1"})
+        chats.archive(self.state, {"claude:s1"})
         agents = [{"agent": "claude", "agent_status": "working", "pane_id": "p1", "cwd": "/repo/app"}]
         code, answer = self.cli("list", json.dumps(agents), "{}")
-        self.assertEqual([(c["id"], c["state"], c["pane"]) for c in answer["conversations"]],
+        self.assertEqual([(c["id"], c["state"], c["pane"]) for c in answer["chats"]],
                          [("s2", "working", "p1"), ("s1", "", "")])            # the newest in the folder runs
         self.assertEqual(answer["archived"], ["claude:s1"])
 
     def test_the_list_says_how_long_ago_each_changed(self):
         self.claude("s1", prompt("Fix the login"), changed=time.time() - 2 * 3600)
-        self.assertEqual([c["ago"] for c in self.cli("list", "[]", "{}")[1]["conversations"]], ["2h"])
+        self.assertEqual([c["ago"] for c in self.cli("list", "[]", "{}")[1]["chats"]], ["2h"])
 
     def test_one_is_archived_and_brought_back(self):
         self.assertEqual(self.cli("archive", "claude:s1", "codex:c2"), (0, {"ok": True}))
         self.cli("unarchive", "claude:s1")
-        self.assertEqual(conversations.archived(self.state), {"codex:c2"})
+        self.assertEqual(chats.archived(self.state), {"codex:c2"})
 
     def test_what_an_older_version_kept_goes_on_the_next_write(self):
-        # the Conversations column's width and fold (before it was a panel of the sidebar) are left behind nowhere
+        # the Chats column's width and fold (before it was a panel of the sidebar) are left behind nowhere
         os.makedirs(self.state)
-        with open(os.path.join(self.state, conversations.SETTINGS), "w") as f:
+        with open(os.path.join(self.state, chats.SETTINGS), "w") as f:
             json.dump({"ratio": 0.65, "collapsed": True, "show_archived": True}, f)
-        conversations.archive(self.state, {"claude:s1"})
-        self.assertEqual(conversations.setting(self.state), {"show_archived": True, "archived": ["claude:s1"]})
+        chats.archive(self.state, {"claude:s1"})
+        self.assertEqual(chats.setting(self.state), {"show_archived": True, "archived": ["claude:s1"]})
 
     def test_a_rename_is_kept_with_herdrs_names(self):
         self.claude("s1", prompt("Fix the login"))
         self.assertEqual(self.cli("rename", "s1", "Login fix"), (0, {"ok": True, "advice": None}))
         self.assertEqual(self.listed()["s1"].title, "Login fix")
 
-    def test_the_markdown_is_the_whole_conversation_or_none(self):
+    def test_the_markdown_is_the_whole_chat_or_none(self):
         self.claude("s1", prompt("Fix the login"))
         self.assertTrue(self.cli("markdown", "claude", "s1")[1]["markdown"].startswith("# Fix the login"))
         self.assertEqual(self.cli("markdown", "claude", "gone"), (0, {"markdown": None}))
 
+    def test_one_is_deleted_into_the_trash_unless_it_runs(self):
+        path, running = self.claude("s1", prompt("Fix the login")), self.claude("s2", prompt("Price list"),
+                                                                                folder="-repo-web")
+        trashed = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, trashed)
+        set_env(self, XDG_DATA_HOME=None)                  # Linux's Trash: under the temporary home
+        stand_in = lambda path: shutil.move(path, trashed)                     # noqa: E731
+        agents = json.dumps([{"agent": "claude", "agent_status": "working", "pane_id": "p1",
+                              "agent_session": {"value": "s2"}}])
+        with mock.patch.object(fileops, "mac_trash", stand_in), mock.patch.object(fileops, "windows_recycle", stand_in):
+            code, answer = self.cli("delete", "claude", "s2", agents, "{}")
+            self.assertEqual((code, answer["ok"]), (0, False))
+            self.assertIn("running", answer["advice"])
+            self.assertEqual(self.cli("delete", "claude", "s1", agents, "{}"), (0, {"ok": True}))
+        self.assertFalse(os.path.exists(path))
+        self.assertTrue(os.path.isfile(running))
+
     def test_anything_else_is_a_usage_error(self):
-        for args in ((), ("list",), ("list", "{}", "{}"), ("rename", "s1"), ("archive",), ("eat",)):
+        for args in ((), ("list",), ("list", "{}", "{}"), ("rename", "s1"), ("archive",), ("eat",),
+                     ("delete", "claude", "s1"), ("delete", "claude", "s1", "{}", "{}")):
             self.assertEqual(self.cli(*args)[0], 2, args)
 
 
 class Readers(unittest.TestCase):
-    """Where the conversations live (shared with herdr-fold's Cmd+Shift+R and its formatted copy)."""
+    """Where the chats live (shared with herdr-fold's Cmd+Shift+R and its formatted copy)."""
 
     def setUp(self):
         self.home = tempfile.mkdtemp()
@@ -315,42 +527,47 @@ class Readers(unittest.TestCase):
         return path
 
     def test_a_folder_maps_to_claudes_project_folder(self):
-        self.assertEqual(conversations.claude_project_dir("/Users/a_b/my repo"),
+        self.assertEqual(chats.claude_project_dir("/Users/a_b/my repo"),
                          os.path.join(self.home, ".claude", "projects", "-Users-a-b-my-repo"))
 
     def test_a_sessions_files_are_found_by_kind(self):
         claude = self.write(".claude/projects/-x/s1.jsonl", "{}\n")
         codex = self.write(".codex/sessions/2026/10/22/rollout-1-c1.jsonl", "{}\n")
-        self.assertEqual(conversations.session_files("claude", "s1"), [claude])
-        self.assertEqual(conversations.session_files("codex", "c1"), [codex])
-        self.assertEqual(conversations.session_files("other", "s1"), [])
+        self.assertEqual(chats.session_files("claude", "s1"), [claude])
+        self.assertEqual(chats.session_files("codex", "c1"), [codex])
+        self.assertEqual(chats.session_files("other", "s1"), [])
+
+    def test_a_sessions_file_in_a_linked_project_folder_is_found_once(self):
+        claude = self.write(".claude/projects/-x/s1.jsonl", "{}\n")
+        os.symlink(os.path.dirname(claude), os.path.join(self.home, ".claude", "projects", "-x-web"))
+        self.assertEqual(chats.session_files("claude", "s1"), [claude])
 
     def test_damaged_lines_are_skipped(self):
         path = self.write(".claude/projects/-x/s1.jsonl", '{"a": 1}\n{"cut\nnot json\n{"b": 2}\n')
-        self.assertEqual(list(conversations.read_jsonl(path)), [{"a": 1}, {"b": 2}])
-        self.assertEqual(conversations.parse("[1, 2]"), {})
-        self.assertEqual(conversations.parse("[" * 100_000 + "]" * 100_000), {})
+        self.assertEqual(list(chats.read_jsonl(path)), [{"a": 1}, {"b": 2}])
+        self.assertEqual(chats.parse("[1, 2]"), {})
+        self.assertEqual(chats.parse("[" * 100_000 + "]" * 100_000), {})
 
     def test_a_codex_files_first_line_is_read_only_so_far(self):
         # its first line names the folder; one with no end would be read whole, hundreds of megabytes
         meta = json.dumps({"type": "session_meta", "payload": {"id": "c1", "cwd": "/repo/app"}})
         self.write(".codex/sessions/2026/10/22/rollout-1-c1.jsonl", meta[:-1] + ', "x": "' + "y" * 9_000_000 + '"}\n')
-        self.assertEqual(list(conversations.folder_files("codex", "/repo/app")), [])
+        self.assertEqual(list(chats.folder_files("codex", "/repo/app")), [])
 
-    def test_the_replies_of_a_long_conversation_are_read_from_its_end(self):
+    def test_the_replies_of_a_long_chat_are_read_from_its_end(self):
         lines = [{"type": "assistant", "message": {"content": [{"type": "text", "text": "the first reply"}]}},
                  {"type": "user", "message": {"content": "x" * 20_000_000}},
                  {"type": "assistant", "message": {"content": [{"type": "text", "text": "the last reply"}]}}]
         path = self.write(".claude/projects/-x/s1.jsonl", "".join(json.dumps(entry) + "\n" for entry in lines))
-        tail = [text for _, text in conversations.messages("claude", path, tail=conversations.TAIL)]
+        tail = [text for _, text in chats.messages("claude", path, tail=chats.TAIL)]
         self.assertEqual(tail, ["the last reply"])
-        self.assertIn("the first reply", [text for _, text in conversations.messages("claude", path)])
+        self.assertIn("the first reply", [text for _, text in chats.messages("claude", path)])
 
     def test_a_pipe_is_not_read(self):
         pipe = os.path.join(self.home, "pipe.jsonl")
         os.mkfifo(pipe)
         with self.assertRaises(OSError):
-            finished(self, lambda: list(conversations.read_jsonl(pipe)))
+            finished(self, lambda: list(chats.read_jsonl(pipe)))
 
     def test_a_folders_files_are_the_readable_ones(self):
         meta = json.dumps({"type": "session_meta", "payload": {"id": "c1", "cwd": "/repo/app"}}) + "\n"
@@ -360,12 +577,12 @@ class Readers(unittest.TestCase):
             os.mkfifo(os.path.join(self.home, folder + "pipe.jsonl"))
             os.symlink(os.path.join(self.home, "gone"), os.path.join(self.home, folder + "gone.jsonl"))
         os.chmod(self.write(".codex/sessions/2026/10/22/rollout-2-c2.jsonl", meta), 0)
-        self.assertEqual(finished(self, lambda: list(conversations.folder_files("codex", "/repo/app"))), [codex])
-        self.assertEqual(finished(self, lambda: list(conversations.folder_files("claude", "/repo/app"))), [claude])
+        self.assertEqual(finished(self, lambda: list(chats.folder_files("codex", "/repo/app"))), [codex])
+        self.assertEqual(finished(self, lambda: list(chats.folder_files("claude", "/repo/app"))), [claude])
 
 
 class Transcript(unittest.TestCase):
-    """A whole conversation for Copy conversation: the user's prompts and the agent's replies, nothing else."""
+    """A whole chat for Copy chat: the user's prompts and the agent's replies, nothing else."""
 
     def setUp(self):
         self.dir = tempfile.mkdtemp()
@@ -390,8 +607,33 @@ class Transcript(unittest.TestCase):
                           {"type": "assistant", "message": {"content": [{"type": "text", "text": "**Fixed.**"}]}},
                           {"type": "user", "message": {"content": "[Request interrupted by user]"}},
                           {"type": "summary", "summary": "a title"})
-        self.assertEqual(list(conversations.messages("claude", path)),
+        self.assertEqual(list(chats.messages("claude", path)),
                          [("user", "Fix the login"), ("assistant", "Found it."), ("assistant", "**Fixed.**")])
+
+    def test_claude_without_a_compactions_summary(self):
+        # the summary Claude writes itself when a chat is compacted, in the user's place: the chat so far, again
+        path = self.write("s1.jsonl",
+                          {"type": "user", "uuid": "u1", "message": {"content": "Fix the login"}},
+                          {"type": "assistant", "uuid": "u2", "message": {"content": [{"type": "text",
+                                                                                       "text": "Found it."}]}},
+                          {"type": "system", "subtype": "compact_boundary", "uuid": "u3"},
+                          {"type": "user", "uuid": "u4", "isCompactSummary": True,
+                           "message": {"content": "This session is being continued from a previous one."}},
+                          {"type": "user", "uuid": "u5", "message": {"content": "And the logout"}})
+        self.assertEqual(list(chats.messages("claude", path)),
+                         [("user", "Fix the login"), ("assistant", "Found it."), ("user", "And the logout")])
+
+    def test_claude_a_message_written_again_is_there_once(self):
+        # a compaction writes the messages it keeps again after its summary, under the ids they had
+        said = [{"type": "user", "uuid": "u1", "message": {"content": "Fix the login"}},
+                {"type": "assistant", "uuid": "u2", "message": {"content": [{"type": "text", "text": "Found it."},
+                                                                             {"type": "text", "text": "Fixed."}]}}]
+        path = self.write("s1.jsonl", *said, {"type": "system", "subtype": "compact_boundary", "uuid": "u3"}, *said,
+                          {"type": "user", "message": {"content": "Fix the login"}},      # said again: no id, kept
+                          {"type": "user", "uuid": ["u1"], "message": {"content": "Thanks"}})
+        self.assertEqual(list(chats.messages("claude", path)),
+                         [("user", "Fix the login"), ("assistant", "Found it."), ("assistant", "Fixed."),
+                          ("user", "Fix the login"), ("user", "Thanks")])
 
     def test_codex_the_prompts_and_replies_without_its_instructions(self):
         path = self.write("rollout.jsonl",
@@ -404,24 +646,24 @@ class Transcript(unittest.TestCase):
                           {"payload": {"type": "function_call", "name": "shell"}},
                           {"payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text",
                                                                                            "text": "Done."}]}})
-        self.assertEqual(list(conversations.messages("codex", path)), [("user", "Price list"), ("assistant", "Done.")])
+        self.assertEqual(list(chats.messages("codex", path)), [("user", "Price list"), ("assistant", "Done.")])
 
     def test_as_markdown_the_title_then_each_turn_under_who_said_it(self):
         path = self.write("s1.jsonl",
                           {"type": "user", "message": {"content": "Fix the login"}},
                           {"type": "assistant", "message": {"content": [{"type": "text", "text": "Found it."}]}},
                           {"type": "assistant", "message": {"content": [{"type": "text", "text": "**Fixed.**"}]}})
-        item = conversations.Conversation("claude", "s1", "Login fix", "/repo/app", 0)
-        self.assertEqual(conversations.markdown(item, path),
+        item = chats.Chat("claude", "s1", "Login fix", "/repo/app", 0)
+        self.assertEqual(chats.markdown(item, path),
                          "# Login fix\n\n**You**\n\nFix the login\n\n**Claude**\n\nFound it.\n\n**Fixed.**\n")
 
     def test_as_markdown_no_control_character_but_line_breaks_and_tabs(self):
-        # pasted into a terminal, a code a conversation holds would run there: set the title, write the clipboard
+        # pasted into a terminal, a code a chat holds would run there: set the title, write the clipboard
         path = self.write("s1.jsonl",
                           {"type": "user", "message": {"content": "Fix \x1b]2;owned\x07it"}},
                           {"type": "assistant", "message": {"content": [{"type": "text", "text": "a\tb\x9b\x1b[31m"}]}})
-        item = conversations.Conversation("claude", "s1", "Login\x1b]0;x\x07 fix", "/repo/app", 0)
-        self.assertEqual(conversations.markdown(item, path),
+        item = chats.Chat("claude", "s1", "Login\x1b]0;x\x07 fix", "/repo/app", 0)
+        self.assertEqual(chats.markdown(item, path),
                          "# Login]0;x fix\n\n**You**\n\nFix ]2;ownedit\n\n**Claude**\n\na\tb[31m\n")
 
 

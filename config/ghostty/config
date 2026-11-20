@@ -10,15 +10,14 @@ foreground = #9399b2
 palette = 5=#cba6f7
 palette = 8=#6c7086
 # --- end of theme ---
-# The non-Mono variant: Nerd Font icons (the sidebar's) stay full size; the "Mono" variant squeezes them into one
-# cell.
-font-family = JetBrainsMono Nerd Font
+# herdr-fold Mono, herdr-fold's own font (in ~/Library/Fonts), the Herdr app layout's too: JetBrains Mono with Nerd
+# Fonts' icons at full size (the sidebar's; a "Mono" variant squeezes them into one cell), its lines 10% taller.
+font-family = herdr-fold Mono
 font-size = 13
 # Softer, browser-like font rendering (herdr.dev uses JetBrains Mono too). 0–255, higher = bolder.
 font-thicken = true
 font-thicken-strength = 128
-# Room for the rows and around the window: 10% more line height everywhere, an 8-point margin at the window's edge
-adjust-cell-height = 10%
+# Room around the window: an 8-point margin at its edge (the rows' room is in the font's own line height)
 window-padding-x = 8
 window-padding-y = 8
 
@@ -89,7 +88,7 @@ keybind = super+a=text:\x02A
 keybind = super+w=text:\x02t
 # Cmd+Shift+C → commit + push in one step, with an AI-written message (herdr: Ctrl+B, y)
 keybind = super+shift+c=text:\x02y
-# Cmd+F → search the Claude conversation (herdr: Ctrl+B, a) — instead of Ghostty's own search, which inside herdr
+# Cmd+F → search the Claude chat (herdr: Ctrl+B, a) — instead of Ghostty's own search, which inside herdr
 # would only see the visible screen
 keybind = super+f=text:\x02a
 # Cmd+Shift+L → open a file the focused pane's output names, at its line, in the sidebar's preview (herdr: Ctrl+B,
@@ -97,7 +96,7 @@ keybind = super+f=text:\x02a
 keybind = super+shift+l=text:\x02L
 # Cmd+Shift+O → restore panels: every pane closed by hand in the tab back (herdr: Ctrl+B, Shift+O)
 keybind = super+shift+o=text:\x02O
-# Cmd+Shift+R → find a conversation in the sidebar's Conversations (herdr: Ctrl+B, m)
+# Cmd+Shift+R → find a chat in the sidebar's Chats (herdr: Ctrl+B, m)
 keybind = super+shift+r=text:\x02m
 # Cmd+Shift+U → mark the focused agent unread: its workspace says it waits on you again (herdr: Ctrl+B, Shift+U)
 keybind = super+shift+u=text:\x02U

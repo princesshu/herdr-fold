@@ -1,5 +1,5 @@
 """For the maintainer: whether starship (pinned in remote/fetch-tool.sh), herdr (HERDR below) or Claude Code or Codex
-(a major version: it changes the status line input and conversation files) moved on. Exit status 0: nothing newer,
+(a major version: it changes the status line input and chat files) moved on. Exit status 0: nothing newer,
 1: something to do, 2: a release could not be looked up. GITHUB_TOKEN, when set, eases GitHub's rate limit."""
 import json
 import os
@@ -11,7 +11,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # What the package was last tried with: raise each once the package is checked with the newer one
 HERDR = "0.9.5"               # the installer, the plugins and AI Sessions against this herdr
-CLAUDE_MAJOR = 2              # Claude Code: the status line and Conversations
+CLAUDE_MAJOR = 2              # Claude Code: the status line and Chats
 CODEX_MAJOR = 0               # Codex: the same
 
 SOURCES = {"starship": "https://api.github.com/repos/starship/starship/releases/latest",
@@ -58,7 +58,7 @@ def lines(fetch):
     for label, major, now, setting in (("Claude Code", CLAUDE_MAJOR, claude, "CLAUDE_MAJOR"),
                                        ("Codex", CODEX_MAJOR, codex, "CODEX_MAJOR")):
         if version(now)[0] > major:
-            yield (f"{label:<12}{now} out, a new major version: check the status line and Conversations "
+            yield (f"{label:<12}{now} out, a new major version: check the status line and Chats "
                    f"with it, then raise {setting} in tools/check_updates.py"), True
         else:
             yield f"{label:<12}{major}.x: up to date", False

@@ -1,110 +1,156 @@
-"""The dock's layout in a pane's cells (core/dock.py's GROUPS): the tab row at its top, the panel shown under it, or,
-folded, the rail of the panels' icons; and what each folder keeps of it in dock.json: the panel shown."""
+"""The dock's layout in a pane's cells (core/dock.py's GROUPS): the row of buttons at its top, each icon over its short
+name, the view shown under it, or, folded, the rail of the panels' icons; and what each folder keeps of it in dock.json:
+the view shown."""
 import os
 
 import statefile
-from dock import PANELS
+from dock import FORMER, PANELS
 from icons import glyphs
-from screen import Style, centered, truncate, width
+from screen import INSET, MARGIN, Style, centered, truncate, width
 
-ROW, TOP = 1, 3               # the tab row's row, and the panel's first: a blank row above the tab row and below it
-GAP, APART = 2, 3             # the cells between two tabs of a group, and between two groups (the last tab and » too)
-MORE = 5                      # the cells of the ⋯ (the pane's own menu) at the row's right end
-CONTROLS = APART + 2 + MORE + 1   # after the last tab: the gap, » and a cell, the ⋯ and a cell of edge
-COUNT = 3                     # the digits of Changes' count at most (999)
-# Chats' dot keeps its cells while no conversation waits: the tabs after it stay put under the mouse
-KEPT = {"conversations": "●"}
-WIDEST = {**KEPT, "changes": "9" * COUNT}
+ROW, NAMES, TOP = 1, 2, 4     # the buttons' icons, their names under them, the view's first row: a blank row around
+MORE = "More"                 # the row's last button, an ellipsis over its name: the pane's own menu
+AIR = 1                       # the cells each side of the widest name
+BUTTON = max(width(name) for name in [MORE, *(panel["name"] for panel in PANELS.values())]) + 2 * AIR
+ICON_BUTTON = 5               # its icon alone, as the first version's tabs: the icon in the very middle, a dot last
+GAP = 1                       # the cells between two buttons
+EDGE = 1                      # the row's air at the pane's sides, as the views' content keeps: no block on the frame
+HOVER = "hover"               # the background of a button under the mouse: a list's row's under it
 FILE = "dock.json"
 
 
-def laid(groups, marks):
-    """Each tab of GROUPS ([(group, [panel])]) on the tab row: [(panel, its first cell, the cell after it)], its name
-    and, a cell after it, its mark (MARKS {panel: (text, role)}); GAP between two tabs of a group, APART between
-    groups."""
-    found, x = [], 1
-    for n, (_group, panels) in enumerate(groups):
-        x += APART if n else 0
-        for m, panel in enumerate(panels):
-            x += GAP if m else 0
-            mark = (marks.get(panel) or ("",))[0] or KEPT.get(panel, "")
-            end = x + width(PANELS[panel]["name"]) + (1 + width(mark) if mark else 0)
-            found.append((panel, x, end))
-            x = end
+def label(panel):
+    return MORE if panel == "panels" else PANELS[panel]["name"]
+
+
+def size(panel, names=True):
+    """PANEL's button's cells: BUTTON for a name as long as the widest one's parity, a cell more for the other, so the
+    name stands in its very middle; ICON_BUTTON for its icon alone."""
+    return BUTTON + (width(label(panel)) - BUTTON) % 2 if names else ICON_BUTTON
+
+
+def cells(groups, names=True):
+    """The cells the row takes with GROUPS, More's too, its NAMES or its icons alone: an EDGE of air, the buttons a GAP
+    apart, a GAP more, »'s block of an icon alone (corner()) and an EDGE at the other side."""
+    panels = [panel for _group, panels in groups for panel in panels] + ["panels"]
+    return 2 * EDGE + sum(size(panel, names) for panel in panels) + GAP * len(panels) + ICON_BUTTON
+
+
+def named(groups, room):
+    """Whether a row of ROOM cells shows GROUPS' names; below that, its icons alone."""
+    return cells(groups) <= room
+
+
+def laid(groups, room):
+    """GROUPS' buttons, then More ("panels"), in a row of ROOM cells, an EDGE in from the pane's side, a GAP apart, what
+    is left at the right: [(panel, its first cell, the cell after it, its name's first cell or None, its icon's cell)],
+    each name in its button's very middle, its icon over the name's middle or the button's."""
+    names, x, found = named(groups, room), EDGE, []
+    for panel in [panel for _group, panels in groups for panel in panels] + ["panels"]:
+        cells_, name = size(panel, names), width(label(panel))
+        first = x + (cells_ - name) // 2 if names else None
+        found.append((panel, x, x + cells_, first, centered(first, name) if names else centered(x, cells_)))
+        x += cells_ + GAP
     return found
 
 
-def cells(groups):
-    """The cells the tab row takes with GROUPS, every mark at its widest: what the column keeps to at least."""
-    tabs = laid(groups, {panel: (text, None) for panel, text in WIDEST.items()})
-    return (tabs[-1][2] if tabs else 1) + CONTROLS
+def corner(cells):
+    """The first cell of »'s block in a pane CELLS wide, an icon alone's: at the right end of the row's icons' line, an
+    EDGE of air after it."""
+    return cells - EDGE - ICON_BUTTON
 
 
-def fitted(groups, marks, room, shown):
-    """laid() of the tabs a row of ROOM cells has room for, each whole: the last left out first, never SHOWN; none
-    where SHOWN alone has no room (a name never cut short)."""
-    groups = [(group, list(panels)) for group, panels in groups]
-    while True:
-        tabs = laid(groups, marks)
-        if not tabs or tabs[-1][2] + CONTROLS <= room:
-            return tabs
-        last = next((panel for panel, _x, _end in reversed(tabs) if panel != shown), None)
-        if last is None:
-            return []
-        groups = [(group, [panel for panel in panels if panel != last]) for group, panels in groups]
-        groups = [(group, panels) for group, panels in groups if panels]
+def rail_column(cells, left=0):
+    """The column of the rail's icons, « over them, from column LEFT of a pane CELLS wide: its content's very middle."""
+    return centered(left + INSET, max(0, cells - left - 2 * INSET))
 
 
-def tab_row(canvas, y, groups, shown, marks, pointed=None):
-    """The tabs of GROUPS on row Y of CANVAS (fitted() to its width): SHOWN's name bold in the accent, POINTED's (under
-    the mouse) in the text's color, the others muted; each one's mark from MARKS (Chats' dot, Changes' count) after
-    it; a click on either answers "tab:PANEL"."""
-    for panel, x, end in fitted(groups, marks, canvas.width, shown):
-        look = "accent" if panel == shown else "text" if panel == pointed else "muted"
-        after = canvas.put(y, x, PANELS[panel]["name"], Style(fg=look, bold=panel == shown))
+def block(x, cells, left=0):
+    """The cells (first, after the last) of an icon alone's block round column X, inside columns LEFT..CELLS-1."""
+    return max(left + MARGIN, x - ICON_BUTTON // 2), min(cells - MARGIN, x + ICON_BUTTON // 2 + 1)
+
+
+def hover(canvas, lines, first, end):
+    """Columns FIRST..END-1 of LINES (an icon's, a name's) on HOVER, half a row of it on the blank rows round them
+    (▄ above, ▀ below), as the first version's tall controls; nothing drawn moves or changes color."""
+    canvas.put(lines[0] - 1, first, "▄" * (end - first), Style(fg=HOVER))
+    for row in lines:
+        canvas.tint(row, first, end, HOVER)
+    canvas.put(lines[-1] + 1, first, "▀" * (end - first), Style(fg=HOVER))
+
+
+def button_row(canvas, y, groups, chosen, marks, opened=None, pointed=None, icons=True):
+    """GROUPS' buttons (laid()) on row Y, their names under them where the row has room, MARKS' dots by the icons, More
+    last: CHOSEN's and OPENED's in the accent, CHOSEN's name bold, the rest faint; each one, the blank rows round it
+    too, answers "button:PANEL", lit under the mouse (POINTED, hover()). More's first cell."""
+    buttons, lit = laid(groups, canvas.width), None
+    lines = (y, y + 1) if buttons[0][3] is not None else (y,)
+    for panel, x, end, first, icon in buttons:
+        more = panel == "panels"
+        target = panel if more else f"button:{panel}"
+        look = "accent" if panel in (chosen, opened) else "text" if target == pointed else None
+        canvas.put(y, icon, ("⋯" if more else glyphs(icons)[PANELS[panel]["glyph"]]), Style(fg=look or "subtext"))
         text, role = marks.get(panel) or ("", None)
-        if text:
-            canvas.put(y, after + 1, text, Style(fg=role))
-        canvas.region(y, x, end, f"tab:{panel}")
+        canvas.put(y, icon + 2, truncate(text, max(0, end - icon - 2)), Style(fg=role))
+        if first is not None:
+            canvas.put(y + 1, first, label(panel), Style(fg=look or "muted", bold=panel == chosen))
+        for row in (y - 1, lines[-1] + 1, *lines):  # its own lines last, as the latest region on top
+            canvas.region(row, x, end, target)
+        lit = (x, end) if target == pointed else lit
+    if lit:
+        hover(canvas, lines, *lit)
+    return buttons[-1][1]
 
 
-def rail(canvas, top, rows, lit, groups, marks=None, icons=True, left=0, pointed=None):
-    """The dock folded to its rail in ROWS rows from TOP, from column LEFT on: each panel of GROUPS ([(group, [panel])])
-    its glyph over its name, a blank row between two groups, one without the rows left out; LIT's (opened beside it)
-    in the accent, a bar at its edge; POINTED's ("icon:PANEL") lit; MARKS {panel: (text, role)} beside the icon."""
-    cells_, y = canvas.width - left, top
-    for n, (_group, panels) in enumerate(groups):
-        y += 1 if n else 0
-        for panel in panels:
-            if y + 2 > top + rows:
-                return
-            target, x, name = f"icon:{panel}", centered(left, cells_), PANELS[panel]["name"]
-            look = "accent" if panel == lit else "text" if target == pointed else None
-            canvas.put(y, x, glyphs(icons)[PANELS[panel]["glyph"]], Style(fg=look or "subtext"))
-            if panel == lit:
-                canvas.put(y, left, "▌", Style(fg="accent"))
-            text, role = (marks or {}).get(panel) or ("", None)
-            canvas.put(y, x + 2, truncate(text, max(0, canvas.width - x - 2)), Style(fg=role))
-            canvas.put(y + 1, left + max(0, (cells_ - width(name)) // 2), truncate(name, cells_),
-                       Style(fg=look or "muted", bold=panel == lit))
-            for row in (y, y + 1):
-                canvas.region(row, left, canvas.width, target)
-            y += 2
+def floor(y, top):
+    """The ▀ row of the rail's block row Y falls in, its blocks from row TOP (rail())."""
+    return y - (y - top) % 3 + 2
+
+
+def rail(canvas, top, rows, lit, groups, marks=None, icons=True, left=0, pointed=None, more=False, terminal=None):
+    """The dock folded to its rail in ROWS rows from TOP, from column LEFT on: GROUPS' icons alone as the row's, the
+    tab's TERMINAL's (True: raised, in the accent), then (MORE) the ⋯, each a block with its own half rows; those
+    without room left out from the end but LIT (opened beside it: the accent). The ⋯'s line, or None."""
+    marks_ = glyphs(icons)
+    items = [(f"icon:{panel}", marks_[PANELS[panel]["glyph"]], panel) for _group, panels in groups for panel in panels]
+    items += [("terminal", marks_["terminal"], None)] if terminal is not None else []
+    items += [("panels", "⋯", None)] if more else []
+    shown = items[:rows // 3]
+    chosen = [item for item in items if lit and item[2] == lit]
+    if chosen and chosen[0] not in shown and shown:
+        shown[-1] = chosen[0]
+    x = rail_column(canvas.width, left)
+    first, end = block(x, canvas.width, left)
+    line = None
+    for n, (target, glyph, panel) in enumerate(shown):
+        y = top + 1 + 3 * n                         # its icon's line, under its own ▄ row, the last one's ▀ before it
+        raised = (panel and panel == lit) or (target == "terminal" and terminal)
+        look = "accent" if raised else "text" if target == pointed else None
+        text, role = (marks or {}).get(panel or target) or ("", None)        # the ⋯'s by its target, as the row's
+        canvas.put(y, x, glyph, Style(fg=look or "subtext"))
+        canvas.put(y, x + 2, truncate(text, max(0, end - x - 2)), Style(fg=role))
+        if target == pointed:
+            hover(canvas, (y,), first, end)
+        for row in (y - 1, y + 1, y):
+            canvas.region(row, left, canvas.width, target)
+        line = y if target == "panels" else line
+    return line
 
 
 def state(state_dir, folder):
-    """What FOLDER keeps: {"shown": the panel shown, or None}."""
+    """What FOLDER keeps: {"shown": the view shown, or None}."""
     return parsed(statefile.read(os.path.join(state_dir, FILE)).get(folder))
 
 
 def parsed(kept):
-    """state() of a folder's entry KEPT in FILE; what cannot be read (an older version's groups too) is None."""
+    """state() of a folder's entry KEPT in FILE, an older version's id read as today's; what cannot be read (an older
+    version's groups too) is None."""
     shown = kept.get("shown") if isinstance(kept, dict) else None
-    return {"shown": shown if isinstance(shown, str) else None}
+    return {"shown": FORMER.get(shown, shown) if isinstance(shown, str) else None}
 
 
 def keep(state_dir, folder, shown):
-    """FOLDER's panel SHOWN kept, on what FILE holds then (statefile.update: another sidebar on this folder, a preview
+    """FOLDER's view SHOWN kept, on what FILE holds then (statefile.update: another sidebar on this folder, a preview
     tab's, writes it too); every entry rewritten as parsed() reads it, so a folder gone and what an older version kept
     go on the way. OSError when it cannot be written."""
     def changed(data):

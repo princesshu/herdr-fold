@@ -30,7 +30,7 @@ class Keys(unittest.TestCase):
                           Key("end")])
 
     def test_the_keys_herdrs_actions_send_the_sidebar(self):
-        # F7 finds a conversation, F8 for Cmd + A, F9 to F12 for the panels
+        # F7 finds a chat, F8 for Cmd + A, F9 to F12 for the panels
         self.assertEqual(decode(b"\x1b[18~\x1b[19~\x1b[20~\x1b[21~\x1b[23~\x1b[24~"),
                          [Key("f7"), Key("f8"), Key("f9"), Key("f10"), Key("f11"), Key("f12")])
 

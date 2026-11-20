@@ -8,7 +8,7 @@ import widgets
 from commit_message import secret_looking
 from git import Change, Commit, taken
 from icons import GIT_LETTER, glyphs, icon
-from screen import GIT_ROLE, PLAIN, Canvas, Style, after, centered, truncate, width
+from screen import GIT_ROLE, PAD, PLAIN, Canvas, Style, after, centered, short_count, truncate, width
 from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, TextInput
 
@@ -51,8 +51,9 @@ class Scm:
         self.folded = set(folded) & {"repositories", "staged", "changes", "graph"}   # the sections closed, kept
         self.repo = self.github = None            # the repository's folder and its name on GitHub, the app's
         self.selecting = False        # the left button went down in the message and is held: a drag selects
-        self.working = self.notice = self.menu = self.confirm = self.then = None     # then: the Action of the yes
+        self.working = self.frame = self.menu = self.confirm = self.then = None     # then: the Action of the yes
         self.writing = None           # while ✦ writes: who writes the message, its spinner's frame first
+        self.writer = None            # the same, its words alone: the star's tip
         self.menu_at = None           # the row the repository's ⋯ opened its menu under (None: the mode's)
         self.status, self.graph = None, []        # the app's: git's status and the Graph's commits
         self.hover, self.canvas, self.top, self.height = None, None, 0, 1
@@ -68,11 +69,11 @@ class Scm:
     def set_message(self, text):
         self.field.clear()
         self.field.insert(text or "")
-        self.notice = None
 
-    def busy(self, text):
-        """A line saying what runs (None: nothing); meanwhile ✦ asks for no second message."""
-        self.working = text
+    def busy(self, text, frame=None):
+        """What runs (TEXT, None: nothing): the sync glyph's cell its spinner's FRAME, its tip TEXT; meanwhile ✦ asks
+        for no second message."""
+        self.working, self.frame = text, frame
 
     # --- what is shown
 
@@ -150,10 +151,6 @@ class Scm:
         lines = []
         if self.linked:
             lines.append((f"Fixes #{self.linked[0]} {self.linked[1]}", "accent"))
-        if self.writing and self.field.text:                  # the field holds a message: who writes says it here
-            lines.append((self.writing, "muted"))
-        if self.working or self.notice:
-            lines.append((self.working or self.notice, "muted" if self.working else "deleted"))
         if status.branch is None:
             lines.append(("detached HEAD", "modified"))
         for line, role in lines:
@@ -169,8 +166,8 @@ class Scm:
         room, history = top + height - first, self.graph_list.items
         least = len(history) if len(history) <= 1 else min(len(history), max(3, room // 3))
         above = min(len(self.list.items), max(1, room - least - 1))
-        below = max(0, min(len(history), room - above - 1))
-        parts = ((self.list, first, above, False), (self.graph_list, top + height - below, below, True))
+        graphed = max(0, min(len(history), room - above - 1))
+        parts = ((self.list, first, above, False), (self.graph_list, top + height - graphed, graphed, True))
         for rows, y0, shown, graph in parts:
             if shown and rows.height != shown:
                 rows.resize(shown)
@@ -180,8 +177,8 @@ class Scm:
                     break
                 self.row(canvas, y0 + row, index, graph)
         if self.menu:
-            wide = min(cells, self.menu.width())
-            self.menu.draw(canvas, below + tall if self.menu_at is None else self.menu_at, max(0, cells - 1 - wide),
+            wide = max(1, min(cells - 2 * PAD, self.menu.width()))               # its right edge the content's
+            self.menu.draw(canvas, below + tall if self.menu_at is None else self.menu_at, max(PAD, cells - PAD - wide),
                            wide)
         if self.confirm:
             self.draw_confirm(canvas)
@@ -200,15 +197,18 @@ class Scm:
         canvas.region(y, 0, cells, "repositories")
         air = 1 if roomy else 2
         if folded:
+            if self.working:                              # what runs, in the sync glyph's stead: its spinner
+                canvas.put(y, cells - 2, self.frame or "", Style(fg="muted"))
+                canvas.region(y, cells - 3, cells, "sync")
             return y + air
         y += 1
         end = cells - 2
         canvas.put(y, end, "⋯", Style(fg="muted"))
         canvas.region(y, end - 1, cells, "remote")
         counts = f" {status.behind}↓ {status.ahead}↑" if status.upstream and (status.behind or status.ahead) else ""
-        sync = marks["refresh"] + counts
+        sync = (self.frame if self.working and self.frame else marks["refresh"]) + counts    # a run: its spinner
         end -= width(sync) + 2
-        canvas.put(y, end, sync, Style(fg="accent" if self.working else "muted"))
+        canvas.put(y, end, sync, Style(fg="muted"))
         canvas.region(y, end - 1, end + width(sync) + 1, "sync")
         x = 2 + len(after(self.icons))                    # under the heading's name, as a change's row
         x = canvas.put(y, x, marks["repo"] + after(self.icons), Style(fg="muted"))
@@ -266,7 +266,12 @@ class Scm:
             self.commit_row(canvas, y, item, bg)
 
     def tip(self, target):
-        """A changed file's whole path in its repository, for the mouse resting on its row (as GitHub Desktop's)."""
+        """A changed file's whole path in its repository, for the mouse resting on its row (as GitHub Desktop's); what
+        runs, on the sync glyph's spinner; who writes the message, on the star."""
+        if target == "sync" and self.working:
+            return self.working
+        if target == "suggest" and self.writer:
+            return self.writer
         if isinstance(target, tuple) and target[0] == "row" and 0 <= target[1] < len(self.list.items):
             item = self.list.items[target[1]]
             return item.change.path if isinstance(item, Entry) else None
@@ -285,8 +290,8 @@ class Scm:
         mark = widgets.TURNS.mark(self.icons, ("section", item.kind), item.kind not in self.folded)
         x = canvas.put(y, 1, mark + after(self.icons), Style(fg="muted", bg=bg))
         end = cells - 1
-        if item.count is not None:                       # the count on a chip
-            count = str(item.count)
+        if item.count is not None:                       # the count on a chip, as the row's beside the icon
+            count = short_count(item.count)
             end -= width(count) + 2
             canvas.chip(y, end, width(count) + 2, "badge")
             canvas.put(y, end + 1, count, Style(fg="badge_text", bg="badge"))
@@ -326,7 +331,7 @@ class Scm:
         y = max(self.top + 1, self.top + self.height - rows - 1)
         for row in range(y, self.top + self.height):
             canvas.put(row, 0, " " * cells, PLAIN)
-        canvas.put(y, 0, "─" * cells, Style(fg="muted"))
+        canvas.put(y, PAD, "─" * (cells - 2 * PAD), Style(fg="muted"))      # as wide as a row's content
         self.confirm.draw(canvas, y + 1, 0, cells)
 
     # --- events
@@ -342,7 +347,6 @@ class Scm:
             return self.answer(self.confirm.handle(event))
         if self.menu:
             return self.choose(self.menu.handle(event))
-        self.notice = None
         if event.name == "enter" and event.alt:
             return self.commit()
         if self.focus == "message":
@@ -424,6 +428,8 @@ class Scm:
             self.field.drag(event.x, event.y)
         elif event.kind == "move":
             self.hover = (target if target[0] == "graph" else target[1]) if isinstance(target, tuple) else None
+            if self.menu:
+                self.menu.point(target)
         elif event.kind in ("wheel_up", "wheel_down"):     # the message under the mouse or being selected, else a list
             step = 3 if event.kind == "wheel_down" else -3
             if target == "input" or self.selecting:
@@ -444,7 +450,6 @@ class Scm:
                 return self.choose(self.menu.choices[int(target[5:])])
             self.menu = None
             return None
-        self.notice = None
         if target == "input":                             # the cursor where it is pressed, a drag selecting on
             self.focus, self.selecting = "message", True
             self.field.press(event.x, event.y)
@@ -487,8 +492,7 @@ class Scm:
     def commit(self):
         message = self.field.text.strip()
         if not message:
-            self.notice = "The message is empty"
-            return None
+            return Action("fail", ("The message is empty",))
         # with nothing staged, every change shown: exactly those, so one come since is never committed unasked
         paths = () if self.status.staged else tuple(taken(self.status.changes))
         action = Action("commit", (message, self.mode, paths))

@@ -4,6 +4,7 @@
 
 import { JOB, MEDIA_KINDS, MEDIA_WEB } from "./helper.js";
 import { BY_EXTENSION, BY_NAME, FILE, FOLDER, LETTER } from "./icons.js";
+import { format, written as timeIn } from "./timeline.js";
 
 /** @typedef {{ kind: string, number?: number, text: string }} Row */
 
@@ -199,16 +200,19 @@ export const safeMarkdown = (markdown) => markdown.replace(/!\[/g, "!⁠[").repl
 export const priorityColor = (t, level) => (level === null || level === undefined ? t.accent
   : [t.ansi1, t.ansi1, t.ansi3, t.ansi2][level]);
 
-/** The focused TAB's own Claude or Codex among AGENTS (the app's agents()), to hand an issue to; or null.
- * @param {{ tab: string, program?: { key: string } }[]} agents @param {string | undefined} tab */
-export const issueAgent = (agents, tab) =>
-  agents.find((a) => a.tab === tab && ["claude", "codex"].includes(a.program?.key ?? "")) ?? null;
+/** The focused TAB's own Claude or Codex, to hand an issue to: one in a pane among AGENTS (the app's agents()), else a
+ * chat tab's agent among TERMINALS (the app's); or null. @param {{ tab: string, program?: { key: string } }[]} agents
+ * @param {string | undefined} tab @param {any[]} [terminals] @returns {any} */
+export const issueAgent = (agents, tab, terminals = []) =>
+  agents.find((a) => a.tab === tab && ["claude", "codex"].includes(a.program?.key ?? ""))
+  ?? (tab ? terminals.filter((c) => c.state === "live" && c.labels?.[CHAT_TAB] === tab)
+    .map((c) => ({ ...c, chat: true }))[0] : null) ?? null;
 
-/** A conversation as core/conversations.py lists it: a running one's STATE (herdr's) and PANE (its terminal) set.
+/** A chat as core/chats.py lists it: a running one's STATE (herdr's) and PANE (its terminal) set.
  * @typedef {{ agent: string, id: string, title: string, folder: string, time: number, state: string,
- *   pane: string }} Conversation */
+ *   pane: string }} Chat */
 
-/** The app's AGENTS as core/conversations.py takes herdr's: Claude and Codex in this Mac's spaces (LOCAL, their ids),
+/** The app's AGENTS as core/chats.py takes herdr's: Claude and Codex in this Mac's spaces (LOCAL, their ids),
  * each with its pane's folder (from PANES), its terminal for its pane.
  * @param {any[]} agents @param {any[]} panes @param {Set<string>} local */
 export const coreAgents = (agents, panes, local) => agents
@@ -235,20 +239,29 @@ const URGENCY = ["blocked", "done", "working", "idle"];      // as the app order
  * @param {(string | null | undefined)[]} states */
 export const urgent = (states) => URGENCY.find((state) => states.includes(state)) ?? null;
 
-/** ITEM's key among the archived, as the TUI's column keeps it. @param {Conversation} item */
+/** ITEM's key among the archived, as the TUI's column keeps it. @param {Chat} item */
 export const archiveKey = (item) => `${item.agent}:${item.id}`;
 
 /** The rows: each space of ORDER, its STATES' state, with its ITEMS (PLACE: {folder: space}) that match TYPED, FRONT's
  * panes first, then the newest; archived ones only typed or shown; HERE open unless CLOSED, others OPENED or typed.
- * @param {Conversation[]} items @param {string[]} order @param {Record<string, string>} place @param {any} how */
-export function conversationRows(items, order, place, how) {
+ * @param {Chat[]} items @param {string[]} order @param {Record<string, string>} place @param {any} how */
+export function chatRows(items, order, place, how) {
   const { typed = "", archived = new Set(), showArchived = false, opened = new Set(), closed = new Set(), here = null,
     front = new Set(), states = {} } = how;
   const word = typed.toLowerCase();
   const matches = (item) => !word || [item.title, place[item.folder] ?? "", item.folder,
     archived.has(archiveKey(item)) ? "archived" : ""].some((part) => part.toLowerCase().includes(word));
   const open = (name) => Boolean(word) || opened.has(name) || (!closed.has(name) && name === here);
-  return order.flatMap((name) => {
+  // a chat outside every open space under its folder's name, as a project: none is left out for want of a space
+  const named = { ...place }, projects = [];
+  for (const item of [...items].sort((a, b) => b.time - a.time)) {
+    if (named[item.folder]) continue;
+    named[item.folder] = item.folder.split(/[\\/]/).filter(Boolean).pop() ?? item.folder;
+    const name = named[item.folder];
+    if (!order.includes(name) && !projects.includes(name)) projects.push(name);
+  }
+  place = named;
+  return [...order, ...projects].flatMap((name) => {
     const found = items.filter((item) => place[item.folder] === name && matches(item)
       && (!archived.has(archiveKey(item)) || Boolean(word) || showArchived))
       .sort((a, b) => Number(front.has(b.pane)) - Number(front.has(a.pane)) || b.time - a.time);
@@ -260,30 +273,62 @@ export function conversationRows(items, order, place, how) {
   });
 }
 
-/** A conversation's id as claude --resume and codex resume take it: from a file's content, so never an option, a space
+/** The group FOLDER's chats stand under in the list (chatRows'): its space's (PLACE: {folder: space}), else the
+ * folder's own name; null for no folder. @param {string} folder @param {Record<string, string>} place */
+export const folderGroup = (folder, place) => place[folder] ?? folder.split(/[\\/]/).filter(Boolean).pop() ?? null;
+
+/** The list's opening as KEPT (herdr-fold.chats-opened): when, and the group a chat's clock asked for (none: the
+ * tab bar's Chats). @param {unknown} kept @returns {{ at: number | null, space: string | null }} */
+export function chatsAsked(kept) {
+  const one = /** @type {any} */ (kept && typeof kept === "object" ? kept : { at: kept });
+  return { at: typeof one.at === "number" ? one.at : null, space: typeof one.space === "string" ? one.space : null };
+}
+
+/** Where the group NAME stands among the list's children as drawn from ROWS (chatRows': a group is its head, then
+ * its chats' block): its head's place and the list's last, which it is scrolled back from, so it comes first in view;
+ * null for no such group. @param {{ kind: string, name?: string }[]} rows @param {string} name */
+export function groupPlace(rows, name) {
+  const groups = rows.filter((row) => row.kind === "group"), at = groups.findIndex((row) => row.name === name);
+  return at < 0 ? null : { head: at * 2, last: groups.length * 2 - 1 };
+}
+
+/** A chat's id as claude --resume and codex resume take it: from a file's content, so never an option, a space
  * or a control code. */
 const SESSION = /^[0-9A-Za-z][0-9A-Za-z._-]*$/;
 
-/** The command that reopens ITEM, a closed conversation: its agent resuming it. @param {Conversation} item */
+/** The command that reopens ITEM, a closed chat: its agent resuming it. @param {Chat} item */
 export function resumeArgv(item) {
-  if (!SESSION.test(item.id) || !["claude", "codex"].includes(item.agent)) throw new Error("not a conversation's id");
+  if (!SESSION.test(item.id) || !["claude", "codex"].includes(item.agent)) throw new Error("not a chat's id");
   return item.agent === "claude" ? ["claude", "--resume", item.id] : ["codex", "resume", item.id];
 }
 
-const CHOICES = ["Open", "Copy conversation", "Rename"];
+const CHOICES = ["Open", "Copy chat", "Rename"];
 
-/** The right click's menu on ITEM: Archive for a closed one, Unarchive for an archived one; on none (null), Show or
- * Hide archived while any is. @param {Conversation | null} item @param {Set<string>} archived
- * @param {boolean} showArchived */
-export function conversationChoices(item, archived, showArchived) {
+/** The right click's menu on ITEM: Archive for a closed one, Unarchive for an archived one, then Delete… (off for a
+ * running one: deleteOff); on none (null), Show or Hide archived while any is. @param {Chat | null} item
+ * @param {Set<string>} archived @param {boolean} showArchived */
+export function chatChoices(item, archived, showArchived) {
   if (!item) return archived.size ? [showArchived ? "Hide archived" : "Show archived"] : [];
-  if (archived.has(archiveKey(item))) return [...CHOICES, "Unarchive"];
-  return item.state ? CHOICES : [...CHOICES, "Archive"];
+  const tidy = archived.has(archiveKey(item)) ? ["Unarchive"] : item.state ? [] : ["Archive"];
+  return [...CHOICES, ...tidy, "Delete…"];
 }
 
-const TAB_NAME = 24;          // a conversation's name on its tab, as the TUI's column (AI Sessions') puts it there
+/** Why ITEM's Delete… is off, its tip: a running chat's file is its agent's; null for a closed one.
+ * @param {Chat} item */
+export const deleteOff = (item) => (item.state ? "A running chat is not deleted: close it first" : null);
 
-/** TITLE as a reopened conversation's tab name: printable characters only, no leading dash, cut with "…".
+/** ITEMS without the chats on their way to the Trash (LEAVING: archiveKey's): a deleted one's row leaves at once.
+ * @template {Chat} T @param {T[]} items @param {Set<string>} leaving */
+export const withoutLeaving = (items, leaving) => (leaving.size ? items.filter((c) => !leaving.has(archiveKey(c)))
+  : items);
+
+/** LEAVING still to hide once ITEMS were read again: those the list still holds (a read begun before the file left).
+ * @param {Set<string>} leaving @param {Chat[]} items */
+export const stillLeaving = (leaving, items) => new Set(items.map(archiveKey).filter((key) => leaving.has(key)));
+
+const TAB_NAME = 24;          // a chat's name on its tab, as the TUI's column (AI Sessions') puts it there
+
+/** TITLE as a reopened chat's tab name: printable characters only, no leading dash, cut with "…".
  * @param {string} title */
 export function tabLabel(title) {
   const name = [...title].filter((ch) => ch === " " || !/[\p{C}\p{Z}]/u.test(ch)).join("").replace(/^[- ]+/, "");
@@ -293,9 +338,9 @@ export function tabLabel(title) {
 /** An issue as its preview shows it, with its priority as the list ranked it.
  * @typedef {{ kind: "issue", github: string, number: number, title: string, level?: number | null,
  *   ranked_by?: string | null }} ShownIssue */
-/** What a preview shows, where (ROOT on machine ON): a change's diff (a new file's as all added), a file, a commit or
- * an issue. @typedef {{ root: string, on: string | null } & ({ kind: "diff" | "file", path: string }
- *   | { kind: "commit", hash: string } | ShownIssue)} Shown */
+/** What a preview shows, where (ROOT on machine ON): a change's diff (a new file's as all added), a file (from its
+ * LINE, What's new's), a commit or an issue. @typedef {{ root: string, on: string | null } & ({ kind: "diff" | "file",
+ *   path: string, line?: number } | { kind: "commit", hash: string } | ShownIssue)} Shown */
 
 /** A preview tab's name starts so, as the TUI sidebar's: what it shows follows. */
 const PREVIEWED = "preview: ";
@@ -337,7 +382,7 @@ export function branchLabel(status) {
 }
 
 /** The node of the layout tree NODE named ID, or null. @param {any} node @param {string} id @returns {any} */
-function find(node, id) {
+export function find(node, id) {
   if (!node || node.id === id) return node ?? null;
   for (const child of node.children ?? []) {
     const found = find(child, id);
@@ -359,10 +404,11 @@ export const railed = (root) => (sidebarPx(root) ?? Infinity) < RAIL_BELOW;
  * @param {any} root @param {boolean} macos @param {number | undefined} kept */
 export const foldedWidth = (root, macos, kept) => (railed(root) ? kept ?? 268 : macos ? RAIL : 44);
 
-/** SPACE's tabs as the tab bar draws them, as the app's own: one nobody named takes the space's name on the first
- * (the TUI's main tab), else its program's (an agent's first, a chat tab's agent: CHATS, by tab), else Terminal; an
- * agent's icon (TINT: the text's color), its state, zoomed marked Z. @param {any} space @param {any[]} panes */
-export function tabRows(space, panes, /** @type {Record<string, any>} */ chats = {}) {
+/** SPACE's tabs as the tab bar draws them, as the app's own: one nobody named takes the space's name on the first (the
+ * TUI's main tab), else its program's (an agent's, a chat tab's: CHATS), else Terminal; an agent's icon (TINT: in the
+ * text's color), its state (a chat WAITING on you blocked), zoomed marked Z. @param {any} space @param {any[]} panes */
+export function tabRows(space, panes, /** @type {Record<string, any>} */ chats = {},
+  /** @type {Set<string>} */ waiting = new Set()) {
   return (space?.tabs ?? []).map((/** @type {any} */ c, /** @type {number} */ i) => {
     const program = chats[c.id]?.program ?? panes.find((p) => p.tab === c.id && p.program?.agent)?.program
       ?? panes.find((p) => p.tab === c.id)?.program;
@@ -370,7 +416,7 @@ export function tabRows(space, panes, /** @type {Record<string, any>} */ chats =
     const name = !given ? c.name : first ? space.name : program?.name ?? "Terminal";
     const agent = program?.agent ? program : null;
     return { id: c.id, name: c.zoomed ? `${name} Z` : name, active: Boolean(c.active),
-      status: c.status ?? chats[c.id]?.status ?? null,
+      status: waiting.has(c.id) ? "blocked" : c.status ?? chats[c.id]?.status ?? null,
       icon: agent?.icon ?? null, tint: Boolean(agent?.tint) };
   });
 }
@@ -383,62 +429,429 @@ export function stacks(chosen, room) {
 
 const MENU_EDGE = 8, MENU_OFF = 4;       // px a menu keeps from the window's edges, and from its button
 
-/** Where a menu HIGH and WIDE opens for BUTTON in a window ROOM: under it, right edges in line, where it fits;
- * else above it; else as far in as the window lets it. @param {{ x: number, y: number, width: number,
+/** Where a menu HIGH and WIDE opens for BUTTON in a window ROOM: under it, right edges in line (LEFT: left edges),
+ * where it fits; else above it; else as far in as the window lets it. @param {{ x: number, y: number, width: number,
  * height: number }} button @param {number} high @param {{ width: number, height: number }} room @param {number} wide */
-export function menuPlace(button, high, room, wide) {
-  const x = Math.max(MENU_EDGE, Math.min(button.x + button.width - wide, room.width - MENU_EDGE - wide));
+export function menuPlace(button, high, room, wide, left = false) {
+  const x = Math.max(MENU_EDGE, Math.min(left ? button.x : button.x + button.width - wide,
+    room.width - MENU_EDGE - wide));
   const under = button.y + button.height + MENU_OFF, over = button.y - MENU_OFF - high;
   if (under + high <= room.height - MENU_EDGE) return { x, y: under };
   return { x, y: over >= MENU_EDGE ? over : Math.max(MENU_EDGE, room.height - MENU_EDGE - high) };
 }
 
 const MENU_ROW = 28, MENU_RULE = 9, MENU_GAP = 2, MENU_PAD = 4;      // px: a menu's row, its rule, between, round
+const MENU_FIND = 32;              // px: a menu's filter on top, a field (parts.js's)
 
-/** The height of a menu of ITEMS (null: a rule between its parts) under its HEAD. @param {(object | null)[]} items
- * @param {object} [head] */
-export const menuHeight = (items, head) => items.reduce((h, item) => h + (item ? MENU_ROW : MENU_RULE) + MENU_GAP,
-  head ? MENU_ROW + MENU_GAP : 0) + 2 * MENU_PAD;
+/** The height of a menu of ITEMS (null: a rule between its parts) under its HEAD, under a filter (FIND).
+ * @param {(object | null)[]} items @param {object} [head] @param {boolean} [find] */
+export const menuHeight = (items, head, find = false) => items.reduce((h, item) => h + (item ? MENU_ROW : MENU_RULE)
+  + MENU_GAP, (head ? MENU_ROW + MENU_GAP : 0) + (find ? MENU_FIND + MENU_GAP : 0)) + 2 * MENU_PAD;
 
-/** The panel menu's lines about herdr-fold, as the TUI sidebar's ⋯ has them: its version (a newer one's, once out),
- * opening its releases, and Check for Updates; none before a look or where the installer never ran.
- * @param {any} found core/update.py's check */
-export function aboutLines(found) {
-  if (!found?.version) return [];
-  return [{ label: found.newer ? `herdr-fold ${found.latest} is out` : `herdr-fold ${found.version}`,
-    url: found.releases }, { label: "Check for Updates", on: Boolean(found.on) }];
+// herdr-fold's Settings (settings.html): More's Settings… opens it, one window of one size, its sections at its left
+export const SETTINGS = { wide: 600, high: 316, head: 44, side: 160, pad: 24 };
+/** Its sections in order, each [id, name]. @type {[string, string][]} */
+export const SECTIONS = [["general", "General"], ["about", "About"]];
+
+/** The section shown for the one KEPT (the one last looked at; General at first). @param {unknown} kept */
+export const settingsSection = (kept) => (SECTIONS.some(([id]) => id === kept) ? String(kept) : SECTIONS[0][0]);
+
+/** The section STEP (↑ -1, ↓ 1) from SECTION, staying at the list's ends. @param {string} section
+ * @param {number} step */
+export function sectionStep(section, step) {
+  const at = SECTIONS.findIndex(([id]) => id === section);
+  return SECTIONS[Math.max(0, Math.min(SECTIONS.length - 1, at + step))][0];
 }
 
-/** The room the tab bar leaves at its start for the traffic lights of window W (macOS, no title bar, not full
- * screen): what the sidebar and its toggle beside them leave of them at ZOOM, 10 px at least, as the app's own.
- * @param {any} root @param {any} w @param {number} zoom */
-export function lightsRoom(root, w, zoom) {
-  if (w?.platform !== "macos" || w.titlebar !== "none" || w.fullscreen || !root?.traffic_lights) return 10;
-  const width = (/** @type {string} */ id) => (find(root, id)?.hidden ? 0 : find(root, id)?.size?.px ?? 0);
-  return Math.max(10, (root.traffic_lights[0] + 64) / zoom - width("sidebar") - width("sidebar-trigger"));
+/** What Tab steps through in SECTION: General's one choice, About's links and buttons (ABOUT: aboutState's).
+ * @param {string} section @param {ReturnType<typeof aboutState>} about */
+export const settingsTargets = (section, about) => (section === "about" ? aboutTargets(about) : ["opens"]);
+
+// its About section, in the TUI's words
+
+/** The license TEXT (the mod's own LICENSE) says: its kind (its first line), the year, the holder's name and page.
+ * @param {string} text @returns {{ kind: string, year: string, name: string, url: string | null } | null} */
+export function licenseOf(text) {
+  const held = /^Copyright \(c\) (\d{4}) (.+?)(?: \((https?:\/\/[^)\s]+)\))?\s*$/m.exec(text);
+  return held ? { kind: text.split("\n")[0].trim(), year: held[1], name: held[2], url: held[3] ?? null } : null;
+}
+
+/** When a look was (SECONDS, epoch), as About says it: at its time today (this Mac's form), else on its day (Nov 12).
+ * @param {number} seconds @param {number} now ms */
+const lookedWhen = (seconds, now) => {
+  const when = new Date(seconds * 1000), today = new Date(now);
+  return when.toDateString() === today.toDateString() ? `at ${timeIn(when, "time")}` : `on ${format(when, "MMM d")}`;
+};
+
+/** About's rows from FOUND (core/update.py's check; null before it answers), CHECKING, at NOW (ms), LICENSE: the
+ * version line's groups (the holder's name a link), the state (a mark, words, when it looked, tone, a spinner), how
+ * to update, its buttons (none without an install), the box (null: none). @param {any} found @param {any} [how] */
+export function aboutState(found, { checking = false, now = Date.now(), license = null } = {}) {
+  const version = found?.version ?? null, latest = found?.latest, checked = found?.checked ?? null;
+  const state = (/** @type {string | null} */ mark, /** @type {string} */ title, note = "", tone = "foreground",
+    spin = false) => ({ mark, title, note, tone, spin });
+  const shown = checking || !found ? state(null, "Checking for updates…", "", "muted", true)
+    : !version ? state(null, "Not installed by herdr-fold's installer", "", "muted")
+      : found.error ? state(null, "Couldn't check", checked ? `Last checked ${lookedWhen(checked, now)}` : found.error,
+        "ansi1")
+        : found.newer ? state("up", `${latest} is out`, `Checked ${lookedWhen(checked ?? now / 1000, now)}`)
+          : checked ? state("ok", "Up to date", `Checked ${lookedWhen(checked, now)}`)
+            : state(null, "Checked by hand only", "", "muted");
+  const newer = Boolean(found?.newer) && Boolean(version);
+  const held = /** @type {{ kind: string, year: string, name: string, url: string | null } | null} */ (license);
+  const credits = [...(version ? [[{ text: `Version ${version}` }]] : []), ...(held ? [[{ text: `© ${held.year}` },
+    held.url ? { text: held.name, url: held.url } : { text: held.name }], [{ text: held.kind }]] : [])];
+  return { credits, state: shown,
+    how: !newer || checking ? null : found.error ? `${latest} is out: ${found.how}` : found.how,
+    buttons: version ? [newer ? { id: "first", label: "Release notes ↗", url: found.releases }
+      : { id: "first", label: "What's new" }, { id: "check", label: "Check now" }] : [],
+    box: version ? found.on !== false : null };
+}
+
+/** What About's keys step through (Tab, Shift+Tab), in order: the author's link, its buttons, the box, the notices.
+ * @param {ReturnType<typeof aboutState>} state */
+export const aboutTargets = (state) => [...(state.credits.flat().some((part) => "url" in part) ? ["author"] : []),
+  ...state.buttons.map((b) => b.id), ...(state.box === null ? [] : ["box"]), "notices"];
+
+/** About's sizes, px: its head (the name and the version line), between its parts, the state's row, the how line and
+ * its gap over it, the box's row, the notices' line. */
+export const ABOUT = { head: 52, gap: 20, state: 36, howGap: 8, how: 32, box: 20, legal: 16 };
+
+/** The height About's rows take for STATE (aboutState's): the window keeps its one size, so its tallest (a newer one's
+ * how line) fills the section's room and no other moves. @param {ReturnType<typeof aboutState>} state */
+export const aboutHeight = (state) => ABOUT.head + ABOUT.gap + ABOUT.state
+  + (state.how ? ABOUT.howGap + ABOUT.how : 0) + (state.box === null ? 0 : ABOUT.gap + ABOUT.box) + ABOUT.gap
+  + ABOUT.legal;
+
+/** The status bar's agents (AGENTS' statuses) in words, as the mockups' bar says them, and their dot's role: those
+ * waiting on you first, else those working, else how many. @param {(string | null)[]} statuses */
+export function agentsSaid(statuses) {
+  const all = statuses.length, count = (/** @type {number} */ n) => `${n} agent${n === 1 ? "" : "s"}`;
+  const some = (/** @type {number} */ n, /** @type {string} */ doing) => n === all ? `${count(n)} ${doing}`
+    : `${n} of ${count(all)} ${doing}`;
+  const waiting = statuses.filter((s) => s === "blocked").length;
+  const working = statuses.filter((s) => s === "working").length;
+  if (waiting) return { words: some(waiting, "waiting for you"), role: "waiting" };
+  if (working) return { words: some(working, "working"), role: "working" };
+  return { words: all ? count(all) : "No agents", role: null };
+}
+
+/** @typedef {{ words: string, tip: string, busy: boolean, command?: string, opens?: string }} Update the status
+ * bar's item: a press runs COMMAND, or OPENS Settings at that section */
+/** The status bar's one update item from U (updates()) and FOUND (core/update.py's check): Herdr's own ready first
+ * (herdr-core with it), else herdr-core's unless a package manager owns it, else a newer herdr-fold, which a press
+ * only shows how to get; null with none. @param {any} u @param {any} [found] @returns {Update | null} */
+export function updateReady(u, found = null) {
+  const core = u?.core?.ready && !u.core.managed ? u.core : null, also = core ? ` and herdr-core ${core.ready}` : "";
+  if (u?.app?.ready) return { words: `Update ready: Herdr ${u.app.ready}`, command: "app.update", busy: false,
+    tip: `Restart into Herdr ${u.app.ready}${also}; your terminals keep running` };
+  if (!core) {
+    return found?.version && found.newer ? { words: `herdr-fold ${found.latest} is out`, opens: "about", busy: false,
+      tip: "Open herdr-fold's Settings at About" } : null;
+  }
+  return { words: core.updating ? `Updating herdr-core to ${core.ready}…` : `Update ready: herdr-core ${core.ready}`,
+    command: "app.update_core", busy: Boolean(core.updating),
+    tip: `Update herdr-core to ${core.ready} now; your terminals keep running` };
+}
+
+/** The toast after an update, said by the one copy that marked FOUND's update seen (SAID, core/update.py's seen), its
+ * What's new opening this version's CHANGELOG section. @param {any} found @param {boolean} said */
+export const updateNotice = (found, said) => (found?.updated && said
+  ? { title: `Updated to herdr-fold ${found.updated}`, body: "What's new", level: "success",
+    action: { name: "herdr-fold.whats-new" } }
+  : null);
+
+// the title row's command field as commands.html's B draws it, on the window's centre (where the app opens its
+// palette); narrower than its mark, a name and its key need, its mark alone
+export const FIELD = 300, FIELD_LEAST = 160;
+
+/** The room the title row keeps at each end: BUTTONS where window W has no system buttons, else on macOS (no title
+ * bar, not full screen) as far as ROOT's traffic lights reach at ZOOM (the lights do not zoom), else PAD.
+ * @param {any} root @param {any} w @param {number} zoom @param {number} buttons */
+export function titleSide(root, w, zoom, buttons) {
+  if (w?.buttons) return buttons;
+  if (w?.platform !== "macos" || w.titlebar !== "none" || w.fullscreen || !root?.traffic_lights) return PAD;
+  return (root.traffic_lights[0] + 64) / zoom;
+}
+
+/** The command field's width in a title row WIDE px (null: not measured yet) that keeps SIDE clear at each end: as
+ * drawn, else the room between them, else 0 (its mark alone). @param {number | null} wide @param {number} side */
+export function fieldWidth(wide, side) {
+  const room = wide === null ? FIELD : Math.min(FIELD, wide - 2 * side);
+  return room < FIELD_LEAST ? 0 : room;
+}
+
+// a key's parts as the platform names them: macOS's signs, elsewhere words (joined by +); the rest as its key cap reads
+const KEY_NAMES = { mac: { cmd: "⌘", ctrl: "⌃", shift: "⇧", alt: "⌥", option: "⌥", enter: "↩", backspace: "⌫",
+  tab: "⇥", escape: "Esc", left: "←", right: "→", up: "↑", down: "↓", space: "Space", pageup: "PgUp",
+  pagedown: "PgDn" },
+other: { cmd: "Ctrl", ctrl: "Ctrl", shift: "Shift", alt: "Alt", option: "Alt", enter: "Enter",
+  backspace: "Backspace", tab: "Tab", escape: "Esc", left: "←", right: "→", up: "↑", down: "↓", space: "Space",
+  pageup: "PgUp", pagedown: "PgDn" } };
+
+/** KEYS as keys.json writes them ("cmd-shift-p", "cmd--", "cmd-k cmd-p"), each chord's parts in the platform's
+ * names (MAC: ⌘ ⇧ P; else Ctrl Shift P), as their key caps read. @param {string} keys @param {boolean} mac */
+export const keyNames = (keys, mac) => keys.split(" ").map((chord) => (chord.endsWith("--")
+  ? [...chord.slice(0, -2).split("-"), "-"] : chord.split("-")).map((part) => /** @type {Record<string, string>} */
+  (mac ? KEY_NAMES.mac : KEY_NAMES.other)[part.toLowerCase()] ?? part.toUpperCase()));
+
+/** KEYS as one word, as a field's or a tip's end says it: ⌘⇧P on macOS (MAC), Ctrl+Shift+P elsewhere.
+ * @param {string} keys @param {boolean} mac */
+export const keyWord = (keys, mac) => keyNames(keys, mac).map((chord) => chord.join(mac ? "" : "+")).join(" ");
+
+/** The palette's key, herdr-fold's own (`herdr-fold.palette`), as LIST (keys()'s) binds it where layout NAME shows
+ * (its own section over global), in the platform's words (MAC); unbound, null.
+ * @param {{ section: string, keys: string, action: string }[]} list @param {boolean} mac @param {unknown} name */
+export function paletteKey(list, mac, name) {
+  const bound = (/** @type {string} */ section) => list.find((k) => k.section === section
+    && k.action === PALETTE_COMMAND);
+  const key = (bound(`layout:${name}`) ?? bound("global"))?.keys;
+  return key ? keyWord(key, mac) : null;
+}
+
+// the command palette, herdr-fold's own in place of the app's (commands.html's Nyitva): the app's commands named as
+// the app's palette names them (its frame's NAMED, the words a search finds besides), in its groups, and a few it only
+// titles from their name named here; a key's binding its action. After them herdr-fold's own, in a group of its name
+export const PALETTE_COMMAND = "herdr-fold.palette";
+export const PALETTE_OWN = "herdr-fold";
+export const PALETTE_GROUPS = ["Tab", "Pane", "Space", "Layout", "Terminal", "Agent", "Window", "App", PALETTE_OWN];
+const WAYS = ["left", "right", "up", "down"];
+/** @typedef {[string, Record<string, unknown>, string, string, string]} Named [command, args, group, title, words] */
+/** @param {string} command @param {Record<string, unknown>} args @param {string} group @param {string} title
+ * @param {string} words @returns {Named} */
+const named = (command, args, group, title, words) => [command, args, group, title, words];
+/** @type {Named[]} */
+export const PALETTE_NAMED = [
+  ["tab.new", {}, "Tab", "New tab", "tab agent new task"],
+  ["mod.open", { name: "picker" }, "Tab", "Go to space or tab…", "switch jump find"],
+  ["tab.rename", {}, "Tab", "Rename tab", "tab"],
+  ["tab.close", {}, "Tab", "Close tab", "tab kill"],
+  ["tab.next", {}, "Tab", "Next tab", "tab"],
+  ["tab.prev", {}, "Tab", "Previous tab", "tab"],
+  ["pane.split", { direction: "right" }, "Pane", "Split right", "vertical"],
+  ["pane.split", { direction: "down" }, "Pane", "Split down", "horizontal"],
+  ["pane.close", {}, "Pane", "Close pane", "kill"],
+  ["pane.zoom", {}, "Pane", "Zoom pane", "maximize fullscreen"],
+  ...WAYS.map((way) => named("pane.go", { direction: way }, "Pane", `Focus pane ${way}`, "move go")),
+  ...WAYS.map((way) => named("pane.swap", { direction: way }, "Pane", `Swap pane ${way}`, "move")),
+  ["space.new", {}, "Space", "New space", "workspace"],
+  ["space.rename", {}, "Space", "Rename space", "workspace"],
+  ["space.close", {}, "Space", "Close space", "workspace kill"],
+  ["space.next", {}, "Space", "Next space", "workspace"],
+  ["space.prev", {}, "Space", "Previous space", "workspace"],
+  ["layout.switch", {}, "Layout", "Next layout", "look switch"],
+  ["layout.reset", {}, "Layout", "Reset layout", "new version default restore herdr's"],
+  ["layout.clone", {}, "Layout", "Duplicate layout", "clone copy customize"],
+  ["mod.clone", {}, "Layout", "Duplicate mod", "clone copy customize"],
+  ["terminal.open", {}, "Terminal", "New terminal", "shell"],
+  ["terminal.copy", {}, "Terminal", "Copy", "clipboard"],
+  ["terminal.paste", {}, "Terminal", "Paste", "clipboard"],
+  ["terminal.paste_image", {}, "Terminal", "Paste image", "clipboard picture screenshot"],
+  ["terminal.search", {}, "Terminal", "Find in terminal", "search scrollback"],
+  ["terminal.scroll", { to: "top" }, "Terminal", "Scroll to top", "history start"],
+  ["terminal.scroll", { to: "bottom" }, "Terminal", "Scroll to bottom", "history end latest"],
+  ["agent.next", {}, "Agent", "Next agent", ""],
+  ["agent.prev", {}, "Agent", "Previous agent", ""],
+  ["window.minimize", {}, "Window", "Minimize window", ""],
+  ["window.maximize", {}, "Window", "Maximize window", "restore"],
+  ["window.close", {}, "Window", "Close window", "quit"],
+  ["app.settings", {}, "App", "Settings", "preferences options config look font theme sound"],
+  ["app.help", {}, "App", "Keys", "keybindings shortcuts help"],
+  ["app.welcome", {}, "App", "Welcome", "intro start onboarding"],
+  ["app.whats_new", {}, "App", "What's new", "release changes news update"],
+  ["app.check_updates", {}, "App", "Check for updates", "update version"],
+  ["app.update_core", {}, "App", "Update herdr-core", "core version"],
+  ["app.update", {}, "App", "Restart to update", "update version"],
+  ["app.feedback", {}, "App", "Send feedback…", "bug report idea"],
+  ["app.reset", {}, "App", "Reset to the default screen", "escape hatch broken restore"],
+  ["app.zoom_in", {}, "App", "Zoom in", "bigger font size"],
+  ["app.zoom_out", {}, "App", "Zoom out", "smaller font size"],
+  ["app.zoom_reset", {}, "App", "Reset zoom", "font size"],
+  ["app.quit", {}, "App", "Quit Herdr", "exit"],
+  ...["graphite", "ink", "moss", "atom-one-dark"].map((name) => named("app.theme", { name }, "App",
+    `Theme: ${name.replace(/-/g, " ")}`, "colors look"))];
+// herdr-fold's own commands (main.js's route and dispatch), those that work wherever the keys are: [command, title,
+// words]. Not the palette itself, Commit (it needs the message typed in Changes) or the update's toast's What's new
+/** @type {[string, string, string][]} */
+export const PALETTE_OWNED = [
+  ["herdr-fold.settings", "Settings…", "herdr-fold preferences options agents accounts about update"],
+  ["herdr-fold.files", "Files", "view dock panel explorer tree folder show"],
+  ["herdr-fold.search", "Search", "view dock panel find grep show"],
+  ["herdr-fold.changes", "Changes", "view dock panel git diff show"],
+  ["herdr-fold.issues", "Issues", "view dock panel github pull requests show"],
+  ["herdr-fold.agent", "Agent", "view dock panel setup rules permissions skills connectors mcp show"],
+  ["herdr-fold.agents", "Agents", "tab graph wiring rules skills sub-agents tools connectors gates show"],
+  ["herdr-fold.usage", "Usage", "tab agents cost tokens spent value budget models conversations report show"],
+  ["herdr-fold.chats", "Chats", "view dock panel conversations sessions history show"],
+  ["herdr-fold.new-agent", "New chat", "agent start"],
+  ["herdr-fold.styleguide", "Styleguide", "parts components design"],
+  ["herdr-fold.unread", "Mark agent unread", "waiting"],
+  ["herdr-fold.commit-push", "Commit and push", "git changes"],
+  ["herdr-fold.write", "Write commit message", "git changes"]];
+// what acts on something pointed at (an id, a terminal), or is the palette itself: not for a list
+const PALETTE_HIDDEN = new Set(["space.move", "tab.move", "space.select", "tab.select", "pane.focus", "terminal.keep",
+  "terminal.park", "terminal.kill", "terminal.show", "agent.focus", "layout.set", "layout.toggle", "layout.show",
+  "layout.hide", "layout.resize", "layout.select", "mod.open", "overlay.close", "tab.settle", "tab.unsettle",
+  "app.palette", "app.hide", "app.hide_others", "app.show_all", "app.theme", "app.settings"]);
+const LAYOUT_TITLES = /** @type {Record<string, string>} */ ({ main: "Herdr", terminals: "Terminals",
+  win98: "Herdr 98", "herdr-fold": "herdr-fold" });
+
+/** A palette's entry: the COMMAND it runs with its ARGS, its GROUP, its TITLE, the WORDS a search finds it by besides,
+ * its ID. @typedef {{ name: string, args: Record<string, unknown>, group: string, title: string, words: string,
+ * id: string }} PaletteEntry */
+
+/** An app's command, as commands() lists it. @typedef {{ name: string, args: { name: string, required: boolean }[],
+ * about: string }} AppCommand */
+/** A key bound, as keys() lists it. @typedef {{ section: string, keys: string, action: string }} Binding */
+
+/** How herdr-fold's own commands list: Issues on GITHUB only, the new agent named as + names it (PLUS).
+ * @typedef {{ github: boolean, plus: string }} Own */
+
+/** The palette's entries for the app's COMMANDS and LAYOUTS in the groups' order: those named (the window's off macOS,
+ * MAC), a layout each, any other needing no argument but a name, titled from it; with OWN, herdr-fold's own after the
+ * app's. @param {AppCommand[]} commands @param {string[]} layouts @param {boolean} mac @param {Own | null} [own] */
+export function paletteEntries(commands, layouts, mac, own = null) {
+  const known = new Set(commands.map((c) => c.name)), titled = new Set(PALETTE_NAMED.map(([name]) => name));
+  const list = PALETTE_NAMED.filter(([name]) => known.has(name) && !(mac && name.startsWith("window.")))
+    .map(([name, args, group, title, words]) => ({ name, args, group, title, words }));
+  if (known.has("layout.switch")) {
+    for (const name of layouts) {
+      list.push({ name: "layout.switch", args: { name }, group: "Layout", words: `look ${name}`,
+        title: `Layout: ${LAYOUT_TITLES[name] ?? name.charAt(0).toUpperCase() + name.slice(1)}` });
+    }
+  }
+  for (const c of commands) {
+    if (titled.has(c.name) || PALETTE_HIDDEN.has(c.name) || c.args.some((a) => a.required && a.name !== "name")) {
+      continue;
+    }
+    const [noun, verb = ""] = c.name.split(".");
+    list.push({ name: c.name, args: {}, group: noun.charAt(0).toUpperCase() + noun.slice(1), words: c.about,
+      title: `${verb.replace(/_/g, " ")} ${noun}`.replace(/^./, (first) => first.toUpperCase()) });
+  }
+  for (const [name, title, words] of own ? PALETTE_OWNED : []) {
+    if (name === "herdr-fold.issues" && !own?.github) continue;
+    list.push({ name, args: {}, group: PALETTE_OWN, words,
+      title: name === "herdr-fold.new-agent" ? own?.plus ?? title : title });
+  }
+  const order = (/** @type {string} */ group) => (PALETTE_GROUPS.includes(group) ? PALETTE_GROUPS.indexOf(group)
+    : PALETTE_GROUPS.length);
+  return list.map((entry, n) => ({ entry, n })).sort((a, b) => order(a.entry.group) - order(b.entry.group) || a.n - b.n)
+    .map(({ entry }) => ({ ...entry, id: `${entry.name}:${JSON.stringify(entry.args)}` }));
+}
+
+/** ENTRY's key where layout NAME shows, as LIST binds its action (`name`, `name:value` its first argument's): the
+ * layout's own, else a global one the layout leaves, else a terminal's; null. @param {Binding[]} list
+ * @param {{ name: string, args: Record<string, unknown> }} entry @param {unknown} name */
+export function entryKey(entry, list, name) {
+  const value = Object.values(entry.args)[0];
+  const action = value === undefined ? entry.name : `${entry.name}:${value}`;
+  const own = list.filter((k) => k.section === `layout:${name}`);
+  const global = list.find((k) => k.section === "global" && k.action === action && !own.some((o) => o.keys === k.keys));
+  return (own.find((k) => k.action === action) ?? global
+    ?? list.find((k) => k.section === "terminal" && k.action === action))?.keys ?? null;
+}
+
+/** Where the palette opens in a window ROOM: WIDE (or the window less 8 at each side) on its centre, 8 under its top
+ * (the nearest the app lets a popup come: measured), its field over the title row's; HIGH, or as the window leaves.
+ * @param {{ width: number, height: number }} room @param {number} wide @param {number} high */
+export function palettePlace(room, wide, high) {
+  const width = Math.min(wide, room.width - 2 * MENU_EDGE);
+  return { x: Math.round((room.width - width) / 2), y: MENU_EDGE, width,
+    height: Math.min(high, room.height - 2 * MENU_EDGE) };
 }
 
 /** The room the tab bar leaves at its end so its panel toggle, BUTTON px wide, sits over the middle of the rail,
  * inside the work body's padding (layout ROOT's). @param {any} root @param {number} button */
 export const toggleRoom = (root, button) => (find(root, "work-body")?.padding ?? 0) + (RAIL - button) / 2;
 
-// the layout's right panel, its dock's head and its dock of groups: herdr-fold's own ids, so the app's Settings, which
-// shows and hides a panel under the app's ids, leaves them alone
-export const PANEL = "fold-panel", DOCK_HEAD = "fold-dock-head", DOCK = "fold-dock";
+// the layout's right panel and its card, the stack of the views under the row (the stack's header): herdr-fold's own
+// ids, so the app's Settings, which shows and hides a panel under the app's ids, leaves them alone
+export const PANEL = "fold-panel", DOCK = "fold-views";
 export const RAIL_BLOCK = "panel-rail";      // the right panel's block while it is folded to its rail
 export const RAIL = 76;                      // px: the right panel folded to its rail, as the left sidebar folds
 export const PANEL_PX = 368;                 // px: the right panel open, unless it kept another width
 
-export const TALL = 440;          // a panel floating beside the folded sidebar, at most
+export const TALL = 440;          // Spaces floating beside the folded sidebar, at most
 
-/** A floating panel as tall as its content, up to TALL: its head, then Spaces' SHOWN rows (a count), or the
- * Conversations filter and SHOWN (conversationRows'), each group's head and an open one's conversations.
- * @param {string} panel @param {any} shown */
-export function floatHeight(panel, shown) {
-  const groups = panel === "spaces" ? [] : shown.filter((row) => row.kind === "group");
-  const body = panel === "spaces" ? 29 * shown + 8
-    : 38 + (groups.length ? groups.reduce((h, g) => h + 26 + (g.open ? 24 * g.items.length : 0), 0) : 28) + 8;
-  return Math.min(TALL, 36 + body);
+/** Spaces floating beside the folded sidebar, as tall as its head and its SHOWN rows (a count), up to TALL.
+ * @param {number} shown */
+export const floatHeight = (shown) => Math.min(TALL, 36 + 29 * shown + 8);
+
+/** The ✦'s count, as the TUI's: the chats waiting on you, this Mac's (LOCAL spaces') Claude and Codex blocked and
+ * the chat tabs waiting (CHATS: their agents), each agent once (a chat's terminal shown in a pane is among AGENTS).
+ * @param {any[]} agents @param {Set<string>} local @param {Set<string>} [chats] */
+export const waitingChats = (agents, local, chats = new Set()) => new Set([...coreAgents(agents, [], local)
+  .filter((a) => a.agent_status === "blocked").map((a) => a.pane_id), ...chats]).size;
+
+const UNITS = /** @type {[number, string][]} */ ([[1e6, "m"], [1e3, "k"]]);     // the largest first, as the TUI's
+
+/** Issues loading, moving nothing, one sign at a time: in the list's first row's place the first load, a failure or
+ * none found (faint as the TUI's), else rows; the head's refresh a spinner while a list is ASKED again (it stays put).
+ * @param {any} s @returns {{ refresh: string, say: [string, string] | null }} */
+export function issuesParts({ asked, listing, shown, filtered, state }) {
+  const say = !listing ? (asked ? ["Loading issues…", "dim"] : null) : listing.error ? [listing.error, "ansi1"]
+    : shown ? null : [filtered ? "No issues match" : `No ${state} issues`, "dim"];
+  return { refresh: asked && listing ? "spinner" : "button", say: /** @type {[string, string] | null} */ (say) };
+}
+
+// a view floating beside the folded rail (a window as tall as its content): as tall as dragged by the grip at its
+// foot, its head and 3 rows at least (each view's head and rows below), the window less FLOAT_MARGIN at most
+export const FLOAT_GRIP = 12, FLOAT_HEAD = 36, FLOAT_MARGIN = 56, FLOAT_FALLBACK = 560;
+const FLOAT_PARTS = {           // px: each view's own head, then 3 of its rows
+  files: [38, 3 * 26],                          // the toolbar (PAD + an icon button)
+  chats: [50, 26 + 2 * 24],                     // the filter (PAD, a field, 6), a space and two chats
+  search: [81, 3 * 24],                         // the field and its status line, PAD round them, the rule
+  issues: [84, 3 * 48],                         // the field's row and Open and Closed
+  changes: [58 + 97, 3 * 26 + 12],              // the repository and the composer; the list's rows and its pads
+  agent: [44 + 37, 4 + 28 + 2 * 26],            // the head and the health line; a section's head and two rows
+};
+
+/** The least a float of VIEW may be: its head, the view's own head, 3 rows, the grip. @param {string} view */
+export function floatMin(view) {
+  const [head, rows] = FLOAT_PARTS[/** @type {keyof typeof FLOAT_PARTS} */ (view)] ?? FLOAT_PARTS.files;
+  return FLOAT_HEAD + head + rows + FLOAT_GRIP;
+}
+
+/** The most: the window's height (the rail's RAIL_PX, the title row's, the tab bar's, the status bar's and the work
+ * body's pads in layout ROOT) less the float's margins. @param {number} railPx @param {any} root */
+export const floatMax = (railPx, root) => railPx + (find(root, "title")?.size?.px ?? 0)
+  + (find(root, "top")?.size?.px ?? 0) + (find(root, "status")?.size?.px ?? 0)
+  + 2 * (find(root, "work-body")?.padding ?? 0) - FLOAT_MARGIN;
+
+/** A height clamped to MIN..MAX (MAX never under MIN). @param {number} px @param {number} min @param {number} max */
+const clampPx = (px, min, max) => Math.min(Math.max(px, min), Math.max(min, max));
+
+/** VIEW's float's height: as KEPT for it ({view: px}), else the most, inside its bounds (RAIL_PX unknown yet:
+ * FLOAT_FALLBACK at most). @param {string} view @param {any} kept @param {number | null} railPx @param {any} root */
+export function railFloatPx(view, kept, railPx, root) {
+  const max = railPx ? floatMax(railPx, root) : FLOAT_FALLBACK, want = kept?.[view];
+  return clampPx(typeof want === "number" ? want : max, floatMin(view), max);
+}
+
+/** KEPT with VIEW's float PX high, only heights kept. @param {any} kept @param {string} view @param {number} px */
+export function keepFloat(kept, view, px) {
+  const was = kept && typeof kept === "object" && !Array.isArray(kept) ? kept : {};
+  return { ...Object.fromEntries(Object.entries(was).filter(([, v]) => typeof v === "number")), [view]: px };
+}
+
+/** The height a drag that started at DRAG ({y, px}) gives with the pointer at Y, inside MIN..MAX.
+ * @param {{ y: number, px: number }} drag @param {number} y @param {number} min @param {number} max */
+export const dragPx = (drag, y, min, max) => clampPx(drag.px + y - drag.y, min, max);
+
+export const NOTE_MS = 4000;      // ms a done thing's line stays under a list, as the TUI's last row; an error stays
+export const BADGE = 14;          // px: a count's badge, as VS Code's activity bar's: this high, at least as wide
+
+/** Where a count's badge goes on an icon whose top-right corner is at X, Y: a one-digit badge's centre on that corner,
+ * over it a little; a longer count grows to the right. @param {number} x @param {number} y */
+export const badgeSpot = (x, y) => ({ left: x - BADGE / 2, top: y - BADGE / 2 });
+
+/** COUNT short when large, 4 characters at most, as the TUI's: as it is to 999; under ten of a unit one decimal,
+ * floored, none for .0 (1.2k, 1k); from ten whole (18k, 111k); 999m at most. @param {number} count */
+export function shortCount(count) {
+  const n = Math.min(count, 999999999), found = UNITS.find(([unit]) => n >= unit);
+  if (!found) return String(n);
+  const [unit, name] = found, tenths = Math.floor((n * 10) / unit), whole = Math.floor(tenths / 10);
+  return `${whole}${whole < 10 && tenths % 10 ? `.${tenths % 10}` : ""}${name}`;
 }
 
 // herdr-fold's Spaces list, where the app's own was: the same rows, and how long an agent there waits on you, as the
@@ -485,11 +898,12 @@ export function toggleUnread(waits, agent, now) {
   return next;
 }
 
-/** Each space's longest wait: since when the first of its AGENTS in WAITS waits.
- * @param {Record<string, any>} waits @param {{ address: string, space: string }[]} agents */
-export function spaceWaits(waits, agents) {
+/** Each space's longest wait: since when the first of its AGENTS in WAITS waits, or a chat there (CHATS: each space's,
+ * logic.js's waiting). @param {Record<string, any>} waits @param {{ address: string, space: string }[]} agents
+ * @param {Record<string, number>} [chats] */
+export function spaceWaits(waits, agents, chats = {}) {
   /** @type {Record<string, number>} */
-  const first = {};
+  const first = { ...chats };
   for (const { address, space } of agents) {
     if (waits[address]) first[space] = Math.min(first[space] ?? Infinity, waits[address].since);
   }
@@ -540,6 +954,69 @@ export function placeKey(s, ps, places) {
     : JSON.stringify([on, folder, active]);
 }
 
+// A machine's home folder is always a row in Spaces, first among its machine's: a space there, or with none (the app
+// ends a space with its last tab) a stand-in saying nothing is open, a click opening a terminal there.
+export const HOME_NAME = "~";
+/** A space's NAME as shown: the app's "~" reads home, as the TUI's workspace is named; its avatar keeps the ~.
+ * @param {string | null | undefined} name */
+export const spaceLabel = (name) => (name === HOME_NAME ? "home" : name ?? "");
+/** The stand-in's id for MACHINE's home (null: this computer). @param {string | null} machine */
+export const homeId = (machine) => `home:${machine ?? ""}`;
+const folderOnly = (/** @type {string} */ path) => path.replace(/[\\/]+$/, "");
+
+/** Whether space S is at its machine's home (PS: the app's panes()): one the app itself calls "~" (nobody named it, its
+ * first terminal there), or one whose folderKey is HOMES' for its machine ("": this computer).
+ * @param {any} s @param {any[]} ps @param {Record<string, string>} homes */
+export function atHome(s, ps, homes) {
+  if (!s.named && s.name === HOME_NAME) return true;
+  const [on, folder] = JSON.parse(folderKey(s, ps)), home = homes[on ?? ""];
+  return Boolean(home && folder) && folderOnly(folder) === folderOnly(home);
+}
+
+/** KNOWN with the home folder of each machine a space of LIST shows it for: the folder of one the app calls "~" (a
+ * named space there is known by it afterwards). @param {Record<string, string>} known @param {any[]} list
+ * @param {any[]} ps */
+export function homesSeen(known, list, ps) {
+  const homes = { ...known };
+  for (const s of list) {
+    const folder = !s.named && s.name === HOME_NAME && JSON.parse(folderKey(s, ps))[1];
+    if (folder) homes[s.machine ?? ""] ??= folder;
+  }
+  return homes;
+}
+
+/** ROWS with each machine's rows at HOME first among that machine's, a checkout's worktrees (nested()'s TREE) staying
+ * under it; MACHINE: a row's. @template R @param {R[]} rows @param {(row: R) => boolean} home
+ * @param {(row: R) => string | null} [machine] */
+export function homeFirst(rows, home, machine = (/** @type {any} */ r) => r.w.machine ?? null) {
+  let lifted = false;
+  const marked = rows.map((row) => {
+    if (!(/** @type {any} */ (row)).tree) lifted = home(row);
+    return { row, lifted };
+  });
+  return [...new Set(rows.map(machine))].flatMap((m) => {
+    const mine = marked.filter((r) => machine(r.row) === m);
+    return [...mine.filter((r) => r.lifted), ...mine.filter((r) => !r.lifted)].map((r) => r.row);
+  });
+}
+
+/** The machines of OPEN (where a terminal can start now; null: this computer) with no space of LIST at HOME: their
+ * home's row is a stand-in. @param {(string | null)[]} open @param {any[]} list @param {(s: any) => boolean} home */
+export const homesEmpty = (open, list, home) => open.filter((m) => !list.some((s) => (s.machine ?? null) === m &&
+  home(s)));
+
+/** LIST (spaces, in the app's order) as a flat list shows it: by machine, this computer first, then by name, each
+ * home first and each of EMPTY's a stand-in ({ empty: true }) at its machine's head. @param {any[]} list
+ * @param {(string | null)[]} empty @param {(s: any) => boolean} home */
+export function withHomes(list, empty, home) {
+  const of = (/** @type {any} */ s) => s.machine ?? null;
+  const names = [...new Set([...list.map(of), ...empty])].sort((a, b) => (a === null ? -1 : b === null ? 1
+    : a < b ? -1 : 1));
+  const rows = homeFirst(list, home, of);
+  return names.flatMap((m) => [...(empty.includes(m) ? [{ id: homeId(m), name: HOME_NAME, machine: m, active: false,
+    status: null, empty: true }] : []), ...rows.filter((s) => of(s) === m)]);
+}
+
 // a space's avatar color, as every app mod draws one: one strong color per hue, light and dark alike
 export const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a",
   ansi1: "#d9649a" };
@@ -579,22 +1056,11 @@ export const listBody = (g, headed) => (headed && (g.folded || g.rebuilt) ? "non
  * @param {SpaceGroup[]} groups */
 export const headed = (groups) => groups.length > 1 || Boolean(groups[0]?.machine);
 
-/** The Spaces list's height as GROUPS draw it: the block, its edge dragged, grows only as far as that.
- * @param {SpaceGroup[]} groups */
+/** The Spaces list's height as GROUPS draw it, each machine's head and rows. @param {SpaceGroup[]} groups */
 export function listHeight(groups) {
   const heads = headed(groups), one = { none: 0, loading: LIST.tree, empty: LIST.tree };
   return LIST.head + LIST.foot + groups.reduce((h, g) => h + (heads ? LIST.machine : 0) + (listBody(g, heads) ===
     "rows" ? g.rows.reduce((n, r) => n + (r.tree ? LIST.tree : LIST.row), 0) : one[listBody(g, heads)]), 0);
-}
-
-/** TREE (a layout) with node ID's max at PX, never under its min: a copy, and whether it differs from TREE (else
- * nothing to write). @param {any} tree @param {string} id @param {number} px */
-export function withMax(tree, id, px) {
-  const node = find(tree, id), max = Math.max(node?.min ?? 0, px);
-  if (!node || node.max === max) return { tree, changed: false };
-  const copy = JSON.parse(JSON.stringify(tree));
-  find(copy, id).max = max;
-  return { tree: copy, changed: true };
 }
 
 /** Whether layout ROOT shows the right panel. @param {any} root */
@@ -603,123 +1069,130 @@ export function panelShown(root) {
   return Boolean(panel && !panel.hidden);
 }
 
-// the right dock's groups, as core/dock.py's GROUPS: each a column of its own (fold-project), its head over a stack of
-// its panels' blocks (fold-project-body); a panel hidden from the dock's ⋯ is its block hidden
-export const GROUPS_APP = { project: ["files", "search"], work: ["changes", "issues"] };
-export const PANEL_NAMES = { files: "Files", search: "Search", changes: "Changes", issues: "Issues" };
-// px inside a card, on every side: a terminal's text, a group's tabs, a view's words and fields; a row's hover pad
-// reaches halfway in (PAD / 2). Here, as the dock's sizes need it; parts.js hands it to the views.
+// the right dock's views, as the TUI's row has them: one stack (DOCK) of their blocks under the row of buttons, one
+// shown at a time; a view hidden from More's menu is its block hidden
+export const VIEWS_APP = ["files", "search", "changes", "issues", "agent"];
+export const CHATS_BLOCK = "fold-chats";           // the Chats list's block in that stack, shown in a view's place
+export const PANEL_NAMES = { files: "Files", search: "Search", changes: "Changes", issues: "Issues", agent: "Agent" };
+// px inside a card, on every side: a terminal's text, a view's words and fields; a row's hover pad reaches halfway in
+// (PAD / 2). Here, as the dock's sizes need it; parts.js hands it to the views.
 export const PAD = 12;
-export const GROUP_HEAD = PAD + 24;          // px: a group's head, its tabs (24 high) and its fold PAD under the top
-export const FOLDED_GROUP = GROUP_HEAD + PAD + 2;    // px: a group folded to its head, PAD under it, in its frame
-export const GROUP_WEIGHTS = { project: 2, work: 3 };    // the layout's own shares, a group opened again without one
-const column = (/** @type {string} */ group) => `fold-${group}`, body = (/** @type {string} */ group) =>
-  `fold-${group}-body`;
-
-/** The group PANEL is in, or null. @param {string} panel @returns {string | null} */
-export const groupOf = (panel) => Object.keys(GROUPS_APP).find((g) => GROUPS_APP[g].includes(panel)) ?? null;
 
 /** Whether PANEL can show here: Issues for a repository on GitHub (GITHUB) only. */
 const available = (/** @type {string} */ panel, /** @type {boolean} */ github) => panel !== "issues" || github;
 
-/** GROUP's tabs in layout ROOT: its panels whose blocks are there and not hidden, Issues only on GitHub (GITHUB).
- * @param {any} root @param {string} group @param {boolean} github @returns {string[]} */
-export const groupTabs = (root, group, github) => (GROUPS_APP[group] ?? [])
+/** Every view layout ROOT shows: its block there and not hidden, Issues only on GitHub (GITHUB).
+ * @param {any} root @param {boolean} github @returns {string[]} */
+export const shownPanels = (root, github) => VIEWS_APP
   .filter((panel) => available(panel, github) && find(root, panel) && !find(root, panel).hidden);
 
-/** Every panel layout ROOT shows, group by group. @param {any} root @param {boolean} github */
-export const shownPanels = (root, github) => Object.keys(GROUPS_APP).flatMap((g) => groupTabs(root, g, github));
-
-/** The tab GROUP shows in layout ROOT: its stack's child while it is a tab, else its first tab, else null.
- * @param {any} root @param {string} group @param {boolean} github @returns {string | null} */
-export function shownTab(root, group, github) {
-  const tabs = groupTabs(root, group, github), active = find(root, body(group))?.active;
-  return tabs.includes(active) ? active : tabs[0] ?? null;
+/** The view layout ROOT shows, as the TUI's: CHOSEN (the space's own) while it is on the row, else Files, else the
+ * row's first. @param {any} root @param {boolean} github @param {string | null} [chosen] @returns {string | null} */
+export function shownView(root, github, chosen = null) {
+  const shown = shownPanels(root, github);
+  return shown.includes(chosen ?? "") ? chosen : shown.includes(START) ? START : shown[0] ?? null;
 }
 
-/** Whether GROUP is folded to its head in layout ROOT: its stack hidden. @param {any} root @param {string} group */
-export const groupFolded = (root, group) => Boolean(find(root, body(group))?.hidden);
+export const START = "files";                 // the view a space first shows, as the TUI's
 
-/** GROUP's size in layout ROOT ({ weight } or { px }), kept while it folds. @param {any} root @param {string} group */
-export const groupSize = (root, group) => find(root, column(group))?.size;
+/** The view SPACE (its id) chose, as KEPT ({space: view}) holds it; else Files, as a new space starts (an older
+ * version's one view for all is no space's). @param {any} kept @param {string | null} space */
+export const chosenFor = (kept, space) => (kept && typeof kept === "object" && space !== null &&
+  typeof kept[space] === "string" ? kept[space] : START);
 
-/** The commands that fold GROUP in layout ROOT to its head, or open it again at SIZE (the size it had; a fold's own,
- * or none: the layout's share). @param {any} root @param {string} group @param {any} size @returns {[string, any][]} */
-export function foldCommands(root, group, size) {
-  if (!find(root, body(group))) return [];
-  if (!groupFolded(root, group)) {
-    return [["layout.hide", { id: body(group) }], ["layout.resize", { id: column(group), px: FOLDED_GROUP }]];
+/** KEPT with SPACE's view VIEW, the spaces no longer LIVE (their ids) left out, as the TUI's dock.json drops a folder
+ * gone. @param {any} kept @param {string} space @param {string} view @param {Set<string>} live
+ * @returns {Record<string, string>} */
+export function keepChosen(kept, space, view, live) {
+  const was = kept && typeof kept === "object" && !Array.isArray(kept) ? kept : {};
+  return { ...Object.fromEntries(Object.entries(was).filter(([id, v]) => live.has(id) && typeof v === "string")),
+    [space]: view };
+}
+
+/** Chats' button, Cmd+Shift+R, Esc in its list (layout ROOT): shown, the view back (shownView's of CHOSEN); else the
+ * list in the view's place, the dock opened from its rail (KEPT px). @param {any} root @param {boolean} github
+ * @param {string | null} chosen @param {number} [kept] @returns {[string, any][]} */
+export function chatsToggle(root, github, chosen, kept = undefined) {
+  if (find(root, DOCK)?.active === CHATS_BLOCK) {
+    const view = shownView(root, github, chosen);
+    return view ? [["layout.select", { stack: DOCK, child: view }]] : [];
   }
-  const back = size?.weight ? { weight: size.weight } : size?.px > FOLDED_GROUP ? { px: size.px }
-    : { weight: GROUP_WEIGHTS[group] };
-  return [["layout.show", { id: body(group) }], ["layout.resize", { id: column(group), ...back }]];
+  return [["layout.select", { stack: DOCK, child: CHATS_BLOCK }], ...(panelRailed(root) ? railToggle(root, kept) : [])];
 }
 
-/** Each group's tab kept in layout ROOT: CHOSEN's (the one last picked), else the one its stack is on.
- * @param {any} root @param {Record<string, string>} chosen @returns {Record<string, string>} */
-export function keptTabs(root, chosen) {
-  const kept = { ...chosen };
-  for (const g of Object.keys(GROUPS_APP)) kept[g] ??= find(root, body(g))?.active;
-  return Object.fromEntries(Object.entries(kept).filter(([, tab]) => tab));
+// the dock's text tabs atop its card (its stack's header), center-chat.html's .ptabs: TABS_PAD over and under them,
+// TABS_SIDE at the sides, a hairline under; a tab TAB_H high (the window's tabs'), its words TAB_IN in each side (the
+// first tab's PAD in, as the views' words under it), TAB_GAP from the next (one control)
+export const TAB_H = 28, TABS_PAD = 8, TABS_SIDE = 6, TAB_IN = 6, TAB_GAP = 2;
+export const TAB_COUNT = 18;      // px: Changes' count after its name, this high and at least as wide
+export const TABS_H = TABS_PAD + TAB_H + TABS_PAD + 1, TABS_IN = 1 + TABS_SIDE;    // in the card's border
+
+/** The tabs a card PX wide holds, in order: WIDTHS' [id, px] (as drawn; 0 not yet), the last left out first, never
+ * CHOSEN (the shown one). @param {number} px @param {[string, number][]} widths @param {string | null} chosen
+ * @returns {{ tabs: string[] }} */
+export function tabFit(px, widths, chosen) {
+  const need = (/** @type {[string, number][]} */ tabs) => tabs.reduce((sum, [, w]) => sum + w, 0)
+    + TAB_GAP * (tabs.length - 1);
+  let fit = [...widths];
+  for (;;) {
+    const last = [...fit].reverse().find(([id]) => id !== chosen);
+    if (fit.length < 2 || need(fit) <= px - 2 * TABS_IN || !last) return { tabs: fit.map(([id]) => id) };
+    fit = fit.filter((tab) => tab !== last);
+  }
 }
 
-/** The commands that make layout ROOT's groups show what their panels say: a group with no tab hidden, the others
- * shown, a stack on its CHOSEN tab while it can show it, else on another (Issues off GitHub: Changes meanwhile).
- * @param {any} root @param {boolean} github @param {Record<string, string>} [chosen] @returns {[string, any][]} */
-export function panelsFollow(root, github, chosen = {}) {
-  const groups = Object.keys(GROUPS_APP).filter((g) => find(root, column(g)));
-  /** @type {[string, any][]} */
-  const shows = groups.flatMap((g) => {
-    const on = groupTabs(root, g, github).length > 0;
-    return !find(root, column(g)).hidden === on ? [] : [[on ? "layout.show" : "layout.hide", { id: column(g) }]];
-  });
-  /** @type {[string, any][]} */
-  const picks = groups.flatMap((g) => {
-    const tabs = groupTabs(root, g, github), active = find(root, body(g))?.active;
-    const want = tabs.includes(chosen[g]) ? chosen[g] : tabs.includes(active) ? active : tabs[0];
-    return want && want !== active ? [["layout.select", { stack: body(g), child: want }]] : [];
-  });
-  return [...shows, ...picks];
+/** @typedef {{ root: string | null, github: boolean, changed: number }} Told */
+
+/** The repository at HERE ({cwd, on}) as the row and the rail show it: its root, on GitHub or not, its changed files;
+ * ASK's top, status, github look there (git, core/git.py), KNOWN keeps each one's GitHub answer.
+ * @param {any} here @param {any} ask @param {Map<string, boolean>} known @returns {Promise<Told>} */
+export async function repoTold(here, ask, known) {
+  const root = here.cwd ? await ask.top(here.cwd, here.on) : null;
+  if (!root) return { root: null, github: false, changed: 0 };
+  const status = await ask.status(root, here.on), key = `${here.on ?? ""}:${root}`;
+  if (!known.has(key)) known.set(key, Boolean(await ask.github(root, here.on)));
+  return { root, github: Boolean(known.get(key)),
+    changed: (status?.staged?.length ?? 0) + (status?.changes?.length ?? 0) };
 }
 
-/** A panel's key or tab in layout ROOT: PANEL shown in its group, its new choice over CHOSEN's (hidden in the ⋯: shown
- * again), the group opened (SIZES'), the dock too (KEPT px wide); none where it can't (GITHUB). @param {any} root
- * @param {string} panel @param {{ github?: boolean, kept?: number, sizes?: any, chosen?: any }} [how] */
-export function pickCommands(root, panel, { github = false, kept = undefined, sizes = {}, chosen = {} } = {}) {
-  const group = groupOf(panel);
-  if (!group || !available(panel, github) || !find(root, panel) || !find(root, PANEL)) return [];
-  const after = JSON.parse(JSON.stringify(root)), stack = find(after, body(group));
+/** The commands that put layout ROOT's stack on shownView() (Issues off GitHub: another meanwhile).
+ * @param {any} root @param {boolean} github @param {string | null} [chosen] @returns {[string, any][]} */
+export function panelsFollow(root, github, chosen = null) {
+  const want = shownView(root, github, chosen), active = find(root, DOCK)?.active;
+  if (active === CHATS_BLOCK) return [];                     // the Chats list over the view, till it closes
+  return want && want !== active ? [["layout.select", { stack: DOCK, child: want }]] : [];
+}
+
+/** A view's button or key in layout ROOT: PANEL shown (hidden in More's menu: shown again; the Chats list: in its
+ * place), the dock too (KEPT px wide); none where it can't (GITHUB). @param {any} root @param {string} panel
+ * @param {{ github?: boolean, kept?: number }} [how] @returns {[string, any][]} */
+export function pickCommands(root, panel, { github = false, kept = undefined } = {}) {
+  if (!VIEWS_APP.includes(panel) || !available(panel, github) || !find(root, panel) || !find(root, PANEL)) return [];
+  const after = JSON.parse(JSON.stringify(root));
+  if (find(after, DOCK)?.active === CHATS_BLOCK) find(after, DOCK).active = null;
   /** @type {[string, any][]} */
   const commands = [];
   if (find(after, panel).hidden) {
     commands.push(["layout.show", { id: panel }]);
     find(after, panel).hidden = false;
   }
-  if (stack.active !== panel) {
-    commands.push(["layout.select", { stack: body(group), child: panel }]);
-    stack.active = panel;
-  }
-  if (stack.hidden) {
-    commands.push(...foldCommands(after, group, sizes[group]));
-    stack.hidden = false;
-  }
-  commands.push(...panelsFollow(after, github, { ...chosen, [group]: panel }));
+  commands.push(...panelsFollow(after, github, panel));
   return find(after, PANEL).hidden || panelRailed(after) ? [...commands, ...railOpen(after, kept)] : commands;
 }
 
-/** The dock's ⋯'s panels, as the TUI's: each with its ✓ while shown (ON), Issues on GitHub only; the last one shown
- * can't be unchecked (OFF). @param {any} root @param {boolean} github */
+/** More's views, as the TUI's: each with its ✓ while shown (ON), Issues on GitHub only; the last one shown can't be
+ * unchecked (OFF). @param {any} root @param {boolean} github */
 export function panelChoices(root, github) {
   const shown = shownPanels(root, github);
-  return Object.values(GROUPS_APP).flat().filter((panel) => available(panel, github) && find(root, panel))
+  return VIEWS_APP.filter((panel) => available(panel, github) && find(root, panel))
     .map((panel) => ({ panel, label: PANEL_NAMES[panel], on: shown.includes(panel),
       off: shown.length === 1 && shown[0] === panel }));
 }
 
-/** The commands that hide PANEL from layout ROOT's dock (HIDE) or show it again, back on its group's CHOSEN tab;
- * hidden: its group on its other tab, or gone with none left; never the last. @param {any} root @param {string} panel
- * @param {boolean} hide @param {boolean} github @param {any} [chosen] @returns {[string, any][]} */
-export function hideCommands(root, panel, hide, github, chosen = {}) {
+/** The commands that hide PANEL from layout ROOT's dock (HIDE) or show it again; hidden, the stack on CHOSEN or
+ * another; never the last. @param {any} root @param {string} panel @param {boolean} hide @param {boolean} github
+ * @param {string | null} [chosen] @returns {[string, any][]} */
+export function hideCommands(root, panel, hide, github, chosen = null) {
   if (!find(root, panel) || (hide && !shownPanels(root, github).some((other) => other !== panel))) return [];
   const after = JSON.parse(JSON.stringify(root));
   find(after, panel).hidden = hide;
@@ -736,30 +1209,81 @@ export const panelPx = (root) => find(root, PANEL)?.size?.px ?? null;
 /** Whether layout ROOT's right panel is its rail: narrower than a sidebar's rail starts. @param {any} root */
 export const panelRailed = (root) => (panelPx(root) ?? Infinity) < RAIL_BELOW;
 
-/** The commands that make ROOT's right panel show what its width says, a drag's too: its rail's block, at RAIL px, or
- * its dock's head and its dock; nothing while it is hidden. @param {any} root @returns {[string, any][]} */
-export function railFollow(root) {
+/** @typedef {{ shown: boolean, px: number }} Bottom the terminal under the centre: shown or not, its height */
+
+/** The commands that make ROOT's right panel show what its width says, a drag's too: its rail's block, at RAIL px, and
+ * the tab's terminal under the centre as BOTTOM says (none in the tab, or no centre: hidden), or its card and the
+ * terminal's at its foot; nothing while it is hidden. @param {any} root @param {Bottom} [bottom] @returns {any[]} */
+export function railFollow(root, { shown, px } = { shown: true, px: BOTTOM_PX }) {
   const panel = find(root, PANEL);
   if (!panel || panel.hidden) return [];
-  const railed = panelRailed(root);
+  const bottom = { shown: shown && activeTerminal(root) !== null, px };       // no stand-in taking the centre's room
+  const railed = panelRailed(root), moved = placeTerminals(root, railed ? "bottom" : "dock", bottom);
+  /** @type {[string, any][]} */
+  const set = moved.changed ? [["layout.set", { layout: moved.tree }],
+    ["layout.resize", { id: TERMINALS, ...(railed ? { px: bottom.px } : { weight: TERMINALS_WEIGHT }) }]] : [];
   /** @type {[string, boolean][]} */
-  const blocks = [[DOCK_HEAD, !railed], [DOCK, !railed], [RAIL_BLOCK, railed]];
-  return [...blocks.filter(([id, on]) => find(root, id) && !find(root, id).hidden !== on)
+  const blocks = [[DOCK, !railed], [TERMINALS, !railed || (Boolean(find(root, CENTER)) && bottom.shown)],
+    [RAIL_BLOCK, railed]];
+  return [...set, ...blocks.filter(([id, on]) => find(root, id) && (!find(root, id).hidden !== on
+    || (moved.changed && id === TERMINALS)))         // moved: said again, over what the app kept of it
     .map(([id, on]) => /** @type {[string, any]} */ ([on ? "layout.show" : "layout.hide", { id }])),
   ...(railed && panel.size?.px !== RAIL ? [/** @type {[string, any]} */ (["layout.resize", { id: PANEL, px: RAIL }])]
     : [])];
 }
 
-/** COMMANDS, then what ROOT's right panel, shown PX wide, has to show. @param {any} root @param {number} px
- * @param {[string, any][]} commands */
-function panelAt(root, px, commands) {
-  const after = JSON.parse(JSON.stringify(root));
-  Object.assign(find(after, PANEL), { hidden: false, size: { px } });
-  return [...commands, ...railFollow(after)];
+// the tab's terminal while the dock is its rail: under the tab, in the centre's column (CENTER), as VS Code's panel,
+// BOTTOM_PX high at first, then as dragged; the rail's Terminal shows and hides it; open, back at the dock's foot
+export const CENTER = "fold-center", BOTTOM_PX = 240, TERMINALS_WEIGHT = 2;
+
+/** Where layout ROOT has the tab's terminals: under the centre ("bottom") or at the dock's foot. @param {any} root */
+export const terminalsAt = (root) => ((find(root, CENTER)?.children ?? []).some((/** @type {any} */ c) =>
+  c.id === TERMINALS) ? "bottom" : "dock");
+
+/** The terminal's height under the centre, as dragged; null at the dock's foot. @param {any} root
+ * @returns {number | null} */
+export const bottomPx = (root) => (terminalsAt(root) === "bottom" ? find(root, TERMINALS)?.size?.px ?? null : null);
+
+/** Whether the terminal shows under the centre. @param {any} root */
+export const bottomShown = (root) => terminalsAt(root) === "bottom" && !find(root, TERMINALS)?.hidden;
+
+/** ROOT with its terminals' stack moved WHERE: under the tab (SHOWN or not, PX high) or back after the dock's views (as
+ * the layout has it, shown); a copy, and whether it moved. @param {any} root @param {"bottom" | "dock"} where
+ * @param {Partial<Bottom>} [bottom] */
+export function placeTerminals(root, where, { shown = true, px = BOTTOM_PX } = {}) {
+  const there = terminalsAt(root) === where || !find(root, CENTER) || !find(root, TERMINALS);
+  if (there) return { tree: root, changed: false };
+  const copy = JSON.parse(JSON.stringify(root)), from = find(copy, where === "bottom" ? PANEL : CENTER);
+  const stack = from.children.find((/** @type {any} */ c) => c.id === TERMINALS);
+  from.children = from.children.filter((/** @type {any} */ c) => c !== stack);
+  if (where === "bottom") find(copy, CENTER).children.push(Object.assign(stack, { size: { px }, hidden: !shown }));
+  else {
+    const panel = find(copy, PANEL), at = panel.children.findIndex((/** @type {any} */ c) => c.id === DOCK) + 1;
+    panel.children.splice(at, 0, Object.assign(stack, { size: { weight: TERMINALS_WEIGHT }, hidden: false }));
+  }
+  return { tree: copy, changed: true };
 }
 
-/** ROOT's right panel folded to its rail. @param {any} root */
-const railFold = (root) => panelAt(root, RAIL, [["layout.resize", { id: PANEL, px: RAIL }]]);
+/** The rail's Terminal pressed: the terminal under the centre hidden or shown, and the choice (SHOWN) to keep for the
+ * next fold; nothing while it is at the dock's foot. @param {any} root */
+export function bottomToggle(root) {
+  if (terminalsAt(root) !== "bottom") return { commands: /** @type {[string, any][]} */ ([]), shown: null };
+  const shown = bottomShown(root);
+  return { commands: /** @type {[string, any][]} */ ([[shown ? "layout.hide" : "layout.show", { id: TERMINALS }]]),
+    shown: !shown };
+}
+
+/** COMMANDS, then what ROOT's right panel, shown PX wide, has to show (BOTTOM: its terminal's, folded).
+ * @param {any} root @param {number} px @param {[string, any][]} commands @param {Bottom} [bottom] */
+function panelAt(root, px, commands, bottom = undefined) {
+  const after = JSON.parse(JSON.stringify(root));
+  Object.assign(find(after, PANEL), { hidden: false, size: { px } });
+  return [...commands, ...railFollow(after, bottom)];
+}
+
+/** ROOT's right panel folded to its rail, its terminal under the centre as BOTTOM says. @param {any} root
+ * @param {Bottom} [bottom] */
+const railFold = (root, bottom) => panelAt(root, RAIL, [["layout.resize", { id: PANEL, px: RAIL }]], bottom);
 
 /** ROOT's right panel shown open: KEPT px wide (the width it had, else PANEL_PX) when it was a rail. @param {any} root
  * @param {number | undefined} kept @returns {[string, any][]} */
@@ -769,12 +1293,13 @@ function railOpen(root, kept) {
     ["layout.resize", { id: PANEL, px }]]);
 }
 
-/** The commands of the dock's » and the tab bar's «: an open right panel folded to its rail, else opened (KEPT px
- * wide when it was a rail). @param {any} root @param {number | undefined} kept */
-export function railToggle(root, kept) {
+/** The commands of the tab bar's » / «: an open right panel folded to its rail (its terminal under the centre as
+ * BOTTOM says), else opened (KEPT px wide when it was a rail). @param {any} root @param {number | undefined} kept
+ * @param {Bottom} [bottom] */
+export function railToggle(root, kept, bottom = undefined) {
   const panel = find(root, PANEL);
   if (!panel) return [];
-  return !panel.hidden && !panelRailed(root) ? railFold(root) : railOpen(root, kept);
+  return !panel.hidden && !panelRailed(root) ? railFold(root, bottom) : railOpen(root, kept);
 }
 
 /** The stack under the panel's views showing the focused tab's own terminal, as the TUI's right column does; its
@@ -835,6 +1360,44 @@ export function strays(tree, labelled) {
 /** A chat's agent's label: its chat tab's id. A tab closing leaves it running (the app quitting closes tabs too, and
  * they come back), so it ends once its tab is gone. */
 export const CHAT_TAB = "herdr-fold.chat-tab";
+export const CHAT_LABEL = "herdr-fold.chat";       // its other label: its session, by which it is found again
+
+// a chat waiting on you, in herdr-fold's own signals: its tab, its space's row, the ✦'s count, Chats, sound, toast
+export const CHAT_WAITS = "herdr-fold.chat-waits";      // shared: each chat waiting on you, by its tab
+export const WAY_OUT = 2000;     // ms an agent asks in its own terminal, no card coming, before the chat says so
+
+/** How a chat waits on you at NOW: "request" while its card asks (PENDING), "terminal" once its agent has asked in its
+ * own terminal (since BLOCKED, no card) for WAY_OUT ms, else null. @param {any} pending
+ * @param {number | null} blocked @param {number} now */
+export const chatWait = (pending, blocked, now) => (pending ? "request"
+  : blocked !== null && now - blocked >= WAY_OUT ? "terminal" : null);
+
+/** KEPT (CHAT_WAITS) with TAB's WAIT ({space, address, since}; null: gone), the chats whose agent is not LIVE any more
+ * dropped. @param {any} kept @param {string} tab @param {any} wait @param {Set<string>} live */
+export function keepWait(kept, tab, wait, live) {
+  const next = Object.fromEntries(Object.entries(kept ?? {}).filter(([at, w]) => at !== tab && live.has(w?.address)));
+  return wait ? { ...next, [tab]: wait } : next;
+}
+
+/** The chats waiting in KEPT (CHAT_WAITS) whose agent still runs among TERMINALS (the app's): their tabs, each space's
+ * longest wait (since when), their agents. @param {any} kept @param {any[]} terminals */
+export function waiting(kept, terminals) {
+  const live = new Set(terminals.filter((t) => t.state === "live").map((t) => t.address));
+  const found = Object.entries(kept ?? {}).filter(([, w]) => live.has(w?.address));
+  /** @type {Record<string, number>} */
+  const spaces = {};
+  for (const [, w] of found) spaces[w.space] = Math.min(spaces[w.space] ?? Infinity, w.since);
+  return { tabs: new Set(found.map(([tab]) => tab)), spaces, agents: new Set(found.map(([, w]) => w.address)) };
+}
+
+/** The chat tabs' agents among TERMINALS as core/chats.py takes herdr's (coreAgents'): each by its session and its
+ * program (Claude or Codex; Claude until it says), blocked while its chat waits on you (WAITING: their addresses), else
+ * as it says. @param {any[]} terminals @param {Set<string>} waiting */
+export const chatAgents = (terminals, waiting) => terminals
+  .filter((t) => t.state === "live" && t.labels?.[CHAT_TAB] && t.labels?.[CHAT_LABEL])
+  .map((t) => ({ agent: t.program?.key === "codex" ? "codex" : "claude",
+    agent_status: waiting.has(t.address) ? "blocked" : t.status ?? "idle",
+    pane_id: t.address, agent_session: { value: t.labels[CHAT_LABEL] } }));
 
 /** The live chat agents among TERMINALS (the app's) whose tab is no longer among TABS (ids), to end.
  * @param {any[]} terminals @param {string[]} tabs */
@@ -887,7 +1450,7 @@ export function written(answer) {
   return { message: null, note: `No message: ${answer.note}` };
 }
 
-/** The reopened conversations KEPT ({terminal: id}) whose agents still run (LIVE, their terminals); all of them while
+/** The reopened chats KEPT ({terminal: id}) whose agents still run (LIVE, their terminals); all of them while
  * none is known (the app starting, its core reconnecting): never forgotten for a moment's empty list.
  * @param {Record<string, string>} kept @param {Set<string>} live */
 export function stillResumed(kept, live) {

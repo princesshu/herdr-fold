@@ -20,11 +20,21 @@ class Panels(unittest.TestCase):
         self.assertEqual(len({group for group, _panels in dock.GROUPS}), len(dock.GROUPS))
 
     def test_a_name_fits_the_rail(self):
-        # one name a panel: on its tab, under its icon on the rail and in the ⋯'s Panels
+        # one short name a panel: under its icon in the row and on the rail, and in the ⋯'s Panels
         for name, panel in dock.PANELS.items():
             with self.subTest(name):
                 self.assertEqual(set(panel), {"name", "glyph"})
                 self.assertLessEqual(len(panel["name"]), RAIL)
+
+    def test_an_older_versions_id_names_a_panel_of_today(self):
+        self.assertEqual(dock.FORMER, {"conversations": "chats"})
+        self.assertLessEqual(set(dock.FORMER.values()), set(dock.PANELS))
+
+    def test_the_row_goes_files_search_changes_issues_agent_chats(self):
+        # the TUI's row and rail in this order, More after them; the Agent view under its own robot
+        self.assertEqual([panel for _group, panels in dock.GROUPS for panel in panels],
+                         ["files", "search", "changes", "issues", "agent", "chats"])
+        self.assertEqual(dock.PANELS["agent"], {"name": "Agent", "glyph": "robot"})
 
     def test_each_panel_has_a_tui_glyph(self):
         for name, panel in dock.PANELS.items():

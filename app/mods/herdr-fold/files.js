@@ -280,9 +280,9 @@ export class FilesView {
     const { path, name, dir, depth, open, mark, ignored } = r;
     const color = ignored ? t.dim : mark ? changeColor(t, mark) : t.foreground;
     const renaming = this.naming?.action === "rename" && this.naming.path === path, asking = this.asking === path;
-    return h_flex().id(`file-${path}`).h(ROW).flex_none().pl(6 + depth * INDENT).pr(8).gap(6).items_center()
-      .rounded(6).cursor_pointer().when(this.picked === path, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover))
-      .tooltip(path)
+    return h_flex().id(`file-${path}`).h(ROW).flex_none().pl(PAD / 2 + depth * INDENT).pr(PAD / 2).gap(6)
+      .items_center().rounded(6).cursor_pointer().when(this.picked === path, (e) => e.bg(t.selected))
+      .hover((s) => s.bg(t.hover)).tooltip(path)
       .on_click((_e, cx) => (dir ? this.toggle(path, cx) : this.pick(path, cx)))
       .on_mouse_down("right", () => this.menus.open(this.items(r)))
       .child(div().w(12).flex_none().when(dir, (e) => e.child(icon(open ? "chevron-down" : "chevron-right", 12))))
@@ -299,8 +299,8 @@ export class FilesView {
 
   /** The row a new file's or folder's name is typed in, where it will be. */
   newRow(t, { depth, dir }) {
-    return h_flex().id("file-new").h(ROW).flex_none().pl(6 + depth * INDENT).pr(8).gap(6).items_center()
-      .child(div().w(12).flex_none())
+    return h_flex().id("file-new").h(ROW).flex_none().pl(PAD / 2 + depth * INDENT).pr(PAD / 2).gap(6)
+      .items_center().child(div().w(12).flex_none())
       .child(fileMark(dir ? folderIcon(false) : fileIcon(this.naming?.input.value() ?? "")))
       .child(this.field(t));
   }

@@ -1,6 +1,6 @@
-"""Fetches the Herdr app mod's icons from Iconify (https://iconify.design) by name into app/mods/herdr-fold/icons/:
-Lucide's for the views (UI), Catppuccin Icons' for a file by its type (core/icons.py). Run it when either list changes,
-then tools/build.py; the mod draws the files it writes, and nothing asks Iconify while the app runs."""
+"""Fetches the Herdr app mod's icons from Iconify (https://iconify.design) into app/mods/herdr-fold/icons/: Lucide's
+(UI), Catppuccin Icons' for a file's type (core/icons.py), SVG Logos' for a connector's brand (core/connectors.py). Run
+it when a list changes (icons.py logos: that set alone), then tools/build.py; nothing asks Iconify as the app runs."""
 import importlib.util
 import json
 import os
@@ -14,34 +14,57 @@ from xml.sax.saxutils import quoteattr
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ICONS = os.path.join(ROOT, "app", "mods", "herdr-fold", "icons")
 API = "https://api.iconify.design"
+AGENT = "herdr-fold-tools"    # the request's User-Agent (the API turns away Python's own): the tool, nothing else
 WIDTH = 120                   # a line's cells, as every file keeps to
 SVG = "http://www.w3.org/2000/svg"
 # the views' icons, Lucide's names: the mod draws each with icon(name), and tests/test_app.py fails on one it does not
-UI = ("arrow-up", "book-marked", "bot", "check", "chevron-down", "chevron-right", "chevron-up", "chevrons-down-up",
-      "chevrons-left", "chevrons-right", "circle-dot", "code", "columns-2", "copy", "ellipsis", "external-link", "eye",
-      "eye-off", "file-plus", "files", "folder-plus", "git-branch", "hand", "layers", "loader-circle", "message-square",
-      "minus", "monitor", "notebook", "panel-left", "plus", "refresh-cw", "rows-2", "search", "server", "settings",
-      "sparkles", "square", "square-slash", "square-terminal", "undo-2", "x", "zap")
+UI = ("arrow-up", "arrow-up-from-line", "at-sign", "audio-lines", "book-marked", "bot", "check", "chevron-down",
+      "chevron-right", "chevron-up", "chevrons-down-up", "chevrons-left", "chevrons-right", "circle-dot", "clock",
+      "code", "columns-2", "command", "copy", "download", "ellipsis", "external-link", "eye", "eye-off", "file",
+      "file-plus", "files", "folder-plus", "git-branch", "hand", "layers", "leaf", "link", "loader-circle", "minus",
+      "monitor", "notebook", "panel-left", "plug", "plus", "refresh-cw", "rows-2", "search", "server", "settings",
+      "share-2", "shield", "sparkle", "sparkles", "square", "square-slash", "square-terminal", "terminal", "undo-2",
+      "wrench", "x", "zap")
+
+
+def core(name):
+    """core/NAME.py loaded, for its tables."""
+    spec = importlib.util.spec_from_file_location(f"core_{name}", os.path.join(ROOT, "core", f"{name}.py"))
+    loaded = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(loaded)
+    return loaded
 
 
 def file_types():
     """Catppuccin Icons' names core/icons.py gives a file, and any other file's."""
-    spec = importlib.util.spec_from_file_location("core_icons", os.path.join(ROOT, "core", "icons.py"))
-    icons = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(icons)
+    icons = core("icons")
     return tuple(sorted({name for _glyph, name, _ in icons.FILE_TYPES + icons.BY_NAME} | {icons.FILE}
                         | set(icons.FOLDER.values())))
 
 
+def logos():
+    """SVG Logos' names of the brands core/connectors.py knows a connector by."""
+    return tuple(sorted(one["logo"] for one in core("connectors").BRANDS.values()))
+
+
 def sets():
     """{Iconify's prefix: the names fetched from it}, a folder of icons/ each."""
-    return {"lucide": UI, "catppuccin": file_types()}
+    return {"lucide": UI, "catppuccin": file_types(), "logos": logos()}
+
+
+def chosen(names):
+    """The sets NAMES ask for (none: all); one that is no set stops it."""
+    every = sets()
+    unknown = sorted(set(names) - set(every))
+    if unknown:
+        sys.exit(f"no set {', '.join(unknown)}: {', '.join(every)}")
+    return {prefix: every[prefix] for prefix in names} if names else every
 
 
 def fetch(prefix, names):
     """{name: its SVG} from Iconify's set PREFIX; a name it does not have stops it."""
     url = f"{API}/{prefix}.json?" + urllib.parse.urlencode({"icons": ",".join(names)})
-    asked = urllib.request.Request(url, headers={"User-Agent": "herdr-fold-tools"})    # the API turns away Python's
+    asked = urllib.request.Request(url, headers={"User-Agent": AGENT})
     with urllib.request.urlopen(asked, timeout=30) as answer:
         data = json.load(answer)
     missing = sorted(set(names) - set(data.get("icons", {})))
@@ -90,8 +113,8 @@ def attribute(name, value, pad):
     return lines + [line + '"']
 
 
-def main():
-    for prefix, names in sets().items():
+def main(argv=()):
+    for prefix, names in chosen(list(argv[1:])).items():
         folder = os.path.join(ICONS, prefix)
         os.makedirs(folder, exist_ok=True)
         made = fetch(prefix, names)
@@ -105,4 +128,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv))

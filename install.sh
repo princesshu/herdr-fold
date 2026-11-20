@@ -211,7 +211,16 @@ if [ -z "$app" ] && of_parts app $parts; then
   fi
   [ -n "$app" ] || note "$(t install.app_install_later "curl -fsSL $APP_INSTALLER | sh")"
 fi
-if command -v claude >/dev/null 2>&1; then there+=("$(t install.claude)")
+# Claude Code on PATH, or where its installers put it when this shell's PATH lacks it (nvm's node, the native
+# installer, the old local install): an incomplete PATH is no reason to call it missing
+claude_found() {
+  command -v claude >/dev/null 2>&1 && return 0
+  local d; for d in .nvm/versions/node/*/bin .local/bin .claude/local; do    # under the home folder, read only
+    for f in "$HOME"/$d/claude; do [ -x "$f" ] && return 0; done
+  done
+  return 1
+}
+if claude_found; then there+=("$(t install.claude)")
 else missing+=("warn|$(t install.claude_missing)"); fi
 command -v codex >/dev/null 2>&1 && there+=("$(t install.codex)") || missing+=("note|$(t install.codex_missing)")
 has_ssh_key && there+=("$(t install.ssh_key)") || missing+=("note|$(t install.ssh_key_missing)")
@@ -226,7 +235,7 @@ export HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_INSTALL_CLEANUP=1 HOMEBREW_NO_INSTALL
 # A program already on the Mac stays, whoever installed it: no second copy, no takeover of an app.
 # What is missing is installed after a yes. Nothing is upgraded, except a Homebrew herdr that is too old.
 HERDR_MIN=0.9.5
-# Where a Brewfile program is on this Mac, or nothing: a command, an app, or the font
+# Where a Brewfile program is on this Mac, or nothing: a command or an app
 on_this_mac() {
   local app
   case $1 in
@@ -235,7 +244,6 @@ on_this_mac() {
         [ "$(defaults read "$app/Contents/Info" CFBundleIdentifier 2>/dev/null)" = com.mitchellh.ghostty ] \
           && echo "$app" && return
       done ;;
-    font-jetbrains-mono-nerd-font) ls -d "$HOME"/Library/Fonts/JetBrainsMono*NerdFont* 2>/dev/null | head -n 1 ;;
     git-delta) command -v delta ;;
     ripgrep) command -v rg ;;
     *) command -v "$1" ;;
@@ -330,21 +338,18 @@ python3 "$THEMES/apply.py" --loading-colors "$theme" >/dev/null 2>&1   # the she
 step "$(t install.step_settings)"
 # The installer's records in ~/.local/state/herdr-fold: docs/architecture.md. original/ and changed-<date>/ are never
 # pruned, and a file prepared.txt lists stays even when the package drops it.
-record="$state/installed.txt"; backup="$state/$(date +%Y%m%d-%H%M%S)"
-changed="$state/changed-$(date +%Y%m%d-%H%M%S)"
-# its owner's only: the backups hold the machine's own files; a copy keeps its file's mode too (cp -p)
+record="$state/installed.txt"; changed="$state/changed-$(date +%Y%m%d-%H%M%S)"
+put=$(mktemp)                                # the files this run puts down: only theirs are summed anew below
+# its owner's only: the copies hold the machine's own files; a copy keeps its file's mode too (cp -p)
 mkdir -p "$state" && chmod 700 "$state"
 # keep_installed REL — an installed file, before it is replaced or removed: one you may have changed since the install
 # (it differs from what installed.sha256 recorded, or nothing was recorded of it) goes to changed-<date>/, which is
-# never pruned; the package's earlier version to the dated backup
+# never pruned; the package's own earlier version needs no copy, the package has it
 keep_installed() {
   local was; was=$(recorded_sum "$state" "$1")
-  if [ -z "$was" ] || [ "$(sum_of "$HOME/$1")" != "$was" ]; then
-    mkdir -p "$(dirname "$changed/$1")" && cp -p "$HOME/$1" "$changed/$1" \
-      && saved "$(t files.changed_kept "$1" "$(shown "$changed/$1")")"
-  else
-    mkdir -p "$(dirname "$backup/$1")" && cp -p "$HOME/$1" "$backup/$1"
-  fi
+  [ -n "$was" ] && [ "$(sum_of "$HOME/$1")" = "$was" ] && return 0
+  mkdir -p "$(dirname "$changed/$1")" && cp -p "$HOME/$1" "$changed/$1" \
+    && saved "$(t files.changed_kept "$1" "$(shown "$changed/$1")")"
 }
 # herdr set up here already (its own config.toml, not one herdr-fold installed): what is there, then the question — add
 # herdr-fold's to theirs (marked, every line of theirs stays), or replace theirs (kept, back on uninstall). Added once:
@@ -389,7 +394,7 @@ package_files $parts | while IFS='|' read -r src rel; do
       warn "$(t install.not_kept "$rel")"; continue
     fi
   fi
-  mkdir -p "$(dirname "$dst")" && cp "$DOT/$src" "$dst"
+  mkdir -p "$(dirname "$dst")" && cp "$DOT/$src" "$dst" && echo "$rel" >> "$put"
   case "$dst" in *.sh|*/bin/*) chmod +x "$dst" ;; esac
   echo "$rel" >> "$record.new"
   if verbose; then ok "$(t install.file_installed "$rel")"; else progress "$rel"; fi
@@ -434,13 +439,14 @@ fi
     verbose && ok "$(t install.dropped_deleted "$rel")"
   fi
 done
-[ -z "${removed:-}" ] || ok "$(t install.dropped_removed "$(shown "$backup")")"
+[ -z "${removed:-}" ] || ok "$(t install.dropped_removed)"
 mv "$record.new" "$record"
-ls -d "$state"/[0-9]*-[0-9]* 2>/dev/null | sort -r | tail -n +4 | while IFS= read -r old; do rm -rf "$old"; done
+rm -rf "$state"/[0-9]*-[0-9]*          # an earlier version's dated copies of the package's own files: none are kept
 if [ "$config_mode" = add ]; then
-  # before the first add, as they were, with the originals; later, with herdr-fold's part, to the dated backup
-  if grep -qxF '# >>> herdr-fold >>>' "$herdr_config"; then kept="$backup"; else kept="$state/original"; fi
-  if ! { mkdir -p "$kept/.config/herdr" && cp -p "$herdr_config" "$kept/.config/herdr/config.toml"; }; then
+  # before the first add, as they were, with the originals; a later run replaces herdr-fold's marked part alone
+  kept=; grep -qxF '# >>> herdr-fold >>>' "$herdr_config" || kept="$state/original"
+  if [ -n "$kept" ] && ! { mkdir -p "$kept/.config/herdr" && cp -p "$herdr_config" "$kept/.config/herdr/config.toml"; }
+  then
     warn "$(t install.not_kept .config/herdr/config.toml)"
   elif out=$(python3 "$DOT/src/herdr_config.py" add "$DOT/config/herdr/config.toml" "$herdr_config"); then
     printf '%s\n' "$out" | summarize "$(t install.config_added)"
@@ -451,10 +457,13 @@ if out=$(loading "$(t install.theme_setting)" python3 "$HOME/.config/herdr-fold/
 else
   printf '%s\n' "$out"; warn "$(t install.theme_failed)"
 fi
-# What each installed file holds now (installed.sha256): the uninstaller sets a file changed since aside, never
-# deletes it
-( cd "$HOME" && while IFS= read -r rel; do [ -f "$rel" ] && shasum -a 256 "$rel"; done < "$record" ) \
-  > "$state/installed.sha256"
+# What each file this run put down holds now (installed.sha256); one left in place keeps its earlier sum, or none, so
+# an edit in it is still told apart. The next install and the uninstaller set a file changed since aside
+( cd "$HOME" && while IFS= read -r rel; do
+    if grep -qxF "$rel" "$put"; then [ -f "$rel" ] && printf '%s  %s\n' "$(sum_of "$rel")" "$rel"
+    else was=$(recorded_sum "$state" "$rel"); [ -z "$was" ] || printf '%s  %s\n' "$was" "$rel"; fi
+  done < "$record" ) > "$state/installed.sha256.new" && mv "$state/installed.sha256.new" "$state/installed.sha256"
+rm -f "$put"
 [ -z "$this_version" ] || printf '%s\n' "$this_version" > "$state/version"   # the next install names it
 
 step "$(t install.step_prompt)"
@@ -502,7 +511,7 @@ fi
 
 step "$(t install.step_plugins)"
 # Deliberately NO background service: herdr starts and stops together with Ghostty. On reopen, herdr restores
-# the layout, and through the integration Claude/Codex continue the same conversation.
+# the layout, and through the integration Claude/Codex continue the same chat.
 # The plugins this installer put there (plugins.txt): the uninstaller takes out exactly these
 plugins="$state/plugins.txt"; : > "$plugins.new"
 # an earlier run's take-over stays on the record, but the retired Tab Layout's: it has no way back
@@ -605,8 +614,15 @@ app_wanted() {
   return 1
 }
 if [ -n "$app" ] && app_wanted; then
+  # an update while the app runs: the app keeps the mod it loaded and writes its state of the layout and the mod's
+  # shared values back as it closes, so it closes for the update (its terminals run on in its core), everything an
+  # earlier version left goes, and it opens again behind the installer
+  app_home=$(python3 "$DOT/lib/herdr_app.py" home) closed=
+  if grep -qxF herdr-fold.app "$plugins" 2>/dev/null && "$app" status >/dev/null 2>&1; then
+    note "$(t install.app_closing)"
+    if python3 "$DOT/lib/herdr_app.py" close; then closed=1; else warn "$(t install.app_still_open)"; fi
+  fi
   python3 "$DOT/lib/herdr_app.py" install "$DOT" "$theme"; rc=$?
-  app_home=$(python3 "$DOT/lib/herdr_app.py" home)
   case $rc in
     0|3)
       echo herdr-fold.app >> "$plugins.new"; ok "$(t install.app_done)"
@@ -620,6 +636,7 @@ if [ -n "$app" ] && app_wanted; then
     4) warn "$(t install.app_not_herdr_folds "$(shown "$app_home/mods/herdr-fold")")" ;;
     *) warn "$(t install.app_failed)" ;;
   esac
+  [ -z "$closed" ] || python3 "$DOT/lib/herdr_app.py" open || warn "$(t install.app_not_reopened)"
 fi
 mv "$plugins.new" "$plugins"
 [ ${#linked[@]} = 0 ] || ok "$(t install.plugins "$(joined "${linked[@]}")")"

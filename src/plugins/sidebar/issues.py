@@ -6,7 +6,7 @@ from dataclasses import replace
 
 from github import LEVELS, STATES, Query, ago, matches, priority, ranked
 from icons import glyphs
-from screen import Canvas, PLAIN, Style, truncate, width
+from screen import PAD, PLAIN, SPIN, SPINNER, Canvas, Style, truncate, width
 from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, Popup, TextInput
 
@@ -14,13 +14,14 @@ KEYS = {"t": "issue_to_agent", "b": "issue_web", "r": "issue_comment", "o": "pre
 HOVER = ("agent", "web")                  # the buttons an issue shows on hover, in this order
 # a priority's traffic-light color role, by its rank (core/github.py's LEVELS)
 PRIORITY_ROLE = ("deleted", "deleted", "modified", "added")
+TEXT = 3                      # an issue's number: its priority's bar, a cell of air and the margin before it
 
 
 class Issues:
     def __init__(self, icons=True, now=time.time):
         self.icons, self.now = icons, now
         self.query, self.level = Query(), None             # asked of GitHub; the priority shown (its rank), or all
-        self.asked = self.listing = None
+        self.asked = self.listing = self.answered = None    # the query on its way, the answer shown and its query
         self.field, self.searching = TextInput(placeholder="Search issues"), False     # the keys go to the field
         self.list = ListView()
         self.hover = self.pointed = self.confirm = self.doomed = self.canvas = self.menu = None
@@ -48,8 +49,12 @@ class Issues:
     # --- asking and answers
 
     def ask(self, query=None):
-        """The issues of QUERY (the current one by default), asked for again."""
+        """The issues of QUERY (the current one by default), asked for again; another query's no longer shown meanwhile
+        (the first issue's row says so), the same query's staying where they are."""
         self.query = query or self.query
+        if self.answered != self.query:
+            self.listing = None
+            self.rebuild()
         self.asked = self.query
         return Action("load_issues", (self.query,))
 
@@ -57,7 +62,7 @@ class Issues:
         """The answer for QUERY; one for a query no longer chosen is dropped."""
         if query != self.query:
             return
-        self.asked, self.listing = None, listing
+        self.asked, self.listing, self.answered = None, listing, query
         self.rebuild()
 
     def rebuild(self):
@@ -78,7 +83,7 @@ class Issues:
 
     def draw(self, canvas, top, height, roomy):
         """The view from row TOP, HEIGHT rows: the search field with the filters button (tall in a ROOMY pane), Open
-        and Closed, a line when there is something to say, then the issues."""
+        and Closed and the refresh button, then the issues, or on the first one's row what is asked or found."""
         self.canvas, self.top, self.height, cells = canvas, top, height, canvas.width
         row, taken = canvas.control(top, 1, cells - 2, 1, "input", roomy)
         for y in range(top, top + taken):
@@ -88,12 +93,12 @@ class Issues:
         self.field.draw(canvas, row, 3, max(1, x - 4), 1, Style(bg="input"), focused=self.searching)
         y = top + taken + (0 if roomy else 1)
         self.states(canvas, y, cells)
+        self.refresh(canvas, y, cells)
         y += 2
         line = self.line()
-        if line:
+        if line:                                        # on the first issue's row: nothing moves after
             text, role = line
-            canvas.put(y, 1, truncate(text, cells - 2), Style(fg=role))
-            y += 2
+            canvas.put(y, PAD, truncate(text, cells - 2 * PAD), Style(fg=role))
         items = max(1, (top + height - y) // 2)
         if self.list.height != items:
             self.list.resize(items)
@@ -104,7 +109,7 @@ class Issues:
             self.row(canvas, y + 2 * at, index)
         if self.menu:
             popup = self.menu
-            popup.menu.draw(canvas, *popup.menu.at(popup.y, popup.x, cells, top, top + height))
+            popup.menu.draw(canvas, *popup.menu.at(popup.y, popup.x, cells, top, top + height, PAD))
         if self.confirm:
             self.draw_confirm(canvas)
 
@@ -143,16 +148,30 @@ class Issues:
             canvas.region(y, x, end + 1, ("state", name))
             x = end + 2
 
+    def refresh(self, canvas, y, cells):
+        """The refresh button at the right end of row Y, as Files' header has one: a spinner in its cell while gh runs
+        over the issues shown (the first ask says so on the list's first row), lit under the mouse."""
+        x = cells - 2
+        running = self.asked and self.list.items
+        mark = SPINNER[int(self.now() / SPIN) % len(SPINNER)] if running else glyphs(self.icons)["refresh"]
+        canvas.put(y, x, mark, Style(fg="text" if self.pointed == "refresh" else "muted"))
+        canvas.region(y, x, x + 2, "refresh")
+
+    def tip(self, target):
+        """The refresh button's tip while gh runs; None: the sidebar's own."""
+        return "Loading issues…" if target == "refresh" and self.asked else None
+
     def line(self):
-        """What to say above the list, and its color role: asking, a failure, or nothing found."""
+        """What the list's first row says while there is no issue to show, and its color role: asking, a failure, or
+        nothing found."""
+        if self.list.items:
+            return None
         if self.asked:
             return "Loading issues…", "muted"
         if self.listing is None:
             return None
         if self.listing.error:
             return self.listing.error, "deleted"
-        if self.list.items:
-            return None
         filtered = self.query != Query(self.query.state) or self.level is not None or self.field.text.strip()
         return ("No issues match" if filtered else f"No {self.query.state} issues"), "muted"
     def row(self, canvas, y, index):
@@ -170,12 +189,12 @@ class Issues:
         if level < len(PRIORITY_ROLE):
             for r in (y, y + 1):
                 if r < canvas.height:
-                    canvas.put(r, 0, "▌", Style(fg=PRIORITY_ROLE[level], bg=bg))
+                    canvas.put(r, 1, "▌", Style(fg=PRIORITY_ROLE[level], bg=bg))     # inside the margin
         number, color = f"#{issue.number}", PRIORITY_ROLE[level] if level < len(PRIORITY_ROLE) else "accent"
-        x = canvas.put(y, 1, number, Style(fg=color if issue.state != "CLOSED" else "muted", bg=bg, bold=True))
+        x = canvas.put(y, TEXT, number, Style(fg=color if issue.state != "CLOSED" else "muted", bg=bg, bold=True))
         canvas.put(y, x + 1, truncate(issue.title, max(1, end - x - 2)), Style(fg="text", bg=bg))
         if y + 1 < canvas.height:
-            self.details(canvas, y + 1, 1 + width(number) + 1, issue, bg)
+            self.details(canvas, y + 1, TEXT + width(number) + 1, issue, bg)
 
     def details(self, canvas, y, x, issue, bg):
         """The labels and the assignee, cut to fit; how long ago it changed, always, at the right edge."""
@@ -208,7 +227,7 @@ class Issues:
         y = max(self.top + 2, self.top + self.height - rows - 1)
         for row in range(y, self.top + self.height):
             canvas.put(row, 0, " " * cells, PLAIN)
-        canvas.put(y, 0, "─" * cells, Style(fg="muted"))
+        canvas.put(y, PAD, "─" * (cells - 2 * PAD), Style(fg="muted"))      # as wide as a row's content
         self.confirm.draw(canvas, y + 1, 0, cells)
 
     # --- events
@@ -337,8 +356,10 @@ class Issues:
         target = self.canvas.hit(event.x, event.y) if self.canvas else None
         if event.kind == "move":
             self.hover = target[1] if isinstance(target, tuple) and target[0] in ("issue", *HOVER) else None
-            self.pointed = target if target == "filters" or isinstance(target, tuple) and target[0] == "state" \
-                else None
+            self.pointed = target if target in ("filters", "refresh") or isinstance(target, tuple) and \
+                target[0] == "state" else None
+            if self.menu:
+                self.menu.menu.point(target)
         elif event.kind in ("wheel_up", "wheel_down"):
             self.list.scroll(3 if event.kind == "wheel_down" else -3)
         elif event.kind == "press":
@@ -359,6 +380,8 @@ class Issues:
         self.searching = target == "input" and event.button == 0
         if target == "filters" and event.button == 0:
             self.open_filters()
+        elif target == "refresh" and event.button == 0:
+            return None if self.asked else self.ask()
         elif isinstance(target, tuple) and target[0] == "state" and event.button == 0:
             return self.ask(replace(self.query, state=target[1])) if target[1] != self.query.state else None
         elif isinstance(target, tuple) and target[0] in ("issue", *HOVER):

@@ -1,9 +1,10 @@
-"""Shared herdr helpers: the herdr CLI, the agents and machines it reports, the right-hand column (pane names in
-lowercase). herdr runs commands with a minimal PATH: herdr comes from HERDR_BIN_PATH."""
+"""Shared herdr helpers: the herdr CLI and its socket API, the agents and machines it reports, the right-hand column
+(pane names in lowercase). herdr runs commands with a minimal PATH: herdr comes from HERDR_BIN_PATH."""
 import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 
@@ -32,6 +33,23 @@ def herdr(*args, check=True):
         return {}
     data = json.loads(out.stdout)
     return data.get("result", {}) if isinstance(data, dict) else data       # `machine list --json` is a plain list
+
+
+def request(method, params, wait=2):
+    """herdr's socket API, for what its command line has not (a workspace's move): the result part of the answer; an
+    empty dict when herdr is not there, takes over WAIT seconds or refuses (an older one does not know METHOD)."""
+    path = os.environ.get("HERDR_SOCKET_PATH") or os.path.join(os.path.expanduser("~"), ".config", "herdr",
+                                                               "herdr.sock")
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+            conn.settimeout(wait)
+            conn.connect(path)
+            conn.sendall((json.dumps({"id": method, "method": method, "params": params}) + "\n").encode())
+            answer = json.loads(conn.makefile(encoding="utf-8").readline())
+    except (OSError, ValueError, AttributeError):       # AttributeError: no Unix socket on Windows
+        return {}
+    result = answer.get("result") if isinstance(answer, dict) else None
+    return result if isinstance(result, dict) else {}
 
 
 def agent_pane_ids(panes):
@@ -87,8 +105,8 @@ def agents(h=herdr):
     return h("agent", "list", check=False).get("agents", [])
 
 
-def has_conversation(agent):
-    """True if the agent holds a conversation (the sessions-view plugin's has_session marker)."""
+def has_chat(agent):
+    """True if the agent holds a chat (the sessions-view plugin's has_session marker)."""
     return "has_session" in (agent.get("tokens") or {})
 
 

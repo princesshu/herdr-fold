@@ -4,9 +4,14 @@ glyphs are core/icons.py's)."""
 import json
 import os
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 ROOMY = 16          # rows a pane needs for tall controls: the tabs' three, twelve for the view, a footer
+MARGIN = 0          # the cells between the pane's side and a view's: a chosen row's highlight runs edge to edge
+PAD = 1             # the cells between a highlight's side and the row's content
+INSET = MARGIN + PAD    # the pane's side to everything but a highlight: rows, the row of buttons, », fields, menus
+COUNT = 4           # a count's cells at most (short_count()), as a tip or a view shows it
+SPINNER, SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏", 0.1     # something running: a frame every SPIN seconds (✦ writing, gh asked)
 
 ELLIPSIS = "…"
 
@@ -56,6 +61,18 @@ def truncate(text, limit):
         kept.append(ch)
         used += w
     return "".join(kept) + ELLIPSIS + " " * (limit - 1 - used)
+
+
+def short_count(n):
+    """Count N in COUNT cells at most: as it is up to 999, then in thousands (k) and millions (m), floored, one decimal
+    under ten of its unit (none for .0), whole from ten on, 999m at most."""
+    if n < 1000:
+        return str(n)
+    unit, mark = (10 ** 6, "m") if n >= 10 ** 6 else (1000, "k")
+    if n < 10 * unit:
+        tenths = n * 10 // unit
+        return f"{tenths // 10}{f'.{tenths % 10}' if tenths % 10 else ''}{mark}"
+    return f"{min(n // unit, 999)}{mark}"
 
 
 def after(nerd):
@@ -135,8 +152,16 @@ class Canvas:
             self.put(y, x + cells - 1, "▌", Style(fg=color, bg=under))
 
     def band(self, y, bg):
-        """Row Y's background as a chosen or hovered row (none: a plain row)."""
+        """Row Y's background as a chosen or hovered row (none: a plain row): the view's whole width, the pane's from
+        edge to edge (MARGIN)."""
         self.put(y, 0, " " * self.width, Style(bg=bg))
+
+    def tint(self, y, x0, x1, bg):
+        """Columns X0..X1-1 of row Y on the background BG, their characters and colors as they are."""
+        if 0 <= y < self.height:
+            row = self.rows[y]
+            for x in range(max(0, x0), min(self.width, x1)):
+                row[x] = (row[x][0], replace(row[x][1], bg=bg))
 
     def control(self, y, x, cells, rows, color, roomy):
         """A control's shape: in a roomy pane tall, a half row of edge above and below its ROWS content rows; in a low
@@ -159,13 +184,14 @@ class Canvas:
         """As region(), but under every other one, whenever it is laid."""
         self.regions.insert(0, (y, x0, x1, target))
 
-    def paste(self, part):
-        """PART, a canvas as tall and narrower, over this one's left side: its cells, what answers its clicks, its
+    def paste(self, part, top=0, left=0):
+        """PART, a canvas that fits, over this one from row TOP and column LEFT: its cells, what answers its clicks, its
         cursor."""
-        for row, cells in zip(self.rows, part.rows):
-            row[:len(cells)] = cells
-        self.regions += part.regions
-        self.cursor = part.cursor or self.cursor
+        for row, cells in zip(self.rows[top:], part.rows):
+            row[left:left + len(cells)] = cells
+        self.regions += [(y + top, x0 + left, x1 + left, target) for y, x0, x1, target in part.regions]
+        if part.cursor:
+            self.cursor = (part.cursor[0] + top, part.cursor[1] + left)
 
     def hit(self, x, y):
         for ry, x0, x1, target in reversed(self.regions):

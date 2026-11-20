@@ -8,6 +8,7 @@ from support import PartsInstall, catalog_text
 
 CHAT = ".local/state/herdr-fold/chat/5f0c6d9e-1b2a-4c3d-8e9f-0a1b2c3d4e5f/status.json"     # a chat's in the app
 TIME = ".local/state/herdr-fold/time.json"                    # how the machine writes hours, the status line's
+LIMITS = ".local/state/herdr-fold/limits/claude.json"        # the usage limits, both parts' status lines'
 
 
 class UninstallParts(PartsInstall, unittest.TestCase):
@@ -47,10 +48,12 @@ class UninstallParts(PartsInstall, unittest.TestCase):
         self.with_parts("both")
         self.write(CHAT, '{"context": 34}')                           # a chat's own files: the app's
         self.write(TIME, '{"twelve": false}')                        # the status line's: both parts'
+        self.write(LIMITS, '{"week": {"used": 16, "resets": 1794848400}, "at": 1794571200}')
         self.with_parts("app", "uninstall.sh")
         self.assertFalse(self.in_app("mods/herdr-fold/main.js"))
         self.assertFalse(self.there(".local/state/herdr-fold/chat"))
         self.assertTrue(self.there(TIME))
+        self.assertTrue(self.there(LIMITS))
         self.assertTrue(self.there(".config/ghostty/config"))
         self.assertTrue(self.there(".config/herdr-fold/statusline.py"))
         self.assertEqual([call for call in self.herdr_calls() if "unlink" in call], [])
@@ -62,11 +65,13 @@ class UninstallParts(PartsInstall, unittest.TestCase):
         self.write(".local/state/herdr-fold/update.json", '{"checked": 1, "latest": "0.4.0"}')
         self.write(CHAT, '{"context": 34}')
         self.write(TIME, '{"twelve": false}')
+        self.write(LIMITS, '{"week": {"used": 16, "resets": 1794848400}, "at": 1794571200}')
         out = self.with_parts("both", "uninstall.sh")
         self.assertFalse(self.in_app("mods/herdr-fold/main.js"))
         for rel in (".config/ghostty/config", ".config/herdr-fold/statusline.py", ".cache/herdr-fold",
                     ".local/state/herdr-fold/installed.txt", ".local/state/herdr-fold/plugins.txt",
-                    ".local/state/herdr-fold/update.json", ".local/state/herdr-fold/chat", TIME):
+                    ".local/state/herdr-fold/update.json", ".local/state/herdr-fold/chat", TIME,
+                    ".local/state/herdr-fold/limits"):
             with self.subTest(rel=rel):
                 self.assertFalse(self.there(rel))
         self.assertIn(catalog_text("uninstall.done"), out)
@@ -94,16 +99,20 @@ class UninstallParts(PartsInstall, unittest.TestCase):
         self.assertTrue(self.in_app("mods/herdr-fold/main.js"))
         self.assertEqual(self.parts(), ["tui", "app"])
 
-    def test_conversations_archived_in_the_app_stay(self):
-        """The Conversations' state (archived ones, the index) is the TUI's and the app's alike: it goes with the last
-        part only; the conversation names stay even then."""
+    def test_chats_archived_in_the_app_stay(self):
+        """The Chats' state (archived ones, the index) is the TUI's and the app's alike: it goes with the last
+        part only, under its older name too (an install that never ran this version); the chat names stay even
+        then."""
         self.with_parts("both")
         kept = {"archived": ["claude:abc"]}
-        self.write(os.path.join(self.SIDEBAR, "conversations.json"), json.dumps(kept))
+        for name in ("chats.json", "conversations.json"):
+            self.write(os.path.join(self.SIDEBAR, name), json.dumps(kept))
         self.with_parts("tui", "uninstall.sh")
-        self.assertEqual(json.loads(self.read(os.path.join(self.SIDEBAR, "conversations.json"))), kept)
+        for name in ("chats.json", "conversations.json"):
+            self.assertEqual(json.loads(self.read(os.path.join(self.SIDEBAR, name))), kept)
         self.with_parts("app", "uninstall.sh")
-        self.assertFalse(self.there(os.path.join(self.SIDEBAR, "conversations.json")))
+        for name in ("chats.json", "conversations.json"):
+            self.assertFalse(self.there(os.path.join(self.SIDEBAR, name)))
 
     def test_the_linked_issues_stay_with_the_app(self):
         """The sidebar's settings hold the issue a repository's next commit fixes, which the app links too: they go

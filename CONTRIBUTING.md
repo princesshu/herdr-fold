@@ -51,6 +51,21 @@ Code or Codex. GitHub runs it every Monday and mails a failed run to whoever las
 not run it. In a public repository GitHub turns the schedule off after 60 days without activity: the Actions tab turns
 it back on.
 
+## The font
+
+herdr-fold Mono (`app/mods/herdr-fold/fonts/`, [Installation](docs/installation.md#the-font)) is built by
+`tools/fonts.py` and committed: nothing on a user's Mac builds it. To build it again, after a change to the script or
+for a new Nerd Fonts release (its version and its files' SHA-256 at the top of the script):
+
+```bash
+python3 -m pip install --user fonttools   # the script's one tool outside the standard library, for it alone
+python3 tools/fonts.py                    # the release downloaded once into ~/.cache/herdr-fold/fonts
+python3 tools/fonts.py --check            # whether the committed fonts are what it builds
+```
+
+`--source` reads the release's `JetBrainsMono.tar.xz`, or a folder with its `JetBrainsMonoNerdFont-*.ttf` files,
+instead. fontTools 4.61.1 built the committed fonts; another version may write other bytes, which `--check` tells.
+
 ## Privacy
 
 The privacy test checks every file and every commit for e-mail addresses, IP addresses, Tailscale names, home folder

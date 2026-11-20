@@ -1,7 +1,7 @@
 # Generated from core/update.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
-"""herdr-fold's installed version, and the newest release on GitHub: asked of api.github.com at most once a day (the
-request alone: no id, no cookie), never with HERDR_FOLD_NO_UPDATE_CHECK=1 or Check for Updates turned off in a menu.
-Usage (the Herdr app mod's, in JSON): update.py check | told VERSION | switch on|off."""
+"""herdr-fold's installed version, and the newest release on GitHub: asked of api.github.com (the request alone: no id,
+no cookie) once a day while the automatic check is on (not with HERDR_FOLD_NO_UPDATE_CHECK=1), at once by Check now.
+Usage (About's, in JSON): update.py check [--now] | seen VERSION | section VERSION | switch on|off."""
 import json
 import os
 import re
@@ -16,10 +16,12 @@ LATEST = "https://api.github.com/repos/princesshu/herdr-fold/releases/latest"
 RELEASES = "https://github.com/princesshu/herdr-fold/releases"
 HOW = "git pull in its folder, then ./install.sh"             # README's Updating, in a line
 DAY = 86400
+FAILED = "GitHub did not answer"
 
 
 def kept():
-    """What update.json keeps: when GitHub was last asked, its answer, the version told about, whether it is on."""
+    """What update.json keeps: when GitHub was last asked and last answered, its answer, why the last look failed, the
+    version last said as installed (seen), whether the automatic check is on."""
     return statefile.read(os.path.join(statefile.folder(), "update.json"))
 
 
@@ -67,42 +69,72 @@ def ask():
         return None
 
 
-def check(now=None, ask=ask):
-    """This version, the newest known (GitHub asked again once a day, through ASK), whether it is newer, whether the
-    check is on, and the newer version already told about."""
+def check(now=None, ask=ask, force=False):
+    """This version, the newest known (GitHub asked again once a day, or at once FORCEd: Check now, through ASK),
+    whether it is newer, whether the check is on, the last good look's time, why the last look failed, and this
+    version when it was not yet said as installed (updated)."""
     data, now, version = kept(), time.time() if now is None else now, installed()
     on = data.get("on", True) is not False and os.environ.get("HERDR_FOLD_NO_UPDATE_CHECK") != "1"
-    if on and version and not now - DAY < data.get("checked", 0) <= now:
+    if version and not data:
+        keep(seen=version)                                    # a new install: nothing to say
+    if version and (force or on and not now - DAY < (data.get("asked", data.get("checked")) or 0) <= now):
         latest = ask()
-        keep(checked=now, **({"latest": latest} if latest else {}))
-        data = kept()
-    latest = data.get("latest") if on and version else None
-    return {"version": version, "latest": latest, "newer": bool(latest) and newer(latest, version), "on": on,
-            "told": data.get("told"), "releases": RELEASES, "how": HOW}
+        keep(asked=now, **({"latest": latest, "checked": now, "error": None} if latest else {"error": FAILED}))
+    data = kept()
+    latest = data.get("latest") if version else None
+    found = bool(latest) and newer(latest, version)
+    return {"version": version, "latest": latest, "newer": found, "on": on,
+            "checked": data.get("checked") if version else None, "error": data.get("error") if version else None,
+            "updated": version if version and data.get("seen") != version else None,
+            "releases": f"{RELEASES}/tag/v{latest}" if found else RELEASES, "how": HOW}
 
 
-def told(version):
-    """VERSION told about, by a sidebar or the app: the others do not tell it again."""
-    keep(told=version)
+def seen(version):
+    """VERSION said as installed (Updated to herdr-fold VERSION): whether this call said it, true for one sidebar or the
+    app alone, however many look at once."""
+    said = []
+
+    def change(found):
+        said.append(found.get("seen") != version)
+        return {**found, "seen": version}
+
+    statefile.update(os.path.join(statefile.folder(), "update.json"), change)
+    return said[-1]
 
 
 def switch(on):
-    """Check for Updates turned ON or off."""
-    keep(on=bool(on))
+    """The automatic check turned ON (it looks at once) or off (its last look forgotten: About says by hand only)."""
+    keep(on=True, asked=None) if on else keep(on=False, latest=None, checked=None, error=None)
+
+
+def changelog():
+    """The CHANGELOG the installer put beside herdr-fold's LICENSE."""
+    return os.path.join(os.path.expanduser("~"), ".config", "herdr-fold", "CHANGELOG.md")
+
+
+def section(version):
+    """The line (from 1) of VERSION's heading in the CHANGELOG (What's new opens it there), or None for none."""
+    head = re.compile(rf"## \[v?{re.escape(version.lstrip('v'))}\]( .*)?")
+    try:
+        with open(changelog(), encoding="utf-8") as f:
+            return next((n for n, line in enumerate(f, 1) if head.fullmatch(line.rstrip("\r\n"))), None)
+    except OSError:
+        return None
 
 
 def main(argv):
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
-    if command == "check" and not args:
-        answer = check()
-    elif command == "told" and len(args) == 1 and parts(args[0]):
-        told(args[0])
-        answer = {"told": args[0]}
+    if command == "check" and args in ([], ["--now"]):
+        answer = check(force=args == ["--now"])
+    elif command == "seen" and len(args) == 1 and parts(args[0]):
+        answer = {"seen": args[0], "said": seen(args[0])}
+    elif command == "section" and len(args) == 1 and parts(args[0]):
+        answer = {"path": changelog(), "line": section(args[0])}
     elif command == "switch" and args in (["on"], ["off"]):
         switch(args[0] == "on")
         answer = {"on": args[0] == "on"}
     else:
-        print("usage: update.py check | told VERSION | switch on|off", file=sys.stderr)
+        print("usage: update.py check [--now] | seen VERSION | section VERSION | switch on|off", file=sys.stderr)
         return 2
     print(json.dumps(answer))
     return 0

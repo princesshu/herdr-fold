@@ -1,5 +1,6 @@
 """Tests for core/chat_hook.py in a temporary HOME: Claude's PermissionRequest answered from the app's answer file as
-Claude's decision, nothing printed when no answer comes; the status line's numbers kept for the app, nothing else."""
+Claude's decision, nothing printed when no answer comes; the status line's numbers kept for the app and its limits for
+Usage, nothing else."""
 import contextlib
 import io
 import json
@@ -48,7 +49,7 @@ class Decision(unittest.TestCase):
                                                "updatedPermissions": [{**RULE, "destination": destination}]}))
 
     def test_only_what_the_card_says_is_kept(self):
-        # one rule, or edits for this conversation: a directory, two rules or a mode kept anywhere else stay unkept
+        # one rule, or edits for this chat: a directory, two rules or a mode kept anywhere else stay unkept
         dirs = {"type": "addDirectories", "directories": ["/elsewhere"], "destination": "session"}
         two = {**RULE, "rules": RULE["rules"] + [{"toolName": "Bash", "ruleContent": "rm:*"}]}
         for suggestion in (dirs, two):
@@ -192,6 +193,28 @@ class Status(unittest.TestCase):
         self.assertEqual(chat_hook.write_status({"session_id": SESSION}), "Claude")
         self.assertEqual(chat.status(SESSION)["limits"], {"five_hour": {"used": None, "resets": None},
                                                           "week": {"used": None, "resets": None}})
+        self.assertFalse(os.path.exists(os.path.join(self.home, ".local", "state", "herdr-fold", "limits")))
+
+    def test_the_limits_are_kept_for_usage_too(self):
+        data = {"session_id": SESSION, "rate_limits": {"five_hour": {"used_percentage": 12, "resets_at": 1794581160},
+                                                       "seven_day": {"used_percentage": 40.6, "resets_at": 1794848400}}}
+        chat_hook.write_status(data)
+        kept = statefile.read(os.path.join(self.home, ".local", "state", "herdr-fold", "limits", "claude.json"))
+        self.assertEqual(kept.pop("at"), chat.status(SESSION)["at"])
+        self.assertEqual(kept, {"five_hour": {"used": 12, "resets": 1794581160},
+                                "week": {"used": 41, "resets": 1794848400}})
+
+    def test_the_line_and_the_bar_without_a_place_for_the_limits(self):
+        os.makedirs(os.path.join(self.home, ".local", "state", "herdr-fold"))
+        with open(os.path.join(self.home, ".local", "state", "herdr-fold", "limits"), "w"):
+            pass                                                # a file where the limits' folder goes
+        data = {"session_id": SESSION, "context_window": {"used_percentage": 42},
+                "rate_limits": {"five_hour": {"used_percentage": 12, "resets_at": 1794581160}}}
+        out = io.StringIO()
+        with mock.patch("sys.stdin", io.StringIO(json.dumps(data))), contextlib.redirect_stdout(out):
+            self.assertEqual(chat_hook.main(["chat_hook.py", "status"]), 0)
+        self.assertEqual(out.getvalue(), "Claude · ctx 42%\n")
+        self.assertEqual(chat.status(SESSION)["limits"]["five_hour"], {"used": 12, "resets": 1794581160})
 
 
 if __name__ == "__main__":

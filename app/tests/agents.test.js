@@ -4,11 +4,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ADAPTERS, cardFor, claudeArgv, claudeSettings, contextColor, contextLine, effortLabel, limitNotice,
-  modelName, modeOf, nextScope, promptText, replyFor, ringArc, screenChoices, screenMode, shellQuote }
+import { budgetNotice, costBlock } from "../mods/herdr-fold/agents.js";
+import { ADAPTERS, agentChoices, agentsOpen, barFolds, cardFor, claudeArgv, claudeSettings, contrast, contextColor,
+  contextLine, contextParts, DRAWABLE, effortAt, effortLabel, exportName, kilo, limitNotice, menuSkills, modelName,
+  modelOf, modelRows, modeOf, modeRows, nearEffort, newAgent, nextScope, opensAs, panelStep, promptText,
+  rememberAgent, reopensAs, replyFor, ringArc, ruleWhere, screenChoices, screenMode, shellQuote, skillCommand, skillOf,
+  slashMenu, slashQuery, slashRank, SLIDER, switchCommand, switchRefused, hueGap, oklch, READ, TAG_PART, tagColors,
+  tagRole, terminalTab, usedSkills, atTyped, mentionMenu, mentionPick, mentionQuery, mentions, uploadPaths,
+  withFiles }
   from "../mods/herdr-fold/agents.js";
 import { CHAT_HOOK } from "../mods/herdr-fold/helper.js";
 
@@ -30,14 +36,23 @@ test("a first prompt goes last, after --, so a dash at its start is no option", 
     .slice(-2), ["--", "-q: why does page 4 answer page 3?"]);
 });
 
+test("a model picked before the chat starts goes with --model; Default, Claude's own, with none", () => {
+  assert.deepEqual(claudeArgv({ python: PYTHON, session: SESSION, mode: "manual" }).slice(5), ["--permission-mode",
+    "manual"]);                                                               // Manual as Claude's CLI names it
+  const argv = claudeArgv({ python: PYTHON, session: SESSION, model: "claude-sonnet-5-5", effort: "low" });
+  assert.deepEqual(argv.slice(5), ["--model", "claude-sonnet-5-5", "--effort", "low"]);
+  assert.deepEqual(claudeArgv({ python: PYTHON, session: SESSION, model: "default" }),
+    ["claude", "--session-id", SESSION, "--settings", claudeSettings(PYTHON)]);
+});
+
 test("a reopened chat resumes its session, its mode and effort left as Claude kept them", () => {
   assert.deepEqual(claudeArgv({ python: PYTHON, session: SESSION, resume: true }),
     ["claude", "--resume", SESSION, "--settings", claudeSettings(PYTHON)]);
 });
 
-test("a session id, a mode and an effort Claude does not know are refused, never passed on", () => {
+test("a session id, a model, a mode and an effort Claude does not know are refused, never passed on", () => {
   for (const bad of [{ session: "--dangerously-skip-permissions" }, { session: SESSION, mode: "bypassPermissions" },
-    { session: SESSION, effort: "ultra" }]) {
+    { session: SESSION, effort: "ultra" }, { session: SESSION, model: "--dangerously-skip-permissions" }]) {
     assert.throws(() => claudeArgv({ python: PYTHON, ...bad }), /not/);
   }
 });
@@ -182,7 +197,7 @@ test("a change's card: the file as its folder names it, its old and new text, ed
   assert.deepEqual([card.kind, card.title, card.sentence, card.old, card.new], ["change", "Change a file?",
     "src/books.py", "a", "b"]);
   assert.deepEqual(card.options.map((o) => [o.label, o.choice, o.scope]), [["Yes", "allow", undefined],
-    ["Yes, and allow edits for the rest of this conversation", "keep", undefined],     // a mode for now, never kept
+    ["Yes, and allow edits for the rest of this chat", "keep", undefined],             // a mode for now, never kept
     ["No, tell Claude what to do instead", "deny", undefined]]);
   assert.equal(cardFor({ ...asked("Edit", { file_path: "/etc/hosts" }), cwd: "/repo/lumen" }).sentence, "/etc/hosts");
   assert.deepEqual([cardFor(asked("Write", { file_path: "docs/a.md", content: "# A" })).new], ["# A"]);
@@ -262,4 +277,440 @@ test("the mode in effect is read off Claude's own screen, its last mode line; no
   assert.equal(screenMode(claude, `${spoof}─────\n⏸ manual mode on\n`), "manual");
   assert.equal(screenMode(claude, `${spoof}─────\n> waiting\n`), null);
   assert.equal(screenMode(claude, "─────\n  echo ⏵⏵ auto mode on\n"), null);
+});
+
+test("Claude's models are its CLI's, Default first (its own), each with a name and a line; ids it takes", () => {
+  assert.deepEqual(claude.models.map((m) => m.label), ["Default", "Opus 5.5", "Fable 5.2", "Sonnet 5.5", "Haiku 5.5"]);
+  for (const m of claude.models) {
+    assert.ok(m.description && !m.description.endsWith("."), m.id);            // one line, no full stop, as a menu's
+    assert.match(m.id, /^(default|claude-[a-z]+-\d+(-\d+)?)$/);
+  }
+});
+
+test("the model the agent names is its row: by id (dated, [1m]) or by the status line's name; else none", () => {
+  const id = (/** @type {string | null} */ name) => modelOf(claude, name)?.id ?? null;
+  assert.deepEqual(["claude-opus-5-5", "claude-opus-5-5[1m]", "Opus 5.5", "Opus 5.5 (1M context)", "Opus",
+    "claude-haiku-5-5-20261001", "Sonnet 5.5"].map(id), ["claude-opus-5-5", "claude-opus-5-5", "claude-opus-5-5",
+    "claude-opus-5-5", "claude-opus-5-5", "claude-haiku-5-5", "claude-sonnet-5-5"]);
+  // one it does not list (an older one, another agent's), none said, and Default, which no agent names, are none
+  assert.deepEqual(["claude-opus-4-8", "claude-opus-5-5-preview", "gpt-x", "", null, "default", "Default"].map(id),
+    [null, null, null, null, null, null, null]);
+});
+
+test("the model chip's rows are its adapter's models, the one in use first where it lists none such", () => {
+  assert.deepEqual(modelRows(claude, { id: "claude-opus-5-5", label: "Opus 5.5" }).map((r) => r.kind === "model"
+    && r.id), ["default", "claude-opus-5-5", "claude-fable-5-2", "claude-sonnet-5-5", "claude-haiku-5-5"]);
+  const unlisted = modelRows(claude, { id: null, label: "Opus 4.8" });
+  assert.deepEqual([unlisted.length, unlisted[0]], [6, { kind: "model", id: null, label: "Opus 4.8",
+    description: "In use in this chat" }]);
+  assert.deepEqual(modelRows({ ...claude, models: [] }, null), []);
+});
+
+test("the mode chip's rows: the adapter's modes, Effort where it has levels, its switches (Codex: none)", () => {
+  const ids = (/** @type {any[]} */ rows) => rows.map((r) => (r.kind === "effort" ? "effort" : r.id));
+  assert.deepEqual(ids(modeRows(claude)), ["manual", "acceptEdits", "plan", "auto", "effort", "ultracode"]);
+  // an agent with levels and no switch (as Codex's would be) has no Ultracode row; one with neither, its modes only
+  assert.deepEqual(ids(modeRows({ ...claude, switches: [] })).slice(-2), ["auto", "effort"]);
+  assert.ok(modeRows({ ...claude, efforts: [], switches: [] }).every((r) => r.kind === "mode"));
+});
+
+test("the panel's keys step its rows from the model in use, over a switch refused, held at the ends", () => {
+  const none = () => false, refused = (/** @type {number} */ n) => n === 6;
+  assert.equal(panelStep(7, null, 1, none, 1), 1);                           // first: the model in use
+  assert.equal(panelStep(7, null, -1, none, -1), 0);                         // none in use: the first row
+  assert.equal(panelStep(7, 1, 1, none), 2);
+  assert.equal(panelStep(7, 0, -1, none), 0);                                // held at the top
+  assert.equal(panelStep(7, 6, 1, none), 6);                                 // and at the foot
+  assert.equal(panelStep(7, 5, 1, refused), 5);                              // Ultracode refused: never on it
+  assert.equal(panelStep(0, null, 1, none), null);
+});
+
+test("a narrow bar leaves the context's words out first, then the chip's level; each back only with room to spare",
+  () => {
+    const both = [60, 50];                                                   // the words' px, the level's
+    assert.equal(barFolds(0, 40, both), 0);                                  // room left: both shown
+    assert.equal(barFolds(0, 0, both), 1);                                   // none left (or cut): the words out
+    assert.equal(barFolds(1, 0, both), 2);                                   // still none: the level too
+    assert.equal(barFolds(2, 0, both), 2);                                   // nothing more gives way
+    assert.equal(barFolds(2, 57, both), 2);                                  // just enough: still out, no flicker
+    assert.equal(barFolds(2, 58, both), 1);                                  // room to spare: the level back
+    assert.equal(barFolds(1, 60, both), 1);
+    assert.equal(barFolds(1, 68, both), 0);                                  // and then the words
+    // a part not there (no context yet) is never kept out: the level goes first, and comes back by its own room
+    assert.equal(barFolds(0, 0, [null, 50]), 2);
+    assert.equal(barFolds(2, 58, [null, 50]), 1);
+    assert.equal(barFolds(1, 4, [null, 50]), 0);
+    assert.equal(barFolds(0, 0, [null, null]), 0);
+  });
+
+test("the context's parts: the rules read at the start, the skills' list, the rest; none past what is in use", () => {
+  const setup = { rules: [{ tokens: 2400, paths: [] }, { tokens: 1800, paths: [] }, { tokens: 700, paths: ["src/**"] }],
+    skills: [{ tokens: 150 }, { tokens: 50 }] };
+  assert.deepEqual(contextParts({ context: 34, window: 200000 }, setup), [
+    { key: "rules", label: "Rules", tokens: 4200, share: 0.021 },        // a rule read for its paths: not known in use
+    { key: "skills", label: "Skills", tokens: 200, share: 0.001 },
+    { key: "rest", label: "Conversation & tools", tokens: 63600, share: 0.318 }]);
+  // estimates past what is in use take only what there is; a part with nothing is left out
+  const parts = (/** @type {number} */ context, /** @type {any} */ given) => contextParts({ context, window: 200000 },
+    given).map((p) => [p.key, p.tokens]);
+  assert.deepEqual(parts(1, setup), [["rules", 2000]]);
+  assert.deepEqual(parts(10, { rules: [], skills: [] }), [["rest", 20000]]);
+  // the setup not read yet, or the window not known: what is in use, as one
+  for (const [status, setupNow] of [[{ context: 34, window: 200000 }, null], [{ context: 34, window: null }, setup]]) {
+    const parts = contextParts(status, setupNow);
+    assert.deepEqual(parts.map((p) => [p.key, p.label, p.share]), [["used", null, 0.34]]);
+  }
+});
+
+test("the legend's numbers: thousands rounded, under one to a tenth, millions to one place", () => {
+  assert.deepEqual([4200, 63600, 999, 300, 12, 1200000].map(kilo), ["4k", "64k", "1k", "0.3k", "0.1k", "1.2M"]);
+});
+
+test("a rule's place: the chat's folder by its name, inside it from it, the user's own from ~, else whole", () => {
+  const where = (/** @type {string} */ path, /** @type {string[]} */ paths = []) => ruleWhere({ path, paths },
+    "/home/dev/work/lumen-api", "/home/dev");
+  assert.equal(where("/home/dev/.claude/CLAUDE.md"), "~/.claude");
+  assert.equal(where("/home/dev/work/lumen-api/CLAUDE.md"), "lumen-api");
+  assert.equal(where("/home/dev/work/lumen-api/.claude/rules/api.md", ["src/lumen/**", "tests/**"]),
+    ".claude/rules · src/lumen/**, tests/**");
+  assert.equal(where("/home/dev/work/CLAUDE.md"), "~/work");                 // a folder above it
+  assert.equal(where("/home/dev/CLAUDE.md"), "~");
+  assert.equal(where("/srv/CLAUDE.md"), "/srv");
+  assert.equal(ruleWhere({ path: "/home/dev/work/lumen-api/CLAUDE.md" }, "/home/dev/work/lumen-api/", "/home/dev/"),
+    "lumen-api");                                                            // a folder written with its slash
+});
+
+test("a skill called is the setup's: its name and source, a plugin's by plugin:skill; one not listed as called", () => {
+  const skills = [{ name: "api-routes", source: "Project", scope: "Project", path: "/w/api-routes/SKILL.md" },
+    { name: "review", source: "Personal", scope: "Personal", path: "/h/review/SKILL.md" },
+    { name: "review", source: "code-review", scope: "Personal", path: "/h/plugins/review/SKILL.md" }];
+  assert.deepEqual(skillOf(claude, "api-routes", skills), { name: "api-routes", source: "Project",
+    path: "/w/api-routes/SKILL.md", known: true });
+  assert.equal(skillOf(claude, "review", skills).source, "Personal");          // the user's own, not the plugin's
+  assert.deepEqual(skillOf(claude, "code-review:review", skills), { name: "review", source: "code-review",
+    path: "/h/plugins/review/SKILL.md", known: true });
+  // not in the setup (not read yet, or gone): a plugin's still says its plugin; another, nothing
+  assert.deepEqual(skillOf(claude, "superpowers:brainstorming", []), { name: "brainstorming", source: "superpowers",
+    path: null, known: false });
+  assert.deepEqual(skillOf(claude, "notes", skills), { name: "notes", source: null, path: null, known: false });
+  // an agent that names no plugin's skill so: the name as called
+  assert.equal(skillOf({ ...claude, skill: null }, "code-review:review", skills).name, "code-review:review");
+});
+
+test("the skills a chat used: each once, the latest call first, with when it was called last", () => {
+  const rows = [{ kind: "skill", name: "api-routes", at: "t1" }, { kind: "tool", name: "Read", at: "t2" },
+    { kind: "skill", name: "code-review:review", at: "t3" }, { kind: "skill", name: "api-routes", at: "t4" },
+    { kind: "skill", name: "", at: "t5" }];
+  assert.deepEqual(usedSkills(claude, rows, []).map(({ skill, at }) => [skill.name, at]),
+    [["api-routes", "t4"], ["review", "t3"]]);
+  assert.deepEqual(usedSkills(claude, [], []), []);
+});
+
+test("a skill is typed as Claude takes it: /name, a plugin's /plugin:name; its tag's tone by its source", () => {
+  assert.equal(skillCommand(claude, { name: "api-routes", source: "Project", scope: "Project" }), "/api-routes");
+  assert.equal(skillCommand(claude, { name: "review", source: "code-review", scope: "Personal" }),
+    "/code-review:review");
+  assert.equal(skillCommand({ ...claude, skill: null }, { name: "x", source: "Project", scope: "Project" }), null);
+  assert.deepEqual(["Personal", "Project", "Local", "Managed", "claude.ai", "code-review"].map(tagRole),
+    ["personal", "project", "local", "local", "account", "plugin"]);
+});
+
+test("in every app theme the five scope tags part, each read on the window's level where a tag stands", () => {
+  const themes = new URL("../themes/", import.meta.url);
+  const names = readdirSync(themes).filter((name) => name.endsWith(".json"));
+  assert.equal(names.length, 13);
+  for (const name of names) {
+    // the colors as theme() gives them: the panels' by name, the palette as ansi0..15
+    const file = JSON.parse(readFileSync(new URL(name, themes), "utf8"));
+    const t = { ...Object.fromEntries(file.ansi.map((/** @type {string} */ hex, /** @type {number} */ n) =>
+      [`ansi${n}`, hex])), background: file.background, ...file.colors };
+    const tags = tagColors(t), hued = [tags.personal, tags.project, tags.plugin, tags.account];
+    assert.ok(hueGap(oklch(tags.personal).hue, oklch(t.accent).hue) < 5, `${name}: Personal in the accent's hue`);
+    for (const [role, hex] of Object.entries(tags)) {
+      assert.ok(contrast(hex, t.canvas) >= READ, `${name}: ${role} ${hex} on ${t.canvas}`);
+    }
+    hued.forEach((one, n) => hued.slice(n + 1).forEach((other) => assert.ok(
+      hueGap(oklch(one).hue, oklch(other).hue) >= TAG_PART, `${name}: ${one} and ${other} too alike`)));
+    assert.ok(hued.every((hex) => oklch(hex).chroma > oklch(tags.local).chroma), `${name}: Local the grayest`);
+  }
+});
+
+test("Claude's setup is read, its chats compacted by its own command, its skills named as it calls them", () => {
+  assert.equal(claude.setup, "claude");                                      // agent_setup.py claude FOLDER
+  assert.equal(claude.compact, "/compact");
+  assert.ok(claude.commands.some((c) => c.name === claude.compact && !c.words));
+  assert.deepEqual(claude.skill, { command: "/", plugin: ":" });
+});
+
+test("the slider's arrows step through the agent's own efforts, held at their ends", () => {
+  const claude = ADAPTERS.claude;
+  assert.equal(nearEffort(claude, "high", 1), "xhigh");
+  assert.equal(nearEffort(claude, "high", -1), "medium");
+  assert.equal(nearEffort(claude, "max", 1), "max");
+  assert.equal(nearEffort(claude, "low", -1), "low");
+  assert.equal(nearEffort(claude, null, 1), "xhigh");                      // none said yet: from the middle, High
+  assert.equal(nearEffort(claude, "turbo", -1), "medium");
+});
+
+test("a press or a drag on the slider's track picks the level whose stop is under the pointer", () => {
+  const claude = ADAPTERS.claude, left = 100, width = 2 * SLIDER.pad + claude.efforts.length * SLIDER.stop;
+  const start = left + SLIDER.pad;                                             // the first stop's room starts here
+  assert.equal(effortAt(claude, start, left), "low");
+  assert.equal(effortAt(claude, start + 2 * SLIDER.stop + SLIDER.stop / 2, left), "high");     // the middle stop
+  assert.equal(effortAt(claude, start + 5 * SLIDER.stop - 1, left), "max");
+  assert.equal(effortAt(claude, left - 40, left), "low");                     // dragged past either end: held there
+  assert.equal(effortAt(claude, left + width + 40, left), "max");
+  assert.ok(SLIDER.knob <= SLIDER.stop && SLIDER.dot < SLIDER.knob);         // the knob in a stop's room: nothing moves
+  assert.ok(SLIDER.knob < SLIDER.high);                                        // and inside the pill
+});
+
+test("Claude's Ultracode is its adapter's switch: on at launch by --settings, then /effort ultracode [off]", () => {
+  const claude = ADAPTERS.claude, ultracode = claude.switches.find((sw) => sw.id === "ultracode");
+  assert.ok(ultracode);
+  assert.equal(ultracode?.label, "Ultracode");
+  const argv = claudeArgv({ python: "python3", session: "0b9f6d1e-1c2a-4f3b-8d4e-5f6a7b8c9d0e",
+    switches: { ultracode: true } });
+  assert.equal(JSON.parse(argv[argv.indexOf("--settings") + 1]).ultracode, true);
+  assert.ok(!argv.includes("ultracode"));                                     // never --effort ultracode (xhigh)
+  const plain = claudeArgv({ python: "python3", session: "0b9f6d1e-1c2a-4f3b-8d4e-5f6a7b8c9d0e" });
+  assert.equal("ultracode" in JSON.parse(plain[plain.indexOf("--settings") + 1]), false);
+  assert.equal(switchCommand(claude, "ultracode", true), "/effort ultracode");
+  assert.equal(switchCommand(claude, "ultracode", false), "/effort ultracode off");
+});
+
+test("a switch Claude refuses says why in Claude's words; one it took, or an agent with none, says nothing", () => {
+  const claude = ADAPTERS.claude;
+  const refused = "> /effort ultracode\n  ⎿ Ultracode needs dynamic workflows enabled (see /config). Valid options";
+  assert.equal(switchRefused(claude, "ultracode", `${refused} are: low, medium, high, xhigh, max, auto\n`),
+    "Ultracode needs dynamic workflows enabled (see /config)");
+  assert.equal(switchRefused(claude, "ultracode", "  ⎿ Ultracode on (this session only). Effort stays high.\n"), null);
+  assert.equal(switchRefused(claude, "ultracode", `${refused}\n> /effort ultracode\n  ⎿ Ultracode on.\n`), null);
+  const codex = { ...claude, name: "Codex", switches: [] };                   // Codex: its own levels, no Ultracode
+  assert.equal(codex.switches.length, 0);
+  assert.equal(switchCommand(codex, "ultracode", true), null);
+  assert.equal(switchRefused(codex, "ultracode", "anything"), null);
+});
+
+// the app's knownAgents(), as it lists them: most picked first, each with its icon and how it starts
+const KNOWN = [{ key: "codex", name: "Codex", icon: "icons/codex.svg", tint: true, run: ["codex", "--no-daemon"],
+  installed: true }, { key: "claude", name: "Claude", icon: "icons/claude.png", tint: false, run: ["claude"],
+  installed: true }, { key: "aider", name: "Aider", run: ["aider"], installed: false },
+  { key: "gemini", name: "Gemini", run: ["gemini"], installed: true },
+  { key: "amp", name: "Amp", run: ["amp"], installed: true }];
+
+test("a new chat's list: installed agents only, the recent ones first in their order, the rest by name", () => {
+  const listed = agentChoices(KNOWN, DRAWABLE, ["codex", "claude", "aider"]);
+  assert.deepEqual(listed.map((a) => a.key), ["codex", "claude", "amp", "gemini"]);      // aider: not installed
+  assert.deepEqual(listed.map((a) => a.recent), [true, true, false, false]);
+  assert.deepEqual(listed.map((a) => a.terminal), [true, false, true, true]);    // Claude alone has an adapter
+  assert.deepEqual(listed[0].run, ["codex", "--no-daemon"]);                  // as the app starts it
+  assert.deepEqual([listed[0].icon, listed[0].tint, listed[3].icon], ["icons/codex.svg", true, null]);
+  // none remembered: by name; the app's check failed (none known): the agents a chat draws all the same
+  assert.deepEqual(agentChoices(KNOWN, DRAWABLE, null).map((a) => a.key), ["amp", "claude", "codex", "gemini"]);
+  assert.deepEqual(agentChoices([], DRAWABLE, ["codex"]), [{ key: "claude", name: "Claude", installed: true,
+    terminal: false, recent: false, signIn: false, icon: null, tint: false, run: ["claude"] }]);
+});
+
+test("a new chat's list marks the agents core says are to sign in; one core finds nowhere is left out", () => {
+  const machine = [{ key: "claude", installed: true, signed_in: true }, { key: "codex", installed: true,
+    signed_in: false }, { key: "gemini", installed: true, signed_in: null }];
+  const listed = agentChoices(KNOWN, DRAWABLE, [], machine);
+  assert.deepEqual(listed.map((a) => [a.key, a.signIn]), [["amp", false], ["claude", false], ["codex", true],
+    ["gemini", false]]);                                    // not told (Gemini CLI's, one core knows nothing of): none
+  // the app's own word on what is installed stands (it starts it); where it tells nothing, core's does
+  assert.deepEqual(agentChoices([], DRAWABLE, [], [{ key: "claude", installed: false, signed_in: null }]), []);
+  assert.deepEqual(agentChoices(KNOWN, DRAWABLE, [], [{ key: "codex", installed: false, signed_in: null }])
+    .map((a) => a.key), ["amp", "claude", "codex", "gemini"]);
+  assert.deepEqual(agentChoices(KNOWN, DRAWABLE, [], "nonsense").map((a) => a.signIn), [false, false, false, false]);
+});
+
+test("an agent started goes first among the recent ones, once, eight at most", () => {
+  assert.deepEqual(rememberAgent(["claude", "codex"], "codex"), ["codex", "claude"]);
+  assert.deepEqual(rememberAgent(undefined, "claude"), ["claude"]);
+  assert.deepEqual(rememberAgent([1, "amp", null], "claude"), ["claude", "amp"]);       // a stray value dropped
+  const many = ["a", "b", "c", "d", "e", "f", "g", "h"];
+  assert.deepEqual(rememberAgent(many, "z"), ["z", ...many.slice(0, 7)]);
+});
+
+test("every way in opens an agent as More's setting says: a chat where one draws it, else a terminal", () => {
+  assert.deepEqual([agentsOpen(undefined), agentsOpen("terminal"), agentsOpen("menu")], ["chat", "terminal", "chat"]);
+  assert.equal(opensAs("claude", "chat"), "chat");
+  assert.equal(opensAs("claude", "terminal"), "terminal");
+  assert.equal(opensAs("codex", "chat"), "terminal");               // no adapter yet: always a terminal
+  assert.equal(opensAs("claude", "chat", "lab"), "terminal");       // a chat runs on this Mac for now
+  assert.equal(opensAs("constructor", "chat"), "terminal");         // not an adapter of the object's own
+  // + and Issues' To agent: a chat with the latest agent a chat draws; in a terminal the latest of all
+  assert.deepEqual(newAgent(["codex", "claude"], "chat"), { agent: "claude", as: "chat" });
+  assert.deepEqual(newAgent(["codex", "claude"], "terminal"), { agent: "codex", as: "terminal" });
+  assert.deepEqual(newAgent(["codex"], "chat"), { agent: "claude", as: "chat" });
+  assert.deepEqual(newAgent(null, "terminal"), { agent: "claude", as: "terminal" });
+  assert.deepEqual(newAgent(["claude"], "chat", "lab"), { agent: "claude", as: "terminal" });
+  // Chats: a closed Claude chat reopens as a chat; Codex's, an id Claude does not take, or Terminal: as today
+  const closed = { agent: "claude", id: SESSION };
+  assert.equal(reopensAs(closed, "chat"), "chat");
+  assert.equal(reopensAs(closed, "terminal"), "terminal");
+  assert.equal(reopensAs({ agent: "codex", id: SESSION }, "chat"), "terminal");
+  assert.equal(reopensAs({ agent: "claude", id: "../a1b2" }, "chat"), "terminal");
+});
+
+test("an agent in a terminal tab: as the app starts it, in the space's folder, the prompt its first message", () => {
+  const codex = agentChoices(KNOWN, DRAWABLE, [])[2];
+  assert.deepEqual(terminalTab(codex, { space: "s1", folder: "/work/lumen-api", prompt: "Fix #42" }),
+    { name: "Codex", space: "s1", folder: "/work/lumen-api", argv: ["codex", "--no-daemon"], task: "Fix #42" });
+  assert.deepEqual(terminalTab(codex, { space: "s1" }), { name: "Codex", space: "s1", argv: ["codex", "--no-daemon"] });
+});
+
+test("the / menu follows what is typed after a \"/\" at the prompt's start, till a space or a new line", () => {
+  assert.deepEqual(["/", "/rev", "/code-review:review", "/review 42", "/a\nb", "fix /rev", "", " /rev"]
+    .map(slashQuery), ["", "rev", "code-review:review", null, null, null, null, null]);
+});
+
+/** A / menu row as chat.js makes them: PART, NAME, what it is TYPED as, its LINE. */
+const item = (part, name, typed, line) => ({ part, name, typed, line });
+const MENU = [item("This conversation", "Export the conversation…", null, ""),
+  item("Skills", "api-routes", "/api-routes", "How lumen-api's routes are written and tested"),
+  item("Skills", "frontend-design", "/frontend-design", "Distinctive, intentional visual design"),
+  item("Skills", "code-review", "/code-review:code-review", "Review a pull request"),
+  item("Skills", "security-review", "/code-review:security-review", "Review the changes for security problems"),
+  item("Claude's commands", "/compact", "/compact", "Free the context, keep a summary"),
+  item("Claude's commands", "/review", "/review", "Review a pull request")];
+
+test("typed, the best match goes first: a name's start, a word's, the name, then its line; case aside", () => {
+  assert.equal(slashRank(MENU[6], "rev"), 0);                                   // /review: its name starts so
+  assert.equal(slashRank(MENU[3], "Rev"), 1);                                   // code-review: a word of it does
+  assert.equal(slashRank(MENU[3], "ode"), 2);                                   // code-review holds it
+  assert.equal(slashRank(MENU[1], "tested"), 3);                                // api-routes' line holds it
+  assert.equal(slashRank(MENU[3], "code-review:co"), 0);                        // what a plugin's is typed as
+  assert.equal(slashRank(MENU[0], "export"), 0);                                // Export, named so, typed as nothing
+  assert.equal(slashRank(MENU[5], "zzz"), null);
+  assert.deepEqual(slashMenu(MENU, "rev", 5).parts.map((p) => [p.name, p.items.map((i) => i.name)]),
+    [[null, ["/review", "code-review", "security-review"]]]);
+  assert.deepEqual(slashMenu(MENU, "zzz", 5), { parts: [], more: 0 });          // nothing found: no menu
+});
+
+test("before anything is typed, the menu's parts in their order, a few of each, and how many more there are", () => {
+  const menu = slashMenu(MENU, "", 2);
+  assert.deepEqual(menu.parts.map((p) => [p.name, p.items.map((i) => i.name)]),
+    [["This conversation", ["Export the conversation…"]], ["Skills", ["api-routes", "frontend-design"]],
+      ["Claude's commands", ["/compact", "/review"]]]);
+  assert.equal(menu.more, 2);                                                   // two skills found by typing
+  assert.equal(slashMenu(MENU, null, 5).more, 0);
+  assert.deepEqual(slashMenu([], null, 5), { parts: [], more: 0 });
+});
+
+test("the / menu's skills: those the chat used first, the latest first, then the rest as listed", () => {
+  const skills = [{ name: "api-routes", source: "Project", scope: "Project" },
+    { name: "frontend-design", source: "Personal", scope: "Personal" },
+    { name: "review", source: "code-review", scope: "Personal" }];
+  const rows = [{ kind: "skill", name: "api-routes", at: "t1" },
+    { kind: "skill", name: "code-review:review", at: "t2" }, { kind: "skill", name: "gone", at: "t3" }];
+  assert.deepEqual(menuSkills(claude, rows, skills).map((s) => s.name), ["review", "api-routes", "frontend-design"]);
+  assert.deepEqual(menuSkills(claude, [], skills), skills);
+});
+
+test("a conversation is exported under its title at first, with nothing in it macOS takes for a folder", () => {
+  assert.equal(exportName("# Fix the page past the last one\n\n**You**\n"), "Fix the page past the last one.md");
+  assert.equal(exportName("# a/b: c\\d\n"), "a-b- c-d.md");
+  assert.equal(exportName("# " + "x".repeat(100)), `${"x".repeat(80)}.md`);
+  assert.equal(exportName("#  \n"), "Conversation.md");
+  assert.equal(exportName(""), "Conversation.md");
+});
+
+test("the files macOS's chooser answered: a path a line, absolute ones alone, each once, no control code", () => {
+  assert.deepEqual(uploadPaths("/Users/dev/notes/paging spec.pdf\n/Users/dev/lumen-api/README.md\n"),
+    ["/Users/dev/notes/paging spec.pdf", "/Users/dev/lumen-api/README.md"]);
+  assert.deepEqual(uploadPaths(""), []);                                        // cancelled
+  assert.deepEqual(uploadPaths("/Users/dev/a.txt\r\n/Users/dev/a.txt\nnotes.txt\n/Users/dev/b\x1b[2J.txt\n"),
+    ["/Users/dev/a.txt"]);
+});
+
+test("a file is named to Claude as @ and its path: from the chat's folder when in it, quoted with a space", () => {
+  assert.equal(claude.files, "@");
+  assert.equal(mentions(["/Users/dev/lumen-api/src/lumen/routes/books.py", "/Users/dev/notes/paging spec.pdf",
+    "/Users/dev/lumen-api/docs/error format.md"], "/Users/dev/lumen-api"),
+  '@src/lumen/routes/books.py @"/Users/dev/notes/paging spec.pdf" @"docs/error format.md"');
+  assert.equal(mentions(["/Users/dev/lumen-api-old/a.py"], "/Users/dev/lumen-api"), "@/Users/dev/lumen-api-old/a.py");
+  assert.equal(mentions([], "/Users/dev/lumen-api"), "");
+});
+
+test("the files go after the message's words; with no words they are the message", () => {
+  const files = ["/Users/dev/lumen-api/README.md"];
+  assert.equal(withFiles("Check this against the spec", files, "/Users/dev/lumen-api"),
+    "Check this against the spec @README.md");
+  assert.equal(withFiles("", files, "/Users/dev/lumen-api"), "@README.md");
+  assert.equal(withFiles("Check this", [], "/Users/dev/lumen-api"), "Check this");
+});
+
+test("@ at a word's start, at the text's end, opens Add context on what follows it", () => {
+  assert.equal(mentionQuery("@"), "");
+  assert.equal(mentionQuery("Check @boo"), "boo");
+  assert.equal(mentionQuery("Check\n@src/lu"), "src/lu");
+  assert.equal(mentionQuery("mail dev@example"), null);                        // not a word's start
+  assert.equal(mentionQuery("Check @books.py now"), null);                     // a space after it: done
+  assert.equal(mentionQuery("Check"), null);
+});
+
+test("Add context… types the @ at the text's end, a space before it where a word ends there", () => {
+  assert.equal(atTyped(""), "@");
+  assert.equal(atTyped("Check"), "Check @");
+  assert.equal(atTyped("Check "), "Check @");
+  assert.equal(atTyped("Check @bo"), "Check @bo");                             // one typed already: its list as it is
+});
+
+test("a file picked takes the place of the @ typed: its path, quoted with a space in it, a space after", () => {
+  assert.equal(mentionPick("Check @boo", "src/lumen/routes/books.py"), "Check @src/lumen/routes/books.py ");
+  assert.equal(mentionPick("@", "docs/error format.md"), '@"docs/error format.md" ');
+  assert.equal(mentionPick("Check", "README.md"), "Check @README.md ");       // no @ typed: at the end
+});
+
+test("Add context lists the changed files first, then the folder's; typed, what it finds, the best first", () => {
+  const changed = ["src/lumen/routes/books.py", "tests/test_books.py"];
+  const files = ["README.md", "src/lumen/routes/books.py", "src/lumen/store.py", "docs/books.md",
+    "tests/test_books.py"];
+  const menu = mentionMenu(changed, files, "", 2);
+  assert.deepEqual(menu.parts.map((p) => [p.name, p.items.map((i) => i.typed)]), [
+    ["Changed", ["src/lumen/routes/books.py", "tests/test_books.py"]],
+    ["Files", ["README.md", "src/lumen/store.py"]]]);                          // a changed one listed once
+  assert.equal(menu.more, 1);
+  assert.deepEqual(menu.parts[0].items[0], { part: "Changed", name: "books.py", typed: "src/lumen/routes/books.py",
+    line: "src/lumen/routes", row: { kind: "mention", path: "src/lumen/routes/books.py" } });
+  assert.equal(mentionMenu(changed, files, "", 2).parts[1].items[0].line, "");  // a file in the folder itself
+  const found = mentionMenu(changed, files, "books", 2);
+  assert.deepEqual(found.parts.map((p) => p.name), [null]);
+  assert.deepEqual(found.parts[0].items.map((i) => i.typed), ["src/lumen/routes/books.py", "docs/books.md",
+    "tests/test_books.py"]);                                                   // its name starts with it, then a word
+  assert.deepEqual(mentionMenu(changed, files, "zzz", 2), { parts: [], more: 0 });
+  assert.deepEqual(mentionMenu([], [], "", 2), { parts: [], more: 0 });
+});
+
+test("the budget's notice is core's, the first not closed here; an answer of another shape is none", () => {
+  const said = { key: "codex:2026-11", agent: "codex",
+    text: "Codex has spent $45.10 of $50 this month · on pace for $58 by Nov 30" };
+  assert.deepEqual(budgetNotice({ notices: [said] }, new Set()), { key: said.key, text: said.text });
+  assert.equal(budgetNotice({ notices: [said] }, new Set(["codex:2026-11"])), null);       // closed for the month
+  assert.deepEqual(budgetNotice({ notices: [said, { key: "claude:2026-11", text: "Claude has spent…" }] },
+    new Set(["codex:2026-11"]))?.key, "claude:2026-11");
+  for (const odd of [null, {}, { notices: "x" }, { notices: [{ key: 1, text: "x" }, { key: "k" }] }]) {
+    assert.equal(budgetNotice(odd, new Set()), null);
+  }
+});
+
+test("the Context panel's cost block: the whole, a row a model, the sub-agents' beside theirs, each with a ~", () => {
+  const model = (/** @type {string} */ name, /** @type {string} */ color) => ({ id: name, name, color });
+  const costs = { session: "abc", kind: "API value", text: "~$4.12", tokens: "1.2M",
+    line: "1.2M tokens · 82% from cache",
+    agent: { cost: 3.7, text: "~$3.70", model: model("Opus 5.5", "#3987e5") },
+    subs: { Explore: { cost: 0.42, text: "~$0.42", model: model("Haiku 5.5", "#199e70") } } };
+  assert.deepEqual(costBlock(costs), { session: "abc", label: "This conversation", figure: "~$4.12",
+    unit: "API value", rows: [{ name: "Opus 5.5", color: "#3987e5", figure: "~$3.70" },
+      { name: "Haiku 5.5 · 1 sub-agent", color: "#199e70", figure: "~$0.42" }], line: "1.2M tokens · 82% from cache" });
+  const two = costBlock({ ...costs, subs: { ...costs.subs, Plan: { cost: 0.08, text: "~$0.08",
+    model: model("Haiku 5.5", "#199e70") }, review: { cost: null, text: "no price",
+    model: model("codex-auto-review", "#8b8b8b") } } });
+  assert.deepEqual(two?.rows.slice(1), [{ name: "Haiku 5.5 · 2 sub-agents", color: "#199e70", figure: "~$0.50" },
+    { name: "codex-auto-review · 1 sub-agent", color: "#8b8b8b", figure: "no price" }]);
+  assert.equal(costBlock({ ...costs, kind: "spent" })?.unit, "spent");
+  assert.equal(costBlock({ ...costs, text: "no price" })?.unit, "");          // tokens alone: no dollars' word
+  assert.equal(costBlock(null), null);
+  assert.equal(costBlock({ text: "~$1.00" }), null);                           // not costs.py's answer
 });

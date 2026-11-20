@@ -2,6 +2,7 @@
 selected one; Enter applies it through apply.py, p opens the browser preview. herdr switches at once, Ghostty after
 Cmd+Shift+,."""
 import os
+import shutil
 import subprocess
 import sys
 
@@ -11,7 +12,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(HERE))
 import apply  # noqa: E402
 from i18n import line, t  # noqa: E402
-from tui import getkey, wait_and_exit  # noqa: E402
+from tui import CLOSE_ROOM, CLOSED, MARGIN, RIGHT, close_button, mouse, read_key, wait_and_exit  # noqa: E402
 
 RESET, BOLD, NORMAL = "\x1b[0m", "\x1b[1m", "\x1b[22m"
 
@@ -58,8 +59,10 @@ def sample(theme, width):
     return [paint(c["background"], row, width) for row in rows]
 
 
-def render(themes, chosen, current):
-    out = ["\x1b[2J\x1b[H" + f"{BOLD}Color theme{NORMAL}   ↑/↓ choose · Enter apply · p preview in browser · Esc close",
+def render(themes, chosen, current, width=200):
+    keys = "   ↑/↓ choose · Enter apply · p preview in browser · Esc close"
+    room = max(0, width - MARGIN - len("Color theme") - CLOSE_ROOM - RIGHT)    # the close button's room at its end
+    out = ["\x1b[2J\x1b[H" + " " * MARGIN + f"{BOLD}Color theme{NORMAL}" + (keys if len(keys) <= room else keys[:room]),
            ""]
     for n, theme in enumerate(themes):
         marker = "›" if n == chosen else " "
@@ -72,10 +75,17 @@ def render(themes, chosen, current):
 
 def main():
     themes, current = apply.load_themes(), apply.current_id()
-    chosen = next((n for n, t in enumerate(themes) if t["id"] == current), 0)
+    chosen, close = next((n for n, t in enumerate(themes) if t["id"] == current), 0), close_button()
+    mouse(True, moves=True)
     while True:
-        render(themes, chosen, current)
-        key = getkey()
+        width = shutil.get_terminal_size().columns
+
+        def draw():
+            render(themes, chosen, current, width)
+            print(close.overlay(width), end="", flush=True)
+
+        draw()
+        key = read_key(close, width, draw)
         if key == "\x1b[A":
             chosen = (chosen - 1) % len(themes)
         elif key == "\x1b[B":
@@ -86,7 +96,7 @@ def main():
             subprocess.run(["open", apply.preview_address(number)], capture_output=True)
         elif key in ("\r", "\n"):
             break
-        elif key in ("\x1b", "q", "\x03"):
+        elif key in ("\x1b", "q", "\x03", CLOSED):
             return
     theme = themes[chosen]
     try:

@@ -1,5 +1,5 @@
-"""Tests for install.sh: what an earlier install left but the package dropped goes (or the original comes back), three
-dated backups stay, plus the GitHub step, zshrc line, in-herdr warning and AI-session guard. herdr, brew, open faked.
+"""Tests for install.sh: what an earlier install left but the package dropped goes (or the original comes back), no copy
+of the package's own files kept, the GitHub step, zshrc line, in-herdr warning, AI-session guard; herdr, brew faked.
 """
 import json
 import os
@@ -104,13 +104,11 @@ class InstallCleanup(PackageHome, unittest.TestCase):
         self.env.update(PATH=folder + ":" + self.env["PATH"], STUB_HERDR_VERSION=version)
 
     def on_the_mac(self, *programs):
-        """PROGRAMS on this Mac without Homebrew: a command, Ghostty in /Applications, the font. herdr and gh are
-        there from the start."""
+        """PROGRAMS on this Mac without Homebrew: a command or Ghostty in /Applications. herdr and gh are there from the
+        start."""
         for name in programs:
             if name == "ghostty":
                 self.env["STUB_GHOSTTY"] = "/Applications/Ghostty.app"
-            elif name.startswith("font-"):
-                self.write("Library/Fonts/JetBrainsMonoNerdFont-Regular.ttf", "")
             else:
                 stubs(os.path.join(self.tmp, "stubs"), {{"git-delta": "delta", "ripgrep": "rg"}.get(name, name): None})
 
@@ -139,14 +137,14 @@ class InstallCleanup(PackageHome, unittest.TestCase):
             return f.read().splitlines(), out
 
     def test_homebrew_does_not_run_when_every_program_is_on_the_mac(self):
-        self.on_the_mac("starship", "bat", "git-delta", "ripgrep", "ghostty", "font-jetbrains-mono-nerd-font")
+        self.on_the_mac("starship", "bat", "git-delta", "ripgrep", "ghostty")
         calls, out = self.homebrew_run()
         self.assertEqual(calls, [])
         self.assertIn(catalog_text("install.apps_there"), out)
 
     def test_what_is_missing_homebrew_installs_and_nothing_else(self):
         # auto-update stays on: Homebrew needs it to find current versions
-        self.on_the_mac("starship", "bat", "git-delta", "ghostty", "font-jetbrains-mono-nerd-font")
+        self.on_the_mac("starship", "bat", "git-delta", "ghostty")
         calls, out = self.homebrew_run()
         self.assertEqual(calls, ["1111-1 install ripgrep"])
         self.assertIn(catalog_text("install.apps_missing", "ripgrep"), out)
@@ -155,8 +153,7 @@ class InstallCleanup(PackageHome, unittest.TestCase):
         # e.g. Ghostty from its website, ripgrep from cargo
         self.on_the_mac("ghostty", "ripgrep")
         calls, _ = self.homebrew_run()
-        self.assertEqual(calls, ["1111-1 install starship bat git-delta",
-                                 "1111-1 install --cask font-jetbrains-mono-nerd-font"])
+        self.assertEqual(calls, ["1111-1 install starship bat git-delta"])
 
     def test_a_herdr_not_from_homebrew_gets_no_second_one(self):
         self.herdr_of_its_own()
@@ -168,11 +165,11 @@ class InstallCleanup(PackageHome, unittest.TestCase):
         calls, shown = self.homebrew_run({catalog_text("install.apps_ask").strip(): "n"})
         self.assertEqual(calls, [])
         self.assertIn(catalog_text("install.apps_later", "brew install starship bat git-delta ripgrep && "
-                                   "brew install --cask ghostty font-jetbrains-mono-nerd-font"), shown)
+                                   "brew install --cask ghostty"), shown)
         self.assertNotIn("== " + catalog_text("install.step_theme"), shown)
 
     def test_a_herdr_older_than_herdr_fold_needs_is_upgraded_after_the_same_yes(self):
-        self.on_the_mac("starship", "bat", "git-delta", "ripgrep", "ghostty", "font-jetbrains-mono-nerd-font")
+        self.on_the_mac("starship", "bat", "git-delta", "ripgrep", "ghostty")
         calls, out = self.homebrew_run(herdr="0.9.4")
         self.assertEqual(calls, ["1111-1 upgrade herdr"])
         self.assertIn(catalog_text("install.herdr_old", "0.9.5"), out)
@@ -607,11 +604,13 @@ class InstallCleanup(PackageHome, unittest.TestCase):
         self.assertNotIn("herdr is set up here already", out)
         self.assertEqual(self.read(".config/herdr/config.toml"), first)
 
-    def test_their_settings_before_the_first_add_are_kept_where_backups_are_never_pruned(self):
+    def test_their_settings_before_the_first_add_are_kept_and_no_later_copy(self):
+        # later runs replace herdr-fold's marked part alone: every line of theirs stays, nothing more to copy
         self.write(".config/herdr/config.toml", THEIR_CONFIG)
-        for _ in range(5):                                                  # more installs than dated backups kept
+        for _ in range(3):
             self.install()
         self.assertEqual(self.read(".local/state/herdr-fold/original/.config/herdr/config.toml"), THEIR_CONFIG)
+        self.assertEqual(self.dated(), [])
 
     def test_replacing_sets_theirs_aside(self):
         self.write(".config/herdr/config.toml", THEIR_CONFIG)
@@ -773,8 +772,8 @@ class InstallCleanup(PackageHome, unittest.TestCase):
         out = self.install()
         self.assertFalse(os.path.exists(self.path(".config/herdr-fold/lang/xx.txt")))
         self.assertTrue(os.path.isfile(self.path(".config/herdr-fold/lang/en.txt")))
-        self.assertIn(catalog_text("install.dropped_removed", "~/.local/state/herdr-fold/"), out)
-        self.assertNotIn("%s", catalog_text("install.dropped_ask"))           # the copy's place: said once, after
+        self.assertIn(catalog_text("install.dropped_removed"), out)
+        self.assertEqual(self.dated(), [])                                  # the package's own file: no copy
         self.assertNotIn(catalog_text("install.dropped_deleted", ".config/herdr-fold/lang/xx.txt"), out)
 
     def test_files_no_longer_used_are_asked_about_before_they_go(self):
@@ -790,14 +789,14 @@ class InstallCleanup(PackageHome, unittest.TestCase):
         self.assertTrue(os.path.isfile(self.path(".config/herdr-fold/lang/xx.txt")))
         self.assertIn(".config/herdr-fold/lang/xx.txt", self.read(".local/state/herdr-fold/installed.txt").split("\n"))
 
-    def test_an_update_removes_them_unasked_and_keeps_a_copy(self):
+    def test_an_update_removes_them_unasked(self):
         self.add_language("xx")
         self.install()
         os.remove(os.path.join(self.pkg, "src", "lang", "xx.txt"))
         shown = self.install_answering({})                                      # Enter: the earlier choices
         self.assertNotIn(catalog_text("install.dropped_ask"), shown)
         self.assertIn(catalog_text("install.dropped_heading") + " ~/.config/herdr-fold/lang/xx.txt", shown)
-        self.assertIn(catalog_text("install.dropped_removed", "~/.local/state/herdr-fold/"), shown)
+        self.assertIn(catalog_text("install.dropped_removed"), shown)
         self.assertFalse(os.path.exists(self.path(".config/herdr-fold/lang/xx.txt")))
 
     def test_several_files_no_longer_used_in_a_folder_are_named_by_it(self):
@@ -892,9 +891,9 @@ class InstallCleanup(PackageHome, unittest.TestCase):
     def test_everything_goes_to_its_own_folder(self):
         self.install()
         elsewhere = {".config/herdr/config.toml", ".config/ghostty/config", ".config/starship.toml"}
+        own = (".config/herdr-fold/", "Library/Fonts/herdr-fold-Mono-")    # its font: where macOS reads a user's fonts
         installed = self.read(".local/state/herdr-fold/installed.txt").split()
-        self.assertEqual([rel for rel in installed
-                          if not rel.startswith(".config/herdr-fold/") and rel not in elsewhere], [])
+        self.assertEqual([rel for rel in installed if not rel.startswith(own) and rel not in elsewhere], [])
         self.assertEqual(os.listdir(self.path(".config/herdr")), ["config.toml"])
 
     def test_fresh_install_records_what_it_installed(self):
@@ -1083,17 +1082,17 @@ class InstallCleanup(PackageHome, unittest.TestCase):
                     ".codex/session_index.jsonl", ".local/state/herdr/plugins/herdr-fold.sessions-view/names.json",
                     ".claude/history.jsonl", ".codex/history.jsonl", ".claude/file-history/abc/1.txt")
         for rel in sessions:
-            self.write(rel, "conversation\n")
+            self.write(rel, "chat\n")
         self.write(".local/state/herdr-fold/installed.txt", "\n".join(sessions) + "\n")
         self.install()
         for rel in sessions:
-            self.assertEqual(self.read(rel), "conversation\n", rel)
+            self.assertEqual(self.read(rel), "chat\n", rel)
 
     def test_a_file_you_changed_since_the_install_is_never_pruned(self):
         self.install()
         with open(self.path(".config/ghostty/config"), "a") as f:
             f.write("# my own line\n")
-        for _ in range(4):                                                  # more installs than dated backups kept
+        for _ in range(3):
             self.install()
         kept = [os.path.join(base, name) for base, _, names in os.walk(self.path(".local/state/herdr-fold"))
                 for name in names if name == "config" and "changed-" in base]
@@ -1139,12 +1138,47 @@ class InstallCleanup(PackageHome, unittest.TestCase):
         self.assertFalse(os.path.islink(self.path(".config/starship.toml")))
         self.assertTrue(os.path.islink(self.path(".local/state/herdr-fold/original/.config/starship.toml")))
 
-    def test_keeps_the_three_newest_dated_backups(self):
-        for stamp in ("20260101-000000", "20260201-000000", "20260301-000000", "20260401-000000", "20260501-000000"):
-            self.write(f".local/state/herdr-fold/{stamp}/x", "old backup\n")
+    def test_an_update_keeps_no_copy_of_the_packages_own_files(self):
+        # the package has them: an earlier version's file replaced or dropped is no one's own work
         self.install()
-        dated = sorted(d for d in os.listdir(self.path(".local/state/herdr-fold")) if d[:1].isdigit())
-        self.assertEqual(dated, ["20260301-000000", "20260401-000000", "20260501-000000"])
+        with open(os.path.join(self.pkg, "src", "tui.py"), "a") as f:
+            f.write("# a newer version\n")
+        self.install()
+        self.assertEqual(self.dated(), [])
+        self.assertFalse([d for d in os.listdir(self.path(".local/state/herdr-fold")) if d.startswith("changed-")])
+
+    def test_a_file_left_in_place_keeps_its_earlier_sum(self):
+        # a run that did not put a file down (here: missing from a broken copy) never records what it holds now, so an
+        # edit made meanwhile is still told apart, and kept, when a later run replaces the file
+        self.install()
+        with open(self.path(".config/herdr-fold/tui.py"), "a") as f:
+            f.write("# my own line\n")
+        source = os.path.join(self.pkg, "src", "tui.py")
+        with open(source) as f:
+            text = f.read()
+        os.remove(source)
+        self.install()
+        with open(source, "w") as f:
+            f.write(text)
+        self.install()
+        kept = [os.path.join(base, name) for base, _, names in os.walk(self.path(".local/state/herdr-fold"))
+                for name in names if name == "tui.py" and "changed-" in base]
+        self.assertEqual(len(kept), 1, kept)
+        with open(kept[0]) as f:
+            self.assertIn("# my own line", f.read())
+
+    def test_an_earlier_versions_dated_copies_go(self):
+        for stamp in ("20260101-000000", "20260501-000000"):
+            self.write(f".local/state/herdr-fold/{stamp}/x", "old backup\n")
+        self.write(".local/state/herdr-fold/changed-20260101-000000/.config/ghostty/config", "# mine\n")
+        self.install()
+        self.assertEqual(self.dated(), [])
+        mine = ".local/state/herdr-fold/changed-20260101-000000/.config/ghostty/config"
+        self.assertEqual(self.read(mine), "# mine\n")
+
+    def dated(self):
+        """The dated folders in the installer's state folder: copies of the package's own files, which none keeps."""
+        return sorted(d for d in os.listdir(self.path(".local/state/herdr-fold")) if d[:1].isdigit())
 
 
 if __name__ == "__main__":

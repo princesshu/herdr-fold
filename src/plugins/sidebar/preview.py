@@ -11,6 +11,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 
+import column
 import media
 import statefile
 
@@ -21,7 +22,7 @@ READY = 1.5                   # seconds a new tab's sidebar may take to start be
 
 
 class Herdr:
-    """herdr's command line: the result part of its JSON answer; an error raises RuntimeError."""
+    """herdr's command line: the result part of its JSON answer; an error raises RuntimeError with its message."""
 
     def __init__(self, binary=None):
         self.binary = binary or os.environ.get("HERDR_BIN_PATH") or shutil.which("herdr") or "herdr"
@@ -32,12 +33,21 @@ class Herdr:
         except (OSError, subprocess.TimeoutExpired) as err:
             raise RuntimeError(str(err)) from err
         if out.returncode != 0:
-            raise RuntimeError(((out.stderr or out.stdout).strip().splitlines() or ["herdr failed"])[-1])
+            line = ((out.stderr or out.stdout).strip().splitlines() or ["herdr failed"])[-1]
+            raise RuntimeError(column.refusal(line) or line)        # its error's own message, never its JSON
         try:
             data = json.loads(out.stdout) if out.stdout.strip() else {}
         except ValueError:
             return {}
         return data.get("result", {}) if isinstance(data, dict) else {}
+
+    def text(self, *args):
+        """What a command prints as text (a pane's rows): "" where it fails."""
+        try:
+            out = subprocess.run([self.binary, *args], capture_output=True, text=True, timeout=15)
+        except (OSError, subprocess.TimeoutExpired):
+            return ""
+        return out.stdout if out.returncode == 0 else ""
 
 
 def file_spec(root, path, line, which=shutil.which):
@@ -83,6 +93,28 @@ def commit_spec(root, commit, which=shutil.which):
     show = git_argv(git, root, "show")
     pipeline = [show + [commit], [delta, *DELTA]] if delta else [show + ["--color=always", commit]]
     return {"title": commit, "line": None, "file": None, "pipeline": pipeline}
+
+
+# a tree row's role as its colors: the terminal's own, so they follow its theme (pager.py lets colors alone through)
+ROLES = {"bold": "1", "dim": "90", "bad": "31", "warn": "33", "accent": "1;35"}
+GRAPH_VIEWS = (("w", "wiring", False), ("c", "run", True))    # a graph's views: its key, core's name, tree()'s RUN
+
+
+def painted(rows):
+    """A tree's ROWS (layers.py's tree_rows()) as the pager's lines, each part in its role's colors."""
+    return ["".join(f"\x1b[{ROLES[role]}m{words}\x1b[0m" if role else words for words, role in row).rstrip()
+            for row in rows]
+
+
+def graph_spec(graph, rows, view="w"):
+    """Core's GRAPH as a tree in the preview tab: its views (Wiring, and This conversation where one was read) each its
+    key, core's word and its lines, ROWS(run) giving a view's rows; the pager's w and c switch them. A pager from
+    before the views reads the file it names, which is none."""
+    views = [{"key": key, "name": graph["words"]["views"][name], "lines": painted(rows(run))}
+             for key, name, run in GRAPH_VIEWS if not run or graph["run"]]
+    return {"title": f"{graph['name']} in {os.path.basename(graph['folder'].rstrip(os.sep))}", "line": None,
+            "file": os.devnull, "pipeline": [], "views": views, "view": view if view in [v["key"] for v in views]
+            else "w"}
 
 
 def spec_file(state_dir, workspace):
@@ -197,7 +229,7 @@ def paging(herdr, pane):
 
 
 def label(text):
-    """TEXT as a herdr tab or pane name: printable characters only (a file name or a conversation's title may hold
+    """TEXT as a herdr tab or pane name: printable characters only (a file name or a chat's title may hold
     escape codes), and no leading dash, which herdr's command line would take for an option."""
     return "".join(ch for ch in text if ch.isprintable()).lstrip("- ")
 
@@ -205,7 +237,7 @@ def label(text):
 def open_tab(herdr, workspace, root, name, launch, pane_name="issue", lay_out=None, ready=lambda: True):
     """A new tab in ROOT labeled NAME, LAUNCH running in it once LAY_OUT(tab) has laid it out, shown once READY() says
     what started there draws; other tabs stay. Its pane is named first: the dock (panes.py --new-tab) leaves a new
-    tab alone once its pane has a name."""
+    tab alone once its pane has a name. Its (pane, tab)."""
     env = [arg for key, value in launch.env.items() for arg in ("--env", f"{key}={value}")]
     created = herdr.call("tab", "create", "--workspace", workspace, "--cwd", root, "--label", label(name), *env,
                          "--no-focus")
@@ -220,3 +252,4 @@ def open_tab(herdr, workspace, root, name, launch, pane_name="issue", lay_out=No
         while not ready() and time.monotonic() < end:
             time.sleep(0.05)
         herdr.call("tab", "focus", tab)
+    return pane, tab

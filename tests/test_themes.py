@@ -1,16 +1,22 @@
 """Tests for themes/apply.py on temporary files: the config's current theme, replacing the block between its markers,
 the sidebar's colors (each text readable on its background), and the Ghostty app icon in the theme's colors."""
+import functools
 import hashlib
 import json
 import os
+import plistlib
 import re
 import shutil
+import stat
+import struct
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
+import zlib
 
-from support import PACKAGE, SRC, png_alpha, png_rgba, set_attrs, set_env
+from support import PACKAGE, PNG_SIGNATURE, SRC, png_alpha, png_rgba, set_attrs, set_env
 
 sys.path.insert(0, os.path.join(SRC, "themes"))
 sys.path.append(os.path.join(SRC, "plugins", "sidebar"))
@@ -23,6 +29,17 @@ DRAWER = os.path.join(PACKAGE, "tools", "logo.swift")                     # herd
 MEDIA_TOOL = os.path.join(os.path.dirname(PACKAGE), "media", "tools", "overview.py")
 CONFIG = ("font-size = 13\n# --- theme: vesper — written by apply.py ---\ntheme = Vesper\n# --- end of theme ---\n"
           "mine = 1\n")
+
+
+@functools.lru_cache(maxsize=None)
+def blank_png(side, color=6):
+    """A transparent PNG SIDE pixels a side, as sips gives one (COLOR 2: one without an alpha channel)."""
+    rows = b"".join(b"\0" + bytes(side * (4 if color == 6 else 3)) for _ in range(side))
+
+    def chunk(kind, body):
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+    return (PNG_SIGNATURE + chunk(b"IHDR", struct.pack(">IIBBBBB", side, side, 8, color, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
 
 
 class Themes(unittest.TestCase):
@@ -58,18 +75,21 @@ class Themes(unittest.TestCase):
 
 class Themed(unittest.TestCase):
     """Every file apply.py writes is in a temporary folder, and the herdr it calls is never the running one; the parts
-    installed are a TUI's, as the records there say (this Mac's own are never read)."""
+    installed are a TUI's, as the records there say (this Mac's own are never read). The icon is drawn here, not by
+    macOS's sips, and no Ghostty is asked about it (one is only where a test puts it)."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp)
+        self.drawn = []
         set_attrs(self, apply, GHOSTTY=os.path.join(self.tmp, "ghostty"), HERDR=os.path.join(self.tmp, "config.toml"),
                   STARSHIP=os.path.join(self.tmp, "starship.toml"),
                   SIDEBAR_COLORS=os.path.join(self.tmp, "state", "herdr-fold.sidebar", "colors.json"),
                   LOADING_COLORS=os.path.join(self.tmp, "state", "herdr-fold", "loading-colors.txt"),
                   GHOSTTY_ICON=os.path.join(self.tmp, "herdr-fold-icon"),
                   ICONS=os.path.join(self.tmp, "state", "herdr-fold", "ghostty-icon"), MAC=True,
-                  APP_LAYOUT=os.path.join(self.tmp, "app", "layouts", "herdr-fold.json"))
+                  APP_LAYOUT=os.path.join(self.tmp, "app", "layouts", "herdr-fold.json"),
+                  drawn_png=self.draw, GHOSTTY_APPS=(os.path.join(self.tmp, "Applications", "Ghostty.app"),))
         set_env(self, HERDR_BIN_PATH="/usr/bin/true")
         records = os.path.join(self.tmp, "state", "herdr-fold")
         os.makedirs(records)
@@ -78,6 +98,11 @@ class Themed(unittest.TestCase):
         set_attrs(self, apply, installed=lambda: parts.installed(records))
         with open(apply.GHOSTTY, "w", encoding="utf-8") as f:
             f.write(CONFIG)
+
+    def draw(self, svg):
+        """sips's part: the logo it is given kept, a transparent PNG of the icon's size back."""
+        self.drawn.append(svg)
+        return blank_png(apply.ICON_SIDE)
 
 
 class Apply(Themed):
@@ -169,7 +194,7 @@ class WrittenBeside(Themed):
         theme = apply.find(apply.load_themes(), "nord")
         drawn = hashlib.sha256(apply.themed_logo(theme).encode()).hexdigest()[:8]
         written = [apply.SIDEBAR_COLORS, apply.LOADING_COLORS, apply.GHOSTTY_ICON,
-                   os.path.join(apply.ICONS, f"nord-{drawn}.svg")]
+                   os.path.join(apply.ICONS, f"nord-{drawn}.png")]
         for path in written:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             os.symlink(target, path + ".tmp")
@@ -195,8 +220,10 @@ class PackageSettings(unittest.TestCase):
             self.herdr = f.read()
 
     def test_ghostty_gives_the_rows_and_the_window_room(self):
-        for setting in ("adjust-cell-height = 10%", "window-padding-x = 8", "window-padding-y = 8"):
+        # the rows' room is in herdr-fold Mono's own line height: no cell height set over it
+        for setting in ("font-family = herdr-fold Mono", "window-padding-x = 8", "window-padding-y = 8"):
             self.assertIn("\n" + setting + "\n", self.ghostty)
+        self.assertNotIn("adjust-cell-height", self.ghostty)
 
     def test_herdrs_sessions_have_their_state_faint_below_and_an_empty_row_between_them(self):
         # the name, and below it the state in herdr's own faint style, as a space's branch, and the agent
@@ -260,6 +287,24 @@ class PackageSettings(unittest.TestCase):
         import picker
         rows = [re.sub(r"\x1b\[[0-9;]*m", "", row).rstrip() for row in picker.sample(apply.load_themes()[0], 56)]
         self.assertEqual(rows[:2], [" repo", " main [!] ❯ claude"])
+
+    def test_the_pickers_close_button_leaves_the_theme_as_it_is(self):
+        # every popup's close button: a click on it goes as Esc does, nothing applied
+        import picker
+        keys = ["\x1b[B", picker.CLOSED]
+        with mock.patch.object(picker, "read_key", lambda *a, **k: keys.pop(0)), \
+                mock.patch.object(picker, "close_button", lambda: mock.Mock(overlay=lambda width: "")), \
+                mock.patch.object(picker, "mouse", lambda *a, **k: None), \
+                mock.patch.object(picker.apply, "apply") as applied, mock.patch("builtins.print"):
+            picker.main()
+        applied.assert_not_called()
+
+    def test_the_pickers_title_keeps_a_cell_from_its_left_side_as_every_popup(self):
+        import picker
+        with mock.patch("builtins.print") as shown:
+            picker.render(apply.load_themes(), 0, None, 80)
+        first = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", shown.call_args.args[0]).split("\n")[0]
+        self.assertTrue(first.startswith(" Color theme"), first)
 
     def test_the_previews_sketch_shows_no_tilde(self):
         # as the app: the home folder's workspace is home, the prompt's folder starts at the repository's root
@@ -342,7 +387,7 @@ class SidebarColors(Themed):
                 problems.append(f"{theme['id']}: {guide:.2f} (muted {muted:.2f})")
         self.assertEqual(problems, [])
 
-    def test_an_archived_conversation_is_a_legible_shade_between_the_faint_text_and_the_lines(self):
+    def test_an_archived_chat_is_a_legible_shade_between_the_faint_text_and_the_lines(self):
         problems = []
         for theme in apply.load_themes():
             colors, background = apply.sidebar_colors(theme), theme["colors"]["background"]
@@ -472,8 +517,8 @@ class LoadingColors(Themed):
 
 class GhosttyIcon(Themed):
     """The Ghostty app icon in the theme's colors, on a Mac: herdr-fold's logo (logo.svg beside apply.py) with its four
-    colors the theme's, a file of its own; Ghostty finds it through the file its config includes. Where it cannot be
-    written, Ghostty's own icon stays."""
+    colors the theme's, drawn as a PNG (Ghostty reads PNG, JPEG and ICNS), a file of its own; Ghostty finds it through
+    the file its config includes. Where it cannot be drawn or written, Ghostty's own icon stays."""
 
     def setUp(self):
         super().setUp()
@@ -499,13 +544,84 @@ class GhosttyIcon(Themed):
     def test_a_theme_gives_ghostty_the_logo_in_its_colors(self):
         apply.apply(self.nord)
         path = self.icon()
-        self.assertTrue(path.startswith(apply.ICONS + os.sep) and path.endswith(".svg"), path)
-        with open(path, encoding="utf-8") as f:
-            drawn = self.colors(f.read())
+        self.assertTrue(path.startswith(apply.ICONS + os.sep) and path.endswith(".png"), path)
+        drawn = self.colors(self.drawn[-1])
         with open(apply.LOGO, encoding="utf-8") as f:
             logo = self.colors(f.read())
         self.assertEqual(drawn[0], apply.icon_colors(self.nord))
         self.assertEqual(drawn[1], logo[1])                                  # nothing else of the logo changed
+
+    def test_ghostty_is_given_a_png_and_the_folder_holds_nothing_else(self):
+        # an earlier version's SVG goes too: Ghostty does not read SVG, and nothing is kept that nothing shows
+        os.makedirs(apply.ICONS)
+        with open(os.path.join(apply.ICONS, "nord-0a1b2c3d.svg"), "w", encoding="utf-8") as f:
+            f.write("<svg/>")
+        apply.apply(self.nord)
+        path = self.icon()
+        with open(path, "rb") as f:
+            self.assertEqual(f.read(), blank_png(apply.ICON_SIDE))
+        self.assertEqual(os.listdir(apply.ICONS), [os.path.basename(path)])
+        apply.apply(self.nord)                                    # drawn once: the PNG there is the one
+        self.assertEqual(len(self.drawn), 1)
+
+    def test_where_it_cannot_be_drawn_ghostty_keeps_its_own_icon(self):
+        # no sips (or one that cannot read SVG), or a picture that is not the icon: no square of the icon's size with
+        # its transparency (its rounded corners); the earlier icon and the file naming it go, the line says so
+        apply.apply(self.dracula)
+        for drawn in (None, b"", blank_png(512), blank_png(apply.ICON_SIDE, color=2)):
+            with self.subTest(drawn=drawn[:30] if drawn else drawn):
+                set_attrs(self, apply, drawn_png=lambda svg, drawn=drawn: drawn)
+                self.assertIsNone(apply.apply(self.nord)[2])
+                self.assertFalse(os.path.exists(apply.GHOSTTY_ICON))
+                self.assertEqual(os.listdir(apply.ICONS), [])
+                self.assertEqual(apply.current_id(apply.GHOSTTY), "nord")
+        self.assertEqual(apply.icon_line(None), apply.line("skip", apply.t("theme.ghostty_icon_kept")))
+
+    def ghostty_app(self, says=None, exits=0, bundle="com.mitchellh.ghostty", hangs=False):
+        """A Ghostty app where the installer looks for one: its `ghostty +show-config` says SAYS and ends with EXITS
+        (HANGS: it never answers)."""
+        app = os.path.join(self.tmp, "Applications", "Ghostty.app")
+        os.makedirs(os.path.join(app, "Contents", "MacOS"), exist_ok=True)
+        with open(os.path.join(app, "Contents", "Info.plist"), "wb") as f:
+            plistlib.dump({"CFBundleIdentifier": bundle}, f)
+        said = os.path.join(self.tmp, "show-config")
+        with open(said, "w", encoding="utf-8") as f:
+            f.write(says or "")
+        command = os.path.join(app, "Contents", "MacOS", "ghostty")
+        with open(command, "w", encoding="utf-8") as f:
+            f.write(f'#!/bin/sh\n[ "$*" = +show-config ] || exit 9\n{"exec sleep 5" if hangs else ""}\n'
+                    f'cat "{said}"\nexit {exits}\n')
+        os.chmod(command, os.stat(command).st_mode | stat.S_IEXEC)
+
+    def test_ghostty_is_asked_whether_it_takes_the_icon(self):
+        # what Ghostty itself reads, the include and all: the theme's line is a plain yes only where it names the PNG
+        icon = apply.apply(self.nord)[2]
+        self.ghostty_app(f"font-size = 13\nmacos-icon = custom\nmacos-custom-icon = {icon}\n")
+        self.assertEqual(apply.icon_line(icon), apply.line("ok", apply.t("theme.ghostty_icon")))
+
+    def test_a_ghostty_that_does_not_take_the_icon_is_named_in_a_warning(self):
+        icon = apply.apply(self.nord)[2]
+        for says, reads in (("font-size = 13\n", "macos-icon = official"),          # the include not read
+                            ("macos-icon = xray\n", "macos-icon = xray"),
+                            ("macos-icon = custom\nmacos-custom-icon = /an/earlier/icon.svg\n",
+                             "macos-custom-icon = /an/earlier/icon.svg")):
+            with self.subTest(reads=reads):
+                self.ghostty_app(says)
+                self.assertEqual(apply.icon_line(icon), apply.line("warn", apply.t("theme.ghostty_icon_unseen", reads)))
+
+    def test_a_ghostty_that_does_not_answer_is_a_warning_too(self):
+        # an error, or no answer in time: the theme is still set, its line does not wait for good
+        icon = apply.apply(self.nord)[2]
+        set_attrs(self, apply, ASK_GHOSTTY=0.5)
+        for ends in ({"exits": 1}, {"hangs": True}):
+            with self.subTest(**ends):
+                self.ghostty_app(f"macos-icon = custom\nmacos-custom-icon = {icon}\n", **ends)
+                self.assertEqual(apply.icon_line(icon), apply.line("warn", apply.t("theme.ghostty_icon_unasked")))
+
+    def test_an_app_that_is_not_ghostty_is_never_run(self):
+        icon = apply.apply(self.nord)[2]
+        self.ghostty_app("font-size = 13\n", bundle="com.example.other")
+        self.assertEqual(apply.icon_line(icon), apply.line("ok", apply.t("theme.ghostty_icon")))
 
     def test_only_the_icon_of_the_theme_in_use_is_kept(self):
         # another theme's is written again at once: no picture kept that nothing shows
@@ -548,6 +664,8 @@ class GhosttyIcon(Themed):
         apply.apply(self.nord)
         self.assertFalse(os.path.exists(apply.GHOSTTY_ICON))
         self.assertFalse(os.path.exists(apply.ICONS))
+        self.assertEqual(self.drawn, [])
+        self.assertIsNone(apply.icon_line(None))
 
     def test_a_changed_logo_writes_anew_and_the_old_icon_goes(self):
         logo = os.path.join(self.tmp, "logo.svg")
@@ -561,6 +679,21 @@ class GhosttyIcon(Themed):
         self.assertNotEqual(self.icon(), old)
         self.assertFalse(os.path.exists(old))
         self.assertEqual(len(os.listdir(apply.ICONS)), 1)
+
+
+@unittest.skipUnless(os.path.exists(apply.SIPS), "macOS's sips")
+class GhosttyIconPng(unittest.TestCase):
+    """The icon as macOS's sips draws it from the themed logo: a square of the icon's size, its rounded corners
+    transparent (Quick Look's qlmanage puts white there), its screen opaque."""
+
+    def test_sips_draws_the_icon_with_its_transparency(self):
+        png = apply.drawn_png(apply.themed_logo(apply.find(apply.load_themes(), "nord")))
+        self.assertEqual(apply.png_side(png or b""), apply.ICON_SIDE)
+        with tempfile.NamedTemporaryFile(suffix=".png") as f:
+            f.write(png)
+            f.flush()
+            alpha = png_alpha(f.name)
+        self.assertEqual((alpha[0][0], alpha[1023][1023], alpha[512][512]), (0, 0, 255))
 
 
 class IconScreen(unittest.TestCase):

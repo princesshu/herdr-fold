@@ -7,7 +7,7 @@ import unittest
 from support import SRC
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
-from screen import Canvas  # noqa: E402
+from screen import Canvas, Style  # noqa: E402
 from vt import Key  # noqa: E402
 import widgets  # noqa: E402
 from icons import glyphs  # noqa: E402
@@ -294,18 +294,36 @@ class Menus(unittest.TestCase):
         self.assertEqual(Menu(["a"]).handle(Key("esc")), "cancel")
 
     def test_it_is_drawn_as_herdrs_own_menus(self):
-        menu = Menu(["Open", "Copy conversation"])
-        self.assertEqual((menu.width(), Menu(["Open"]).width(), menu.height()), (len("Copy conversation") + 4, 14, 4))
+        menu = Menu(["Open", "Open in a new tab"])
+        self.assertEqual((menu.width(), Menu(["Open"]).width(), menu.height()), (len("Open in a new tab") + 4, 14, 4))
         canvas = Canvas(40, 6)
         menu.draw(canvas, 0, 0, menu.width())
         rows = ["".join(ch for ch, _ in row)[:menu.width()] for row in canvas.rows[:4]]
-        self.assertEqual(rows, ["┌" + "─" * 19 + "┐", "│Open" + " " * 15 + "│", "│Copy conversation  │",
+        self.assertEqual(rows, ["┌" + "─" * 19 + "┐", "│ Open" + " " * 14 + "│", "│ Open in a new tab │",
                                 "└" + "─" * 19 + "┘"])
         self.assertEqual((canvas.rows[0][0][1].fg, canvas.rows[0][0][1].bg), ("accent", "panel"))
         lit, plain = canvas.rows[1][1][1], canvas.rows[2][1][1]
         self.assertEqual(((lit.fg, lit.bg, lit.bold), (plain.fg, plain.bg)),
                          (("button_text", "button", True), ("text", "panel")))      # the chosen row in the accent
         self.assertEqual(menu.at(30, 35, 40, 0, 20), (16, 19, 21))                  # moved in to stay on screen
+
+    def test_the_line_under_the_mouse_has_the_hover_background_inside_the_frame(self):
+        # from frame to frame, as a view's row; the chosen line keeps its own; a rule, or outside, lights none
+        menu = Menu(["Open", None, "Open in a new tab", "Rename"])
+        for target, hover in (("menu:2", 2), ("menu:0", 0), ("row", None), (None, None)):
+            with self.subTest(target):
+                menu.point(target)
+                self.assertEqual(menu.hover, hover)
+                canvas = Canvas(40, 7)
+                menu.draw(canvas, 0, 3, menu.width())
+                lit = {(y, x) for y, row in enumerate(canvas.rows) for x, (_, style) in enumerate(row)
+                       if style.bg == "hover"}
+                inside = range(4, 3 + menu.width() - 1)
+                self.assertEqual(lit, {(1 + hover, x) for x in inside} if hover not in (None, 0) else set())
+                if hover:                                   # a cell between the frame and its text, lit too
+                    self.assertEqual([canvas.rows[1 + hover][x] for x in (4, 5)],
+                                     [(" ", Style(fg="text", bg="hover")), ("O", Style(fg="text", bg="hover"))])
+                self.assertEqual(canvas.rows[1][4][1].bg, "button")                # the chosen one, as it was
 
     def test_a_separator_parts_its_choices_and_is_never_chosen(self):
         # None: a rule between two kinds of choice, as herdr's own menus part theirs
@@ -321,7 +339,7 @@ class Menus(unittest.TestCase):
         self.assertEqual(Menu([None, "a"]).index, 1)                                 # never starting on it
 
     def test_it_opens_above_the_row_when_it_does_not_fit_under_it(self):
-        menu = Menu(["Open", "Copy conversation"])                                   # 4 rows high, 21 wide
+        menu = Menu(["Open", "Open in a new tab"])                                   # 4 rows high, 21 wide
         self.assertEqual(menu.at(5, 0, 40, 0, 20), (5, 0, 21))                      # room under: there
         self.assertEqual(menu.at(18, 0, 40, 0, 20), (14, 0, 21))                    # none: above the row
         self.assertEqual(menu.at(3, 0, 40, 0, 6), (2, 0, 21))                       # neither: moved in

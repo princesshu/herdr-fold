@@ -17,8 +17,8 @@ import statefile  # noqa: E402
 from i18n import line, t  # noqa: E402
 from icons import icon  # noqa: E402
 from screen import after, icons_on  # noqa: E402
-from tui import (GRAY, INVERT, MARGIN, RESET, button_at, buttons, clicked, getkey, mouse, printable,  # noqa: E402
-                 wait_and_exit)
+from tui import (CLOSE_ROOM, CLOSED, GRAY, INVERT, MARGIN, RESET, RIGHT, button_at, buttons, clicked,  # noqa: E402
+                 close_button, mouse, printable, read_key, wait_and_exit)
 
 HOME = os.path.expanduser("~")
 BOLD = "\x1b[1m"
@@ -162,8 +162,9 @@ def row(found, root, chosen, width, icons):
 
 def screen(picker, height, width):
     """The popup: the pane's folder as the title, what you type to filter by (only then), the files, Cancel and Open."""
-    rows, icons = picker.fit(height), icons_on(PLUGIN_STATE)
-    lines = [" " * MARGIN + f"{BOLD}{printable(picker.root.replace(HOME, '~', 1))}{RESET}",
+    rows, icons, room = picker.fit(height), icons_on(PLUGIN_STATE), width - MARGIN - RIGHT - CLOSE_ROOM
+    title = printable(picker.root.replace(HOME, "~", 1))
+    lines = [" " * MARGIN + f"{BOLD}{title if len(title) <= room else title[:max(0, room - 1)] + '…'}{RESET}",
              " " * MARGIN + f"{picker.filt}▏" if picker.filt else ""]
     lines += [row(one, picker.root, n == picker.chosen, width, icons) for n, one in enumerate(rows, picker.top)]
     if not picker.files:
@@ -208,12 +209,18 @@ def main():
         print(line("fail", t("common.not_in_herdr")))
         wait_and_exit(1)
     root = os.environ.get("HERDR_ACTIVE_PANE_CWD") or os.getcwd()
-    picker = Picker(named(output(pane), folders(root)), root)
-    mouse(True)
+    picker, close = Picker(named(output(pane), folders(root)), root), close_button()
+    mouse(True, moves=True)
     while True:
         height, width = max(3, os.get_terminal_size().lines - 4), os.get_terminal_size().columns
-        print(screen(picker, height, width), end="", flush=True)
-        key = getkey()
+
+        def draw():
+            print(screen(picker, height, width) + close.overlay(width), end="", flush=True)
+
+        draw()
+        key = read_key(close, width, draw)
+        if key == CLOSED:                             # whatever was typed: the popup goes, as Cancel
+            return
         event = clicked(key)
         action = picker.click(event, time.monotonic(), width, height) if event else picker.press(key, height)
         if action == "open" and picker.chosen_file():

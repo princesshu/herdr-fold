@@ -33,21 +33,32 @@ GRAY, RESET = "\x1b[38;2;147;153;178m", "\x1b[0m"
 SEP = f" {GRAY}|{RESET} "
 
 
-def run(data, choice=None, columns=None, twelve=True):
+def run(data, choice=None, columns=None, twelve=True, kept=None, blocked=False):
     """What the status line prints for Claude's JSON DATA, with CHOICE as statusline.json, COLUMNS as the pane's width
-    and the machine's hours TWELVE or 24 (time.json's) — in UTC, with no jq or anything else on the PATH."""
+    and the machine's hours TWELVE or 24 (time.json's) — in UTC, with no jq or anything else on the PATH. KEPT gets
+    the limits it kept (None for none); BLOCKED puts a file where their folder goes."""
     with tempfile.TemporaryDirectory() as home:
         if choice is not None:
             os.makedirs(os.path.join(home, ".config", "herdr-fold"))
             with open(os.path.join(home, ".config", "herdr-fold", "statusline.json"), "w") as f:
                 f.write(choice)
-        os.makedirs(os.path.join(home, ".local", "state", "herdr-fold"))
-        with open(os.path.join(home, ".local", "state", "herdr-fold", "time.json"), "w") as f:
+        state = os.path.join(home, ".local", "state", "herdr-fold")
+        os.makedirs(state)
+        with open(os.path.join(state, "time.json"), "w") as f:
             json.dump({"twelve": twelve}, f)
+        if blocked:
+            with open(os.path.join(state, "limits"), "w"):
+                pass
         env = {"HOME": home, "PATH": "", "TZ": "UTC", **({"COLUMNS": columns} if columns else {})}
         done = subprocess.run([sys.executable, SCRIPT], input=data.encode("utf-8"), capture_output=True, timeout=20,
                               env=env)
         assert done.returncode == 0 and not done.stderr, done.stderr
+        path = os.path.join(state, "limits", "claude.json")
+        if kept is not None and os.path.isfile(path):
+            with open(path, encoding="utf-8") as f:
+                kept.append(json.load(f))
+        elif kept is not None:
+            kept.append(None)
         return done.stdout.decode("utf-8")
 
 
@@ -80,10 +91,39 @@ class Statusline(unittest.TestCase):
     def test_the_context_and_its_window_size_are_one_choice(self):
         # two would show the context twice in the installer's list (context: 22% and context: 22%/1M)
         import statusline_setup
-        for tool in ("claude", "codex"):
+        for tool, own in (("claude", ["cost"]), ("codex", [])):         # Codex's line is its own: no cost there
             self.assertEqual([key for key, _, _ in statusline_setup.ITEMS[tool]],
-                             ["effort", "context", "five_hour", "weekly"], tool)
+                             ["effort", "context", "five_hour", "weekly"] + own, tool)
         self.assertEqual(statusline_setup.ITEMS["claude"][1][2], "context: 22%/1M")
+        self.assertEqual(statusline_setup.ITEMS["claude"][-1][2], "~$4.12")    # as the line prints it, either plan
+
+    def test_the_sessions_cost_wears_one_tilde_on_a_plan_and_with_an_api_key(self):
+        # usage.html's claude pane: Claude's own count at list prices, an estimate either way (usage-agents.html)
+        plan = ('{"model":{"display_name":"Opus 5.5"},"context_window":{"used_percentage":34},'
+                '"rate_limits":{"five_hour":{"used_percentage":72}},"cost":{"total_cost_usd":4.1234}}')
+        key = ('{"model":{"display_name":"Opus 5.5"},"context_window":{"used_percentage":34},'
+               '"cost":{"total_cost_usd":4.12}}')
+        on = '{"claude": {"cost": true}}'                             # the one item switched on by its user
+        start = f"{TEAL}Opus 5.5{RESET}{SEP}{GRAY}context:{RESET} {YELLOW}34%{RESET}"
+        self.assertEqual(run(plan, on), f"{start}{SEP}{GRAY}current:{RESET} {WARN}72%{RESET}{GRAY}{RESET}"
+                                    f"{SEP}{GRAY}~$4.12{RESET}")
+        self.assertEqual(run(key, on), f"{start}{SEP}{GRAY}~$4.12{RESET}")
+        self.assertEqual(re.sub(r"\x1b\[[0-9;]*m", "", run(plan, on, columns="42")),
+                         "Opus 5.5 | context: 34% | current: 72%")
+
+    def test_the_cost_is_the_first_thing_a_narrower_pane_drops_and_absent_when_not_chosen(self):
+        data = FULL[:-1] + ',"cost":{"total_cost_usd":1234.5}}'
+        on = '{"claude": {"cost": true}}'
+        whole = run(data, on)
+        self.assertTrue(whole.endswith(f"{SEP}{GRAY}~$1,234.50{RESET}"), whole)
+        self.assertEqual(whole[:-len(f"{SEP}{GRAY}~$1,234.50{RESET}")], run(FULL))
+        plain = len(re.sub(r"\x1b\[[0-9;]*m", "", whole))
+        self.assertEqual(run(data, on, columns=str(plain + 2)), whole)          # it fits: Claude's two cells of indent
+        self.assertEqual(run(data, on, columns=str(plain + 1)), run(FULL))      # a cell short: the cost goes, alone
+        self.assertEqual(run(data, '{"claude": {"cost": false}}'), run(FULL))
+        self.assertEqual(run(data), run(FULL))                  # not chosen yet: off, the one item that is
+        for none in ('"cost":{}', '"cost":{"total_cost_usd":0}', '"cost":{"total_cost_usd":"4"}', '"cost":null'):
+            self.assertEqual(run(FULL[:-1] + "," + none + "}", on), run(FULL), none)     # nothing counted yet: no $0.00
 
     def test_a_damaged_choice_shows_everything(self):
         self.assertEqual(run(FULL, '{"claude": '), run(FULL))
@@ -129,7 +169,21 @@ class Statusline(unittest.TestCase):
 
     def test_unreadable_input_prints_nothing(self):
         for data in ("", "{", "[1, 2]", '{"model": "Opus", "rate_limits": 7}'):
-            self.assertEqual(run(data), "", data)
+            kept = []
+            self.assertEqual(run(data, kept=kept), "", data)
+            self.assertEqual(kept, [None], data)
+
+    def test_the_limits_are_kept_for_usage_and_the_line_stays_the_same(self):
+        # core/usage.py's shape (tests/test_core_usage.py pins it to the app's): the use, its reset, when; no more
+        kept = []
+        self.assertEqual(run(FULL, kept=kept), run(FULL, blocked=True))
+        self.assertIsInstance(kept[0].pop("at"), int)
+        self.assertEqual(kept, [{"five_hour": {"used": 64, "resets": 1000}, "week": {"used": 91, "resets": MONDAY}}])
+
+    def test_nothing_is_kept_before_the_first_answer(self):
+        kept = []
+        run('{"model":{"display_name":"Haiku 5.5"},"context_window":{"used_percentage":3}}', kept=kept)
+        self.assertEqual(kept, [None])
 
 
 def load_statusline():
@@ -513,8 +567,8 @@ class CodexConfig(unittest.TestCase):
                                                           "context-window-size", "my-item"])
         with open(self.module.CODEX) as f:
             self.assertNotIn("context-remaining", f.read())
-        self.assertEqual([key for key, _, _ in self.module.ITEMS["claude"]],
-                         [key for key, _, _ in self.module.ITEMS["codex"]])               # the same, in one order
+        self.assertEqual([key for key, _, _ in self.module.ITEMS["claude"]],          # the same, in one order, and
+                         [key for key, _, _ in self.module.ITEMS["codex"]] + ["cost"])    # Claude's cost: its line's
 
     def test_your_own_chosen_herdr_folds_items_go_and_yours_stay(self):
         result, text = self.apply('[tui]\nstatus_line = ["model-with-reasoning", "context-remaining", "my-item"]\n',

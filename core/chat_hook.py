@@ -1,6 +1,6 @@
 """What Claude runs in herdr-fold's chats, passed with --settings (nothing installed, the user's own settings never
-touched): its PermissionRequest hook, answered from the app through the chat's files, and its status line, whose
-numbers it keeps for the app's bar. Without an answer in time it prints nothing, and Claude asks in its terminal."""
+touched): its PermissionRequest hook, answered from the app through the chat's files, and its status line, whose numbers
+it keeps for the app's bar and Usage. Without an answer in time it prints nothing, and Claude asks in its terminal."""
 import json
 import os
 import sys
@@ -10,11 +10,12 @@ import uuid
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 import chat  # noqa: E402
 import statefile  # noqa: E402
-from conversations import obj, parse, text  # noqa: E402
+import usage  # noqa: E402
+from chats import obj, parse, text          # noqa: E402
 
 TIMEOUT = 590                   # seconds the hook waits for the app: Claude gives it 600
 NO = "The user said no."
-# where a kept rule goes, by the scope the user chose: this conversation, this project (its local settings), everywhere
+# where a kept rule goes, by the scope the user chose: this chat, this project (its local settings), everywhere
 DESTINATION = {"session": "session", "project": "localSettings", "user": "userSettings"}
 ASKED = ("tool_name", "tool_input", "permission_suggestions", "cwd")   # what the app's card is drawn from
 EDITS = ("Edit", "MultiEdit", "Write", "NotebookEdit")      # a file's change: its card offers edits for now
@@ -59,7 +60,7 @@ def wait_for(request, timeout=TIMEOUT, poll=0.2):
 
 def kept(tool, suggestion, scope=None):
     """SUGGESTION, Claude's first, as kept where SCOPE says, when it is what the card offers to keep (agents.js's
-    cardFor): its one rule, or for TOOL's edit, edits for this conversation; None for anything else."""
+    cardFor): its one rule, or for TOOL's edit, edits for this chat; None for anything else."""
     suggestion = obj(suggestion)
     if suggestion.get("type") == "addRules" and isinstance(suggestion.get("rules"), list) \
             and len(suggestion["rules"]) == 1:
@@ -100,7 +101,7 @@ def percent(value):
 
 def write_status(data):
     """The status line's numbers from DATA, Claude's status JSON, kept in the chat's status file for the app's bar (no
-    folder, no prompt, nothing else of it), and the short line Claude shows."""
+    folder, no prompt, nothing else of it), its limits for Usage too (usage.keep), and the short line Claude shows."""
     model = text(field(data, "model", "display_name")) or text(field(data, "model", "id")) or "Claude"
     context = percent(field(data, "context_window", "used_percentage"))
     window = field(data, "context_window", "context_window_size")
@@ -109,10 +110,14 @@ def write_status(data):
         resets = field(data, "rate_limits", name, "resets_at")
         return {"used": percent(field(data, "rate_limits", name, "used_percentage")),
                 "resets": resets if isinstance(resets, (int, float)) and not isinstance(resets, bool) else None}
+    limits, at = {"five_hour": limit("five_hour"), "week": limit("seven_day")}, int(time.time())
     statefile.write(chat.status_path(text(data.get("session_id"))), {
         "context": context, "window": window if isinstance(window, int) else None, "model": model,
-        "effort": text(field(data, "effort", "level")), "limits": {"five_hour": limit("five_hour"),
-                                                                   "week": limit("seven_day")}, "at": int(time.time())})
+        "effort": text(field(data, "effort", "level")), "limits": limits, "at": at})
+    try:
+        usage.keep("claude", limits, at)
+    except OSError:
+        pass                    # the bar and the line go on without it
     return model if context is None else f"{model} · ctx {context}%"
 
 

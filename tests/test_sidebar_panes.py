@@ -12,7 +12,7 @@ import unittest
 from support import SRC, FakeHerdrSocket, set_attrs, set_env, stubs
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
-import conversations  # noqa: E402
+import chats          # noqa: E402
 import panels  # noqa: E402
 import panes  # noqa: E402
 
@@ -64,17 +64,17 @@ class Panes(unittest.TestCase):
         self.state = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.state)
 
-    def write(self, data, name=conversations.SETTINGS):
+    def write(self, data, name=chats.SETTINGS):
         with open(os.path.join(self.state, name), "w") as f:
             json.dump(data, f)
 
-    def test_the_panes_reopening_a_conversation_are_kept_with_the_rest(self):
+    def test_the_panes_reopening_a_chat_are_kept_with_the_rest(self):
         self.write({"show_archived": True, "resumed": ["of another shape"]})
         self.assertEqual(panes.resumed(self.state), {})
         panes.resume(self.state, "w1:p9", "s2")
         panes.resume(self.state, "w2:p3", "c1")
         self.assertEqual(panes.resumed(self.state), {"w1:p9": "s2", "w2:p3": "c1"})
-        self.assertTrue(conversations.setting(self.state)["show_archived"])
+        self.assertTrue(chats.setting(self.state)["show_archived"])
 
     def test_a_tab_built_here_gets_the_right_column_as_wide_as_the_others(self):
         herdr = Herdr()
@@ -83,10 +83,10 @@ class Panes(unittest.TestCase):
             "pane split --pane w1:p1 --direction right --ratio 0.75 --cwd /repo/app --no-focus",
             "pane split --pane new1 --direction down --ratio 0.5 --cwd /repo/app --no-focus",
             "pane rename new2 terminal", "pane rename new1 sidebar", f"pane run new1 {panes.sidebar_command()}"])
-        self.write({"ratio": 0.8}, "column.json")                     # dragged: the right column 20%
+        self.write({"ratio": 0.8}, "column.json")                     # an older version's share: read no more
         herdr = Herdr()
         panes.build(herdr, "w1:p1", None, self.state, sidebar_run="launcher")
-        self.assertEqual(herdr.changes()[0], "pane split --pane w1:p1 --direction right --ratio 0.8 --no-focus")
+        self.assertEqual(herdr.changes()[0], "pane split --pane w1:p1 --direction right --ratio 0.75 --no-focus")
         self.assertEqual(herdr.changes()[-1], "pane run new1 launcher")
 
     def test_a_tab_built_here_is_noted_as_having_every_pane(self):
@@ -151,7 +151,7 @@ class Panes(unittest.TestCase):
         os.makedirs(os.path.join(home, ".config", "herdr"))
         with open(os.path.join(home, ".config", "herdr", "config.toml"), "w") as f:
             f.write('type = "plugin_action"\ncommand = "herdr-fold.sidebar.restore-panels"\n')
-        os.remove(os.path.join(self.state, conversations.SETTINGS))            # told once: shown again here
+        os.remove(os.path.join(self.state, chats.SETTINGS))                    # told once: shown again here
         self.assertEqual(self.closed_tip(), ["notification show Closed panels stay closed in their tab --body "
                                              "Cmd+Shift+O brings them back"])
 
@@ -310,6 +310,61 @@ class OnTheRail(unittest.TestCase):
         self.assertEqual(fake.moves, [])
 
 
+class TerminalOnTheRail(unittest.TestCase):
+    """The tab's terminal under the agent while the dock is a rail: collapsed to herdr's least share, or raised as tall
+    as it was in the right column; through herdr's socket (terminal(), size_terminal()) and command line."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(dir="/tmp")                 # a socket's name has room for 104 bytes
+        self.addCleanup(shutil.rmtree, self.tmp)
+        set_env(self, HERDR_SOCKET_PATH=os.path.join(self.tmp, "h.sock"))
+
+    def herdr(self, root):
+        self.fake = FakeHerdrSocket(os.path.join(self.tmp, "h.sock"), {"w1:t1": (root, False)})
+        self.addCleanup(self.fake.server.close)
+        return self.fake
+
+    def test_folded_it_lies_collapsed_under_the_agent_raised_as_tall_as_it_was_and_back(self):
+        column = OnTheRail.split("down", 0.7, OnTheRail.pane("w1:p2", "sidebar"), OnTheRail.pane("w1:p3", "terminal"))
+        fake = self.herdr(OnTheRail.split("right", 0.75, OnTheRail.pane("w1:p1", "claude"), column))
+        self.assertEqual((panes.terminal("w1:p2"), panes.COLLAPSED), ((0.3, False), 0.1))   # a tenth: herdr's least
+        self.assertTrue(panes.place_terminal(fake.cli, "w1:p2", True, panes.COLLAPSED))
+        root = fake.tabs["w1:t1"][0]
+        self.assertEqual((labels(root), panes.terminal("w1:p2")),
+                         (("right", 0.75, ("down", 0.9, "claude", "terminal"), "sidebar"), (0.1, True)))
+        self.assertTrue(panes.size_terminal("w1:p2", 0.3))
+        self.assertEqual(labels(root), ("right", 0.75, ("down", 0.7, "claude", "terminal"), "sidebar"))
+        self.assertTrue(panes.size_terminal("w1:p2", panes.COLLAPSED))
+        self.assertTrue(panes.place_terminal(fake.cli, "w1:p2", False, 0.3))       # as tall as it was
+        self.assertEqual(labels(root), ("right", 0.75, "claude", ("down", 0.7, "sidebar", "terminal")))
+
+    def test_a_bare_shell_gets_one_ctrl_l_even_while_its_prompt_runs_git_a_program_none(self):
+        # the shell redraws its prompt for the new size, its helpers (git) in the foreground a moment: looked at once
+        # more after that; a program running then too (vim) is left alone
+        fake = self.herdr(OnTheRail.split("right", 0.75, OnTheRail.pane("w1:p1", "claude"), OnTheRail.split(
+            "down", 0.7, OnTheRail.pane("w1:p2", "sidebar"), OnTheRail.pane("w1:p3", "terminal"))))
+        set_attrs(self, panes, REDRAW=0)
+        for names, sent in ((["zsh"], 1), (["zsh", "git"], 1), (["vim"], 0)):
+            with self.subTest(names=names):
+                states, keys = iter([names, ["zsh"] if names != ["vim"] else names]), []
+
+                def call(*args):
+                    if args[:2] == ("pane", "process-info"):
+                        return {"process_info": {"foreground_processes": [{"name": n} for n in next(states)]}}
+                    keys.append(args)
+                    return {}
+
+                self.assertEqual((panes.clear_shell(call, "w1:p2"), keys),
+                                 (bool(sent), [("pane", "send-keys", "w1:p3", "ctrl+l")] * sent))
+        self.assertEqual(fake.calls[-1][0], "layout.export")
+
+    def test_a_tab_without_a_terminal_has_none_to_size(self):
+        fake = self.herdr(OnTheRail.split("right", 0.9, OnTheRail.pane("w1:p1", "claude"),
+                                          OnTheRail.pane("w1:p2", "sidebar")))
+        self.assertEqual((panes.terminal("w1:p2"), panes.size_terminal("w1:p2", 0.3)), (None, False))
+        self.assertEqual([method for method, _ in fake.calls if method == "layout.set_split_ratio"], [])
+
+
 class Shells(unittest.TestCase):
     def test_a_shell_alone_is_only_a_shell(self):
         for names in (["-zsh"], ["C:\\Program Files\\PowerShell\\7\\pwsh.exe"], ["powershell.exe"], ["bash", "sh"]):
@@ -378,7 +433,7 @@ class NewTab(unittest.TestCase):
 
 
 class Steady(unittest.TestCase):
-    """At herdr's start a pane is decided about only once it stays the same: herdr is still resuming conversations."""
+    """At herdr's start a pane is decided about only once it stays the same: herdr is still resuming chats."""
 
     def setUp(self):
         set_attrs(self, panes, POLL=0)
@@ -402,7 +457,7 @@ class Steady(unittest.TestCase):
         self.assertEqual(len(self.watch(["", "claude", "zsh", "zsh", "zsh"], True)), 1)
         self.assertEqual(self.watch(["zsh", "Python"], True), [])              # the sidebar came back by itself
 
-    def test_a_pane_herdr_may_still_resume_a_conversation_in_is_waited_for(self):
+    def test_a_pane_herdr_may_still_resume_a_chat_in_is_waited_for(self):
         set_attrs(self, panes, STARTUP_LIMIT=0)
         self.assertEqual(self.watch(["zsh"], True, {"pane_id": "w1:p1", "agent_session": "s1"}), [])
 
@@ -476,9 +531,9 @@ class RestoreAll(unittest.TestCase):
                               ("w1:t1", "terminal", "zsh")], agents={"w1:p1": "app-claude"})
         self.assertEqual(self.changes(calls), [])
 
-    def test_an_older_installs_conversations_column_goes_its_room_back_to_the_agent(self):
-        # before it was a panel of the sidebar, the Conversations column stood between the agent and the right
-        # column: closed, its room goes to the right column, set back to the width remembered on this machine
+    def test_an_older_installs_chat_column_goes_its_room_back_to_the_agent(self):
+        # before it was a panel of the sidebar, the Chats column stood between the agent and the right
+        # column: closed, its room goes to the right column, as wide as chosen on this machine (none yet: every name)
         tmp = tempfile.mkdtemp(dir="/tmp")                  # a short path: a socket's name has room for 104 bytes
         self.addCleanup(shutil.rmtree, tmp)
         set_env(self, HERDR_SOCKET_PATH=os.path.join(tmp, "h.sock"))
@@ -492,28 +547,28 @@ class RestoreAll(unittest.TestCase):
                               ("w1:t1", "sidebar", "Python"), ("w1:t1", "terminal", "zsh")], agents={"w1:p1": "app"})
         self.assertEqual(self.changes(calls), [("pane", "close", "w1:p2")])
         self.assertEqual([params for method, params in fake.calls if method == "layout.set_split_ratio"],
-                         [{"tab_id": "w1:t1", "path": [], "ratio": 0.75}])
+                         [{"tab_id": "w1:t1", "path": [], "ratio": 0.59}])                # 82 of 200 cells
         self.assertEqual(self.said, [("ok", "column_gone", "app")])
 
-    def test_a_pane_the_user_named_conversations_stays(self):
+    def test_a_pane_the_user_named_as_the_old_column_stays(self):
         # herdr's Rename pane: an agent's pane named "conversations" is no old column; the old column's is Python's
         calls = self.restore([("w1:t1", "conversations", "claude"), ("w1:t1", "sidebar", "Python"),
                               ("w1:t1", "terminal", "zsh")], agents={"w1:p1": None})
         self.assertNotIn(("pane", "close", "w1:p1"), calls)
 
     def test_what_an_older_install_kept_for_its_column_goes(self):
-        # the column's width and fold in conversations.json: gone at once, the rest kept; no file made where none was
-        conversations.keep(self.state, archived=["claude:s1"])
-        with open(os.path.join(self.state, conversations.SETTINGS)) as f:
+        # the column's width and fold in chats.json: gone at once, the rest kept; no file made where none was
+        chats.keep(self.state, archived=["claude:s1"])
+        with open(os.path.join(self.state, chats.SETTINGS)) as f:
             kept = {**json.load(f), "ratio": 0.62, "collapsed": True}
-        with open(os.path.join(self.state, conversations.SETTINGS), "w") as f:
+        with open(os.path.join(self.state, chats.SETTINGS), "w") as f:
             json.dump(kept, f)
         self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "sidebar", "Python"), ("w1:t1", "terminal", "zsh")],
                      agents={"w1:p1": "app"})
-        self.assertEqual(conversations.setting(self.state), {"archived": ["claude:s1"]})
-        os.remove(os.path.join(self.state, conversations.SETTINGS))
+        self.assertEqual(chats.setting(self.state), {"archived": ["claude:s1"]})
+        os.remove(os.path.join(self.state, chats.SETTINGS))
         self.restore([("w1:t1", "claude", "claude")], agents={"w1:p1": "app"})
-        self.assertFalse(os.path.exists(os.path.join(self.state, conversations.SETTINGS)))
+        self.assertFalse(os.path.exists(os.path.join(self.state, chats.SETTINGS)))
 
     def test_a_sidebar_running_another_program_keeps_its_tab_as_it_is(self):
         calls = self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "sidebar", "herdr-sidebar"),

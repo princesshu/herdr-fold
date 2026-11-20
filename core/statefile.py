@@ -1,4 +1,4 @@
-"""The plugin's state files, its owner's only whatever the umask (every conversation's folder and title, a private
+"""The plugin's state files, its owner's only whatever the umask (every chat's folder and title, a private
 repository's issues): each written whole beside it, then put in place, a planted link never followed; one that every
 tab's sidebar and the app's helper change is changed by one writer at a time (update())."""
 import contextlib

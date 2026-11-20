@@ -3,11 +3,14 @@
 // space's branch, dragged into order, the app's menu on a right click; and how long agents wait, as the TUI's.
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { agents, focused, hc, layout, machines, openOverlay, panes, setShared, shared, spaces, watchFolder, window,
+import { agents, focused, hc, home, machines, openOverlay, panes, setShared, shared, spaces, watchFolder, window,
   run as command } from "herdr";
+import { chatWaits } from "./chat.js";
 import { GIT } from "./helper.js";
-import { avatarFill, folderKey, headed, LIST, listBody, listHeight, nested, nextWaits, placeKey, placeLabel,
-  spaceColors, spaceWaits, toggleUnread, hovering, waited, withMax } from "./logic.js";
+import { atHome, avatarFill, folderKey, headed, HOME_NAME, homeFirst, homeId, homesEmpty, homesSeen, LIST, listBody,
+  nested, nextWaits, placeKey, placeLabel, spaceColors, spaceLabel, spaceWaits, toggleUnread, hovering, waited,
+  withHomes }
+  from "./logic.js";
 import { icon, iconButton, listHead } from "./parts.js";
 
 const WAITS = "herdr-fold.waits";                  // each agent waiting on you: since when, and Cmd + Shift + U's mark
@@ -15,9 +18,45 @@ const FOLDED = "herdr-fold.machines-folded";       // the machines whose spaces 
 const MENDING = "herdr-fold.machines-mending";     // a rebuilt machine forgotten and added again, step by step
 const FALLBACK = 60000;            // ms: a repository in view looked at again this often, with the window in front
 const SETTLE = 1500;               // ms: a new space waits this long for its place, to show under its checkout at once
+const OPENING = 3000;              // ms: a home's stand-in takes no second click while its space is being made
 
-/** The waits as the agents are now, written only when they changed; kept while the list is folded away too. */
-export function trackWaits() {
+/** @type {Record<string, string>} each machine's home folder as known ("": this computer's) */
+let homes = {};
+/** @type {Record<string, number>} homeId() → when its stand-in was last clicked */
+const opening = {};
+
+/** Whether a space is at its machine's home, by the homes LIST shows (PS: panes()). @param {any[]} list
+ * @param {any[]} ps @returns {(s: any) => boolean} */
+function homeTest(list, ps) {
+  homes = homesSeen({ "": home(), ...homes }, list, ps);
+  return (s) => atHome(s, ps, homes);
+}
+
+/** The machines whose home has no space, of those a terminal can start on now: this computer, and each whose layout
+ * is ready. @param {any[]} list @param {(s: any) => boolean} isHome */
+function emptyHomes(list, isHome) {
+  const known = machines(), local = known.find((m) => !m.name)?.layout;
+  return homesEmpty([...(local === "loading" || local === "unavailable" ? [] : [null]),
+    ...known.filter((m) => m.name && m.layout === "ready").map((m) => m.name)], list, isHome);
+}
+
+/** The spaces as the floating list shows them: by machine, each home first, a stand-in where none is open. */
+export function floatSpaces() {
+  const list = spaces(), isHome = homeTest(list, panes());
+  return withHomes(list, emptyHomes(list, isHome), isHome);
+}
+
+/** A terminal opened in MACHINE's home (null: this computer), its space the app's "~": a stand-in's click.
+ * @param {string | null} machine */
+export function openHome(machine) {
+  const id = homeId(machine), now = Date.now();
+  if (now - (opening[id] ?? 0) < OPENING) return;
+  opening[id] = now;
+  command("space.new", machine ? { machine } : { machine: "", folder: home() });
+}
+
+/** The waits as the agents are now, written only when they changed; kept while the sidebar is folded too. */
+function trackWaits() {
   const known = /** @type {Record<string, any>} */ (shared(WAITS) ?? {});
   const next = nextWaits(known, agents(), Date.now(), focused()?.pane ?? null);
   if (JSON.stringify(next) !== JSON.stringify(known)) setShared(WAITS, next);
@@ -29,8 +68,8 @@ export function markUnread() {
   if (agent) setShared(WAITS, toggleUnread(/** @type {any} */ (shared(WAITS) ?? {}), agent, Date.now()));
 }
 
-/** Since when an agent in each space waits on you. */
-export const waitsBySpace = () => spaceWaits(/** @type {any} */ (shared(WAITS) ?? {}), agents());
+/** Since when an agent or a chat in each space waits on you. */
+export const waitsBySpace = () => spaceWaits(/** @type {any} */ (shared(WAITS) ?? {}), agents(), chatWaits().spaces);
 
 /** The spaces' colors as every app mod keeps them, one given to a new space. */
 export function spaceColorsKept() {
@@ -40,7 +79,7 @@ export function spaceColorsKept() {
 }
 
 /** @typedef {{ id: string, name: string, active: boolean, color: string, tree: boolean, label: string, ahead: number,
- *   behind: number, wait: string | null }} Row */
+ *   behind: number, wait: string | null, home?: boolean, empty?: boolean, machine?: string | null }} Row */
 /** @typedef {{ machine: string | null, connected: boolean, state: string, rebuilt: boolean, error: string | null,
  *   busy: boolean, folded: boolean, wait: string | null, rows: Row[], loading: boolean }} Group */
 
@@ -268,13 +307,14 @@ export class SpacesView {
     return this.places[placeKey(w, ps, this.places)] ?? this.places[folderKey(w, ps)];
   }
 
-  /** The spaces in order, each worktree's under its checkout's, as shown; the app's order moved to it (space.move,
-   * each move counted in for the next). */
+  /** The spaces in order, each machine's home first, each worktree's under its checkout's, as shown; the app's order
+   * moved to it (space.move, each move counted in for the next). */
   ordered() {
-    const list = spaces(), ps = panes(), now = Date.now();
-    const settled = (w) => this.placeOf(w, ps) !== undefined || now - (this.born[w.id] ??= now) > SETTLE;
+    const list = spaces(), ps = panes(), now = Date.now(), isHome = homeTest(list, ps);
+    const settled = (w) => isHome(w) || this.placeOf(w, ps) !== undefined || now - (this.born[w.id] ??= now) > SETTLE;
     for (const w of list) if (!this.shown.has(w.id) && settled(w)) this.shown.add(w.id);
-    const rows = nested(list.map((w) => ({ w, g: this.placeOf(w, ps) ?? null })));
+    const rows = homeFirst(nested(list.map((w) => ({ w, g: this.placeOf(w, ps) ?? null, home: isHome(w) }))),
+      (r) => r.home);
     const order = list.map((w) => w.id), target = rows.map((r) => r.w.id);
     const key = JSON.stringify([order, target, machines()]);
     if (order.every((id, i) => id === target[i])) this.ordering = null;
@@ -293,14 +333,18 @@ export class SpacesView {
     return rows.filter((r) => this.shown.has(r.w.id));
   }
 
-  /** What the list shows now: the spaces by machine, once another machine is known, each group's head as it is. */
+  /** What the list shows now: the spaces by machine, once another machine is known, each group's head as it is; a
+   * machine's home with no space there, a stand-in at its head. */
   model() {
     const rows = this.ordered(), colors = spaceColorsKept(), since = waitsBySpace(), now = Date.now();
     const mending = /** @type {Record<string, any>} */ (shared(MENDING) ?? {});
     const folded = new Set(/** @type {any[]} */ (shared(FOLDED) ?? []));
-    const row = ({ w, g, tree }) => ({ id: w.id, name: w.name, active: w.active, color: colors[w.id] ?? "ansi6",
+    const row = ({ w, g, tree, home }) => ({ id: w.id, name: w.name, active: w.active, color: colors[w.id] ?? "ansi6",
       tree, label: g ? placeLabel(g, tree, w.name) : "", ahead: g?.ahead ?? 0, behind: g?.behind ?? 0,
-      wait: since[w.id] ? waited(now - since[w.id]) : null });
+      wait: since[w.id] ? waited(now - since[w.id]) : null, home });
+    const empty = new Set(emptyHomes(spaces(), homeTest(spaces(), panes())));
+    const standIn = (m) => ({ id: homeId(m), name: HOME_NAME, active: false, color: "ansi6", tree: false, label: "",
+      ahead: 0, behind: 0, wait: null, home: true, empty: true, machine: m });
     const loading = (m) => {
       const doc = machines().find((k) => k.name === m)?.layout;
       return doc === "loading" || (!doc && this.machines.some((k) => k.name === m && k.state === "connected")) ||
@@ -314,29 +358,21 @@ export class SpacesView {
       const waits = mine.map((r) => since[r.w.id]).filter(Boolean);
       return { machine: m, connected: !m || machine?.state === "connected", state: machine?.state ?? "asleep",
         rebuilt: this.rebuilt(machine) || Boolean(repair), error: repair?.error ?? null,
-        busy: this.mending.has(String(m)), folded: folded.has(m), rows: mine.map(row), loading: loading(m),
+        busy: this.mending.has(String(m)), folded: folded.has(m), loading: loading(m),
+        rows: [...(empty.has(m) && (!m || machine?.state === "connected") ? [standIn(m)] : []), ...mine.map(row)],
         wait: waits.length ? waited(now - Math.min(...waits)) : null };
     });
   }
 
-  render(t, cx) {
-    const groups = this.model(), tall = listHeight(groups);
-    if (withMax(layout(), "spaces", tall).changed && !this.capping) {
-      this.capping = true;
-      cx.timer.after(0, () => {                   // the layout as it is then: a fold or a resize meanwhile stays
-        this.capping = false;
-        const capped = withMax(layout(), "spaces", tall);
-        if (capped.changed) command("layout.set", { layout: capped.tree });
-      });
-    }
-    return this.draw(t, groups);
+  render(t) {
+    return this.draw(t, this.model());
   }
 
   /** GROUPS drawn as the app's own list: its head and +, then each machine's head (once one is not this computer)
    * and its spaces. @param {Group[]} groups */
   draw(t, groups) {
     const heads = headed(groups);
-    return v_flex().size_full().min_h(0).bg(t.chrome ?? t.background).text_size(13)
+    return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)               // the left sidebar's level
       .child(listHead(t, "Spaces", iconButton(t, "space-new", "plus", "New space", () => command("space.new", {}))))
       .child(v_flex().id("spaces-list").flex_1().min_h(0).px(8).pb(LIST.foot).overflow_y_scrollbar()
         .on_mouse_up("left", (_e, cx) => {
@@ -387,14 +423,16 @@ export class SpacesView {
       .child(icon(g.folded ? "chevron-right" : "chevron-down", 11).flex_none());
   }
 
-  /** A space's row: avatar (a worktree its branch under its checkout), name, branch, how far from its upstream, how
-   * long it waits on you; its highlight 2 in from its edges, a drag's line in the gap between two; a right click, the
-   * app's menu. @param {Row} r @param {Row[]} rows its group's */
+  /** A space's row: avatar (a worktree its branch under its checkout), name, branch, how far from its upstream, its
+   * wait; its highlight 2 in, a drag's line between two rows; a right click, the app's menu. A home stays first (no
+   * drag or drop); with nothing open, outlined and dim, a click opens a terminal. @param {Row} r @param {Row[]} rows */
   row(t, r, rows) {
     const from = rows.findIndex((x) => x.id === this.pressed), at = rows.findIndex((x) => x.id === r.id);
-    const mine = () => rows.some((x) => x.id === this.pressed);        // a drag stays within its machine's spaces
+    // a drag stays within its machine's spaces, and off its home
+    const mine = () => !r.home && rows.some((x) => x.id === this.pressed && !x.home);
     return v_flex().relative().id(`space-${r.id}`).py(2).h(r.tree ? LIST.tree : LIST.row).flex_none()
-      .when(this.pressed === r.id && this.over !== r.id, (e) => e.opacity(0.5))
+      .when(Boolean(r.empty), (e) => e.tooltip("Nothing open in the home folder. Click to open a terminal there."))
+      .when(this.pressed === r.id && this.over !== r.id && !r.home, (e) => e.opacity(0.5))
       .when(this.pressed !== null && this.over === r.id && this.pressed !== r.id, (e) => e.child(div().absolute()
         .left(8).right(8).h(2).rounded_full().bg(t.accent).when(from < at, (line) => line.bottom(-1))
         .when(from > at, (line) => line.top(-1))))
@@ -402,7 +440,7 @@ export class SpacesView {
         this.pressed = this.over = r.id;
       })
       .on_mouse_move((_e, cx) => {
-        const over = mine() ? r.id : null;
+        const over = mine() || this.pressed === r.id ? r.id : null;
         if (this.pressed !== null && this.over !== over) {
           this.over = over;
           cx.notify();
@@ -414,19 +452,24 @@ export class SpacesView {
         if (pressed !== null && over === r.id && pressed !== r.id) {
           const index = spaces().findIndex((s) => s.id === r.id);
           if (index !== -1) command("space.move", { id: pressed, index: index + 1 });
-        } else if (pressed === r.id) command("space.select", { id: r.id });
+        } else if (pressed === r.id && r.empty) openHome(r.machine ?? null);
+        else if (pressed === r.id) command("space.select", { id: r.id });
         cx.notify();
       })
-      .on_mouse_down("right", () => openOverlay({ mod: "menu", kind: "popup", width: 200, height: 260,
+      .on_mouse_down("right", () => r.empty || openOverlay({ mod: "menu", kind: "popup", width: 200, height: 260,
         props: { tab: "space", target: { id: r.id } } }))
       .child(v_flex().flex_1().px(8).justify_center().rounded(8).when(r.active, (e) => e.bg(t.selected))
         .when(!r.active, (e) => e.hover((s) => s.bg(t.hover)))
         .child(h_flex().gap(8).items_center()
           .when(r.tree, (e) => e.pl(18 + 8).child(icon("git-branch", 13).text_color(t.dim)))  // under its checkout
-          .when(!r.tree, (e) => e.child(h_flex().size(18).flex_none().rounded(4).bg(avatarFill(r.color, t))
+          .when(!r.tree && !r.empty, (e) => e.child(h_flex().size(18).flex_none().rounded(4).bg(avatarFill(r.color, t))
             .items_center().justify_center().text_size(11).font_bold().text_color("#ffffff")
             .child([...r.name][0]?.toUpperCase() ?? "?")))
-          .child(div().flex_shrink(0).max_w(150).truncate().text_color(t.foreground).child(r.name))
+          .when(Boolean(r.empty), (e) => e.child(h_flex().size(18).flex_none().rounded(4).border(1)
+            .border_color(t.border).items_center().justify_center().text_size(11).font_bold().text_color(t.dim)
+            .child(HOME_NAME)))
+          .child(div().flex_shrink(0).max_w(150).truncate().text_color(r.empty ? t.dim : t.foreground)
+            .child(spaceLabel(r.name)))
           .child(h_flex().flex_1().min_w(0).gap(6).justify_end().items_center().text_size(11).text_color(t.dim)
             .when(Boolean(r.label), (e) => e.child(div().min_w(0).truncate().child(r.label)))
             .when(r.ahead > 0, (e) => e.child(div().flex_none().text_color(t.ansi2).child(`↑${r.ahead}`)))

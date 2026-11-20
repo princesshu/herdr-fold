@@ -97,7 +97,8 @@ class View(unittest.TestCase):
         self.assertEqual(line[name - 2:name], "  ")
         self.assertNotEqual(line[name - 3], " ")                            # the icon, right before the two blanks
 
-    def test_the_chosen_row_is_a_square_band_across_the_pane(self):
+    def test_the_chosen_row_is_a_square_band_across_the_view(self):
+        # the view's own edge to edge: the sidebar draws every view a cell in from the pane's sides
         self.view.focus = "list"
         canvas = self.draw()
         y = next(y for y in range(canvas.height) if canvas.rows[y][5][1].bg == "selection")

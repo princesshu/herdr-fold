@@ -25,12 +25,13 @@ One part goes and the other keeps working: what both use goes with the last.
   workspaces it follows, the one in front). The remote machines stay in the Herdr app, and connected in herdr:
   `herdr machine remove <id>` disconnects one.
 - **The Herdr app**: herdr-fold's mod, layout, themes, keys and settings in it, its chats' own files (what Claude waits
-  on, the answers, the bar's numbers; the conversations stay), and the machines herdr-fold added there, as below. An
+  on, the answers, the bar's numbers; the chats stay), and the machines herdr-fold added there, as below. An
   update of the TUI does not offer it again; choosing it in the installer brings it back.
-- **The last part**, or both: also the files both use (the status line and its `time.json`, the themes, the texts),
-  Claude's earlier status line, the sidebar's settings (which keep the issue linked to each repository's next commit),
-  the archived conversations, the records, what was made on first use (`~/.cache/herdr-fold`, the preview's helpers),
-  herdr-fold's plugin from herdr's marketplace and the package folder.
+- **The last part**, or both: also the files both use (the status line, its `time.json` and the limits it keeps, Usage's
+  token counts, prices, commit index and budgets, the themes, the texts), Claude's earlier status line, the sidebar's
+  settings (which keep the issue linked to each repository's next commit), the archived chats, the records, what was
+  made on first use (`~/.cache/herdr-fold`, the preview's helpers), herdr-fold's plugin from herdr's marketplace and
+  the package folder.
 
 ## What goes, and what stays
 
@@ -48,7 +49,7 @@ One part goes and the other keeps working: what both use goes with the last.
 - Claude's earlier status line comes back (or herdr-fold's just goes);
 - Ghostty's own app icon comes back: the icons the themes drew go.
 
-It never touches your conversations (Claude and Codex sessions and their names), herdr's own data, or the programs: it
+It never touches your chats (Claude and Codex sessions and their names), herdr's own data, or the programs: it
 prints the `brew uninstall` line for those. Codex keeps the status line items it was given (`[tui] status_line` in
 `~/.codex/config.toml`).
 
@@ -56,7 +57,7 @@ These stay too, because they are yours to keep: the SSH key and the `Host *` blo
 keys in `~/.ssh/known_hosts`, Homebrew's line in `~/.zprofile`, git's commit author and GitHub sign-in, and the
 projects Claude trusts in `~/.claude.json`.
 
-At the end it names what stays, each with where it is: AI Sessions' conversation names, the machine list, the
+At the end it names what stays, each with where it is: AI Sessions' chat names, the machine list, the
 private word list, your files' earlier versions, the machines still connected in herdr, and of the things above, those
 the installer itself made (it records them in `~/.local/state/herdr-fold/outside.txt`), with the command that takes
 one off where there is one, such as `gh auth logout`.
@@ -68,6 +69,7 @@ one off where there is one, such as `gh auth logout`.
 ```
 
 This takes the machine off the list and the package off the machine (its files, the shell block, the plugins), and
-puts Claude's earlier status line and the machine's own files that the package replaced back. The conversations and
-their names in AI Sessions stay there, and it says where the names are. Files changed there since stay in its
-backups (`~/.local/state/herdr-fold/prepared-*`).
+puts Claude's earlier status line and the machine's own files that the package replaced back. The chats and
+their names in AI Sessions stay there, and it says where the names are. Files changed there since stay on the
+machine, in `~/.local/state/herdr-fold/prepared-changed-<date>/`
+([Remote machines](remote-machines.md#what-the-installer-does-on-a-machine)).

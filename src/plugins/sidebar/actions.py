@@ -1,6 +1,6 @@
 """The sidebar's herdr actions: the active tab's sidebar gets a key no text field takes (KEYS), F7 (find a
-conversation) the keys too; F8, for Cmd + A, only a sidebar that has the keys: its field's text.
-Usage: actions.py show-files|show-search|show-git|show-issues|find-conversation|select-all"""
+chat) the keys too; F8, for Cmd + A, only a sidebar that has the keys: its field's text.
+Usage: actions.py show-files|show-search|show-git|show-issues|find-chat|select-all"""
 import os
 import sys
 
@@ -10,11 +10,11 @@ import column  # noqa: E402
 import panels  # noqa: E402
 import panes  # noqa: E402
 import statefile  # noqa: E402
-from conversations import state_folder  # noqa: E402
+from chats import state_folder          # noqa: E402
 from preview import Herdr, seed_file  # noqa: E402
 
 KEYS = {"show-files": "f9", "show-search": "f10", "show-git": "f11", "show-issues": "f12",
-        "find-conversation": "f7", "select-all": "f8"}
+        "find-chat": "f7", "select-all": "f8"}
 
 
 def sidebar_of(listed, tab=None):
@@ -24,16 +24,16 @@ def sidebar_of(listed, tab=None):
 
 def find(call, tab, listed, state_dir, focus):
     """Cmd+Shift+R: TAB's sidebar (else the workspace's first, LISTED its panes) gets F7 and the keys (FOCUS); one
-    closed there by hand comes back on Conversations (its seed: it is not running yet). The pane, or None."""
+    closed there by hand comes back on Chats (its seed: it is not running yet). The pane, or None."""
     pane = sidebar_of(listed, tab)
     if pane is None and "sidebar" in panels.had(state_dir, tab):
-        statefile.write(seed_file(state_dir, tab), {"show": "conversations"})
+        statefile.write(seed_file(state_dir, tab), {"show": "chats"})
         panes.bring(call, tab, {"sidebar"}, state_dir)
         pane = sidebar_of(call("pane", "list").get("panes") or [], tab)
     else:
         pane = pane or sidebar_of(listed)
         if pane:
-            call("pane", "send-keys", pane, KEYS["find-conversation"])
+            call("pane", "send-keys", pane, KEYS["find-chat"])
     if pane:
         focus(pane)
     return pane
@@ -53,7 +53,7 @@ def main(argv):
             if any(p.get("pane_id") == focused and p.get("label") == "sidebar" for p in listed):
                 herdr.call("pane", "send-keys", focused, KEYS[argv[1]])
             return
-        if argv[1] == "find-conversation":    # herdr's command line focuses only by direction
+        if argv[1] == "find-chat":            # herdr's command line focuses only by direction
             if not find(herdr.call, tab, listed, state_folder(), lambda pane: column.call("pane.focus",
                                                                                           {"pane_id": pane})):
                 sys.exit("no sidebar in this workspace")

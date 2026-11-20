@@ -277,6 +277,11 @@ class View(unittest.TestCase):
         badge = self.canvas.rows[y][len(text(self.canvas, y).rstrip()) - 1][1]
         self.assertEqual((badge.fg, badge.bg), ("badge_text", "badge"))
 
+    def test_thousands_of_changes_count_as_the_row_does(self):
+        self.status = Status(branch="main", changes=[Change(f"f{i}.js", "?") for i in range(18432)])
+        self.draw()
+        self.assertTrue(text(self.canvas, self.row_of(f"{OPEN} Changes")).rstrip().endswith(" 18k"), self.shown())
+
     def test_the_name_is_plain_and_the_letter_colored(self):
         canvas = self.draw()
         x, y = self.at("app.py")
@@ -303,12 +308,54 @@ class View(unittest.TestCase):
         self.assertEqual(self.click("Commit & Push"), Action("commit", ("feat: add a thing", "push", ())))
         self.assertEqual(Scm(mode="sync").mode, "sync")
 
+    def test_the_mode_menu_opens_right_under_the_button_whatever_the_graph_holds(self):
+        # its top the row after the button's last, as More's under its button: the Graph's commits coming or going
+        # (its answer lands after the status) move nothing of it
+        tops = set()
+        for graph in (history(), history()[:1], []):
+            self.graph = graph
+            self.draw()
+            self.view.menu = None
+            self.view.handle(Mouse("press", *self.target("mode")))
+            under = self.regions_of("mode")[-1] + 1                     # the row after the button's lower edge
+            self.draw()
+            tops.add(next(y for y, row in enumerate(self.rows()) if "┌" in row) - under)
+        self.assertEqual(tops, {0})
+
     def test_an_empty_message_does_not_commit(self):
+        # it says so on the sidebar's foot line, as every view's failure, not on a row of its own
         self.draw()
-        self.assertIsNone(self.view.handle(Mouse("press", *self.target("commit"))))
+        self.assertEqual(self.view.handle(Mouse("press", *self.target("commit"))),
+                         Action("fail", ("The message is empty",)))
         self.draw()
-        line = self.row_of("message is empty")
-        self.assertEqual(self.canvas.rows[line][2][1].fg, "deleted")
+        self.assertFalse(any("message is empty" in line for line in self.rows()))
+
+    def test_nothing_moves_the_list_a_run_its_failure_or_the_message_being_written(self):
+        # a run spins in the sync glyph's cell, its tip the step, not in the accent nor on a row; who writes the
+        # message is the star's tip; folded, the repositories' row spins at its right end: the list never moves
+        self.view.repo = "/work/lumen-api"
+        self.draw()
+        first = self.row_of("new.py")
+        self.view.busy("Pushing…", "⠙")
+        self.draw()
+        x, y = self.target("sync")
+        self.assertEqual((self.row_of("new.py"), text(self.canvas, y)[x + 1], self.canvas.rows[y][x + 1][1].fg,
+                          self.view.tip("sync")), (first, "⠙", "muted", "Pushing…"))
+        self.assertFalse(any("Pushing" in line for line in self.rows()))
+        self.view.busy(None)
+        self.press("c", "f", "i", "x")
+        self.view.writing, self.view.writer = "⠋ Claude is writing the message…", "Claude is writing the message…"
+        self.draw()
+        self.assertEqual((self.row_of("new.py"), self.view.tip("suggest")), (first, "Claude is writing the message…"))
+        self.assertFalse(any("is writing" in line for line in self.rows()))
+        self.view.writing = self.view.writer = None
+        self.press("esc")
+        self.view.folded = {"repositories"}
+        self.view.busy("Committing…", "⠹")
+        self.draw()
+        heading = self.row_of("Repositories")
+        self.assertEqual((text(self.canvas, heading)[43], self.canvas.hit(43, heading), self.view.tip("sync")),
+                         ("⠹", "sync", "Committing…"))
 
     def test_typing_alt_enter_and_esc(self):
         self.draw()
@@ -381,7 +428,7 @@ class View(unittest.TestCase):
 
     def test_the_field_says_who_writes_the_message(self):
         """While ✦ writes, the empty field says who writes it, its spinner's frame first; ✦ waits; with text in the
-        field, the line says it under the button."""
+        field, the star's tip says it, no row under the button."""
         self.view.writing = "⠋ Claude is writing the message…"
         self.draw()
         y = self.row_of("⠋ Claude is writing the message…")
@@ -389,8 +436,7 @@ class View(unittest.TestCase):
         self.assertIsNone(self.press("A"))
         self.press("c", "f", "i", "x")
         self.draw()
-        y = self.row_of("⠋ Claude is writing the message…")
-        self.assertNotIn((y, "input"), {(row, target) for row, _, _, target in self.canvas.regions})
+        self.assertFalse(any("is writing" in line for line in self.rows()))
         self.assertIn("fix", self.shown())
 
     def test_suggest_by_the_star_or_a(self):
@@ -400,7 +446,7 @@ class View(unittest.TestCase):
         self.assertEqual(self.press("A"), Action("suggest"))
         self.view.busy("Writing the message…")
         self.draw()
-        self.row_of("Writing the message…")
+        self.assertEqual(self.view.tip("sync"), "Writing the message…")
         self.assertIsNone(self.press("A"))
         self.view.busy(None)
         self.draw()

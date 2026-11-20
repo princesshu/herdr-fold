@@ -51,10 +51,10 @@ class Column(unittest.TestCase):
         self.addCleanup(self.fake.server.close)
         return self.fake
 
-    def write_saved(self, ratio):
+    def write_saved(self, cells, key="open"):
         os.makedirs(self.state, exist_ok=True)
         with open(os.path.join(self.state, column.FILE), "w") as f:
-            json.dump({"ratio": ratio}, f)
+            json.dump({key: cells}, f)
 
     def sets(self):
         return [(params["tab_id"], params["path"], params["ratio"])
@@ -63,8 +63,23 @@ class Column(unittest.TestCase):
     def test_two_jobs_keeping_at_once_lose_neither(self):
         # the dock's need job and the loop's column job write column.json on threads of their own
         at_once(column.statefile, lambda: column.need(self.state, "w1:t1", 30, {"w1:t1"}),
-                lambda: column.remember(self.state, 0.6))
-        self.assertEqual(column.kept(self.state), {"least": {"w1:t1": 30}, "ratio": 0.6})
+                lambda: column.remember(self.state, 80))
+        self.assertEqual(column.kept(self.state), {"least": {"w1:t1": 30}, "open": 80})
+
+    def test_a_refusal_is_herdrs_own_sentence(self):
+        busy = {"error": {"code": "ui_busy", "message": "a popup pane is already open"}, "id": "pane.open"}
+        self.assertEqual(column.refusal(busy), "A popup pane is already open")
+        self.assertEqual(column.refusal(json.dumps(busy)), "A popup pane is already open")
+        self.assertEqual(column.refusal({"error": "no  such\npane"}), "No such pane")
+        for none in ({"result": {}}, {"error": {"code": "ui_busy"}}, {"error": {"message": 3}}, "{not json", "plain",
+                     "[1]", None, 7):
+            self.assertIsNone(column.refusal(none))
+        # the socket's error answer raises with it
+        self.herdr()
+        with mock.patch.object(column, "read_line", lambda read: json.dumps(busy).encode() + b"\n"):
+            with self.assertRaises(OSError) as failed:
+                column.call("pane.list", {})
+        self.assertEqual(str(failed.exception), "A popup pane is already open")
 
     def test_the_columns_in_a_tab(self):
         self.assertEqual(column.columns({"tab_id": "w1:t1", "root": tab(1)}), Columns("w1:t1", [], 0.75, 0.25))
@@ -75,20 +90,26 @@ class Column(unittest.TestCase):
     def test_a_dragged_right_column_is_remembered_and_set_in_every_other_tab(self):
         self.herdr(tab(1, 0.6), **{"w2:t1": tab(2, 0.5), "w3:t1": tab(3, 0.6), "w4:t1": pane("w4:p1", "preview")})
         self.assertEqual(column.drag(self.state, "w1:p2", 78), 1)               # w3 is that wide already
-        self.assertEqual(column.saved(self.state), 0.6)
+        self.assertEqual(column.chosen(self.state), 80)                         # its cells, frame and all
         self.assertEqual(self.sets(), [("w2:t1", [], 0.6)])
         self.assertEqual(column.drag(self.state, "w1:p2", 78), 0)               # nothing new: nothing set
 
-    def test_the_right_column_keeps_room_for_the_tab_row(self):
-        self.assertEqual(column.NARROWEST, sidebar.narrowest(sidebar.PANELS))  # every panel's tab, the » and ⋯
-        self.assertEqual(column.FEWEST, sidebar.narrowest(["conversations", "files", "search", "changes"]))
+    def test_the_right_column_keeps_room_for_the_row(self):
+        # the row's seven buttons (Agent among them) a cell apart, »'s block, a cell in from each side: their names
+        # where the column first opens, their icons alone at its least; each the row's own cells, never a number apart
+        self.assertEqual(column.NARROWEST, sidebar.narrowest(sidebar.PANELS))  # every view's button, the ⋯ and »
+        self.assertEqual(column.FEWEST, sidebar.narrowest(["files", "search", "changes", "agent"]))
+        self.assertEqual(column.IDEAL, sidebar.stack.cells(sidebar.grouped(sidebar.PANELS)))
+        without = sidebar.grouped(["files", "search", "changes", "agent", "chats"])
+        self.assertEqual((column.IDEAL, sidebar.stack.cells(without)), (80, 69))   # every name; without Issues
+        self.assertEqual((column.NARROWEST, column.FEWEST), (49, 43))           # its icons alone
         column.need(self.state, "w1:t1", column.NARROWEST, {"w1:t1"})
         self.herdr(tab(1, 0.9))                                             # dragged to 20 cells, 18 inside
         column.drag(self.state, "w1:p2", 18)
-        self.assertEqual(self.sets(), [("w1:t1", [], 0.705)])               # 59: 57 inside, the frame 2
-        self.assertEqual(column.saved(self.state), 0.705)
+        self.assertEqual(self.sets(), [("w1:t1", [], 0.745)])               # 51: 49 inside, the frame 2
+        self.assertEqual(column.chosen(self.state), 51)
 
-    def test_each_tab_keeps_room_for_its_own_sidebars_tab_row(self):
+    def test_each_tab_keeps_room_for_its_own_sidebars_row(self):
         column.need(self.state, "w9:t1", 23, {"w9:t1"})                     # a tab closed since: forgotten below
         column.need(self.state, "w1:t1", 23, {"w1:t1", "w3:t1"})            # no Issues here
         column.need(self.state, "w3:t1", 29, {"w1:t1", "w3:t1"})            # Issues there: the wider row
@@ -126,18 +147,48 @@ class Column(unittest.TestCase):
         self.assertEqual(column.drag(self.state, "w1:p2", 50), 0)
         self.fake.tabs["w1:t1"] = [tab(1, 0.2), False]                      # the agent squeezed to a fifth
         self.assertEqual(column.drag(self.state, "w1:p2", 160), 0)
-        self.assertIsNone(column.saved(self.state))
+        self.assertIsNone(column.chosen(self.state))
 
-    def test_a_remembered_share_keeps_whatever_else_its_file_holds(self):
+    def test_a_remembered_width_keeps_whatever_else_its_file_holds(self):
         os.makedirs(self.state)
         column.need(self.state, "w1:t1", 23, {"w1:t1"})
-        self.assertTrue(column.remember(self.state, 0.6))
+        self.assertTrue(column.remember(self.state, 60))
         with open(os.path.join(self.state, column.FILE)) as f:
-            self.assertEqual(json.load(f), {"least": {"w1:t1": 23}, "ratio": 0.6})
+            self.assertEqual(json.load(f), {"least": {"w1:t1": 23}, "open": 60})
+
+    def test_an_older_versions_width_is_forgotten_and_goes_at_the_next_write(self):
+        # its share, its cells, its width before the names row grew: opened at the row's ideal width once, then kept
+        wide = Columns("w1:t1", [], 0.75, 0.25, 200)
+        for older in ({"ratio": 0.6}, {"cells": 42}, {"ratio": 0.6, "cells": 42}, {"width": 48}):
+            with self.subTest(older=older):
+                os.makedirs(self.state, exist_ok=True)
+                with open(os.path.join(self.state, column.FILE), "w") as f:
+                    json.dump({**older, "rail": False}, f)
+                self.assertIsNone(column.chosen(self.state))
+                self.assertEqual((column.width(self.state, wide), column.opened(self.state, wide)),
+                                 ((column.IDEAL + column.FRAME) / 200, column.IDEAL + column.FRAME))
+                column.need(self.state, "w1:t1", column.FEWEST, {"w1:t1"})          # any write: they go
+                self.assertEqual(column.kept(self.state), {"rail": False, "least": {"w1:t1": column.FEWEST}})
+        self.assertTrue(column.remember(self.state, 70))
+        self.assertEqual((column.kept(self.state)["open"], column.chosen(self.state)), (70, 70))
+
+    def test_it_opens_at_the_rows_ideal_width_then_as_wide_as_dragged_in_cells_in_any_window(self):
+        # first: every name of the row and the frame; then the cells chosen, a wider window or not
+        wide, wider = Columns("w1:t1", [], 0.75, 0.25, 200), Columns("w1:t1", [], 0.75, 0.25, 300)
+        self.assertEqual(column.width(self.state, wide), (column.IDEAL + column.FRAME) / 200)
+        self.write_saved(80)
+        self.assertEqual((column.width(self.state, wide), column.width(self.state, wider)), (80 / 200, 80 / 300))
+
+    def test_a_new_tabs_column_is_split_off_as_wide_as_chosen(self):
+        self.assertEqual(column.split_share(self.state, "w1:p1"), column.RIGHT)     # no herdr to measure the tab
+        self.herdr(pane("w1:p1", "claude"))                                 # the new tab: its shell alone, 200 cells
+        self.assertEqual(column.split_share(self.state, "w1:p1"), 1 - (column.IDEAL + column.FRAME) / 200)
+        self.write_saved(60)
+        self.assertEqual(column.split_share(self.state, "w1:p1"), 0.7)
 
     def test_folding_keeps_the_open_width(self):
         # folded, every tab's column the rail, as narrow as herdr lets one be; opened, as wide as last chosen again
-        self.write_saved(0.6)
+        self.write_saved(80)
         fake = self.herdr(tab(1, 0.6), **{"w2:t1": tab(2, 0.6)})
         set_env(self, HERDR_PANE_ID="w1:p2", HOME=self.tmp)
         self.addCleanup(end_jobs)
@@ -150,15 +201,32 @@ class Column(unittest.TestCase):
 
         app.fold_dock(True)
         done()
-        self.assertEqual(sorted(self.sets()), [("w1:t1", [], 0.9), ("w2:t1", [], 0.9)])     # 11 cells: herdr keeps 20
-        self.assertEqual((column.saved(self.state), column.railed(self.state)), (0.6, True))
-        fake.tabs["w1:t1"][0]["ratio"] = 0.7                                 # the rail dragged wider, or the window
+        self.assertEqual(sorted(self.sets()), [("w1:t1", [], 0.895), ("w2:t1", [], 0.895)])    # 20 and a cell: odd
+        self.assertEqual((column.chosen(self.state), column.railed(self.state)), (80, True))
+        fake.tabs["w1:t1"][0]["ratio"] = 0.885                               # the rail nudged 2 cells wider
         app.drag("w1:p2")
-        self.assertEqual((fake.tabs["w1:t1"][0]["ratio"], column.saved(self.state)), (0.9, 0.6))
+        self.assertEqual((fake.tabs["w1:t1"][0]["ratio"], column.chosen(self.state)), (0.895, 80))
+        fake.width = 300                                                     # the window wider: the share kept
+        app.drag("w1:p2")
+        self.assertEqual((column.cells(column.read("w1:p2"))[1], column.railed(self.state)), (31, True))  # odd
+        fake.width = 200
         app.fold_dock(False)
         done()
         self.assertEqual([fake.tabs[name][0]["ratio"] for name in ("w1:t1", "w2:t1")], [0.6, 0.6])
         self.assertFalse(column.railed(self.state))
+
+    def test_alone_the_rail_takes_an_odd_width_inside_the_frame(self):
+        # RAIL cells, or the tenth of the tab herdr keeps at least where that is more, a cell more where that would be
+        # even: each icon on the rail's very middle
+        self.herdr()
+        for cells in (120, 130, 155, 160, 200, 201, 333, 400):
+            with self.subTest(cells=cells):
+                self.fake.tabs["w1:t1"], self.fake.width = [tab(1), False], cells
+                here = column.read("w1:p2")
+                column.arrange(here, right=column.width(self.state, here, rail=True))
+                inside = column.cells(column.read("w1:p2"))[1] - column.FRAME
+                fewest = max(column.RAIL, cells - int(cells * column.SPLIT[1] + 0.5) - column.FRAME)
+                self.assertEqual(inside, fewest + 1 - fewest % 2)
 
     def test_the_terminal_moves_under_the_agent_on_the_rail_and_back(self):
         # herdr moves no pane inside its own tab: through a new one, which goes by itself; it keeps its rows
@@ -183,7 +251,7 @@ class Column(unittest.TestCase):
         self.assertIsNone(column.read("w1:p2"))                                # no herdr listening
         self.assertEqual(column.drag(self.state, "w1:p2", 50), 0)
         self.write_saved("wide")
-        self.assertIsNone(column.saved(self.state))
+        self.assertIsNone(column.chosen(self.state))
 
 
 if __name__ == "__main__":

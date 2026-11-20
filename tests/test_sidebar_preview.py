@@ -349,6 +349,106 @@ class Tabs(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.herdr.call("pane", "nonsense")
 
+    def test_a_refusal_is_herdrs_own_sentence_never_its_json(self):
+        # what the foot shows: a job's error is this exception's words
+        refused = {"error": {"code": "ui_busy", "message": "a popup pane is already open"}, "id": "cli:plugin:pane"}
+        for said, words in ((json.dumps(refused), "A popup pane is already open"),
+                            ("warning: slow\n" + json.dumps(refused), "A popup pane is already open"),
+                            (json.dumps({"error": "no such pane", "id": 1}), "No such pane"),
+                            ("error: no such tab", "error: no such tab"),         # not JSON: as herdr said it
+                            (json.dumps({"error": {"code": "ui_busy"}}), json.dumps({"error": {"code": "ui_busy"}}))):
+            with self.subTest(said):
+                script = "#!/bin/sh\ncat >&2 <<'SAID'\n" + said + "\nSAID\nexit 1\n"
+                herdr = preview.Herdr(os.path.join(stubs(tempfile.mkdtemp(dir=self.tmp), {"herdr": script}), "herdr"))
+                with self.assertRaises(RuntimeError) as failed:
+                    herdr.call("plugin", "pane", "open")
+                self.assertEqual(str(failed.exception), words)
+
+
+GRAPH = {"name": "Claude", "folder": "/work/lumen-api", "run": True,
+         "words": {"views": {"wiring": "Wiring", "run": "This conversation"}}}
+
+
+def tree_rows(run):
+    """A graph's tree as the Agent view makes it (layers.py's tree_rows()): parts with their roles."""
+    if run:
+        return [[("Claude", "bold")], [("1", "accent"), (" api-routes", None), (" → ", "dim"), ("2", "accent"),
+                                       (" Bash", None)]]
+    return [[("Claude", "bold"), ("  Opus 5.5", "dim")], [("└ ", "dim"), ("uses", "dim")],
+            [("  └ ", "dim"), ("sentry  ", None), ("failed", "bad"), ("  [ask]", None)]] + [[("  line", None)]] * 40
+
+
+class Graph(unittest.TestCase):
+    """An agent's graph as a tree in the preview tab: a text spec with its views, the pager's w and c switching them."""
+
+    def spec(self, **more):
+        return preview.graph_spec({**GRAPH, **more}, tree_rows)
+
+    def test_the_spec_names_the_agent_and_folder_and_holds_each_views_lines_in_the_terminals_colors(self):
+        spec = self.spec()
+        self.assertEqual((spec["title"], spec["view"], spec["pipeline"], spec["line"]),
+                         ("Claude in lumen-api", "w", [], None))
+        self.assertEqual([(view["key"], view["name"]) for view in spec["views"]],
+                         [("w", "Wiring"), ("c", "This conversation")])
+        self.assertEqual(spec["views"][0]["lines"][:3], [
+            "\x1b[1mClaude\x1b[0m\x1b[90m  Opus 5.5\x1b[0m", "\x1b[90m└ \x1b[0m\x1b[90muses\x1b[0m",
+            "\x1b[90m  └ \x1b[0msentry  \x1b[31mfailed\x1b[0m  [ask]"])
+        self.assertEqual(spec["views"][1]["lines"][1],
+                         "\x1b[1;35m1\x1b[0m api-routes\x1b[90m → \x1b[0m\x1b[1;35m2\x1b[0m Bash")
+        json.dumps(spec)                                                        # it goes through a file
+
+    def test_with_no_conversation_read_it_is_wiring_alone(self):
+        spec = preview.graph_spec({**GRAPH, "run": False}, tree_rows, view="c")
+        self.assertEqual(([view["key"] for view in spec["views"]], spec["view"]), (["w"], "w"))
+        shown = pager.viewer(spec)
+        shown.draw(FakeTerminal(60, 10))
+        self.assertEqual(shown.lead, "")                                        # nothing to switch: no control
+
+    def test_the_pager_shows_wiring_and_w_and_c_switch_the_views_each_from_its_top(self):
+        shown = pager.viewer(self.spec())
+        self.assertIsInstance(shown, pager.Views)
+        term = FakeTerminal(60, 10)
+        shown.draw(term)
+        self.assertEqual(pager.plain(shown.rows(60, 9)[0]), "Claude  Opus 5.5")
+        self.assertEqual(pager.plain(shown.lead), " w Wiring  c This conversation ")
+        self.assertIn(pager.CHOSEN + " Wiring ", shown.lead)                    # the one shown, on the accent
+        shown.handle(Key("char", "j"))
+        self.assertTrue(shown.handle(Key("char", "c")))
+        self.assertEqual((shown.top, pager.plain(shown.rows(60, 9)[1])), (0, "1 api-routes → 2 Bash"))
+        shown.draw(term)
+        self.assertIn(pager.CHOSEN + " This conversation ", shown.lead)
+        shown.handle(Key("char", "w"))
+        self.assertEqual(pager.plain(shown.rows(60, 9)[1]), "└ uses")
+        self.assertFalse(shown.handle(Key("char", "q")))                        # its other keys the pager's own
+
+    def test_a_press_on_a_views_name_and_the_right_clicks_menu_show_it(self):
+        shown = pager.viewer(self.spec())
+        shown.draw(FakeTerminal(60, 10))
+        at = pager.plain(shown.lead).index("This")
+        self.assertTrue(shown.handle(Mouse("press", at, 9, 0)))
+        self.assertEqual(shown.view["key"], "c")
+        self.assertEqual(shown.choices(), [("Wiring", False), ("This conversation", True), (pager.CLOSE, None)])
+        self.assertTrue(shown.choose("Wiring"))
+        self.assertEqual(shown.view["key"], "w")
+        self.assertFalse(shown.choose(pager.CLOSE))
+
+    def test_a_letter_typed_into_a_search_is_a_letter(self):
+        shown = pager.viewer(self.spec())
+        for key in ("/", "c"):
+            shown.handle(Key("char", key))
+        self.assertEqual((shown.view["key"], shown.typing), ("w", "c"))
+
+    def test_a_pager_from_before_the_views_shows_a_line_and_does_not_stall(self):
+        spec = {key: value for key, value in self.spec().items() if key not in ("views", "view")}
+        self.assertEqual(finished(self, lambda: pager.load(spec)),
+                         ["not a plain file: a pipe or a device is not shown"])
+
+    def test_views_of_another_shape_are_no_views(self):
+        self.assertIsInstance(pager.viewer({"title": "x", "file": os.devnull, "pipeline": [], "views": ["w"]}),
+                              pager.Pager)
+        self.assertNotIsInstance(pager.viewer({"title": "x", "file": os.devnull, "pipeline": [], "views": "w"}),
+                                 pager.Views)
+
 
 class Lines(unittest.TestCase):
     def setUp(self):

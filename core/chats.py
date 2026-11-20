@@ -1,36 +1,41 @@
-# Generated from core/conversations.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
-"""This machine's Claude Code and Codex conversations, running or not, for the Conversations panel and herdr-fold's
-formatted copy; nothing of Claude's, Codex's or herdr's is ever written. The files are large: each is read once, then
-only where it grew (INDEX, shared by every pane). An unreadable file is left out, a field of a wrong type as missing."""
+"""This machine's Claude Code and Codex chats for the Chats list and the formatted copy: nothing of Claude's, Codex's
+or herdr's is written, and only a closed chat's own file leaves, for the Trash, on Delete… (delete). Each file is read
+once, then only where it grew (INDEX, every pane's); an unreadable one is left out, a field of a wrong type missing."""
 import contextlib
 import errno
 import glob
 import json
 import os
-import re
 import stat
 import sys
 import unicodedata
 from dataclasses import asdict, dataclass, replace
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
+import fileops  # noqa: E402
 import statefile  # noqa: E402
 from github import since  # noqa: E402
+from jsonl import claude_project_dir, newest_first, obj, open_regular, parse  # noqa: E402
 
-INDEX = "conversation-index.json"     # what was read of each file, and where it stopped
-SETTINGS = "conversations.json"       # the panel's settings, the archived conversations among them
+INDEX = "chat-index.json"             # what was read of each file, and where it stopped
+SETTINGS = "chats.json"               # the list's settings, the archived chats among them
+# an older version's names for them: each moved to its new one on first use, where that is not there yet
+FORMER = {INDEX: "conversation-index.json", SETTINGS: "conversations.json"}
 KEPT = ("archived", "show_archived", "resumed", "told_closed")     # SETTINGS' keys: an older version's go on a write
-INDEX_VERSION = 2                     # another version's index (its shape, its types) is not read: the files are
+INDEX_VERSION = 3                     # another version's index (its shape, its types) is not read: the files are
+# how Claude names a chat a program ran through the Agent SDK (its "entrypoint"): a hook's review of every change, a
+# script's question, never the user's own chat. claude -p's (sdk-cli), the editors' and the desktop app's are listed
+PROGRAMS = ("sdk-py", "sdk-ts")
 PROMPT = 200                          # characters of a first prompt the index keeps: more than a row can ever show
 FIRST_LINE = 1 << 20                  # bytes of a Codex file's first line read for its folder (some 23 KB in use)
-TAIL = 8 << 20                        # bytes from a conversation's end the formatted copy looks for a reply in
+TAIL = 8 << 20                        # bytes from a chat's end the formatted copy looks for a reply in
 # a text that is not the user's own prompt: the agent's system text or a command (<…>), the project's notes, a note
 # that a reply was cut off
 NOT_A_PROMPT = ("<", "# AGENTS.md", "[Request interrupted")
 
 
 @dataclass(frozen=True)
-class Conversation:
+class Chat:
     agent: str              # claude or codex
     id: str                 # its session: claude --resume ID, codex resume ID
     title: str
@@ -42,35 +47,8 @@ class Conversation:
 
 # --- the files
 
-def open_regular(path, *args, **kwargs):
-    """open(PATH, *ARGS, **KWARGS) for reading, a regular file only (OSError otherwise): a pipe named like a
-    conversation would hold the reader for good, so it is opened without waiting, then refused."""
-    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0))
-    try:
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
-            raise OSError(errno.EINVAL, "not a regular file", path)
-        return os.fdopen(fd, *args, **kwargs)
-    except BaseException:
-        os.close(fd)
-        raise
-
-
-def obj(value):
-    return value if isinstance(value, dict) else {}
-
-
 def text(value):
     return value if isinstance(value, str) else None
-
-
-def parse(line):
-    """One JSON line (text or bytes) as a dict; a damaged line (cut off, stray bytes, nested too deep, not an object)
-    is empty."""
-    try:
-        entry = json.loads(line)
-    except (ValueError, UnicodeDecodeError, RecursionError):
-        return {}
-    return entry if isinstance(entry, dict) else {}
 
 
 def read_jsonl(path, tail=None):
@@ -88,45 +66,39 @@ def read_jsonl(path, tail=None):
                 yield entry
 
 
-def claude_project_dir(folder):
-    """Claude's folder for the conversations started in FOLDER: every character but a letter, digit or - becomes -."""
-    return os.path.join(os.path.expanduser("~"), ".claude", "projects", re.sub(r"[^A-Za-z0-9-]", "-", folder))
+def once(paths):
+    """PATHS without the files a linked folder lists again (a project's folder linked to another's, to share its
+    chats, holds each of them twice): each file by its real folder's path, as found before a link's."""
+    real = {}
+    for folder in {os.path.dirname(path) for path in paths}:
+        real[folder] = (os.path.islink(folder), os.path.realpath(folder))
+    kept = {}
+    for path in sorted(paths, key=lambda path: real[os.path.dirname(path)][0]):
+        kept.setdefault((real[os.path.dirname(path)][1], os.path.basename(path)), path)
+    return list(kept.values())
 
 
 def claude_files():
-    return glob.glob(os.path.join(os.path.expanduser("~"), ".claude", "projects", "*", "*.jsonl"))
+    return once(glob.glob(os.path.join(os.path.expanduser("~"), ".claude", "projects", "*", "*.jsonl")))
 
 
 def codex_session_files():
-    """Every Codex conversation file (sessions/<year>/<month>/<day>/rollout-*.jsonl)."""
+    """Every Codex chat file (sessions/<year>/<month>/<day>/rollout-*.jsonl)."""
     return glob.glob(os.path.join(os.path.expanduser("~"), ".codex", "sessions", "*", "*", "*", "rollout-*.jsonl"))
 
 
 def session_files(kind, session):
-    """The files of one conversation: KIND is claude or codex, SESSION its id."""
+    """The files of one chat: KIND is claude or codex, SESSION its id."""
     home = os.path.expanduser("~")
     if kind == "claude":
-        return glob.glob(os.path.join(home, ".claude", "projects", "*", f"{session}.jsonl"))
+        return once(glob.glob(os.path.join(home, ".claude", "projects", "*", f"{session}.jsonl")))
     if kind == "codex":
         return glob.glob(os.path.join(home, ".codex", "sessions", "*", "*", "*", f"*{session}.jsonl"))
     return []
 
 
-def newest_first(paths):
-    """PATHS that are regular files, the most recently changed first."""
-    found = []
-    for path in paths:
-        try:
-            info = os.stat(path)
-        except OSError:
-            continue
-        if stat.S_ISREG(info.st_mode):
-            found.append((info.st_mtime, path))
-    return [path for _, path in sorted(found, key=lambda pair: pair[0], reverse=True)]
-
-
 def folder_files(kind, folder):
-    """The files of the conversations started in FOLDER, the newest first (read as needed): KIND is claude or codex.
+    """The files of the chats started in FOLDER, the newest first (read as needed): KIND is claude or codex.
     Codex's own helpers (subagents, such as its approvals reviewer) are left out."""
     if kind == "claude":
         paths = glob.glob(os.path.join(claude_project_dir(folder), "*.jsonl"))
@@ -169,13 +141,20 @@ def parts(content, kind):
 
 
 def messages(kind, path, tail=None):
-    """The messages of the conversation in PATH (KIND claude or codex), in order, as (role, text): role "user" for the
-    user's own prompts, "assistant" for the agent's replies, one per part of a reply; tool calls, their results, system
-    text and the lines of the agent's helpers left out. TAIL: of the file's last TAIL bytes only (read_jsonl)."""
+    """The chat in PATH (KIND claude or codex) as (role, text), in order: "user" for the user's own prompts, "assistant"
+    for each part of a reply; no tool call, result, system text or helper's line, nor what a compacted Claude chat
+    holds again (its summary in the user's place, the messages kept and written anew). TAIL: read_jsonl's."""
+    seen = set()
     for entry in read_jsonl(path, tail):
         if kind == "claude":
-            if entry.get("isSidechain") or entry.get("isMeta") or entry.get("type") not in ("user", "assistant"):
+            if entry.get("isSidechain") or entry.get("isMeta") or entry.get("isCompactSummary") \
+                    or entry.get("type") not in ("user", "assistant"):
                 continue
+            again = entry.get("uuid")
+            if isinstance(again, str):
+                if again in seen:
+                    continue
+                seen.add(again)
             role, content = entry["type"], obj(entry.get("message")).get("content")
             texts = parts(content, "text") if role == "assistant" else texts_of(content)
         else:
@@ -190,8 +169,8 @@ def messages(kind, path, tail=None):
 
 
 def markdown(item, path):
-    """ITEM's conversation (its file PATH) as Markdown: its title, then each turn under who said it, the parts of a
-    turn together. No control character but line breaks and tabs: pasted into a terminal, a code the conversation holds
+    """ITEM's chat (its file PATH) as Markdown: its title, then each turn under who said it, the parts of a
+    turn together. No control character but line breaks and tabs: pasted into a terminal, a code the chat holds
     would run there."""
     who = {"user": "You", "assistant": item.agent.capitalize()}
     turns = []
@@ -208,7 +187,8 @@ def markdown(item, path):
 
 
 def read_claude(entry, raw):
-    """What a line of a Claude conversation adds: the latest rename and AI title, the first prompt, the folder."""
+    """What a line of a Claude chat adds: the latest rename and AI title, the first prompt, the folder, and whether
+    a program ran it (PROGRAMS: the line of its first prompt says how it was started)."""
     if b'"type":"custom-title"' in raw:
         entry["custom"] = text(parse(raw).get("customTitle")) or entry.get("custom")
     elif b'"type":"ai-title"' in raw:
@@ -219,10 +199,12 @@ def read_claude(entry, raw):
         entry["prompt"] = first_prompt(texts_of(obj(message.get("message")).get("content")))[:PROMPT] or None
         if not entry["prompt"]:
             del entry["prompt"]
+        elif message.get("entrypoint") in PROGRAMS:
+            entry["helper"] = True
 
 
 def read_codex(entry, raw):
-    """What a line of a Codex conversation adds: its id, folder and whether it is a helper (the first line), then the
+    """What a line of a Codex chat adds: its id, folder and whether it is a helper (the first line), then the
     first prompt, after which nothing more is needed (its name lives in session_index.jsonl)."""
     if "id" not in entry:
         meta = obj(parse(raw).get("payload"))
@@ -271,7 +253,7 @@ def update(path, kind, entry):
 # --- the names given elsewhere
 
 def names_path():
-    """Where herdr-fold's AI Sessions keeps each conversation's name, and whose it is (sessions-view's names.json)."""
+    """Where herdr-fold's AI Sessions keeps each chat's name, and whose it is (sessions-view's names.json)."""
     return os.path.join(os.path.expanduser("~"), ".local", "state", "herdr", "plugins", "herdr-fold.sessions-view",
                         "names.json")
 
@@ -329,6 +311,21 @@ def name_session(session, name):
         statefile.write(names_path(), names, ensure_ascii=False)
 
 
+def forget_name(session):
+    """SESSION's name dropped where AI Sessions keeps them, the others as they are; no file made where there is
+    none, one that cannot be read left as it is."""
+    if not os.path.exists(names_path()):
+        return
+    with names_lock():
+        try:
+            with open(names_path(), encoding="utf-8") as f:
+                names = json.load(f)
+        except (OSError, ValueError, RecursionError):
+            return
+        if isinstance(names, dict) and names.pop(session, None) is not None:
+            statefile.write(names_path(), names, ensure_ascii=False)
+
+
 def codex_names():
     """Thread names given with Codex's /rename (the latest one wins)."""
     names = {}
@@ -343,10 +340,24 @@ def codex_names():
 
 # --- the list
 
+def path_of(state_dir, name):
+    """NAME's file in STATE_DIR, its FORMER one moved there first where only that is: under NAME's lock, as every tab's
+    sidebar and the app's helper may come at once."""
+    path, former = os.path.join(state_dir, name), os.path.join(state_dir, FORMER[name])
+    if os.path.exists(former) and not os.path.exists(path):
+        try:
+            with statefile.locked(path):
+                if os.path.exists(former) and not os.path.exists(path):
+                    os.replace(former, path)
+        except OSError:
+            pass                                # as none for now: the next use moves it
+    return path
+
+
 def load_index(state_dir):
     """What was read of each file, {path: entry}; nothing of another version's index."""
     try:
-        with open(os.path.join(state_dir, INDEX), encoding="utf-8") as f:
+        with open(path_of(state_dir, INDEX), encoding="utf-8") as f:
             index = obj(json.load(f))
     except (OSError, ValueError, RecursionError):
         return {}
@@ -358,13 +369,14 @@ def load_index(state_dir):
 def save_index(state_dir, index):
     """Written whole, its owner's only (statefile.py): another pane reading it meanwhile sees the old one or the new."""
     try:
-        statefile.write(os.path.join(state_dir, INDEX), {"version": INDEX_VERSION, "files": index})
+        statefile.write(path_of(state_dir, INDEX), {"version": INDEX_VERSION, "files": index})
     except OSError:
         pass                                    # read again next time
 
 
-def conversation(kind, path, entry, names, threads):
-    """The conversation ENTRY describes; None for a file without a prompt of the user's, and for Codex's helpers."""
+def chat(kind, path, entry, names, threads):
+    """The chat ENTRY describes; None for a file without a prompt of the user's, for Codex's helpers and for a
+    program's run of Claude."""
     if not entry.get("prompt") or entry.get("helper"):
         return None
     if kind == "claude":
@@ -375,12 +387,12 @@ def conversation(kind, path, entry, names, threads):
         if not session:
             return None
         title = names.get(session) or threads.get(session) or entry["prompt"]
-    return Conversation(kind, session, title, entry.get("folder") or "", entry["mtime"])
+    return Chat(kind, session, title, entry.get("folder") or "", entry["mtime"])
 
 
 def running(found, agents, resumed=None):
     """FOUND with the running ones marked, from AGENTS (herdr's agent list): by the session herdr was told of, the one
-    reopened in its pane (RESUMED: {pane: conversation id}) until herdr is told, or else the newest conversation of
+    reopened in its pane (RESUMED: {pane: chat id}) until herdr is told, or else the newest chat of
     its kind in its folder."""
     told, untold = {}, {}
     for agent in agents:
@@ -400,7 +412,7 @@ def running(found, agents, resumed=None):
 
 
 def local(state_dir, agents=(), resumed=None):
-    """This machine's conversations, the newest first; AGENTS: herdr's agent list, and RESUMED, the conversations
+    """This machine's chats, the newest first; AGENTS: herdr's agent list, and RESUMED, the chats
     reopened in panes herdr knows no session of yet ({pane: id}), for the running ones."""
     index, fresh, found = load_index(state_dir), {}, []
     names, threads = manual_names(), codex_names()
@@ -410,7 +422,7 @@ def local(state_dir, agents=(), resumed=None):
             if entry is None:
                 continue
             fresh[path] = entry
-            item = conversation(kind, path, entry, names, threads)
+            item = chat(kind, path, entry, names, threads)
             if item:
                 found.append(item)
     if fresh != index:
@@ -419,15 +431,15 @@ def local(state_dir, agents=(), resumed=None):
 
 
 def setting(state_dir):
-    """The panel's settings, {} when there are none or they cannot be read."""
-    return statefile.read(os.path.join(state_dir, SETTINGS))
+    """The list's settings, {} when there are none or they cannot be read."""
+    return statefile.read(path_of(state_dir, SETTINGS))
 
 
 def change(state_dir, how):
     """SETTINGS changed by HOW (given what it holds then, its answer kept, KEPT's keys only) under statefile.update:
     every tab's sidebar and the app's helper write it. Nothing when it cannot be written."""
     try:
-        statefile.update(os.path.join(state_dir, SETTINGS),
+        statefile.update(path_of(state_dir, SETTINGS),
                          lambda kept: {key: value for key, value in how(kept).items() if key in KEPT})
     except OSError:
         pass
@@ -439,7 +451,7 @@ def keep(state_dir, **values):
 
 
 def archived(state_dir):
-    """The conversations taken off the list, as "<agent>:<id>"."""
+    """The chats taken off the list, as "<agent>:<id>"."""
     return archived_in(setting(state_dir))
 
 
@@ -449,9 +461,53 @@ def archived_in(kept):
 
 
 def archive(state_dir, keys, off=True):
-    """The conversations KEYS ("<agent>:<id>") off the list (OFF), or back on it; their files stay as they are."""
+    """The chats KEYS ("<agent>:<id>") off the list (OFF), or back on it; their files stay as they are."""
     change(state_dir, lambda kept: {**kept, "archived": sorted(archived_in(kept) | keys if off
                                                                else archived_in(kept) - keys)})
+
+
+def own_files(kind, session):
+    """Chat SESSION's own files: session_files', a Codex one only if its first line names SESSION (another's name
+    may end as this id does)."""
+    found = []
+    for path in session_files(kind, session):
+        if kind == "codex":
+            entry = {}
+            try:
+                with open_regular(path, "rb") as f:
+                    read_codex(entry, f.readline(FIRST_LINE))
+            except OSError:
+                continue
+            if entry.get("id") != session:
+                continue
+        found.append(path)
+    return found
+
+
+def delete(state_dir, kind, session, agents=(), resumed=None, **how):
+    """Chat SESSION of KIND deleted: its own file to the system's Trash (fileops.trash_chat, HOW its stand-ins), then
+    its archive and its name dropped. Only a chat of the list, never a running one (AGENTS, RESUMED: local()'s):
+    fileops.Refused says why not, nothing moved or dropped then."""
+    listed = local(state_dir, agents, resumed) if kind in ("claude", "codex") and fileops.CHAT_ID.fullmatch(session) \
+        else []
+    item = next((one for one in listed if (one.agent, one.id) == (kind, session)), None)
+    paths = own_files(kind, session) if item else []
+    if not paths:
+        raise fileops.Refused("no such chat in the list")
+    if item.state or item.pane:
+        raise fileops.Refused("the chat is running: close it first")
+    for path in paths:
+        where = fileops.trash_chat(kind, session, path, **how)
+    archive(state_dir, {f"{kind}:{session}"}, off=False)
+    with contextlib.suppress(OSError):
+        forget_name(session)
+    return where
+
+
+def said(err):
+    """Why a chat was not deleted, as a line to show."""
+    words = str(err) or type(err).__name__
+    return words[:1].upper() + words[1:]
 
 
 def state_folder():
@@ -460,18 +516,19 @@ def state_folder():
 
 
 def main(argv):
-    """herdr-fold's Herdr app mod runs this on the Mac, answering in JSON: list AGENTS RESUMED (herdr's agents and
-    {pane: id}, as JSON: the running ones marked, how long ago each changed), rename SESSION NAME, archive|unarchive
-    KEY… ("<agent>:<id>") and markdown AGENT ID (the whole conversation, for Copy conversation)."""
+    """The Herdr app mod's, on the Mac, answering in JSON: list AGENTS RESUMED (herdr's agents and {pane: id}, as JSON:
+    the running ones marked, how long ago each changed), rename SESSION NAME, archive|unarchive KEY… ("<agent>:<id>"),
+    markdown AGENT ID (Copy chat's) and delete AGENT ID AGENTS RESUMED (a closed one's file to the Trash, or why)."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     state = state_folder()
     try:
-        if command == "list" and len(args) == 2:
-            agents, resumed = json.loads(args[0]), json.loads(args[1])
+        if command in ("list", "delete") and len(args) == (2 if command == "list" else 4):
+            agents, resumed = json.loads(args[-2]), json.loads(args[-1])
             if not isinstance(agents, list) or not isinstance(resumed, dict):
                 raise ValueError("not a list")
+        if command == "list" and len(args) == 2:
             listed = local(state, agents, resumed)
-            answer = {"conversations": [{**asdict(item), "ago": since(item.time)} for item in listed],
+            answer = {"chats": [{**asdict(item), "ago": since(item.time)} for item in listed],
                       "archived": sorted(archived(state))}
         elif command == "rename" and len(args) == 2:
             try:
@@ -482,6 +539,12 @@ def main(argv):
         elif command in ("archive", "unarchive") and args:
             archive(state, set(args), command == "archive")
             answer = {"ok": True}
+        elif command == "delete" and len(args) == 4:
+            try:
+                delete(state, args[0], args[1], agents, resumed)
+                answer = {"ok": True}
+            except OSError as err:                      # Refused too: the line to show
+                answer = {"ok": False, "advice": said(err)}
         elif command == "markdown" and len(args) == 2:
             item = next((c for c in local(state) if (c.agent, c.id) == tuple(args)), None)
             paths = session_files(*args) if item else []
@@ -489,8 +552,8 @@ def main(argv):
         else:
             raise ValueError("unknown command")
     except (ValueError, TypeError, AttributeError):
-        print("usage: conversations.py list AGENTS RESUMED | rename SESSION NAME | archive|unarchive KEY… | markdown "
-              "AGENT ID", file=sys.stderr)
+        print("usage: chats.py list AGENTS RESUMED | rename SESSION NAME | archive|unarchive KEY… | markdown "
+              "AGENT ID | delete AGENT ID AGENTS RESUMED", file=sys.stderr)
         return 2
     print(json.dumps(answer))
     return 0

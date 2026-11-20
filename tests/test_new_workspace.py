@@ -5,6 +5,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from support import ANSI, set_attrs, set_env
 
@@ -73,6 +74,11 @@ class Tree(unittest.TestCase):
     def test_tab_switches_the_agent(self):
         self.press("\t")
         self.assertEqual(self.picker.agent, "codex")
+
+    def test_the_toggle_starts_on_the_agent_started_last_in_its_place(self):
+        # the toggle's order stays (nothing moves): the agent used last is the one marked
+        self.assertEqual(new_workspace.Picker(self.root, agent="codex").agent, "codex")
+        self.assertEqual(new_workspace.Picker(self.root, agent="aider").agent, "claude")     # not one it starts
 
     def test_new_workspace_from_the_sidebar_starts_on_its_folder_in_its_parent(self):
         picker = new_workspace.Picker(self.tmp, self.path("claude"))
@@ -188,9 +194,10 @@ class Screen(unittest.TestCase):
         self.assertTrue(keys.rstrip().endswith("Cancel    Open"), keys)
 
     def test_the_title_and_the_toggle_keep_a_cell_clear_at_each_edge(self):
+        # the toggle a cell before the close button, which takes the row's last three cells (herdr's column after)
         first = self.lines()[0]
         self.assertEqual(len(first), 80)
-        self.assertTrue(first.startswith(" ~/projects") and first.endswith(" codex  "), first)
+        self.assertTrue(first.startswith(" ~/projects") and first.endswith(" codex     "), first)
         self.assertTrue(self.lines(filt="no")[1].startswith(" no"))
 
     def test_every_row_fits_a_narrow_window(self):
@@ -212,6 +219,17 @@ class Screen(unittest.TestCase):
         self.assertNotIn("\x1b]", shown)
         self.assertNotIn("\x07", shown)
         self.assertIn("?]52;c;ZWNobyBoaQ==?app", shown)
+
+    def test_its_close_button_goes_back_as_esc_does_whatever_was_typed(self):
+        went, keys = [], ["a", new_workspace.CLOSED]
+        set_attrs(self, new_workspace, repositories=lambda: [], open_workspaces=lambda: [], mouse=lambda *a, **k: None,
+                  close_button=lambda: mock.Mock(overlay=lambda width: ""), read_key=lambda *a, **k: keys.pop(0),
+                  close_placeholder=lambda *a, **k: went.append((a, k)))
+        set_env(self, HERDR_NEW_WORKSPACE="w9", HERDR_NEW_WORKSPACE_FOLDER=os.path.join(self.tmp, "projects"))
+        with mock.patch.object(new_workspace.os, "get_terminal_size", return_value=os.terminal_size((80, 24))), \
+                mock.patch("builtins.print"):
+            new_workspace.main()
+        self.assertEqual(went, [(("w9",), {"back": True})])
 
     def test_esc_goes_back_to_the_workspace_it_was_opened_from(self):
         calls = []

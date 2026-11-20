@@ -51,22 +51,41 @@ function Line($kind, $text) {
     Write-Output "  $mark $text"
 }
 
-# This machine's record of what it got (prepared.txt), and the backups of what it replaced
+# This machine's record of what it got (prepared.txt) and of what each file held then (prepared.sha256), and the
+# copies of what was its own
 $State = Join-Path $env:USERPROFILE '.local\state\herdr-fold'
 $Record = Join-Path $State 'prepared.txt'
-$Backup = Join-Path $State ('prepared-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+$SumsFile = Join-Path $State 'prepared.sha256'
 $Original = Join-Path $State 'prepared-original'   # the machine's own files, as they were before the first prepare
+$Changed = Join-Path $State ('prepared-changed-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))   # prepared, changed here
+$PreparedSums = @{}                                 # REL → its SHA-256 right after the last prepare
+if (Test-Path $SumsFile) {
+    foreach ($line in Get-Content -Encoding UTF8 $SumsFile) {
+        $at = $line.IndexOf('  ')
+        if ($at -gt 0) { $PreparedSums[$line.Substring($at + 2)] = $line.Substring(0, $at) }
+    }
+}
 function Get-Local($rel) {  # a listed path, as this system writes it
     $rel.Replace('/', [IO.Path]::DirectorySeparatorChar)
 }
-# Keep REL (relative to the profile) in the folder INTO, the backup unless said; a link is moved there as it is (MOVE),
-# never followed. An error when it cannot be kept: the caller then leaves the file as it is.
-function Keep($rel, $into = $Backup, [switch]$Move) {
+# Keep REL (relative to the profile) in the folder INTO; a link is moved there as it is (MOVE), never followed. An error
+# when it cannot be kept: the caller then leaves the file as it is.
+function Keep($rel, $into, [switch]$Move) {
     $keep = Join-Path $into (Get-Local $rel)
     New-Item -ItemType Directory -Force -ErrorAction Stop -Path (Split-Path $keep) | Out-Null
     $path = Join-Path $env:USERPROFILE (Get-Local $rel)
     if ($Move) { Move-Item -Force -ErrorAction Stop $path $keep }
     else { Copy-Item -Force -ErrorAction Stop $path $keep }
+}
+# Before a prepared file REL is replaced or removed: one changed here since the last prepare (not what prepared.sha256
+# recorded, or nothing recorded; a link, MOVE, always) is kept in prepared-changed-<date>, never pruned, and named;
+# herdr-fold's own earlier version needs no copy, the package has it. An error when it cannot be kept.
+function Save-Changed($rel, [switch]$Move) {
+    $path = Join-Path $env:USERPROFILE (Get-Local $rel)
+    $was = $PreparedSums[$rel]
+    if (-not $Move -and $was -and (Get-FileHash $path).Hash -eq $was) { return }
+    Keep $rel $Changed -Move:$Move
+    Line saved (T 'prepare.win.changed_kept' $path (Join-Path $Changed (Get-Local $rel)))
 }
 # After REL is taken off: the machine's own one (prepared-original) back in its place; without one, the folders left
 # empty go
@@ -146,10 +165,25 @@ function Set-Block($path, $block) {
     }
 }
 
+# An earlier version's dated folders of copies go; the machine's own Claude status line it saved first moves to
+# prepared-original unless that has one (all stay while it cannot be moved)
+$OwnLine = Join-Path $Original 'claude-statusLine.json'
+$Dated = @(Get-ChildItem -LiteralPath $State -Directory -Force -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -match '^prepared-\d+-\d+$' } | Sort-Object Name)
+$First = @($Dated | ForEach-Object { Join-Path $_.FullName 'claude-statusLine.json' } |
+    Where-Object { Test-Path -PathType Leaf $_ })[0]
+try {
+    if ($First -and -not (Test-Path $OwnLine)) {
+        New-Item -ItemType Directory -Force -ErrorAction Stop -Path $Original | Out-Null
+        Move-Item -ErrorAction Stop $First $OwnLine
+    }
+    $Dated | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+} catch { }
+
 if ($Remove) {
     Line section (T 'prepare.win.removing')
-    # Claude's status line first (its script is about to go): the one the machine had — the first one saved — comes
-    # back, or herdr-fold's just goes
+    # Claude's status line first (its script is about to go): the machine's own, saved in prepared-original (or still
+    # where an earlier version saved it), comes back, or herdr-fold's just goes
     $settings = [IO.Path]::Combine($env:USERPROFILE, '.claude', 'settings.json')
     if (Test-Path $settings) {
         $data = $null
@@ -157,19 +191,18 @@ if ($Remove) {
         if (-not ($data -is [System.Management.Automation.PSCustomObject])) {
             Line warn (T 'prepare.win.settings_unreadable' $settings)
         } elseif (Test-HerdrFoldStatusLine $data.statusLine) {
-            $saved = Get-ChildItem -Path (Join-Path $State 'prepared-*') -Filter claude-statusLine.json -Recurse `
-                -ErrorAction SilentlyContinue | Sort-Object FullName | Select-Object -First 1
+            $saved = if (Test-Path $OwnLine) { $OwnLine } else { $First }
             if ($saved) {
-                $data.statusLine = Get-Content -Raw -Encoding UTF8 $saved.FullName | ConvertFrom-Json
-                Remove-Item -Force $saved.FullName
+                $data.statusLine = Get-Content -Raw -Encoding UTF8 $saved | ConvertFrom-Json
+                Remove-Item -Force $saved
             } else { $data.PSObject.Properties.Remove('statusLine') }
             [IO.File]::WriteAllText($settings, ($data | ConvertTo-Json -Depth 20),
                 (New-Object Text.UTF8Encoding $false))
             Line ok (T 'prepare.win.status_line_back')
         }
     }
-    # the recorded files off: one that is still the package's own version just goes; one changed here is kept first
-    # (a plugin manifest carries this machine's Python path: compared without it)
+    # the recorded files off: herdr-fold's own version just goes (the last prepare's, or the package's: a plugin
+    # manifest carries this machine's Python path, compared without it); one changed here since is kept first
     if (Test-Path $Record) {
         foreach ($rel in Get-Content -Encoding UTF8 $Record) {
             $path = Join-Path $env:USERPROFILE (Get-Local $rel)
@@ -179,7 +212,7 @@ if ($Remove) {
                 # (PowerShell variable names ignore case: a name differing from $Here only in case would overwrite it)
                 $installed = [IO.File]::ReadAllText($path) -replace "command = \['[^']*', ", 'command = ["python", '
                 if (-not ((Test-Path $packaged) -and [IO.File]::ReadAllText($packaged) -ceq $installed)) {
-                    try { Keep $rel } catch { Line warn (T 'prepare.win.not_kept' $path); continue }
+                    try { Save-Changed $rel } catch { Line warn (T 'prepare.win.not_kept' $path); continue }
                 }
                 Remove-Item -Force $path
                 Line ok (T 'prepare.win.removed' $path)
@@ -188,9 +221,10 @@ if ($Remove) {
         }
         Remove-Item -Force $Record
     }
+    Remove-Item -Force -ErrorAction SilentlyContinue $SumsFile
     if (-not $Blocked) { foreach ($p in $Profiles) { Set-Block $p '' } }
     # herdr-fold's plugins (an earlier prepare's Tab Layout too), and the empty folders herdr keeps of them (the
-    # conversation names stay)
+    # chat names stay)
     $h = (Get-Command herdr -ErrorAction SilentlyContinue).Source
     if (-not $h) { $h = "$env:LOCALAPPDATA\Programs\Herdr\bin\herdr.exe" }
     $plugins = 'herdr-fold.sidebar', 'herdr-fold.sessions-view', 'herdr-fold.workspaces', 'herdr-fold.tab-layout'
@@ -203,10 +237,12 @@ if ($Remove) {
     Remove-Item -Recurse -Force (Join-Path $fold '__pycache__'),
         (Join-Path $fold 'statusline.json') -ErrorAction SilentlyContinue
     Remove-EmptyDirs $fold
-    # the sidebar's own settings, its folder only when nothing else is in it (the rest of herdr's state is herdr's)
+    # the sidebar's own settings, its folder only when nothing else is in it (the rest of herdr's state is herdr's);
+    # the chats' two files under their older names too, where a version that moved them never ran
     $sidebarState = Join-Path $env:USERPROFILE '.local\state\herdr\plugins\herdr-fold.sidebar'
     Remove-Item -Force -ErrorAction SilentlyContinue -Path (Join-Path $sidebarState 'settings.json'),
         (Join-Path $sidebarState 'colors.json'), (Join-Path $sidebarState 'column.json'),
+        (Join-Path $sidebarState 'chats.json'), (Join-Path $sidebarState 'chat-index.json'),
         (Join-Path $sidebarState 'conversations.json'), (Join-Path $sidebarState 'conversation-index.json'),
         (Join-Path $sidebarState 'panels.json'), (Join-Path $sidebarState 'dock.json'),
         (Join-Path $sidebarState 'resume-*.json'), (Join-Path $sidebarState 'seed-*.json'),
@@ -216,14 +252,13 @@ if ($Remove) {
     if ((Test-Path $sidebarState) -and -not (Get-ChildItem -Force $sidebarState)) {
         Remove-Item -Force $sidebarState
     }
-    if (Test-Path $Backup) { Line saved (T 'prepare.win.backup' $Backup) }
     if (Test-Path $State) {
         Get-ChildItem -Recurse -Directory -Force $State | Sort-Object { $_.FullName.Length } -Descending |
             Where-Object { -not (Get-ChildItem -Force $_.FullName) } | Remove-Item -Force
         Remove-EmptyDirs $State
     }
     if (Test-Path $State) { Line saved (T 'prepare.win.kept' $State) }
-    # AI Sessions' conversation names stay, as the conversations themselves, and are named
+    # AI Sessions' chat names stay, as the chats themselves, and are named
     $names = Join-Path $env:USERPROFILE '.local\state\herdr\plugins\herdr-fold.sessions-view\names.json'
     if (Test-Path $names) { Line saved (T 'prepare.win.kept_names' $names) }
     if ((Split-Path -Leaf $Here) -eq '.herdr-fold') { Remove-Item -Recurse -Force $Here -ErrorAction SilentlyContinue }
@@ -329,11 +364,12 @@ if ($python) { Line ok (T 'prepare.win.python_present' $python) }
 else { Line warn (T 'prepare.win.python_missing') }
 
 Line section (T 'prepare.win.settings')
-# The files of files.list (the Mac's remote/files.txt) into place: a changed earlier version is backed up first, the
-# machine's own to prepared-original, and a link is set aside, never written through. What the last list (prepared.txt)
-# had and this one drops is backed up and removed, and the machine's own comes back.
+# The files of files.list (the Mac's remote/files.txt) into place, the machine's own kept first in prepared-original; a
+# link is set aside, never written through. What the last list (prepared.txt) had and this one drops is removed, and the
+# machine's own comes back.
 $Listed = @(Get-Content -Encoding UTF8 (Join-Path $Here 'files.list') | Where-Object { $_ })
 $Recorded = @(if (Test-Path $Record) { Get-Content -Encoding UTF8 $Record })
+$PutNow = New-Object Collections.Generic.List[string]  # the files put in place: prepared.sha256 records them at the end
 foreach ($rel in $Listed) {
     $from = Join-Path $F (Get-Local $rel)
     $dst = Join-Path $env:USERPROFILE (Get-Local $rel)
@@ -342,14 +378,17 @@ foreach ($rel in $Listed) {
         $manifest = (Get-Content -Raw -Encoding UTF8 $from).Replace('command = ["python", ', "command = ['$python', ")
         [IO.File]::WriteAllText($from, $manifest, (New-Object Text.UTF8Encoding $false))
     }
-    $into = if ($Recorded -contains $rel) { $Backup } else { $Original }
+    $before = $Recorded -contains $rel                  # prepared before: kept only when changed here since
     $item = Get-Item -Force -ErrorAction SilentlyContinue $dst
     try {
-        if ($item -and $item.LinkType) { Keep $rel $into -Move }
-        elseif ($item -and ((Get-FileHash $dst).Hash -ne (Get-FileHash $from).Hash)) { Keep $rel $into }
+        if ($item -and $item.LinkType) { if ($before) { Save-Changed $rel -Move } else { Keep $rel $Original -Move } }
+        elseif ($item -and ((Get-FileHash $dst).Hash -ne (Get-FileHash $from).Hash)) {
+            if ($before) { Save-Changed $rel } else { Keep $rel $Original }
+        }
     } catch { Line warn (T 'prepare.win.not_kept' $dst); continue }
     New-Item -ItemType Directory -Force -Path (Split-Path $dst) | Out-Null
     Copy-Item -Force $from $dst
+    if ($?) { $PutNow.Add($rel) }
     Line ok $dst
 }
 if (Test-Path $Record) {
@@ -357,7 +396,7 @@ if (Test-Path $Record) {
         $path = Join-Path $env:USERPROFILE (Get-Local $rel)
         if (-not $rel -or $Listed -contains $rel -or (Test-AiSession $rel)) { continue }
         if (Test-Path -PathType Leaf $path) {
-            try { Keep $rel } catch { Line warn (T 'prepare.win.not_kept' $path); continue }
+            try { Save-Changed $rel } catch { Line warn (T 'prepare.win.not_kept' $path); continue }
             Remove-Item -Force $path
             Line ok (T 'prepare.win.removed' $path)
         }
@@ -366,7 +405,6 @@ if (Test-Path $Record) {
 }
 New-Item -ItemType Directory -Force -Path $State | Out-Null
 Copy-Item -Force (Join-Path $Here 'files.list') $Record
-if (Test-Path $Backup) { Line saved (T 'prepare.win.backup' $Backup) }
 
 # Starship prompt inside herdr panes (PowerShell profile; other logins on the machine are unaffected): one marked block,
 # replaced on every run
@@ -386,9 +424,9 @@ if ($env:HERDR_ENV -eq '1' -and (Get-Command starship -ErrorAction SilentlyConti
     foreach ($p in $Profiles) { Set-Block $p $block }
     Line ok (T 'prepare.win.prompt_added')
 }
-# The Claude Code status line (statusline.py, with the machine's Python): the machine's earlier one is backed up; an
-# unreadable settings file, or a status line chosen on the Mac to be your own, is left as it is (statusline_setup.py
-# --apply below brings the machine's own back)
+# The Claude Code status line (statusline.py, with the machine's Python): the machine's own is saved first in
+# prepared-original, never over an earlier saved one; an unreadable settings file, or a status line chosen on the Mac to
+# be your own, is left as it is (statusline_setup.py --apply below brings the machine's own back)
 $settings = [IO.Path]::Combine($env:USERPROFILE, '.claude', 'settings.json')
 $data = New-Object PSObject
 if (Test-Path $settings) {
@@ -414,21 +452,29 @@ if (-not $mine -and $python -and $data -is [System.Management.Automation.PSCusto
     $old = $data.statusLine
     if (Test-HerdrFoldStatusLine $old) { $old = $null }    # an earlier form of herdr-fold's: nothing of yours to keep
     if ($old -and $old.command -ne $wanted.command) {
-        New-Item -ItemType Directory -Force -Path $Backup | Out-Null
-        [IO.File]::WriteAllText([IO.Path]::Combine($Backup, 'claude-statusLine.json'),
-            ($old | ConvertTo-Json -Depth 20),
-            (New-Object Text.UTF8Encoding $false))
+        New-Item -ItemType Directory -Force -Path $Original | Out-Null
+        $savedAs = if (Test-Path $OwnLine) {
+            Join-Path $Original ('claude-statusLine-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.json')
+        } else { $OwnLine }
+        [IO.File]::WriteAllText($savedAs, ($old | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding $false))
     }
     $data | Add-Member -Force -NotePropertyName statusLine -NotePropertyValue $wanted
     New-Item -ItemType Directory -Force -Path (Split-Path $settings) | Out-Null
     [IO.File]::WriteAllText($settings, ($data | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding $false))
-    if ($old -and $old.command -ne $wanted.command) { Line ok (T 'prepare.win.statusline_replaced' $Backup) }
+    if ($old -and $old.command -ne $wanted.command) { Line saved (T 'prepare.win.statusline_replaced' $Original) }
     else { Line ok (T 'prepare.win.statusline_set') }
 } elseif (-not $mine -and $python) {
     Line warn (T 'prepare.win.settings_unreadable' $settings)
 }
 # The status line items as chosen on the Mac (Claude: statusline.py reads them from here; Codex: its own settings)
 if ($python) { & $python "$env:USERPROFILE\.config\herdr-fold\statusline_setup.py" --apply }
+# What each file put in place holds now, after --apply rewrote its own (prepared.sha256): the next prepare keeps a copy
+# only of one changed here since
+$sumLines = @(foreach ($rel in $PutNow) {
+    $path = Join-Path $env:USERPROFILE (Get-Local $rel)
+    if (Test-Path -PathType Leaf $path) { "$((Get-FileHash $path).Hash.ToLower())  $rel" }
+})
+[IO.File]::WriteAllLines($SumsFile, [string[]]$sumLines)
 
 Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue
 # the payload this ran from goes (machines.sh sends a fresh one each time)

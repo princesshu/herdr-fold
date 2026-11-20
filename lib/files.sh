@@ -1,6 +1,6 @@
 # Rules for the files the installer and the prepare scripts put on a machine. Load with: source.
 
-# ai_session_file REL — REL (relative to HOME) is Claude's, Codex's or herdr's own data: a conversation, its name, the
+# ai_session_file REL — REL (relative to HOME) is Claude's, Codex's or herdr's own data: a chat, its name, the
 # history, AI Sessions' names — anything under ~/.claude, ~/.codex or ~/.local/state/herdr. Nothing the
 # installer, a prepare script or the uninstaller does may ever delete one.
 ai_session_file() {
@@ -22,7 +22,7 @@ remove_marked() {
 
 # drop_plugin_folders ID… — the empty folders herdr keeps of a plugin after `plugin unlink` (its config folder, its
 # state folder once nothing of the plugin's is left in it, Workspaces', Tab Layout's and AI Sessions' records gone
-# first, the conversation names kept); nothing of a plugin herdr still lists, nothing when herdr cannot say what it has
+# first, the chat names kept); nothing of a plugin herdr still lists, nothing when herdr cannot say what it has
 drop_plugin_folders() {
   local listed id state
   listed=$(herdr plugin list --json 2>/dev/null | python3 -c '
@@ -59,12 +59,13 @@ retire_tab_layout() {
   drop_plugin_folders herdr-fold.tab-layout
 }
 
-# recorded_sum STATE REL — the SHA-256 the installer recorded for REL right after installing it
-# (STATE/installed.sha256); nothing when it recorded none
+# recorded_sum STATE REL [RECORD] — the SHA-256 recorded for REL right after it was put in place: by the installer
+# (STATE/installed.sha256) or, named, by a prepare (prepared.sha256); nothing when none was recorded
 recorded_sum() {
-  awk -v rel="$2" '{ sum = $1; sub(/^[^ ]+  /, "") } $0 == rel { print sum }' "$1/installed.sha256" 2>/dev/null
+  awk -v rel="$2" '{ sum = $1; sub(/^[^ ]+  /, "") } $0 == rel { print sum }' "$1/${3:-installed.sha256}" 2>/dev/null
 }
-sum_of() { shasum -a 256 "$1" | cut -d' ' -f1; }
+# sum_of FILE — its SHA-256: shasum's, else sha256sum's (a Linux machine may have only that one)
+sum_of() { { shasum -a 256 "$1" 2>/dev/null || sha256sum "$1"; } | cut -d' ' -f1; }
 # shown PATH — PATH as it is said: ~/… under the home folder
 shown() { case "$1" in "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;; *) printf '%s' "$1" ;; esac; }
 
@@ -117,10 +118,13 @@ remove_marked_block() {
 }
 
 # remove_empty_dirs DIR — removes DIR and then each parent while they are empty; never HOME and its shared folders
+# (~/Library/Fonts among them: the TUI's fonts go there)
 remove_empty_dirs() {
   local d=$1
-  while case "$d" in "$HOME"|"$HOME/.config"|"$HOME/.local"|"$HOME/.local/state"|/|.) false ;; *) true ;; esac \
-    && rmdir "$d" 2>/dev/null; do
+  while case "$d" in
+      "$HOME"|"$HOME/.config"|"$HOME/.local"|"$HOME/.local/state"|"$HOME/Library"|"$HOME/Library/Fonts"|/|.) false ;;
+      *) true ;;
+    esac && rmdir "$d" 2>/dev/null; do
     d=$(dirname "$d")
   done
 }

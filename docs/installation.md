@@ -20,7 +20,8 @@ The default is what is installed already, else both where the Herdr app is on th
 
 | | The TUI | The Herdr app |
 |---|---|---|
-| Programs | Ghostty, herdr, starship, bat, git-delta, the JetBrains Mono Nerd Font | the Herdr app, from its own installer where it is missing |
+| Programs | Ghostty, herdr, starship, bat, git-delta | the Herdr app, from its own installer where it is missing |
+| Font | herdr-fold Mono into `~/Library/Fonts` ([below](#the-font)) | none: the mod brings herdr-fold Mono, its terminals' font as the TUI's |
 | Settings | Ghostty's, herdr's and starship's; a `~/.zshrc` block for herdr's panes | herdr-fold's mod, layout, themes and keys in the app |
 | herdr | herdr-fold's plugins, herdr's hooks into Claude Code and Codex | none: no `herdr` runs for it |
 | Remote machines | connected in herdr, with the TUI's files there | added to the app's core |
@@ -110,10 +111,10 @@ the default: the capital letter in `[Y/n]` (yes) or `[y/N]` (no). Each line it p
 | 2 Apps | `Go ahead with Homebrew?` | a program is missing, or Homebrew's herdr is older than 0.9.5; the lines above it name which. No: nothing is installed, and the installer stops with the `brew` commands to run | yes |
 | 3 Theme | `Theme` | always: a number from the preview that opens in your browser, or a name ([Themes](themes.md)) | the current theme |
 | 4 Settings | `Keep your herdr settings and add herdr-fold's? No: herdr-fold's replace them, yours are kept` | `~/.config/herdr/config.toml` is your own | yes |
-| 4 Settings | `Remove? A copy is kept first` | an earlier version left files this one no longer uses; listed above it, several in one folder by the folder; the copy goes to `~/.local/state/herdr-fold/<date>`. No: they stay, and the next install asks again | yes |
+| 4 Settings | `Remove them?` | an earlier version left files this one no longer uses; listed above it, several in one folder by the folder; one you changed is kept first, in `~/.local/state/herdr-fold/changed-<date>`. No: they stay, and the next install asks again | yes |
 | 5 Status line | `What should the status line show next to the model?`: one checkbox list, a group for Claude Code and one for Codex, its title off for your own status line | always (↑ ↓ move, Space toggles, one Enter for both) | everything on |
 | 5 Status line | `Trust them, so the status line shows there too? (Claude then also runs their own .claude settings and hooks)` | some of your Claude panes are in git repositories Claude does not trust yet (never a folder outside one, your home folder or a folder above it) | no |
-| 6 Plugins | `Show your conversations in herdr's Agents list?` | herdr was set up before | yes, or your last answer |
+| 6 Plugins | `Show your chats in herdr's Agents list?` | herdr was set up before | yes, or your last answer |
 | 6 Plugins | `Let a new workspace ask for its folder, and herdr-fold's agents start again after a restart?` | herdr was set up before | yes, or your last answer (a no to the earlier Tab Layout counts) |
 | 6 Plugins | `Set up herdr-fold in the Herdr app too?` | an update of the TUI alone, the Herdr app on this Mac and never asked about | yes: its mod, layout and keys in the app, and the remote machines there too ([The Herdr app](app.md)) |
 | 7 GitHub | `Sign in to GitHub now?` | the Mac is not signed in to GitHub | yes |
@@ -168,13 +169,14 @@ For the TUI:
 - `~/.config/herdr/config.toml`: replaced, or, if you answer yes to the question above, herdr-fold's are added to yours
   between `# >>> herdr-fold >>>` and `# <<< herdr-fold <<<` marks.
 - `~/.zshrc`: one marked block that loads the herdr pane environment, only inside herdr panes.
+- `~/Library/Fonts/`: herdr-fold Mono's four files and its license, `herdr-fold-Mono-OFL.txt` ([below](#the-font)).
 - herdr plugins (the sidebar, AI Sessions, Workspaces) and the herdr integrations for Claude and Codex; a
   herdr-sidebar of your own stays, and is named ([The sidebar](sidebar.md)).
 - The theme's colors for the sidebar, in `~/.local/state/herdr/plugins/herdr-fold.sidebar/colors.json`.
 - In `~/.local/state/herdr/plugins/herdr-fold.workspaces/`: the workspaces named after their folder (`spaces.json`),
   so a renamed folder renames its workspace, and the workspace in front with the one before it (`focus.json`), so Esc
   in the folder picker goes back there.
-- `~/.config/ghostty/herdr-fold-icon`: which app icon Ghostty shows (the theme's), written into
+- `~/.config/ghostty/herdr-fold-icon`: which app icon Ghostty shows (the theme's), a PNG written into
   `~/.local/state/herdr-fold/ghostty-icon/`.
 
 For the Herdr app, in its home (`~/.config/herdr-app`, or `HERDR_APP_HOME`): herdr-fold's mod (`mods/herdr-fold`), its
@@ -193,21 +195,46 @@ Only when you say yes, or when something is missing:
 - git's global commit author (`user.name`, `user.email`), only if none is set, and git's GitHub sign-in through `gh`;
 - `~/.claude.json`: the projects you let Claude trust, so the status line shows there.
 
-Everything it replaces is saved first, in `~/.local/state/herdr-fold/`:
+What is yours is saved first, in `~/.local/state/herdr-fold/`:
 
 - `original/`: your own files, as they were before the first install, your herdr settings too when herdr-fold's part
   is added to them. Replaced files come back when you uninstall; the copy of your herdr settings stays.
-- dated folders: earlier versions of the installed files. The three newest are kept.
 - `changed-<date>/`: installed files you edited, kept when a newer install replaces them. Never deleted.
 
-It never touches your conversations (Claude and Codex sessions and their names) or herdr's own data.
+No copy of herdr-fold's own files is kept: the package has them.
+
+It never touches your chats (Claude and Codex sessions and their names) or herdr's own data.
+
+## The font
+
+herdr-fold Mono is the one monospace font of both parts: Ghostty's, and in the Herdr app its layout's terminals and
+the code its views draw (a chat's Markdown keeps the app's JetBrains Mono, which has its letters). It is JetBrains
+Mono with Nerd Fonts' icons at full size (JetBrainsMono Nerd Font, whose drawing it keeps), renamed, as its license
+asks of a changed font, with two changes:
+
+- Its line is 10% taller, the room split evenly above and below the text: a row of the TUI and of the app is as tall,
+  where Ghostty's `adjust-cell-height` did it before for the TUI alone.
+- The symbols Claude Code, Codex, herdr and starship print that the font lacked are drawn from its own glyphs, so no
+  other font fills them in smaller or off the line: ⏺ (Claude's bullet, the font's ●), ⎿ (its └), the spinner's
+  ✢ ✳ ✻ ✽ and ◐ ◓ ◑ ◒, ⏵ ⏸ ⏹ of the modes and tasks, the task list's ✔ ◼ ◻, /context's ⛁ ⛀ ⛶ ⛝, starship's ⇡ ⇣ ⇕,
+  ↻ ↵ ↳ ↯ ⇆, Codex's ☑ ⓘ and math signs (⁻ ₊ …), and more. Emoji, other scripts and herdr-fold's own plain marks
+  (✦ ⌕ ⎇ …) stay with the system's fonts.
+
+The TUI's installer puts it in `~/Library/Fonts`, where Ghostty finds it by name; the uninstaller takes it off again.
+A JetBrainsMono Nerd Font an earlier version installed with Homebrew stays: `brew uninstall --cask
+font-jetbrains-mono-nerd-font` takes it off. The Herdr app loads the mod's own copy, so the app alone needs no
+install. Its license, the SIL Open Font License 1.1, is beside each copy.
 
 ## Run it again
 
 Run `./install.sh` again any time, for example after getting a newer `herdr-fold` folder, to add a machine or to add
 the other part ([above](#the-tui-the-herdr-app-or-both)). What is done is skipped, what changed is updated, and what an
-earlier version left behind is listed and removed once you say yes (it is saved first). Your parts, theme, status line
-choices and machine list stay.
+earlier version left behind is listed and removed once you say yes (one you changed is saved first). Your parts,
+theme, status line choices and machine list stay.
+
+What runs takes the new version at once. In a running herdr every sidebar starts it in place, on the folder it shows,
+and an earlier version's chat column closes. A running Herdr app closes for the update and opens again behind the
+installer, so it loads the new mod and keeps nothing an earlier version left in it; your terminals keep running.
 
 An earlier install's Tab Layout (`herdr-fold.tab-layout`) is taken off herdr (uninstalled when it came from herdr's
 marketplace): the sidebar lays out a new tab now, and Workspaces does the rest, with Tab Layout's `spaces.json` and
@@ -217,11 +244,19 @@ off (it is not running), the installer names the command, and the next run tries
 ### A newer version
 
 The sidebar and the Herdr app look for a newer herdr-fold once a day: they ask api.github.com for its latest release,
-with the request alone (no id, no cookie), and keep the answer in `~/.local/state/herdr-fold/update.json`. A newer one
-is said once (a herdr notification, the app's) and stays on the sidebar's last row until you update; the version
-installed is in the sidebar's ⋯ menu, a right click on the app panel's tabs, and the installer's last line. Check for
-Updates there turns the look off and on again; `HERDR_FOLD_NO_UPDATE_CHECK=1`, where the sidebar or the app starts,
-keeps it off. A machine the installer never ran on (a remote one) does not ask.
+with the request alone (no id, no cookie), and keep the answer in `~/.local/state/herdr-fold/update.json`. While a newer
+one is out, the sidebar has a dot on More (its Settings… then opens at About), and the app's status bar says `herdr-fold
+0.4.0 is out` (a press opens herdr-fold's Settings at About): About names the version installed and the newer one, how
+to update and its release notes; Check now there looks at once, and says Couldn't check, with the time of the last look
+that answered, when GitHub does not. After an update, one notice says it (a herdr notification; the app's toast opens
+What's new when clicked). About's Check for updates automatically turns the daily look off and on again;
+`HERDR_FOLD_NO_UPDATE_CHECK=1`, where the sidebar or the app starts, keeps it off; Check now still looks. The
+installer's last line names the version too. A machine the installer never ran on (a remote one) does not ask.
+
+The same switch and the same variable hold the other daily request: the model prices Usage's costs are counted with
+(LiteLLM's public table from raw.githubusercontent.com, the request alone, kept in
+`~/.local/state/herdr-fold/prices.json`). Off, or with no answer, the last table fetched is used, else the one that
+came with herdr-fold.
 
 ## Switches
 
@@ -234,7 +269,7 @@ keeps it off. A machine the installer never ran on (a remote one) does not ask.
 | `HERDR_FOLD_CONFIG=add` or `replace` | the answer for your own herdr settings, without the question |
 | `HERDR_FOLD_VERBOSE=1` | show every item instead of one summary line per step |
 | `HERDR_FOLD_LANG=<code>` | the language of the installer's texts (see [Translating](translating.md)) |
-| `HERDR_FOLD_NO_UPDATE_CHECK=1` | for the sidebar and the Herdr app: no daily look for a newer version ([above](#a-newer-version)) |
+| `HERDR_FOLD_NO_UPDATE_CHECK=1` | for the sidebar and the Herdr app: no daily look for a newer version, nor for the model prices ([above](#a-newer-version)) |
 
 The commit message writer (Cmd + Shift + C and the sidebar's ✦) has a switch of its own, `HERDR_COMMIT_AI`: see
 [Commit and push](usage.md#commit-and-push).

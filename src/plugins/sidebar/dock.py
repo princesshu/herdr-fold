@@ -1,12 +1,15 @@
 # Generated from core/dock.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
-"""The panels the dock shows and the groups they stand in: each panel's name (on its tab, under its icon on the rail, in
-the ⋯'s Panels) and its glyph (core/icons.py's), defined once for both clients; tools/build.py copies it."""
+"""The panels the dock shows and the groups they stand in: each panel's short name (under its icon in the row and on the
+rail, in the ⋯'s Panels) and its glyph (core/icons.py's), defined once for both clients; tools/build.py copies it."""
 
 PANELS = {
-    "conversations": {"name": "Chats", "glyph": "ai"},
     "files": {"name": "Files", "glyph": "files"},
     "search": {"name": "Search", "glyph": "search"},
     "changes": {"name": "Changes", "glyph": "git"},
     "issues": {"name": "Issues", "glyph": "issues"},
+    "agent": {"name": "Agent", "glyph": "robot"},
+    "chats": {"name": "Chats", "glyph": "ai"},
 }
-GROUPS = (("conversations", ("conversations",)), ("project", ("files", "search")), ("work", ("changes", "issues")))
+GROUPS = (("project", ("files", "search")), ("work", ("changes", "issues")), ("agent", ("agent",)),
+          ("chats", ("chats",)))
+FORMER = {"conversations": "chats"}       # an older version's ids of a panel, as saved state may still name it

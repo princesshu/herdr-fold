@@ -53,12 +53,12 @@ if [ -z "$remove" ]; then
 fi
 
 if [ -n "$remove" ]; then section "$(t prepare.unix.removing)"; else section "$(t prepare.unix.settings)"; fi
-# The files of files.list (the Mac's remote/files.txt) into place: a changed earlier version is backed up first, the
-# machine's own to prepared-original/, and a link (to a dotfiles repository) is set aside, never written through. What
-# the last list (prepared.txt) had and this one drops goes, the machine's own back, unless this Mac's install uses it.
-state="$HOME/.local/state/herdr-fold"; record="$state/prepared.txt"; backup="$state/prepared-$(date +%Y%m%d-%H%M%S)"
-original="$state/prepared-original"
-# its owner's only: the backups hold the machine's own files; a copy keeps its file's mode too (cp -p)
+# The files of files.list (the Mac's remote/files.txt) into place, the machine's own kept first in prepared-original/;
+# a link (to a dotfiles repository) is set aside, never written through. What the last list (prepared.txt) had and this
+# one drops goes, the machine's own back, unless this Mac's install uses it.
+state="$HOME/.local/state/herdr-fold"; record="$state/prepared.txt"; sums="$state/prepared.sha256"
+original="$state/prepared-original"; changed="$state/prepared-changed-$(date +%Y%m%d-%H%M%S)"
+# its owner's only: the copies hold the machine's own files; a copy keeps its file's mode too (cp -p)
 mkdir -p "$state" && chmod 700 "$state"
 # a Mac with an install of its own (install.sh, its record installed.txt): its files, shell block, status line and
 # plugins are its own install's — this prepare leaves them alone
@@ -66,30 +66,44 @@ own=; [ -f "$state/installed.txt" ] && own=1
 owned_here() {   # owned_here REL: the own install's file, or its status line choice
   [ -n "$own" ] && { grep -qxF "$1" "$state/installed.txt" || [ "$1" = .config/herdr-fold/statusline.json ]; }
 }
-keep() { mkdir -p "$(dirname "$backup/$1")" && cp -p "$HOME/$1" "$backup/$1"; }   # keep <file relative to $HOME>
+set_aside() { if [ -L "$1" ]; then mv "$1" "$2"; else cp -p "$1" "$2"; fi; }   # a link as it is, never followed
+# keep_changed REL — a prepared file, before it is replaced or removed: one changed here since the last prepare (not
+# what prepared.sha256 recorded, nothing recorded of it, or a link now) goes to prepared-changed-<date>/, never pruned;
+# herdr-fold's own earlier version needs no copy, the package has it
+keep_changed() {
+  local was; was=$(recorded_sum "$state" "$1" prepared.sha256)
+  [ ! -L "$HOME/$1" ] && [ -n "$was" ] && [ "$(sum_of "$HOME/$1")" = "$was" ] && return 0
+  mkdir -p "$(dirname "$changed/$1")" && set_aside "$HOME/$1" "$changed/$1" \
+    && saved "$(t prepare.unix.changed_kept "~/$1" "$(shown "$changed/$1")")"
+}
+# An earlier version's dated folders of copies go; the machine's own Claude status line it saved first moves to
+# prepared-original/ unless that has one (all stay while it cannot be moved)
+first=$(ls "$state"/prepared-[0-9]*-[0-9]*/claude-statusLine.json 2>/dev/null | sort | head -1)
+if [ -z "$first" ] || [ -e "$original/claude-statusLine.json" ] || { mkdir -p "$original" && mv "$first" "$original/"; }
+then rm -rf "$state"/prepared-[0-9]*-[0-9]*; fi
 if [ -n "$remove" ] && [ -z "$own" ]; then
-  # Claude's status line first (its script is about to go): the one the machine had — the first one saved — comes
-  # back, or herdr-fold's just goes
-  first=$(ls "$state"/prepared-*/claude-statusLine.json 2>/dev/null | sort | head -1)
+  # Claude's status line first (its script is about to go): the machine's own, saved in prepared-original/ (or still
+  # where an earlier version saved it), comes back, or herdr-fold's just goes
+  from=$original; [ -f "$original/claude-statusLine.json" ] || from=$(dirname "${first:-$state/none/x}")
   if [ -f "$HOME/.config/herdr-fold/statusline_setup.py" ]; then
-    python3 "$HOME/.config/herdr-fold/statusline_setup.py" --claude-restore "$(dirname "${first:-$state/none/x}")"
+    python3 "$HOME/.config/herdr-fold/statusline_setup.py" --claude-restore "$from"
     case $? in
       0) ok "$(t prepare.unix.status_line_back)" ;;
       1) warn "$(t status.claude_unreadable "$HOME/.claude/settings.json")" ;;
     esac
   fi
 fi
+put=                                       # the files put in place, one a line: prepared.sha256 records them at the end
 while IFS= read -r rel; do
   [ -n "$rel" ] || continue
   owned_here "$rel" && continue
-  if grep -qxF "$rel" "$record" 2>/dev/null; then aside="$backup/$rel"; else aside="$original/$rel"; fi
-  if [ -L "$HOME/$rel" ]; then set_aside=mv
-  elif [ -f "$HOME/$rel" ] && ! cmp -s "$F/$rel" "$HOME/$rel"; then set_aside="cp -p"
-  else set_aside=; fi
-  if [ -n "$set_aside" ] && ! { mkdir -p "$(dirname "$aside")" && $set_aside "$HOME/$rel" "$aside"; }; then
-    warn "$(t prepare.unix.not_kept "~/$rel")"; continue
+  # what is there is kept first (one prepared before only when changed here since); one that cannot be stays as it is
+  if [ -L "$HOME/$rel" ] || { [ -f "$HOME/$rel" ] && ! cmp -s "$F/$rel" "$HOME/$rel"; }; then
+    if grep -qxF "$rel" "$record" 2>/dev/null; then keep_changed "$rel"
+    else mkdir -p "$(dirname "$original/$rel")" && set_aside "$HOME/$rel" "$original/$rel"; fi \
+      || { warn "$(t prepare.unix.not_kept "~/$rel")"; continue; }
   fi
-  mkdir -p "$(dirname "$HOME/$rel")" && cp "$F/$rel" "$HOME/$rel" && ok "~/$rel"
+  mkdir -p "$(dirname "$HOME/$rel")" && cp "$F/$rel" "$HOME/$rel" && { ok "~/$rel"; put="$put$rel"$'\n'; }
   case "$rel" in *.sh) chmod +x "$HOME/$rel" ;; esac
 done < "$HERE/files.list"
 if [ -f "$record" ]; then
@@ -97,9 +111,11 @@ if [ -f "$record" ]; then
     [ -n "$rel" ] && ! ai_session_file "$rel" || continue
     grep -qxF "$rel" "$state/installed.txt" 2>/dev/null && continue
     owned_here "$rel" && continue
-    # taken off: one that is still the package's own version just goes; one changed here is kept first
+    # taken off: herdr-fold's own version just goes (on removal also one that matches the package's), one changed here
+    # since is kept first
     if [ -f "$HOME/$rel" ]; then
-      if [ -z "$remove" ] || ! cmp -s "$F/$rel" "$HOME/$rel"; then keep "$rel" || continue; fi
+      { [ -n "$remove" ] && cmp -s "$F/$rel" "$HOME/$rel"; } || keep_changed "$rel" \
+        || { warn "$(t prepare.unix.not_kept "~/$rel")"; continue; }
       rm -f "$HOME/$rel" && ok "$(t prepare.unix.removed "~/$rel")"
     fi
     if [ -f "$original/$rel" ] || [ -L "$original/$rel" ]; then
@@ -111,20 +127,19 @@ if [ -f "$record" ]; then
   done
 fi
 if [ -n "$remove" ]; then
-  rm -f "$record"
+  rm -f "$record" "$sums"
 else
   mkdir -p "$state" && cp "$HERE/files.list" "$record"
 fi
-[ -d "$backup" ] && saved "$(t prepare.unix.backup "$backup")"
 
 if [ -z "$remove" ] && [ -z "$own" ]; then
-  # Claude Code status line — herdr-fold's; one the machine had before is saved to the backup folder
-  # (statusline_setup.py); chosen on the Mac to be your own, the machine's own stays (--apply below brings it back)
-  python3 "$HOME/.config/herdr-fold/statusline_setup.py" --claude-settings "$backup" \
+  # Claude Code status line — herdr-fold's; the machine's own is saved first in prepared-original/, never over an
+  # earlier saved one (statusline_setup.py); chosen on the Mac to be your own, it stays (--apply below brings it back)
+  python3 "$HOME/.config/herdr-fold/statusline_setup.py" --claude-settings "$original" \
     'python3 "$HOME/.config/herdr-fold/statusline.py"' >/dev/null
   case $? in
     0) ok "$(t status.claude_set)" ;;
-    2) ok "$(t status.claude_replaced "$backup")" ;;
+    2) saved "$(t status.claude_replaced "$(shown "$original")")" ;;
     3) ;;
     *) warn "$(t status.claude_unreadable "$HOME/.claude/settings.json")" ;;
   esac
@@ -147,7 +162,7 @@ if [ -z "$remove" ] && [ -z "$own" ]; then
 elif [ -n "$remove" ] && [ -z "$own" ]; then
   for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do remove_marked_block "$rc"; done
   # herdr-fold's plugins (an earlier prepare's Tab Layout too), and the empty folders herdr keeps of them (the
-  # conversation names stay)
+  # chat names stay)
   for id in herdr-fold.sidebar herdr-fold.sessions-view herdr-fold.workspaces herdr-fold.tab-layout; do
     herdr plugin unlink "$id" >/dev/null 2>&1
   done
@@ -156,18 +171,27 @@ elif [ -n "$remove" ] && [ -z "$own" ]; then
   find "$HOME/.config/herdr-fold" -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null
   rm -f "$HOME/.config/herdr-fold/statusline.json"
   remove_empty_dirs "$HOME/.config/herdr-fold"
-  # the sidebar's own settings, its folder only when nothing else is in it (the rest of herdr's state is herdr's)
+  # the sidebar's own settings, its folder only when nothing else is in it (the rest of herdr's state is herdr's);
+  # the chats' two files under their older names too, where a version that moved them never ran
   sidebar_state="$HOME/.local/state/herdr/plugins/herdr-fold.sidebar"
   rm -f "$sidebar_state/settings.json" "$sidebar_state/colors.json" "$sidebar_state/column.json" \
-    "$sidebar_state/conversations.json" "$sidebar_state/conversation-index.json" "$sidebar_state/panels.json" \
+    "$sidebar_state/chats.json" "$sidebar_state/chat-index.json" "$sidebar_state/panels.json" \
+    "$sidebar_state/conversations.json" "$sidebar_state/conversation-index.json" \
     "$sidebar_state/dock.json" "$sidebar_state"/resume-*.json "$sidebar_state"/seed-*.json \
     "$sidebar_state"/preview-*.json "$sidebar_state"/issues-*.json \
     "$sidebar_state"/*.json.lock \
     "$sidebar_state"/.*.tmp                                                   # .*.tmp: a write cut short
   rmdir "$sidebar_state" 2>/dev/null
 fi
+# What each file put in place holds now, after --apply rewrote its own (prepared.sha256): the next prepare keeps a copy
+# only of one changed here since
+if [ -z "$remove" ]; then
+  printf '%s' "$put" | while IFS= read -r rel; do
+    [ -f "$HOME/$rel" ] && printf '%s  %s\n' "$(sum_of "$HOME/$rel")" "$rel"
+  done > "$sums"
+fi
 if [ -n "$remove" ]; then
-  # AI Sessions' conversation names stay, as the conversations themselves, and are named
+  # AI Sessions' chat names stay, as the chats themselves, and are named
   names="$HOME/.local/state/herdr/plugins/herdr-fold.sessions-view/names.json"
   [ -z "$own" ] && [ -f "$names" ] && saved "$(t prepare.unix.kept_names "~/${names#$HOME/}")"
   [ -d "$state" ] && find "$state" -depth -type d -empty -delete

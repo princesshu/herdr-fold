@@ -1,10 +1,11 @@
 # Generated from core/fileops.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
-"""The sidebar's file operations: a new file or folder, renaming, and deleting, always into the system's Trash. Each
-stays inside the root (a symbolic link leading out too), never overwrites, and never touches the AI tools' folders
-(PROTECTED) nor moves a folder holding one. Copying a path uses the clipboard program, else the caller's OSC 52."""
+"""The sidebar's file operations: new, rename, and delete, always into the system's Trash. Each stays inside the root
+(a link leading out too), never overwrites, never touches the AI tools' folders (PROTECTED) nor a folder holding one,
+but for a chat's own file on Chats' Delete… (trash_chat). Copy: the clipboard program, else the caller's OSC 52."""
 import datetime
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -14,6 +15,7 @@ PROTECTED = (".claude", ".codex", os.path.join(".local", "state", "herdr"))
 # SHFileOperationW: undo (the Recycle Bin), no questions, no progress, no error boxes — but a warning, which can be
 # refused, before an item that cannot be recycled (a network drive, a too large one) would be deleted for good
 RECYCLE_FLAGS = 0x40 | 0x10 | 0x4 | 0x400 | 0x4000
+CHAT_ID = re.compile(r"[0-9A-Za-z][0-9A-Za-z._-]*")      # a chat's id, as claude --resume and codex resume take one
 
 
 class Refused(OSError):
@@ -162,6 +164,10 @@ class Ops:
     def trash(self, path):
         """Move PATH to the system's Trash; returns where it went."""
         self.movable(path)
+        return self.send(path)
+
+    def send(self, path):
+        """PATH to the system's Trash, unchecked: trash()'s and trash_chat()'s, each after its own checks."""
         name = os.path.basename(os.path.normpath(path))
         if self.system in ("darwin", "win32"):
             self.recycle(path)
@@ -188,6 +194,47 @@ class Ops:
     def copy_path(self, path):
         """Put PATH on the clipboard; False when there is no clipboard program (then OSC 52 is the caller's)."""
         return self.clipboard(path)
+
+
+def chat_parts(kind, session, path, home):
+    """KIND's chats' folder under HOME, and what of chat SESSION may go: its file PATH by its real place, a regular
+    one (.claude/projects/<folder>/<id>.jsonl, .codex/sessions/<y>/<m>/<d>/rollout-…<id>.jsonl), and beside Claude's
+    its sub-agents' folder <id>. Refused: another name or depth, a link in its place or leading out, a folder."""
+    wrong = Refused(f"not a chat's file: {path}")
+    if not CHAT_ID.fullmatch(session):
+        raise Refused(f"not a chat's id: {session!r}")
+    if os.path.islink(path) or not os.path.isfile(path):
+        raise wrong
+    folder, name = os.path.split(os.path.realpath(path))
+    if kind == "claude":
+        base = os.path.realpath(os.path.join(home, ".claude", "projects"))
+        fits = os.path.dirname(folder) == base and name == f"{session}.jsonl"
+    elif kind == "codex":
+        base = os.path.realpath(os.path.join(home, ".codex", "sessions"))
+        fits = (folder.startswith(base + os.sep) and len(os.path.relpath(folder, base).split(os.sep)) == 3
+                and name.startswith("rollout-") and name.endswith(f"{session}.jsonl"))
+    else:
+        raise wrong
+    if not fits:
+        raise wrong
+    beside = os.path.join(folder, session)
+    helpers = kind == "claude" and os.path.isdir(beside) and not os.path.islink(beside)
+    return base, [os.path.join(folder, name)] + ([beside] if helpers else [])
+
+
+def trash_chat(kind, session, path, home=None, system=sys.platform, recycle=None):
+    """Chat SESSION's file PATH (KIND: claude or codex) to the system's Trash, Claude's sub-agents' folder with it:
+    the one exception to PROTECTED, for chat_parts() alone. Where it went; Refused when it is not such a file."""
+    home = home or os.path.expanduser("~")
+    base, parts = chat_parts(kind, session, path, home)
+    ops = Ops(base, home=home, system=system, recycle=recycle)
+    where = ops.send(parts[0])
+    for part in parts[1:]:
+        try:
+            ops.send(part)
+        except OSError as err:
+            raise Refused(f"the chat went to the Trash, its sub-agents' folder stayed: {err}") from err
+    return where
 
 
 def main(argv):

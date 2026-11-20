@@ -9,6 +9,9 @@ import subprocess
 import sys
 from dataclasses import asdict, dataclass, field, replace
 
+sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
+from locate import dot_git, repo_top  # noqa: E402
+
 TIMEOUT = 60
 # a repository inside a folder that is none is looked for this many folders down, among at most LOOKS folders
 DEPTH, LOOKS = 2, 1000
@@ -111,33 +114,6 @@ def tracking(path, timeout=TIMEOUT):
                  timeout=timeout).stdout.split() if branch else []
     ahead, behind = (int(n) for n in counts) if len(counts) == 2 else (0, 0)
     return branch, ahead, behind
-
-
-def dot_git(root):
-    """ROOT's git folder when ROOT is a repository's top (a .git folder, or a worktree's .git file naming one), told as
-    herdr tells it: by the HEAD there. Read from the files: nothing a repository's config names runs."""
-    found = os.path.join(root, ".git")
-    if os.path.isfile(found):
-        try:
-            with open(found, encoding="utf-8") as f:
-                named = f.readline().strip()
-        except (OSError, UnicodeDecodeError):
-            return None
-        if not named.startswith("gitdir:"):
-            return None
-        found = os.path.join(root, named[len("gitdir:"):].strip())
-    return found if os.path.isfile(os.path.join(found, "HEAD")) else None
-
-
-def repo_top(path):
-    """The top of the repository PATH is in, looked for upwards as herdr does; None outside one."""
-    path = os.path.normpath(path)
-    while not dot_git(path):
-        parent = os.path.dirname(path)
-        if parent == path:
-            return None
-        path = parent
-    return path
 
 
 def within(path, folder):

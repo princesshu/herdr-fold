@@ -1,5 +1,5 @@
-"""Tests for conversation_list.py: the Conversations panel's list (the Spaces list's workspaces and their
-conversations), the filter, opening by key or click, the right-click menu, and archiving."""
+"""Tests for chat_list.py: the Chats list (the Spaces list's workspaces and their chats), the
+filter, opening by key or click, the right-click menu, and archiving."""
 import os
 import re
 import sys
@@ -8,22 +8,22 @@ import unittest
 from support import SRC, set_attrs, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
-from conversation_list import ConversationList  # noqa: E402
+from chat_list import ChatList                  # noqa: E402
 import widgets  # noqa: E402
 from icons import glyphs  # noqa: E402
-from conversations import Conversation  # noqa: E402
+from chats import Chat                  # noqa: E402
 from screen import Canvas  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
 from widgets import Action  # noqa: E402
 
 NOW = 1_800_000_000
-LOGIN = Conversation("claude", "s1", "Login redirect fix", "/repo/shop", NOW - 7200, "working", "w1:p1")
-PRICES = Conversation("codex", "c1", "Price list", "/repo/shop", NOW - 86400)
-RATES = Conversation("claude", "s2", "Rate limits", "/repo/api", NOW - 3600, "blocked", "w2:p1")
-REVIEW = Conversation("codex", "c2", "Review the API", "/repo/api", NOW - 600, "done", "w2:p2")
-OLD = Conversation("claude", "s3", "Old notes", "/notes", NOW - 30 * 86400)
-STRAY = Conversation("claude", "s4", "Somewhere else", "/tmp/other", NOW)
-DRAFT = Conversation("claude", "s5", "Draft the README", "/repo/shop", NOW - 9000)
+LOGIN = Chat("claude", "s1", "Login redirect fix", "/repo/shop", NOW - 7200, "working", "w1:p1")
+PRICES = Chat("codex", "c1", "Price list", "/repo/shop", NOW - 86400)
+RATES = Chat("claude", "s2", "Rate limits", "/repo/api", NOW - 3600, "blocked", "w2:p1")
+REVIEW = Chat("codex", "c2", "Review the API", "/repo/api", NOW - 600, "done", "w2:p2")
+OLD = Chat("claude", "s3", "Old notes", "/notes", NOW - 30 * 86400)
+STRAY = Chat("claude", "s4", "Somewhere else", "/tmp/other", NOW)
+DRAFT = Chat("claude", "s5", "Draft the README", "/repo/shop", NOW - 9000)
 PLACES = {"/repo/shop": "shop", "/repo/api": "api", "/notes": "notes"}
 SPACES = ["notes", "shop", "api", "empty"]                   # as the Spaces list has them
 HEADER = 3                                                   # the filter, tall as the dock's other fields
@@ -32,7 +32,7 @@ HEADER = 3                                                   # the filter, tall 
 class List(unittest.TestCase):
     def setUp(self):
         set_attrs(self, widgets, TURN=0)                  # each fold at rest at once: Turning has the turn's own tests
-        self.view = ConversationList(now=lambda: NOW)
+        self.view = ChatList(now=lambda: NOW)
         self.view.set([LOGIN, RATES, PRICES, OLD, STRAY], SPACES, PLACES.get, "shop")
         self.view.states = {"shop": "working", "api": "blocked"}            # as herdr's Spaces list has them
 
@@ -63,7 +63,7 @@ class List(unittest.TestCase):
         rows = self.draw()
         self.assertIn("Filter", rows[1])                                     # the field's row, as the dock's fields
         self.assertEqual(rows[HEADER].split()[1], "notes", rows)
-        self.assertNotIn("Conversations", "\n".join(rows))                  # its group's head names it
+        self.assertNotIn("Chats", "\n".join(rows))                          # the frame round it names it
         low = self.draw(roomy=False)                                         # a low pane: the field a chip
         self.assertIn("Filter", low[0])
         self.assertEqual(low[2].split()[1], "notes", low)
@@ -105,13 +105,13 @@ class List(unittest.TestCase):
         self.assertEqual(self.style("●", at="shop").fg, "modified")              # working
 
     def test_a_space_is_marked_as_herdrs_spaces_list_marks_it_from_all_of_its_agents(self):
-        self.view.states = {"notes": "idle", "shop": "done"}     # an agent with no conversation yet counts there too
+        self.view.states = {"notes": "idle", "shop": "done"}     # an agent with no chat yet counts there too
         self.draw()
         self.assertEqual((self.style("○", at="notes").fg, self.style("●", at="shop").fg), ("added", "done"))
         self.assertEqual(self.style("·", at="api").fg, "ignored")                # its state not known
 
-    def test_the_conversation_of_the_workspaces_active_tab_leads_its_group(self):
-        newer = Conversation("claude", "s5", "Newer notes", "/repo/shop", NOW)     # written to a moment ago
+    def test_the_chat_of_the_workspaces_active_tab_leads_its_group(self):
+        newer = Chat("claude", "s5", "Newer notes", "/repo/shop", NOW)             # written to a moment ago
         self.view.set([LOGIN, RATES, PRICES, newer], SPACES, PLACES.get, "shop")
         self.draw()
         self.assertLess(self.row_of("Newer notes"), self.row_of("Login redirect fix"))   # by time alone
@@ -121,7 +121,7 @@ class List(unittest.TestCase):
         self.assertLess(self.row_of("Login redirect fix"), self.row_of("Newer notes"))
         self.assertLess(self.row_of("Newer notes"), self.row_of("Price list"))           # the rest by time
 
-    def test_a_conversation_outside_every_space_is_not_shown(self):
+    def test_a_chat_outside_every_space_is_not_shown(self):
         self.type("somewhere")
         self.assertNotIn("Somewhere else", "\n".join(self.draw()))
 
@@ -144,7 +144,7 @@ class List(unittest.TestCase):
         self.assertTrue(text(self.canvas, self.row_of("Login")).rstrip().endswith(" 2h"))
         self.assertNotIn("claude", text(self.canvas, self.row_of("Login")))
 
-    def test_enter_opens_a_conversation_and_toggles_a_group(self):
+    def test_enter_opens_a_chat_and_toggles_a_group(self):
         self.draw()                                                         # chosen: the current space
         self.press("down")
         self.assertEqual(self.press("enter"), Action("open", (LOGIN,)))
@@ -156,24 +156,24 @@ class List(unittest.TestCase):
     def test_left_closes_a_group_and_right_opens_it(self):
         self.draw()
         self.press("down")
-        self.press("left")                                                  # from a conversation: to its group
+        self.press("left")                                                  # from a chat: to its group
         self.press("left")
         self.assertNotIn("Login redirect fix", "\n".join(self.draw()))
         self.press("right")
         self.assertIn("Login redirect fix", "\n".join(self.draw()))
 
-    def test_typing_filters_every_group_and_esc_brings_them_back(self):
+    def test_typing_filters_every_group_and_deleting_it_brings_them_back(self):
         self.type("rate")
         rows = self.draw()
         self.assertIn("rate", rows[1])                                      # in the field
         self.assertIn("Rate limits", "\n".join(rows))
         self.assertNotIn("Login redirect fix", "\n".join(rows))
-        self.press("backspace")
-        self.press("esc")
+        for _ in "rate":
+            self.press("backspace")
         self.assertEqual(self.view.typed, "")
         self.assertIn("Login redirect fix", "\n".join(self.draw()))
 
-    def test_a_click_opens_a_conversation_or_a_group(self):
+    def test_a_click_opens_a_chat_or_a_group(self):
         self.draw()
         self.assertEqual(self.click(5, self.row_of("Login redirect fix")), Action("open", (LOGIN,)))
         self.assertIsNone(self.click(3, self.row_of("api")))
@@ -190,19 +190,18 @@ class List(unittest.TestCase):
     def test_a_right_click_offers_open_copy_and_for_a_closed_one_archive(self):
         self.draw()
         y, shown = self.menu_of("Price list")
-        self.assertEqual(shown, ["Open", "Copy conversation", "Rename", "Archive"])
+        self.assertEqual(shown, ["Open", "Copy chat", "Rename", "Archive", "Delete…"])
         self.assertEqual(self.click(7, y + 2), Action("copy", (PRICES,)))      # the menu opens where clicked
         self.click(5, y, button=2)
         self.draw()
         self.assertEqual(self.press("enter"), Action("open", (PRICES,)))   # the menu takes the keys meanwhile
         _, shown = self.menu_of("Login redirect fix")                     # running: no Archive
-        self.assertEqual(shown[:2], ["Open", "Copy conversation"])
-        self.assertNotIn("Archive", shown)
+        self.assertEqual(shown, ["Open", "Copy chat", "Rename"])
 
     def test_its_menu_closes_when_the_pane_loses_the_keys(self):
         y, _ = self.menu_of("Price list")
         self.view.close_menu()                                              # a click in another pane
-        self.assertNotIn("Copy conversation", "\n".join(self.draw()))
+        self.assertNotIn("Copy chat", "\n".join(self.draw()))
         self.assertEqual(self.click(5, y), Action("open", (PRICES,)))       # a click acts again at once
 
     def test_an_archived_one_is_off_the_list_and_typing_finds_it(self):
@@ -215,10 +214,10 @@ class List(unittest.TestCase):
         rows = self.draw()
         self.assertTrue(text(self.canvas, self.row_of("Price list")).rstrip().endswith("· archived"))   # over the time
         y, shown = self.menu_of("Price list")
-        self.assertEqual(shown[2:], ["Rename", "Unarchive"])
+        self.assertEqual(shown[2:], ["Rename", "Unarchive", "Delete…"])
         self.assertEqual(self.click(7, y + 4), Action("unarchive", (PRICES,)))
 
-    def test_a_right_click_beside_the_conversations_offers_the_archived_ones_while_any_is(self):
+    def test_a_right_click_beside_the_chats_offers_the_archived_ones_while_any_is(self):
         self.draw()
         self.assertIsNone(self.click(5, self.row_of("shop"), button=2))     # nothing archived: no menu at all
         self.assertIsNone(self.view.menu)
@@ -232,8 +231,8 @@ class List(unittest.TestCase):
         self.draw()
         self.assertTrue(text(self.canvas, self.row_of("Price list")).rstrip().endswith("· archived"))
         self.assertEqual(self.style("Price list").fg, "archived")                 # a shade further back
-        _, shown = self.menu_of("Price list")                                 # a conversation's: its own only
-        self.assertEqual(shown, ["Open", "Copy conversation", "Rename", "Unarchive"])
+        _, shown = self.menu_of("Price list")                                 # a chat's: its own only
+        self.assertEqual(shown, ["Open", "Copy chat", "Rename", "Unarchive", "Delete…"])
         self.press("esc")
         empty = len(self.draw()) - 2                                          # an empty row below the list
         self.assertIsNone(self.click(5, empty, button=2))
@@ -242,7 +241,7 @@ class List(unittest.TestCase):
         self.assertEqual(self.press("enter"), Action("show_archived", (False,)))
 
     def marking(self):
-        """shop with two closed conversations under its running one: Draft the README, then Price list."""
+        """shop with two closed chats under its running one: Draft the README, then Price list."""
         self.view.set([LOGIN, RATES, PRICES, OLD, DRAFT], SPACES, PLACES.get, "shop")
         return self.draw()
 
@@ -261,9 +260,19 @@ class List(unittest.TestCase):
         self.assertEqual(rows[self.row_of("Price list")][1], "□")         # while any is marked, every closed one's box
         self.assertEqual(rows[self.row_of("Login redirect fix")][1], " ")
         self.assertEqual(self.style("■", "Draft the README").fg, "accent")
-        self.press("esc")                                                   # nothing typed: the marks go
+        self.view.shut()                                                    # the list closed: the marks go
         self.assertEqual(self.view.marked, set())
         self.assertNotIn("□", "\n".join(self.draw()))
+
+    def test_closed_its_menu_and_a_name_being_typed_go_what_was_typed_stays(self):
+        self.type("rate")
+        _, shown = self.menu_of("Rate limits")
+        self.view.shut()
+        self.assertEqual((self.view.menu, self.view.typed), (None, "rate"))
+        self.click(7, self.menu_of("Rate limits")[0] + 1 + shown.index("Rename"))
+        self.assertIsNotNone(self.view.naming)
+        self.view.shut()
+        self.assertIsNone(self.view.naming)
 
     def test_once_something_is_typed_space_types(self):
         self.marking()
@@ -290,10 +299,10 @@ class List(unittest.TestCase):
         self.marking()
         self.view.marked = {"claude:s5", "codex:c1"}
         _, shown = self.menu_of("Login redirect fix")                       # an unmarked row: its own menu
-        self.assertEqual(shown[:2], ["Open", "Copy conversation"])
+        self.assertEqual(shown[:2], ["Open", "Copy chat"])
         self.press("esc")
         y, shown = self.menu_of("Price list")
-        self.assertEqual(shown, ["Archive 2 conversations", "Unmark all"])
+        self.assertEqual(shown, ["Archive 2 chats", "Unmark all"])
         self.assertEqual(self.click(7, y + 1), Action("archive", (DRAFT, PRICES)))    # in the list's order
         self.assertEqual(self.view.marked, set())
         self.view.marked = {"claude:s5", "codex:c1"}
@@ -307,13 +316,13 @@ class List(unittest.TestCase):
         self.view.marked = {"claude:s5", "codex:c1", "claude:s3"}           # Old notes: in a closed group
         self.view.rebuild()
         y, shown = self.menu_of("Price list")
-        self.assertEqual(shown, ["Archive 1 conversation", "Unarchive 1 conversation", "Unmark all"])
+        self.assertEqual(shown, ["Archive 1 chat", "Unarchive 1 chat", "Unmark all"])
         self.assertEqual(self.click(7, y + 2), Action("unarchive", (PRICES,)))
         self.assertEqual(self.view.marked, {"claude:s5", "claude:s3"})
         self.type("price")                                                  # one marked one in sight: its own menu
         self.view.marked.add("codex:c1")
         _, shown = self.menu_of("Price list")
-        self.assertEqual(shown, ["Open", "Copy conversation", "Rename", "Unarchive"])
+        self.assertEqual(shown, ["Open", "Copy chat", "Rename", "Unarchive", "Delete…"])
 
     def rename(self, part):
         """Rename, from the right click's menu on the row of PART."""
@@ -361,23 +370,113 @@ class List(unittest.TestCase):
         self.draw()
         self.assertNotEqual(self.style("Price list").bg, "input")
 
+    def ask(self, part="Price list"):
+        """Delete… of the right click's menu on the row of PART: the screen then."""
+        y, shown = self.menu_of(part)
+        self.assertIsNone(self.click(7, y + 1 + shown.index("Delete…")))
+        return self.draw()
+
+    def test_delete_asks_first_by_the_chats_name_cancel_chosen(self):
+        rows = self.ask()
+        asked = "\n".join(rows)
+        self.assertIn("Move the chat “Price list” to the Trash?", asked)
+        self.assertEqual(rows[-1].split(), ["Move", "Cancel"])              # the dock's own question, at its foot
+        self.assertEqual(self.style("Cancel").bg, "button")
+        self.assertIsNone(self.press("enter"))                              # Cancel: nothing done
+        rows = "\n".join(self.draw())
+        self.assertNotIn("to the Trash?", rows)
+        self.assertIn("Price list", rows)
+
+    def test_a_yes_takes_the_row_off_at_once_and_the_list_stays_where_it_was(self):
+        self.view.set([LOGIN, DRAFT, PRICES, RATES, OLD], SPACES, PLACES.get, "shop")
+        self.draw()
+        self.view.list.index = self.row_of("Draft the README") - HEADER
+        before = self.draw()
+        self.ask("Draft the README")
+        self.assertEqual(self.press("char", "y"), Action("delete", (DRAFT,)))
+        after = self.draw()
+        self.assertNotIn("Draft the README", "\n".join(after))
+        y = self.row_of("Price list")
+        self.assertEqual(before[y - 1], after[y - 1])                       # the rows above as they were
+        self.assertIn("Draft the README", before[y])                        # and the next one in its place, chosen
+        self.assertEqual(self.view.list.selected()[1], PRICES)
+
+    def test_the_questions_buttons_take_a_click_and_esc_gives_it_up(self):
+        rows = self.ask()
+        y = len(rows) - 1
+        self.assertIsNone(self.click(rows[y].index("Cancel"), y))
+        self.assertIsNone(self.view.confirm)
+        rows = self.ask()
+        self.assertIsNone(self.click(5, self.row_of("Login redirect fix")))  # a click beside them: still asked
+        self.assertIsNotNone(self.view.confirm)
+        self.assertEqual(self.click(rows[y].index("Move"), y), Action("delete", (PRICES,)))
+
+    def test_the_delete_key_asks_for_a_closed_one_while_nothing_is_typed(self):
+        self.draw()
+        self.view.list.index = self.row_of("Price list") - HEADER
+        self.assertIsNone(self.press("delete"))
+        self.assertIn("Move the chat “Price list” to the Trash?", "\n".join(self.draw()))
+        self.assertIsNone(self.press("esc"))
+        self.assertIsNone(self.view.confirm)
+        self.view.list.index = self.row_of("Login redirect fix") - HEADER   # a running one: told, never asked
+        self.assertEqual(self.press("delete"), Action("no_delete", (LOGIN,)))
+        self.assertIsNone(self.view.confirm)
+        self.view.list.index = self.row_of("shop") - HEADER                 # a space: nothing
+        self.assertIsNone(self.press("delete"))
+        self.assertIsNone(self.view.confirm)
+
+    def test_once_something_is_typed_delete_edits_the_filter(self):
+        self.type("price")
+        self.draw()
+        self.view.list.index = self.row_of("Price list") - HEADER
+        self.assertIsNone(self.press("delete"))
+        self.assertIsNone(self.view.confirm)
+
+    def test_a_long_name_is_cut_in_the_question(self):
+        long = Chat("claude", "s8", "Rewrite the importer so that every row is checked " * 4, "/repo/shop", NOW - 5)
+        self.view.set([long], SPACES, PLACES.get, "shop")
+        self.draw()
+        self.view.list.index = 2
+        self.press("delete")
+        asked = [row for row in self.draw() if "“" in row or "”" in row or "Trash?" in row]
+        self.assertLessEqual(len(asked), 3)
+        self.assertIn("…”", "\n".join(asked))
+
+    def test_a_deleted_one_stays_off_until_the_list_is_read_without_it_and_comes_back_if_it_failed(self):
+        self.ask()
+        self.press("char", "y")
+        self.view.set([LOGIN, RATES, PRICES, OLD], SPACES, PLACES.get, "shop")      # a read begun before it went
+        self.assertNotIn("Price list", "\n".join(self.draw()))
+        self.view.set([LOGIN, RATES, OLD], SPACES, PLACES.get, "shop")              # the file is gone
+        self.assertEqual(self.view.gone, set())
+        self.view.gone = {"codex:c1"}
+        self.view.set([LOGIN, RATES, PRICES, OLD], SPACES, PLACES.get, "shop")
+        self.view.back(PRICES)                                                      # the Trash refused it
+        self.assertIn("Price list", "\n".join(self.draw()))
+
+    def test_closed_the_question_goes(self):
+        self.ask()
+        self.view.shut()
+        self.assertIsNone(self.view.confirm)
+        self.assertNotIn("to the Trash?", "\n".join(self.draw()))
+
     def test_before_anything_is_read_with_none_or_none_matching_it_says_so_as_the_app(self):
-        view = ConversationList(now=lambda: NOW)
+        view = ChatList(now=lambda: NOW)
         canvas = Canvas(40, 10)
         shown = lambda: "\n".join(text(canvas, y) for y in range(10))      # noqa: E731
         view.draw(canvas, 0, 10, False)
-        self.assertIn("Loading conversations…", shown())
+        self.assertIn("Loading chats…", shown())
         view.set([], [], PLACES.get, None)                                  # no workspace (outside herdr)
         view.draw(canvas, 0, 10, False)
-        self.assertIn("No conversations", shown())
+        self.assertIn("No chats", shown())
         view.set([LOGIN], SPACES, PLACES.get, "shop")
         view.field.insert("zzz")
         view.rebuild()
         view.draw(canvas, 0, 10, False)
-        self.assertIn("No conversation matches", shown())
+        self.assertIn("No chat matches", shown())
 
     def test_a_title_cannot_send_terminal_codes(self):
-        evil = Conversation("claude", "s9", "Fix\x1b]52;c;ZXZpbA==\x07 it", "/repo/shop", NOW)
+        evil = Chat("claude", "s9", "Fix\x1b]52;c;ZXZpbA==\x07 it", "/repo/shop", NOW)
         self.view.set([evil], SPACES, PLACES.get, "shop")
         shown = "\n".join(self.draw())
         self.assertNotIn("\x1b", shown)

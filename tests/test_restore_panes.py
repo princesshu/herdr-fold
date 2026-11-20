@@ -117,7 +117,7 @@ class Restore(unittest.TestCase):
         self.assertIn(catalog_text("restore.start_failed", "this machine", "app", "claude", "no room"), self.out)
 
     def test_no_agent_is_started_again_in_the_home_folders_space(self):
-        # the main conversation runs there: herdr names that space ~, and the restore renames it home first
+        # the main chat runs there: herdr names that space ~, and the restore renames it home first
         for space in ("~", "home"):
             calls = self.restore([("w1:t1", "claude", "zsh"), ("w1:t1", "sidebar", "Python"),
                                   ("w1:t1", "terminal", "zsh")], agents={"w1:p1": "home-claude"}, space=space)

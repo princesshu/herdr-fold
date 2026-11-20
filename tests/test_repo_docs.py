@@ -61,10 +61,10 @@ class InstallerQuestions(unittest.TestCase):
 SWITCH = re.compile(r"\bHERDR_(?:FOLD|COMMIT)_[A-Z_]+\b")
 # read by the code, but not for people: the installer's warning count between its parts, and its start already said yes
 # to before it moved, a test switch, the token a running sidebar hands its new version, and what the sidebar hands a
-# preview tab's shell
+# preview tab's shell and its Usage view (the period it opens on)
 INTERNAL = {"HERDR_FOLD_WARNINGS", "HERDR_FOLD_STARTED", "HERDR_FOLD_UPDATE", "HERDR_FOLD_PLATFORM",
             "HERDR_FOLD_SIDEBAR_RESUME", "HERDR_FOLD_PYTHON", "HERDR_FOLD_PAGER", "HERDR_FOLD_SPEC_FILE",
-            "HERDR_FOLD_PROGRAM"}
+            "HERDR_FOLD_PROGRAM", "HERDR_FOLD_USAGE_PERIOD"}
 
 
 class Switches(unittest.TestCase):
@@ -396,7 +396,7 @@ class Templates(unittest.TestCase):
         self.assertIn("type: checkboxes", form)
         checkbox = form.split("type: checkboxes", 1)[1]
         self.assertIn("required: true", checkbox)
-        self.assertIn("I removed", checkbox)                 # keys, tokens, machine names, addresses, conversations
+        self.assertIn("I removed", checkbox)                 # keys, tokens, machine names, addresses, chats
 
     def test_a_bug_report_asks_for_the_installed_version(self):
         # herdr's marketplace copy is no git checkout: the installer's record names what runs, a clone its commit too

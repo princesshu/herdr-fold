@@ -24,13 +24,15 @@ SAVED = "claude-statusLine.json"                    # an own Claude status line,
 # about 25 ms
 REFRESH = 10
 COMMAND = 'python3 "$HOME/.config/herdr-fold/statusline.py"'      # as install.sh sets it (Windows: a form of its own)
-# (key, label, sample) — the items of the current status lines; all are on by default. The samples show what the status
-# line itself prints, so they stay as they are in every language.
+# (key, label, sample) — the items of the current status lines; all are on by default but OFF's.
+# The samples show what the status line itself prints, so they stay as they are in every language.
+OFF = ("cost",)             # switched on by its user: an update adds nothing to a line already chosen
 ITEMS = {
     "claude": [("effort", t("status.effort"), "Opus 5.5 (high)"),
                ("context", t("status.context"), "context: 22%/1M"),
                ("five_hour", t("status.five_hour"), "current: 18%/4hr 18m"),
-               ("weekly", t("status.weekly"), "weekly: 46%/Monday 1pm")],
+               ("weekly", t("status.weekly"), "weekly: 46%/Monday 1pm"),
+               ("cost", t("status.cost"), "~$4.12")],
     "codex": [("effort", t("status.effort"), "gpt-… medium"),
               ("context", t("status.context"), "context-used, context-window-size"),
               ("five_hour", t("status.five_hour"), "five-hour-limit"),
@@ -61,7 +63,7 @@ def load():
     for tool, items in ITEMS.items():
         mine = saved.get(tool) if isinstance(saved, dict) else None
         mine = mine if isinstance(mine, dict) else {}
-        choice[tool] = {key: bool(mine.get(key, True)) for key in ["on"] + [key for key, _, _ in items]}
+        choice[tool] = {key: bool(mine.get(key, key not in OFF)) for key in ["on"] + [key for key, _, _ in items]}
     return choice
 
 

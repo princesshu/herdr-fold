@@ -5,12 +5,15 @@ import hashlib
 import json
 import os
 import pathlib
+import plistlib
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
 import textwrap
+from xml.parsers.expat import ExpatError
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -30,6 +33,10 @@ GHOSTTY_ICON = os.path.join(HOME, ".config", "ghostty", "herdr-fold-icon")     #
 ICONS = os.path.join(HOME, ".local", "state", "herdr-fold", "ghostty-icon")    # the theme in use's app icon
 LOGO = os.path.join(HERE, "logo.svg")               # herdr-fold's logo, in the package's own theme (tools/logo.swift)
 LOGO_COLORS = ("icon-bottom", "icon-middle", "icon-top", "icon-ears")   # its parts holding its colors (icon_colors')
+ICON_SIDE = 1024                                    # the app icon's side in pixels, the logo's own size
+SIPS = "/usr/bin/sips"                              # macOS's image tool: it draws the logo as the icon's PNG
+GHOSTTY_APPS = ("/Applications/Ghostty.app", os.path.join(HOME, "Applications", "Ghostty.app"))  # the installer's too
+ASK_GHOSTTY = 5                                     # seconds `ghostty +show-config` has to answer in
 MAC = sys.platform == "darwin"
 BEGIN, END = "# --- theme: ", "# --- end of theme ---"
 
@@ -40,9 +47,9 @@ class ThemeError(Exception):
 FRAMES = 2.4
 # a session's agent in AI Sessions against the active row's background: still legible there
 ON_ACTIVE_ROW = 3.0
-# the sidebar's faintest text (a conversation's agent, the tree lines) against the panes' background: still legible
+# the sidebar's faintest text (a chat's agent, the tree lines) against the panes' background: still legible
 GUIDE = 2.2
-# an archived conversation in the sidebar's Conversations: a shade behind the faint text, still legible
+# an archived chat in the sidebar's Chats: a shade behind the faint text, still legible
 ARCHIVED = 2.8
 
 
@@ -253,14 +260,14 @@ def agent_color(theme):
 def sidebar_colors(theme):
     """The sidebar plugin's color for each of its roles (theme.py there names them), from the theme's herdr palette;
     its faint text as faint() makes it, its faintest (the guide lines) as herdr's own (quiet_frames()), legible, an
-    archived conversation's a shade between the two."""
+    archived chat's a shade between the two."""
     h, background = theme["colors"]["herdr"], theme["colors"]["background"]
     muted = faint(theme)
     return {"text": h["text"], "subtext": h["subtext0"], "muted": muted,
             "guide": readable(quiet_frames(theme), h["text"], background, GUIDE),
             "archived": readable(mix(muted, background, 0.4), muted, background, ARCHIVED),
             "accent": h["accent"], "added": h["green"], "modified": h["yellow"], "deleted": h["red"],
-            "done": h["teal"], "conflict": h["peach"],
+            "done": h["teal"], "conflict": h["peach"], "account": h["blue"],
             "ignored": h["overlay0"], "selection": h["active_row_bg"], "hover": h["surface0"], "input": h["surface0"],
             "badge": h["surface0"], "badge_text": h["text"], "button": h["accent"], "button_text": h["sidebar_bg"],
             "panel": h["panel_bg"]}
@@ -273,10 +280,11 @@ def beside(path):
 
 
 def write_whole(path, text):
-    """TEXT into PATH through a file of its own beside it, then put in place: a reader sees the old file or the new."""
+    """TEXT (or bytes) into PATH through a file of its own beside it, then put in place: a reader sees the old file or
+    the new."""
     fd, temporary = beside(path)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
+        with (os.fdopen(fd, "wb") if isinstance(text, bytes) else os.fdopen(fd, "w", encoding="utf-8")) as f:
             f.write(text)
         os.replace(temporary, path)
     except BaseException:
@@ -354,19 +362,53 @@ def themed_logo(theme):
     return svg
 
 
+def drawn_png(svg):
+    """The SVG text SVG drawn as a PNG by macOS's sips, at the logo's own size, its transparency kept (Quick Look's
+    qlmanage puts white behind it): the PNG's bytes, or None where sips is not there or cannot draw it."""
+    with tempfile.TemporaryDirectory() as work:
+        source, made = os.path.join(work, "icon.svg"), os.path.join(work, "icon.png")
+        with open(source, "w", encoding="utf-8") as f:
+            f.write(svg)
+        try:
+            done = subprocess.run([SIPS, "-s", "format", "png", source, "--out", made], capture_output=True,
+                                  timeout=30)
+            with open(made, "rb") as f:
+                return f.read() if done.returncode == 0 else None
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+
+
+def png_side(data):
+    """The side in pixels of the PNG DATA where it is a square that keeps its transparency (an alpha channel: the
+    icon's rounded corners), else None."""
+    if data[:8] != b"\x89PNG\r\n\x1a\n" or data[12:16] != b"IHDR" or len(data) < 26:
+        return None
+    width, height, _, color = struct.unpack(">IIBB", data[16:26])
+    return width if width == height and color in (4, 6) else None
+
+
 def ghostty_icon(theme):
-    """The theme's Ghostty app icon: herdr-fold's logo in its colors (themed_logo), a file of its own in ICONS, the
-    only file kept there (another theme's is written again when it is chosen). Its path, or None: not a Mac, or the logo
-    could not be read or written."""
+    """The theme's Ghostty app icon: herdr-fold's logo in its colors (themed_logo) drawn as a PNG (Ghostty reads PNG,
+    JPEG and ICNS, not SVG), a file of its own in ICONS, the only file kept there (another theme's is drawn again when
+    it is chosen). Its path, or None: not a Mac, or the logo could not be read, drawn or written."""
     if not MAC:
         return None
     try:
         svg = themed_logo(theme)
-        icon = os.path.join(ICONS, f"{theme['id']}-{hashlib.sha256(svg.encode()).hexdigest()[:8]}.svg")
-        os.makedirs(ICONS, exist_ok=True)
-        if not os.path.exists(icon):
-            write_whole(icon, svg)
-        for name in os.listdir(ICONS):
+        icon = os.path.join(ICONS, f"{theme['id']}-{hashlib.sha256(svg.encode()).hexdigest()[:8]}.png")
+        try:
+            with open(icon, "rb") as f:
+                there = png_side(f.read(26)) == ICON_SIDE
+        except FileNotFoundError:
+            there = False
+        if not there:
+            drawn = drawn_png(svg)
+            if drawn and png_side(drawn) == ICON_SIDE:
+                os.makedirs(ICONS, exist_ok=True)
+                write_whole(icon, drawn)
+            else:
+                icon = None
+        for name in os.listdir(ICONS) if os.path.isdir(ICONS) else []:
             other = os.path.join(ICONS, name)
             if other != icon and not os.path.isdir(other):
                 os.remove(other)
@@ -393,10 +435,50 @@ def preview_address(number=None):
     return pathlib.Path(HERE, "preview.html").as_uri() + (f"#{number}" if number else "")
 
 
+def ghostty_command():
+    """Ghostty's own command, in its app where the installer looks for it (GHOSTTY_APPS, its bundle id Ghostty's), or
+    None."""
+    for app in GHOSTTY_APPS:
+        try:
+            with open(os.path.join(app, "Contents", "Info.plist"), "rb") as f:
+                if plistlib.load(f).get("CFBundleIdentifier") == "com.mitchellh.ghostty":
+                    return os.path.join(app, "Contents", "MacOS", "ghostty")
+        except (OSError, ValueError, ExpatError, AttributeError):
+            continue
+    return None
+
+
+def ghostty_reads(icon):
+    """What Ghostty itself takes for its app icon where it is not ICON, from the config it starts with (`ghostty
+    +show-config` says only what differs from its defaults: no macos-icon is its own icon): "key = value" as it says
+    it, "" where it gave no answer in ASK_GHOSTTY seconds, or None (it takes ICON, or there is no Ghostty to ask)."""
+    command = ghostty_command()
+    if not command:
+        return None
+    try:
+        done = subprocess.run([command, "+show-config"], capture_output=True, text=True, errors="replace",
+                              timeout=ASK_GHOSTTY)
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    if done.returncode != 0:
+        return ""
+    said = dict(row.split(" = ", 1) for row in done.stdout.splitlines() if " = " in row)
+    kind, path = said.get("macos-icon", "official"), said.get("macos-custom-icon", "")
+    if kind != "custom":
+        return f"macos-icon = {kind}"
+    if path != icon and os.path.realpath(path) != os.path.realpath(icon):
+        return f"macos-custom-icon = {path}"
+    return None
+
+
 def icon_line(icon):
-    """What became of Ghostty's app icon, as a line to print; None off a Mac."""
+    """What became of Ghostty's app icon, as a line to print: a warning where Ghostty does not take it (ghostty_reads);
+    None off a Mac."""
     if icon:
-        return line("ok", t("theme.ghostty_icon"))
+        reads = ghostty_reads(icon)
+        if reads is None:
+            return line("ok", t("theme.ghostty_icon"))
+        return line("warn", t("theme.ghostty_icon_unseen", reads) if reads else t("theme.ghostty_icon_unasked"))
     return line("skip", t("theme.ghostty_icon_kept")) if MAC else None
 
 

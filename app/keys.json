@@ -4,7 +4,9 @@
     "cmd-shift-i": "herdr-fold.issues",
     "cmd-shift-f": "herdr-fold.search",
     "cmd-shift-c": "herdr-fold.commit-push",
-    "cmd-shift-r": "herdr-fold.conversations",
-    "cmd-shift-u": "herdr-fold.unread"
+    "cmd-shift-r": "herdr-fold.chats",
+    "cmd-shift-u": "herdr-fold.unread",
+    "cmd-n": "herdr-fold.new-agent",
+    "cmd-shift-p": "herdr-fold.palette"
   }
 }

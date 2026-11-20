@@ -2,7 +2,7 @@
 
 <img src="src/themes/logo.svg" alt="herdr-fold's logo: a white sheep with round eyes" width="120" align="right">
 
-Files, search, git and GitHub issues, AI sessions and conversations, AI commit messages and themes for Claude Code and
+Files, search, git and GitHub issues, AI sessions and chats, AI commit messages and themes for Claude Code and
 Codex in herdr and Ghostty, on a Mac and on Linux, macOS and Windows machines over SSH. One installer sets up all of
 it; the sidebar and AI Sessions also install alone; herdr's desktop app gets it as a mod, alone or beside the TUI.
 
@@ -16,22 +16,23 @@ https://img.shields.io/badge/clients-TUI%20%28herdr%200.9.5%2B%29%20%C2%B7%20Her
 ![License: MIT](https://img.shields.io/badge/license-MIT-45475a?labelColor=313244)
 
 ![Three workspaces under Spaces, one saying how long its agent has waited; Claude's report of an issue it fixed,
-above its status line (model, context, limits); the Conversations column with each workspace's conversations; and on
+above its status line (model, context, limits); the Chats column with each workspace's chats; and on
 the right the sidebar's Changes view with the message Claude wrote and the issue it closes,
 above a terminal](assets/screenshots/hero.webp)
 
 ## What you get
 
-- One workspace per repo: Claude or Codex on the left; on the right, a sidebar (Conversations, Files, Search, Changes
+- One workspace per repo: Claude or Codex on the left; on the right, a sidebar (Chats, Files, Search, Changes
   (git) and, for a repo on GitHub, Issues) above a terminal. An issue goes to the agent in one key, and the next commit
   closes it; a file the agent names opens at its line in one key too, and a picture or a PDF shows as it looks.
 
   ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the message
   Claude wrote, the issue it fixes and the Graph, Issues by priority](assets/screenshots/sidebar.webp)
 
-- Conversations as the sidebar's first tab, Chats: every workspace's Claude and Codex conversations, running and
-  closed, one click away.
-- AI Sessions in herdr's sidebar, with each conversation's state, and in the Spaces list how long an agent has waited
+- Chats over the sidebar, a click or Cmd + Shift + R away: every workspace's Claude and Codex chats, running and
+  closed.
+- The agent's setup, its limits and what it costs, in the sidebar's [Agent view](docs/sidebar.md#the-agent-view).
+- AI Sessions in herdr's sidebar, with each chat's state, and in the Spaces list how long an agent has waited
   on you. Cmd + D / Cmd + E step through the sessions, Cmd with the arrows through the workspaces and the panes, even
   while you type.
 - Commit and push in one step, with a message Claude or Codex writes and you approve.
@@ -39,9 +40,9 @@ above a terminal](assets/screenshots/hero.webp)
   theme's colors. A status line with the model, effort, context with its window size and limits, the same for Claude
   and Codex.
 - Workspaces on Linux, macOS and Windows machines over SSH; the agents keep running there when the Mac sleeps.
-- In herdr's desktop app too, as a layout of its own: the sidebar's four views beside the tab and its own terminal
-  under them, Spaces with the waits and the conversations on the left, the twelve themes; on remote machines alike:
-  [The Herdr app](docs/app.md).
+- In herdr's desktop app too, as a layout of its own: the sidebar's views beside the tab and its own terminal
+  under them, the chats a press of ✦ away, Spaces with the waits on the left, the twelve themes; on remote machines
+  alike: [The Herdr app](docs/app.md).
 
 ![An issue from the sidebar goes to Claude, which fixes it, and the message it writes closes the
 issue](assets/screenshots/issue-to-agent.webp)
@@ -80,11 +81,11 @@ The parts, the questions, what each one changes, and the switches: [Installation
 
 - the settings of Ghostty, herdr and starship, and Claude Code's and Codex's status lines;
 - one marked block in `~/.zshrc`, active only inside herdr panes;
-- three herdr plugins of its own (the sidebar with Conversations, AI Sessions, Workspaces), and
+- three herdr plugins of its own (the sidebar with Chats, AI Sessions, Workspaces), and
   herdr's Claude and Codex integrations;
 - in the Herdr app, herdr-fold's mod, layout, themes and keys.
 
-Your own files are saved first, in `~/.local/state/herdr-fold/`. Your conversations are never touched.
+Your own files are saved first, in `~/.local/state/herdr-fold/`. Your chats are never touched.
 [More](docs/installation.md#what-changes-on-your-mac).
 
 ## Keys
@@ -101,12 +102,12 @@ Your own files are saved first, in `~/.local/state/herdr-fold/`. Your conversati
 | Ctrl + B, then Shift + N | new workspace |
 | Cmd + Shift + C | commit and push |
 | Cmd + Shift + L | open a file the agent named, at its line |
-| Cmd + Shift + R | find a conversation in the sidebar's Conversations |
+| Cmd + Shift + R | find a chat in the sidebar's Chats |
 | Cmd + Shift + E | show / hide the sidebar and terminal |
 | Cmd + Shift + O | restore the panels closed in the tab |
 | Cmd + Shift + G / Cmd + Shift + I | the sidebar's Changes / Issues |
 | Cmd + A | select the whole text of the sidebar's field you are in |
-| Cmd + F | search the Claude conversation |
+| Cmd + F | search the Claude chat |
 | Cmd + W | close the tab |
 | Cmd + K, then Cmd + T | pick a theme |
 
@@ -122,9 +123,10 @@ Shift + M adds one later. The agents, the sidebar and the terminal run on the ma
 ## Updating
 
 Get the newer `herdr-fold` folder (`git pull`, or replace the folder) and run `./install.sh` again. It asks one
-question, Enter keeps your earlier choices, then it updates what changed, removes what is no longer needed (saved first)
-and updates the connected machines. Installed from herdr's marketplace: `herdr plugin update herdr-fold`, and the
-installer opens in a herdr tab again. The sidebar and the Herdr app say when a newer version is out, once a day at most
+question, Enter keeps your earlier choices, then it updates what changed, removes what is no longer needed (what you
+changed saved first) and updates the connected machines. Installed from herdr's marketplace: `herdr plugin update
+herdr-fold`, and the installer opens in a herdr tab again. The sidebar's More (a dot) and the Herdr app's status
+bar say when a newer version is out, a look once a day at most
 ([how, and how to turn it off](docs/installation.md#a-newer-version)).
 
 After `brew upgrade herdr`, the herdr running in the background keeps the old version: `herdr server live-handoff`
@@ -155,12 +157,12 @@ More: [Troubleshooting](docs/troubleshooting.md).
 ## Documentation
 
 - [Installation](docs/installation.md): the questions, what changes, the switches
-- [Using it](docs/usage.md): workspaces, sessions, conversations, GitHub issues, commit and push, copying, the status
+- [Using it](docs/usage.md): workspaces, sessions, chats, GitHub issues, commit and push, copying, the status
   line, restarting
 - [Keys](docs/keybindings.md): every key, and remapping
 - [Remote machines](docs/remote-machines.md): Linux, macOS and Windows machines
 - [Themes](docs/themes.md): the twelve themes and the picker
-- [The sidebar](docs/sidebar.md): Files, Search, Changes and Issues, as herdr-fold uses them
+- [The sidebar](docs/sidebar.md): Files, Search, Changes, Issues and Agent, as herdr-fold uses them
 - [The Herdr app](docs/app.md): herdr-fold's layout for herdr's desktop app, its views, themes and machines; its
   parts in each state: [Styleguide](docs/styleguide.md)
 - [Troubleshooting](docs/troubleshooting.md)

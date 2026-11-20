@@ -34,10 +34,13 @@ let EAR_EDGE: CGFloat = 1.5, EAR_LIGHT: CGFloat = 0.5, EAR_FADE: [(at: CGFloat, 
 // a soft edge: SOFT_STEPS outlines, each wider than the last, each a share of the whole darkness
 let SOFT_STEPS = 10
 
-// a string's outline in JetBrains Mono Bold, centered on (0, 0)
+// a string's outline in herdr-fold Mono Bold (JetBrains Mono's letters), centered on (0, 0); the font read from the
+// mod's copy (the run's folder is the repository's), installed or not
+let BOLD = URL(fileURLWithPath: "app/mods/herdr-fold/fonts/herdr-fold-Mono-Bold.ttf")
 func codeChars(_ s: String, size: CGFloat) -> CGPath {
-    let base = CTFontCreateWithName("JetBrainsMono Nerd Font" as CFString, size, nil)
-    let font = CTFontCreateCopyWithSymbolicTraits(base, size, nil, .boldTrait, .boldTrait) ?? base
+    guard let found = CTFontManagerCreateFontDescriptorsFromURL(BOLD as CFURL) as? [CTFontDescriptor],
+          let bold = found.first else { fail("no font at \(BOLD.path): run this in the repository's folder") }
+    let font = CTFontCreateWithFontDescriptor(bold, size, nil)
     let line = CTLineCreateWithAttributedString(NSAttributedString(string: s, attributes: [.font: font]))
     let path = CGMutablePath()
     for run in CTLineGetGlyphRuns(line) as! [CTRun] {

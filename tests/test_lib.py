@@ -1,6 +1,7 @@
 """Tests for lib/'s shell helpers: status lines (a mark column, color only on a terminal without NO_COLOR, summarize,
 HERDR_FOLD_VERBOSE=1), the questions (in a pty; ask() in the language's letters) and the SSH Host * block.
 """
+import hashlib
 import os
 import re
 import shutil
@@ -8,7 +9,7 @@ import subprocess
 import tempfile
 import unittest
 
-from support import ANSI, PACKAGE, catalog_text, run_in_terminal
+from support import ANSI, PACKAGE, catalog_text, run_in_terminal, stubs
 
 import i18n
 
@@ -51,6 +52,19 @@ class Parts(unittest.TestCase):
         self.assertNotIn(".config/ghostty/config", shared)
         self.assertEqual([rel for rel in shared if "/plugins/" in rel], [])
         self.assertEqual(self.listed("package_files", "tui"), self.listed("package_files"))
+
+    def test_the_tui_gets_the_font_in_the_fonts_folder_the_app_its_mods_own(self):
+        fonts = sorted(line.split("|")[1] for line in self.listed("package_files", "tui") if "Library/Fonts" in line)
+        self.assertEqual(fonts, [f"Library/Fonts/herdr-fold-Mono-{name}" for name in
+                                 ("Bold.ttf", "BoldItalic.ttf", "Italic.ttf", "OFL.txt", "Regular.ttf")])
+        self.assertEqual([line for line in self.listed("package_files", "app") if "Library/Fonts" in line], [])
+
+    def test_the_fonts_folder_stays_when_the_last_font_goes(self):
+        home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, home)
+        os.makedirs(os.path.join(home, "Library", "Fonts"))
+        sh('remove_empty_dirs "$HOME/Library/Fonts"', HOME=home)
+        self.assertTrue(os.path.isdir(os.path.join(home, "Library", "Fonts")))
 
     def test_the_app_alone_gets_gh_and_ripgrep(self):
         self.assertEqual(self.listed("brew_lines", "app"), ["brew gh", "brew ripgrep"])
@@ -226,6 +240,35 @@ class RemoveMarked(unittest.TestCase):
         self.assertEqual(self.remove(), "KEPT")
         self.assertTrue(os.path.islink(self.dir))
         self.assertTrue(os.path.isfile(os.path.join(target, ".mark")))
+
+
+class Sums(unittest.TestCase):
+    """A file's SHA-256 and the one recorded for it (lib/files.sh): the installer's record, or a prepare's when named;
+    a Linux machine without shasum sums with sha256sum."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.file = os.path.join(self.tmp, "a file.txt")
+        with open(self.file, "w") as f:
+            f.write("herdr-fold\n")
+        self.sha256 = hashlib.sha256(b"herdr-fold\n").hexdigest()
+
+    def test_a_machine_without_shasum_sums_with_sha256sum(self):
+        # sha256sum as coreutils writes its line; shasum not there (a function that fails as a missing command does)
+        bin_dir = stubs(os.path.join(self.tmp, "bin"), {"sha256sum": (
+            "#!/bin/sh\nexec /usr/bin/python3 -c 'import hashlib, sys; "
+            "print(hashlib.sha256(open(sys.argv[1], \"rb\").read()).hexdigest() + \"  \" + sys.argv[1])' \"$1\"\n")})
+        out = sh(f'shasum() {{ return 127; }}; sum_of "{self.file}"', PATH=f"{bin_dir}:/usr/bin:/bin")
+        self.assertEqual(out.strip(), self.sha256)
+        self.assertEqual(sh(f'sum_of "{self.file}"').strip(), self.sha256)
+
+    def test_a_prepares_record_is_read_when_named(self):
+        with open(os.path.join(self.tmp, "prepared.sha256"), "w") as f:
+            f.write(f"{self.sha256}  .config/herdr-fold/a file.txt\n")
+        rel = ".config/herdr-fold/a file.txt"
+        self.assertEqual(sh(f'recorded_sum "{self.tmp}" "{rel}" prepared.sha256').strip(), self.sha256)
+        self.assertEqual(sh(f'recorded_sum "{self.tmp}" "{rel}"').strip(), "")       # not the installer's record
 
 
 class Progress(unittest.TestCase):

@@ -1,5 +1,5 @@
 """AI Sessions in herdr's sidebar: the Agents panel ("sessions") shows only this workspace's agents that have a
-conversation, and each Space row how long an agent there waits on you. Marks are recomputed at startup and on each
+chat, and each Space row how long an agent there waits on you. Marks are recomputed at startup and on each
 event, written only on change (no feedback loop). No event reports title changes: names follow on agent and focus."""
 import collections
 import contextlib
@@ -18,18 +18,18 @@ SOCKET_PATH = os.environ.get("HERDR_SOCKET_PATH") or os.path.expanduser("~/.conf
 PLUGIN_ID = os.environ.get("HERDR_PLUGIN_ID")
 SOURCE = f"plugin:{PLUGIN_ID}" if PLUGIN_ID else "herdr-fold"
 TOKEN = "has_session"
-# Default titles of fresh agents that have no conversation yet
+# Default titles of fresh agents that have no chat yet
 GENERIC_TITLES = {"", "claude code", "claude", "codex", "openai codex"}
 # A shell's path, e.g. C:\Windows\...\powershell.exe or /bin/zsh: a Windows console shows it as its title
 SHELL_TITLE = re.compile(r"(?i)[\\/][^\\/]*(\.exe|sh)$")
-TAB_NAME = 24          # characters of a conversation's name on its tab: herdr's tab row fits several
+TAB_NAME = 24          # characters of a chat's name on its tab: herdr's tab row fits several
 WAITING = ("blocked", "done")   # waiting on you: a question, or an answer not seen yet (seen, done turns idle)
 WAIT_TOKEN = "waiting"          # the theme's Space rows show it beside the branch ($waiting)
 TICK = 20              # seconds between two looks while an agent waits: a label is late by this much at most
 
 
 def generic(title):
-    """True for a title that is not a conversation's: a fresh agent's default, or a shell's path."""
+    """True for a title that is not a chat's: a fresh agent's default, or a shell's path."""
     title = title.strip()
     return title.lower() in GENERIC_TITLES or bool(SHELL_TITLE.search(title))
 
@@ -126,9 +126,9 @@ def last_line_values(path, marks, *wanted):
     return values
 
 
-def conversation_title(agent):
-    """The conversation's own title, from its files: Claude — the last /rename (custom-title), or else the last title it
-    generated (ai-title) in the transcript; Codex — the thread name in its session index. A resumed conversation does
+def chat_title(agent):
+    """The chat's own title, from its files: Claude — the last /rename (custom-title), or else the last title it
+    generated (ai-title) in the transcript; Codex — the thread name in its session index. A resumed chat does
     not send its terminal title again, so without this its row would stay "claude"."""
     session = (agent.get("agent_session") or {}).get("value")
     if not session:
@@ -156,7 +156,7 @@ def has_session(agent):
 
 def sync_names(agents):
     """Names each session's pane after its title (which follows /rename too) until the user renames the pane. names.json
-    records each name and whose it is, so a manual name is kept and herdr-fold's Conversations reuses it; a damaged
+    records each name and whose it is, so a manual name is kept and herdr-fold's Chats reuses it; a damaged
     file is set aside, and only this run's changes are written."""
     names = load_names()
     if names is None:
@@ -174,21 +174,21 @@ def sync_names(agents):
         key = (agent.get("agent_session") or {}).get("value") or agent["pane_id"]
         title = (agent.get("terminal_title_stripped") or "").strip()
         if generic(title):
-            title = conversation_title(agent).strip()
+            title = chat_title(agent).strip()
         title = "".join(ch for ch in title if ch.isprintable())          # a title from a file may hold escape codes
         label = labels.get(agent["pane_id"], "")
-        # the plugin's to change: a placeholder, or a name it gave — this conversation or the pane's previous one
+        # the plugin's to change: a placeholder, or a name it gave — this chat or the pane's previous one
         # (/clear, /resume)
         if label in ("", "claude", "codex") or label in given_names:
             # Since herdr 0.9.5 the `pane` field in a Sessions row is just the pane name: for an unnamed pane the row
-            # would stay empty, so until the conversation has a title, the agent's name goes there
+            # would stay empty, so until the chat has a title, the agent's name goes there
             want = title or agent.get("agent") or label
             if want and label != want:
                 call("pane.rename", {"pane_id": agent["pane_id"], "label": want})
             changes[key] = {"name": title, "given": True} if title else None
             name, chosen = title, False
         else:
-            # renamed in herdr since the last run (herdr-fold's Conversations names the tab itself on Rename)
+            # renamed in herdr since the last run (herdr-fold's Chats names the tab itself on Rename)
             name, chosen = label, names.get(key) != {"name": label, "given": False}
             changes[key] = {"name": label, "given": False}
         tab = tabs.get(agent.get("tab_id"))
@@ -198,14 +198,14 @@ def sync_names(agents):
 
 
 def tab_name(name):
-    """NAME as its conversation's tab shows it: TAB_NAME characters at most, a longer one cut with "…"."""
+    """NAME as its chat's tab shows it: TAB_NAME characters at most, a longer one cut with "…"."""
     return name if len(name) <= TAB_NAME else name[:TAB_NAME - 1] + "…"
 
 
 def name_tab(tab, name, chosen, known):
-    """TAB, which a conversation has to itself, shows its NAME; a workspace's main tab keeps the workspace's name.
-    A name you gave the conversation (CHOSEN) goes on the tab whatever it shows; a title only while the tab shows
-    herdr's number for it or a name a conversation went by (KNOWN): a name you gave the tab itself is kept."""
+    """TAB, which a chat has to itself, shows its NAME; a workspace's main tab keeps the workspace's name.
+    A name you gave the chat (CHOSEN) goes on the tab whatever it shows; a title only while the tab shows
+    herdr's number for it or a name a chat went by (KNOWN): a name you gave the tab itself is kept."""
     want, shown = tab_name(name), tab.get("label") or ""
     if tab.get("number") == 1 or shown == want:
         return
@@ -458,7 +458,7 @@ if __name__ == "__main__":
         result = apply_view()
         print(json.dumps(result, ensure_ascii=False), flush=True)
         if event == "startup":
-            # Agents of resumed conversations take a few seconds to come up and get their titles.
+            # Agents of resumed chats take a few seconds to come up and get their titles.
             # There is no plugin event for title changes, so after startup the plugin keeps re-marking for a minute.
             for _ in range(20):
                 time.sleep(3)

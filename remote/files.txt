@@ -1,6 +1,6 @@
 # What a remote machine gets: path in the package | location under its home | unix (Linux, macOS), windows or all |
 # its part: tui, or both (the Herdr app's too). A path with a * stands for every matching file, its location a folder.
-# The prepare script removes (after a backup) what an earlier list had and this one drops.
+# The prepare script removes what an earlier list had and this one drops (one changed on the machine kept first).
 src/herdrlib.py                             | .config/herdr-fold/herdrlib.py | all | tui
 src/i18n.py                                 | .config/herdr-fold/i18n.py | all | both
 src/lang/*.txt                              | .config/herdr-fold/lang/ | all | both
@@ -15,6 +15,7 @@ src/plugins/sessions-view/LICENSE           | .config/herdr-fold/plugins/session
 src/plugins/workspaces/herdr-plugin.toml    | .config/herdr-fold/plugins/workspaces/herdr-plugin.toml | all | tui
 src/plugins/workspaces/workspaces.py        | .config/herdr-fold/plugins/workspaces/workspaces.py | all | tui
 src/plugins/workspaces/git.py               | .config/herdr-fold/plugins/workspaces/git.py | all | tui
+src/plugins/workspaces/locate.py            | .config/herdr-fold/plugins/workspaces/locate.py | all | tui
 src/plugins/workspaces/LICENSE              | .config/herdr-fold/plugins/workspaces/LICENSE | all | tui
 src/plugins/sidebar/herdr-plugin.toml       | .config/herdr-fold/plugins/sidebar/herdr-plugin.toml | all | tui
 src/plugins/sidebar/*.py                    | .config/herdr-fold/plugins/sidebar/ | all | tui

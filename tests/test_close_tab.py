@@ -1,5 +1,5 @@
-"""Tests for close_tab.py (Cmd+W): the main tab never closes, a tab without a conversation closes at once, one with
-a conversation asks first (--confirm: Enter closes, Esc keeps it). herdr is a fake that records the calls.
+"""Tests for close_tab.py (Cmd+W): the main tab never closes, a tab without a chat closes at once, one with
+a chat asks first (--confirm: Enter closes, Esc keeps it). herdr is a fake that records the calls.
 """
 import contextlib
 import io
@@ -43,10 +43,10 @@ class CloseTab(unittest.TestCase):
         self.label = "files"
         self.assertEqual(self.press("w1:t3"), [("tab", "close", "w1:t3")])
 
-    def test_a_tab_without_a_conversation_closes_at_once(self):
+    def test_a_tab_without_a_chat_closes_at_once(self):
         self.assertEqual(self.press("w1:t3"), [("tab", "close", "w1:t3")])
 
-    def test_a_tab_with_a_conversation_asks_first(self):
+    def test_a_tab_with_a_chat_asks_first(self):
         calls = self.press("w1:t2")
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0][:7], ("plugin", "pane", "open", "--plugin", "herdr-fold.workspaces", "--entrypoint",
@@ -62,7 +62,7 @@ class CloseTab(unittest.TestCase):
         """KEY pressed (a function of the screen shown so far gives a click)."""
         os.environ["HERDR_CLOSE_TAB"] = "w1:t2"
         with contextlib.redirect_stdout(io.StringIO()) as out:
-            set_attrs(self, close_tab, getkey=lambda: key(out.getvalue()) if callable(key) else key)
+            set_attrs(self, close_tab, getkey=lambda *_: key(out.getvalue()) if callable(key) else key)
             close_tab.main(["--confirm"])
         return out.getvalue(), [c for c in self.calls if c[:2] == ("tab", "close")]
 
@@ -82,15 +82,22 @@ class CloseTab(unittest.TestCase):
 
     def test_close_and_cancel_buttons_take_a_click(self):
         shown, closed = self.confirm(self.click_on("Close"))
-        self.assertTrue(ANSI.sub("", shown).rstrip().endswith("Cancel    Close"), shown[-80:])
-        lines = ANSI.sub("", shown.split("\x1b[H")[-1]).split("\n")
+        self.assertTrue(ANSI.sub("", shown.split("\x1b7")[0]).rstrip().endswith("Cancel    Close"), shown[-80:])
+        lines = ANSI.sub("", shown.split("\x1b[H")[-1].split("\x1b7")[0]).split("\n")     # the close button apart
         self.assertTrue(lines[0].startswith(" Close the tab"), lines[0])            # a cell clear at each edge
-        self.assertTrue(lines[-1].endswith(" Close  "), lines[-1])
+        self.assertTrue(lines[-1].endswith(" Close ") and not lines[-1].endswith("  "), lines[-1])    # herdr's cell
         self.assertEqual(closed, [("tab", "close", "w1:t2")])
         _, closed = self.confirm(self.click_on("Cancel"))
         self.assertEqual(closed, [("tab", "close", "w1:t2")])                  # the first one's, no other
 
-    def test_enter_closes_and_names_the_conversation(self):
+    def test_its_close_button_at_the_top_right_keeps_the_tab(self):
+        # every popup's: air, Codicons' close, air, at the right edge of its first row (80 cells; herdr's column after)
+        shown, closed = self.confirm(lambda shown: "\x1b[<0;78;1M")
+        self.assertIn("\x1b[1;78H", shown)
+        self.assertIn(" \uea76 ", ANSI.sub("", shown.split("\x1b7", 1)[1]))
+        self.assertEqual(closed, [])
+
+    def test_enter_closes_and_names_the_chat(self):
         shown, closed = self.confirm("\r")
         self.assertIn("Fix the login", shown)
         self.assertIn("Cmd+Shift+R", shown)
@@ -101,7 +108,7 @@ class CloseTab(unittest.TestCase):
         self.assertEqual(closed, [])
 
     def test_a_name_cannot_send_terminal_codes(self):
-        # the tab's label and the conversation's title come from elsewhere: escape codes in them show as ?
+        # the tab's label and the chat's title come from elsewhere: escape codes in them show as ?
         self.label = "notes\x1b]52;c;ZXZpbA==\x07"
         self.agents[0]["terminal_title_stripped"] = "Fix\x1b]0;owned\x07 the login"
         shown, _ = self.confirm("\x1b")

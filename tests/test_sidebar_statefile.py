@@ -14,7 +14,7 @@ from support import SRC, FakeTerminal, set_env
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import column  # noqa: E402
-import conversations  # noqa: E402
+import chats          # noqa: E402
 import loop  # noqa: E402
 import panels  # noqa: E402
 import sidebar  # noqa: E402
@@ -31,7 +31,7 @@ class OwnerOnly(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp)
         self.state = os.path.join(self.tmp, "state")
-        set_env(self, HOME=os.path.join(self.tmp, "home"))              # never the user's conversations
+        set_env(self, HOME=os.path.join(self.tmp, "home"))              # never the user's chats
         self.addCleanup(os.umask, os.umask(0o022))                          # the usual umask: files 0644, folders 0755
 
     def mode(self, path):
@@ -55,19 +55,19 @@ class OwnerOnly(unittest.TestCase):
         elsewhere = os.path.join(self.tmp, "elsewhere")
         with open(elsewhere, "w") as f:
             f.write("mine\n")
-        os.symlink(elsewhere, os.path.join(self.state, "conversations.json.tmp"))
-        conversations.keep(self.state, show_archived=True)
+        os.symlink(elsewhere, os.path.join(self.state, "chats.json.tmp"))
+        chats.keep(self.state, show_archived=True)
         with open(elsewhere) as f:
             self.assertEqual(f.read(), "mine\n")
-        self.assertFalse(os.path.islink(os.path.join(self.state, "conversations.json")))
+        self.assertFalse(os.path.islink(os.path.join(self.state, "chats.json")))
 
     def test_every_state_file_is_its_owners_only(self):
-        conversations.save_index(self.state, {"/x.jsonl": {"prompt": "the first line of a prompt"}})
-        conversations.keep(self.state, show_archived=True)
+        chats.save_index(self.state, {"/x.jsonl": {"prompt": "the first line of a prompt"}})
+        chats.keep(self.state, show_archived=True)
         panels.note(self.state, {"w1:t1": {"sidebar"}})
         column.keep(self.state, {"ratio": 0.7})
-        self.assert_owner_only(conversations.INDEX, conversations.SETTINGS, panels.FILE, column.FILE,
-                               conversations.SETTINGS + ".lock", panels.FILE + ".lock", column.FILE + ".lock")
+        self.assert_owner_only(chats.INDEX, chats.SETTINGS, panels.FILE, column.FILE,
+                               chats.SETTINGS + ".lock", panels.FILE + ".lock", column.FILE + ".lock")
 
     def test_a_link_planted_where_a_lock_goes_is_not_followed(self):
         os.makedirs(self.state)

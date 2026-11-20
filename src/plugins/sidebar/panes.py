@@ -12,7 +12,8 @@ sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import column  # noqa: E402
 import panels  # noqa: E402
-from conversations import KEPT, change, keep, setting, state_folder  # noqa: E402
+import statefile  # noqa: E402
+from chats import KEPT, change, keep, setting, state_folder          # noqa: E402
 from preview import Herdr, quote_powershell  # noqa: E402
 
 SETTLE = 2.0                  # seconds a pane the plugin closes itself on the way takes to be back
@@ -23,8 +24,11 @@ NEW_TAB = 1.5                 # seconds a new tab is left to whatever made it: a
 PLACEHOLDER = "new"
 AGENTS = ("claude", "codex")  # the agents herdr-fold starts (`herdr agent start NAME`), each beside a right column
 # The shells a pane can run with nothing else in its foreground (Unix and Windows)
+COLLAPSED = column.SPLIT[0]   # the terminal's share of the rows under the agent on the rail: herdr's least, a tenth
+RAISED = 0.3                  # its share raised there, where its height in the right column is not known
+REDRAW = 0.3                  # seconds a pane takes to have its new size: a shell's Ctrl+L after that
 SHELLS = {"zsh", "bash", "sh", "dash", "fish", "ksh", "nu", "pwsh", "powershell", "cmd"}
-# At startup herdr is still running its own `claude --resume` commands (those without a conversation exit after a few
+# At startup herdr is still running its own `claude --resume` commands (those without a chat exit after a few
 # seconds): a pane is decided about only once its state is the same over this many consecutive checks (every POLL s).
 STEADY, POLL, STARTUP_LIMIT = 3, 2, 120
 
@@ -84,19 +88,31 @@ def state_of(call, pane):
     return ("shell" if only_shells(processes) else ",".join(names)) if names else None
 
 
+def last_agent(state_dir):
+    """The agent herdr-fold started last (the sidebar's settings.json in STATE_DIR), else the first of AGENTS: a new one
+    starts as it, the folder picker's toggle on it."""
+    agent = statefile.read(os.path.join(state_dir, "settings.json")).get("agent")
+    return agent if agent in AGENTS else AGENTS[0]
+
+
+def remember_agent(state_dir, agent):
+    """AGENT the one started last, kept with the sidebar's settings (every tab's sidebar and the picker read it)."""
+    statefile.update(os.path.join(state_dir, "settings.json"), lambda kept: {**kept, "agent": agent}, indent=2)
+
+
 def resumed(state_dir):
-    """{pane: the conversation id reopened in it}, kept until herdr knows the pane's session."""
+    """{pane: the chat id reopened in it}, kept until herdr knows the pane's session."""
     return reopened(setting(state_dir))
 
 
 def reopened(kept):
-    """resumed() in what conversations.json KEPT."""
+    """resumed() in what chats.json KEPT."""
     found = kept.get("resumed")
     return {pane: id for pane, id in found.items() if isinstance(id, str)} if isinstance(found, dict) else {}
 
 
 def resume(state_dir, pane, id):
-    """PANE noted as reopening the conversation ID."""
+    """PANE noted as reopening the chat ID."""
     change(state_dir, lambda kept: {**kept, "resumed": {**reopened(kept), pane: id}})
 
 
@@ -108,7 +124,7 @@ def build(call, pane, cwd, state_dir, sidebar_run=None, scope=""):
     if column.railed(state_dir) and not scope:                  # the sidebar then sets the rail's width to the cell
         side = panels.show_rail(call, pane, cwd, run, column.SPLIT[1])
     else:
-        side = panels.show_column(call, pane, cwd, run, column.saved(state_dir) or column.RIGHT)
+        side = panels.show_column(call, pane, cwd, run, column.split_share(state_dir, pane))
     tab = (call("pane", "get", side).get("pane") or {}).get("tab_id")
     if tab:
         panels.note(state_dir, {tab: set(panels.KINDS)}, scope)
@@ -156,10 +172,10 @@ def rail_beside(call, agent, cwd, run):
     return side
 
 
-def place_terminal(call, pane, rail):
+def place_terminal(call, pane, rail, share=None):
     """The terminal of PANE's tab (PANE: its sidebar) under the agent while the dock is a RAIL, else back under the
-    sidebar, as many rows tall: through a new tab, as herdr moves no pane inside its own; its program runs on, its pane
-    id kept. Whether it moved; RuntimeError when herdr refused."""
+    sidebar, SHARE of the rows there (None: as many as now): through a new tab, as herdr moves no pane inside its own;
+    its program runs on, its pane id kept. Whether it moved; RuntimeError when herdr refused."""
     found = column.layout(pane)
     tab = column.columns(found) if found else None
     root = (found or {}).get("root") or {}
@@ -168,7 +184,7 @@ def place_terminal(call, pane, rail):
         return False                                # none, or where it goes already: the agent's side, or the column
     parent = column.at(root, path[:-1])
     ratio = float(parent.get("ratio", 0.5)) if parent.get("direction") == "down" else 0.5
-    tall = 1 - ratio if path[-1] else ratio                         # its share of the rows
+    tall = share if share is not None else 1 - ratio if path[-1] else ratio      # its share of the rows
     beside = column.at(root, tab.outer + [False]) if rail else column.at(root, column.find(root, column.SIDEBAR))
     terminal = column.at(root, path).get("pane_id")
     moved = call("pane", "move", terminal, "--new-tab", "--no-focus")
@@ -176,6 +192,67 @@ def place_terminal(call, pane, rail):
     call("pane", "move", terminal, "--tab", tab.tab, "--target-pane", column.panes(beside)[0], "--split", "down",
          "--ratio", f"{1 - tall:.4g}", "--no-focus")
     return True
+
+
+def terminal(pane):
+    """PANE's tab's terminal (PANE: its sidebar): (its share of its split's rows, whether it is under the agent), or
+    None: no terminal, or no herdr."""
+    found = column.layout(pane)
+    root, tab = (found or {}).get("root") or {}, column.columns(found) if found else None
+    path = column.find(root, "terminal")
+    if tab is None or not path:
+        return None
+    parent = column.at(root, path[:-1])
+    ratio = float(parent.get("ratio", 0.5)) if parent.get("direction") == "down" else 0.5
+    return round(1 - ratio if path[-1] else ratio, 4), path[:len(tab.outer) + 1] == tab.outer + [False]
+
+
+def size_terminal(pane, share):
+    """PANE's tab's terminal SHARE of its split's rows, within herdr's shares; whether it was set."""
+    found = column.layout(pane) or {}
+    path = column.find(found.get("root") or {}, "terminal")
+    if not path or column.at(found["root"], path[:-1]).get("direction") != "down":
+        return False
+    ratio = column.share(1 - share if path[-1] else share)
+    try:
+        column.call("layout.set_split_ratio", {"tab_id": found.get("tab_id"), "path": path[:-1],
+                                                "ratio": round(ratio, 4)})
+    except OSError:
+        return False
+    return True
+
+
+def clear_shell(call, pane):
+    """PANE's tab's terminal (PANE: its sidebar) drawn again from its top, Ctrl+L, when nothing but a shell runs in it
+    (the sidebar moved or resized it: a prompt left low otherwise); whether it was."""
+    found = column.layout(pane) or {}
+    path = column.find(found.get("root") or {}, "terminal")
+    terminal = column.at(found["root"], path).get("pane_id") if path else None
+    state = state_of(call, {"pane_id": terminal}) if terminal else None
+    if state not in (None, "shell"):                    # its prompt's own helpers (git) a moment, or a program
+        time.sleep(REDRAW)
+        state = state_of(call, {"pane_id": terminal})
+    if state != "shell":
+        return False
+    time.sleep(REDRAW)                                  # sooner, the shell's own redraw for the new size comes after
+    asked(call, "pane", "send-keys", terminal, "ctrl+l")
+    return True
+
+
+def kept_terminal(state_dir, found=None):
+    """What column.json (or FOUND, what it holds) keeps of the terminal on the rail: {"raised": whether it stands raised
+    under the agent, "share": its rows there raised, its height in the right column (RAISED until known)}."""
+    kept = (column.kept(state_dir) if found is None else found).get("terminal")
+    kept = kept if isinstance(kept, dict) else {}
+    share = kept.get("share")
+    share = share if isinstance(share, (int, float)) and COLLAPSED < share <= column.SPLIT[1] else RAISED
+    return {"raised": kept.get("raised") is True, "share": share}
+
+
+def keep_terminal(state_dir, **changes):
+    """CHANGES to kept_terminal() kept in column.json; what it keeps now."""
+    column.change(state_dir, lambda found: {**found, "terminal": {**kept_terminal(state_dir, found), **changes}})
+    return kept_terminal(state_dir)
 
 
 def restore(call, state_dir, sidebar_run=None):
@@ -255,7 +332,7 @@ def when_steady(call, starting, look, act):
                 continue
             state = state_of(call, pane)
             if starting and state == "shell" and pane.get("agent_session"):
-                state = "resuming"                                  # herdr may still resume the conversation in it
+                state = "resuming"                                  # herdr may still resume the chat in it
             history = seen.setdefault(pane["pane_id"], [])
             history.append(state)
             if starting and (state in (None, "resuming") or history[-STEADY:] != [state] * STEADY):
@@ -277,10 +354,9 @@ def old_column(call, pane):
 
 
 def gone(call, workspaces, state_dir, local, say):
-    """An install from before: each tab's Conversations column closed, its list in the sidebar now; on this machine
+    """An install from before: each tab's Chats column closed, its list in the sidebar now; on this machine
     (LOCAL: herdr's socket is this one's) the right column, which took its room, as wide as remembered again, and
-    what the column kept (its width, its fold) gone from conversations.json."""
-    right = 1 - (column.saved(state_dir) or column.RIGHT)          # before a sidebar takes the new width as chosen
+    what the column kept (its width, its fold) gone from chats.json."""
     if local and set(setting(state_dir)) - set(KEPT):
         keep(state_dir)
     for ws, label in workspaces:
@@ -294,8 +370,8 @@ def gone(call, workspaces, state_dir, local, say):
         for pane in found if local else ():
             tab = column.read(pane["pane_id"]) if pane.get("label") == "sidebar" and pane["tab_id"] in old.values() \
                 else None
-            if tab:
-                column.arrange(tab, right=right)
+            if tab and tab.cells:                                   # before a sidebar takes it as chosen
+                column.arrange(tab, right=column.width(state_dir, tab))
 
 
 def restore_all(call, state_dir, sidebar_run=None, scope="", starting=False, say=lambda *told: None):

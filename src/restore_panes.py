@@ -1,5 +1,5 @@
-"""Restores herdr-fold's started agents after herdr restarts (herdr resumes only agents with conversations), only in an
-empty shell and never in HOME_SPACE, where the main conversation runs; the ~ workspace is named HOME_SPACE. Without
+"""Restores herdr-fold's started agents after herdr restarts (herdr resumes only agents with chats), only in an
+empty shell and never in HOME_SPACE, where the main chat runs; the ~ workspace is named HOME_SPACE. Without
 --startup the dock's columns come back too (the sidebar's panes.py; at herdr's start its own [[startup]] does it)."""
 import os
 import sys

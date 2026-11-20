@@ -3,21 +3,31 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterCommit, background, branchLabel, changeColor, changeName, commitMode, commitRows, conversationChoices,
-  conversationRows, coreAgents, diffRows, excerpt, fileRows, floatHeight, folderIcon, foldedSections, foldedWidth,
+import { afterCommit, background, branchLabel, changeColor, changeName, commitMode, commitRows, chatChoices,
+  chatRows, chatsAsked, coreAgents, deleteOff, folderGroup, groupPlace, stillLeaving, withoutLeaving,
+  diffRows, excerpt, fileRows, floatHeight, folderIcon, foldedSections, foldedWidth,
   folderSpaces, issueAgent, lastLine, launcher, letter, machineOf, marked, MODES, PANEL, panelShown, previewName,
   previewTab, priorityColor, pushOffer, pythonCommand, railed, resumeArgv, rowActions, safeMarkdown, said, searchRows,
-  searchSummary, secretQuestion, shownTab, strays, syncLabel, tabLabel, TALL, terminalId, TERMINALS, urgent, withMax,
+  searchSummary, secretQuestion, shownView, strays, syncLabel, tabLabel, TALL, terminalId, TERMINALS, urgent,
   withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread, spaceWaits, placeLabel, nested, folderKey,
+  atHome, homeFirst, homeId, homesEmpty, homesSeen, withHomes, HOME_NAME,
   placeKey, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow, railToggle, RAIL, RAIL_BLOCK,
-  PANEL_PX, activeTerminal, hovering, tabRows, lightsRoom, toggleRoom, mediaKind, aboutLines, stacks, swapDraft,
-  browsable, opener, changeSides, fileIcon, stillResumed, CHAT_TAB, orphanChats, menuPlace, menuHeight, GROUPS_APP,
-  GROUP_WEIGHTS, GROUP_HEAD, FOLDED_GROUP, DOCK, DOCK_HEAD, groupTabs, groupFolded, groupSize, shownPanels,
-  panelsFollow, pickCommands, foldCommands, panelChoices, hideCommands, keptTabs, PAD }
+  PANEL_PX, activeTerminal, hovering, tabRows, titleSide, fieldWidth, FIELD, FIELD_LEAST, paletteKey, toggleRoom,
+  keyNames, keyWord, paletteEntries, entryKey, palettePlace, PALETTE_NAMED, PALETTE_GROUPS, PALETTE_OWNED,
+  mediaKind, aboutState, stacks, swapDraft,
+  browsable, opener, changeSides, fileIcon, stillResumed, CHAT_TAB, orphanChats, menuPlace, menuHeight, VIEWS_APP,
+  CHATS_BLOCK, BADGE, badgeSpot, DOCK, TAB_COUNT, TAB_GAP, TAB_H, TAB_IN, TABS_H, TABS_IN, TABS_PAD, TABS_SIDE,
+  shownPanels, panelsFollow, pickCommands, panelChoices, hideCommands, PAD, waitingChats, shortCount, chosenFor,
+  keepChosen, chatsToggle, tabFit, repoTold, issuesParts, NOTE_MS, CENTER, BOTTOM_PX, TERMINALS_WEIGHT,
+  floatMin, floatMax, railFloatPx, keepFloat, dragPx, FLOAT_GRIP,
+  terminalsAt, bottomPx, bottomShown, placeTerminals, bottomToggle, find, CHAT_LABEL, chatWait, keepWait, WAY_OUT,
+  waiting, chatAgents, updateNotice, ABOUT, aboutHeight, licenseOf, aboutTargets, agentsSaid, updateReady, SETTINGS,
+  SECTIONS, settingsSection, sectionStep, settingsTargets }
   from "../mods/herdr-fold/logic.js";
+import { format } from "../mods/herdr-fold/timeline.js";
 
 test("a tab nobody named after its program, an agent's first, else Terminal; an agent's icon; zoomed marked", () => {
   const space = { tabs: [{ id: "t1", name: "1", named: false, active: true, status: "working" },
@@ -47,13 +57,94 @@ test("an SVG's or a page's code goes above its picture as chosen, else where the
   assert.equal(stacks(null, null), false);                          // not measured yet: side by side
 });
 
-test("the panel menu names herdr-fold's version, a newer one once out, and switches the update check", () => {
-  const found = { version: "0.3.0", latest: "0.3.0", newer: false, on: true, releases: "https://example.com/r" };
-  assert.deepEqual(aboutLines(found), [{ label: "herdr-fold 0.3.0", url: "https://example.com/r" },
-    { label: "Check for Updates", on: true }]);
-  assert.equal(aboutLines({ ...found, latest: "0.4.0", newer: true })[0].label, "herdr-fold 0.4.0 is out");
-  assert.deepEqual(aboutLines({ ...found, version: null }), []);              // never installed here
-  assert.deepEqual(aboutLines(null), []);                                      // not looked at yet
+// Settings' About (Panels Task 10): its rows in each state, the update said once
+const NOON = Date.UTC(2026, 10, 13, 17, 30) / 1000;                  // a look's time, epoch seconds
+const FOUND = { version: "0.3.0", latest: "0.3.0", newer: false, on: true, checked: NOON, error: null, updated: null,
+  releases: "https://example.com/releases", how: "git pull in its folder, then ./install.sh" };
+const at = (seconds) => `at ${format(new Date(seconds * 1000), "HH:mm")}`;
+
+test("About says up to date and when it looked, or a newer one and how, or checked by hand", () => {
+  const now = (NOON + 600) * 1000;                                            // ms, as Date.now()
+  const current = aboutState(FOUND, { now });
+  assert.deepEqual(current.state, { mark: "ok", title: "Up to date", note: `Checked ${at(NOON)}`, tone: "foreground",
+    spin: false });
+  assert.deepEqual(current.buttons.map((b) => b.label), ["What's new", "Check now"]);
+  assert.equal(current.how, null);
+  assert.equal(current.box, true);
+  assert.deepEqual(current.credits, [[{ text: "Version 0.3.0" }]]);          // the LICENSE not read yet: no name
+  const license = licenseOf(readFileSync(new URL("../mods/herdr-fold/LICENSE", import.meta.url), "utf8"));
+  assert.deepEqual(aboutState(FOUND, { now, license }).credits, [[{ text: "Version 0.3.0" }],
+    [{ text: `© ${license?.year}` }, { text: String(license?.name), url: license?.url }], [{ text: "MIT License" }]]);
+  const newer = aboutState({ ...FOUND, latest: "0.4.0", newer: true }, { now });
+  assert.deepEqual([newer.state.mark, newer.state.title, newer.how], ["up", "0.4.0 is out", FOUND.how]);
+  assert.deepEqual(newer.buttons[0], { id: "first", label: "Release notes ↗", url: FOUND.releases });
+  const earlier = aboutState(FOUND, { now: (NOON + 3 * 86400) * 1000 });
+  assert.equal(earlier.state.note, `Checked on ${format(new Date(NOON * 1000), "MMM d")}`);   // another day: the day
+  const hand = aboutState({ ...FOUND, on: false, checked: null, latest: null }, { now });
+  assert.deepEqual([hand.state.title, hand.state.tone, hand.state.mark, hand.box], ["Checked by hand only", "muted",
+    null, false]);
+});
+
+test("About says a failed look in the error's color with the last good one, a look under way with a spinner", () => {
+  const now = (NOON + 600) * 1000;
+  const failed = aboutState({ ...FOUND, error: "GitHub did not answer" }, { now });
+  assert.deepEqual(failed.state, { mark: null, title: "Couldn't check", note: `Last checked ${at(NOON)}`,
+    tone: "ansi1", spin: false });
+  assert.equal(aboutState({ ...FOUND, error: "GitHub did not answer", checked: null }, { now }).state.note,
+    "GitHub did not answer");
+  assert.equal(aboutState({ ...FOUND, error: "GitHub did not answer", latest: "0.4.0", newer: true }, { now }).how,
+    `0.4.0 is out: ${FOUND.how}`);
+  const looking = aboutState(FOUND, { now, checking: true });
+  assert.deepEqual([looking.state.title, looking.state.spin, looking.state.note], ["Checking for updates…", true, ""]);
+  assert.equal(aboutState(null, { now }).state.spin, true);                   // not looked yet: looking
+  const none = aboutState({ ...FOUND, version: null }, { now });              // never installed by the installer here
+  assert.deepEqual([none.credits, none.buttons, none.box], [[], [], null]);
+});
+
+test("About's author is the mod's LICENSE's holder, a link to their page; the keys step its links and buttons", () => {
+  assert.deepEqual(licenseOf("MIT License\n\nCopyright (c) 2026 Ada Lane (https://example.com/ada)\n\nPermission"),
+    { kind: "MIT License", year: "2026", name: "Ada Lane", url: "https://example.com/ada" });
+  assert.deepEqual(licenseOf("MIT License\n\nCopyright (c) 2025 Ada Lane\n"), { kind: "MIT License", year: "2025",
+    name: "Ada Lane", url: null });
+  assert.equal(licenseOf("no license here"), null);
+  const license = { kind: "MIT License", year: "2026", name: "Ada Lane", url: "https://example.com/ada" };
+  const now = NOON * 1000;
+  assert.deepEqual(aboutTargets(aboutState(FOUND, { now, license })), ["author", "first", "check", "box", "notices"]);
+  assert.deepEqual(aboutTargets(aboutState({ ...FOUND, version: null }, { now, license })), ["author", "notices"]);
+  assert.deepEqual(aboutTargets(aboutState(FOUND, { now, license: { ...license, url: null } })),
+    ["first", "check", "box", "notices"]);                                     // a name with no page: no link
+});
+
+test("Settings keeps one size: About's tallest state, a newer one's how line, fills its section's room", () => {
+  const now = NOON * 1000, room = SETTINGS.high - SETTINGS.head - 2 * SETTINGS.pad;
+  const plain = aboutHeight(aboutState(FOUND, { now })), newer = aboutHeight(aboutState({ ...FOUND, latest: "0.4.0",
+    newer: true }, { now }));
+  assert.equal(plain, ABOUT.head + ABOUT.gap + ABOUT.state + ABOUT.gap + ABOUT.box + ABOUT.gap + ABOUT.legal);
+  assert.equal(newer - plain, ABOUT.howGap + ABOUT.how);
+  assert.equal(newer, room);                                                // nothing grows, nothing is cut
+  for (const more of [{ error: "GitHub did not answer", latest: "0.4.0", newer: true }, { version: null },
+    { on: false, checked: null }]) {
+    assert.ok(aboutHeight(aboutState({ ...FOUND, ...more }, { now })) <= room);
+  }
+});
+
+test("Settings opens at the section last looked at, General at first; ↑ ↓ step them, Tab its controls", () => {
+  assert.deepEqual(SECTIONS, [["general", "General"], ["about", "About"]]);
+  assert.deepEqual([settingsSection(null), settingsSection("about"), settingsSection("gone")],
+    ["general", "about", "general"]);
+  assert.deepEqual([sectionStep("general", 1), sectionStep("about", 1), sectionStep("about", -1),
+    sectionStep("general", -1)], ["about", "about", "general", "general"]);
+  const about = aboutState(FOUND, { now: NOON * 1000 });
+  assert.deepEqual(settingsTargets("general", about), ["opens"]);
+  assert.deepEqual(settingsTargets("about", about), aboutTargets(about));
+});
+
+test("an update's toast is said once: by the copy that marked it seen, with What's new", () => {
+  const updated = { ...FOUND, updated: "0.3.0" };
+  assert.deepEqual(updateNotice(updated, true), { title: "Updated to herdr-fold 0.3.0", body: "What's new",
+    level: "success", action: { name: "herdr-fold.whats-new" } });
+  assert.equal(updateNotice(updated, false), null);                          // another copy, or a sidebar, said it
+  assert.equal(updateNotice(FOUND, true), null);                             // nothing new installed
 });
 
 test("a space's first tab, while nobody named it, takes the space's name, as the TUI's main tab", () => {
@@ -66,15 +157,122 @@ test("a space's first tab, while nobody named it, takes the space's name, as the
   assert.equal(tabRows(space, panes)[0].name, "review");
 });
 
-test("the tab bar's room for the traffic lights: what the sidebar beside them leaves, 10 at least, macOS only", () => {
-  const root = (sidebar, trigger) => ({ traffic_lights: [12, 16], children: [{ id: "sidebar", size: { px: sidebar } },
-    { id: "sidebar-trigger", size: { px: 40 }, hidden: !trigger }] });
-  const mac = { platform: "macos", titlebar: "none", fullscreen: false };
-  assert.equal(lightsRoom(root(268, false), mac, 1), 10);
-  assert.equal(lightsRoom(root(0, true), mac, 1), 36);
-  assert.equal(lightsRoom(root(0, true), mac, 2), 10);
-  assert.equal(lightsRoom(root(0, true), { ...mac, fullscreen: true }, 1), 10);
-  assert.equal(lightsRoom(root(0, true), { ...mac, platform: "linux" }, 1), 10);
+test("the title row keeps the traffic lights' room at each end on macOS, else the window's buttons', else PAD", () => {
+  const root = { traffic_lights: [17, 9.5] }, mac = { platform: "macos", titlebar: "none", fullscreen: false };
+  assert.equal(titleSide(root, mac, 1, 102), 81);
+  assert.equal(titleSide(root, mac, 2, 102), 40.5);                   // the mod's px follow the zoom, the lights not
+  assert.equal(titleSide(root, { ...mac, fullscreen: true }, 1, 102), PAD);
+  assert.equal(titleSide({}, mac, 1, 102), PAD);
+  assert.equal(titleSide(root, { platform: "linux", titlebar: "none", buttons: true }, 1, 102), 102);
+  assert.equal(titleSide(root, { platform: "linux", titlebar: "system", buttons: false }, 1, 102), PAD);
+});
+
+test("the command field: as drawn, else the room between the row's ends, else its mark alone (0)", () => {
+  assert.equal(FIELD, 300);                                            // commands.html's B
+  assert.equal(fieldWidth(null, 81), FIELD);                           // not measured yet
+  assert.equal(fieldWidth(1470, 81), FIELD);
+  assert.equal(fieldWidth(2 * 81 + 200, 81), 200);
+  assert.equal(fieldWidth(2 * 81 + FIELD_LEAST, 81), FIELD_LEAST);
+  assert.equal(fieldWidth(2 * 81 + FIELD_LEAST - 1, 81), 0);
+});
+
+test("the palette's key: herdr-fold's own as bound, the layout's over global, in the platform's words", () => {
+  const own = { section: "layout:herdr-fold", keys: "cmd-shift-p", action: "herdr-fold.palette" };
+  const app = { section: "global", keys: "cmd-shift-p", action: "app.palette" };
+  assert.equal(paletteKey([app, own], true, "herdr-fold"), "⌘⇧P");
+  assert.equal(paletteKey([app, own], false, "herdr-fold"), "Ctrl+Shift+P");
+  assert.equal(paletteKey([app, own], true, "main"), null);           // the app's own palette's key: not this one
+  assert.equal(paletteKey([{ ...own, section: "global" }], true, "main"), "⌘⇧P");
+  assert.equal(paletteKey([own, { ...own, section: "global", keys: "cmd-k" }], true, "herdr-fold"), "⌘⇧P");
+  assert.equal(paletteKey([{ ...own, keys: "cmd--" }], true, "herdr-fold"), "⌘-");
+  assert.equal(paletteKey([{ ...own, keys: "cmd-k cmd-p" }], true, "herdr-fold"), "⌘K ⌘P");
+  assert.equal(paletteKey([], true, "herdr-fold"), null);
+});
+
+test("a key's parts as its caps read: macOS's signs, else words; a named key by its sign or name", () => {
+  assert.deepEqual(keyNames("cmd-shift-]", true), [["⌘", "⇧", "]"]]);
+  assert.deepEqual(keyNames("cmd-shift-]", false), [["Ctrl", "Shift", "]"]]);
+  assert.deepEqual(keyNames("f2", true), [["F2"]]);
+  assert.deepEqual(keyNames("cmd-shift-enter", true), [["⌘", "⇧", "↩"]]);
+  assert.deepEqual(keyNames("cmd-alt-left", false), [["Ctrl", "Alt", "←"]]);
+  assert.deepEqual(keyNames("cmd--", true), [["⌘", "-"]]);
+  assert.deepEqual(keyNames("cmd-k cmd-t", true), [["⌘", "K"], ["⌘", "T"]]);
+  assert.equal(keyWord("cmd-shift-p", true), "⌘⇧P");
+  assert.equal(keyWord("ctrl-shift-p", false), "Ctrl+Shift+P");
+});
+
+test("the palette's entries: the app's, named and grouped as its palette, a layout each, the rest titled", () => {
+  const commands = ["tab.new", "pane.split", "pane.go", "mod.open", "window.close", "layout.switch", "app.theme",
+    "space.move", "tab.select", "terminal.kill", "app.palette", "app.frobnicate", "space.new"].map((name) => ({ name,
+    args: name === "space.move" ? [{ name: "id", required: true }] : name === "terminal.kill"
+      ? [{ name: "terminal", required: true }] : [], about: name === "app.frobnicate" ? "Twist the knobs." : "" }));
+  const mac = paletteEntries(commands, ["main", "herdr-fold"], true);
+  assert.deepEqual(mac.map((e) => e.title), ["New tab", "Go to space or tab…", "Split right", "Split down",
+    "Focus pane left", "Focus pane right", "Focus pane up", "Focus pane down", "New space", "Next layout",
+    "Layout: Herdr", "Layout: herdr-fold", "Theme: graphite", "Theme: ink", "Theme: moss", "Theme: atom one dark",
+    "Frobnicate app"]);
+  assert.deepEqual([...new Set(mac.map((e) => e.group))], ["Tab", "Pane", "Space", "Layout", "App"]);
+  assert.equal(mac.find((e) => e.title === "Frobnicate app")?.words, "Twist the knobs.");
+  assert.deepEqual(mac.find((e) => e.title === "Split down")?.args, { direction: "down" });
+  assert.equal(mac.find((e) => e.title === "Split down")?.id, 'pane.split:{"direction":"down"}');
+  const other = paletteEntries(commands, [], false);
+  assert.ok(other.some((e) => e.title === "Close window"));          // the window's own buttons' commands off macOS
+  assert.ok(!mac.some((e) => e.name === "window.close"));
+  assert.ok(PALETTE_NAMED.every(([, , group]) => PALETTE_GROUPS.includes(group)));
+  assert.equal(new Set(PALETTE_NAMED.map(([, , , title]) => title)).size, PALETTE_NAMED.length);   // one name each
+});
+
+test("the palette's own group: herdr-fold's commands after the app's groups, in their order, each its real key", () => {
+  const commands = ["tab.new", "app.quit", "app.frobnicate", "zeta.run"].map((name) => ({ name, args: [], about: "" }));
+  const own = paletteEntries(commands, [], true, { github: true, plus: "New chat" });
+  assert.deepEqual([...new Set(own.map((e) => e.group))], ["Tab", "App", "herdr-fold", "Zeta"]);
+  assert.equal(PALETTE_GROUPS.at(-1), "herdr-fold");                  // after App: the app's groups stay first
+  assert.deepEqual(own.filter((e) => e.group === "herdr-fold").map((e) => [e.title, e.name]), [
+    ["Settings…", "herdr-fold.settings"], ["Files", "herdr-fold.files"], ["Search", "herdr-fold.search"],
+    ["Changes", "herdr-fold.changes"], ["Issues", "herdr-fold.issues"], ["Agent", "herdr-fold.agent"],
+    ["Agents", "herdr-fold.agents"], ["Usage", "herdr-fold.usage"], ["Chats", "herdr-fold.chats"],
+    ["New chat", "herdr-fold.new-agent"], ["Styleguide", "herdr-fold.styleguide"],
+    ["Mark agent unread", "herdr-fold.unread"], ["Commit and push", "herdr-fold.commit-push"],
+    ["Write commit message", "herdr-fold.write"]]);
+  assert.ok(!paletteEntries(commands, [], true).some((e) => e.group === "herdr-fold"));      // asked for, else none
+  const local = paletteEntries(commands, [], true, { github: false, plus: "New Codex" });
+  assert.ok(!local.some((e) => e.name === "herdr-fold.issues"));     // off GitHub the key shows nothing: no row
+  assert.equal(local.find((e) => e.name === "herdr-fold.new-agent")?.title, "New Codex");    // as + names it
+  // what is not for a list: the palette itself, Commit (its message is typed in Changes), the update toast's
+  for (const out of ["palette", "commit", "whats-new"]) {
+    assert.ok(!PALETTE_OWNED.some(([name]) => name === `herdr-fold.${out}`));
+  }
+  // each key keys.json binds in the layout is a row's, but the palette's own; a row shows it (entryKey)
+  const bound = Object.entries(JSON.parse(readFileSync(new URL("../keys.json", import.meta.url), "utf8"))[
+    "layout:herdr-fold"]).map(([keys, action]) => ({ section: "layout:herdr-fold", keys, action: String(action) }));
+  for (const { keys, action } of bound.filter((k) => k.action !== "herdr-fold.palette")) {
+    assert.equal(entryKey(/** @type {any} */ (own.find((e) => e.name === action)), bound, "herdr-fold"), keys);
+  }
+  assert.equal(entryKey(/** @type {any} */ (own.find((e) => e.title === "Settings…")), bound, "herdr-fold"), null);
+});
+
+test("an entry's key: the layout's own, else a global one the layout leaves, else a terminal's; none", () => {
+  const list = [{ section: "global", keys: "cmd-t", action: "tab.new" },
+    { section: "global", keys: "cmd-d", action: "pane.split:right" },
+    { section: "global", keys: "cmd-n", action: "space.new" },
+    { section: "global", keys: "cmd-p", action: "mod.open:picker" },
+    { section: "layout:herdr-fold", keys: "cmd-n", action: "herdr-fold.new-agent" },
+    { section: "layout:herdr-fold", keys: "cmd-shift-t", action: "tab.new" },
+    { section: "terminal", keys: "cmd-f", action: "terminal.search" }];
+  const at = (/** @type {string} */ name, args = {}) => entryKey({ name, args }, list, "herdr-fold");
+  assert.equal(at("tab.new"), "cmd-shift-t");                         // the layout's own over global
+  assert.equal(entryKey({ name: "tab.new", args: {} }, list, "main"), "cmd-t");
+  assert.equal(at("pane.split", { direction: "right" }), "cmd-d");   // its first argument's value in the action
+  assert.equal(at("pane.split", { direction: "down" }), null);
+  assert.equal(at("mod.open", { name: "picker" }), "cmd-p");
+  assert.equal(at("space.new"), null);                                // cmd-n starts an agent in the layout
+  assert.equal(entryKey({ name: "space.new", args: {} }, list, "main"), "cmd-n");
+  assert.equal(at("terminal.search"), "cmd-f");                       // a terminal's key, the one that runs it
+});
+
+test("the palette opens on the window's centre, 8 under its top (the app's least), over the title row's field", () => {
+  assert.deepEqual(palettePlace({ width: 1470, height: 836 }, 600, 428), { x: 435, y: 8, width: 600, height: 428 });
+  assert.deepEqual(palettePlace({ width: 500, height: 300 }, 600, 428), { x: 8, y: 8, width: 484, height: 284 });
 });
 
 test("the tab bar's end leaves room so its panel toggle, a BUTTON wide, sits over the rail's middle", () => {
@@ -279,6 +477,13 @@ test("an issue goes to the focused tab's own Claude or Codex, not another tab's 
   assert.equal(issueAgent(agents, "t1")?.address, "t3");
   assert.equal(issueAgent(agents, "t2")?.address, "t4");
   assert.equal(issueAgent(agents, "t9"), null);
+  // a chat tab's agent, a terminal with no pane: the tab's own when no pane's agent is there; an ended one is not
+  const chats = [{ address: "t8", state: "live", labels: { [CHAT_TAB]: "t9" } },
+    { address: "t7", state: "exited", labels: { [CHAT_TAB]: "t6" } }];
+  assert.deepEqual(issueAgent(agents, "t9", chats), { ...chats[0], chat: true });
+  assert.equal(issueAgent(agents, "t1", chats)?.address, "t3");
+  assert.equal(issueAgent(agents, "t6", chats), null);
+  assert.equal(issueAgent(agents, undefined, chats), null);
 });
 
 test("the preview tab named as the TUI sidebar names it: the file, the commit, the issue's number and title's start",
@@ -431,138 +636,490 @@ test("files named like secrets are asked about before a commit, in the TUI sideb
     "a.key, b.key, c.key and 2 more look like secrets. Commit them anyway?");
 });
 
-/** The right dock as the layout has it: its head, the dock (the two groups, the terminals), the rail; OVER changes a
- * node by its id. @param {Record<string, any>} [over] */
+/** The right dock as the layout has it: its card, one stack of the views and the Chats list under the row (its
+ * header), the terminals, the rail; OVER changes a node by its id. @param {Record<string, any>} [over] */
 function dock(over = {}) {
   const node = (/** @type {string} */ id, rest = {}) => ({ id, ...rest, ...(over[id] ?? {}) });
-  const group = (/** @type {"project" | "work"} */ g) => node(`fold-${g}`, { type: "column",
-    size: { weight: GROUP_WEIGHTS[g] }, children: [node(`fold-${g}-head`), node(`fold-${g}-body`, { type: "stack",
-      active: GROUPS_APP[g][0], children: GROUPS_APP[g].map((id) => node(id)) })] });
-  return { id: "root", children: [node(PANEL, { size: { px: PANEL_PX }, children: [node(DOCK_HEAD),
-    node(DOCK, { children: [group("project"), group("work"), node(TERMINALS)] }),
-    node(RAIL_BLOCK, { hidden: true })] })] };
+  return { id: "root", children: [node(PANEL, { size: { px: PANEL_PX }, children: [
+    node(DOCK, { type: "stack", active: "files", children: [...VIEWS_APP, CHATS_BLOCK].map((id) => node(id)) }),
+    node(TERMINALS), node(RAIL_BLOCK, { hidden: true })] })] };
 }
 
-test("a group's head shows its tabs, the shown one, its fold", () => {
-  assert.deepEqual(GROUPS_APP, { project: ["files", "search"], work: ["changes", "issues"] });    // core/dock.py's
-  const root = dock();
-  assert.deepEqual(groupTabs(root, "work", true), ["changes", "issues"]);
-  assert.deepEqual(groupTabs(root, "work", false), ["changes"]);                  // Issues on GitHub only
-  assert.equal(shownTab(root, "project", true), "files");
-  assert.equal(groupFolded(root, "project"), false);
-  const folded = dock({ "fold-project-body": { hidden: true, active: "search" }, files: { hidden: true } });
-  assert.equal(groupFolded(folded, "project"), true);                             // its tabs still there
-  assert.deepEqual(groupTabs(folded, "project", true), ["search"]);               // hidden in the ⋯: no tab
-  assert.equal(shownTab(folded, "project", true), "search");
-  assert.equal(shownTab(dock({ "fold-work-body": { active: "issues" } }), "work", false), "changes");
-  assert.equal(shownTab(dock({ files: { hidden: true }, search: { hidden: true } }), "project", true), null);
-  assert.deepEqual(shownPanels(dock({ search: { hidden: true } }), false), ["files", "changes"]);
-  assert.deepEqual(groupTabs({ id: "root" }, "work", true), []);                  // another layout: none
+test("one stack of views under the row: the shown ones, Issues on GitHub only, the chosen one while it can", () => {
+  assert.deepEqual(VIEWS_APP, ["files", "search", "changes", "issues", "agent"]);       // the TUI's row, Chats aside
+  assert.deepEqual(shownPanels(dock(), true), ["files", "search", "changes", "issues", "agent"]);
+  assert.deepEqual(shownPanels(dock({ search: { hidden: true } }), false), ["files", "changes", "agent"]);
+  assert.deepEqual(pickCommands(dock(), "agent", { github: false }),                  // Agent: off GitHub too
+    [["layout.select", { stack: DOCK, child: "agent" }]]);
+  assert.equal(shownView(dock(), true), "files");
+  assert.equal(shownView(dock(), true, "changes"), "changes");                    // a space's own choice
+  assert.equal(shownView(dock({ [DOCK]: { active: "issues" } }), false), "files"); // off GitHub: another
+  assert.deepEqual(shownPanels({ id: "root" }, true), []);                       // another layout: none
 });
 
-test("a key picks its group's tab and unfolds it", () => {
-  const folded = dock({ "fold-project-body": { hidden: true }, "fold-project": { size: { px: FOLDED_GROUP } } });
-  assert.deepEqual(pickCommands(folded, "search", { github: true, sizes: { project: { weight: 4 } } }), [
-    ["layout.select", { stack: "fold-project-body", child: "search" }],
-    ["layout.show", { id: "fold-project-body" }], ["layout.resize", { id: "fold-project", weight: 4 }]]);
-  assert.deepEqual(pickCommands(folded, "files", { github: true })[1], ["layout.resize",
-    { id: "fold-project", weight: GROUP_WEIGHTS.project }]);                       // shown already: only unfolded
-  assert.deepEqual(pickCommands(dock(), "files", { github: true }), []);           // shown and open: nothing to do
-  assert.deepEqual(pickCommands(dock({ changes: { hidden: true }, issues: { hidden: true },
-    "fold-work": { hidden: true } }), "changes", { github: true }),
-  [["layout.show", { id: "changes" }], ["layout.show", { id: "fold-work" }]]);    // hidden in the ⋯: shown again
-  assert.deepEqual(pickCommands(dock(), "issues", { github: false }), []);         // off GitHub: left as it is
-  assert.deepEqual(pickCommands(dock(), "bogus", { github: true }), []);
-  const railed = dock({ [PANEL]: { size: { px: RAIL } }, [DOCK_HEAD]: { hidden: true }, [DOCK]: { hidden: true },
-    [RAIL_BLOCK]: { hidden: false } });
-  assert.deepEqual(pickCommands(railed, "issues", { github: true, kept: 420 }), [
-    ["layout.select", { stack: "fold-work-body", child: "issues" }], ["layout.resize", { id: PANEL, px: 420 }],
-    ["layout.show", { id: DOCK_HEAD }], ["layout.show", { id: DOCK }], ["layout.hide", { id: RAIL_BLOCK }]]);
-  assert.deepEqual(pickCommands(dock({ [PANEL]: { hidden: true } }), "changes", { github: true }),
-    [["layout.show", { id: PANEL }], ["layout.resize", { id: PANEL, px: PANEL_PX }]]);
+test("a view's button or key shows it in the stack, hidden in More: shown again, the dock opened from its rail", () => {
+  assert.deepEqual(pickCommands(dock(), "changes", { github: true }),
+    [["layout.select", { stack: DOCK, child: "changes" }]]);
+  assert.deepEqual(pickCommands(dock(), "files", { github: true }), []);          // shown already: nothing
+  assert.deepEqual(pickCommands(dock({ search: { hidden: true } }), "search", { github: true }),
+    [["layout.show", { id: "search" }], ["layout.select", { stack: DOCK, child: "search" }]]);
+  assert.deepEqual(pickCommands(dock(), "issues", { github: false }), []);       // off GitHub: left as it is
+  assert.deepEqual(pickCommands(dock(), "chats", { github: true }), []);         // the list: its own button's
+  const railed = dock({ [PANEL]: { size: { px: RAIL } } });
+  assert.deepEqual(pickCommands(railed, "issues", { github: true, kept: 420 }).slice(0, 2),
+    [["layout.select", { stack: DOCK, child: "issues" }], ["layout.resize", { id: PANEL, px: 420 }]]);
 });
 
-test("a group folds to its head and opens again to the size it had", () => {
-  assert.equal(FOLDED_GROUP, GROUP_HEAD + PAD + 2);                               // its head, PAD, its frame
-  assert.deepEqual(foldCommands(dock(), "work", undefined), [["layout.hide", { id: "fold-work-body" }],
-    ["layout.resize", { id: "fold-work", px: FOLDED_GROUP }]]);
-  const folded = dock({ "fold-work-body": { hidden: true }, "fold-work": { size: { px: FOLDED_GROUP } } });
-  const open = (/** @type {any} */ size) => [["layout.show", { id: "fold-work-body" }],
-    ["layout.resize", { id: "fold-work", ...size }]];
-  assert.deepEqual(foldCommands(folded, "work", { weight: 5 }), open({ weight: 5 }));
-  assert.deepEqual(foldCommands(folded, "work", { px: 300 }), open({ px: 300 }));
-  assert.deepEqual(foldCommands(folded, "work", { px: FOLDED_GROUP }), open({ weight: GROUP_WEIGHTS.work }));
-  assert.deepEqual(foldCommands(folded, "work", undefined), open({ weight: GROUP_WEIGHTS.work }));
-  assert.deepEqual(groupSize(dock(), "work"), { weight: GROUP_WEIGHTS.work });
-  assert.deepEqual(foldCommands({ id: "root" }, "work", undefined), []);
-});
-
-test("the dock's ⋯ lists the panels with their ✓; one hidden takes its tab, its group once empty, never the last",
-  () => {
-  assert.deepEqual(panelChoices(dock({ search: { hidden: true } }), true), [
-    { panel: "files", label: "Files", on: true, off: false },
-    { panel: "search", label: "Search", on: false, off: false },
-    { panel: "changes", label: "Changes", on: true, off: false },
-    { panel: "issues", label: "Issues", on: true, off: false }]);
-  assert.deepEqual(panelChoices(dock(), false).map((c) => c.panel), ["files", "search", "changes"]);
-  const last = dock({ files: { hidden: true }, search: { hidden: true }, issues: { hidden: true } });
+test("More's views as the TUI's, each with its check; the last one shown stays; hidden, the stack moves on", () => {
+  assert.deepEqual(panelChoices(dock({ search: { hidden: true } }), true).map((c) => [c.panel, c.on]),
+    [["files", true], ["search", false], ["changes", true], ["issues", true], ["agent", true]]);
+  assert.deepEqual(panelChoices(dock(), false).map((c) => c.panel), ["files", "search", "changes", "agent"]);
+  const last = dock({ files: { hidden: true }, search: { hidden: true }, issues: { hidden: true },
+    agent: { hidden: true } });
   assert.deepEqual(panelChoices(last, true)[2], { panel: "changes", label: "Changes", on: true, off: true });
   assert.deepEqual(hideCommands(dock(), "files", true, true), [["layout.hide", { id: "files" }],
-    ["layout.select", { stack: "fold-project-body", child: "search" }]]);       // its group shows the other
-  assert.deepEqual(hideCommands(dock({ search: { hidden: true } }), "files", true, true),
-    [["layout.hide", { id: "files" }], ["layout.hide", { id: "fold-project" }]]);  // its group's last: the group
-  assert.deepEqual(hideCommands(last, "changes", true, true), []);                // one panel stays shown
-  assert.deepEqual(hideCommands(dock({ files: { hidden: true }, search: { hidden: true },
-    "fold-project": { hidden: true } }), "search", false, true), [["layout.show", { id: "search" }],
-    ["layout.show", { id: "fold-project" }], ["layout.select", { stack: "fold-project-body", child: "search" }]]);
+    ["layout.select", { stack: DOCK, child: "search" }]]);
+  assert.deepEqual(hideCommands(last, "changes", true, true), []);                // one view stays shown
+  assert.deepEqual(panelsFollow(dock({ [DOCK]: { active: "issues" } }), false, "issues"),
+    [["layout.select", { stack: DOCK, child: "files" }]]);                       // off GitHub meanwhile
+  assert.deepEqual(panelsFollow(dock({ [DOCK]: { active: CHATS_BLOCK } }), true, "changes"), []);   // the list stays
 });
 
-test("the groups follow their panels: one with none shown hidden, a stack never on a tab it cannot show", () => {
-  assert.deepEqual(panelsFollow(dock(), true), []);
-  assert.deepEqual(panelsFollow(dock({ "fold-work-body": { active: "issues" } }), false),
-    [["layout.select", { stack: "fold-work-body", child: "changes" }]]);       // off GitHub: Changes
-  assert.deepEqual(panelsFollow(dock({ changes: { hidden: true }, "fold-work-body": { active: "issues" } }), false),
-    [["layout.hide", { id: "fold-work" }]]);
-  assert.deepEqual(panelsFollow({ id: "root" }, true), []);
+test("each space keeps its own view, a new one starting on Files; spaces gone drop out as one is kept", () => {
+  assert.equal(chosenFor({ sp1: "changes", sp2: "search" }, "sp2"), "search");
+  assert.equal(chosenFor({ sp1: "changes" }, "sp3"), "files");                   // a new space
+  assert.equal(chosenFor("changes", "sp1"), "files");                           // an older version's one for all
+  assert.equal(chosenFor(null, null), "files");
+  assert.deepEqual(keepChosen({ sp1: "changes", gone: "issues" }, "sp2", "search", new Set(["sp1", "sp2"])),
+    { sp1: "changes", sp2: "search" });
+  assert.deepEqual(keepChosen("changes", "sp1", "issues", new Set(["sp1"])), { sp1: "issues" });
+  // as the TUI's: the kept one while it is on the row, else Files, else the row's first; never another space's
+  assert.equal(shownView(dock({ [DOCK]: { active: "changes" } }), true, chosenFor({}, "sp9")), "files");
+  assert.equal(shownView(dock({ files: { hidden: true } }), true, "issues"), "issues");
+  assert.equal(shownView(dock({ files: { hidden: true }, [DOCK]: { active: "changes" } }), false, "issues"),
+    "search");
 });
 
-test("a group keeps the tab picked: off GitHub Issues gives way to Changes, back on GitHub Issues shows again", () => {
-  const onIssues = dock({ "fold-work-body": { active: "issues" } }), onChanges = dock();
-  assert.deepEqual(keptTabs(onIssues, {}), { project: "files", work: "issues" });   // none picked: the stacks' own
-  assert.deepEqual(keptTabs(onIssues, { work: "changes" }), { project: "files", work: "changes" });
-  assert.deepEqual(keptTabs({ id: "root" }, {}), {});
-  assert.deepEqual(panelsFollow(onIssues, false, { work: "issues" }),
-    [["layout.select", { stack: "fold-work-body", child: "changes" }]]);         // off GitHub: Changes meanwhile
-  assert.deepEqual(panelsFollow(onChanges, false, { work: "issues" }), []);       // still off: Changes stays
-  assert.deepEqual(panelsFollow(onChanges, true, { work: "issues" }),
-    [["layout.select", { stack: "fold-work-body", child: "issues" }]]);          // back on GitHub: Issues again
-  assert.deepEqual(panelsFollow(onChanges, true, { work: "changes" }), []);
-  assert.deepEqual(panelsFollow(dock({ issues: { hidden: true } }), true, { work: "issues" }), []);  // off in the ⋯
-  // a pick is the new choice: the one kept before never takes the group back
-  assert.deepEqual(pickCommands(onIssues, "changes", { github: true, chosen: { work: "issues" } }),
-    [["layout.select", { stack: "fold-work-body", child: "changes" }]]);
-  assert.deepEqual(hideCommands(dock({ issues: { hidden: true } }), "issues", false, true, { work: "issues" }),
-    [["layout.show", { id: "issues" }], ["layout.select", { stack: "fold-work-body", child: "issues" }]]);
+test("Chats over the view: its button again, Esc or another button brings a view back; shut, it opens", () => {
+  const open = dock({ [DOCK]: { active: CHATS_BLOCK } });
+  assert.deepEqual(chatsToggle(open, true, "changes"), [["layout.select", { stack: DOCK, child: "changes" }]]);
+  assert.deepEqual(chatsToggle(open, false, "issues"), [["layout.select", { stack: DOCK, child: "files" }]]);
+  assert.deepEqual(chatsToggle(dock(), true, "files"), [["layout.select", { stack: DOCK, child: CHATS_BLOCK }]]);
+  const railed = dock({ [PANEL]: { size: { px: RAIL } } });
+  assert.deepEqual(chatsToggle(railed, true, "files", 420).slice(0, 2),
+    [["layout.select", { stack: DOCK, child: CHATS_BLOCK }], ["layout.resize", { id: PANEL, px: 420 }]]);
+  // another button while the list shows: that view in its place
+  assert.deepEqual(pickCommands(open, "search", { github: true }),
+    [["layout.select", { stack: DOCK, child: "search" }]]);
+  assert.deepEqual(pickCommands(dock({ [DOCK]: { active: CHATS_BLOCK }, search: { hidden: true } }), "search"),
+    [["layout.show", { id: "search" }], ["layout.select", { stack: DOCK, child: "search" }]]);
 });
 
-test("a card keeps PAD inside on every side: the terminals' text, a group's tabs, under a folded group's head", () => {
+test("Esc in the Chats list, or in its filter, closes it; Esc while a chat is renamed drops the name only", () => {
+  const chats = readFileSync(new URL("../mods/herdr-fold/chats.js", import.meta.url), "utf8");
+  const list = chats.slice(chats.indexOf("  list(t, rows)"), chats.indexOf("  members(t, row)"));
+  assert.match(list, /on_key_down\(\(e, cx\) => this\.escape\(e, cx\)\)/);
+  const at = chats.indexOf("  escape(e, cx)"), escape = chats.slice(at, chats.indexOf("\n  }\n", at));
+  assert.match(escape, /e\.key !== "escape"/);
+  assert.ok(escape.indexOf("this.naming") < escape.indexOf("this.close()"), "a name being typed is dropped first");
+});
+
+test("» and « sit at the tab bar's end, the left toggle's row, open, folded or hidden: never moving", () => {
+  const panel = readFileSync(new URL("../mods/herdr-fold/panel.js", import.meta.url), "utf8");
+  const at = panel.indexOf("export function panelToggle"), toggle = panel.slice(at, panel.indexOf("\n}\n", at));
+  assert.doesNotMatch(toggle, /return div\(\)/, "drawn in every state");
+  assert.match(toggle, /"chevrons-right"/);
+  assert.match(toggle, /"chevrons-left"/);
+  assert.doesNotMatch(panel, /"dock-fold"|"rail-open"/, "none in the dock's head or on the rail");
+});
+
+// the tabs' widths at 13 in the app's font (macOS's system font, measured), each with px 6 a side; Changes with its
+// count after it (6 apart, 18 wide), Agent (Task 7) with its 14 px icon 6 before its name
+const WORDS = /** @type {[string, number][]} */ ([["files", 27.79 + 12], ["search", 42.11 + 12],
+  ["changes", 53.33 + 6 + TAB_COUNT + 12], ["issues", 38.32 + 12], ["agent", 14 + 6 + 35.65 + 12]]);
+
+test("the dock's tabs, each as wide as its words; past the card's width the last leave, never the shown one", () => {
+  const ids = WORDS.map(([id]) => id), need = WORDS.reduce((sum, [, w]) => sum + w, 0) + TAB_GAP * (WORDS.length - 1);
+  assert.ok(need <= PANEL_PX - 2 * TABS_IN, `five tabs fit the card as it first opens: ${need.toFixed(1)}`);
+  assert.deepEqual(tabFit(PANEL_PX, WORDS, "files"), { tabs: ids });
+  assert.deepEqual(tabFit(200, WORDS, "files"), { tabs: ["files", "search"] });                 // the last first
+  assert.deepEqual(tabFit(200, WORDS, "agent"), { tabs: ["files", "search", "agent"] });        // never the shown
+  assert.deepEqual(tabFit(60, WORDS, "issues"), { tabs: ["issues"] });                         // the shown alone
+  assert.deepEqual(tabFit(200, WORDS, null), { tabs: ["files", "search"] });                    // Chats' list shown
+  assert.deepEqual(tabFit(120, WORDS.map(([id]) => [id, 0]), "files"), { tabs: ids });  // not drawn yet: all, then
+});
+
+test("a dock tab: h 28, px 6, radius 8, 13, its count after its name 18 high; the row 8 over and under, 6 at the "
+  + "sides, the tabs 2 apart", () => {
+  assert.deepEqual([TAB_H, TABS_PAD, TABS_SIDE, TAB_IN, TAB_GAP, TAB_COUNT], [28, 8, 6, 6, 2, 18]);
+  assert.equal(TABS_H - 1 - TAB_H, 2 * TABS_PAD);                  // as much room above the tabs as under them
+  assert.equal(TABS_IN + TAB_IN, 1 + PAD);       // the first tab's words in line with the views' words under them
+  const panel = readFileSync(new URL("../mods/herdr-fold/panel.js", import.meta.url), "utf8");
+  const at = panel.indexOf("const viewTab"), tab = panel.slice(at, panel.indexOf("\n\n", at));
+  assert.match(tab, new RegExp(String.raw`\.h\(TAB_H\)\.px\(TAB_IN\)\.gap\(6\)\s*\.flex_none\(\)\.items_center\(\)`
+    + String.raw`\.rounded\(8\)\.text_size\(13\)`));
+  assert.match(tab, /text_color\(shown \|\| hovered \? t\.foreground : t\.muted\)/);     // muted, the shown one not
+  assert.match(tab, /e\.bg\(hovered \? t\.hover\s*: t\.raised\)/);                          // the shown one raised
+  assert.match(tab, /\.hover\(\(s\) => s\.bg\(t\.hover\)\.text_color\(t\.foreground\)\)/);
+  assert.match(tab, /badge\(t, count, TAB_COUNT, 11\)/);
+  assert.doesNotMatch(tab, /font_(bold|semibold)/, "the shown one by its pill, not its weight");
+});
+
+test("a list's rows stand 12 in on both sides: the list 6 in, a row 6 more, a tree's indent at the left", () => {
+  for (const name of ["files.js", "main.js", "issues.js", "chats.js"]) {
+    const source = readFileSync(new URL(`../mods/herdr-fold/${name}`, import.meta.url), "utf8");
+    assert.doesNotMatch(source, /\.pl\(6\)|\.pr\(8\)|\.pl\(6 \+/, `${name}: a row's right as its left`);
+  }
+});
+
+test("the tab bar's end over the dock: Chats, More, then » or «; the rail without Chats", () => {
+  const source = (/** @type {string} */ name) => readFileSync(new URL(`../mods/herdr-fold/${name}`, import.meta.url),
+    "utf8");
+  const tabs = source("tabs.js"), panel = source("panel.js"), parts = source("parts.js");
+  const end = tabs.slice(tabs.indexOf("export const barEnd"), tabs.indexOf("\nexport class TabsView"));
+  const order = ['"bar-chats", "sparkle"', '"bar-more", "ellipsis"', "panelToggle(t, open, acts.fold)"]
+    .map((part) => end.indexOf(part));
+  assert.ok(order.every((at, i) => at > 0 && (i === 0 || at > order[i - 1])), "Chats, More, » in that order");
+  assert.match(end, /waiting \? `Chats · \$\{waiting\} waiting` : "Chats"/);              // the number in its tip
+  assert.match(end, /lit: listed, dot: waiting \? t\.ansi3 : null/);
+  // More has no dot: a newer herdr-fold is the status bar's to say, and its menu's one line under the views opens
+  // Settings (how agents open and About live there)
+  assert.match(end, /\{ size: 15, left: true, press: acts\.press \}/);
+  assert.match(end, /menu \? null : "More"/);                             // its tip never over its own menu
+  assert.match(panel, /\[\.\.\.panels, null, \{ label: "Settings…", act: \(\) => openSettings\(\) \}\], bounds\)/);
+  assert.doesNotMatch(tabs + panel, /About herdr-fold|Agents open in:/);
+  assert.match(tabs, /\.child\(div\(\)\.flex_1\(\)\)\s*\.child\(barEnd\(t, bar, acts/);       // at the bar's end
+  // the dot as center-chat.html's .wdot, 7 with a 2 px ring of the bar's fill (the window's level, canvas), its
+  // centre on the icon's top-right corner as a count's badge sits: clear of the sparkle's arms and the ellipsis' dot
+  assert.match(parts, /export const DOT = 7, RINGED = DOT \+ 4;/);
+  assert.match(parts, new RegExp(String.raw`\.left\(\(BUTTON \+ size - RINGED\) / 2\)\s*`
+    + String.raw`\.top\(\(BUTTON - size - RINGED\) / 2\)\.size\(RINGED\)\.rounded_full\(\)\.bg\(String\(dot\)\)`
+    + String.raw`\.border_2\(\)\s*\.border_color\(t\.canvas\)`));
+  assert.doesNotMatch(panel.slice(panel.indexOf("const RAILED")), /"chats", "sparkle"/);
+  assert.doesNotMatch(panel, /function rowButton|"more", "ellipsis"/, "nothing of the bar's end in the dock");
+});
+
+test("a count's badge, as VS Code's activity bar's: 14 high, its centre on the icon's top-right corner", () => {
+  assert.equal(BADGE, 14);
+  const { left, top } = badgeSpot(14, 0);                           // a 14 icon, its top-right corner at 14, 0
+  assert.deepEqual([left + BADGE / 2, top + BADGE / 2], [14, 0]);
+  assert.ok(left < 14 && top + BADGE > 0 && left > 0, "over the icon's corner, a quarter of it");
+  assert.deepEqual(badgeSpot(22.5, 7.5), { left: 15.5, top: 0.5 });    // the rail's: a 15 icon in its 30 square
+  const parts = readFileSync(new URL("../mods/herdr-fold/parts.js", import.meta.url), "utf8");
+  /** parts.js's statement NAME starts, to its end @param {string} name */
+  const piece = (name) => parts.slice(parts.indexOf(name), parts.indexOf(";\n", parts.indexOf(name)));
+  // round, BADGE high and at least as wide, its number 10 semibold on a line as high; out of the flow
+  assert.match(piece("export const badge ="), /high = BADGE, text = 10\) => div\(\)\.h\(high\)\.min_w\(high\)/);
+  assert.match(piece("export const badge ="), /\.text_size\(text\)\.line_height\(`\$\{high\}px`\)\.font_semibold\(\)/);
+  assert.match(piece("export const countBadge ="), /div\(\)\.absolute\(\)\.left\(spot\.left\)\.top\(spot\.top\)/);
+  // the rail's icon stands where it would without it: the badge hangs off the icon's own box
+  const from = parts.indexOf("export function iconTab"), tab = parts.slice(from, parts.indexOf("\n}\n", from));
+  assert.match(tab, /countBadge\(t, count, \(size \+ glyph\) \/ 2, \(size - glyph\) \/ 2\)/);
+});
+
+test("the dock's lists keep one inset: a head's field 12 in, a row's highlight 6 in, its first mark or word 12", () => {
+  const src = (/** @type {string} */ name) => readFileSync(new URL(`../mods/herdr-fold/${name}`, import.meta.url),
+    "utf8");
+  const chats = src("chats.js"), issues = src("issues.js"), files = src("files.js"), main = src("main.js");
+  const raw = (/** @type {string[]} */ ...parts) => new RegExp(parts.join(""));
+  // the heads: the field (Files' folder name) PAD from the card's top and sides
+  assert.match(chats, raw(String.raw`h_flex\(\)\.flex_none\(\)\.p\(PAD\)\.pb\(6\)\.gap\(4\)\.items_center\(\)\s*`,
+    String.raw`\.child\(field\(t, "chats-filter"`));
+  assert.match(issues, raw(String.raw`h_flex\(\)\.flex_none\(\)\.p\(PAD\)\.pb\(6\)\.gap\(6\)\.items_center\(\)\s*`,
+    String.raw`\.child\(field\(t, "issue-search"`));
+  assert.match(main, raw(String.raw`v_flex\(\)\.flex_none\(\)\.p\(PAD\)\.gap\(6\)[^\n]*\n\s*`,
+    String.raw`\.child\(field\(t, "search"`));
+  assert.match(files, /h_flex\(\)\.h\(PAD \+ BUTTON\)\.flex_none\(\)\.pl\(PAD\)/);
+  // the lists PAD / 2 in, where a row's highlight starts; its first mark or word PAD / 2 further in
+  const scrolled = (/** @type {string} */ id) => raw(String.raw`id\("${id}"\)\.flex_1\(\)\.min_h\(0\)`,
+    String.raw`\.overflow_y_scrollbar\(\)\.px\(PAD / 2\)\.pb\(PAD / 2\)`);
+  assert.match(chats, scrolled("chats"));
+  assert.match(issues, scrolled("issues"));
+  assert.match(files, scrolled("files-tree"));
+  assert.match(main, /div\(\)\.flex_1\(\)\.min_h\(0\)\.relative\(\)\.px\(PAD \/ 2\)\.pb\(PAD \/ 2\)\.text_size\(12\)/);
+  assert.match(main, /id\(`hit-\$\{r\.path\}:\$\{r\.line\}`\)\.w_full\(\)\.h\(24\)\.flex_none\(\)\.px\(PAD \/ 2\)/);
+  assert.match(files, /\.pl\(PAD \/ 2 \+ depth \* INDENT\)\.pr\(PAD \/ 2\)/);         // a tree's indent at the left
+  assert.match(chats, /id\(`space-\$\{row\.name\}`\)\.h\(SPACE_ROW\)\.flex_none\(\)\.px\(PAD \/ 2\)/);
+  assert.match(chats, /id\(`chat-\$\{key\}`\)\.h\(CHAT_ROW\)\.flex_none\(\)\.pl\(UNDER\)\.pr\(PAD \/ 2\)/);
+  assert.match(chats, /const UNDER = PAD \/ 2 \+ STATE_MARK \+ 6;/);   // a chat's mark under its space's name
+  // what a list says in its first row's place, its words PAD in, as Issues'
+  assert.match(chats, /h_flex\(\)\.min_h\(SPACE_ROW\)\.py\(2\)\.px\(PAD \/ 2\)\.items_center\(\)\.text_size\(12\)/);
+  assert.match(issues, /h_flex\(\)\.min_h\(ROW\)\.flex_none\(\)\.px\(PAD \/ 2\)/);
+  assert.doesNotMatch(chats, /\.p[xytblr]?\(8\)/, "Chats on the 12 px rhythm, none of its old 8s");
+});
+
+test("what was done or went wrong stands under the list, never over its rows: Issues and Chats, as the TUI's foot",
+  () => {
+    assert.equal(NOTE_MS, 4000);                  // as the TUI's last row: a done thing's line goes, an error stays
+    const src = (/** @type {string} */ name) => readFileSync(new URL(`../mods/herdr-fold/${name}`, import.meta.url),
+      "utf8");
+    const issues = src("issues.js"), chats = src("chats.js"), parts = src("parts.js");
+    const body = (/** @type {string} */ source, /** @type {string} */ name) => source.slice(source.indexOf(name),
+      source.indexOf("\n  }\n", source.indexOf(name)));
+    // Issues: its head, its list, then the foot's line; nothing of it beside Open and Closed
+    assert.match(body(issues, "  render(t) {"), new RegExp(String.raw`\.children\(shown\.map\(\(issue\) => `
+      + String.raw`this\.row\(t, issue\)\)\)\)\s*\.when\(Boolean\(foot\), \(e\) => e\.child\(footNote\(t, foot\)\)\)`));
+    assert.doesNotMatch(body(issues, "  states(t, parts) {"), /this\.busy|this\.note/);
+    // Chats: the filter right over the list, the line after it; the list's own failure in its first row's place
+    const list = body(chats, "  list(t, rows) {");
+    assert.ok(list.indexOf("this.note") > list.indexOf('id("chats")'), "the line under the list, not over it");
+    assert.match(list, /\.when\(Boolean\(this\.note\), \(e\) => e\.child\(footNote\(t, this\.note\)\)\)/);
+    assert.match(list, /this\.failed \?\? "Loading chats…"/);
+    // one line for both, as Files' and Changes' problems: PAD in, PAD / 2 over it, 11, dim or ansi1; done things go
+    assert.match(parts, new RegExp(String.raw`export const footNote = \(t, note\) => div\(\)\.flex_none\(\)`
+      + String.raw`\.px\(PAD\)\.pt\(PAD / 2\)\.pb\(PAD\)`));
+    assert.match(body(parts, "export function keepNote"), /!note\.error[^]*cx\.timer\.after\(NOTE_MS/);
+    for (const [name, source] of [["issues.js", issues], ["chats.js", chats]]) {
+      assert.doesNotMatch(source, /this\.note = (?!null)/, `${name}: its notes through keepNote()`);
+    }
+  });
+
+test("Issues loading moves nothing: the list's first row stays put, the head's refresh turns to a spinner", () => {
+  const one = { issues: [{ number: 42 }], error: null };
+  const two = { issues: [{ number: 42 }, { number: 41 }], error: null };
+  const parts = (/** @type {any} */ s) => issuesParts({ asked: false, listing: null, shown: 0, filtered: false,
+    state: "open", ...s });
+  // a refresh with a list shown: before, during, after, the list's first row is its first issue, nothing over it
+  assert.deepEqual(parts({ listing: one, shown: 1 }), { refresh: "button", say: null });
+  assert.deepEqual(parts({ asked: true, listing: one, shown: 1 }), { refresh: "spinner", say: null });
+  assert.deepEqual(parts({ listing: two, shown: 2 }), { refresh: "button", say: null });
+  // the first load, a failure, none found: said in the first row's place, which the rows then take, faint as the
+  // TUI's and the other views' empty lists; the first load says it there alone, Refresh as it is
+  assert.deepEqual(parts({ asked: true }), { refresh: "button", say: ["Loading issues…", "dim"] });
+  assert.deepEqual(parts({ asked: true, listing: { issues: [], error: "x" } }).refresh, "spinner");
+  assert.deepEqual(parts({ listing: { issues: [], error: "gh: not signed in" } }).say, ["gh: not signed in", "ansi1"]);
+  assert.deepEqual(parts({ listing: { issues: [], error: null } }).say, ["No open issues", "dim"]);
+  assert.deepEqual(parts({ listing: one, filtered: true }).say, ["No issues match", "dim"]);
+  // drawn so: the head (the field, then Open and Closed with the refresh at their end) right over the list, no row
+  // that comes and goes between them; what there is to say first in the list; the spinner as big as the button
+  const issues = readFileSync(new URL("../mods/herdr-fold/issues.js", import.meta.url), "utf8");
+  const body = (/** @type {string} */ name) => issues.slice(issues.indexOf(name), issues.indexOf("\n  }\n",
+    issues.indexOf(name)));
+  const render = body("  render(t) {");
+  assert.match(render, new RegExp(String.raw`\.child\(this\.field\(t\)\)\s*\.child\(this\.states\(t, parts\)\)\s*`
+    + String.raw`\.child\(v_flex\(\)\.id\("issues"\)`));
+  assert.match(render, new RegExp(String.raw`\.when\(Boolean\(parts\.say\), \(e\) => e\.child\(this\.say\(t, `
+    + String.raw`parts\.say\)\)\)\s*\.children\(`));
+  assert.match(body("  states(t, parts) {"), /parts\.refresh === "spinner"/);
+  assert.match(body("  states(t, parts) {"), /div\(\)\.id\("issue-loading"\)\.size\(BUTTON\)/);
+  assert.match(body("  states(t, parts) {"), /tooltip\("Loading issues…"\)/);
+  assert.match(body("  states(t, parts) {"), /iconButton\(t, "issue-refresh", "refresh-cw", "Refresh"/);
+  assert.match(body("  say(t, [text, role]) {"), /\.min_h\(ROW\)/);              // a row's height, its words PAD in
+});
+
+test("the row's counts and Issues come from the focused folder's repository, no view having shown yet", async () => {
+  /** @type {string[]} */
+  const asked = [];
+  const ask = {
+    top: async (/** @type {string} */ cwd) => (asked.push(`top ${cwd}`), cwd.startsWith("/repo") ? "/repo" : null),
+    status: async () => (asked.push("status"), { staged: [{}, {}], changes: [{}] }),
+    github: async () => (asked.push("github"), "lumenworks/lumen-api"),
+  };
+  const known = new Map();
+  assert.deepEqual(await repoTold({ cwd: "/repo/src", on: null }, ask, known),
+    { root: "/repo", github: true, changed: 3 });
+  assert.deepEqual(await repoTold({ cwd: "/repo", on: null }, ask, known),
+    { root: "/repo", github: true, changed: 3 });
+  assert.equal(asked.filter((a) => a === "github").length, 1);              // a repository's GitHub asked once
+  assert.deepEqual(await repoTold({ cwd: "/tmp", on: null }, ask, known), { root: null, github: false, changed: 0 });
+  assert.deepEqual(await repoTold({ cwd: null, on: null }, ask, known), { root: null, github: false, changed: 0 });
+  const main = readFileSync(new URL("../mods/herdr-fold/main.js", import.meta.url), "utf8");
+  const bar = main.slice(main.indexOf('if (part === "tabs")'), main.indexOf('if (part === "preview")'));
+  assert.match(bar, /new RepoLook\(/, "the tab bar, which always shows, looks at the repository");
+});
+
+test("the layout with a terminal stays within the host's 16 levels for layout.set", () => {
+  // the host refuses an argument nested deeper ("a host argument may not nest more than 16 levels deep", measured in
+  // the demo: 16 by this count passes, 17 throws): {layout: tree}, the tree after withTerminal() added the tab's, at
+  // the dock's foot or under the centre
+  const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
+  const depth = (/** @type {any} */ v) => (v && typeof v === "object"
+    ? 1 + Math.max(0, ...Object.values(v).map(depth)) : 0);
+  const { tree } = withTerminal(root, "w1:t1", "w1/t1");
+  for (const shown of [tree, placeTerminals(tree, "bottom").tree]) {
+    assert.ok(depth({ layout: shown }) <= 16, `depth ${depth({ layout: shown })}`);
+  }
+});
+
+test("a card keeps PAD inside on every side: the terminals' text, a view's words", () => {
   const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
   const parts = readFileSync(new URL("../mods/herdr-fold/parts.js", import.meta.url), "utf8");
   const space = /^export const SPACE = \[([\d, ]+)\];/m.exec(parts)?.[1].split(",").map(Number) ?? [];
   assert.ok(space.includes(PAD) && space.includes(PAD / 2), "PAD and a row's pad, halfway in, on the scale");
   assert.ok(/^export \{ PAD \};/m.test(parts), "parts.js hands logic.js's PAD to the views, no value of its own");
   assert.deepEqual(root.terminal_padding, [PAD, PAD]);                          // the centre's and the dock's
-  assert.equal(GROUP_HEAD, PAD + 24);                                           // its tabs, 24 high, PAD under the top
-  assert.equal(FOLDED_GROUP, GROUP_HEAD + PAD + 2);                             // folded: PAD under them, in its frame
+});
+
+/** herdr-fold's layout as the app has it, its tab's terminal in its stack, shown (withTerminal's, the follower's). */
+function shipped() {
+  const tree = withTerminal(JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8")),
+    "w1:t1", "w1/t1").tree;
+  find(tree, TERMINALS).active = terminalId("w1:t1");
+  return tree;
+}
+/** The ids of node ID's children in ROOT. @param {any} root @param {string} id */
+const kids = (root, id) => find(root, id).children.map((/** @type {any} */ c) => c.id);
+
+test("folded to its rail, the dock puts the tab's terminal under the centre, as VS Code's panel; open, back", () => {
+  const open = shipped();
+  assert.deepEqual(kids(open, CENTER), ["main"]);                          // the tab alone while the dock is open
+  assert.equal(terminalsAt(open), "dock");
+  assert.equal(find(open, TERMINALS).size.weight, TERMINALS_WEIGHT);
+  assert.equal(find(open, CENTER).gap, 8);                                  // the dock's gap over the terminal's card
+  const down = placeTerminals(open, "bottom", { shown: true, px: 300 });
+  assert.equal(down.changed, true);
+  assert.deepEqual(kids(down.tree, CENTER), ["main", TERMINALS]);           // the centre's width, under the tab
+  assert.deepEqual([find(down.tree, TERMINALS).size, find(down.tree, TERMINALS).hidden], [{ px: 300 }, false]);
+  assert.deepEqual(kids(down.tree, PANEL), [DOCK, RAIL_BLOCK]);
+  assert.equal(find(down.tree, TERMINALS).children.length, 2);             // its terminals go with it
+  assert.equal(placeTerminals(down.tree, "bottom").changed, false);         // there already: nothing to write
+  assert.equal(find(placeTerminals(open, "bottom", { shown: false }).tree, TERMINALS).hidden, true);   // as chosen
+  const back = placeTerminals(down.tree, "dock");
+  assert.deepEqual(kids(back.tree, PANEL), [DOCK, TERMINALS, RAIL_BLOCK]);  // back at the dock's foot, as it was
+  assert.deepEqual([find(back.tree, TERMINALS).size, find(back.tree, TERMINALS).hidden],
+    [{ weight: TERMINALS_WEIGHT }, false]);
+  const depth = (/** @type {any} */ v) => (v && typeof v === "object" ? 1 + Math.max(0, ...Object.values(v).map(depth))
+    : 0);
+  assert.ok(depth({ layout: down.tree }) <= 16, `depth ${depth({ layout: down.tree })}`);   // the host's most
+});
+
+test("the dock's » folds it with its terminal under the centre at the height last dragged; « brings it back", () => {
+  const open = shipped();
+  const folded = railToggle(open, 368, { shown: true, px: 300 });
+  assert.deepEqual(folded[0], ["layout.resize", { id: PANEL, px: RAIL }]);
+  const set = folded.find(([name]) => name === "layout.set");
+  assert.ok(set, "the terminal moved by a layout.set");
+  assert.equal(terminalsAt(set[1].layout), "bottom");
+  assert.deepEqual(folded.filter(([name, args]) => args.id === TERMINALS && name !== "layout.set"),
+    [["layout.resize", { id: TERMINALS, px: 300 }], ["layout.show", { id: TERMINALS }]]);
+  assert.deepEqual(folded.filter(([, args]) => [DOCK, RAIL_BLOCK].includes(args.id)),
+    [["layout.hide", { id: DOCK }], ["layout.show", { id: RAIL_BLOCK }]]);
+  // as the app has it then: the height dragged kept, hidden by the rail's Terminal kept for the next fold
+  const railed = set[1].layout;
+  Object.assign(find(railed, PANEL), { size: { px: RAIL } });
+  Object.assign(find(railed, DOCK), { hidden: true });
+  Object.assign(find(railed, RAIL_BLOCK), { hidden: false });
+  find(railed, TERMINALS).size = { px: 280 };
+  assert.equal(bottomPx(railed), 280);
+  assert.equal(bottomPx(open), null);
+  assert.deepEqual(railFollow(railed, { shown: true, px: 280 }), []);          // as it should be: nothing to do
+  assert.equal(bottomShown(railed), true);
+  assert.deepEqual(bottomToggle(railed), { commands: [["layout.hide", { id: TERMINALS }]], shown: false });
+  find(railed, TERMINALS).hidden = true;
+  assert.equal(bottomShown(railed), false);
+  assert.deepEqual(railFollow(railed, { shown: false, px: 280 }), []);         // hidden stays hidden
+  assert.deepEqual(bottomToggle(railed), { commands: [["layout.show", { id: TERMINALS }]], shown: true });
+  assert.deepEqual(bottomToggle(open), { commands: [], shown: null });          // the dock open: its own foot's
+  const opened = railToggle(railed, 368, { shown: false, px: 280 });
+  const back = opened.find(([name]) => name === "layout.set");
+  assert.ok(back && terminalsAt(back[1].layout) === "dock");
+  assert.deepEqual(opened.filter(([name, args]) => args.id === TERMINALS && name !== "layout.set"),
+    [["layout.resize", { id: TERMINALS, weight: TERMINALS_WEIGHT }], ["layout.show", { id: TERMINALS }]]);
+  assert.equal(BOTTOM_PX, 240);                                                // its first height
+});
+
+test("Changes moves nothing: its list and Graph keep their place through a run, a failure, typing, an offer, a link",
+  () => {
+    const main = readFileSync(new URL("../mods/herdr-fold/main.js", import.meta.url), "utf8");
+    const issues = readFileSync(new URL("../mods/herdr-fold/issues.js", import.meta.url), "utf8");
+    const body = (/** @type {string} */ source, /** @type {string} */ name) => source.slice(source.indexOf(name),
+      source.indexOf("\n  }\n", source.indexOf(name)));
+    const composer = body(main, "  composer(t) {"), repository = body(main, "  repository(t) {");
+    // above the list, two rows of the composer and nothing that comes and goes: the push offered is said in the
+    // empty field, the issue the next commit fixes is a chip in it
+    assert.equal(composer.match(/\.child\(h_flex\(\)\.gap\(8\)/g)?.length, 2);
+    assert.doesNotMatch(composer, /fixesLine\(|\.when\(Boolean\(this\.offer\), \(e\) => e\.child\(div\(\)/);
+    assert.match(composer, /this\.offer \?\? "Commit message"/);
+    assert.match(composer, /\.when\(Boolean\(this\.linked\), \(e\) => e\.child\(fixesChip\(t, /);
+    assert.match(issues, /export function fixesChip\(t, linked, unlink\)/);
+    // a run: the sync's glyph a spinner, its tip the step; Commit keeps its own words
+    assert.match(repository, /step \? div\(\)\.size\(14\)[^]*?frames\(SPINNER, 100\)[^]*?: icon\("refresh-cw"\)/);
+    assert.match(repository, /step \?\? "Sync"/);
+    assert.doesNotMatch(composer, /this\.busy \?\?/);
+    // who writes, in ✦'s tip while the field holds words, a spinner in it then
+    assert.match(composer, /\.tooltip\(writing \?\? "Write message"\)/);
+    // a failure: the dock's foot line over the card's last strip, red until the next action or its ×
+    assert.match(body(main, "  problem(t) {"), /\.absolute\(\)\.left_0\(\)\.right_0\(\)\.bottom_0\(\)/);
+    assert.match(body(main, "  panel(t) {"), /return frame\.relative\(\)\.child\(this\.repository\(t\)\)/);
+  });
+
+test("folded, a tab with no terminal leaves the centre whole: no stand-in under it; one coming back shows it", () => {
+  const open = shipped();
+  const railed = (/** @type {string} */ active) => {
+    const tree = placeTerminals(open, "bottom", { shown: true, px: 240 }).tree;
+    Object.assign(find(tree, PANEL), { size: { px: RAIL } });
+    Object.assign(find(tree, DOCK), { hidden: true });
+    Object.assign(find(tree, RAIL_BLOCK), { hidden: false });
+    find(tree, TERMINALS).active = active;
+    return tree;
+  };
+  const none = railed("fold-terminal-none"), one = railed(terminalId("w1:t1"));
+  assert.deepEqual(railFollow(none, { shown: true, px: 240 }), [["layout.hide", { id: TERMINALS }]]);
+  find(none, TERMINALS).hidden = true;
+  assert.deepEqual(railFollow(none, { shown: true, px: 240 }), []);            // stays out while there is none
+  find(one, TERMINALS).hidden = true;                                          // as it was while there was none
+  assert.deepEqual(railFollow(one, { shown: true, px: 240 }), [["layout.show", { id: TERMINALS }]]);
+  assert.deepEqual(railFollow(one, { shown: false, px: 240 }), []);           // unless the rail's Terminal hid it
+  // folded with none: it goes under the centre hidden, the choice kept as it was
+  const nothing = JSON.parse(JSON.stringify(open));
+  find(nothing, TERMINALS).active = "fold-terminal-none";
+  const folded = railToggle(nothing, 368, { shown: true, px: 240 });
+  assert.equal(find(folded.find(([name]) => name === "layout.set")[1].layout, TERMINALS).hidden, true);
+  assert.deepEqual(folded.filter(([name, args]) => args.id === TERMINALS && name === "layout.hide").length, 1);
+});
+
+test("a view floating beside the rail is as tall as dragged: its head and 3 rows at least, the window less 56 at most",
+  () => {
+    // the least: the float's head (36), the view's own head, 3 of its rows, the grip; each view's own
+    const views = ["files", "chats", "search", "issues", "changes", "agent"];
+    assert.deepEqual(Object.fromEntries(views.map((v) => [v, floatMin(v)])),
+      { files: 36 + 38 + 3 * 26 + 12, chats: 36 + 50 + 26 + 2 * 24 + 12, search: 36 + 81 + 3 * 24 + 12,
+        issues: 36 + 84 + 3 * 48 + 12, changes: 36 + 58 + 97 + 3 * 26 + 12 + 12,
+        agent: 36 + 44 + 37 + 4 + 28 + 2 * 26 + 12 });       // its head, its health line, a section and two rows
+    assert.equal(FLOAT_GRIP, 12);
+    // the most: the window's height (the rail's, the title row's, the tab bar's, the status bar's, the work body's
+    // pads) less 56
+    const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
+    assert.equal(floatMax(700, root), 700 + 36 + 42 + 28 + 2 * 8 - 56);
+    // as kept for the view, inside those; else the most; the rail not measured yet: a height that fits a laptop
+    assert.equal(railFloatPx("files", { files: 300 }, 700, root), 300);
+    assert.equal(railFloatPx("files", { files: 90 }, 700, root), floatMin("files"));
+    assert.equal(railFloatPx("files", { files: 5000 }, 700, root), floatMax(700, root));
+    assert.equal(railFloatPx("search", { files: 300 }, 700, root), floatMax(700, root));
+    assert.equal(railFloatPx("files", null, null, root), 560);
+    // kept per view, the others as they were; a drag clamped to the same bounds
+    assert.deepEqual(keepFloat({ files: 300, gone: "x" }, "issues", 420), { files: 300, issues: 420 });
+    assert.deepEqual(keepFloat("old", "files", 250), { files: 250 });
+    assert.equal(dragPx({ y: 500, px: 400 }, 560, 200, 700), 460);
+    assert.equal(dragPx({ y: 500, px: 400 }, 100, 200, 700), 200);
+    assert.equal(dragPx({ y: 500, px: 400 }, 900, 200, 700), 700);
+    // drawn so: the window as tall as its content (no height of its own), the grip at the panel's foot
+    const panel = readFileSync(new URL("../mods/herdr-fold/panel.js", import.meta.url), "utf8");
+    const at = panel.indexOf("export function openRail"), open = panel.slice(at, panel.indexOf("\n}\n", at));
+    assert.doesNotMatch(open, /height:/);
+    assert.match(panel, /cursor_row_resize\(\)/);
+    assert.match(panel, /e\.click_count === 2 \? size\.toggle\(cx\) : size\.press\(e\)/);
+  });
+
+test("the rail's Terminal shows and hides the terminal under the centre, lit while shown; no window of its own", () => {
+  const panel = readFileSync(new URL("../mods/herdr-fold/panel.js", import.meta.url), "utf8");
+  const main = readFileSync(new URL("../mods/herdr-fold/main.js", import.meta.url), "utf8");
+  assert.doesNotMatch(panel, /rail-terminal|float-head/);
+  assert.doesNotMatch(main, /float-head/);
+  const at = panel.indexOf("export function rail("), rail = panel.slice(at, panel.indexOf("\n}\n", at));
+  assert.match(rail, /panel === "terminal" \? toggleBottom\(\) : openRail\(panel, e\.bounds\)/);
+  assert.match(rail, /active: lit/);
+  assert.match(rail, /tip: off \? "No terminal in this tab" : label/);
 });
 
 test("the right dock folds to its rail and opens again, as its » and « and a drag do it", () => {
   /** @param {number} px @param {{ hidden?: boolean, rail?: boolean }} [shown] */
   const tree = (px, { hidden = false, rail = false } = {}) => dock({ [PANEL]: { hidden, size: { px } },
-    [DOCK_HEAD]: { hidden: rail }, [DOCK]: { hidden: rail }, [RAIL_BLOCK]: { hidden: !rail } });
-  /** @param {boolean} open */
-  const blocks = (open) => [[open ? "layout.show" : "layout.hide", { id: DOCK_HEAD }],
-    [open ? "layout.show" : "layout.hide", { id: DOCK }], [open ? "layout.hide" : "layout.show", { id: RAIL_BLOCK }]];
+    [DOCK]: { hidden: rail }, [TERMINALS]: { hidden: rail }, [RAIL_BLOCK]: { hidden: !rail } });
+  /** @param {boolean} open the card (its row over its view) and the terminal's, else the rail */
+  const blocks = (open) => [[open ? "layout.show" : "layout.hide", { id: DOCK }],
+    [open ? "layout.show" : "layout.hide", { id: TERMINALS }],
+    [open ? "layout.hide" : "layout.show", { id: RAIL_BLOCK }]];
   assert.equal(panelRailed(tree(RAIL, { rail: true })), true);
   assert.equal(panelRailed(tree(PANEL_PX)), false);
   assert.deepEqual(railToggle(tree(420), 368), [["layout.resize", { id: PANEL, px: RAIL }], ...blocks(false)]);
@@ -583,9 +1140,8 @@ test("the right dock folds to its rail and opens again, as its » and « and a d
   assert.equal(PANEL, "fold-panel");                       // herdr-fold's own id: the app's Settings leaves it alone
 });
 
-test("the layout's right dock: its head, the two groups, each a head over a stack of its panels, the terminals", () => {
-  const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
-  /** @type {Map<string, any>} */
+/** Layout ROOT's nodes by id, each once. @param {any} root @returns {Map<string, any>} */
+function layoutNodes(root) {
   const nodes = new Map();
   const walk = (/** @type {any} */ node) => {
     assert.equal(nodes.has(node.id), false, `${node.id} twice`);
@@ -593,34 +1149,81 @@ test("the layout's right dock: its head, the two groups, each a head over a stac
     (node.children ?? []).forEach(walk);
   };
   walk(root);
-  const ids = (/** @type {string} */ id) => nodes.get(id).children.map((/** @type {any} */ c) => c.id);
-  assert.deepEqual(ids(PANEL), [DOCK_HEAD, DOCK, RAIL_BLOCK]);
-  assert.equal(nodes.get(PANEL).resizable, false);                               // the dock's head never drags
-  assert.deepEqual(nodes.get(DOCK_HEAD).content, { mod: "herdr-fold", props: { part: "dock-head" } });
-  assert.deepEqual(ids(DOCK), ["fold-project", "fold-work", TERMINALS]);
-  for (const [group, panels] of Object.entries(GROUPS_APP)) {
-    const column = nodes.get(`fold-${group}`), [head, body] = column.children;
-    assert.deepEqual([column.resizable, column.size], [false, { weight: GROUP_WEIGHTS[group] }]);
-    assert.deepEqual([head.size, head.content.props], [{ px: GROUP_HEAD }, { part: "group-head", group }]);
-    assert.deepEqual([body.id, body.type, body.active], [`fold-${group}-body`, "stack", panels[0]]);
-    assert.deepEqual(body.children.map((/** @type {any} */ c) => [c.id, c.content.props]), panels.map((id) =>
-      [id, id === "files" ? { part: "files" } : { view: id }]));
-  }
+  return nodes;
+}
+
+test("the layout's right dock: one stack of the views and the Chats list under the row, the terminals, the rail",
+  () => {
+    const nodes = layoutNodes(JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8")));
+    const ids = (/** @type {string} */ id) => nodes.get(id).children.map((/** @type {any} */ c) => c.id);
+    assert.deepEqual(ids(PANEL), [DOCK, TERMINALS, RAIL_BLOCK]);
+    assert.equal(nodes.get(PANEL).resizable, false);                               // the dock's row never drags
+    assert.deepEqual(nodes.get(DOCK).header, { content: { mod: "herdr-fold", props: { part: "dock-head" } },
+      height: TABS_H });                                                           // the tabs: the stack's own
+    assert.deepEqual([nodes.get(DOCK).type, nodes.get(DOCK).active], ["stack", "files"]);
+    assert.deepEqual(nodes.get(DOCK).children.map((/** @type {any} */ c) => [c.id, c.content.props]),
+      [...VIEWS_APP.map((id) => [id, id === "files" ? { part: "files" } : { view: id }]),
+        [CHATS_BLOCK, { part: "chats" }]]);
+  });
+
+test("the dock's tabs and its view are one card, as the tab's and the terminal's, its top at the tab's card's", () => {
+  const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
+  const nodes = layoutNodes(root), pane = nodes.get("main").content.pane;
+  const look = (/** @type {any} */ n) => ({ border: n.border, radius: n.radius });
+  assert.deepEqual(look(nodes.get(DOCK)), look(pane));
+  assert.deepEqual(look(nodes.get(TERMINALS)), look(pane));
+  // the levels (tools/build.py LEVELS): the window canvas, the left sidebar chrome, the dock a card (surface); a
+  // terminal and the pane round it in the terminals' own background, as Herdr paints a terminal
+  assert.deepEqual([root.background, nodes.get("sidebar").background, nodes.get(DOCK).background],
+    ["canvas", "chrome", "surface"]);
+  assert.deepEqual([pane.background, nodes.get(TERMINALS).background], ["background", "background"]);
+  /** px from the window's top to node ID's edge: each column's padding, the shown nodes above it and their gaps
+   * @param {string} id @returns {number} */
+  const top = (id, node = root) => {
+    if (node.id === id) return 0;
+    const at = (node.children ?? []).findIndex((/** @type {any} */ c) => JSON.stringify(c).includes(`"${id}"`));
+    if (at < 0) return NaN;
+    const above = node.type === "column" ? node.children.slice(0, at).filter((/** @type {any} */ c) => !c.hidden)
+      : [];
+    const pad = [node.padding ?? 0].flat()[0];
+    return pad + above.reduce((y, /** @type {any} */ c) => y + c.size.px + (node.gap ?? 0), 0)
+      + top(id, node.children[at]);
+  };
+  assert.equal(top(DOCK), top("main"));
+  assert.equal(top("main"), nodes.get("title").size.px + nodes.get("top").size.px + nodes.get("work-body").padding);
+  // in the card's border, the tabs TABS_PAD in over and under and TABS_SIDE at the sides, as center-chat.html's
+  // .ptabs (narrowed so the first tab's words stand over the views'); then a hairline, as a view's head has one
+  assert.deepEqual([nodes.get(DOCK).border.width, root.terminal_padding], [pane.border.width, [PAD, PAD]]);
+  assert.deepEqual([TABS_H, TABS_IN], [TABS_PAD + TAB_H + TABS_PAD + 1, nodes.get(DOCK).border.width + TABS_SIDE]);
+  const panel = readFileSync(new URL("../mods/herdr-fold/panel.js", import.meta.url), "utf8");
+  const at = panel.indexOf("export function dockTabs"), row = panel.slice(at, panel.indexOf("\n}\n", at));
+  assert.match(row, new RegExp(String.raw`\.py\(TABS_PAD\)\.px\(TABS_SIDE\)\.gap\(TAB_GAP\)\.items_center\(\)\s*`
+    + String.raw`\.overflow_hidden\(\)`
+    + String.raw`\.border_b\(1\)\.border_color\(t\.border\)`));
 });
 
 test("a menu as tall as its rows, a rule between its parts thinner", () => {
   assert.equal(menuHeight([{ label: "a" }, { label: "b" }]), 2 * 30 + 8);
   assert.equal(menuHeight([{ label: "a" }, null, { label: "b" }]), 2 * 30 + 11 + 8);
   assert.equal(menuHeight([{ label: "a" }], { label: "head" }), 2 * 30 + 8);
+  assert.equal(menuHeight([{ label: "a" }], undefined, true), 30 + 34 + 8);       // a filter on top, a field
 });
 
-test("a floating panel as tall as its content, up to TALL: Spaces' rows, Conversations' groups and open ones", () => {
-  assert.equal(floatHeight("spaces", 2), 36 + 2 * 29 + 8);
-  const group = (open, n) => ({ kind: "group", open, items: Array(n).fill({}) });
-  assert.equal(floatHeight("conversations", [group(true, 3), { kind: "row" }, group(false, 2)]),
-    36 + 38 + (26 + 3 * 24) + 26 + 8);
-  assert.equal(floatHeight("conversations", []), 36 + 38 + 28 + 8);       // "No conversations"
-  assert.equal(floatHeight("spaces", 40), TALL);
+test("a count short when large, as the TUI's: as it is to 999, then k and m, a decimal under ten, 4 characters", () => {
+  const cases = [[0, "0"], [7, "7"], [999, "999"], [1000, "1k"], [1234, "1.2k"], [9999, "9.9k"], [18432, "18k"],
+    [111000, "111k"], [999999, "999k"], [1000000, "1m"], [1300000, "1.3m"], [12000000, "12m"]];
+  assert.deepEqual(cases.map(([n]) => shortCount(Number(n))), cases.map(([, said]) => said));
+  assert.equal(shortCount(5e9), "999m");                                   // never past 4 characters
+});
+
+test("the ✦'s count is the chats waiting on you: this Mac's Claude and Codex blocked, as the TUI's", () => {
+  const agent = (/** @type {string} */ space, /** @type {string} */ key, /** @type {string} */ status) =>
+    ({ address: `${space}-${key}-${status}`, space, status, program: { key } });
+  const agents = [agent("s1", "claude", "blocked"), agent("s1", "codex", "blocked"), agent("s1", "claude", "done"),
+    agent("s2", "claude", "blocked"), agent("s1", "aider", "blocked"),
+    { address: "t9", space: "s1", status: "blocked" }];
+  assert.equal(waitingChats(agents, new Set(["s1"])), 2);                 // s2 is another machine's
+  assert.equal(waitingChats([], new Set(["s1"])), 0);
 });
 
 test("the Spaces list's height, on the grid: a machine's head once another is there, a worktree's row lower", () => {
@@ -636,15 +1239,31 @@ test("the Spaces list's height, on the grid: a machine's head once another is th
   assert.equal(listBody(group(null, []), false), "none");
 });
 
-test("a layout node's max set in a copy of the tree, and whether that changed it", () => {
-  const tree = { id: "root", children: [{ id: "spaces", min: 90 }] };
-  const next = withMax(tree, "spaces", 150);
-  assert.equal(next.changed, true);
-  assert.equal(next.tree.children[0].max, 150);
-  assert.equal(tree.children[0].max, undefined);
-  assert.equal(withMax(next.tree, "spaces", 150).changed, false);
-  assert.equal(withMax(tree, "gone", 150).changed, false);
-  assert.equal(withMax(tree, "spaces", 40).tree.children[0].max, 90);         // never under its min
+test("the title row across the whole window: 36 with its hairline, dragging the window, the lights on its line", () => {
+  const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
+  assert.deepEqual([root.type, root.resizable, root.titlebar], ["column", false, "none"]);   // it never drags
+  const [title, below] = root.children;
+  assert.deepEqual([title.id, title.size, title.window_drag, title.content],
+    ["title", { px: 36 }, true, { mod: "herdr-fold", props: { part: "title" } }]);
+  assert.deepEqual(below.children.map((/** @type {any} */ c) => c.id), ["sidebar", "work"]);
+  assert.deepEqual(below.divider, { width: 1, color: "border" });                  // between them, not through it
+  // macOS draws the lights in a frame 16 high, their circles 1 in from its left and 2 under its top (measured in the
+  // demo): 18 in, as commands.html's B draws them, their middle on the row's, its hairline under it
+  assert.deepEqual([root.traffic_lights[0] + 1, root.traffic_lights[1] + 8], [18, (title.size.px - 1) / 2]);
+});
+
+test("the layout's left sidebar: its head, Spaces by an id of its own, the app's footer; no Chats", () => {
+  const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
+  const sidebar = find(root, "sidebar");
+  assert.deepEqual(sidebar.children.map((/** @type {any} */ c) => c.id), ["sidebar-head", "fold-spaces",
+    "sidebar-footer"]);
+  // the head on the tab row's line: as high as the tab bar beside it, under the title row
+  assert.equal(sidebar.children[0].size.px, find(root, "top").size.px);
+  assert.deepEqual(sidebar.children[0].content, { mod: "herdr-fold", props: { part: "head" } });
+  const spaces = sidebar.children[1];
+  assert.deepEqual([spaces.type, spaces.size, spaces.content], ["block", { weight: 1 },
+    { mod: "herdr-fold", props: { part: "spaces" } }]);
+  assert.equal(JSON.stringify(sidebar).includes('"part":"chats"'), false);   // Chats: the right dock's, in its stack
 });
 
 test("a change's letter named, as the mouse resting on it says it: git's code, the TUI's letter for it", () => {
@@ -656,7 +1275,7 @@ test("a change's letter named, as the mouse resting on it says it: git's code, t
 test("Cmd+Shift+G's launcher is the popup mod.open makes, not the mod's own (a folded sidebar's panel)", () => {
   assert.equal(launcher({ overlay: "o1" }), "o1");
   assert.equal(launcher({ overlay: "o2", part: "flyout", panel: "spaces" }), null);
-  assert.equal(launcher({ part: "conversations" }), null);
+  assert.equal(launcher({ part: "chats" }), null);
   assert.equal(launcher(undefined), null);
 });
 
@@ -665,7 +1284,7 @@ const talk = (id, folder, time, state = "", pane = "") =>
 const shown = (rows) => rows.map((r) => (r.kind === "group" ? `${r.name} ${r.items.length} ${r.open}` : r.item.id));
 const PLACE = { "/repo/shop": "shop", "/repo/api": "api" };
 
-test("the app's agents as core/conversations.py takes herdr's: Claude and Codex on this Mac, with their pane's folder",
+test("the app's agents as core/chats.py takes herdr's: Claude and Codex on this Mac, with their pane's folder",
   () => {
     const agents = [{ address: "t1", pane: "p1", space: "s1", status: "working", program: { key: "claude" } },
       { address: "t2", pane: "p2", space: "s1", status: "idle", program: { key: "pi" } },
@@ -684,18 +1303,25 @@ test("a folder is the first of this Mac's spaces with a pane there, as the TUI's
   assert.deepEqual(folderSpaces(spaces, panes), { "/repo/shop": "shop", "/repo/api": "api" });
 });
 
-test("each space's conversations in the Spaces order, the front tab's first, then the newest; one elsewhere not",
+test("each space's chats in the Spaces order, the front tab's first, then the newest; one elsewhere by its folder",
   () => {
     const items = [talk("a", "/repo/shop", 300), talk("b", "/repo/shop", 100, "working", "t9"),
       talk("x", "/elsewhere", 500), talk("d", "/repo/api", 200)];
     const front = new Set(["t9"]);
-    assert.deepEqual(shown(conversationRows(items, ["shop", "api", "notes"], PLACE, { here: "shop", front })),
-      ["shop 2 true", "b", "a", "api 1 false", "notes 0 false"]);
+    assert.deepEqual(shown(chatRows(items, ["shop", "api", "notes"], PLACE, { here: "shop", front })),
+      ["shop 2 true", "b", "a", "api 1 false", "notes 0 false", "elsewhere 1 false"]);
   });
+
+test("with no space open every chat is still listed, by its project's folder, the newest project first", () => {
+  // the owner's app: no space open, ~/.claude/projects full of chats
+  const items = [talk("a", "/repo/shop", 300), talk("b", "/repo/api", 500), talk("c", "/repo/shop", 100)];
+  const rows = chatRows(items, [], {}, { opened: new Set(["api", "shop"]) });
+  assert.deepEqual(shown(rows), ["api 1 true", "b", "shop 2 true", "a", "c"]);
+});
 
 test("typing narrows every space and opens them; an archived one only while typed for or shown", () => {
   const items = [talk("a", "/repo/shop", 300), talk("d", "/repo/api", 200)], archived = new Set(["claude:a"]);
-  const rows = (more) => shown(conversationRows(items, ["shop", "api"], PLACE, { here: "shop", archived, ...more }));
+  const rows = (more) => shown(chatRows(items, ["shop", "api"], PLACE, { here: "shop", archived, ...more }));
   assert.deepEqual(rows({}), ["shop 0 true", "api 1 false"]);
   assert.deepEqual(rows({ typed: "talk" }), ["shop 1 true", "a", "api 1 true", "d"]);
   assert.deepEqual(rows({ typed: "API" }), ["api 1 true", "d"]);
@@ -704,13 +1330,13 @@ test("typing narrows every space and opens them; an archived one only while type
 });
 
 test("a space's row has its most urgent agent's state, as the Spaces list marks it", () => {
-  const rows = conversationRows([], ["shop", "api"], PLACE, { states: { shop: "working" } });
+  const rows = chatRows([], ["shop", "api"], PLACE, { states: { shop: "working" } });
   assert.deepEqual(rows.map((r) => r.state), ["working", null]);
 });
 
 test("a space opened or closed by hand stays so, the one here open unless closed", () => {
   const items = [talk("a", "/repo/shop", 300), talk("d", "/repo/api", 200)];
-  assert.deepEqual(shown(conversationRows(items, ["shop", "api"], PLACE,
+  assert.deepEqual(shown(chatRows(items, ["shop", "api"], PLACE,
     { here: "shop", opened: new Set(["api"]), closed: new Set(["shop"]) })), ["shop 1 false", "api 1 true", "d"]);
 });
 
@@ -722,20 +1348,34 @@ test("a closed one reopens with its agent's resume, its id never an option, a sp
   }
 });
 
-test("a right click: Open, Copy conversation, Rename, then Archive or Unarchive; elsewhere the archived shown or not",
+test("a right click: Open, Copy chat, Rename, Archive or Unarchive, then Delete…; elsewhere the archived shown or not",
   () => {
-    const archived = new Set(["claude:c"]), first = ["Open", "Copy conversation", "Rename"];
-    assert.deepEqual(conversationChoices(talk("r", "/x", 1, "working"), archived, false), first);
-    assert.deepEqual(conversationChoices(talk("o", "/x", 1), archived, false), [...first, "Archive"]);
-    assert.deepEqual(conversationChoices(talk("c", "/x", 1), archived, false), [...first, "Unarchive"]);
-    assert.deepEqual(conversationChoices(null, archived, false), ["Show archived"]);
-    assert.deepEqual(conversationChoices(null, archived, true), ["Hide archived"]);
-    assert.deepEqual(conversationChoices(null, new Set(), false), []);
+    const archived = new Set(["claude:c"]), first = ["Open", "Copy chat", "Rename"];
+    assert.deepEqual(chatChoices(talk("r", "/x", 1, "working"), archived, false), [...first, "Delete…"]);
+    assert.deepEqual(chatChoices(talk("o", "/x", 1), archived, false), [...first, "Archive", "Delete…"]);
+    assert.deepEqual(chatChoices(talk("c", "/x", 1), archived, false), [...first, "Unarchive", "Delete…"]);
+    assert.deepEqual(chatChoices(null, archived, false), ["Show archived"]);
+    assert.deepEqual(chatChoices(null, archived, true), ["Hide archived"]);
+    assert.deepEqual(chatChoices(null, new Set(), false), []);
   });
 
-test("a reopened conversation's tab: its title, printable, no leading dash, cut at 24 with an ellipsis", () => {
+test("Delete… is off for a running chat, its tip saying why; a closed or an archived one's is on", () => {
+  assert.equal(deleteOff(talk("r", "/x", 1, "working")), "A running chat is not deleted: close it first");
+  assert.equal(deleteOff(talk("i", "/x", 1, "idle")), "A running chat is not deleted: close it first");
+  assert.equal(deleteOff(talk("o", "/x", 1)), null);
+});
+
+test("a chat on its way to the Trash is no row, its space counting one fewer", () => {
+  const items = [talk("a", "/x", 2), talk("b", "/x", 1)];
+  assert.deepEqual(withoutLeaving(items, new Set(["claude:a"])).map((c) => c.id), ["b"]);
+  assert.deepEqual(withoutLeaving(items, new Set()).map((c) => c.id), ["a", "b"]);
+  // read again without it: no longer waited for; one still listed (a read begun before it left) stays hidden
+  assert.deepEqual([...stillLeaving(new Set(["claude:a", "claude:z"]), items)], ["claude:a"]);
+});
+
+test("a reopened chat's tab: its title, printable, no leading dash, cut at 24 with an ellipsis", () => {
   assert.equal(tabLabel("- Fix\u001b the login"), "Fix the login");
-  assert.equal(tabLabel("A very long conversation title here"), "A very long conversatio…");
+  assert.equal(tabLabel("A very long chat title for its tab"), "A very long chat title …");
 });
 
 test("the sidebar is a rail narrower than 160 px, as the app's own mods draw it", () => {
@@ -806,6 +1446,36 @@ test("a worktree's space under its checkout's, in order; one whose checkout has 
     row("other", null), row("wt2", { repo: "r", linked: true }), row("lone", { repo: "q", linked: true })]);
   assert.deepEqual(rows.map((r) => [r.w.id, r.tree]),
     [["main", false], ["wt1", true], ["wt2", true], ["other", false], ["lone", false]]);
+});
+
+test("a machine's home is first among its machine's rows, a stand-in where no space is there", () => {
+  const space = (id, machine, name, more = {}) => ({ id, machine, name, named: false, folder: `/work/${name}`,
+    ...more });
+  const list = [space("api", null, "lumen-api"), space("root", null, "~", { folder: "/Users/dev" }),
+    space("named", null, "scratch", { named: true, folder: "/Users/dev/" }), space("ci", "lab", "lumen-ci"),
+    space("tilde", null, "~", { named: true, folder: "/work/tilde" })];
+  // the app's own "~" (nobody named it), or one in the machine's known home folder; a space named ~ elsewhere is not
+  const homes = homesSeen({ "": "/Users/dev" }, list, []), home = (s) => atHome(s, [], homes);
+  assert.deepEqual(list.filter(home).map((s) => s.id), ["root", "named"]);
+  // a machine's home is learned from its own "~", so a named space there is known by it afterwards
+  const lab = homesSeen({}, [space("r", "lab", "~", { folder: "/home/dev" })], []);
+  assert.deepEqual(lab, { lab: "/home/dev" });
+  assert.equal(atHome(space("box", "lab", "box", { named: true, folder: "/home/dev" }), [], lab), true);
+  assert.equal(atHome(space("box", "lab", "box", { named: true, folder: "/home/dev" }), [], {}), false);
+  // first among its machine's, the others in their order; a checkout's worktrees go with it
+  const rows = [{ w: list[0] }, { w: list[1] }, { w: { id: "wt", machine: null }, tree: true }, { w: list[3] }];
+  assert.deepEqual(homeFirst(rows, (r) => r.w.id === "root").map((r) => r.w.id), ["root", "wt", "api", "ci"]);
+  assert.deepEqual(homeFirst(rows, () => false), rows);
+  // the homes with nothing open, of the machines a terminal can start on
+  assert.deepEqual(homesEmpty([null, "lab"], list, home), ["lab"]);
+  assert.deepEqual(homesEmpty([null, "lab"], [list[0]], home), [null, "lab"]);
+  // the flat list: by machine, this computer first, each home first, a stand-in at an empty one's head
+  const flat = withHomes([list[0], list[1], list[3]], ["mini", "lab"], home);
+  assert.deepEqual(flat.map((s) => [s.id, Boolean(s.empty)]),
+    [["root", false], ["api", false], [homeId("lab"), true], ["ci", false], [homeId("mini"), true]]);
+  assert.deepEqual(flat[4], { id: "home:mini", name: HOME_NAME, machine: "mini", active: false, status: null,
+    empty: true });
+  assert.equal(homeId(null), "home:");
 });
 
 test("a space showing the repository inside its folder is no checkout, nor a worktree under one", () => {
@@ -890,7 +1560,7 @@ test("a file named for an object's own property gets the plain file icon, never 
   }
 });
 
-test("a reopened conversation is forgotten once its agent is gone, never for a moment's empty list", () => {
+test("a reopened chat is forgotten once its agent is gone, never for a moment's empty list", () => {
   const kept = { t1: "talk-1", t2: "talk-2" };
   assert.deepEqual(stillResumed(kept, new Set(["t1", "t9"])), { t1: "talk-1" });
   assert.deepEqual(stillResumed(kept, new Set()), kept);                   // the app starting, its core reconnecting
@@ -902,6 +1572,70 @@ test("a chat's agent whose tab is gone is ended; one whose tab is there, or that
     { address: "t4", state: "live", labels: {} }], ["tb1"]), ["t2"]);
 });
 
+// the chats waiting on you (Task 8): a card asking, or the agent asking in its own terminal
+
+/** A chat tab's agent as terminals() lists it. */
+const chatAgent = (address, tab, session, more = {}) => ({ address, state: "live", status: "working",
+  labels: { [CHAT_TAB]: tab, [CHAT_LABEL]: session }, ...more });
+
+test("a chat waits on you while a card asks, and once its agent has asked in its own terminal for 2 s", () => {
+  assert.equal(chatWait({ id: "r1" }, null, 1000), "request");
+  assert.equal(chatWait({ id: "r1" }, 0, 9000), "request");                 // a card first: it is drawn
+  assert.equal(chatWait(null, 1000, 1000 + WAY_OUT - 1), null);             // a card may come yet
+  assert.equal(chatWait(null, 1000, 1000 + WAY_OUT), "terminal");
+  assert.equal(chatWait(null, null, 9000), null);
+});
+
+test("a chat's wait is kept by its tab, gone once answered; a closed chat's is dropped", () => {
+  const wait = { space: "s1", address: "t1", since: 500 };
+  let kept = keepWait({}, "tb1", wait, new Set(["t1"]));
+  assert.deepEqual(kept, { tb1: wait });
+  kept = keepWait(kept, "tb2", { space: "s2", address: "t2", since: 900 }, new Set(["t2"]));
+  assert.deepEqual(Object.keys(kept), ["tb2"]);                             // t1 has ended: its tab is gone
+  assert.deepEqual(keepWait(kept, "tb2", null, new Set(["t2"])), {});
+  assert.deepEqual(keepWait(null, "tb1", null, new Set()), {});
+});
+
+test("the chats waiting mark their tabs and spaces (the longest wait) while their agents run", () => {
+  const kept = { tb1: { space: "s1", address: "t1", since: 300 }, tb2: { space: "s1", address: "t2", since: 100 },
+    tb3: { space: "s2", address: "t3", since: 50 } };
+  const found = waiting(kept, [chatAgent("t1", "tb1", "a"), chatAgent("t2", "tb2", "b"),
+    chatAgent("t3", "tb3", "c", { state: "finished" })]);
+  assert.deepEqual([...found.tabs], ["tb1", "tb2"]);
+  assert.deepEqual(found.spaces, { s1: 100 });
+  assert.deepEqual([...found.agents], ["t1", "t2"]);
+  assert.deepEqual(waiting(undefined, []).spaces, {});
+});
+
+test("a waiting chat's tab shows blocked, not its agent's spinner, as a waiting agent's tab does", () => {
+  const space = { tabs: [{ id: "t4", name: "Book tests", named: true }, { id: "t5", name: "Notes", named: true }] };
+  const chats = { t4: { status: "working", program: { name: "Claude", agent: true, icon: "claude.svg", tint: true } },
+    t5: { status: "working", program: { name: "Claude", agent: true, icon: "claude.svg", tint: true } } };
+  assert.deepEqual(tabRows(space, [], chats, new Set(["t4"])).map((r) => r.status), ["blocked", "working"]);
+});
+
+test("a space's wait counts its chats waiting too, the longest one", () => {
+  const agents = [{ address: "a", space: "s1" }];
+  assert.deepEqual(spaceWaits({ a: { since: 300 } }, agents, { s1: 200, s2: 700 }), { s1: 200, s2: 700 });
+  assert.deepEqual(spaceWaits({ a: { since: 300 } }, agents, { s1: 900 }), { s1: 300 });
+});
+
+test("the ✦'s count adds the chats waiting on you, each agent once", () => {
+  const agents = [{ address: "t1", space: "s1", status: "blocked", program: { key: "claude" } }];
+  assert.equal(waitingChats(agents, new Set(["s1"]), new Set(["t7", "t8"])), 3);
+  assert.equal(waitingChats(agents, new Set(["s1"]), new Set(["t1"])), 1);         // its terminal shown in a pane
+});
+
+test("a chat tab's agent reaches the Chats list by its session, blocked while its chat waits on you", () => {
+  const terminals = [chatAgent("t1", "tb1", "aaaa-1"), chatAgent("t2", "tb2", "bbbb-2", { status: null }),
+    chatAgent("t3", "tb3", "cccc-3", { state: "finished" }), { address: "t4", state: "live", labels: {} },
+    chatAgent("t5", "tb5", "dddd-5", { program: { key: "codex" } })];
+  assert.deepEqual(chatAgents(terminals, new Set(["t2"])), [
+    { agent: "claude", agent_status: "working", pane_id: "t1", agent_session: { value: "aaaa-1" } },
+    { agent: "claude", agent_status: "blocked", pane_id: "t2", agent_session: { value: "bbbb-2" } },
+    { agent: "codex", agent_status: "working", pane_id: "t5", agent_session: { value: "dddd-5" } }]);
+});
+
 test("a menu opens under its button where it fits there, else above it, else as far in as the window lets it", () => {
   const room = { width: 1200, height: 800 };
   const button = (y) => ({ x: 600, y, width: 60, height: 24 });
@@ -909,4 +1643,134 @@ test("a menu opens under its button where it fits there, else above it, else as 
   assert.deepEqual(menuPlace(button(740), 120, room, 180), { x: 480, y: 616 });            // the chat's bar: above
   assert.deepEqual(menuPlace(button(60), 760, room, 180), { x: 480, y: 32 });              // neither: in the window
   assert.deepEqual(menuPlace({ x: 2, y: 100, width: 24, height: 24 }, 120, room, 180).x, 8);   // the left edge kept
+});
+
+test("the status bar says the agents as the mockups' bar does: those waiting first, then those working, else how many",
+  () => {
+    assert.deepEqual(agentsSaid([]), { words: "No agents", role: null });
+    assert.deepEqual(agentsSaid(["idle"]), { words: "1 agent", role: null });
+    assert.deepEqual(agentsSaid(["idle", "done"]), { words: "2 agents", role: null });
+    assert.deepEqual(agentsSaid(["working"]), { words: "1 agent working", role: "working" });
+    assert.deepEqual(agentsSaid(["working", "idle"]), { words: "1 of 2 agents working", role: "working" });
+    assert.deepEqual(agentsSaid(["blocked"]), { words: "1 agent waiting for you", role: "waiting" });
+    assert.deepEqual(agentsSaid(["blocked", "blocked"]), { words: "2 agents waiting for you", role: "waiting" });
+    assert.deepEqual(agentsSaid(["working", "blocked", "idle"]),
+      { words: "1 of 3 agents waiting for you", role: "waiting" });
+  });
+
+test("an update Herdr has ready is one item: the app's a restart (its core along), the core's an update, none managed",
+  () => {
+    const app = (/** @type {string | null} */ ready) => ({ version: "0.1.15", ready, updates: true });
+    const core = (/** @type {any} */ more) => ({ version: "0.1.20", managed: null, ready: null, updating: false,
+      error: null, ...more });
+    assert.equal(updateReady({ app: app(null), core: core({}) }), null);
+    assert.equal(updateReady(null), null);
+    assert.deepEqual(updateReady({ app: app(null), core: core({ ready: "0.1.21" }) }),
+      { words: "Update ready: herdr-core 0.1.21", command: "app.update_core", busy: false,
+        tip: "Update herdr-core to 0.1.21 now; your terminals keep running" });
+    assert.equal(updateReady({ app: app(null), core: core({ ready: "0.1.21", managed: "homebrew" }) }), null);
+    assert.deepEqual(updateReady({ app: app(null), core: core({ ready: "0.1.21", updating: true }) }),
+      { words: "Updating herdr-core to 0.1.21…", command: "app.update_core", busy: true,
+        tip: "Update herdr-core to 0.1.21 now; your terminals keep running" });
+    assert.deepEqual(updateReady({ app: app("0.1.16"), core: core({}) }),
+      { words: "Update ready: Herdr 0.1.16", command: "app.update", busy: false,
+        tip: "Restart into Herdr 0.1.16; your terminals keep running" });
+    assert.equal(updateReady({ app: app("0.1.16"), core: core({ ready: "0.1.21" }) }).tip,
+      "Restart into Herdr 0.1.16 and herdr-core 0.1.21; your terminals keep running");
+  });
+
+test("a newer herdr-fold is the status bar's item after Herdr's and herdr-core's: a press opens Settings at About",
+  () => {
+    const newer = { ...FOUND, latest: "0.4.0", newer: true };
+    const none = { app: { ready: null }, core: { ready: null } };
+    assert.deepEqual(updateReady(none, newer), { words: "herdr-fold 0.4.0 is out", opens: "about", busy: false,
+      tip: "Open herdr-fold's Settings at About" });
+    assert.equal(updateReady(null, newer)?.opens, "about");
+    assert.equal(updateReady(none, FOUND), null);                              // up to date: the item's place empty
+    assert.equal(updateReady(none, { ...newer, version: null }), null);        // not installed by the installer
+    assert.equal(updateReady({ app: { ready: "0.1.16" }, core: {} }, newer)?.command, "app.update");
+    assert.equal(updateReady({ app: {}, core: { ready: "0.1.21" } }, newer)?.command, "app.update_core");
+    assert.equal(updateReady({ app: {}, core: { ready: "0.1.21", managed: "homebrew" } }, newer)?.opens, "about");
+  });
+
+test("the status bar is herdr-fold's, where the app's own was, and the one place in the mod that says an update",
+  () => {
+    const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
+    assert.deepEqual(find(root, "status")?.content, { mod: "herdr-fold", props: { part: "status" } });
+    const mod = new URL("../mods/herdr-fold/", import.meta.url);
+    const reading = readdirSync(mod).filter((name) => name.endsWith(".js") && name !== "helper.js"
+      && /import \{[^}]*\bupdates\b[^}]*\} from "herdr"/.test(readFileSync(new URL(name, mod), "utf8")));
+    assert.deepEqual(reading, ["status.js"]);
+    const status = readFileSync(new URL("status.js", mod), "utf8");          // herdr-fold's own check: there too
+    assert.match(status, /updateReady\(updates\(\), shared\(UPDATES\)\)/);
+    assert.match(status, /update\.opens \? openSettings\(update\.opens\) : command\(/);
+  });
+
+test("the clock's ask names its folder's group: its space's, else the folder's own name, as the list names it", () => {
+  assert.equal(folderGroup("/repo/shop", PLACE), "shop");
+  assert.equal(folderGroup("/elsewhere/tidepool", PLACE), "tidepool");
+  assert.equal(folderGroup("", PLACE), null);
+});
+
+test("the list's opening as kept: when, and the group asked for; an older number is a when alone", () => {
+  assert.deepEqual(chatsAsked({ at: 1700, space: "api" }), { at: 1700, space: "api" });
+  assert.deepEqual(chatsAsked(1700), { at: 1700, space: null });
+  assert.deepEqual(chatsAsked({ at: 1700, space: 4 }), { at: 1700, space: null });
+  assert.deepEqual(chatsAsked(null), { at: null, space: null });
+});
+
+test("the group the clock asked for is open, and scrolled to: from the list's end back to its head, so first", () => {
+  const items = [talk("a", "/repo/shop", 300), talk("d", "/repo/api", 200), talk("e", "/repo/api", 100)];
+  const opened = new Set([chatsAsked({ at: 1, space: "api" }).space]);
+  const rows = chatRows(items, ["shop", "api", "notes"], PLACE, { here: "shop", opened });
+  assert.deepEqual(shown(rows), ["shop 1 true", "a", "api 2 true", "d", "e", "notes 0 false"]);
+  // the list draws a group as its head, then its chats' block: two children each
+  assert.deepEqual(groupPlace(rows, "api"), { head: 2, last: 5 });
+  assert.deepEqual(groupPlace(rows, "shop"), { head: 0, last: 5 });
+  assert.equal(groupPlace(rows, "harbor"), null);
+});
+
+/** The classes in SOURCE with a field named as one of their own methods: `this.name = …` or a key Object.assign gives
+ * `this`. Such a field hides the method, and its call is "not a function". @param {string} source */
+function hiddenMethods(source) {
+  /** @type {string[]} */
+  const found = [];
+  for (const [, name, body] of source.matchAll(/^(?:export (?:default )?)?class (\w+)[^\n]*\{\n([\s\S]*?)\n\}$/gm)) {
+    const methods = new Set([...body.matchAll(/^ {2}(?:static )?(?:async )?(?:get |set )?\*?(\w+)\(/gm)]
+      .map((m) => m[1]));
+    const fields = new Set([...body.matchAll(/\bthis\.(\w+)\s*(?:[-+*/%|&?]{1,2})?=(?![=>])/g)].map((m) => m[1]));
+    for (const given of body.matchAll(/Object\.assign\(this, \{/g)) {
+      let depth = 1, at = given.index + given[0].length, key = true;
+      for (; depth > 0 && at < body.length; at++) {
+        const ch = body[at];
+        if (depth === 1 && key && /\w/.test(ch)) {
+          const word = /^\w+/.exec(body.slice(at))?.[0] ?? "";
+          fields.add(word);
+          at += word.length - 1;
+          key = false;
+        } else if ("'\"`".includes(ch)) at = body.indexOf(ch, at + 1);
+        else if ("{[(".includes(ch)) depth++;
+        else if ("}])".includes(ch)) depth--;
+        else if (ch === "," && depth === 1) key = true;
+        else if (ch === "." && depth === 1) key = false;          // a spread: no key
+      }
+    }
+    found.push(...[...methods].filter((method) => method !== "constructor" && fields.has(method))
+      .map((method) => `${name}.${method}`));
+  }
+  return found;
+}
+
+test("no view keeps a field under one of its methods' names: the field would hide the method", () => {
+  // AgentView once had signing() beside this.signing: every tick of its watch was "not a function" in the app's log
+  const hides = "export class Sample {\n  constructor() {\n    this.busy = false;\n    this.signing = null;\n  }\n\n"
+    + "  signing() {\n    return {};\n  }\n\n  read(cx) {\n    Object.assign(this, { busy: true, waits: { read: 1 },\n"
+    + "      watch: 2 });\n    if (this.busy === true) this.watch = () => this.read(cx);\n  }\n\n  watch() {}\n}\n";
+  assert.deepEqual(hiddenMethods(hides), ["Sample.signing", "Sample.watch"]);
+  const mod = new URL("../mods/herdr-fold/", import.meta.url);
+  const sources = readdirSync(mod).filter((name) => name.endsWith(".js"));
+  assert.ok(sources.includes("agent.js") && sources.includes("chat.js"));
+  for (const name of sources) {
+    assert.deepEqual(hiddenMethods(readFileSync(new URL(name, mod), "utf8")), [], name);
+  }
 });

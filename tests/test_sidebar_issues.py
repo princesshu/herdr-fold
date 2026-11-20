@@ -14,9 +14,9 @@ sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import github  # noqa: E402
 import issue_work  # noqa: E402
 from github import Issue, Listing, Query  # noqa: E402
-from issues import Issues  # noqa: E402
+from issues import TEXT, Issues  # noqa: E402
 from icons import glyphs  # noqa: E402
-from screen import Canvas  # noqa: E402
+from screen import PAD, SPINNER, Canvas  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
 from widgets import Action  # noqa: E402
 
@@ -41,6 +41,9 @@ class View(unittest.TestCase):
 
     def row_of(self, part):
         return next(y for y in range(self.canvas.height) if part in text(self.canvas, y))
+
+    def lines(self):
+        return [text(self.canvas, y) for y in range(self.canvas.height)]
 
     def click(self, part, y=None):
         y = self.row_of(part) if y is None else y
@@ -94,15 +97,16 @@ class View(unittest.TestCase):
         urgent = Issue(51, "Payments are down", ("bug", "urgent"), (), "2026-10-18T10:00:00Z", "OPEN", "")
         self.shown(Listing((urgent, DARK)))
         y = self.row_of("#51 ")
-        self.assertEqual([self.canvas.rows[r][0] for r in (y, y + 1)], [("▌", self.canvas.rows[y][0][1])] * 2)
-        self.assertEqual({self.canvas.rows[r][0][1].fg for r in (y, y + 1)}, {"deleted"})
-        self.assertEqual(self.canvas.rows[y][1][1].fg, "deleted")                  # its number too
+        # the bar inside the pane's margin, a cell of air beside it, then the number
+        self.assertEqual([self.canvas.rows[r][x][0] for r in (y, y + 1) for x in (0, 1, 2)], [" ", "▌", " "] * 2)
+        self.assertEqual({self.canvas.rows[r][1][1].fg for r in (y, y + 1)}, {"deleted"})
+        self.assertEqual((text(self.canvas, y).index("#51"), self.canvas.rows[y][3][1].fg), (3, "deleted"))
         details = text(self.canvas, y + 1)
         self.assertEqual(self.canvas.rows[y + 1][details.index("urgent")][1].fg, "deleted")
         self.assertEqual(self.canvas.rows[y + 1][details.index("bug")][1].fg, "muted")
         dark = self.row_of("#38 ")
-        self.assertEqual(self.canvas.rows[dark][0][0], " ")                        # no priority: no mark
-        self.assertEqual(self.canvas.rows[dark][1][1].fg, "accent")                # and its number as ever
+        self.assertEqual(self.canvas.rows[dark][1][0], " ")                        # no priority: no mark
+        self.assertEqual(self.canvas.rows[dark][3][1].fg, "accent")                # its number where the others are
 
     def test_each_priority_has_its_color_as_a_traffic_light(self):
         # red, yellow, green: three colors every theme keeps apart (GitHub Dark's high and medium were one color)
@@ -111,14 +115,14 @@ class View(unittest.TestCase):
             self.view = Issues(now=lambda: NOW)
             self.shown(Listing((Issue(9, "Something", (label,), (), "2026-10-22T10:00:00Z", "OPEN", ""),)))
             y = self.row_of("#9 ")
-            self.assertEqual((self.canvas.rows[y][0][1].fg, self.canvas.rows[y][1][1].fg), (role, role), label)
+            self.assertEqual((self.canvas.rows[y][1][1].fg, self.canvas.rows[y][3][1].fg), (role, role), label)
 
     def test_githubs_priority_field_shows_first_in_its_color(self):
         # an organization's Priority field (Urgent, High, Medium, Low) is GitHub's own: before the labels
         self.shown(Listing((Issue(71, "Payments down", ("bug",), (), "2026-10-18T10:00:00Z", "OPEN", "", "Urgent"),)))
         y = self.row_of("#71 ")
         details = text(self.canvas, y + 1)
-        self.assertTrue(details[1 + len("#71 "):].startswith("Urgent, bug"), details)
+        self.assertTrue(details[3 + len("#71 "):].startswith("Urgent, bug"), details)
         self.assertEqual(self.canvas.rows[y + 1][details.index("Urgent")][1].fg, "deleted")
 
     def test_the_search_field_and_its_filters_button_then_open_and_closed(self):
@@ -131,10 +135,46 @@ class View(unittest.TestCase):
         self.assertNotIn("Mine", states)                                    # GitHub's: a filter, not a state
         self.assertEqual(self.view.ask(), Action("load_issues", (Query(),)))
 
-    def test_while_asking_it_says_so(self):
-        self.view.ask()
+    def test_the_first_ask_and_its_answers_say_so_where_the_first_issue_stands(self):
+        # "Loading issues…" on the first issue's row, from the content's inset as every view's line, then the issues
+        # in its place, or what was found: nothing, or why not; never a row more or less above the list
+        self.shown()
+        first = self.row_of("#42")
+        for query, listing, said in ((Query(), None, "Loading issues…"), (Query(), Listing(()), "No open issues"),
+                                     (Query(), Listing(error=github.SIGNED_OUT), github.SIGNED_OUT[:20])):
+            with self.subTest(said=said):
+                self.view = Issues(now=lambda: NOW)
+                self.view.ask(query)
+                if listing is not None:
+                    self.view.show(listing, query)
+                self.draw()
+                self.assertEqual((self.row_of(said), text(self.canvas, first).index(said[:7])), (first, PAD))
+        self.view.show(TWO, Query())
         self.draw()
-        self.row_of("Loading issues…")
+        self.assertEqual((self.row_of("#42"), text(self.canvas, first).index("#42")), (first, TEXT))
+
+    def test_another_state_or_filter_asked_shows_no_issue_of_the_last_one_meanwhile(self):
+        self.shown()
+        first = self.row_of("#42")
+        self.press("right")                                                     # Closed asked for
+        self.draw()
+        self.assertEqual((self.row_of("Loading issues…"), any("#42" in line for line in self.lines())), (first, False))
+
+    def test_the_list_stays_put_while_a_refresh_asks_a_spinner_in_the_refresh_buttons_cell(self):
+        # no row comes or goes above the list: the refresh button at the right end of Open and Closed, as Files'
+        # header has one, turns into a spinner while gh runs, its tip saying so; then back, the list where it was
+        self.shown()
+        first, states, refresh = self.row_of("#42"), self.row_of("Open"), glyphs(True)["refresh"]
+        self.assertEqual((text(self.canvas, states)[43], self.canvas.hit(43, states), self.view.tip("refresh")),
+                         (refresh, "refresh", None))
+        self.assertEqual(self.click(refresh, states), Action("load_issues", (Query(),)))
+        self.draw()
+        self.assertEqual((self.row_of("#42"), text(self.canvas, states)[43] in SPINNER, self.view.tip("refresh")),
+                         (first, True, "Loading issues…"))
+        self.assertIsNone(self.click(text(self.canvas, states)[43], states))      # asked already: once
+        self.view.show(TWO, Query())
+        self.draw()
+        self.assertEqual((self.row_of("#42"), text(self.canvas, states)[43]), (first, refresh))
 
     def test_the_arrows_switch_open_and_closed_and_ask_again(self):
         self.assertEqual(self.press("right"), Action("load_issues", (Query("closed"),)))

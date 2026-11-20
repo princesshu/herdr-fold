@@ -23,7 +23,7 @@ ANSWER = ("""The color of the dots depends on **what the agent** is doing:
           """A hollow dot means all is calm.
 - The colors come from the theme.
 
-If you click the pane and type `claude --continue`, the last conversation goes on.
+If you click the pane and type `claude --continue`, the last chat goes on.
 
 Details: [the herdr guide](https://herdr.dev/docs/agents/) and the README.
 
@@ -134,7 +134,7 @@ class Replies(unittest.TestCase):
 
 class Upgrade(unittest.TestCase):
     @unittest.skipUnless(sys.platform == "darwin", "the formatted copy is made on a Mac only")
-    def test_a_conversation_that_cannot_be_read_is_passed_over(self):
+    def test_a_chat_that_cannot_be_read_is_passed_over(self):
         with tempfile.TemporaryDirectory() as d:
             pipe, path = os.path.join(d, "pipe.jsonl"), os.path.join(d, "s.jsonl")
             os.mkfifo(pipe)
@@ -148,7 +148,7 @@ class Upgrade(unittest.TestCase):
 
 
 class OpenSessions(unittest.TestCase):
-    """The conversation files a selection is looked for in: the one herdr names for each agent, or, where herdr has
+    """The chat files a selection is looked for in: the one herdr names for each agent, or, where herdr has
     none for it, the newest few started in the agent's folder."""
 
     def setUp(self):
@@ -167,7 +167,7 @@ class OpenSessions(unittest.TestCase):
     def running(self, **agent):
         set_attrs(self, rc, agents=lambda: [{"pane_id": "w1:p1", "cwd": "/repo/app", **agent}])
 
-    def test_a_codex_herdr_names_no_conversation_of_is_looked_for_in_its_folder(self):
+    def test_a_codex_herdr_names_no_chat_of_is_looked_for_in_its_folder(self):
         older = self.codex_file("a", {"id": "a", "cwd": "/repo/app"}, 1000)
         newer = self.codex_file("b", {"id": "b", "cwd": "/repo/app"}, 2000)
         self.codex_file("c", {"id": "c", "cwd": "/repo/other"}, 3000)
@@ -180,7 +180,7 @@ class OpenSessions(unittest.TestCase):
         self.running(agent="codex")
         self.assertEqual(rc.open_sessions(), [("codex", path) for path in paths[:0:-1]])
 
-    def test_a_claude_herdr_names_no_conversation_of_is_looked_for_in_its_folder(self):
+    def test_a_claude_herdr_names_no_chat_of_is_looked_for_in_its_folder(self):
         project = os.path.join(self.home, ".claude", "projects", "-repo-app")
         os.makedirs(project)
         path = os.path.join(project, "s1.jsonl")
@@ -188,7 +188,7 @@ class OpenSessions(unittest.TestCase):
         self.running(agent="claude")
         self.assertEqual(rc.open_sessions(), [("claude", path)])
 
-    def test_the_conversation_herdr_names_comes_alone(self):
+    def test_the_chat_herdr_names_comes_alone(self):
         named = self.codex_file("b", {"id": "b", "cwd": "/repo/app"}, 2000)
         self.codex_file("e", {"id": "e", "cwd": "/repo/app"}, 3000)
         self.running(agent="codex", agent_session={"value": "b"})

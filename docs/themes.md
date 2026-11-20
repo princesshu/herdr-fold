@@ -30,10 +30,12 @@ icon](../assets/screenshots/themes.webp)
 - in the Herdr app, herdr-fold's layout: its `theme` names the theme's `themes/herdr-fold-<id>.json`, and a running
   app switches at once; the theme picker in the app's Settings overrides a layout's theme, as the app has it;
 - on a Mac, Ghostty's app icon in the Dock and the app switcher: herdr-fold's logo, the sheep, in the theme's colors
-  (above), with Liquid Glass as the Mac's own icons have it. It is written into
+  (above), with Liquid Glass as the Mac's own icons have it. It is drawn as a PNG (macOS's `sips`) into
   `~/.local/state/herdr-fold/ghostty-icon/`, the theme in use's alone; Ghostty finds it through
-  `~/.config/ghostty/herdr-fold-icon` when it reloads. macOS 27 does not let Ghostty put it into the app itself, so App
-  Exposé, Finder and Launchpad keep Ghostty's own icon.
+  `~/.config/ghostty/herdr-fold-icon` when it reloads, and the theme's line warns where Ghostty's own config
+  (`ghostty +show-config`) does not take it. Ghostty keeps one app icon for all its windows, set by the Ghostty started
+  or reloaded last: one started with a config of its own shows Ghostty's icon until herdr-fold's reloads. macOS 27
+  does not let Ghostty put it into the app itself, so App Exposé, Finder and Launchpad keep Ghostty's own icon.
 
 Where each theme's colors come from: [Third-party notices](../THIRD_PARTY_NOTICES.md#themes).
 

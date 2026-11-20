@@ -37,6 +37,34 @@ def is_webp(data):
     return data[:4] == b"RIFF" and data[8:12] == b"WEBP"
 
 
+def is_font(data):
+    """A TrueType or OpenType font: an sfnt's version tag, then its table directory."""
+    return (data[:4] in (b"\x00\x01\x00\x00", b"OTTO", b"true") and len(data) >= 12
+            and len(data) >= 12 + 16 * struct.unpack(">H", data[4:6])[0])
+
+
+def font_tables(data):
+    """An sfnt font's tables by tag."""
+    count = struct.unpack(">H", data[4:6])[0]
+    tables = {}
+    for n in range(count):
+        tag, _, at, size = struct.unpack(">4sIII", data[12 + 16 * n:28 + 16 * n])
+        tables[tag.decode("latin-1")] = data[at:at + size]
+    return tables
+
+
+def font_names(data):
+    """Every name record of an sfnt font (its names, copyright, description, links) as {(platform, name id): text}."""
+    table = font_tables(data)["name"]
+    _, count, strings = struct.unpack(">HHH", table[:6])
+    names = {}
+    for n in range(count):
+        platform, _, _, name_id, length, at = struct.unpack(">HHHHHH", table[6 + 12 * n:18 + 12 * n])
+        raw = table[strings + at:strings + at + length]
+        names[(platform, name_id)] = raw.decode("utf-16-be" if platform in (0, 3) else "mac-roman")
+    return names
+
+
 ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 # [Y/n] in any language's letters, a prompt, "press Enter to start…", "press any key."
 QUESTION_END = re.compile(r"(\[\w+/\w+\]|:|cancel\.|exit\.)$")
@@ -679,7 +707,7 @@ class AppScreen:
 
     def run_app(self, app, term):
         """APP's loop on a thread of its own, on TERM, ended with the test: Ctrl+C, then its jobs, as one still asking
-        (gh, git, the conversations) writes in the test's state folder and has to end before that goes."""
+        (gh, git, the chats) writes in the test's state folder and has to end before that goes."""
         self.app, self.term = app, term
         self.thread = threading.Thread(target=app.run, daemon=True)
         self.thread.start()

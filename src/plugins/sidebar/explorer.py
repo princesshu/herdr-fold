@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import media
 import widgets
 from icons import GIT_LETTER, glyphs, icon
-from screen import GIT_ROLE, PLAIN, Canvas, Style, after, truncate
+from screen import GIT_ROLE, PAD, PLAIN, Canvas, Style, after, truncate
 from git import Status
 from tree import Node
 from vt import Key, Mouse
@@ -152,7 +152,7 @@ class Explorer:
     def draw_menu(self, canvas):
         popup = self.menu
         popup.menu.draw(canvas, *popup.menu.at(popup.y, popup.x, canvas.width, self.top + LIST,
-                                               self.top + self.height))
+                                               self.top + self.height, PAD))
 
     def draw_confirm(self, canvas):
         width = canvas.width
@@ -160,7 +160,7 @@ class Explorer:
         y = max(self.top + LIST, self.top + self.height - rows - 1)
         for row in range(y, self.top + self.height):
             canvas.put(row, 0, " " * width, PLAIN)
-        canvas.put(y, 0, "─" * width, Style(fg="muted"))
+        canvas.put(y, PAD, "─" * (width - 2 * PAD), Style(fg="muted"))      # as wide as a row's content
         self.confirm.draw(canvas, y + 1, 0, width)
 
     # --- events
@@ -229,6 +229,8 @@ class Explorer:
         if event.kind == "move":
             self.hover = target[1] if isinstance(target, tuple) else None
             self.pointed = target if isinstance(target, str) else None
+            if self.menu:
+                self.menu.menu.point(target)
         elif event.kind in ("wheel_up", "wheel_down"):
             self.list.scroll(3 if event.kind == "wheel_down" else -3)
         elif event.kind == "press":

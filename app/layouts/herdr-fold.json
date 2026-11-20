@@ -1,61 +1,74 @@
 {
   "id": "root",
-  "type": "row",
+  "type": "column",
   "theme": "herdr-fold",
-  "font": "Menlo",
+  "font": "herdr-fold Mono",
   "font_size": 13,
   "titlebar": "none",
   "traffic_lights": [
-    12,
-    16
+    17,
+    9.5
   ],
   "background": "canvas",
   "terminal_padding": [
     12,
     12
   ],
-  "divider": {
-    "width": 1,
-    "color": "border"
-  },
+  "resizable": false,
   "children": [
     {
-      "id": "sidebar",
-      "type": "column",
+      "id": "title",
+      "type": "block",
       "size": {
-        "px": 268
+        "px": 36
       },
-      "min": 76,
-      "max": 480,
-      "background": "chrome",
-      "resizable": false,
+      "window_drag": true,
+      "content": {
+        "mod": "herdr-fold",
+        "props": {
+          "part": "title"
+        }
+      }
+    },
+    {
+      "id": "workspace",
+      "type": "row",
+      "divider": {
+        "width": 1,
+        "color": "border"
+      },
       "children": [
         {
-          "id": "brand",
-          "type": "block",
-          "size": {
-            "px": 46
-          },
-          "window_drag": true,
-          "content": {
-            "mod": "workspace-chrome"
-          }
-        },
-        {
-          "id": "sidebar-lists",
+          "id": "sidebar",
           "type": "column",
-          "divider": {
-            "width": 1,
-            "color": "border"
+          "size": {
+            "px": 268
           },
+          "min": 76,
+          "max": 480,
+          "background": "chrome",
+          "resizable": false,
           "children": [
             {
-              "id": "spaces",
+              "id": "sidebar-head",
+              "type": "block",
+              "size": {
+                "px": 42
+              },
+              "window_drag": true,
+              "content": {
+                "mod": "herdr-fold",
+                "props": {
+                  "part": "head"
+                }
+              }
+            },
+            {
+              "id": "fold-spaces",
               "type": "block",
               "size": {
                 "weight": 1
               },
-              "min": 90,
               "content": {
                 "mod": "herdr-fold",
                 "props": {
@@ -64,246 +77,190 @@
               }
             },
             {
-              "id": "conversations",
+              "id": "sidebar-footer",
               "type": "block",
               "size": {
-                "weight": 1
+                "px": 69
               },
-              "min": 90,
               "content": {
-                "mod": "herdr-fold",
+                "mod": "workspace-chrome",
                 "props": {
-                  "part": "conversations"
+                  "footer": true
                 }
               }
             }
           ]
         },
         {
-          "id": "sidebar-footer",
-          "type": "block",
-          "size": {
-            "px": 69
-          },
-          "content": {
-            "mod": "workspace-chrome",
-            "props": {
-              "footer": true
-            }
-          }
-        }
-      ]
-    },
-    {
-      "id": "work",
-      "type": "column",
-      "resizable": false,
-      "children": [
-        {
-          "id": "top",
-          "type": "row",
-          "size": {
-            "px": 42
-          },
+          "id": "work",
+          "type": "column",
+          "resizable": false,
           "children": [
             {
-              "id": "sidebar-trigger",
-              "type": "block",
+              "id": "top",
+              "type": "row",
               "size": {
-                "px": 40
+                "px": 42
               },
-              "hidden": true,
-              "window_drag": true,
-              "content": {
-                "mod": "herdr-fold",
-                "props": {
-                  "part": "trigger"
-                }
-              }
-            },
-            {
-              "id": "tabs",
-              "type": "block",
-              "size": {
-                "weight": 1
-              },
-              "window_drag": true,
-              "content": {
-                "mod": "herdr-fold",
-                "props": {
-                  "part": "tabs"
-                }
-              }
-            }
-          ]
-        },
-        {
-          "id": "work-body",
-          "type": "row",
-          "padding": 8,
-          "gap": 8,
-          "children": [
-            {
-              "id": "main",
-              "type": "block",
-              "content": {
-                "tab": "active",
-                "pane": {
-                  "gap": 8,
-                  "radius": 10,
-                  "background": "background",
-                  "lone": true,
-                  "border": {
-                    "width": 1,
-                    "color": "border"
-                  },
-                  "focus": {
-                    "width": 1,
-                    "color": "accent"
-                  }
-                }
-              }
-            },
-            {
-              "id": "fold-panel",
-              "type": "column",
-              "size": {
-                "px": 368
-              },
-              "min": 76,
-              "max": 900,
-              "resizable": false,
-              "gap": 8,
               "children": [
                 {
-                  "id": "fold-dock-head",
+                  "id": "sidebar-trigger",
                   "type": "block",
                   "size": {
-                    "px": 36
+                    "px": 40
                   },
+                  "hidden": true,
+                  "window_drag": true,
                   "content": {
                     "mod": "herdr-fold",
                     "props": {
-                      "part": "dock-head"
+                      "part": "trigger"
                     }
                   }
                 },
                 {
-                  "id": "fold-dock",
+                  "id": "tabs",
+                  "type": "block",
+                  "size": {
+                    "weight": 1
+                  },
+                  "window_drag": true,
+                  "content": {
+                    "mod": "herdr-fold",
+                    "props": {
+                      "part": "tabs"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "work-body",
+              "type": "row",
+              "padding": 8,
+              "gap": 8,
+              "children": [
+                {
+                  "id": "fold-center",
                   "type": "column",
                   "gap": 8,
                   "children": [
                     {
-                      "id": "fold-project",
-                      "type": "column",
-                      "size": {
-                        "weight": 2
-                      },
-                      "resizable": false,
-                      "background": "background",
-                      "border": {
-                        "width": 1,
-                        "color": "border"
-                      },
-                      "radius": 10,
-                      "children": [
-                        {
-                          "id": "fold-project-head",
-                          "type": "block",
-                          "size": {
-                            "px": 36
+                      "id": "main",
+                      "type": "block",
+                      "content": {
+                        "tab": "active",
+                        "pane": {
+                          "gap": 8,
+                          "radius": 10,
+                          "background": "background",
+                          "lone": true,
+                          "border": {
+                            "width": 1,
+                            "color": "border"
                           },
-                          "content": {
-                            "mod": "herdr-fold",
-                            "props": {
-                              "part": "group-head",
-                              "group": "project"
-                            }
+                          "focus": {
+                            "width": 1,
+                            "color": "accent"
                           }
-                        },
-                        {
-                          "id": "fold-project-body",
-                          "type": "stack",
-                          "active": "files",
-                          "children": [
-                            {
-                              "id": "files",
-                              "type": "block",
-                              "content": {
-                                "mod": "herdr-fold",
-                                "props": {
-                                  "part": "files"
-                                }
-                              }
-                            },
-                            {
-                              "id": "search",
-                              "type": "block",
-                              "content": {
-                                "mod": "herdr-fold",
-                                "props": {
-                                  "view": "search"
-                                }
-                              }
-                            }
-                          ]
                         }
-                      ]
-                    },
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "fold-panel",
+                  "type": "column",
+                  "size": {
+                    "px": 368
+                  },
+                  "min": 76,
+                  "max": 900,
+                  "resizable": false,
+                  "gap": 8,
+                  "children": [
                     {
-                      "id": "fold-work",
-                      "type": "column",
+                      "id": "fold-views",
+                      "type": "stack",
                       "size": {
-                        "weight": 3
+                        "weight": 5
                       },
-                      "resizable": false,
-                      "background": "background",
+                      "background": "surface",
                       "border": {
                         "width": 1,
                         "color": "border"
                       },
                       "radius": 10,
+                      "header": {
+                        "content": {
+                          "mod": "herdr-fold",
+                          "props": {
+                            "part": "dock-head"
+                          }
+                        },
+                        "height": 45
+                      },
+                      "active": "files",
                       "children": [
                         {
-                          "id": "fold-work-head",
+                          "id": "files",
                           "type": "block",
-                          "size": {
-                            "px": 36
-                          },
                           "content": {
                             "mod": "herdr-fold",
                             "props": {
-                              "part": "group-head",
-                              "group": "work"
+                              "part": "files"
                             }
                           }
                         },
                         {
-                          "id": "fold-work-body",
-                          "type": "stack",
-                          "active": "changes",
-                          "children": [
-                            {
-                              "id": "changes",
-                              "type": "block",
-                              "content": {
-                                "mod": "herdr-fold",
-                                "props": {
-                                  "view": "changes"
-                                }
-                              }
-                            },
-                            {
-                              "id": "issues",
-                              "type": "block",
-                              "content": {
-                                "mod": "herdr-fold",
-                                "props": {
-                                  "view": "issues"
-                                }
-                              }
+                          "id": "search",
+                          "type": "block",
+                          "content": {
+                            "mod": "herdr-fold",
+                            "props": {
+                              "view": "search"
                             }
-                          ]
+                          }
+                        },
+                        {
+                          "id": "changes",
+                          "type": "block",
+                          "content": {
+                            "mod": "herdr-fold",
+                            "props": {
+                              "view": "changes"
+                            }
+                          }
+                        },
+                        {
+                          "id": "issues",
+                          "type": "block",
+                          "content": {
+                            "mod": "herdr-fold",
+                            "props": {
+                              "view": "issues"
+                            }
+                          }
+                        },
+                        {
+                          "id": "agent",
+                          "type": "block",
+                          "content": {
+                            "mod": "herdr-fold",
+                            "props": {
+                              "view": "agent"
+                            }
+                          }
+                        },
+                        {
+                          "id": "fold-chats",
+                          "type": "block",
+                          "content": {
+                            "mod": "herdr-fold",
+                            "props": {
+                              "part": "chats"
+                            }
+                          }
                         }
                       ]
                     },
@@ -342,33 +299,36 @@
                           }
                         }
                       ]
+                    },
+                    {
+                      "id": "panel-rail",
+                      "type": "block",
+                      "hidden": true,
+                      "content": {
+                        "mod": "herdr-fold",
+                        "props": {
+                          "part": "rail"
+                        }
+                      }
                     }
                   ]
-                },
-                {
-                  "id": "panel-rail",
-                  "type": "block",
-                  "hidden": true,
-                  "content": {
-                    "mod": "herdr-fold",
-                    "props": {
-                      "part": "rail"
-                    }
-                  }
                 }
               ]
+            },
+            {
+              "id": "status",
+              "type": "block",
+              "size": {
+                "px": 28
+              },
+              "content": {
+                "mod": "herdr-fold",
+                "props": {
+                  "part": "status"
+                }
+              }
             }
           ]
-        },
-        {
-          "id": "status",
-          "type": "block",
-          "size": {
-            "px": 28
-          },
-          "content": {
-            "mod": "workspace-status"
-          }
         }
       ]
     }

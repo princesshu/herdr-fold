@@ -1,4 +1,4 @@
-"""Search the Claude conversation (Cmd+F): in the focused Claude pane, opens the transcript view (Ctrl+O) and its
+"""Search the Claude chat (Cmd+F): in the focused Claude pane, opens the transcript view (Ctrl+O) and its
 search (/); other panes are left alone. herdr runs it with a bare PATH: herdrlib takes herdr from HERDR_BIN_PATH."""
 import os
 import sys

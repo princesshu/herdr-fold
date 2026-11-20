@@ -133,14 +133,17 @@ class NoHardcodedText(unittest.TestCase):
 
     def test_python_scripts_print_through_the_catalog(self):
         # a sentence handed straight to print(), line(), an error or a notification is a text outside the catalog; the
-        # sessions-view and sidebar plugins are standalone (their own English texts)
+        # sessions-view and sidebar plugins are standalone (their own English texts), core/'s copies speak as core/
         hits = []
         for root, dirs, files in os.walk(os.path.join(PACKAGE, "src")):
             dirs[:] = [d for d in dirs if d not in ("__pycache__", "sessions-view", "sidebar")]
             for name in (n for n in files if n.endswith(".py")):
                 path = os.path.join(root, name)
                 with open(path, encoding="utf-8") as f:
-                    tree = ast.parse(f.read())
+                    source = f.read()
+                if source.startswith("# Generated from core/"):
+                    continue
+                tree = ast.parse(source)
                 for node in ast.walk(tree):
                     if not (isinstance(node, ast.Call) and self.shown(node.func)):
                         continue

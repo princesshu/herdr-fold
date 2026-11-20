@@ -30,15 +30,15 @@ all.
 | Cmd + Shift + L | open a file the focused pane's output names (`src/app.py:42`, a traceback's line), at that line, in the sidebar's preview tab: the newest first, type to narrow the list |
 | Cmd + T / Cmd + R | next / previous tab of the workspace, wrapping around; keep Cmd held and tap again to step on |
 | Ctrl + B, then 1…9 | tab 1…9 of the workspace |
-| Cmd + W | close the active tab, never the main tab (a workspace's first); a tab with a conversation asks first |
+| Cmd + W | close the active tab, never the main tab (a workspace's first); a tab with a chat asks first |
 
-## Conversations
+## Chats
 
 | Key | What it does |
 |---|---|
-| Cmd + Shift + R | find a conversation: the sidebar shows Chats in this tab (on its rail too, beside it; a sidebar closed by hand comes back, a tab without one goes to the workspace's first), its filter empty and the keys going to it; Enter goes to a running one or reopens a closed one in a new tab |
-| Space / Shift + ↑ ↓ | in the sidebar's Conversations, with nothing typed: mark closed conversations, to archive them together with a right click on one of them; Esc unmarks them |
-| Cmd + F | search the Claude conversation: Enter accepts, `n` / `N` next / previous match, Esc goes back to typing |
+| Cmd + Shift + R | find a chat: the sidebar opens its ✦'s list in this tab (on its rail, beside it; a sidebar closed by hand comes back, a tab without one goes to the workspace's first), its filter empty and the keys going to it; Enter goes to a running one or reopens a closed one in a new tab; Esc closes it |
+| Space / Shift + ↑ ↓ | in the sidebar's Chats, with nothing typed: mark closed chats, to archive them together with a right click on one of them; Esc unmarks them |
+| Cmd + F | search the Claude chat: Enter accepts, `n` / `N` next / previous match, Esc goes back to typing |
 
 ## Copy and links
 

@@ -301,6 +301,53 @@ class Pager:
         return True
 
 
+class Views(Pager):
+    """A text in several views (an agent's graph as a tree: Wiring, This conversation), each its own lines: the status
+    row's controls or a view's key (w, c) show it, from its top."""
+
+    def __init__(self, spec):
+        self.views = [view for view in spec["views"] if isinstance(view, dict) and isinstance(view.get("lines"), list)]
+        self.view = next((view for view in self.views if view.get("key") == spec.get("view")), self.views[0])
+        super().__init__([str(line) for line in self.view["lines"]], spec.get("title") or "")
+        self.row, self.spans = None, []              # the status row and its controls' cells, as last drawn
+
+    def shown(self):
+        return self.view.get("key"), super().shown()
+
+    def show(self, key):
+        found = next((view for view in self.views if view.get("key") == key), None)
+        if found and found is not self.view:
+            self.view, self.lines, self.top, self.hit = found, [str(line) for line in found["lines"]], 0, None
+
+    def draw(self, term):
+        columns, height = term.size()
+        self.row = height - 1
+        groups = [(str(view.get("key")), [(str(view.get("name")), str(view.get("name")), view is self.view,
+                                           view.get("key"))]) for view in self.views]
+        self.lead, self.spans = controls(groups, columns) if len(self.views) > 1 else ("", [])
+        return super().draw(term)
+
+    def handle(self, event):
+        action = clicked(event, self.row, self.spans)
+        if action is None and isinstance(event, Key) and event.name == "char" and not event.ctrl \
+                and self.typing is None and any(view.get("key") == event.char for view in self.views):
+            action = event.char
+        if action is not None:
+            self.show(action)
+            return True
+        return super().handle(event)
+
+    def choices(self):
+        return [(str(view.get("name")), view is self.view) for view in self.views] + super().choices()
+
+    def choose(self, choice):
+        found = next((view for view in self.views if str(view.get("name")) == choice), None)
+        if found:
+            self.show(found.get("key"))
+            return True
+        return super().choose(choice)
+
+
 def cell(term):
     """A cell of TERM in pixels, (width, height): as the terminal says (herdr gives a pane's size in pixels), else the
     guess."""
@@ -776,6 +823,9 @@ def viewer(spec):
     PDF drawn, else the pager over its lines."""
     if spec.get("change"):
         return PictureChange(spec)
+    if isinstance(spec.get("views"), list) and any(isinstance(view, dict) and isinstance(view.get("lines"), list)
+                                                   for view in spec["views"]):
+        return Views(spec)
     if spec.get("picture") and media.kind_of(spec["picture"]) in ("svg", "html"):
         return PictureAndCode(spec)
     if spec.get("picture") and media.kind_of(spec["picture"]) == "pdf":

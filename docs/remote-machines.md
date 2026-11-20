@@ -18,6 +18,15 @@ It prepares each machine for the parts installed on the Mac, the TUI, the Herdr 
 4. with the Herdr app ([The Herdr app](app.md)): adds the machine to the app, whose core (herdr-core) copies itself
    there, a single file as herdr's; a machine the app has already is left as it is.
 
+What is the machine's own is saved first, in `~/.local/state/herdr-fold/` there (on Windows in the user folder):
+
+- `prepared-original/`: its own files, as they were before herdr-fold first set it up, and Claude's earlier status
+  line. They come back when you remove the machine.
+- `prepared-changed-<date>/`: files herdr-fold put there that you edited on the machine, kept when an update replaces
+  or drops them, or when you remove the machine. Never deleted.
+
+No copy of herdr-fold's own files is kept: the package has them.
+
 It does not install Claude Code or Codex or sign them in: do that once on each machine.
 
 For a machine you add by hand that `~/.ssh/known_hosts` does not know yet, it shows the fingerprint of the machine's
@@ -39,6 +48,27 @@ Shift + M, or `./machines.sh status`), unasked: its address on the list becomes 
 takes that file's key and options. The machine's name stays, and so does the address herdr connects it with: the same
 machine. A Host with its own `Port`, `ProxyJump`, `ProxyCommand` or `HostKeyAlias` is left alone: that is another
 endpoint, whose key ssh would take unasked.
+
+## Networks
+
+herdr-fold reaches every machine over SSH, so any network works on which the Mac reaches the machine's SSH port: the
+local network, a public address, or a virtual network that joins your machines. The machines of a Tailscale network are
+offered by name (`./machines.sh tailscale`); on any other network add a machine by its address or name
+(`./machines.sh new`), or give it a Host in `~/.ssh/config` and import it from there (`./machines.sh sshconfig`).
+
+| Network | What it is | How a machine is added |
+|---|---|---|
+| Tailscale, Headscale | WireGuard-based, joins your own machines (Headscale: Tailscale's coordination server, run by yourself) | offered from the Tailscale network |
+| NetBird | WireGuard-based, open source, joins your own machines | by its address or name |
+| ZeroTier | a virtual network of your own machines | by its address |
+| WireGuard | a tunnel you set up yourself | by its address |
+| Cloudflare Zero Trust | the machine reached through Cloudflare's `cloudflared` | a `~/.ssh/config` Host with its `ProxyCommand`, imported from there |
+| Cloudflare WARP alone | protects your traffic to the internet; it does not join your machines | — |
+
+The Mac can be on several at once. Keep their address ranges apart (Tailscale and NetBird take the same range unless one
+is changed), and mind a mode that sends all traffic through one network (Cloudflare WARP's full mode, a company's
+private network, Tailscale's exit node): it can cut the others off. A machine reached only through another one goes
+through a Host with `ProxyJump` in `~/.ssh/config`.
 
 ## Systems
 
@@ -65,5 +95,5 @@ herdr machine list              # the connected machines
 
 `./machines.sh remove` puts Claude's earlier status line and the machine's own files that the package replaced back on
 the machine (a linked file comes back as the link; the package never writes through one), and takes it off the Herdr
-app when herdr-fold added it there. Files changed there since
-stay in its backups (`~/.local/state/herdr-fold/prepared-*`).
+app when herdr-fold added it there. Files changed there since stay in its `prepared-changed-<date>/`
+([above](#what-the-installer-does-on-a-machine)).

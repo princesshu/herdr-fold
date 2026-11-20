@@ -1,6 +1,6 @@
 """The sidebar's colors: the terminal's own 16 by default, so it follows the terminal's theme; colors.json in the
-plugin's state folder (herdr-fold's theme setter writes it) gives each role an exact color. subtext, guide and done are
-herdr's own (its Spaces list's names, faint tree lines, done state); panel is its menus' background."""
+plugin's state folder (herdr-fold's theme setter writes it) gives each role an exact color: subtext, guide and done
+herdr's own, panel its menus' background, account a claude.ai tag's blue; a role that is #rrggbb is that color."""
 import json
 import os
 import re
@@ -9,7 +9,7 @@ import re
 # terminal's own background, which reads on a dark and on a light one alike
 PALETTE_FG = {"text": "39", "subtext": "39", "muted": "90", "guide": "90", "archived": "90", "accent": "35",
               "added": "32", "modified": "33", "deleted": "31", "done": "36", "conflict": "91", "ignored": "90",
-              "badge_text": "39", "button_text": "30"}
+              "account": "34", "badge_text": "39", "button_text": "30"}
 PALETTE_BG = {"selection": "100", "hover": "100", "badge": "49", "button": "45", "input": "100", "panel": "49"}
 HEX = re.compile(r"#([0-9a-fA-F]{6})")
 
@@ -30,7 +30,7 @@ class Theme:
 
     def color(self, role, ground):
         """The SGR code of ROLE as foreground ("fg") or background ("bg")."""
-        value = self.colors.get(role)
+        value = self.colors.get(role) or (role if HEX.fullmatch(role) else None)     # a brand's own color, as it is
         if value:
             r, g, b = (int(value[i:i + 2], 16) for i in (1, 3, 5))
             return f"{38 if ground == 'fg' else 48};2;{r};{g};{b}"

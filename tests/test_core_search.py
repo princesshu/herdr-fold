@@ -289,6 +289,15 @@ class CommandLine(Search):
         limited = self.cli(self.root, {"text": "hero", "limit": 1})
         self.assertEqual((len(limited["hits"]), limited["total"]), (1, 4))
 
+    def test_the_folders_files_are_listed_as_a_search_walks_them(self):
+        """Add context's list in a chat: the files a search would read (no ignored one, nothing of .git), LIMIT of
+        them at most, and how many there are."""
+        found = self.cli(self.root, {"files": True})
+        self.assertEqual(found, {"files": [".gitignore", "app/page.tsx", "components/Hero.tsx",
+                                           "components/Heroic.tsx"], "total": 4})
+        self.assertEqual(self.cli(self.root, {"files": True, "limit": 2}),
+                         {"files": [".gitignore", "app/page.tsx"], "total": 4})
+
     def test_a_text_like_an_option_is_searched_for(self):
         with open(os.path.join(self.root, "flags.txt"), "w") as f:
             f.write("run with --force here\n")

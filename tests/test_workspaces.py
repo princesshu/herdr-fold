@@ -1,6 +1,6 @@
-"""Tests for the Workspaces plugin (workspaces.py) with fake herdr calls: the new button's workspace is called new while
-its folder is chosen, Windows has no folder picker, a workspace whose folder is gone says deleted, a workspace
-follows its renamed folder, and a folder holding a repository shows that one's branch."""
+"""Tests for the Workspaces plugin (workspaces.py) with fake herdr calls: the new button's workspace and its folder
+picker, a workspace whose folder is gone or renamed, a folder holding a repository, home staying the first workspace,
+and a workspace herdr ended with its last tab made again."""
 import json
 import os
 import re
@@ -140,8 +140,8 @@ class SpacesFollowTheirFolder(unittest.TestCase):
         renames, _ = self.follow({"w1": "old-name", "w2": "new-name"}, [("w1", self.path("new-name"))], known)
         self.assertEqual(renames, [("w1", "old-name", "repos-new-name")])
 
-    def test_a_folder_renamed_before_it_was_followed_is_known_by_the_conversations_it_held(self):
-        # the folder named as the workspace, beside where its panes are now, is gone and once held conversations
+    def test_a_folder_renamed_before_it_was_followed_is_known_by_the_chats_it_held(self):
+        # the folder named as the workspace, beside where its panes are now, is gone and once held chats
         os.rename(self.path("old-name"), self.path("new-name"))
         renames, known = self.follow({"w1": "old-name"}, [("w1", self.path("new-name", "src"))], {},
                                      held={self.path("old-name")})
@@ -261,6 +261,309 @@ class FollowOnFocus(unittest.TestCase):
     def test_the_manifest_runs_it_on_a_panes_focus_on_macos_and_linux(self):
         # Windows does not let a folder in use be renamed
         self.assertEqual(manifest_events("pane.focused"),
+                         [('["macos", "linux"]', '["/usr/bin/python3", "workspaces.py"]')])
+
+
+class HomeStays(unittest.TestCase):
+    """herdr ends a workspace with its last tab: the home folder's is made again when none is left, on a workspace's
+    close and on a pane's focus, so home is always a row in Spaces; and it is moved first whenever it is not, so it is
+    always the first row."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.home = os.path.join(self.tmp, "home")
+        os.makedirs(os.path.join(self.home, "work"))
+        self.calls, self.spaces, self.panes = [], [], []
+
+        def herdr(*args, **kwargs):
+            self.calls.append(args)
+            if args[:2] == ("workspace", "list"):
+                return {"workspaces": self.spaces} if self.spaces is not None else {}
+            if args[:2] == ("pane", "list"):
+                return {"panes": self.panes}
+            if args[:2] == ("workspace", "create"):
+                return {"tab": {"tab_id": "w9:t1"}}
+            return {}
+
+        def request(method, params):                    # herdr's socket API: its command line moves no workspace
+            self.moves.append((method, params))
+            return {}
+        self.moves = []
+        set_attrs(self, workspaces, herdr=herdr, request=request)
+        set_env(self, HERDR_PLUGIN_STATE_DIR=os.path.join(self.tmp, "state"), HERDR_PLUGIN_EVENT="workspace.closed",
+                HOME=self.home)
+
+    def space(self, ws, label, cwd):
+        self.spaces.append({"workspace_id": ws, "label": label})
+        self.panes.append({"pane_id": f"{ws}:p1", "workspace_id": ws, "tab_id": f"{ws}:t1", "cwd": cwd})
+
+    def made(self):
+        return [call for call in self.calls if call[:2] in (("workspace", "create"), ("tab", "rename"))]
+
+    def test_with_no_workspace_at_home_one_is_made_behind_the_one_in_front_named_as_its_main_tab(self):
+        self.space("w1", "work", os.path.join(self.home, "work"))
+        workspaces.main()
+        self.assertEqual(self.made(), [("workspace", "create", "--cwd", self.home, "--label", "home", "--no-focus"),
+                                       ("tab", "rename", "w9:t1", "home")])
+
+    def test_the_last_workspace_closed_leaves_home(self):
+        workspaces.main()
+        self.assertEqual(self.made()[0][:4], ("workspace", "create", "--cwd", self.home))
+
+    def test_a_workspace_at_home_is_enough_whatever_its_name(self):
+        for label, cwd in (("home", os.path.join(self.home, "work")), ("~", None), ("scratch", self.home)):
+            self.spaces, self.panes = [], []
+            self.space("w1", label, cwd)
+            workspaces.main()
+        self.assertEqual(self.made(), [])
+
+    def test_only_a_workspaces_first_pane_says_where_it_is(self):
+        self.space("w1", "work", os.path.join(self.home, "work"))
+        self.panes.append({"pane_id": "w1:p2", "workspace_id": "w1", "tab_id": "w1:t1", "cwd": self.home})
+        workspaces.main()
+        self.assertEqual(len(self.made()), 2)
+
+    def test_herdr_not_answering_makes_nothing(self):
+        self.spaces = None
+        workspaces.main()
+        self.assertEqual(self.made(), [])
+
+    def test_a_panes_focus_looks_too(self):
+        set_env(self, HERDR_PLUGIN_EVENT="pane.focused")
+        self.space("w1", "work", os.path.join(self.home, "work"))
+        workspaces.main()
+        self.assertEqual(self.made()[0], ("workspace", "create", "--cwd", self.home, "--label", "home", "--no-focus"))
+
+    def test_the_manifest_runs_it_on_a_workspaces_close_on_macos_and_linux(self):
+        self.assertEqual(manifest_events("workspace.closed"),
+                         [('["macos", "linux"]', '["/usr/bin/python3", "workspaces.py"]')])
+
+    def test_home_below_another_workspace_goes_first_whenever_the_list_changes(self):
+        for event in ("workspace.closed", "workspace.created", "workspace.moved", "workspace.reordered"):
+            with self.subTest(event=event):
+                set_env(self, HERDR_PLUGIN_EVENT=event)
+                self.spaces, self.panes, self.moves = [], [], []
+                self.space("w1", "work", os.path.join(self.home, "work"))
+                self.space("w2", "home", self.home)
+                workspaces.main()
+                self.assertEqual(self.moves, [("workspace.move", {"workspace_id": "w2", "insert_index": 0})])
+                self.assertEqual(self.made(), [])
+
+    def test_home_already_first_is_left_alone(self):
+        # its own move comes back as herdr's workspace.moved: nothing more is asked, so it ends there
+        set_env(self, HERDR_PLUGIN_EVENT="workspace.moved")
+        self.space("w2", "home", self.home)
+        self.space("w1", "work", os.path.join(self.home, "work"))
+        workspaces.main()
+        self.assertEqual(self.moves, [])
+
+    def test_home_made_again_goes_first(self):
+        self.space("w1", "work", os.path.join(self.home, "work"))
+        workspaces.main()
+        self.assertEqual(self.moves, [("workspace.move", {"workspace_id": "w9", "insert_index": 0})])
+
+    def test_home_made_as_the_only_workspace_is_first_already(self):
+        workspaces.main()
+        self.assertEqual(len(self.made()), 2)
+        self.assertEqual(self.moves, [])
+
+    def test_the_workspace_named_home_goes_first_not_another_one_in_the_home_folder(self):
+        self.space("w1", "work", os.path.join(self.home, "work"))
+        self.space("w2", "scratch", self.home)
+        self.space("w3", "home", self.home)
+        workspaces.main()
+        self.assertEqual(self.moves, [("workspace.move", {"workspace_id": "w3", "insert_index": 0})])
+
+    def test_a_panes_focus_puts_home_first_too(self):
+        # herdr's start restores the workspaces in their order with no event of the list's
+        set_env(self, HERDR_PLUGIN_EVENT="pane.focused")
+        self.space("w1", "work", os.path.join(self.home, "work"))
+        self.space("w2", "~", self.home)
+        workspaces.main()
+        self.assertEqual(self.moves, [("workspace.move", {"workspace_id": "w2", "insert_index": 0})])
+        self.spaces.reverse()
+        self.moves.clear()
+        workspaces.main()
+        self.assertEqual(self.moves, [])
+
+    def test_the_manifest_runs_it_when_the_list_of_workspaces_changes(self):
+        for event in ("workspace.created", "workspace.moved", "workspace.reordered"):
+            self.assertEqual(manifest_events(event),
+                             [('["macos", "linux"]', '["/usr/bin/python3", "workspaces.py"]')], event)
+
+
+class LastTabClosed(unittest.TestCase):
+    """herdr ends a workspace with its last tab (workspace.closed with the workspace, and tab.closed); closed on
+    purpose it sends workspace.closed alone. Only the first is made again: in its place, with its name and folder."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.home = os.path.join(self.tmp, "home")
+        self.work, self.api = os.path.join(self.home, "work"), os.path.join(self.home, "api")
+        os.makedirs(self.work)
+        os.makedirs(self.api)
+        self.calls, self.moves, self.spaces, self.panes = [], [], [], []
+
+        def herdr(*args, **kwargs):
+            self.calls.append(args)
+            if args[:2] == ("workspace", "list"):
+                return {"workspaces": self.spaces} if self.spaces is not None else {}
+            if args[:2] == ("pane", "list"):
+                return {"panes": self.panes}
+            if args[:2] == ("workspace", "create"):
+                self.space("w9", args[5], args[3])      # made last, as herdr does
+                return {"tab": {"tab_id": "w9:t1"}}
+            return {}
+
+        def request(method, params):
+            self.moves.append((method, params))
+            return {}
+        set_attrs(self, workspaces, herdr=herdr, request=request)
+        set_attrs(self, workspaces.time, sleep=lambda s: None)
+        set_env(self, HERDR_PLUGIN_STATE_DIR=os.path.join(self.tmp, "state"), HOME=self.home)
+        self.space("w1", "home", self.home)
+        self.space("w2", "work", self.work)
+        self.space("w3", "api", self.api)
+        self.event("workspace.created")                 # the list as it was, seen once
+
+    def space(self, ws, label, cwd):
+        self.spaces.append({"workspace_id": ws, "label": label})
+        self.panes.append({"pane_id": f"{ws}:p1", "workspace_id": ws, "tab_id": f"{ws}:t1", "cwd": cwd})
+
+    def event(self, name, **data):
+        set_env(self, HERDR_PLUGIN_EVENT=name, HERDR_PLUGIN_EVENT_JSON=json.dumps(
+            {"event": name.replace(".", "_"), "data": {"type": name.replace(".", "_"), **data}}))
+        workspaces.main()
+
+    def gone(self, ws):
+        """herdr's list without WS, and what herdr says of WS as it closes."""
+        number = next(n for n, space in enumerate(self.spaces, 1) if space["workspace_id"] == ws)
+        said = {**self.spaces[number - 1], "number": number, "focused": False}
+        self.spaces = [space for space in self.spaces if space["workspace_id"] != ws]
+        self.panes = [pane for pane in self.panes if pane["workspace_id"] != ws]
+        return said
+
+    def workspace_closed(self, said):
+        self.event("workspace.closed", workspace_id=said["workspace_id"], workspace=said)
+
+    def tab_closed(self, ws):
+        self.event("tab.closed", tab_id=f"{ws}:t1", workspace_id=ws)
+
+    def made(self):
+        return [call for call in self.calls if call[:2] in (("workspace", "create"), ("tab", "rename"))]
+
+    def focused(self):
+        return [call for call in self.calls if call[:2] == ("workspace", "focus")]
+
+    def test_a_workspace_closed_with_its_last_tab_is_made_again_in_its_place(self):
+        said = self.gone("w2")
+        self.workspace_closed(said)
+        self.tab_closed("w2")
+        self.assertEqual(self.made(), [("workspace", "create", "--cwd", self.work, "--label", "work", "--no-focus"),
+                                       ("tab", "rename", "w9:t1", "work")])
+        self.assertEqual(self.moves, [("workspace.move", {"workspace_id": "w9", "insert_index": 1})])
+        self.assertEqual(self.focused(), [])
+
+    def test_herdrs_two_events_come_in_either_order(self):
+        said = self.gone("w2")
+        self.tab_closed("w2")
+        self.assertEqual(self.made(), [])
+        self.workspace_closed(said)
+        self.assertEqual(self.made()[0], ("workspace", "create", "--cwd", self.work, "--label", "work", "--no-focus"))
+        self.assertEqual(len(self.made()), 2)
+
+    def test_it_is_made_once(self):
+        said = self.gone("w2")
+        self.workspace_closed(said)
+        self.tab_closed("w2")
+        self.event("workspace.created")                 # herdr's event of the one made
+        self.event("workspace.moved")
+        self.assertEqual(len(self.made()), 2)
+
+    def test_a_workspace_closed_on_purpose_stays_closed(self):
+        self.workspace_closed(self.gone("w2"))
+        self.event("workspace.moved")
+        self.assertEqual(self.made(), [])
+
+    def test_a_tab_closed_beside_another_one_makes_nothing(self):
+        self.event("tab.closed", tab_id="w2:t2", workspace_id="w2")
+        self.workspace_closed(self.gone("w2"))          # and closed on purpose later it stays closed
+        self.assertEqual(self.made(), [])
+
+    def test_a_workspace_whose_last_pane_moved_away_stays_closed(self):
+        # herdr sends both events then too, the workspace's close without the workspace
+        self.gone("w2")
+        self.event("workspace.closed", workspace_id="w2")
+        self.tab_closed("w2")
+        self.assertEqual(self.made(), [])
+
+    def test_the_one_in_front_is_in_front_again(self):
+        said = {**self.gone("w2"), "focused": True}
+        self.workspace_closed(said)
+        self.tab_closed("w2")
+        self.assertEqual(self.focused(), [("workspace", "focus", "w9")])
+        self.assertLess(self.calls.index(("tab", "rename", "w9:t1", "work")),
+                        self.calls.index(("workspace", "focus", "w9")))
+
+    def test_the_last_one_in_the_list_needs_no_move(self):
+        said = self.gone("w3")
+        self.workspace_closed(said)
+        self.tab_closed("w3")
+        self.assertEqual(self.made()[0][:5], ("workspace", "create", "--cwd", self.api, "--label"))
+        self.assertEqual(self.moves, [])
+
+    def test_a_workspace_seen_on_a_panes_focus_only_is_made_again_too(self):
+        self.space("w4", "late", self.work)
+        self.event("pane.focused", pane_id="w1:p1", workspace_id="w1")
+        said = self.gone("w4")
+        self.workspace_closed(said)
+        self.tab_closed("w4")
+        self.assertEqual(self.made()[0], ("workspace", "create", "--cwd", self.work, "--label", "late", "--no-focus"))
+
+    def test_a_workspace_whose_folder_is_gone_stays_closed(self):
+        said = self.gone("w2")
+        os.rmdir(self.work)
+        self.workspace_closed(said)
+        self.tab_closed("w2")
+        self.assertEqual(self.made(), [])
+
+    def test_home_is_made_again_once_and_in_front_when_it_was(self):
+        said = {**self.gone("w1"), "focused": True}
+        self.workspace_closed(said)
+        self.tab_closed("w1")
+        self.assertEqual(self.made(), [("workspace", "create", "--cwd", self.home, "--label", "home", "--no-focus"),
+                                       ("tab", "rename", "w9:t1", "home")])
+        self.assertEqual(self.focused(), [("workspace", "focus", "w9")])
+
+    def test_the_one_made_again_gets_no_folder_picker(self):
+        said = {**self.gone("w2"), "focused": True}
+        self.workspace_closed(said)
+        self.tab_closed("w2")
+        set_attrs(self, workspaces, new_workspace=lambda ws: True)          # in front with a single pane
+        self.event("tab.created", tab={"tab_id": "w9:t1"})
+        self.assertEqual([call for call in self.calls if call[:3] == ("plugin", "pane", "open")], [])
+        self.event("tab.created", tab={"tab_id": "w8:t1"})                 # the "new" button's still does
+        self.assertEqual(len([call for call in self.calls if call[:3] == ("plugin", "pane", "open")]), 1)
+
+    def test_events_a_minute_apart_are_not_one_close(self):
+        said = self.gone("w2")
+        self.workspace_closed(said)
+        now = workspaces.time.time()
+        set_attrs(self, workspaces.time, time=lambda: now + 61)
+        self.tab_closed("w2")
+        self.assertEqual(self.made(), [])
+
+    def test_herdr_not_answering_makes_nothing(self):
+        said = self.gone("w2")
+        self.workspace_closed(said)
+        self.spaces = None
+        self.tab_closed("w2")
+        self.assertEqual(self.made(), [])
+
+    def test_the_manifest_runs_it_on_a_tabs_close_on_macos_and_linux(self):
+        self.assertEqual(manifest_events("tab.closed"),
                          [('["macos", "linux"]', '["/usr/bin/python3", "workspaces.py"]')])
 
 

@@ -351,21 +351,27 @@ class Menu:
     def __init__(self, choices):
         self.choices = list(choices)
         self.index = next((n for n, choice in enumerate(self.choices) if choice is not None), 0)
+        self.hover = None             # the choice under the mouse: its line on the hover background, as a row's
+
+    def point(self, target):
+        """The mouse on what answers TARGET where it was last drawn: its line ("menu:N"), or none of them."""
+        self.hover = int(target[5:]) if isinstance(target, str) and target.startswith("menu:") else None
 
     def width(self):
-        """The cells it takes, as herdr's own: its widest choice and four more (the frame, two of air)."""
+        """The cells it takes, as herdr's own: its widest choice and four more (the frame, a cell of air each side)."""
         return max(MENU_WIDEST, max(width(choice) for choice in self.choices if choice is not None) + 4)
 
     def height(self):
         return len(self.choices) + 2
 
-    def at(self, y, x, cells, top, bottom):
-        """Where it goes for a click at Y, X between rows TOP and BOTTOM in a pane CELLS wide: its corner there where
-        it fits, else right above row Y, else moved in as far as it must; (y, x, its width)."""
-        wide, high = min(cells, self.width()), self.height()
+    def at(self, y, x, cells, top, bottom, inset=0):
+        """Where it goes for a click at Y, X between rows TOP and BOTTOM in a pane CELLS wide, INSET cells in from its
+        sides (a view's content's: screen.PAD in its own cells): its corner there where it fits, else right above row
+        Y, else moved in as far as it must; (y, x, its width)."""
+        wide, high = max(1, min(cells - 2 * inset, self.width())), self.height()
         if y + high > bottom:
             y = y - high if top <= y - high and y <= bottom else bottom - high
-        return max(top, y), max(0, min(x, cells - wide)), wide
+        return max(top, y), max(inset, min(x, cells - inset - wide)), wide
 
     def handle(self, key):
         if key.name in ("up", "down"):
@@ -387,9 +393,10 @@ class Menu:
                 canvas.put(y + i, x, "├" + "─" * (cells - 2) + "┤", frame)
                 continue
             style = (Style(fg="button_text", bg="button", bold=True) if i - 1 == self.index
-                     else Style(fg="text", bg="panel"))
-            canvas.put(y + i, x, "│", frame)
-            canvas.put(y + i, x + 1, truncate(choice, cells - 2).ljust(cells - 2), style)
+                     else Style(fg="text", bg="hover" if i - 1 == self.hover else "panel"))
+            canvas.put(y + i, x, "│", frame)                 # lit from frame to frame, a cell of air round its text
+            text = " " + truncate(choice, max(0, cells - 4))
+            canvas.put(y + i, x + 1, text.ljust(cells - 2), style)
             canvas.put(y + i, x + cells - 1, "│", frame)
             canvas.region(y + i, x + 1, x + cells - 1, f"menu:{i - 1}")
         canvas.put(y + len(self.choices) + 1, x, "└" + "─" * (cells - 2) + "┘", frame)

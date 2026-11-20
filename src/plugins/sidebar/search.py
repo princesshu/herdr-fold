@@ -20,6 +20,7 @@ MAX_LINE = 500
 TIMEOUT = 60                  # seconds a search's program may run: a repository's config can make git wait for good
 MOD_TIMEOUT = 25              # the same for the app mod's: the app's exec stops a program after 30 s
 QUICK = 10                    # seconds for git's look at a folder (whether it is a repository, its file list)
+FILES = 5000                  # files listed at most for a chat's Add context: its filter finds among these
 # how every program a search runs starts: with nothing to read and no terminal to open (a repository's config can
 # name /dev/stdin or /dev/tty for git to read, which would be the sidebar's own terminal and its keys)
 DETACHED = {"stdin": subprocess.DEVNULL, "start_new_session": True}
@@ -254,14 +255,20 @@ def strip_dot(parsed):
 def main(argv):
     """herdr-fold's Herdr app mod runs this on the space's machine: search.py ROOT QUERY, QUERY a JSON object (text,
     case, word, regex, place, limit), so no text is ever read as an option; JSON back: the hits, their count, the
-    error."""
+    error. QUERY {"files": true, "limit"}: the files a search would read (a chat's Add context), and their count."""
     global TIMEOUT
     try:
         asked = json.loads(argv[2]) if len(argv) == 3 else None
     except ValueError:
         asked = None
+    if isinstance(asked, dict) and asked.get("files") is True:
+        limit = asked.get("limit") if isinstance(asked.get("limit"), int) and asked["limit"] > 0 else FILES
+        listed = list(walk(argv[1], shutil.which("git")))
+        print(json.dumps({"files": listed[:limit], "total": len(listed)}))
+        return 0
     if not isinstance(asked, dict) or not isinstance(asked.get("text"), str) or not asked["text"]:
-        print("usage: search.py ROOT QUERY (a JSON object: text, case, word, regex, place, limit)", file=sys.stderr)
+        print("usage: search.py ROOT QUERY (a JSON object: text, case, word, regex, place, limit; or files, limit)",
+              file=sys.stderr)
         return 2
     TIMEOUT = min(TIMEOUT, MOD_TIMEOUT)
     query = Query(asked["text"], *(bool(asked.get(name)) for name in ("case", "word", "regex")))

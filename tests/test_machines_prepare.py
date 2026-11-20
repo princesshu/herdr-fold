@@ -1,7 +1,8 @@
 """Tests for machines.sh prepare (fake ssh, a profile path with a space): a machine gets exactly its kind's files, keeps
-its own, its AI conversations and profile bytes, joins the Herdr app's core too (`remove`: only what herdr-fold added).
+its own, its AI chats and profile bytes, joins the Herdr app's core too (`remove`: only what herdr-fold added).
 Windows needs pwsh (PATH or PWSH); its profiles report as blocked (pwsh on macOS would write the real ~/Documents)."""
 import glob
+import hashlib
 import json
 import os
 import shutil
@@ -15,6 +16,9 @@ from support import (FAILING_SCP, FAKE_PYTHON, FAKE_SSH, FORGET_PLUGIN, PACKAGE,
 
 
 THEIRS = {"type": "command", "command": "printf 'root@server:/srv/app'"}
+LATER = {"type": "command", "command": "printf 'a later one of theirs'"}
+HERDRLIB = ".config/herdr-fold/herdrlib.py"                    # a file every kind of machine gets, and one it drops
+SESSIONS = ".config/herdr-fold/plugins/sessions-view/sessions.py"
 # herdr on the Mac and on the machine: records its calls; knows the machine only when a test says so (STUB_MACHINE_ID);
 # lists the plugins in $HOME/herdr-plugins.json, nothing it can be read from without it
 FAKE_HERDR = """#!/bin/sh
@@ -97,8 +101,9 @@ class Prepared(Prepare):
         self.assertIn("statusline.py", settings["statusLine"]["command"], out)
         self.assertEqual(settings["statusLine"]["refreshInterval"], 10, out)  # drawn again for a narrower pane too
         self.assertEqual(settings["model"], "opus")                         # the rest of the settings stay
-        saved = glob.glob(os.path.join(self.profile, ".local/state/herdr-fold", "*", "claude-statusLine.json"))
-        self.assertEqual(len(saved), 1, out)
+        # with the machine's own files, never pruned
+        saved = glob.glob(self.state("*", "claude-statusLine.json"))
+        self.assertEqual(saved, [self.state("prepared-original", "claude-statusLine.json")], out)
         with open(saved[0], encoding="utf-8-sig") as f:
             self.assertEqual(json.load(f), THEIRS)
 
@@ -170,8 +175,9 @@ class Prepared(Prepare):
         for path in (os.path.join(sidebar, "settings.json"), os.path.join(sidebar, "resume-0f1e2d3c4b5a.json"),
                      os.path.join(sidebar, ".panels.json.k3j9x2.tmp"), os.path.join(sidebar, "seed-w1-t3.json"),
                      os.path.join(sidebar, "preview-w1.json"), os.path.join(sidebar, "issues-0123456789abcdef.json"),
-                     os.path.join(sidebar, "column.json"), os.path.join(sidebar, "conversations.json"),
-                     os.path.join(sidebar, "conversation-index.json"), os.path.join(sidebar, "panels.json"),
+                     os.path.join(sidebar, "column.json"), os.path.join(sidebar, "chats.json"),
+                     os.path.join(sidebar, "chat-index.json"), os.path.join(sidebar, "panels.json"),
+                     os.path.join(sidebar, "conversations.json"), os.path.join(sidebar, "conversation-index.json"),
                      os.path.join(sidebar, "dock.json"), os.path.join(sidebar, "settings.json.lock"),
                      os.path.join(sidebar, "dock.json.lock"), herdrs):
             os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -198,7 +204,7 @@ class Prepared(Prepare):
                 for name, text in (("spaces.json", '{"w1": {"label": "app"}}\n'), ("focus.json", '{"now": "w1"}\n')):
                     with open(os.path.join(state, plugin_id, name), "w") as f:
                         f.write(text)
-        # AI Sessions' waits and locks (no conversation names: they would stay)
+        # AI Sessions' waits and locks (no chat names: they would stay)
         for name in ("waits.json", "waits.json.lock", "clock.lock", "names.json.lock"):
             with open(os.path.join(state, "herdr-fold.sessions-view", name), "w") as f:
                 f.write("{}\n" if name.endswith(".json") else "")
@@ -207,7 +213,7 @@ class Prepared(Prepare):
         calls = self.herdr_calls()
         self.assertEqual([plugin_id for plugin_id in ids if f"herdr plugin unlink {plugin_id}" not in calls], [], out)
 
-    def test_removing_the_machine_keeps_the_conversation_names_and_says_where(self):
+    def test_removing_the_machine_keeps_the_chat_names_and_says_where(self):
         self.prepare()
         names = os.path.join(self.profile, ".local", "state", "herdr", "plugins", "herdr-fold.sessions-view",
                              "names.json")
@@ -268,7 +274,7 @@ class Prepared(Prepare):
             f.writelines(rows)
         out = self.prepare()
         self.assertFalse(os.path.exists(os.path.join(self.profile, dropped)), out)
-        self.assertTrue(glob.glob(os.path.join(self.profile, ".local/state/herdr-fold", "*", dropped)), out)
+        self.assertEqual(glob.glob(self.state("*", dropped)), [], out)       # the package's own: no copy is kept
         self.assertTrue(os.path.isfile(own))
         self.assertNotIn(dropped, self.record())
 
@@ -284,7 +290,7 @@ class Prepared(Prepare):
                          out)
         self.assertTrue(os.path.isdir(os.path.join(self.profile, ".config", "herdr-fold", "plugins", "sessions-view")))
 
-    def test_ai_conversations_are_never_removed(self):
+    def test_ai_chats_are_never_removed(self):
         self.prepare()
         sessions = [".claude/projects/-srv-app/s1.jsonl", ".codex/sessions/2026/10/22/rollout-1.jsonl"]
         for rel in sessions:
@@ -296,6 +302,149 @@ class Prepared(Prepare):
         out = self.prepare()
         for rel in sessions:
             self.assertTrue(os.path.isfile(os.path.join(self.profile, rel)), out)
+
+    # What a machine keeps of its files (the installer's rules, tests/test_install.py): its own before the first prepare
+    # in prepared-original, a prepared file changed there in prepared-changed-<date>, both never pruned; no copy of
+    # herdr-fold's own files, which the package has.
+    def state(self, *parts):
+        return os.path.join(self.profile, ".local", "state", "herdr-fold", *parts)
+
+    def dated(self):
+        """The dated folders an earlier version kept copies in (prepared-<date>): none stays."""
+        return sorted(d for d in os.listdir(self.state()) if d.startswith("prepared-") and d[9:10].isdigit())
+
+    def changed_copies(self, rel):
+        return glob.glob(os.path.join(self.state(), "prepared-changed-*", rel))
+
+    def said_kept(self, out, name):
+        """The lines of OUT that say a file named NAME, changed on the machine, was kept."""
+        said = catalog_text(f"prepare.{'unix' if self.kind == 'unix' else 'win'}.changed_kept", "\0", "\0")
+        return [line for line in out.splitlines() if name in line and said.split("\0")[1].strip() in line]
+
+    def append(self, path, text):
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(text)
+
+    def drop_from_list(self, part):
+        """remote/files.txt without its rows naming PART: a newer package that no longer has those files."""
+        path = os.path.join(self.package, "remote", "files.txt")
+        with open(path, encoding="utf-8") as f:
+            rows = [row for row in f if part not in row]
+        with open(path, "w", encoding="utf-8") as f:
+            f.writelines(rows)
+
+    def test_what_each_prepared_file_holds_is_recorded(self):
+        out = self.prepare()
+        recorded = {}
+        with open(self.state("prepared.sha256"), encoding="utf-8-sig") as f:
+            for line in f:
+                if line.strip():
+                    sha256, rel = line.rstrip("\r\n").split("  ", 1)
+                    recorded[rel] = sha256
+        self.assertEqual(set(self.listed()) - set(recorded), set(), out)
+        for rel, sha256 in recorded.items():
+            with open(os.path.join(self.profile, rel), "rb") as f:
+                self.assertEqual(sha256.lower(), hashlib.sha256(f.read()).hexdigest(), rel)
+
+    def test_an_update_keeps_no_copy_of_the_packages_own_files(self):
+        # the package has them: an earlier version's file replaced is no one's own work
+        self.prepare()
+        self.append(os.path.join(self.package, "src", "herdrlib.py"), "# a newer version\n")
+        out = self.prepare()
+        with open(os.path.join(self.profile, HERDRLIB), encoding="utf-8") as f:
+            self.assertTrue(f.read().endswith("# a newer version\n"), out)
+        self.assertEqual(self.dated(), [], out)
+        self.assertEqual(glob.glob(self.state("prepared-changed-*")), [], out)
+
+    def test_an_earlier_versions_dated_copies_go(self):
+        for stamp in ("20260101-000000", "20260501-000000"):
+            os.makedirs(self.state(f"prepared-{stamp}", ".config", "herdr-fold"))
+            self.append(self.state(f"prepared-{stamp}", HERDRLIB), "# an earlier version\n")
+        mine = self.state("prepared-changed-20260101-000000", HERDRLIB)
+        os.makedirs(os.path.dirname(mine))
+        self.append(mine, "# mine\n")
+        out = self.prepare()
+        self.assertEqual(self.dated(), [], out)
+        with open(mine, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "# mine\n", out)
+
+    def test_a_file_you_changed_since_it_was_prepared_is_never_pruned(self):
+        # one the next prepare replaces and one it drops, each changed on the machine: kept once, and said
+        self.prepare()
+        for rel in (HERDRLIB, SESSIONS):
+            self.append(os.path.join(self.profile, rel), "# my own line\n")
+        self.drop_from_list("sessions-view/sessions.py")
+        out = self.prepare()
+        for name in ("herdrlib.py", "sessions.py"):
+            self.assertTrue(self.said_kept(out, name), (name, out))
+        for _ in range(2):
+            self.prepare()
+        self.assertFalse(os.path.exists(os.path.join(self.profile, SESSIONS)))
+        for rel in (HERDRLIB, SESSIONS):
+            kept = self.changed_copies(rel)
+            self.assertEqual(len(kept), 1, (rel, kept))
+            with open(kept[0], encoding="utf-8") as f:
+                self.assertTrue(f.read().endswith("# my own line\n"), rel)
+
+    def test_a_file_with_nothing_recorded_of_it_is_never_pruned(self):
+        # without the sum the prepare recorded, the package's earlier version cannot be told from one changed there
+        self.prepare()
+        os.remove(self.state("prepared.sha256"))
+        self.append(os.path.join(self.package, "src", "herdrlib.py"), "# a newer version\n")
+        for _ in range(3):
+            self.prepare()
+        self.assertEqual(len(self.changed_copies(HERDRLIB)), 1)
+
+    def test_removing_the_machine_keeps_a_file_you_changed_there_and_nothing_else(self):
+        self.prepare()
+        self.append(os.path.join(self.profile, HERDRLIB), "# my own line\n")
+        out = self.remove()
+        self.assertFalse(os.path.exists(os.path.join(self.profile, HERDRLIB)), out)
+        kept = self.changed_copies(HERDRLIB)
+        self.assertEqual(len(kept), 1, out)
+        self.assertTrue(self.said_kept(out, "herdrlib.py"), out)
+        left = [os.path.join(base, name) for base, _, names in os.walk(self.state()) for name in names]
+        self.assertEqual(left, kept, out)
+
+    def test_the_machines_first_status_line_survives_a_second_one(self):
+        # the machine's own, saved first, is the one its removal gives back; one of theirs set later is kept beside it
+        self.prepare()
+        with open(os.path.join(self.profile, ".claude", "settings.json"), "w") as f:
+            json.dump({"statusLine": LATER, "model": "opus"}, f)
+        out = self.prepare()
+        with open(self.state("prepared-original", "claude-statusLine.json"), encoding="utf-8-sig") as f:
+            self.assertEqual(json.load(f), THEIRS, out)
+        self.assertEqual(len(glob.glob(self.state("prepared-original", "claude-statusLine-*.json"))), 1, out)
+        out = self.remove()
+        self.assertEqual(self.settings()["statusLine"], THEIRS, out)
+
+    def as_an_earlier_version_kept_it(self):
+        """The machine's own Claude status line where an earlier version saved it, in a dated folder, and a later one
+        of theirs in a later folder."""
+        saved = glob.glob(self.state("*", "claude-statusLine.json"))
+        self.assertEqual(len(saved), 1, saved)
+        os.remove(saved[0])
+        for stamp, status_line in (("20260101-000000", THEIRS), ("20260601-000000", LATER)):
+            os.makedirs(self.state(f"prepared-{stamp}"))
+            with open(self.state(f"prepared-{stamp}", "claude-statusLine.json"), "w") as f:
+                json.dump(status_line, f)
+
+    def test_an_earlier_versions_saved_status_line_moves_to_the_originals(self):
+        self.prepare()
+        self.as_an_earlier_version_kept_it()
+        out = self.prepare()
+        self.assertEqual(self.dated(), [], out)
+        with open(self.state("prepared-original", "claude-statusLine.json"), encoding="utf-8-sig") as f:
+            self.assertEqual(json.load(f), THEIRS, out)
+        out = self.remove()
+        self.assertEqual(self.settings()["statusLine"], THEIRS, out)
+
+    def test_removing_a_machine_an_earlier_version_prepared_gives_its_status_line_back(self):
+        self.prepare()
+        self.as_an_earlier_version_kept_it()
+        out = self.remove()
+        self.assertEqual(self.settings()["statusLine"], THEIRS, out)
+        self.assertFalse(os.path.exists(self.state()), out)                 # its dated folders gone too
 
 
 class UnixPrepare(Prepared, unittest.TestCase):

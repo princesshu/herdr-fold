@@ -27,6 +27,7 @@ TITLE = "herdr-fold"            # the mod.json title that marks a mods/herdr-fol
 TERMINALS = "fold-terminals"    # the layout's stack of the tabs' terminals the mod started (app/mods/herdr-fold)
 SHARED = "shared.json"          # the app's shared values, the mod's named herdr-fold.*; a running app holds them all
 PREFIX = "herdr-fold."
+RENAMED = {"herdr-fold.conversations": "herdr-fold.chats"}     # an older mod's names: what they hold carries over
 RECORD = "app-keys.json"        # in the installer's state folder: what the last install put in keys.json
 THEMES_RECORD = "app-themes.json"    # and the themes it put in the app's themes/
 CLOSING = 10                    # seconds a running app may take to close
@@ -158,8 +159,8 @@ def write_json(path, data):
 
 
 def tidy(home, keep=None):
-    """herdr-fold's shared values in HOME gone but those in KEEP. Never with the app running: it holds them all and
-    writes them back."""
+    """herdr-fold's shared values in HOME gone but those in KEEP, one under an older name (RENAMED) under its new one
+    first where that is not there. Never with the app running: it holds them all and writes them back."""
     path = os.path.join(home, SHARED)
     try:
         with open(path, encoding="utf-8") as f:
@@ -168,51 +169,26 @@ def tidy(home, keep=None):
         return
     if not isinstance(shared, dict):
         return
-    tidied = {key: value for key, value in shared.items() if not key.startswith(PREFIX) or key in (keep or ())}
+    moved = {RENAMED.get(key, key): value for key, value in shared.items() if RENAMED.get(key, key) not in shared
+             or key not in RENAMED}
+    tidied = {key: value for key, value in moved.items() if not key.startswith(PREFIX) or key in (keep or ())}
     if tidied != shared:
         write_json(path, tidied)
 
 
-def card_pad(app):
-    """logic.js's PAD in APP (the app's home, or the package's app/): a card's inside on every side, which a folded
-    group keeps under its head; None without it."""
-    try:
-        with open(os.path.join(app, MOD, "logic.js"), encoding="utf-8") as f:
-            found = re.search(r"^export const PAD = (\d+);", f.read(), re.M)
-    except OSError:
-        return None
-    return int(found.group(1)) if found else None
-
-
-def folded_groups(layout, pad):
-    """LAYOUT's groups, each (its column's id, its stack's id, its height folded: its head, PAD under it, its frame,
-    as logic.js's FOLDED_GROUP)."""
-    for node in nodes(layout):
-        kids = node.get("children") or []
-        if len(kids) == 2 and ((kids[0].get("content") or {}).get("props") or {}).get("part") == "group-head":
-            edge = (node.get("border") or {}).get("width", 0)
-            yield node.get("id"), kids[1].get("id"), kids[0]["size"]["px"] + pad + 2 * edge
-
-
-def prune_state(state, layout, pad=None):
-    """STATE (the app's of a layout: its clicks by node) without the nodes LAYOUT no longer has, so a node by a new
-    id opens as the layout says; with PAD, a group saved folded at another height at this one's; anything else as it
-    was."""
+def prune_state(state, layout):
+    """STATE (the app's of a layout: its clicks by node) without the nodes LAYOUT no longer has (an older dock's groups
+    and its row's own block among them), so a node by a new id opens as the layout says; anything else as it was."""
     if not isinstance(state, dict) or not isinstance(state.get("nodes"), dict):
         return state
     ids = {node.get("id") for node in nodes(layout) if isinstance(node, dict)}
     kept = {key: value for key, value in state["nodes"].items() if key in ids}
-    for group, stack, folded in folded_groups(layout, pad) if pad is not None else ():
-        saved = kept.get(group)
-        if (kept.get(stack) or {}).get("hidden") is True and isinstance((saved or {}).get("size"), dict) \
-                and "px" in saved["size"]:
-            kept[group] = {**saved, "size": {"px": folded}}
     return {**state, "nodes": kept}
 
 
 def prune(home):
-    """The app's state of herdr-fold's layout in HOME pruned to the layout there, a group saved folded at the height the
-    mod there folds it to. Never with the app running: it holds the state and writes it back."""
+    """The app's state of herdr-fold's layout in HOME pruned to the layout there, the panel's width kept. Never with
+    the app running: it holds the state and writes it back."""
     path = os.path.join(home, LAYOUT_STATE)
     try:
         with open(path, encoding="utf-8") as f:
@@ -221,7 +197,7 @@ def prune(home):
             layout = json.load(f)
     except (OSError, ValueError):
         return
-    pruned = prune_state(state, layout, card_pad(home))
+    pruned = prune_state(state, layout)
     if pruned != state:
         write_json(path, pruned)
 

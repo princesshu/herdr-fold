@@ -1,6 +1,6 @@
 """Tests for uninstall.sh after a full install, in a temporary HOME with a space in it (herdr, brew, gh are stubs):
 installed files and herdr-fold's settings go (a changed file is set aside), the machine's own files and Claude's
-earlier status line come back; the conversations, herdr's data and the Homebrew programs stay."""
+earlier status line come back; the chats, herdr's data and the Homebrew programs stay."""
 import json
 import os
 import re
@@ -23,7 +23,7 @@ case "$*" in
 esac
 exit 0
 """
-CONVERSATIONS = [".claude/projects/-Users-dev-app/s1.jsonl", ".codex/sessions/2026/10/22/rollout-1.jsonl",
+CHATS = [".claude/projects/-Users-dev-app/s1.jsonl", ".codex/sessions/2026/10/22/rollout-1.jsonl",
                  ".local/state/herdr/plugins/herdr-fold.sessions-view/names.json"]
 THEIRS = {"type": "command", "command": "printf mine"}
 THEIR_CONFIG = '# mine\n[keys]\nnext_agent = ["ctrl+n"]\n'
@@ -50,7 +50,7 @@ class Uninstall(PackageHome, unittest.TestCase):
         self.write(".zshrc", "# own\n")
         self.write(".config/starship.toml", "# own prompt\n")
         self.write(".claude/settings.json", json.dumps({"statusLine": THEIRS, "model": "opus"}))
-        for rel in CONVERSATIONS + [".config/herdr/herdr.sock"]:
+        for rel in CHATS + [".config/herdr/herdr.sock"]:
             self.write(rel, "{}\n")
 
     def set_integrations(self, text):
@@ -113,7 +113,7 @@ class Uninstall(PackageHome, unittest.TestCase):
         self.install_and_uninstall(run_python_there)
         self.assertFalse(os.path.exists(self.path(".config/herdr-fold")))
 
-    def test_a_conversation_on_the_record_stays(self):
+    def test_a_chat_on_the_record_stays(self):
         def record_one():
             self.write(".claude/history.jsonl", "{}\n")
             with open(self.path(".local/state/herdr-fold/installed.txt"), "a") as f:
@@ -195,7 +195,7 @@ class Uninstall(PackageHome, unittest.TestCase):
     def plugin_folders(self, ids, follows="herdr-fold.workspaces"):
         """What herdr keeps of plugins IDS after unlinking them: their config folders; the state folder of FOLLOWS
         (Workspaces, or an earlier install's Tab Layout), with the workspaces it follows (a write cut short too); and
-        AI Sessions' conversation names, beside its waits and locks. Returns the folders that ought to go."""
+        AI Sessions' chat names, beside its waits and locks. Returns the folders that ought to go."""
         for plugin_id in ids:
             os.makedirs(self.path(".config/herdr/plugins/config/" + plugin_id), exist_ok=True)
         self.write(f".local/state/herdr/plugins/{follows}/spaces.json", '{"w1": {"label": "app"}}\n')
@@ -291,11 +291,14 @@ class Uninstall(PackageHome, unittest.TestCase):
             self.write(f"{folder}/issues-0123456789abcdef.json", "{}\n")             # a repository's issues
             self.write(f"{folder}/column.json", '{"ratio": 0.6}\n')                    # the column's width
             self.write(f"{folder}/dock.json", '{}\n')                                # each folder's groups
-            self.write(f"{folder}/conversations.json", '{"collapsed": true}\n')       # the Conversations choice
-            self.write(f"{folder}/conversation-index.json", "{}\n")                   # what it read of the files
+            self.write(f"{folder}/chats.json", '{"archived": []}\n')                 # the archived chats
+            self.write(f"{folder}/chat-index.json", "{}\n")                           # what it read of the files
+            # their older names: an install that never ran this version
+            self.write(f"{folder}/conversations.json", '{"archived": []}\n')
+            self.write(f"{folder}/conversation-index.json", "{}\n")
             self.write(f"{folder}/panels.json", '{"w1:t1": ["sidebar"]}\n')           # what each tab has had
             self.write(f"{folder}/.panels.json.k3j9x2.tmp", "{")                       # a write cut short
-            for name in ("settings", "dock", "conversations", "column", "panels"):   # each one's lock
+            for name in ("settings", "dock", "chats", "conversations", "column", "panels"):   # each one's lock
                 self.write(f"{folder}/{name}.json.lock", "")
         _, out = self.install_and_uninstall(between=used)
         self.assertFalse(os.path.exists(self.path(folder)), out)
@@ -313,6 +316,22 @@ class Uninstall(PackageHome, unittest.TestCase):
 
     def test_the_update_checks_file_and_its_lock_go(self):
         files = (".local/state/herdr-fold/update.json", ".local/state/herdr-fold/update.json.lock")
+        _, out = self.install_and_uninstall(between=lambda: [self.write(path, "{}\n") for path in files])
+        self.assertEqual([path for path in files if os.path.exists(self.path(path))], [], out)
+
+    def test_the_usage_limits_go(self):
+        # the status lines' readings (core/usage.py), and one cut short
+        files = (".local/state/herdr-fold/limits/claude.json", ".local/state/herdr-fold/limits/.claude.json.a1.tmp")
+        _, out = self.install_and_uninstall(between=lambda: [self.write(path, "{}\n") for path in files])
+        self.assertFalse(os.path.exists(self.path(".local/state/herdr-fold/limits")), out)
+
+    def test_usages_token_counts_and_prices_go(self):
+        # core/tokens.py's index, core/prices.py's table, core/commits.py's index and core/report.py's budgets, each
+        # with its lock and a write cut short
+        state = ".local/state/herdr-fold"
+        files = tuple(f"{state}/{name}" for kept in ("usage-index.json", "prices.json", "commits-index.json",
+                                                     "usage.json")
+                      for name in (kept, f"{kept}.lock", f".{kept}.a1.tmp"))
         _, out = self.install_and_uninstall(between=lambda: [self.write(path, "{}\n") for path in files])
         self.assertEqual([path for path in files if os.path.exists(self.path(path))], [], out)
 
@@ -366,7 +385,7 @@ class Uninstall(PackageHome, unittest.TestCase):
         self.assertNotIn("known_hosts", out)
         self.assertNotIn("machines.sh remove", out)                    # no machine on the list, no line about them
 
-    def test_conversations_herdrs_own_data_and_the_programs_stay(self):
+    def test_chats_herdrs_own_data_and_the_programs_stay(self):
         with open(os.path.join(PACKAGE, "Brewfile")) as f:                         # Homebrew has every program
             brewfile = f.read()
         listed = {kind: "\\n".join(re.findall(rf'^{kind} "([^"]+)"', brewfile, re.M)) for kind in ("brew", "cask")}
@@ -374,7 +393,7 @@ class Uninstall(PackageHome, unittest.TestCase):
               {"brew": f'#!/bin/sh\ncase "$*" in\n  "list --formula -1") printf "{listed["brew"]}\\n" ;;\n'
                        f'  "list --cask -1") printf "{listed["cask"]}\\n" ;;\nesac\n'})
         _, out = self.install_and_uninstall()
-        for rel in CONVERSATIONS + [".config/herdr/herdr.sock"]:
+        for rel in CHATS + [".config/herdr/herdr.sock"]:
             self.assertTrue(os.path.isfile(self.path(rel)), rel)
         self.assertIn("brew uninstall", out)
 
@@ -387,8 +406,7 @@ class Uninstall(PackageHome, unittest.TestCase):
                        '  "list --cask -1") printf "ghostty\\nfont-jetbrains-mono-nerd-font\\nfirefox\\n" ;;\n'
                        'esac\nexit 0\n'})
         _, out = self.install_and_uninstall()
-        hint = ("brew uninstall starship gh bat git-delta ripgrep && "
-                "brew uninstall --cask ghostty font-jetbrains-mono-nerd-font")
+        hint = "brew uninstall starship gh bat git-delta ripgrep && brew uninstall --cask ghostty"   # no font
         self.assertIn(catalog_text("uninstall.brew", hint), out)
         with open(log) as f:
             self.assertEqual(len([call for call in f.read().splitlines() if call.startswith("list")]), 2)  # not 8

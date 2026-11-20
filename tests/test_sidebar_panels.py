@@ -45,9 +45,9 @@ class Record(unittest.TestCase):
         self.assertEqual(panels.closed(self.state, "w1:t1", {"sidebar"}), {"terminal"})
 
     def test_a_kind_an_older_version_kept_is_not_taken(self):
-        # the Conversations column, before it was a panel of the sidebar: never brought back, gone on the next note
+        # the Chats column, before it was a panel of the sidebar: never brought back, gone on the next note
         with open(os.path.join(self.state, panels.FILE), "w") as f:
-            json.dump({"w1:t1": ["conversations", "sidebar"]}, f)
+            json.dump({"w1:t1": ["chats", "sidebar"]}, f)
         self.assertEqual(panels.had(self.state, "w1:t1"), {"sidebar"})
         panels.note(self.state, {"w1:t2": {"terminal"}})
         with open(os.path.join(self.state, panels.FILE)) as f:
@@ -76,7 +76,7 @@ class Menu(unittest.TestCase):
         self.assertEqual(panels.menu({"sidebar"}), ["Show terminal", "Restore panels"])
         self.assertEqual(panels.chosen("Close terminal", every), ("close", "terminal"))
         self.assertEqual(panels.chosen("Restore panels", {"sidebar"}), ("show", {"terminal"}))
-        self.assertIsNone(panels.chosen("Copy conversation", every))
+        self.assertIsNone(panels.chosen("Copy chat", every))
 
     def test_a_pane_closes_as_by_hand(self):
         herdr = Herdr()

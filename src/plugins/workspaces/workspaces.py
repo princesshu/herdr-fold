@@ -1,6 +1,10 @@
 """New tab: a workspace from herdr's "new" button gets the folder picker (new_workspace.py), unless a git worktree's;
 any other new tab is left alone (its column is the dock's). On a pane's focus: the workspace in front noted, one whose
 folder is gone said deleted, one holding a repository shown its branch, one named after its folder renamed with it."""
+# On a workspace's close and a pane's focus the home folder's workspace is made again when none is left, and whenever
+# the list of workspaces changes it is moved first when it is not (put_home). A workspace herdr ended with its last
+# tab is made again in its place; one closed on purpose stays closed (spaces_changed)
+import contextlib
 import importlib.util
 import json
 import os
@@ -14,7 +18,7 @@ import time
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.normpath(os.path.join(HERE, "..", "..")))
-from herdrlib import free_label, herdr, space_labels  # noqa: E402
+from herdrlib import HOME_SPACE, free_label, herdr, request, space_labels  # noqa: E402
 
 # its own copy of core/git.py (tools/build.py's), by its path: herdrlib's sidebar modules bring the sidebar's as git
 SPEC = importlib.util.spec_from_file_location("workspaces_git", os.path.join(HERE, "git.py"))
@@ -28,6 +32,17 @@ PLACEHOLDER = "new"
 # the workspace in front and the one before it (Esc in the folder picker goes back there), with the repository each
 # workspace's pane was last in and each repository's branch as last read
 SPACES, FOCUS = "spaces.json", "focus.json"
+# and CLOSED: each workspace's folder (herdr's close names none); what herdr said of each one that just closed, "tab"
+# when its tab's close came too; the ones made again (no folder picker for them)
+CLOSED = "closed.json"
+# herdr's events of the list of workspaces: after each the home folder's is looked for and put first (put_home)
+LISTED = ("workspace.closed", "workspace.created", "workspace.moved", "workspace.reordered")
+# herdr ends a workspace with its last tab: workspace.closed with the workspace, and LAST_TAB for the same workspace
+# (0.9.5; from its tab menu and key after "Close workspace?", from `herdr tab close` unasked). A workspace closed on
+# purpose sends workspace.closed alone, one whose last pane moved away both, the first without the workspace
+LAST_TAB = "tab.closed"
+# the two events come together: what one left is the other's for RECENT seconds
+RECENT = 60
 # git gets GIT_WAIT seconds for a repository's branch (on each pane's focus); herdr keeps a token's first VALUE
 # characters
 GIT_WAIT, VALUE = 2, 80
@@ -80,7 +95,7 @@ def folders_of(panes):
 
 def renamed_from(label, places, held):
     """The folder among PLACES that was named LABEL before it was followed: a folder of that name beside it is gone,
-    and it HELD conversations."""
+    and it HELD chats."""
     if not label or os.sep in label:
         return None
     return next((up for up in places if os.path.dirname(up) != up
@@ -91,7 +106,7 @@ def renamed_from(label, places, held):
 def follow_folders(workspaces, panes, known, home=None, held=lambda path: False):
     """The renames (workspace, old name, new name) for each workspace whose folder was renamed (its panes' folders went
     with it), and what is known after them. Followed: a workspace named as its folder, or as a folder beside it that is
-    gone and HELD conversations (renamed before); a name given by hand ends it."""
+    gone and HELD chats (renamed before); a name given by hand ends it."""
     labels = {w["workspace_id"]: w.get("label") or "" for w in workspaces}
     cwds = folders_of(panes)
     renames, now = [], {}
@@ -127,8 +142,8 @@ def gone(panes):
     return {ws for ws, mine in folders_of(panes).items() if not any(os.path.isdir(cwd) for cwd in mine)}
 
 
-def held_conversations(path, home):
-    """Whether Claude kept conversations for folder PATH: under ~/.claude/projects, the path with every character but
+def held_chats(path, home):
+    """Whether Claude kept chats for folder PATH: under ~/.claude/projects, the path with every character but
     letters and digits as -."""
     return os.path.isdir(os.path.join(home, ".claude", "projects", re.sub(r"[^A-Za-z0-9]", "-", path)))
 
@@ -171,6 +186,152 @@ def repo_rows(workspaces, panes, kept, home):
     return rows, {"repos": repos, "branches": branches}
 
 
+def same_folder(one, other):
+    return bool(one and other) and os.path.realpath(one) == os.path.realpath(other)
+
+
+def first_folders(panes):
+    """Each workspace's folder as herdr has it: its first pane's."""
+    first = {}
+    for pane in panes:
+        first.setdefault(pane.get("workspace_id"), pane.get("cwd"))
+    return first
+
+
+def home_space(workspaces, panes, home):
+    """The home folder's workspace: the one named HOME_SPACE (or ~, herdr's own name for it), else the first whose
+    first pane (herdr's folder for a workspace) is in HOME; None when there is none."""
+    first = first_folders(panes)
+    named = [w for w in workspaces if w.get("label") in (HOME_SPACE, "~")]
+    there = [w for w in workspaces if same_folder(first.get(w["workspace_id"]), home)]
+    return next(iter(named + there), None)
+
+
+def home_kept(workspaces, panes, home):
+    """Whether the home folder's workspace is there and the first one."""
+    found = home_space(workspaces, panes, home)
+    return found is not None and found is workspaces[0]
+
+
+@contextlib.contextmanager
+def locked():
+    """One at a time: herdr's events of one close come together, each in a process of its own."""
+    import fcntl                                        # Unix only, as the events that come here
+    state, _ = load(FOCUS)
+    os.makedirs(state, exist_ok=True)
+    with open(os.path.join(state, "home.lock"), "w", encoding="utf-8") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+def put_home(workspaces, panes, home):
+    """The home folder's workspace made again when none is left: named HOME_SPACE as its main tab, behind the one in
+    front, a shell in it (the sidebar's new-tab hook gives it the right column); and moved first when it is not, the
+    one in front staying there. Its id (None when it could not be made)."""
+    # herdr's event of the move comes here again and finds it first, so it ends there
+    found = (home_space(workspaces, panes, home) or {}).get("workspace_id")
+    if home_kept(workspaces, panes, home):
+        return found
+    if not found:
+        made = herdr("workspace", "create", "--cwd", home, "--label", HOME_SPACE, "--no-focus", check=False)
+        tab = (made.get("tab") or {}).get("tab_id")
+        if tab:
+            herdr("tab", "rename", tab, HOME_SPACE, check=False)
+            found = tab.split(":")[0]
+    if found and workspaces:                            # herdr's socket API (no command moves one); alone it is first
+        request("workspace.move", {"workspace_id": found, "insert_index": 0})
+    return found
+
+
+def panes_listed():
+    return herdr("pane", "list", check=False).get("panes") or []
+
+
+def note_spaces(kept, workspaces, panes, name=None, data=None):
+    """KEPT (CLOSED's) after herdr's event NAME with DATA: each listed workspace's folder; a workspace no longer
+    listed keeps its folder in its note, with what herdr said as it closed (its name, its place, in front or not) and
+    "tab" once its tab's close came; notes and made ones older than RECENT seconds dropped."""
+    folders, closed, made = (kept.setdefault(key, {}) for key in ("folders", "closed", "made"))
+    now, listed = time.time(), {space["workspace_id"] for space in workspaces}
+    for ws, folder in first_folders(panes).items():
+        if ws in listed and folder:
+            folders[ws] = folder
+    for ws in [ws for ws in folders if ws not in listed]:
+        closed.setdefault(ws, {"at": now})["folder"] = folders.pop(ws)
+    for group in (closed, made):
+        for ws in [ws for ws, seen in group.items() if now - seen["at"] > RECENT]:
+            del group[ws]
+    ws, space = (data or {}).get("workspace_id"), (data or {}).get("workspace")
+    if not ws or ws in listed:                          # a tab closed beside another one
+        return
+    if name == LAST_TAB:
+        closed.setdefault(ws, {"at": now})["tab"] = True
+    elif name == "workspace.closed" and space and space.get("label"):
+        closed.setdefault(ws, {"at": now}).update(label=space["label"], index=(space.get("number") or 1) - 1,
+                                                  front=bool(space.get("focused")))
+
+
+def make_again(note, count, home_id):
+    """The workspace herdr ended with its last tab made again as NOTE has it, among COUNT others: its name (its main
+    tab's too), its folder, its place in the list, in front when it was. Home's is put_home's (HOME_ID); one whose
+    folder is gone stays closed. The id of the one made, None for none."""
+    # a shell in it: the sidebar's new-tab hook gives it the right column; herdr went to a neighbour meanwhile
+    made = None
+    if note["label"] in (HOME_SPACE, "~"):
+        ws = home_id
+    elif not os.path.isdir(note["folder"]):
+        return None
+    else:
+        tab = (herdr("workspace", "create", "--cwd", note["folder"], "--label", note["label"], "--no-focus",
+                     check=False).get("tab") or {}).get("tab_id")
+        if not tab:
+            return None
+        herdr("tab", "rename", tab, note["label"], check=False)
+        ws = made = tab.split(":")[0]
+        if note["index"] < count:                       # made last: the last one closed is in its place already
+            request("workspace.move", {"workspace_id": ws, "insert_index": note["index"]})
+    if ws and note["front"]:
+        herdr("workspace", "focus", ws, check=False)
+    return made
+
+
+def spaces_changed(name=None, data=None, home=None):
+    """After herdr's event NAME (with DATA) of the list of workspaces or of a tab's close: home kept (put_home), and
+    the workspace herdr ended with its last tab made again, once both of herdr's events of it came (in any order)."""
+    # herdr's events of the one made come here again and find no note of it, so it ends there
+    home = home or os.path.expanduser("~")
+    with locked():
+        workspaces = herdr("workspace", "list", check=False).get("workspaces")
+        if workspaces is None:                          # herdr not answering (stopping): nothing made
+            return
+        panes = panes_listed()
+        state, kept = load(CLOSED)
+        before = json.dumps(kept, sort_keys=True)
+        note_spaces(kept, workspaces, panes, name, data)
+        home_id = put_home(workspaces, panes, home)
+        ws = (data or {}).get("workspace_id")
+        note = kept["closed"].get(ws) or {}
+        if all(key in note for key in ("folder", "label", "tab")):
+            del kept["closed"][ws]
+            made = make_again(note, len(workspaces), home_id)
+            if made:
+                kept["made"][made] = {"at": time.time()}
+        if json.dumps(kept, sort_keys=True) != before:
+            save(state, CLOSED, kept)
+
+
+def made_again(ws):
+    """Whether workspace WS is one spaces_changed made (read once it is done with it)."""
+    import fcntl
+    state, _ = load(CLOSED)
+    try:
+        with open(os.path.join(state, "home.lock"), encoding="utf-8") as lock:
+            fcntl.flock(lock, fcntl.LOCK_SH)
+            return ws in (load(CLOSED)[1].get("made") or {})
+    except OSError:                                     # nothing was ever made
+        return False
+
+
 def load(name):
     state = os.environ.get("HERDR_PLUGIN_STATE_DIR") or os.path.join(
         os.path.expanduser("~"), ".local", "state", "herdr", "plugins", "herdr-fold.workspaces")
@@ -208,8 +369,9 @@ def on_focus():
     front = next((w["workspace_id"] for w in workspaces if w.get("focused")), None)
     if front and focus.get("now") != front:
         kept.update(now=front, before=focus.get("now"))
-    panes = herdr("pane", "list", check=False).get("panes") or []
+    panes = panes_listed()
     home = os.path.expanduser("~")
+    spaces_changed(home=home)                           # home kept, each workspace's folder noted for its close
     rows, repos = repo_rows(workspaces, panes, focus, home)
     for key, value in repos.items():
         if value:
@@ -230,7 +392,7 @@ def on_focus():
             herdr("workspace", "report-metadata", space["workspace_id"], "--source", "herdr-fold.workspaces",
                   *(["--token", f"repo={row}"] if row else ["--clear-token", "repo"]), check=False)
     state, known = load(SPACES)
-    renames, now = follow_folders(workspaces, panes, known, home, lambda path: held_conversations(path, home))
+    renames, now = follow_folders(workspaces, panes, known, home, lambda path: held_chats(path, home))
     for ws, old, new in renames:
         herdr("workspace", "rename", ws, new, check=False)
         for tab in herdr("tab", "list", "--workspace", ws, check=False).get("tabs") or []:
@@ -245,12 +407,15 @@ def main():
         on_focus()
         return
     event = json.loads(os.environ.get("HERDR_PLUGIN_EVENT_JSON") or "{}")
+    if os.environ.get("HERDR_PLUGIN_EVENT") in LISTED + (LAST_TAB,):
+        spaces_changed(os.environ["HERDR_PLUGIN_EVENT"], event.get("data"))
+        return
     tab = ((event.get("data") or {}).get("tab") or {}).get("tab_id")
     if not tab or os.name == "nt":               # no folder picker on Windows (its key handling is Unix-only)
         return
     ws = tab.split(":")[0]
     time.sleep(0.3)                              # the "new" button brings it to the front after creating it
-    if not new_workspace(ws):
+    if made_again(ws) or not new_workspace(ws):
         return
     herdr("workspace", "rename", ws, PLACEHOLDER, check=False)        # a name it keeps does not stop the picker
     came = came_from(ws)

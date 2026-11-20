@@ -2,8 +2,8 @@
 // The preview tab, as the TUI sidebar's: one a space, showing what Files, Changes, the Graph or Issues opened in it (a
 // file, a picture, a PDF's pages, an SVG's or a page's code and picture, a diff, a commit, an issue), the panel beside.
 import { div, image } from "gpui-kit";
-import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, TextView, v_resizable, v_virtual_list }
-  from "gpui-base";
+import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, TextView, v_resizable, v_virtual_list,
+  VirtualListScrollHandle } from "gpui-base";
 import { home, panes, readTextFile, setShared, shared, spaces, window, run as command } from "herdr";
 import { GIT, GITHUB, MEDIA } from "./helper.js";
 import { browsable, changeSides, commitRows, diffRows, mediaKind, opener, previewName, previewTab, priorityColor,
@@ -93,6 +93,7 @@ export class Preview {
     this.menus = new Menus();                     // its right click's
     /** @type {string | null} why there is nothing to show */
     this.note = null;
+    this.scroll = VirtualListScrollHandle.new();   // a file's rows: shown from the line it was opened at
   }
 
   /** From render: the space's latest request, asked for once it is new (after the render, as that redraws). */
@@ -123,6 +124,7 @@ export class Preview {
           if (text === null) return void (this.note = "This file is no longer there");
           this.rows = text.replace(/\n$/, "").split("\n").slice(0, LINES)
             .map((line, i) => ({ kind: " ", number: i + 1, text: line }));
+          this.scroll.scroll_to_item(Math.max(0, Math.min((what.line ?? 1) - 1, this.rows.length - 1)), "top");
           this.drawing = ["svg", "html"].includes(mediaKind(what.path) ?? "") && !what.on;   // beside, for the board
           return;
         }
@@ -411,7 +413,7 @@ export class Preview {
         .child(div().flex_1().min_w(0).truncate().child(text));
     return div().flex_1().min_h(0).relative().font_family(code)
       .child(v_virtual_list("diff", this.rows.length, 22, (i) => String(i),
-        (range) => this.rows.slice(range.start, range.end).map(row)).size_full())
+        (range) => this.rows.slice(range.start, range.end).map(row)).track_scroll(this.scroll).size_full())
       .child(Scrollbar.vertical("diff").viewport_from_layout().absolute().inset_0());
   }
 

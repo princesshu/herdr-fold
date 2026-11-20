@@ -7,15 +7,17 @@ import commit_message
 import git
 import github
 import issue_work
+import panes
 import preview
 from family import Family
 from fileops import Ops
 from issues import Issues
 from scm import Scm
+from screen import SPIN, SPINNER
 
 STALE = 60.0                  # seconds: the issues shown or listed here asked for again (a new one shows up)
+TAB_NAME = 24                 # characters of a new agent's tab name (an issue's number and title), as a chat's
 BUSY = {"commit": "Committing…", "sync": "Syncing…", "pull": "Pulling…", "push": "Pushing…"}   # the first running shows
-SPINNER, SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏", 0.1     # ✦'s writing in the message field: a frame every SPIN seconds
 EMPTY = git.Status()
 
 
@@ -36,13 +38,19 @@ class Changes(Family):
         listing = self.views["issues"].listing            # asked on screen; behind it only while it lists any
         if self.host.github and (self.host.showing("issues") or listing and listing.issues):
             self.fresh_issues(STALE)
-        if "suggest" in self.host.running and now >= self.spun + SPIN:
+        if self.spinning() and now >= self.spun + SPIN:
             self.spun = now
             return True
         return False
 
     def deadlines(self):
-        return [self.spun + SPIN] if "suggest" in self.host.running else []
+        return [self.spun + SPIN] if self.spinning() else []
+
+    def spinning(self):
+        """Whether a spinner turns: ✦ writing the message, a commit or a sync running (the sync glyph's cell), or the
+        issues shown asked for again (Issues' header)."""
+        issues, running = self.views["issues"], self.host.running
+        return bool(running & {"suggest", *BUSY}) or bool(issues.asked and issues.list.items)
 
     def came(self, panel):
         if panel == "changes":
@@ -63,9 +71,10 @@ class Changes(Family):
 
     def drawing(self):
         scm = self.views["changes"]
-        scm.busy(next((text for kind, text in BUSY.items() if kind in self.host.running), None))
         frame = SPINNER[int(self.host.clock() / SPIN) % len(SPINNER)]
-        scm.writing = f"{frame} {self.writing}" if "suggest" in self.host.running else None
+        scm.busy(next((text for kind, text in BUSY.items() if kind in self.host.running), None), frame)
+        scm.writer = self.writing if "suggest" in self.host.running else None
+        scm.writing = f"{frame} {scm.writer}" if scm.writer else None
 
     def holds(self):
         return self.views["changes"].confirm, self.views["issues"].confirm
@@ -188,6 +197,10 @@ class Changes(Family):
 
         self.host.job("commit", work, then)
 
+    def do_fail(self, error):
+        """What a view could not do, on the sidebar's foot line, as every failure."""
+        self.host.error = error
+
     def do_remember_mode(self, mode):
         self.host.save(commit_mode=mode)
 
@@ -197,7 +210,7 @@ class Changes(Family):
     def do_sync(self, how="sync"):
         """The branch synced with its upstream, or only pulled or pushed (HOW), as the repository row asks."""
         repo = self.host.repo
-        if not repo or self.host.running & {"sync", "pull", "push"}:
+        if not repo or self.host.running & set(BUSY):              # its spinner is no button while one runs
             return
 
         def work():
@@ -265,17 +278,20 @@ class Changes(Family):
         self.host.job("issue", lambda: github.change(name, issue.number, what), then)
 
     def do_issue_to_agent(self, issue):
-        """The tab's Claude or Codex gets the issue as a prompt, not sent yet, and the focus; the next commit fixes
-        it."""
+        """The tab's Claude or Codex gets the issue as a prompt, not sent yet, and the focus; with none there, the agent
+        started last in a new tab of the workspace (the TUI's new chat); the next commit fixes it."""
         me, herdr, name = os.environ.get("HERDR_PANE_ID"), self.host.herdr, self.host.github
 
         def work():
-            tab = herdr.call("pane", "get", me).get("pane", {}).get("tab_id") if me else None
+            pane = herdr.call("pane", "get", me).get("pane", {}) if me else {}
             agents = herdr.call("agent", "list").get("agents", [])
-            target = next((a["pane_id"] for a in agents if a.get("tab_id") == tab and a.get("agent") in
-                           ("claude", "codex")), None)
+            target = next((a["pane_id"] for a in agents if a.get("tab_id") == pane.get("tab_id") and a.get("agent") in
+                           panes.AGENTS), None)
+            workspace = pane.get("workspace_id") or os.environ.get("HERDR_WORKSPACE_ID")
+            if target is None and not workspace:
+                return "It opens in a herdr tab: run the sidebar in herdr"
             if target is None:
-                return "No Claude or Codex in this tab to hand the issue to"
+                target = self.new_agent(workspace, issue)
             herdr.call("pane", "send-text", target, github.prompt(name, issue))
             herdr.call("agent", "focus", target)
             return None
@@ -286,6 +302,20 @@ class Changes(Family):
                 self.link((issue.number, issue.title))
 
         self.host.job("agent", work, then)
+
+    def new_agent(self, workspace, issue):
+        """A new tab in WORKSPACE for ISSUE, as Chats reopens one: the agent started last on the left, ready for input,
+        the right column beside it; its pane."""
+        call, state, folder = self.host.herdr.call, self.host.state_dir, self.host.repo or self.host.root
+        agent, title = panes.last_agent(state), preview.label(f"#{issue.number} {issue.title}")
+        made = call("tab", "create", "--workspace", workspace, "--cwd", folder, "--label",
+                    title if len(title) <= TAB_NAME else title[:TAB_NAME - 1] + "…", "--no-focus")
+        pane = made["root_pane"]["pane_id"]
+        call("pane", "rename", pane, agent)            # named, so the new-tab plugin leaves it alone
+        panes.build(call, pane, folder, state)         # the right column, as elsewhere
+        call("agent", "start", f"{agent}-{issue.number}", "--kind", agent, "--pane", pane, "--timeout", "60000")
+        call("tab", "focus", made["tab"]["tab_id"])
+        return pane
 
     def linked(self):
         """The issue this repository's next commit fixes: (number, title), or None."""

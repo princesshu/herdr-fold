@@ -196,6 +196,45 @@ class Popup(Root):
     """The popup in a terminal, herdr a stand-in: it reads the focused pane, lists what it names, and Enter opens the
     newest at its line in a new preview tab."""
 
+    def run_popup(self, typed):
+        """The popup in an 80 x 24 terminal: TYPED once both files show; what it wrote, and herdr's calls."""
+        home = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, home)
+        fake, log = os.path.join(home, "herdr"), os.path.join(home, "calls.jsonl")
+        with open(fake, "w") as f:
+            f.write(FAKE_HERDR)
+        os.chmod(fake, 0o755)
+        env = {"HOME": home, "PATH": "/usr/bin:/bin", "TERM": "xterm-256color", "HERDR_BIN_PATH": fake,
+               "FAKE_LOG": log, "HERDR_ACTIVE_PANE_ID": "w1:p1", "HERDR_ACTIVE_PANE_CWD": self.root,
+               "PYTHONDONTWRITEBYTECODE": "1"}
+        master, slave = pty.openpty()
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
+        proc = subprocess.Popen(["/usr/bin/python3", "-B", open_file.__file__], stdin=slave, stdout=slave,
+                                stderr=slave, env=env, start_new_session=True)
+        os.close(slave)
+        out, sent, deadline = b"", False, time.monotonic() + 30
+        while time.monotonic() < deadline and proc.poll() is None:
+            if select.select([master], [], [], 0.1)[0]:
+                try:
+                    out += os.read(master, 65536)
+                except OSError:
+                    break
+            if not sent and b"README.md" in out:
+                time.sleep(0.3)
+                os.write(master, typed)
+                sent = True
+        proc.wait(10)
+        os.close(master)
+        with open(log) as f:
+            return out.decode("utf-8", "replace"), [json.loads(one) for one in f]
+
+    def test_its_close_button_closes_it_and_opens_nothing(self):
+        # every popup's: air, Codicons' close, air, at the right edge of its first row (herdr's blank column after)
+        shown, calls = self.run_popup(b"src\x1b[<0;78;1M")                 # a filter typed first: Esc would clear it
+        self.assertIn("\x1b[1;78H", shown)
+        self.assertIn(" \uea76 ", shown)
+        self.assertFalse([call for call in calls if call[:2] == ["tab", "create"]])
+
     def test_enter_opens_the_newest_file_named_at_its_line(self):
         home = os.path.realpath(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, home)

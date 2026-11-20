@@ -141,6 +141,12 @@ class SidebarKey(unittest.TestCase):
     """Cmd+Shift+G (prefix+u) opens the sidebar's Changes, Cmd+Shift+I (prefix+shift+i) its issues: the
     herdr-fold.sidebar plugin's actions."""
 
+    def test_an_agent_waiting_in_another_tab_is_told_by_herdrs_own_toast(self):
+        # a chat that starts waiting: herdr's own toast ("claude needs attention", once a wait, never for the tab in
+        # front; measured in herdr 0.9.5), so no toast of herdr-fold's doubles it; its sound herdr's, off as before
+        tables = herdr_config.parse(PACKAGE_CONFIG)[0]
+        self.assertEqual((tables["ui.toast"].get("delivery"), tables["ui.sound"].get("enabled")), ('"herdr"', "false"))
+
     def test_the_package_binds_the_sidebars_changes_view(self):
         self.assertIn('command = "herdr-fold.sidebar.show-git"', PACKAGE_CONFIG)
 
@@ -154,6 +160,14 @@ class SidebarKey(unittest.TestCase):
         result, _ = herdr_config.add(PACKAGE_CONFIG, older)
         self.assertNotIn("herdr-sidebar", result)
         self.assertEqual(result.count('command = "herdr-fold.sidebar.show-git"'), 1)
+
+    def test_an_update_rewrites_its_block_to_the_chat_actions_id(self):
+        # find-conversation, the id before the rename: its block of an earlier install goes, the new one comes
+        older = (THEIRS + f'\n{BEGIN}\n[[keys.command]]\nkey = "prefix+m"\ntype = "plugin_action"\n'
+                 f'command = "herdr-fold.sidebar.find-conversation"\n{END}\n')
+        result, _ = herdr_config.add(PACKAGE_CONFIG, older)
+        self.assertNotIn("find-conversation", result)
+        self.assertEqual(result.count('command = "herdr-fold.sidebar.find-chat"'), 1)
 
 
 class CommandLine(unittest.TestCase):

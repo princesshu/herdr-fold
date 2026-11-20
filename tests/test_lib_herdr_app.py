@@ -209,6 +209,16 @@ class Install(unittest.TestCase):
         herdr_app.install(PACKAGE, self.home, self.state)
         self.assertEqual(shared(self.home), {"herdr-fold.panel-width": 420, "sidebar.width": 268})
 
+    def test_the_chats_shared_value_keeps_what_its_older_name_held(self):
+        # the archived ones shown or not, the reopened ones' terminals: "herdr-fold.conversations" before the rename
+        kept = {"showArchived": True, "resumed": {"t1": "s1"}}
+        self.write("shared.json", json.dumps({"herdr-fold.conversations": kept}))
+        herdr_app.install(PACKAGE, self.home, self.state)
+        self.assertEqual(shared(self.home), {"herdr-fold.chats": kept})
+        self.write("shared.json", json.dumps({"herdr-fold.conversations": {}, "herdr-fold.chats": kept}))
+        herdr_app.install(PACKAGE, self.home, self.state)
+        self.assertEqual(shared(self.home), {"herdr-fold.chats": kept})          # the new one wins
+
     def test_uninstall_takes_herdr_folds_shared_values_off(self):
         self.write("shared.json", json.dumps({"herdr-fold.view": "changes", "herdr-fold.waits": {},
                                               "frame.welcomed": True}))
@@ -235,14 +245,6 @@ class Install(unittest.TestCase):
         herdr_app.install(PACKAGE, self.home, self.state)
         with open(os.path.join(self.home, "layouts", ".state", "herdr-fold.json"), encoding="utf-8") as f:
             self.assertEqual(sorted(json.load(f)["nodes"]), ["fold-panel", "fold-terminals"])
-
-    def test_an_update_brings_a_group_saved_folded_back_at_the_folded_height_of_now(self):
-        # an earlier version folded a group to 34 px; this one's folded group is 50 (its head 36, PAD 12, its frame)
-        self.write("layouts/.state/herdr-fold.json", json.dumps({"nodes": {"fold-project": {"size": {"px": 34}},
-                                                                           "fold-project-body": {"hidden": True}}}))
-        herdr_app.install(PACKAGE, self.home, self.state)
-        with open(os.path.join(self.home, "layouts", ".state", "herdr-fold.json"), encoding="utf-8") as f:
-            self.assertEqual(json.load(f)["nodes"]["fold-project"], {"size": {"px": 50}})
 
     def test_a_running_apps_state_of_the_layout_is_left_to_it(self):
         text = json.dumps(self.old_state())
@@ -294,24 +296,51 @@ class State(unittest.TestCase):
         self.assertFalse({"fold-project-body", "fold-work-body"} & set(pruned["nodes"]))
         self.assertEqual(herdr_app.prune_state(["not", "a", "state"], layout), ["not", "a", "state"])
 
-    def test_a_group_saved_folded_takes_the_folded_height_of_now(self):
-        """A group folded is its head, PAD under it and its frame (logic.js's FOLDED_GROUP): one saved folded at another
-        height takes that one; one saved open, or folded with no size of its own, keeps what it had."""
+    def test_an_update_brings_the_agent_view_to_a_dock_kept_as_it_was(self):
+        """An install from before the Agent panel: its layout file is replaced, so Agent is in the dock's stack after
+        Issues, shown (the app's state has nothing of it), while the view chosen, one hidden in More's menu and the
+        width dragged stay."""
+        with open(os.path.join(PACKAGE, "app", "layouts", "herdr-fold.json"), encoding="utf-8") as f:
+            layout = json.load(f)
+        stack, = [n for n in herdr_app.nodes(layout) if isinstance(n, dict) and n.get("id") == "fold-views"]
+        ids = [child["id"] for child in stack["children"]]
+        self.assertEqual(ids[ids.index("issues") + 1], "agent")
+        self.assertNotIn("hidden", stack["children"][ids.index("agent")])
+        old = {"nodes": {"fold-views": {"active": "changes"}, "search": {"hidden": True},
+                         "fold-panel": {"size": {"px": 420}}}, "file": {"id": "root"}}
+        self.assertEqual(herdr_app.prune_state(old, layout), old)
+
+    def test_the_left_chats_block_goes_and_spaces_opens_as_the_layout_says(self):
+        """An install from before the Chats moved to the dock's ✦: its Chats block and the column it shared with
+        Spaces gone, Spaces under an id of its own, so neither a size dragged between the two nor Spaces hidden while
+        the sidebar was folded stays; the sidebar's width is kept."""
+        with open(os.path.join(PACKAGE, "app", "layouts", "herdr-fold.json"), encoding="utf-8") as f:
+            layout = json.load(f)
+        old = {"nodes": {"sidebar": {"size": {"px": 300}}, "sidebar-lists": {"size": {"weight": 1}},
+                         "spaces": {"size": {"px": 180}, "hidden": True}, "chats": {"size": {"px": 420}}},
+               "file": {"id": "root"}}
+        self.assertEqual(herdr_app.prune_state(old, layout)["nodes"], {"sidebar": {"size": {"px": 300}}})
+
+    def test_an_older_docks_groups_go_the_panels_width_stays(self):
+        """The two groups (Files and Search, Changes and Issues) and their stacks' tabs are gone from the layout: what
+        the app kept of them goes; the right panel's width, dragged or folded to its rail, stays."""
         with open(os.path.join(PACKAGE, "app", "layouts", "herdr-fold.json"), encoding="utf-8") as f:
             layout = json.load(f)
         old = {"nodes": {"fold-project": {"size": {"px": 34}}, "fold-project-body": {"hidden": True},
-                         "fold-work": {"size": {"px": 300}}, "fold-work-body": {"active": "issues"}}}
-        pruned = herdr_app.prune_state(old, layout, 12)["nodes"]
-        self.assertEqual([pruned["fold-project"], pruned["fold-work"]], [{"size": {"px": 50}}, {"size": {"px": 300}}])
-        folded = {"nodes": {"fold-work-body": {"hidden": True}}}
-        self.assertEqual(herdr_app.prune_state(folded, layout, 12), folded)
-        self.assertEqual(herdr_app.prune_state(old, layout)["nodes"]["fold-project"], {"size": {"px": 34}})  # no PAD
-        self.assertEqual(herdr_app.card_pad(os.path.join(PACKAGE, "app")), 12)       # logic.js's
+                         "fold-work": {"size": {"px": 300}}, "fold-work-body": {"active": "issues"},
+                         "fold-dock": {"hidden": False}, "fold-panel": {"size": {"px": 76}}}}
+        self.assertEqual(herdr_app.prune_state(old, layout)["nodes"], {"fold-panel": {"size": {"px": 76}}})
 
-
-class Terminals(unittest.TestCase):
-    """The terminals the mod started for tabs, on this computer and on other machines, end with herdr-fold."""
-
+    def test_the_rows_own_block_goes_now_that_the_row_tops_the_views_card(self):
+        """The row was a block of its own above the views' card, hidden while the dock was a rail; it is the views'
+        stack's header now, on their card: what the app kept of that block goes, so it never stays hidden over an open
+        dock; the views' stack and the panel's width stay."""
+        with open(os.path.join(PACKAGE, "app", "layouts", "herdr-fold.json"), encoding="utf-8") as f:
+            layout = json.load(f)
+        old = {"nodes": {"fold-dock-head": {"hidden": True}, "fold-views": {"hidden": True, "active": "changes"},
+                         "fold-panel": {"size": {"px": 76}}}}
+        self.assertEqual(herdr_app.prune_state(old, layout)["nodes"],
+                         {"fold-views": {"hidden": True, "active": "changes"}, "fold-panel": {"size": {"px": 76}}})
     def test_the_tabs_terminals_the_layout_names_end(self):
         home = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, home)

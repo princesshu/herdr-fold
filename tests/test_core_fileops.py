@@ -133,6 +133,95 @@ class Files(unittest.TestCase):
         self.assertEqual(copied, [os.path.join(self.root, "README.md")])
 
 
+class ChatFiles(Files):
+    """The one thing of an AI tool's the Trash takes: a chat's own file (Claude's with its sub-agents' folder beside
+    it, Codex's rollout), by the Chats list's Delete…; anything else under their folders stays refused."""
+
+    def setUp(self):
+        super().setUp()
+        self.trashed = []
+
+    def chat(self, session="s1", folder="-work-app"):
+        return self.write(f".claude/projects/{folder}/{session}.jsonl", root=self.home)
+
+    def rollout(self, session="c1"):
+        return self.write(f".codex/sessions/2026/10/26/rollout-2026-10-26T10-00-00-{session}.jsonl", root=self.home)
+
+    def trash(self, kind, session, path, system="darwin"):
+        return fileops.trash_chat(kind, session, path, home=self.home, system=system, recycle=self.trashed.append)
+
+    def test_a_claude_chat_goes_with_its_sub_agents_folder(self):
+        path, other = self.chat(), self.chat("s2")
+        helper = self.write(".claude/projects/-work-app/s1/subagents/agent-a1.jsonl", root=self.home)
+        self.assertEqual(self.trash("claude", "s1", path), "Trash")
+        real = os.path.realpath(path)
+        self.assertEqual(self.trashed, [real, os.path.join(os.path.dirname(real), "s1")])
+        self.assertTrue(os.path.isfile(other) and os.path.isfile(helper))       # the stand-in moved nothing
+
+    def test_a_codex_chat_is_its_rollout_file(self):
+        path = self.rollout()
+        self.trash("codex", "c1", path)
+        self.assertEqual(self.trashed, [os.path.realpath(path)])
+
+    def test_on_linux_it_lands_in_the_homes_trash(self):
+        path = self.chat()
+        where = self.trash("claude", "s1", path, system="linux")
+        self.assertEqual(where, os.path.join(self.home, ".local", "share", "Trash", "files", "s1.jsonl"))
+        self.assertTrue(os.path.isfile(where))
+        self.assertFalse(os.path.exists(path))
+
+    def test_nothing_but_a_chats_own_file(self):
+        chat, rollout = self.chat(), self.rollout()
+        refused = [("claude", "s2", chat),                                      # another chat's file
+                   ("codex", "s1", chat), ("claude", "c1", rollout),            # the other agent's
+                   ("codex", "c2", rollout),
+                   ("claude", "s1", os.path.dirname(chat)),                     # a folder
+                   ("claude", "s1", self.write(".claude/projects/-work-app/s1/subagents/s1.jsonl", root=self.home)),
+                   ("claude", "s1", self.write(".claude/s1.jsonl", root=self.home)),
+                   ("claude", "settings", self.write(".claude/settings.jsonl", root=self.home)),
+                   ("claude", "s1", self.write("s1.jsonl")),                    # a project's file of that name
+                   ("codex", "c1", self.write(".codex/sessions/rollout-c1.jsonl", root=self.home)),
+                   ("codex", "c1", self.write(".codex/sessions/2026/10/26/c1.jsonl", root=self.home)),
+                   ("claude", "../-work-app/s1", chat), ("claude", "*", chat), ("claude", "", chat),
+                   ("gemini", "s1", chat),
+                   ("claude", "gone", os.path.join(os.path.dirname(chat), "gone.jsonl"))]
+        for kind, session, path in refused:
+            with self.assertRaises(Refused, msg=(kind, session, path)):
+                self.trash(kind, session, path)
+        self.assertEqual(self.trashed, [])
+
+    def test_a_linked_project_folder_gives_the_real_file_once(self):
+        path = self.chat()
+        linked = os.path.join(self.home, ".claude", "projects", "-work")
+        os.symlink(os.path.dirname(path), linked)
+        self.trash("claude", "s1", os.path.join(linked, "s1.jsonl"))
+        self.assertEqual(self.trashed, [os.path.realpath(path)])
+
+    def test_a_link_leading_out_of_the_chats_folder_is_refused(self):
+        outside = self.write("kept/s1.jsonl", root=self.tmp)
+        projects = os.path.join(self.home, ".claude", "projects")
+        os.makedirs(projects)
+        os.symlink(os.path.dirname(outside), os.path.join(projects, "-work-app"))        # a project's folder
+        os.makedirs(os.path.join(projects, "-work-web"))
+        os.symlink(outside, os.path.join(projects, "-work-web", "s1.jsonl"))             # a chat's file
+        for folder in ("-work-app", "-work-web"):
+            with self.assertRaises(Refused):
+                self.trash("claude", "s1", os.path.join(projects, folder, "s1.jsonl"))
+        self.assertEqual(self.trashed, [])
+
+    def test_a_linked_sub_agents_folder_stays(self):
+        path = self.chat()
+        os.symlink(self.root, os.path.join(os.path.dirname(path), "s1"))
+        self.trash("claude", "s1", path)
+        self.assertEqual(self.trashed, [os.path.realpath(path)])
+
+    def test_the_files_own_trash_still_refuses_a_chat(self):
+        path = self.chat()
+        with self.assertRaises(Refused):
+            Ops(self.home, home=self.home, system="darwin", recycle=self.trashed.append).trash(path)
+        self.assertEqual(self.trashed, [])
+
+
 class CommandLine(Files):
     """The Herdr app mod's Files and Changes on the space's machine: python3 fileops.py trash, new-file, new-folder or
     rename, paths from ROOT, answering in JSON; the system's Trash through a stand-in, Linux's under the temporary
