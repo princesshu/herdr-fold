@@ -5,9 +5,12 @@ import json
 import os
 import pathlib
 import subprocess
+import sys
 import time
 
 PACKAGE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(PACKAGE, "tools"))
+import build  # noqa: E402  (the helpers' sources, as the mod has them)
 MESSAGE = "feat: change the lab files"             # what the lab's stand-in Claude answers first
 # a repository with an origin, a change and a file named like a secret, in the folder the commands start in
 REPO = ("git init -q --bare -b main origin.git && git init -q -b main app && cd app && git config user.name dev && "
@@ -16,8 +19,8 @@ REPO = ("git init -q --bare -b main origin.git && git init -q -b main app && cd 
 
 
 def source(module):
-    with open(os.path.join(PACKAGE, "core", module), encoding="utf-8") as f:
-        return f.read()
+    """core/MODULE as the mod runs it on a machine: the core modules it imports made first, as helper.js has it."""
+    return build.runnable(module)
 
 
 # the mod's own commands for the star's job, from logic.js and helper.js (FOLDER: the job's folder, once it has one)
