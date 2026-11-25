@@ -64,7 +64,7 @@ SWITCH = re.compile(r"\bHERDR_(?:FOLD|COMMIT)_[A-Z_]+\b")
 # preview tab's shell and its Usage view (the period it opens on)
 INTERNAL = {"HERDR_FOLD_WARNINGS", "HERDR_FOLD_STARTED", "HERDR_FOLD_UPDATE", "HERDR_FOLD_PLATFORM",
             "HERDR_FOLD_SIDEBAR_RESUME", "HERDR_FOLD_PYTHON", "HERDR_FOLD_PAGER", "HERDR_FOLD_SPEC_FILE",
-            "HERDR_FOLD_PROGRAM", "HERDR_FOLD_USAGE_PERIOD"}
+            "HERDR_FOLD_PROGRAM", "HERDR_FOLD_FILE", "HERDR_FOLD_USAGE_PERIOD"}
 
 
 class Switches(unittest.TestCase):

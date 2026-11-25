@@ -28,7 +28,8 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   terminalsAt, bottomPx, bottomShown, placeTerminals, bottomToggle, find, CHAT_LABEL, chatWait, keepWait, WAY_OUT,
   waiting, chatAgents, updateNotice, ABOUT, aboutHeight, licenseOf, aboutTargets, agentsSaid, updateReady, SETTINGS,
   SECTIONS, APP_SECTIONS, settingsSection, sectionStep, settingsTargets, columnToggle, restoreCommands, keyMenuBounds,
-  themeChoices, layoutToast, soundsFor, noteShown }
+  themeChoices, layoutToast, soundsFor, noteShown, modTab, unsavedKey, unsavedTabs, editsInTab, markdownFile,
+  editorLanguage, indentOf, withEnds, findAll, nextMatch, findCount, FOUND_MOST, draftName }
   from "../mods/herdr-fold/logic.js";
 import { format } from "../mods/herdr-fold/timeline.js";
 
@@ -38,9 +39,9 @@ test("a tab nobody named after its program, an agent's first, else Terminal; an 
   const panes = [{ tab: "t1", program: { name: "zsh" } }, { tab: "t1", program: { name: "Claude", agent: true,
     icon: "claude.svg", tint: true } }, { tab: "t3", program: { name: "vim", icon: "vim.png" } }];
   assert.deepEqual(tabRows(space, panes), [
-    { id: "t1", name: "Claude", active: true, status: "working", icon: "claude.svg", tint: true },
-    { id: "t2", name: "Terminal", active: false, status: null, icon: null, tint: false },
-    { id: "t3", name: "notes Z", active: false, status: "done", icon: null, tint: false }]);
+    { id: "t1", name: "Claude", active: true, status: "working", icon: "claude.svg", tint: true, unsaved: false },
+    { id: "t2", name: "Terminal", active: false, status: null, icon: null, tint: false, unsaved: false },
+    { id: "t3", name: "notes Z", active: false, status: "done", icon: null, tint: false, unsaved: false }]);
   assert.deepEqual(tabRows(undefined, panes), []);
 });
 
@@ -49,7 +50,63 @@ test("a chat tab wears its agent's icon and state, its agent being a terminal wi
   const chats = { t4: { status: "working", program: { name: "Claude", agent: true, icon: "claude.svg", tint: true } } };
   assert.deepEqual(tabRows(space, [{ tab: "t4", program: { name: "herdr-fold" } }], chats), [
     { id: "t4", name: "Fix the page past the last one", active: false, status: "working", icon: "claude.svg",
-      tint: true }]);
+      tint: true, unsaved: false }]);
+});
+
+test("an editor's tab: named for its file, herdr-fold its pane; its × a dot while unsaved", () => {
+  const space = { id: "s1", tabs: [{ id: "t1", name: "config/limits.json" }, { id: "t2", name: "README.md" },
+    { id: "t3", name: "config/logging.toml" }] };
+  const panes = [{ tab: "t1", mod: "herdr-fold" }, { tab: "t2" }, { tab: "t3", mod: "herdr-fold" }];
+  assert.equal(modTab(space, "config/limits.json", panes), "t1");
+  assert.equal(modTab(space, "README.md", panes), null);                 // a terminal so named is no editor
+  const unsaved = { [unsavedKey("s1", "config/limits.json")]: true, [unsavedKey("s2", "config/logging.toml")]: true };
+  assert.deepEqual([...unsavedTabs(space, unsaved)], ["t1"]);
+  assert.deepEqual(tabRows(space, panes, {}, new Set(), unsavedTabs(space, unsaved)).map((row) => row.unsaved),
+    [true, false, false]);
+});
+
+test("a text file opens in the editor; what the preview draws stays there, its code a view away", () => {
+  assert.deepEqual(["config/limits.json", "pyproject.toml", "Makefile", ".env", "docs/a.png", "docs/p.pdf",
+    "docs/pagination.html", "icon.svg", "README.md", "notes.markdown"].map(editsInTab),
+  [true, true, true, true, false, false, false, false, false, false]);
+  assert.deepEqual(["README.md", "a.MARKDOWN", "a.txt"].map(markdownFile), [true, true, false]);
+  assert.deepEqual(["a.json", "b.TOML", "c.py", "Makefile", "d.svg"].map(editorLanguage),
+    ["json", "toml", "python", "text", "html"]);
+});
+
+test("a file's indent as its lines have it", () => {
+  assert.deepEqual(indentOf('{\n  "page": {\n    "size": 25\n  }\n}\n'), { size: 2, hard: false });
+  assert.deepEqual(indentOf("def a():\n    return 1\n"), { size: 4, hard: false });
+  assert.deepEqual(indentOf("a:\n\tb\n\tc\n"), { size: 2, hard: true });
+  assert.deepEqual(indentOf("plain\n"), { size: 2, hard: false });
+});
+
+test("a save keeps the file's line ends: a line typed into a CRLF file is written CRLF", () => {
+  assert.equal(withEnds("a\r\nb\nc\n", "a\r\nb\r\n"), "a\r\nb\r\nc\r\n");
+  assert.equal(withEnds("a\nb\n", "a\n"), "a\nb\n");
+  assert.equal(withEnds("a\nb", null), "a\nb");
+});
+
+test("find: case aside, the next match from the cursor and back, round past either end", () => {
+  const text = "page 1, Page 2, PAGE 3", matches = findAll(text, "page");
+  assert.deepEqual(matches, [[0, 4], [8, 12], [16, 20]]);
+  assert.deepEqual(findAll("a+b a+b", "a+b"), [[0, 3], [4, 7]]);       // the query is text, not a pattern
+  assert.deepEqual(findAll(text, ""), []);
+  assert.equal(findAll("aaaa", "a", 3).length, 3);
+  assert.deepEqual([nextMatch(matches, 0), nextMatch(matches, 5), nextMatch(matches, 17)], [0, 1, 0]);
+  assert.deepEqual([nextMatch(matches, 8, true), nextMatch(matches, 0, true), nextMatch(matches, 30, true)],
+    [0, 2, 2]);
+  assert.equal(nextMatch([], 0), -1);
+  assert.deepEqual([findCount(1, matches, "page"), findCount(-1, [], "zz"), findCount(-1, [], "")],
+    ["2 of 3", "No results", ""]);
+  assert.equal(findCount(0, Array(FOUND_MOST).fill([0, 1]), "a"), `1 of ${FOUND_MOST}+`);
+});
+
+test("a draft's name is its file's hash, the same for the same path, no path in it", () => {
+  const name = draftName("/Users/dev/lumen-api/.env");
+  assert.match(name, /^[0-9a-f]{14}\.json$/);
+  assert.equal(draftName("/Users/dev/lumen-api/.env"), name);
+  assert.notEqual(draftName("/Users/dev/lumen-api/.env.local"), name);
 });
 
 test("an SVG's or a page's code goes above its picture as chosen, else where the room is taller than wide", () => {

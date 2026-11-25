@@ -26,12 +26,13 @@ all.
 | Cmd + Option + B | fold the sidebar to its rail of icons in every tab, or open it again, as its » and « do |
 | Cmd + Shift + G | the sidebar's Changes view, the sidebar opened in every tab while it is a rail |
 | Cmd + Shift + I | the sidebar's Issues view, for a repository on GitHub, opened as Changes is |
-| Cmd + A | in the sidebar's field you are in (the commit message, a search): select its whole text, for Backspace, typing or a paste; in other panes it does nothing |
+| Cmd + A | in the sidebar's field you are in (the commit message, a search): select its whole text, for Backspace, typing or a paste; in an editor's tab, [the editor's own](#the-editor-tab); in other panes it does nothing |
 | Cmd + Shift + C | commit and push, with a message written by Claude or Codex: Enter commits and pushes, `e` edits, `r` writes a new one, Esc cancels |
-| Cmd + Shift + L | open a file the focused pane's output names (`src/app.py:42`, a traceback's line), at that line, in the sidebar's preview tab: the newest first, type to narrow the list |
+| Cmd + Shift + L | open a file the focused pane's output names (`src/app.py:42`, a traceback's line), at that line: a text file in your editor, a picture in the sidebar's preview tab; the newest first, type to narrow the list |
+| `e` | in the preview of a page or an SVG: Edit, the file in your editor in a tab of its own |
 | Cmd + T / Cmd + R | next / previous tab of the space, wrapping around; keep Cmd held and tap again to step on |
 | Ctrl + B, then 1…9 | tab 1…9 of the space |
-| Cmd + W | close the active tab, never the main tab (a space's first); a tab with a chat asks first |
+| Cmd + W | close the active tab, never the main tab (a space's first); a tab with a chat asks first; in an editor's tab, the editor quits instead ([below](#the-editor-tab)) |
 
 ## Chats
 
@@ -39,7 +40,7 @@ all.
 |---|---|
 | Cmd + Shift + R | find a chat: the sidebar opens its ✦'s list in this tab (on its rail, the sidebar opened in every tab; a sidebar closed by hand comes back, a tab without one goes to the space's first), its filter empty and the keys going to it; Enter goes to a running one or reopens a closed one in a new tab; Esc closes it |
 | Space / Shift + ↑ ↓ | in the sidebar's Chats, with nothing typed: mark closed chats, to archive them together with a right click on one of them; Esc unmarks them |
-| Cmd + F | search the Claude chat: Enter accepts, `n` / `N` next / previous match, Esc goes back to typing |
+| Cmd + F | search the Claude chat: Enter accepts, `n` / `N` next / previous match, Esc goes back to typing; in an editor's tab, the editor's own find (micro, nano) |
 
 ## Copy and links
 
@@ -50,6 +51,25 @@ all.
 | Ctrl + click | open a link in your browser, also one that shows only its title |
 
 Cmd + click does not open links: herdr handles the mouse and does not see Cmd.
+
+## The editor tab
+
+A text file opens in your editor in a tab of its own ([Editing files](usage.md#editing-files)). There the Cmd keys
+are the editor's own:
+
+| Key | micro | nano | nano on macOS (pico) |
+|---|---|---|---|
+| Cmd + A | select all | — | — |
+| Cmd + C / Cmd + X | copy / cut the selection, to the Mac's clipboard | — | — |
+| Cmd + V | paste | paste | paste |
+| Cmd + Z / Cmd + Shift + Z | undo / redo | undo / redo | — |
+| Cmd + S | save | save | write out: Enter saves |
+| Cmd + F | find | find | find |
+| Cmd + W | quit; with unsaved changes it asks first, in its own line | exit, asking to save | exit, asking to save |
+
+In vim only Cmd + V works (a paste), as vim's own keys depend on its mode; Cmd + W never closes the tab under an
+editor. A selection Ghostty or herdr holds (Shift + drag) is copied by Cmd + C first, as in any pane, and Cmd + Z first
+undoes a Ghostty window or tab closed a few seconds before. In every other pane each key does what it did.
 
 ## Ghostty
 
@@ -93,6 +113,8 @@ The app's own, in that layout:
 | Cmd + Shift + P | opens the command palette onto the title row's field; again, it closes |
 | Cmd + P | Go to space or tab, the app's picker |
 | Cmd + Option + arrows | step the tab's panes |
+| Cmd + S | in an editor tab: save in place, no window |
+| Cmd + F | in an editor tab: its find bar (Enter / Shift + Enter the next / previous, Esc closes); a terminal's own search elsewhere |
 
 One differs: Cmd + → / ← step the tab's panes in the TUI; in the app they are a terminal's line start and end.
 Shift + Enter is sent as Option + Enter (ESC CR) by Ghostty's config and by the app's keys, in every layout, whatever

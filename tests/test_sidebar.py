@@ -472,21 +472,19 @@ class Running(Harness):
         self.until(lambda s: "Changes" in s and "new.txt" in s and "a.txt" in s)
         self.until(lambda s: "init" in s)                                   # the graph
 
-    def test_a_click_opens_the_preview_tab(self):
+    def test_a_click_opens_a_text_file_in_the_editor_tab(self):
         self.until(lambda s: "a.txt" in s)
         rows = self.screen().splitlines()
         y = next(i for i, row in enumerate(rows) if "a.txt" in row)
         self.term.type(Mouse("press", rows[y].index("a.txt"), y, 0))
         deadline = time.monotonic() + 5
-        while time.monotonic() < deadline and not any(line.startswith("pane run") for line in logged(self.log)):
+        while time.monotonic() < deadline and not any(line.startswith("tab create") for line in logged(self.log)):
             time.sleep(0.05)
-        calls = logged(self.log)
+        create = next(line for line in logged(self.log) if line.startswith("tab create"))
         root = os.path.realpath(self.root)
-        create = next(line for line in calls if line.startswith("tab create"))
-        self.assertTrue(create.startswith(f"tab create --workspace w1 --cwd {root} --label preview: a.txt --env "),
-                        create)
-        self.assertIn("pager.py", create)                                     # in the tab's environment
-        self.assertIn('pane run w1:p9 "$HERDR_FOLD_PYTHON" -B "$HERDR_FOLD_PAGER" && exit', calls)
+        self.assertTrue(create.startswith(f"tab create --workspace w1 --cwd {root} --label a.txt --env "), create)
+        self.assertIn("HERDR_FOLD_PROGRAM=", create)                          # the user's editor, not the pager
+        self.assertNotIn("pager.py", create)
 
     def test_a_new_file_shows_up_on_its_own(self):
         self.until(lambda s: "a.txt" in s)
@@ -671,10 +669,11 @@ class PreviewTab(Harness):
 
     def test_the_preview_tab_gets_this_tabs_panes_and_its_sidebar_this_ones_place(self):
         set_env(self, HERDR_PANE_ID="w1:p2")                                # FAKE_HERDR: in w1:t1, with no terminal
+        self.write("page.html", "<p>a pin there</p>\n")                       # a page: the preview, not an editor
         with mock.patch.object(sidebar.panes, "bring") as bring:
             self.start()
-            self.term.type(Key("f11"), Key("char", "c"), *keys("feat: half"), Key("esc"), Key("f10"), *keys("needle"))
-            self.until(lambda s: "a needle here" in s)
+            self.term.type(Key("f11"), Key("char", "c"), *keys("feat: half"), Key("esc"), Key("f10"), *keys("pin"))
+            self.until(lambda s: "a pin there" in s)
             self.term.type(Key("tab"), Key("down"), Key("enter"))                  # its hit
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline and not any(line.startswith("pane run") for line in logged(self.log)):
@@ -682,7 +681,7 @@ class PreviewTab(Harness):
         self.assertEqual(bring.call_args.args[1:3], ("w1:t3", {"sidebar"}))
         with open(os.path.join(self.state, "seed-w1-t3.json")) as f:
             seed = json.load(f)
-        self.assertEqual((seed["show"], seed["query"]), ("search", "needle"))
+        self.assertEqual((seed["show"], seed["query"]), ("search", "pin"))
         self.assertNotIn("message", seed)                       # a message half written stays this sidebar's
 
     def test_a_new_preview_tabs_sidebar_comes_back_where_the_one_that_opened_it_was(self):
@@ -2581,19 +2580,8 @@ class Actions(Repo):
         with open(self.log) as f:
             self.assertIn("pane send-keys w1:p2 f12", f.read().splitlines())
 
-    def test_select_all_goes_to_the_sidebar_only_when_it_has_the_keys(self):
-        # as herdr runs a plugin action from a key: the focused pane in HERDR_PANE_ID, its tab in HERDR_TAB_ID
-        out = self.action("select-all", HERDR_TAB_ID="w1:t1", HERDR_PANE_ID="w1:p2")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        with open(self.log) as f:
-            self.assertIn("pane send-keys w1:p2 f8", f.read().splitlines())
-        os.remove(self.log)
-        out = self.action("select-all", HERDR_TAB_ID="w1:t1", HERDR_PANE_ID="w1:p1")                  # the agent's
-        self.assertEqual((out.returncode, out.stderr), (0, ""))
-        self.assertFalse(any("send-keys" in line for line in logged(self.log)))
-
     def test_every_key_an_action_sends_is_one_the_sidebar_takes(self):
-        taken = set(sidebar.VIEW_KEYS) | {sidebar.FIND, "f8", sidebar.DOCK_KEY}       # F8: Cmd + A in a field
+        taken = set(sidebar.VIEW_KEYS) | {sidebar.FIND, sidebar.DOCK_KEY}
         self.assertEqual(sorted(key for key in actions.KEYS.values() if key not in taken), [])
 
     def test_toggle_dock_sends_its_key_to_the_tabs_sidebar(self):

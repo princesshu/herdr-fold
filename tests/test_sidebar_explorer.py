@@ -7,10 +7,11 @@ import tempfile
 import unittest
 from unittest import mock
 
-from support import SRC, psd_in_preview, set_attrs, set_env, text
+from support import SRC, FakeTerminal, end_jobs, psd_in_preview, set_attrs, set_env, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import explorer  # noqa: E402
+import sidebar  # noqa: E402
 from explorer import Explorer  # noqa: E402
 from git import Change, Status  # noqa: E402
 from tree import git_marks  # noqa: E402
@@ -70,6 +71,24 @@ class View(unittest.TestCase):
         self.assertIsNone(self.view.tip(("row", rows["README.md"])))
         self.draw(width=80)                                                 # the pane made wider: it fits now
         self.assertIsNone(self.view.tip(("row", rows[LONG])))
+
+    def test_an_agents_settings_file_chosen_says_its_checked_way_at_the_foot(self):
+        os.makedirs(self.path(".claude"))
+        with open(self.path(".claude/settings.json"), "w") as f:
+            f.write("{}\n")
+        self.view.tree.set_hidden(True)
+        self.view.tree.toggle(self.path(".claude"))
+        self.draw()
+        self.view.select(self.path(".claude/settings.json"))
+        canvas = self.draw(width=60)
+        foot = text(canvas, canvas.height - 1)
+        self.assertTrue(foot.strip().endswith("Show in Agent"))
+        self.assertIn("Changes here are not", foot)
+        self.assertEqual(self.view.handle(Mouse("press", foot.index("Show"), canvas.height - 1, 0)),
+                         Action("show_agent", (self.path(".claude/settings.json"),)))
+        self.view.select(self.path("README.md"))
+        canvas = self.draw(width=60)
+        self.assertNotIn("Show in Agent", text(canvas, canvas.height - 1))
 
     def test_the_header_names_the_root(self):
         self.assertTrue(text(self.draw(), 0).strip().startswith("project"))
@@ -151,7 +170,7 @@ class View(unittest.TestCase):
         self.assertIsNone(self.press("down", "down", "enter"))
         self.draw()
         self.assertEqual(self.row_of("app.py"), self.row_of("src") + 1)
-        self.assertEqual(self.press("down", "enter"), Action("preview_file", (self.path("src/app.py"),)))
+        self.assertEqual(self.press("down", "enter"), Action("open_file", (self.path("src/app.py"),)))
 
     def test_a_folder_opened_turns_its_chevron_through_45_degrees(self):
         now = [10.0]
@@ -176,7 +195,7 @@ class View(unittest.TestCase):
 
     def test_a_click_previews_a_file_and_opens_a_folder(self):
         self.draw()
-        self.assertEqual(self.click("README.md"), Action("preview_file", (self.path("README.md"),)))
+        self.assertEqual(self.click("README.md"), Action("open_file", (self.path("README.md"),)))
         self.assertIsNone(self.click("docs"))
         self.draw()
         self.assertIn("guide.md", text(self.canvas, self.row_of("docs") + 1))
@@ -331,6 +350,54 @@ class View(unittest.TestCase):
         self.draw()
         self.assertFalse(any("app.py" in text(self.canvas, y) for y in range(12)))
         self.assertEqual(self.view.handle(Mouse("press", *targets["refresh"])), Action("refresh"))
+
+
+class Opening(unittest.TestCase):
+    """Files' Enter, a click, a search's hit and the Agent panel's Open: text in the user's editor, in a tab of its own;
+    what is drawn in the preview tab; without an editor, the preview and a word why."""
+
+    def setUp(self):
+        self.tmp = os.path.realpath(tempfile.mkdtemp())          # the sidebar's root is the folder's real path
+        self.addCleanup(shutil.rmtree, self.tmp)
+        set_env(self, HERDR_WORKSPACE_ID="w1", EDITOR="code -w", VISUAL=None)
+        self.folder = os.path.join(self.tmp, "lumen-api")
+        os.makedirs(os.path.join(self.folder, "config"))
+        for name, data in (("config/limits.json", b"{}\n"), ("shot.png", b"\x89PNG")):
+            with open(os.path.join(self.folder, name), "wb") as f:
+                f.write(data)
+        self.app = sidebar.App(self.folder, FakeTerminal(60, 40), mock.Mock(call=lambda *args: {}),
+                               os.path.join(self.tmp, "state"))
+        self.edited, self.previewed = [], []
+        set_attrs(self, sidebar.preview, open_editor=lambda herdr, workspace, root, path, argv, name=None:
+                  self.edited.append((root, path, argv, name)) or ("w1:p9", "w1:t3"),
+                  gone_at_once=lambda herdr, pane: self.gone)
+        self.app.open_preview = lambda spec, root: self.previewed.append(spec["title"])
+        self.gone = False
+
+    def open(self, name, line=None):
+        self.app.open_file(os.path.join(self.folder, name), line)
+        end_jobs()
+        self.app.collect()
+
+    def test_text_opens_in_the_users_editor_at_its_line(self):
+        self.open("config/limits.json", 3)
+        self.assertEqual(self.edited, [(self.folder, os.path.join(self.folder, "config/limits.json"), ["code", "-w"],
+                                        None)])
+        self.assertEqual(self.previewed, [])
+
+    def test_an_editor_that_opened_its_own_window_says_so(self):
+        os.environ["EDITOR"] = "code"
+        self.gone = True
+        self.open("config/limits.json")
+        self.assertEqual(self.app.note, "Opened in code, outside herdr")
+
+    def test_a_picture_opens_in_the_preview_and_without_an_editor_text_does_too(self):
+        self.open("shot.png")
+        os.environ.pop("EDITOR")
+        with mock.patch.object(sidebar.preview, "editor", return_value=None):
+            self.open("config/limits.json")
+        self.assertEqual((self.previewed, self.edited), (["shot.png", "config/limits.json"], []))
+        self.assertEqual(self.app.note, "No editor found: set $EDITOR")
 
 
 if __name__ == "__main__":

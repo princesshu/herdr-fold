@@ -11,6 +11,17 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 
 ### Added
 
+- Editing files. In the Herdr app a text file (JSON, code, TOML, plain text) opens in a tab of its own in the app's
+  code editor, typed into at once: a neutral dot in the tab's × place while unsaved, Cmd + S saves in place (its line
+  ends and mode kept, no window), Cmd + F its find bar; closing asks nothing, as a draft is kept in herdr-fold's state
+  folder, and a bar offers Reload or Keep mine when the disk changed meanwhile. A page's, an SVG's and Markdown's Code
+  view is the same editor, Markdown drawn beside it. In the TUI a text file opens in your own editor (`$VISUAL`,
+  `$EDITOR`, else micro, which the installer brings, nano or vim) in a tab of its own, and `e` edits a drawn page or SVG
+  from its preview. There the Cmd keys are the editor's own, as in VS Code: Cmd + A, C, X and V select all, copy, cut
+  and paste, Cmd + Z and Cmd + Shift + Z undo and redo, Cmd + S saves, Cmd + F finds and Cmd + W quits the editor, never
+  the tab under it (`src/cmd_keys.py` routes them; elsewhere each does what it did); micro's bottom line names the file,
+  its line and column and those keys, and nano's help lines are hidden. An agent's settings file says where its checked
+  way is, with Show in Agent.
 - Changing an agent's setup from the Agent panel, in the Herdr app and the TUI sidebar's Agent view, with the same
   forms (`core/harness.py` plans each, `core/harness_edit.py` writes it). The chosen row holds its form: the mode,
   the model and effort (on the head's line), Claude's sandbox and its hosts, Codex's sandbox and approval, a

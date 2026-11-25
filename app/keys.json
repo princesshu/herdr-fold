@@ -43,6 +43,10 @@
     "ctrl-b 9": "tab.select:9",
     "ctrl-b w": "mod.open:picker"
   },
+  "mod:herdr-fold": {
+    "cmd-s": "herdr-fold.save",
+    "cmd-f": "herdr-fold.find"
+  },
   "terminal": {
     "shift-enter": "send:\u001b\r"
   }

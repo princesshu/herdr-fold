@@ -114,10 +114,11 @@ Each space with a chat is a group, its chevron first; under it each chat with it
 right its agent and how long ago, in two columns (the agent's goes in a narrow pane).
 
 The chosen chat's task list stands under its row, as its agent keeps it (Claude's tasks, Codex's plan): Plan, with
-`Open the plan` at its right once a plan mode's plan was approved (in the preview tab); Codex's note, two rows at most;
-the done steps in one row, `✓ 3 done` (→ or a click lists them under it, ← folds them again); then the step at work
-(◐) and the ones to do (○), what one waits for at the right where there is room. A finished list is one line,
-`Plan All 4 done`, until the next message. The other rows have none, and the agent's own pane keeps its own list.
+`Open the plan` at its right once a plan mode's plan was approved (in your editor, as any text file); Codex's note,
+two rows at most; the done steps in one row, `✓ 3 done` (→ or a click lists them under it, ← folds them again); then
+the step at work (◐) and the ones to do (○), what one waits for at the right where there is room. A finished list is
+one line, `Plan All 4 done`, until the next message. The other rows have none, and the agent's own pane keeps its own
+list.
 
 ![Chats open in the sidebar beside Claude: each space's chats, lumen-api's open with Claude's two and Codex's
 four, a running one's mark in its state's color, the closed ones faint](../assets/screenshots/tui-chats.webp)
@@ -224,10 +225,26 @@ previous match, Esc goes back to typing.
 Cmd + Shift + L lists the files the focused pane's recent output names, the newest first: `src/app.py:42`,
 `src/app.ts(12,5)`, `README.md#L3`, a Python traceback's `File "…", line 9`, or a path alone. Only files that are
 there show, a relative path found from the pane's folder or its repository's top. Type to narrow the list; Enter, a
-double click or Open shows the file in the sidebar's preview tab at that line, marked (an image or a PDF drawn
-there, `o` opening it in the browser), and the tab's sidebar opens Files on it. It works on any pane: an agent's
-reply, a test run's failure, a compiler's errors. A remote machine's pane lists nothing: its files are on that
-machine, and the list shows only files that are on the Mac.
+double click or Open opens a text file at that line in your editor ([Editing files](#editing-files)); an image, a PDF,
+a page or an SVG shows in the sidebar's preview tab (`o` opening it in the browser), and that tab's sidebar opens Files
+on it. It works on any pane: an agent's reply, a test run's failure, a compiler's errors. A remote machine's pane lists
+nothing: its files are on that machine, and the list shows only files that are on the Mac.
+
+## Editing files
+
+Enter or a click on a text file in Files, a search hit, the Agent panel's Open, a saved file's name and Cmd + Shift + L
+open the file in your own editor, in a terminal tab named for its path: `$VISUAL`, else `$EDITOR` (`code -w` too), else
+the first of micro, nano and vim found, at the line asked where the editor takes `+N`. Opened again, its tab shows
+(never a second editor on one file). There the Cmd keys are the editor's own, as in VS Code: Cmd + S saves, Cmd + F
+finds (never the chat search), Cmd + Z and Cmd + Shift + Z undo and redo, Cmd + A, C, X and V select all, copy, cut and
+paste, and Cmd + W quits the editor, never the tab under it ([each editor's keys](keybindings.md#the-editor-tab)); in
+vim only the paste works. micro's bottom line names the file, a + while it is unsaved, the line and column, and those
+keys; nano's help lines, of other keys, are hidden. When the editor quits, the tab closes and Files, Changes and the
+preview show the file as saved. A desktop editor without `-w` opens its own window: the sidebar says so. A page or an
+SVG stays in the preview, drawn, and `e` (Edit in its status row) opens the same editor tab; once saved, the picture is
+drawn again. A binary file or one over 1 MiB stays in the read-only preview. With an agent's settings file chosen in
+Files (`.claude/settings*.json`, `.codex/config.toml`), Files' last row says the Agent panel's forms are its checked
+way, with Show in Agent.
 
 ## The status line
 

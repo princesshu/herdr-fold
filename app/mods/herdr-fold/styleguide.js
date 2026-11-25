@@ -2,10 +2,10 @@
 // The mod's styleguide: its foundations, each component in each of its states and the panels they make, drawn by the
 // views' own code from made-up states whose clicks go nowhere. herdr-app do herdr-fold.styleguide opens it.
 import { div } from "gpui-kit";
-import { v_flex, h_flex, InputState, ScrollHandle, TextareaState } from "gpui-base";
+import { EditorState, v_flex, h_flex, InputState, ScrollHandle, TextareaState } from "gpui-base";
 import { home } from "herdr";
 import { BY_EXTENSION, BY_NAME, FILE, ICONS } from "./icons.js";
-import { agentsSaid, commitRows, chatRows, diffRows, fieldWidth, FLOAT_GRIP, floatHeight, foldedSections,
+import { agentsSaid, commitRows, chatRows, diffRows, fieldWidth, findAll, FLOAT_GRIP, floatHeight, foldedSections,
   listHeight, menuHeight, paletteEntries, paletteKey, PALETTE_NAMED, panelChoices, pushOffer, RAIL,
   searchRows, SETTINGS, shortCount, TABS_H, updateReady, VIEWS_APP } from "./logic.js";
 import { AgentView } from "./agent.js";
@@ -19,6 +19,7 @@ import { button, chip, CODE_FONT, fileMark, icon, listName, noteToast, PAD, scop
 import { dockTabs, floatGrip, FloatSize, rail } from "./panel.js";
 import { Menus, menuPopup } from "./menus.js";
 import { Preview } from "./preview.js";
+import { Editing } from "./editor.js";
 import { UsageView } from "./usageview.js";
 import { money, whole } from "./report.js";
 import { SettingsView } from "./settings.js";
@@ -90,8 +91,20 @@ const DIFF = diffRows(["@@ -1,4 +1,5 @@", ' """GET /books: the books, by title."
   "+    return books[start:end]"]);
 const HTML = ["<!doctype html>", "<title>Lumen API: pagination</title>", "<link rel=\"stylesheet\" href=\"docs.css\">",
   "<h1>Pagination</h1>", "<p>Every list route answers one page at a time,", "  twenty items to a page.</p>",
-  "<h2>Query parameters</h2>", "<dl>", "  <dt><code>page</code></dt>", "  <dd>The page to serve.</dd>", "</dl>"]
-  .map((text, i) => ({ kind: " ", number: i + 1, text }));
+  "<h2>Query parameters</h2>", "<dl>", "  <dt><code>page</code></dt>", "  <dd>The page to serve.</dd>", "</dl>", ""]
+  .join("\n");
+// config/limits.json in the editor, typed into (20 made 25), and the disk's copy an agent wrote meanwhile
+const LIMITS = "{\n  \"page\": {\n    \"size\": 25,\n    \"max_page\": 100,\n    \"last_page\": \"clamp\"\n  },\n"
+  + "  \"rate\": {\n    \"per_minute\": 60,\n    \"burst\": 10\n  },\n  \"strict\": true\n}\n";
+const LOG = ["2026-11-24T09:12:03Z GET /books?page=2 200 12ms", "2026-11-24T09:12:04Z GET /books?page=3 200 9ms",
+  "2026-11-24T09:12:09Z GET /shelves 200 4ms", "2026-11-24T09:12:11Z GET /books?page=9 200 8ms", ""].join("\n");
+const SETTINGS_JSON = "{\n  \"permissions\": {\n    \"allow\": [\"Bash(pytest:*)\", \"Read(src/**)\"],\n"
+  + "    \"deny\": [\"Read(.env)\"]\n  },\n  \"hooks\": {\n    \"PostToolUse\": []\n  }\n}\n";
+// the tab bar over an editor: its tab typed into, the dot in its ×'s place
+const EDITED = [{ id: "e1", name: "Fix the page past the last one", active: false, status: "working",
+  icon: ICONS.bot, tint: true, unsaved: false }, { id: "e2", name: "config/limits.json", active: true, status: null,
+  icon: null, tint: false, unsaved: true }, { id: "e3", name: "config/logging.toml", active: false, status: null,
+  icon: null, tint: false, unsaved: true }];
 const COMMIT = commitRows(["4f1c2ab  Ada  2 hours ago", "", "refactor(store): keep books in the order added", "",
   "diff --git a/src/lumen/store.py b/src/lumen/store.py", "index 1..2 100644", "--- a/src/lumen/store.py",
   "+++ b/src/lumen/store.py", "@@ -4,2 +4,2 @@", "-books = set()", "+books = []", " def add(book):"].join("\n"));
@@ -158,9 +171,43 @@ const BAR = [{ id: "t1", name: "lumen-api", active: true, status: "working", ico
   { id: "t4", name: "notes Z", active: false, status: "done", icon: null, tint: false }];
 /** The tab bar as its view draws BAR, the pointer on HOVERED's tab, its end as END says.
  * @param {string | null} hovered */
-const tabBar = (t, hovered, end = END) => Object.assign(Object.create(TabsView.prototype),
-  { pressed: null, hovered }).draw(t, BAR, "s1", { start: 12, end: 12 }, { tip: "New chat", act: () => {} }, end,
+const tabBar = (t, hovered, end = END, rows = BAR) => Object.assign(Object.create(TabsView.prototype),
+  { pressed: null, hovered }).draw(t, rows, "s1", { start: 12, end: 12 }, { tip: "New chat", act: () => {} }, end,
   INERT_END);
+
+/** The editor's states, each [name, its Editing, height, width]: typed into, its find bar, the disk changed (a draft
+ * taken back too), an agent's settings file, read only, not text, a narrow one's find bar. */
+function editorStates() {
+  const finding = (/** @type {number} */ width) => {
+    const matches = findAll(LIMITS, "page"), editing = editingOf("config/limits.json", LIMITS, { dirty: true, width,
+      query: InputState.new({ placeholder: "Find", value: "page" }), finder: { matches, at: 1, from: 0 } });
+    editing.state.set_selected_range({ start: matches[1][0], end: matches[1][1] });
+    return editing;
+  };
+  return [["Typed into: its tab's dot (the tab bar's); ⌘ S saves it in place, no window",
+    editingOf("config/limits.json", LIMITS, { dirty: true }), 300, TAB],
+  ["⌘ F: the find bar over its top right, the match selected; ↩ the next, ⇧ ↩ the previous, esc closes it",
+    finding(TAB), 300, TAB],
+  ["Changed on disk while unsaved, or a draft taken back the disk has changed since: Reload or Keep mine; ⌘ S waits",
+    editingOf("config/limits.json", LIMITS, { dirty: true, newer: "{}\n" }), 300, TAB],
+  ["An agent's settings file: a quiet line, the checked way a press away",
+    editingOf(".claude/settings.json", SETTINGS_JSON, { settings: true }), 300, TAB],
+  ["Over 1 MiB: its start, read only, a word why", editingOf("logs/requests.log", LOG, { why: "large" }), 180, TAB],
+  ["Not a text file: a word why, no editor", editingOf("assets/lumen.woff2", "", { why: "binary", state: null }), 60,
+    TAB],
+  ["A narrow editor: the find bar across it", finding(360), 240, 360]];
+}
+
+/** PATH's TEXT in the editor as Editing draws it, FIELDS its state (unsaved, the find bar, the disk changed, read
+ * only); its buttons do nothing here. Its states are made at the page's start (a host call). */
+function editingOf(path, text, fields = {}) {
+  const state = EditorState.new({ language: path.endsWith(".html") ? "html" : "json", value: text,
+    readonly: Boolean(fields.why), font_family: CODE_FONT, tab_size: 2 });
+  return Object.assign(Object.create(Editing.prototype), { what: { root: "/work/lumen-api", path, on: null, n: 0 },
+    state, disk: text, newer: undefined, dirty: false, why: null, settings: false, real: `/work/lumen-api/${path}`,
+    note: null, loading: false, finder: null, query: null, width: TAB, reload: () => {}, keep: () => {},
+    step: () => {}, closeFind: () => {}, showAgent: () => {} }, fields);
+}
 // the app's default keys (keys.json's global and terminal sections, the ones its palette shows) and herdr-fold's
 // layout's, the TUI's navigation keys among them
 const APP_KEYS = [...Object.entries({ "cmd-t": "tab.new", "cmd-p": "mod.open:picker", f2: "tab.rename",
@@ -840,7 +887,7 @@ export function guide(proto, cx) {
   const found = { total: 3, files: 2, hits: HITS, error: null };
   const nothing = { total: 0, files: 0, hits: [], error: null };
   const setup = setupOf(home());                              // lumen-api's rules and skills
-  return {
+  const g = {
     /** @type {string | null} the part the page shows, picked in its index; null: its first */
     part: null,
     base: at(),
@@ -915,11 +962,13 @@ export function guide(proto, cx) {
     pageViews: [["Its code and picture side by side", "split", false, 280],
       ["Its code above its picture", "split", true, 400], ["Its code alone", "code", null, 280],
       ["Its picture alone", "picture", null, 280]]
-      .map(([name, shown, stacked, h]) => [name, previewOf({ rows: HTML, picture: { png: PAGE }, drawing: true, shown,
-        stacked }), h]),
+      .map(([name, shown, stacked, h]) => [name, previewOf({ picture: { png: PAGE }, drawing: true, shown, stacked }),
+        h]),
     issue: previewOf({ issue: ISSUE }),
-    page: previewOf({ rows: HTML, picture: { png: PAGE }, drawing: true, shown: "split", what: { n: 0, kind: "file",
+    page: previewOf({ picture: { png: PAGE }, drawing: true, shown: "split", what: { n: 0, kind: "file",
       path: "docs/pagination.html", root: "/work/lumen-api", on: null } }),
+    /** @type {[string, Editing, number, number][]} the editor's states, made once the page has started */
+    editors: /** @type {[string, Editing, number, number][]} */ ([]),
     files: [["Default", filesOf()], ["A file chosen", filesOf({ picked: "src/lumen/app.py" })],
       ["A full folder", filesOf({ open: new Set(["src", "src/lumen", "src/lumen/routes"]) })],
       ["Hidden files shown", filesOf({ hidden: true, folders: HIDDEN_FOLDERS, open: new Set() })],
@@ -1329,6 +1378,14 @@ export function guide(proto, cx) {
       .agentList(["claude", "codex"]),
       find: { input: InputState.new({ placeholder: "Search agents" }), typed: "", none: "No agent matches" } },
   };
+  cx.timer.after(0, (cx) => {                     // the editors after the page's start, which has its time limit
+    g.editors = editorStates();
+    for (const preview of [g.page, ...g.pageViews.map(([, one]) => one)]) {
+      preview.editing = editingOf("docs/pagination.html", HTML);
+    }
+    cx.notify();
+  });
+  return g;
 }
 
 /** Show in Agent as core gives it to a node of KIND the Agent panel has a row of (graph.py's show()), by its ID; the
@@ -1878,6 +1935,15 @@ function sections(g, t) {
         { spec: i ? "" : "h 48 · priority bar 3 · number in its color" })))]],
     ["issue-list", () => [group(t, "Issue list", g.issueList.map(([name, state, h], i) => specimen(t, `issue-list-${i}`,
       name, fixed(h, state.issues.render(t)))))]],
+    ["editor", () => [group(t, "Editor tab", g.editors.map(([name, editing, h, w], i) => specimen(t, `editor-${i}`,
+      name, fixed(h, editing.render(t, CODE_FONT)), { width: w, spec: i ? "" : "EditorState + Editor, the theme's "
+        + "colors, line numbers, folding · a line over it 36 high on chrome, a hairline under it, 12 muted, its icon "
+        + "14 dim, its buttons raised · the find bar 8 under its top, 14 from its right: a field 190, the count 12 "
+        + "muted, ↑ ↓ × 26 square, on the popover, radius 8" }))),
+    group(t, "An editor's tab", [specimen(t, "editor-tab", "Named for its file; unsaved, a neutral dot in its ×'s "
+      + "place, the × under the pointer; reopened, its draft and its dot back", div().h(42)
+      .child(tabBar(t, null, END, EDITED)), { width: 2 * PANEL, spec: "the dot 8, the foreground, centred in the ×'s "
+        + "16 square · no other mark: Files' row keeps git's letter" })])]],
     ["preview", () => [group(t, "Preview tab", tabs("preview", g.preview))]],
     ["preview-page", () => [group(t, "An SVG or a page in the preview tab", tabs("preview-page", g.pageViews))]],
     ["preview-issue", () => [group(t, "An issue in the preview tab", [specimen(t, "preview-issue", "Issue",

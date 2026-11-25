@@ -1,5 +1,6 @@
 """Open a file the focused pane's output names (Cmd+Shift+L, in a herdr popup): the files its recent lines name that are
-there, the newest first, each with the line it gives; Open shows the file at that line in the sidebar's preview tab."""
+there, the newest first, each with the line it gives; Open puts text at that line in the user's editor, in a tab of its
+own, and anything else in the sidebar's preview tab."""
 import os
 import subprocess
 import sys
@@ -133,11 +134,14 @@ def output(pane):
 
 
 def open_found(h, found, root, pane, state_dir=PLUGIN_STATE):
-    """FOUND at its line in PANE's workspace's preview tab (H: preview.Herdr); a new one gets the panes of the plugin's
-    PANE's tab has, and its sidebar's Files view the file chosen, its folders open."""
+    """FOUND at its line: text in the user's editor (H: preview.Herdr), else in PANE's workspace's preview tab; a new
+    one gets the panes of the plugin's PANE's tab has, its sidebar's Files view the file chosen, its folders open."""
     info = h.call("pane", "get", pane)["pane"]
-    kinds = panels.present(h.call("pane", "list").get("panes") or []).get(info["tab_id"]) or set(panels.KINDS)
     place = root if found.path.startswith(root.rstrip(os.sep) + os.sep) else os.path.dirname(found.path)
+    argv = preview.editable(found.path) and preview.editor(found.line)
+    if argv:
+        return preview.open_editor(h, info["workspace_id"], place, found.path, argv)
+    kinds = panels.present(h.call("pane", "list").get("panes") or []).get(info["tab_id"]) or set(panels.KINDS)
     opened, up = [], os.path.dirname(found.path)
     while up != place and up.startswith(place):
         opened.insert(0, up)

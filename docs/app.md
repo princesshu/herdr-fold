@@ -68,8 +68,9 @@ accent while it shows. The tab bar is herdr-fold's, drawn as the app's own: the 
 space until it is renamed (as the TUI's main tab), dragged into order, a double click renaming one, a right click the
 app's menu, the wheel stepping through them; after the last tab, + starts an agent (New chat, Cmd + N: [New
 chats](#new-chats)) and >_ (New terminal) opens a terminal tab with the machine's shell (an agent starts as + starts
-it, a space from Spaces' +, a worktree from a space's right click); every button there says what it does. A file, a
-picture, a diff, a commit or an issue opens in the space's preview tab, as in the TUI.
+it, a space from Spaces' +, a worktree from a space's right click); every button there says what it does. A text file
+opens in an editor tab of its own ([Editing files](#editing-files)); a picture, a page, Markdown, a diff, a commit or an
+issue in the space's preview tab, as in the TUI.
 
 ## Files
 
@@ -80,7 +81,7 @@ The space's folder, read on the space's machine, as the TUI sidebar's Files show
 | The tree | folders first, then files, by name; a folder read only once opened, a very full one ending in `… N more`; what git ignores faint and never read |
 | Icons | Catppuccin Icons' for each file type and for a folder, closed or open, as the Changes view's |
 | Marks | git's letter on each changed file and a dot on a folder holding changes, in git's colors, as in the TUI |
-| A click | a file opens in the space's preview tab, its lines numbered, an image or a PDF drawn; a folder opens or closes |
+| A click | a text file opens in an editor tab ([Editing files](#editing-files)); an image, a PDF, a page, an SVG or Markdown in the space's preview tab; a folder opens or closes |
 | Right click | Open in Browser (a page, a PDF or an image on this Mac, in the default browser; Open in Preview for a picture no browser shows, as a PSD or an EXR), Close Preview (while the space has a preview tab), New File, New Folder, Rename (the name typed in its row; Enter makes it, Esc gives it up), Copy Path (the path on its machine, onto this computer's clipboard), Move to Trash (asked on its row first), and on a folder New Space there |
 | The toolbar | New File and New Folder at the top, Refresh, Collapse Folders, and hidden files shown (the default) or not, kept for the next start |
 
@@ -134,8 +135,8 @@ first message; the line under the list says which (`Sent to a new chat: #42`).
 ## The preview tab
 
 A space has one, as in the TUI: the first file, diff, commit or issue opened makes it, named after what it shows
-(`preview: src/app.py`, `preview: #42 Pagination retur…`), and the next one shows there again. A file's lines are
-numbered from the first; a diff is numbered once, a removed line by the old file and the others by the new one, a thin
+(`preview: docs/api.md`, `preview: #42 Pagination retur…`), and the next one shows there again. A diff is numbered
+once, a removed line by the old file and the others by the new one, a thin
 rule where lines are left out; a commit shows its author, message and each file's diff; an issue its text and comments
 as markdown. An image on this Mac (any macOS reads, HEIC, AVIF, PSD, EXR and a camera's raw file too) is drawn, fitted
 to the tab and never larger than it is; a PDF's pages one under another at their own size (smaller in a narrower tab), a
@@ -145,14 +146,35 @@ side, as VS Code's preview to the side, or its code above its picture in a tab t
 them drags, and the page is drawn for its side as a browser that size shows it, once the divider is let go, on the
 canvas as a design tool's artboard (an SVG at its own size, never larger, what it leaves empty clear); Code, Split and
 Picture above them show either alone or both again, and the button beside them sets the two side by side or one under
-the other. WebKit draws it offline, as in the TUI. A right click in the tab offers those, Open in Browser and Close
-Preview. Herdr-fold's panel stays beside it.
+the other. WebKit draws it offline, as in the TUI. Markdown is drawn the same way beside its code, as the issues' text
+is (no image fetched, no HTML). Their code is the editor ([Editing files](#editing-files)): a page or an SVG saved is
+drawn again, Markdown as you type. A right click in the tab offers those, Open in Browser and Close Preview.
+Herdr-fold's panel stays beside it.
 
 ![A PDF's pages one under another in the preview tab, its first page in view under the page count and Open in
 Browser; beside it Files](../assets/screenshots/app-pdf.webp)
 
 ![An HTML page's code left and the page right, drawn for its side, under Code, Split and Picture; beside it
 Files](../assets/screenshots/app-split.webp)
+
+## Editing files
+
+A text file (JSON, code, TOML, plain text, `.env`) opens in a tab of its own, named for its path, in the app's code
+editor: the theme's colors, line numbers, folding. Every file has a tab of its own, never taking another's: opened
+again, its tab shows. Typing edits at once, and while there are unsaved changes
+a neutral dot stands in the tab's × place (× under the pointer). Cmd + S saves in place, keeping the file's line ends
+and mode, with no window; Cmd + F opens the editor's find bar at its top right: the match count, Enter the next,
+Shift + Enter the previous, Esc closes it (in a terminal or a chat Cmd + F keeps its meaning). Closing a tab with
+unsaved changes asks nothing: a draft of them is written about once a second while you type, in herdr-fold's state
+folder (`~/.local/state/herdr-fold/drafts`, its owner's only, never beside the file), and opening the file again brings
+it back with its dot. A draft goes once saved, after Reload, or when its file is gone.
+
+If the file changes on disk while you have unsaved changes (an agent wrote it), a quiet bar says so: Reload takes the
+disk's text, Keep mine keeps yours for the next save; while it shows, Cmd + S writes nothing. With nothing unsaved the
+tab reloads quietly. An agent's settings file (`.claude/settings*.json`, `.codex/config.toml`) opens the same way under
+a line saying the Agent panel's forms are its checked way, with Show in Agent. What cannot be edited safely says why and
+stays read only: a file over 1 MiB (its start shown), one that is not UTF-8 text, a link leading out of the folder, and
+a file on another machine (the app writes on this computer only).
 
 ## Spaces
 
@@ -448,7 +470,10 @@ takes the TUI's keys, and a few are the app's own. Where a shared key does its w
 - Cmd + Shift + E hides the dock entirely, open or its rail, and shows it again as it was; Cmd + Option + B stays
   the fold.
 - Cmd + Shift + L lists the files the focused terminal's output names at the window's top, by the TUI's rules
-  (core's `named_files.py`). In this layout it takes the app's Next layout key, which stays in the palette.
+  (core's `named_files.py`); a text file picked opens in its editor tab at its line. In this layout it takes the app's
+  Next layout key, which stays in the palette.
+- Cmd + S and Cmd + F are herdr-fold's while one of its views has the keys (`mod:herdr-fold` in `keys.json`): they save
+  and find in the editor tab shown, and do nothing elsewhere.
 - Cmd + K, then Cmd + T sets the app's theme, from herdr-fold's themes by the TUI's names.
 - Ctrl + B, then Shift + N opens the Mac's folder picker, then the space there, its agent started as Spaces' + starts
   one.

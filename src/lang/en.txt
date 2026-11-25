@@ -12,8 +12,8 @@ lib.press_any_key = Press any key to exit.
 
 # install.sh: start
 install.macos_only = This installer runs on a Mac; Linux and Windows machines are connected from there.
-install.intro = \n  herdr-fold\n\n  Installs Ghostty, herdr, starship, gh, bat, delta and ripgrep with Homebrew and \
-  sets them up — anything it replaces is backed up first.\n
+install.intro = \n  herdr-fold\n\n  Installs Ghostty, herdr, starship, gh, bat, delta, ripgrep and micro with Homebrew \
+  and sets them up — anything it replaces is backed up first.\n
 
 # install.sh: step 1, prerequisites
 install.step_prerequisites = 1/8 Prerequisites

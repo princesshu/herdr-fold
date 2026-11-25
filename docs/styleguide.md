@@ -480,6 +480,15 @@ With Split chosen, an icon button after them turns the two the other way, its ic
 
 ![An issue in the preview tab, with its comments](../assets/styleguide/preview-issue.webp)
 
+### The editor tab
+
+A text file in the app's editor (`editor.js`): EditorState and Editor, the theme's colors, line numbers, folding. A
+quiet line over it, 36 high on chrome with a hairline under it, 12 muted, its icon 14 dim, says what to know: an agent's
+settings file (Show in Agent, plain), the disk changed while unsaved or a draft's file changed since (Reload and Keep
+mine, raised), why it is read only. The find bar sits 8 under its top and 14 from its right on the popover, radius 8:
+a field 190 wide, the count 12 muted, ↑ ↓ × 26 square; in an editor narrower than 400 it spans it. Unsaved, the tab's ×
+place holds a neutral dot 8 (the foreground), the × under the pointer; Files' row keeps git's letter and nothing more.
+
 ### Spaces
 
 ![The left sidebar's Spaces list: by machine, a worktree under its checkout, the waits in yellow beside the branch, a

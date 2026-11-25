@@ -273,7 +273,7 @@ class Find:
 
     def activate(self, item):
         if isinstance(item, Hit):
-            return Action("preview_file", (os.path.join(self.root, *item.path.split("/")), item.line_no))
+            return Action("open_file", (os.path.join(self.root, *item.path.split("/")), item.line_no))
         if isinstance(item, File):
             self.folded.symmetric_difference_update({item.path})
             self.rebuild()

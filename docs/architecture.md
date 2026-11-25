@@ -38,7 +38,7 @@ plugins of its own.
 | `src/toggle_column.py` | hides and shows the right column (Cmd + Shift + E) |
 | `src/close_tab.py` | closes a tab (Cmd + W); asks first for a tab with a chat |
 | `src/commit_push.py` | commit and push with an AI-written message (Cmd + Shift + C) |
-| `src/claude_search.py` | searches the Claude chat (Cmd + F) |
+| `src/cmd_keys.py` | the Cmd keys an editor's tab gives the editor (Cmd + A, C, X, Z, Shift + Z, S, F, W); elsewhere their own work: Cmd + F searches the Claude chat, Cmd + A selects a sidebar field's text, Cmd + W closes the tab |
 | `src/rich_clipboard.py` | formatted copy: the selected part of a reply, as HTML, RTF and plain text (written by the sidebar plugin's `richtext.py`) |
 | `src/bin/pbcopy` | herdr's own `pbcopy`: passes the selection to the system's, then runs `rich_clipboard.py` |
 | `src/claude_trust.py` | lists the git repositories of the herdr Claude panes that Claude does not trust yet, and trusts them on a yes |

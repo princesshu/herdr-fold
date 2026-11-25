@@ -242,9 +242,9 @@ class View(unittest.TestCase):
         self.view.handle(Key("down"))
         self.assertFalse(self.view.editing)
         self.view.handle(Key("down"))
-        self.assertEqual(self.view.handle(Key("enter")), Action("preview_file", (os.path.join(ROOT, "src/app.py"), 3)))
+        self.assertEqual(self.view.handle(Key("enter")), Action("open_file", (os.path.join(ROOT, "src/app.py"), 3)))
         self.draw()
-        self.assertEqual(self.click("Use foo here"), Action("preview_file", (os.path.join(ROOT, "README.md"), 1)))
+        self.assertEqual(self.click("Use foo here"), Action("open_file", (os.path.join(ROOT, "README.md"), 1)))
 
     def test_a_file_row_folds_its_hits(self):
         self.answer(three())

@@ -114,11 +114,11 @@ class Files(Family):
 
     # --- what the views ask for
 
-    def do_preview_file(self, path, line=None):
-        self.host.open_preview(preview.file_spec(self.host.root, path, line), self.host.root)
+    def do_open_file(self, path, line=None):
+        self.host.open_file(path, line)
 
     def do_new_file(self, folder, name):
-        self.file_op(lambda: self.ops.new_file(folder, name), folder)
+        self.file_op(lambda: self.ops.new_file(folder, name), folder, opened=True)
 
     def do_new_folder(self, folder, name):
         self.file_op(lambda: self.ops.new_folder(folder, name), folder)
@@ -126,7 +126,8 @@ class Files(Family):
     def do_rename(self, path, name):
         self.file_op(lambda: self.ops.rename(path, name), os.path.dirname(path))
 
-    def file_op(self, work, folder):
+    def file_op(self, work, folder, opened=False):
+        """WORK done in FOLDER, its entry chosen (OPENED: a new file in the editor, as the app's)."""
         try:
             path = work()
         except OSError as err:                  # Refused, a name in use, no permission
@@ -135,6 +136,8 @@ class Files(Family):
         self.tree.reload([folder])
         self.views["files"].select(path)
         self.host.refresh()
+        if opened:
+            self.host.open_file(path)
 
     def do_trash(self, path):
         def then(_):
@@ -146,6 +149,11 @@ class Files(Family):
         self.host.job("workspace", lambda: self.host.herdr.call(
             "plugin", "pane", "open", "--plugin", "herdr-fold.spaces", "--entrypoint", "new-workspace", "--focus",
             "--env", f"HERDR_NEW_WORKSPACE_FOLDER={folder}"))
+
+    def do_show_agent(self, path):
+        """Files' foot under an agent's settings file: the Agent view on that agent, Permissions open."""
+        self.host.work["agent"].show_settings("codex" if "/.codex/" in path.replace(os.sep, "/") else "claude")
+        self.host.show("agent")
 
     def do_close_preview(self):
         self.host.job("preview", lambda: preview.close_preview(self.host.herdr, os.environ["HERDR_WORKSPACE_ID"]))

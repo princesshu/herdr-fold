@@ -1277,17 +1277,15 @@ class Reading(unittest.TestCase):
         app.act(Action("copy_text", ("npm install -g aider",)), "agent")
         self.assertEqual((copied, app.note), (["npm install -g aider"], "Copied"))
 
-    def test_enter_opens_a_rule_in_the_preview_tab_named_as_its_properties_name_it(self):
+    def test_enter_opens_a_rule_in_the_users_editor_named_as_its_properties_name_it(self):
         app, opened = self.app(), []
-        app.open_preview = lambda spec, cwd: opened.append((spec, cwd))
+        app.open_file = lambda path, line=None, root=None, name=None: opened.append((path, root, name))
         self.read(app)
         app.show("agent")
         # the head, its line, Usage, its one row (limits not told), Rules
         for key in ("home", "down", "down", "down", "down", "right", "down", "enter"):
             app.handle(Key(key))
-        spec, cwd = opened[0]
-        self.assertEqual((spec["title"], cwd), ("CLAUDE.md", self.folder))
-        self.assertIn(os.path.join(self.folder, "CLAUDE.md"), json.dumps(spec))
+        self.assertEqual(opened, [(os.path.join(self.folder, "CLAUDE.md"), self.folder, "CLAUDE.md")])
 
     def test_retry_checks_the_server_and_shows_its_answer_until_a_session_says_otherwise(self):
         app = self.app()

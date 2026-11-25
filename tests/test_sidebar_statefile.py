@@ -136,5 +136,48 @@ class Changed(unittest.TestCase):
         self.assertEqual(statefile.read(self.path), {})
 
 
+class ForTheApp(unittest.TestCase):
+    """The app's drafts, written by the app itself: a folder of the state folder's, its owner's only, a file in it
+    taken out, and those about a file that is gone swept."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        set_env(self, HOME=self.tmp)
+        self.addCleanup(os.umask, os.umask(0o022))
+
+    def run_it(self, *args, code=0):
+        done = subprocess.run([sys.executable, "-B", statefile.__file__, *args], capture_output=True, text=True,
+                              env={**os.environ, "HOME": self.tmp})
+        self.assertEqual(done.returncode, code, done.stderr)
+        return json.loads(done.stdout) if not code else None
+
+    def test_a_folder_its_owners_only(self):
+        folder = self.run_it("folder", "drafts")["folder"]
+        self.assertEqual(folder, os.path.join(statefile.folder(), "drafts"))
+        for path in (folder, statefile.folder()):
+            self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o700)
+
+    def test_a_file_taken_out_and_those_about_a_gone_file_swept(self):
+        folder = self.run_it("folder", "drafts")["folder"]
+        kept = os.path.join(self.tmp, "limits.json")
+        with open(kept, "w") as f:
+            f.write("{}\n")
+        for name, path in (("a.json", kept), ("b.json", os.path.join(self.tmp, "gone.json")), ("c.json", kept)):
+            with open(os.path.join(folder, name), "w") as f:
+                json.dump({"path": path, "text": "{}"}, f)
+        self.assertEqual(self.run_it("remove", "drafts", "c.json"), {})
+        self.assertEqual(self.run_it("sweep", "drafts"), {"removed": 1})
+        self.assertEqual(os.listdir(folder), ["a.json"])
+
+    def test_nothing_outside_its_folder_is_taken_out(self):
+        self.run_it("folder", "drafts")
+        mine = os.path.join(statefile.folder(), "version")
+        with open(mine, "w") as f:
+            f.write("0.4.0\n")
+        self.run_it("remove", "drafts", "../version", code=2)
+        self.assertTrue(os.path.exists(mine))
+
+
 if __name__ == "__main__":
     unittest.main()

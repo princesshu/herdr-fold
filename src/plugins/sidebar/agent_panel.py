@@ -23,7 +23,7 @@ import usage
 from family import Family
 from fileops import system_clipboard
 from harness_edit import place
-from layers import MONTH, SERVER, Layers, tree_rows
+from layers import MONTH, RULES, SERVER, Layers, tree_rows
 from screen import SPIN, SPINNER
 from usage_view import figures
 
@@ -289,10 +289,9 @@ class Agent(Family):
     # --- what the view asks for
 
     def do_open_setup(self, path):
-        """PATH (a rule, a settings file, .mcp.json) in the preview tab, named as the properties name it."""
+        """PATH (a rule, a settings file, .mcp.json) in the user's editor, named as the properties name it."""
         root = self.host.root
-        spec = preview.file_spec(root, path, None)
-        self.host.open_preview({**spec, "title": agent_setup.shown(path, root, os.path.expanduser("~"))}, root)
+        self.host.open_file(path, None, root, agent_setup.shown(path, root, os.path.expanduser("~")))
 
     def do_retry_server(self, name, after=None):
         """Claude's own look at the server NAME (`claude mcp get`), its mark spinning meanwhile; its answer shown
@@ -424,8 +423,17 @@ class Agent(Family):
     def do_undo_harness(self, edits):
         self.do_save_harness(edits, undone=True)
 
+    def show_settings(self, agent):
+        """Show in Agent (Files' foot under a settings file): AGENT's setup read, its Permissions open and chosen."""
+        self.view.folded.discard(RULES)
+        self.view.wanted = ("section", RULES)
+        if agent == self.view.agent():
+            self.ask()
+        else:
+            self.do_choose_agent(agent)
+
     def do_open_layer(self, layer):
-        """LAYER's settings file (the one a form saves in) in the preview tab, once there is one."""
+        """LAYER's settings file (the one a form saves in) in the user's editor, once there is one."""
         path = place(self.view.agent(), layer, self.host.root, os.path.expanduser("~"))
         if os.path.isfile(path):
             self.do_open_setup(path)

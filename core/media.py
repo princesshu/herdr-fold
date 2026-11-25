@@ -1,6 +1,6 @@
 """What the preview draws as a picture: an image (sips), a PDF's page (PDFKit), an SVG or a page (WebKit, offline),
-through Swift helpers compiled once into the cache; and what opens them. The Herdr app mod's, in JSON: media.py
-picture PATH PAGE WIDTH [HEIGHT] (its kind, pages, PNG), committed ROOT PATH WIDTH (its last commit's), open PATH."""
+through Swift helpers compiled once into the cache; what opens them; which files are text to edit. The Herdr app mod's,
+in JSON: media.py picture PATH PAGE WIDTH [HEIGHT], committed ROOT PATH WIDTH, open PATH, text ROOT PATH."""
 import contextlib
 import glob
 import hashlib
@@ -9,6 +9,7 @@ import os
 import plistlib
 import re
 import shutil
+import stat
 import struct
 import subprocess
 import sys
@@ -28,6 +29,9 @@ PICTURES = (".heic", ".heics", ".heif", ".hif", ".tif", ".tiff", ".jxl", ".jp2",
 KINDS = {**{ext: "image" for ext in IMAGES + PICTURES}, ".pdf": "pdf", ".html": "html", ".htm": "html", ".svg": "svg"}
 WEB = IMAGES + (".svg", ".pdf", ".html", ".htm")     # what a browser shows: any other picture opens in Preview
 SAFARI = "com.apple.Safari"
+TEXT_LIMIT = 1 << 20          # bytes: the most a file opens to edit, as the Herdr app reads it (readTextFile)
+SNIFF = 8192                  # bytes looked at for a NUL, as git does
+AGENT_SETTINGS = re.compile(r"(?:^|/)\.(?:claude/settings(?:\.[^/]+)?\.json|codex/config\.toml)$")
 APP_PICTURES = "herdr-fold-pictures"     # in the Herdr app's home: its image() takes a path from there
 TIMEOUT = 120                 # seconds a compile or a page may take
 DENSITY = 2                   # a drawn SVG's or page's pixels to a point: a Mac's screen
@@ -144,6 +148,47 @@ exit(done && !failed ? 0 : 3)
 def kind_of(path):
     """image, pdf, html or svg (a picture that is code too) by PATH's extension, else None."""
     return KINDS.get(os.path.splitext(path)[1].lower())
+
+
+def text_refusal(path):
+    """Why PATH opens read only in both clients: "gone", "binary" (no regular file, a NUL in its first SNIFF bytes, or
+    no UTF-8), "large" (past TEXT_LIMIT, which the app cannot read); None for text to edit."""
+    try:
+        if not stat.S_ISREG(os.stat(path).st_mode):     # a pipe would wait for a writer
+            return "binary"
+        with open(path, "rb") as f:
+            data = f.read(TEXT_LIMIT + 1)
+    except FileNotFoundError:
+        return "gone"
+    except OSError:
+        return "binary"
+    if len(data) > TEXT_LIMIT:
+        return "large"
+    try:
+        data.decode("utf-8")
+    except UnicodeDecodeError:
+        return "binary"
+    return "binary" if b"\0" in data[:SNIFF] else None
+
+
+def agent_settings(path):
+    """Whether PATH is an agent's settings file, which the Agent panel's forms change and check."""
+    return bool(AGENT_SETTINGS.search(path.replace(os.sep, "/")))
+
+
+def text(root, path):
+    """PATH under ROOT as the app's editor opens it: why it is read only (text_refusal()'s, or "link": it leads out of
+    ROOT), the real path it writes, whether it is an agent's settings file; past the limit, its start to show."""
+    real, top = os.path.realpath(path), os.path.realpath(root)
+    why = text_refusal(real)
+    if why is None and not real.startswith(top.rstrip(os.sep) + os.sep):
+        why = "link"
+    answer = {"why": why, "real": real, "settings": agent_settings(path)}
+    if why == "large":
+        with open(real, "rb") as f:
+            start = f.read(TEXT_LIMIT)
+        answer["start"] = start[:start.rfind(b"\n") + 1].decode("utf-8", "replace")
+    return answer
 
 
 def size(path):
@@ -384,9 +429,11 @@ def main(argv):
         answer = committed_picture(args[0], args[1], int(args[2]))
     elif command == "open" and len(args) == 1:
         answer = {"opened": open_in_browser(args[0])}
+    elif command == "text" and len(args) == 2:
+        answer = text(*args)
     else:
-        print("usage: media.py picture PATH PAGE WIDTH [HEIGHT] | committed ROOT PATH WIDTH | open PATH",
-              file=sys.stderr)
+        print("usage: media.py picture PATH PAGE WIDTH [HEIGHT] | committed ROOT PATH WIDTH | open PATH"
+              " | text ROOT PATH", file=sys.stderr)
         return 2
     print(json.dumps(answer))
     return 0

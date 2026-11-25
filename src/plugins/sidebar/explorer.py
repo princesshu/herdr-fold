@@ -15,6 +15,8 @@ from widgets import Action, Confirm, ListView, Menu, Popup, TextInput
 
 LIST = 1                      # the tree's first row: right under the header
 MENU = ("New File", "New Folder", "Rename", "Copy Path", "Move to Trash")
+# the foot while an agent's settings file is chosen: no check here, the Agent panel's forms are its checked way
+UNCHECKED, SHOW = "Changes here are not checked; the Agent panel's forms are, with Undo", "Show in Agent"
 
 
 @dataclass
@@ -84,11 +86,14 @@ class Explorer:
         widgets.TURNS.turn(("tree", path))
 
     def draw(self, canvas, top, height, roomy):
-        """The view from row TOP, HEIGHT rows: the folder's name, the tree right under it (ROOMY changes nothing)."""
+        """The view from row TOP, HEIGHT rows: the folder's name, the tree right under it, a foot while an agent's
+        settings file is chosen (ROOMY changes nothing)."""
         self.canvas, self.top, self.height, self.cut = canvas, top, height, set()
         self.sync()
-        if self.list.height != height - LIST:
-            self.list.resize(height - LIST)
+        settings = self.settings_file()
+        if self.list.height != height - LIST - bool(settings):
+            self.list.resize(height - LIST - bool(settings))
+            self.list.keep_visible()
         self.header(canvas, top)
         for y in range(top + 1, top + height):
             canvas.region(y, 0, canvas.width, "blank")
@@ -97,10 +102,26 @@ class Explorer:
             if index is None:
                 break
             self.row(canvas, top + LIST + row, index)
+        if settings:
+            self.foot(canvas, top + height - 1)
         if self.menu:
             self.draw_menu(canvas)
         if self.confirm:
             self.draw_confirm(canvas)
+
+    def settings_file(self):
+        """The chosen row's file where it is an agent's settings file (.claude/settings*.json, .codex/config.toml),
+        else None."""
+        node = self.list.selected()
+        return node.path if node is not None and node.path and not node.is_dir and media.agent_settings(node.path) \
+            else None
+
+    def foot(self, canvas, y):
+        """The quiet line the app's editor has over such a file: its words (cut short first), Show in Agent."""
+        width = canvas.width
+        canvas.put(y, 1, truncate(UNCHECKED, max(1, width - len(SHOW) - 4)), Style(fg="muted"))
+        canvas.put(y, width - len(SHOW) - 1, SHOW, Style(fg="accent" if self.pointed == "show_agent" else "text"))
+        canvas.region(y, width - len(SHOW) - 1, width - 1, "show_agent")
 
     def header(self, canvas, y):
         marks = glyphs(self.icons)
@@ -265,6 +286,8 @@ class Explorer:
             self.new(target, self.folder(self.list.selected()))
         elif target == "refresh":
             return Action("refresh")
+        elif target == "show_agent" and self.settings_file():
+            return Action("show_agent", (self.settings_file(),))
         elif target == "collapse":
             self.tree.collapse_all()
             self.sync()
@@ -279,7 +302,7 @@ class Explorer:
             self.toggle(node.path)
             self.sync()
             return None
-        return Action("preview_file", (node.path,))
+        return Action("open_file", (node.path,))
 
     def open_or_enter(self, node):
         if node is None or not node.is_dir:

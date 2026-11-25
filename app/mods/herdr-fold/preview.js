@@ -1,18 +1,19 @@
 // @ts-check
-// The preview tab, as the TUI sidebar's: one a space, showing what Files, Changes, the Graph or Issues opened in it (a
-// file, a picture, a PDF's pages, an SVG's or a page's code and picture, a diff, a commit, an issue), the panel beside.
+// The preview tab, as the TUI sidebar's: one a space, showing a picture, a PDF, a page, an SVG or Markdown (its code
+// the editor), a diff, a commit or an issue, the panel beside; a text file opens in an editor tab instead (editor.js).
 import { div, image } from "gpui-kit";
-import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, TextView, v_resizable, v_virtual_list,
-  VirtualListScrollHandle } from "gpui-base";
-import { hc, home, panes, readTextFile, setShared, shared, spaces, window, run as command } from "herdr";
+import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, TextView, v_resizable, v_virtual_list }
+  from "gpui-base";
+import { hc, home, panes, setShared, shared, spaces, window, run as command } from "herdr";
+import { Editing, openEditor } from "./editor.js";
 import { GIT, GITHUB, MEDIA, NAMED_FILES, OUTPUT_LINES } from "./helper.js";
-import { browsable, changeSides, commitRows, diffRows, mediaKind, opener, previewName, previewTab, priorityColor,
-  said, safeMarkdown, stacks } from "./logic.js";
+import { browsable, changeSides, commitRows, diffRows, editsInTab, markdownFile, mediaKind, opener, previewName,
+  previewTab, priorityColor, said, safeMarkdown, stacks } from "./logic.js";
 import { Menus } from "./menus.js";
 import { chip, choices, iconButton } from "./parts.js";
 
 const PREVIEWS = "herdr-fold.previews";   // what each space's preview tab shows, by the space's id (shared)
-const LINES = 1500;                       // a diff's or a file's lines shown at most
+const LINES = 1500;                       // a diff's or a commit's lines shown at most
 const PICTURE = 1600;                     // pixels: an image's or a PDF page's width as core/media.py makes it
 const GAP = 16;                           // px between two of a PDF's pages, as the TUI's row
 const MARGIN = 32;                        // px each side of a PDF's page: its air, the scrollbar's room on the right
@@ -20,12 +21,13 @@ const INSET = 24;                         // px of the board round a picture
 const FIT = 250;                          // ms the board's size stays before an SVG or a page is drawn for it
 const TICK = 200;                         // ms between two looks at the PDF's pages in view
 const NAMED = 360;                        // px: Cmd+Shift+L's list of files, a path and its line
-/** @type {[string, string][]} an SVG's or a page's views: its code, both side by side, its picture */
+/** @type {[string, string][]} a page's, an SVG's or Markdown's views: its code, both side by side, its picture */
 const VIEWS = [["code", "Code"], ["split", "Split"], ["picture", "Picture"]];
 
 /** WHAT in the shown space's preview tab, as the TUI sidebar opens it: that tab named for it and shown, else a new
- * one. @param {import("./logic.js").Shown} what */
+ * one; a text file in an editor tab. @param {import("./logic.js").Shown} what */
 export function showPreview(what) {
+  if (what.kind === "file" && editsInTab(what.path)) return openEditor(what);
   const all = spaces(), space = all.find((s) => s.active);
   if (!space) return;
   const kept = /** @type {Record<string, any>} */ (shared(PREVIEWS) ?? {});
@@ -94,10 +96,16 @@ export class Preview {
     this.pdf = null;
     /** @type {any} the ticks that make the PDF's pages in view */
     this.ticking = null;
+    /** @type {Editing | null} a page's, an SVG's or Markdown's code, in the editor */
+    this.editing = null;
     /** an SVG or a page on this Mac, drawn for the board's size once it is known */
     this.drawing = false;
+    /** Markdown, drawn beside its code */
+    this.markdown = false;
     /** @type {{ width: number, height: number } | null} the board's size the picture was drawn for */
     this.drawnFor = null;
+    /** @type {{ width: number, height: number } | null} the board's size as last laid out */
+    this.board = null;
     /** @type {any} the wait before it is drawn for a new size */
     this.fitting = null;
     /** an SVG's or a page's view (VIEWS'), kept for the next one */
@@ -110,7 +118,6 @@ export class Preview {
     this.menus = new Menus();                     // its right click's
     /** @type {string | null} why there is nothing to show */
     this.note = null;
-    this.scroll = VirtualListScrollHandle.new();   // a file's rows: shown from the line it was opened at
   }
 
   /** From render: the space's latest request, asked for once it is new (after the render, as that redraws). */
@@ -126,23 +133,22 @@ export class Preview {
   load(what, cx) {
     this.ticking?.cancel();
     this.fitting?.cancel();
+    this.editing?.release();
     Object.assign(this, { what, rows: [], issue: null, picture: null, change: null, pdf: null, ticking: null,
-      drawing: false,
-      drawnFor: null, fitting: null, loading: true, note: null });
+      editing: null, drawing: false, markdown: false, drawnFor: null, fitting: null, loading: true, note: null });
     cx.spawn(async (cx) => {
       try {
         if (what.kind === "file" && ["image", "pdf"].includes(mediaKind(what.path) ?? "")) {
           if (what.on) return void (this.note = "A picture on another machine: only those on this Mac are shown");
           return void (await this.paint(what));
         }
-        if (what.kind === "file") {
-          const text = await readTextFile(`${what.root}/${what.path}`, { on: what.on });
+        if (what.kind === "file") {                // a page, an SVG or Markdown: its code in the editor, drawn beside
+          const editing = (this.editing = new Editing(what, this.core, { space: this.space, tab: previewName(what),
+            saved: (cx) => this.drawAgain(cx) }));
+          await editing.load(cx);
           if (what.n !== this.n) return;
-          if (text === null) return void (this.note = "This file is no longer there");
-          this.rows = text.replace(/\n$/, "").split("\n").slice(0, LINES)
-            .map((line, i) => ({ kind: " ", number: i + 1, text: line }));
-          this.scroll.scroll_to_item(Math.max(0, Math.min((what.line ?? 1) - 1, this.rows.length - 1)), "top");
-          this.drawing = ["svg", "html"].includes(mediaKind(what.path) ?? "") && !what.on;   // beside, for the board
+          this.markdown = markdownFile(what.path);
+          this.drawing = !this.markdown && !what.on;   // beside, for the board
           return;
         }
         if (what.kind === "issue") {
@@ -187,7 +193,7 @@ export class Preview {
       this.pdf = { sizes: answer.pages ?? [[612, Math.round((612 * h) / w)]], count: answer.pages?.length ?? null,
         made: [answer.png], range: null, making: false, page: 0, room: null };
     } else this.picture = answer.png ? { png: answer.png, size: answer.size } : null;
-    this.note = answer.png || this.rows.length ? null : "This picture cannot be shown";
+    this.note = answer.png || this.editing ? null : "This picture cannot be shown";
   }
 
   /** A changed picture's before (its last commit's) and after (the file's), as VS Code's image diff: either may be
@@ -206,6 +212,7 @@ export class Preview {
    * after it settles (a dragged divider's, once it stops). */
   fit(size, cx) {
     const made = this.drawnFor, what = this.what;
+    this.board = size;
     if (!this.drawing || made && Math.abs(made.width - size.width) < 8 && Math.abs(made.height - size.height) < 8) {
       return;
     }
@@ -248,6 +255,11 @@ export class Preview {
     });
   }
 
+  /** Cmd+S or Cmd+F ("save", "find") for its code, while its tab is the one shown: whether it was its to do. */
+  command(asked, cx) {
+    return Boolean(this.editing?.command(asked, cx));
+  }
+
   /** The picture's file opened in the default browser (core/media.py). */
   browse(cx) {
     const { what } = this;
@@ -270,12 +282,10 @@ export class Preview {
       .on_mouse_down("right", () => this.menus.open(this.items()));
     if (this.issue) return frame.child(this.issueView(t));
     if (this.change && !this.note) return frame.child(this.changeView(t));
-    if (this.drawing && this.rows.length) return frame.child(this.codeAndPicture(t, code));
+    if (this.editing && !this.loading) return frame.child(this.codeAndPicture(t, code));
     if (this.picture) return frame.child(this.pictureView(t));
     if (this.pdf) return frame.child(this.pdfView(t));
-    if (this.rows.length) {                       // a page's lines under Open in Browser, as the TUI's o
-      return frame.when(browsable(this.what), (e) => e.child(this.bar(t))).child(this.diff(t, code));
-    }
+    if (this.rows.length) return frame.child(this.diff(t, code));
     const line = this.loading ? "Loading…" : this.note ?? (this.what ? "" : "Nothing chosen to preview");
     return frame.child(div().p(16).text_size(12).text_color(this.note ? t.ansi1 : t.dim).child(line));
   }
@@ -283,7 +293,7 @@ export class Preview {
   /** What a right click on the tab offers, as the TUI's: an SVG's or a page's views, the file in the browser, the tab
    * closed. @returns {import("./menus.js").Item[]} */
   items() {
-    const both = this.drawing && this.rows.length > 0, down = stacks(this.stacked, this.room);
+    const both = this.paired(), down = stacks(this.stacked, this.room);
     const turn = (stacked) => (cx) => {
       this.stacked = stacked;
       cx.notify();
@@ -306,7 +316,7 @@ export class Preview {
   bar(t) {
     const { pdf } = this;
     return h_flex().h(40).flex_none().px(12).gap(4).items_center().border_b(1).border_color(t.border)
-      .when(this.drawing && this.rows.length > 0, (e) => e.child(choices(t, "preview", VIEWS, this.shown,
+      .when(this.paired(), (e) => e.child(choices(t, "preview", VIEWS, this.shown,
         (shown, cx) => {
           this.shown = shown;
           cx.notify();
@@ -326,10 +336,22 @@ export class Preview {
         (cx) => this.browse(cx), { left: true })));
   }
 
-  /** Whether two parts share the room: an SVG's or a page's code and picture, or a changed picture's before and
-   * after. */
+  /** Whether its code has a picture beside it: a page or an SVG on this Mac, or Markdown, read as text. */
+  paired() {
+    return Boolean(this.editing?.state) && (this.drawing || this.markdown);
+  }
+
+  /** The page or the SVG drawn again for the saved file (as the disk has it); Markdown is drawn from the editor. */
+  drawAgain(cx) {
+    if (!this.drawing || !this.board) return void cx.notify();
+    this.drawnFor = null;
+    this.fit(this.board, cx);
+  }
+
+  /** Whether two parts share the room: a page's, an SVG's or Markdown's code and picture, or a changed picture's
+   * before and after. */
   twoParts() {
-    return (this.drawing && this.rows.length > 0 && this.shown === "split") ||
+    return (this.paired() && this.shown === "split") ||
       Boolean(this.change?.before && this.change?.after);
   }
 
@@ -375,12 +397,16 @@ export class Preview {
         .child(Scrollbar.vertical(list).viewport_from_layout().absolute().inset_0()));
   }
 
-  /** An SVG's or a page's code and its picture, as VS Code's preview to the side: side by side, or the code above
-   * where the room is taller than wide (or as chosen), the divider dragged (the window keeps where); or either alone,
-   * as the bar's views have it. */
+  /** A page's, an SVG's or Markdown's code in the editor and its picture, as VS Code's preview to the side: side by
+   * side, or the code above where the room is taller than wide (or as chosen), the divider dragged (the window keeps
+   * where); or either alone, as the bar's views have it; its code alone where it cannot be drawn. */
   codeAndPicture(t, code) {
-    const lines = v_flex().size_full().min_w(0).min_h(0).child(this.diff(t, code));
-    const board = v_flex().size_full().min_w(0).min_h(0).child(this.canvas(t));
+    const editing = /** @type {Editing} */ (this.editing);
+    const lines = v_flex().size_full().min_w(0).min_h(0).child(editing.render(t, code));
+    if (!this.paired()) {
+      return v_flex().size_full().min_h(0).when(browsable(this.what), (e) => e.child(this.bar(t))).child(lines);
+    }
+    const board = v_flex().size_full().min_w(0).min_h(0).child(this.markdown ? this.page(t, editing) : this.canvas(t));
     const parts = stacks(this.stacked, this.room) ? v_resizable("preview-split-stacked") : h_resizable("preview-split");
     return v_flex().size_full().min_h(0)
       .child(this.bar(t))
@@ -388,6 +414,13 @@ export class Preview {
         ? div().id("preview-room").flex_1().min_h(0).on_size_change((size, cx) => this.measure(size, cx))
           .child(parts.size_full().child(resizable_panel().child(lines)).child(resizable_panel().child(board)))
         : v_flex().flex_1().min_h(0).child(this.shown === "code" ? lines : board));
+  }
+
+  /** EDITING's Markdown drawn as the issues' text is (safe: no image fetched, no HTML), as its editor holds it. */
+  page(t, editing) {
+    return div().id("preview-page").flex_1().min_h(0).overflow_y_scrollbar().bg(t.canvas)
+      .child(v_flex().w_full().max_w(860).px(24).py(20).text_size(13).text_color(t.foreground)
+        .child(TextView.markdown(`page-${this.what.n}`, safeMarkdown(editing.text())).selectable()));
   }
 
   /** The room the code and the picture share, SIZE (logical px): which way they part, by its shape, follows it. */
@@ -430,7 +463,7 @@ export class Preview {
         .child(div().flex_1().min_w(0).truncate().child(text));
     return div().flex_1().min_h(0).relative().font_family(code)
       .child(v_virtual_list("diff", this.rows.length, 22, (i) => String(i),
-        (range) => this.rows.slice(range.start, range.end).map(row)).track_scroll(this.scroll).size_full())
+        (range) => this.rows.slice(range.start, range.end).map(row)).size_full())
       .child(Scrollbar.vertical("diff").viewport_from_layout().absolute().inset_0());
   }
 

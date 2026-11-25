@@ -20,6 +20,8 @@ from support import SRC, FakeTerminal, end_child, finished, logged, psd_in_previ
     stubs, trap
 from test_core_media import pdf, png
 
+import cmd_keys
+
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import media  # noqa: E402
 import pager  # noqa: E402
@@ -33,9 +35,11 @@ FAKE_HERDR = """#!/bin/sh
 printf '%s\\n' "$*" >> "$HERDR_LOG"
 case "$1 $2" in
   "tab list") echo '{"result": {"tabs": [{"tab_id": "w1:t1", "label": "files"},'\
-                   '{"tab_id": "w1:t2", "label": "preview: old.md"}]}}' ;;
+                   '{"tab_id": "w1:t2", "label": "preview: old.md"},'\
+                   '{"tab_id": "w1:t5", "label": "config/limits.json"}]}}' ;;
   "pane list") echo '{"result": {"panes": [{"pane_id": "w1:p1", "tab_id": "w1:t1", "label": "sidebar"},'\
-                    '{"pane_id": "w1:p4", "tab_id": "w1:t2", "label": "preview"}]}}' ;;
+                    '{"pane_id": "w1:p4", "tab_id": "w1:t2", "label": "preview"},'\
+                    '{"pane_id": "w1:p5", "tab_id": "w1:t5", "label": "'"${EDITING:-shell}"'"}]}}' ;;
   "pane process-info") if [ "$PAGING" = 1 ]; then name=Python; else name=-zsh; fi
                        echo '{"result": {"process_info": {"foreground_processes": [{"name": "'$name'"}]}}}' ;;
   "tab create") [ "$CREATE" = fails ] && { echo "herdr said no" >&2; exit 2; }
@@ -159,6 +163,69 @@ class Commands(unittest.TestCase):
         self.assertEqual(unix.env, {"HERDR_FOLD_PROGRAM": "/srv/someone/bin/gh"})
         windows = preview.interactive(["D:\\tools\\gh.exe", "issue", "create"], windows=True)
         self.assertEqual(windows.line, "& $env:HERDR_FOLD_PROGRAM 'issue' 'create'; if ($?) { exit }")
+
+    def test_the_editors_line_names_its_file_by_the_environment(self):
+        unix = preview.interactive(["/opt/bin/code", "-w"], "/srv/someone/notes.md", windows=False)
+        self.assertEqual(unix.line, '"$HERDR_FOLD_PROGRAM" -w "$HERDR_FOLD_FILE" && exit')
+        self.assertEqual(unix.env["HERDR_FOLD_FILE"], "/srv/someone/notes.md")
+        windows = preview.interactive(["notepad.exe"], "D:\\notes.md", windows=True)
+        self.assertEqual(windows.line, "& $env:HERDR_FOLD_PROGRAM $env:HERDR_FOLD_FILE; if ($?) { exit }")
+
+    def test_the_users_editor_visual_then_editor_then_micro_nano_vim(self):
+        found = tools("nano", "vim")
+        self.assertEqual(preview.editor(None, {"VISUAL": "hx", "EDITOR": "nano"}, found, mac=False), ["hx"])
+        self.assertEqual(preview.editor(None, {"EDITOR": "code -w"}, found, mac=False), ["code", "-w"])
+        self.assertEqual(preview.editor(None, {}, found, mac=False), ["/opt/bin/nano"])
+        self.assertEqual(preview.editor(None, {}, tools("micro", "nano", "vim"), mac=False), ["/opt/bin/micro"])
+        self.assertEqual(preview.editor(None, {}, tools("vim"), mac=False), ["/opt/bin/vim"])
+        self.assertIsNone(preview.editor(None, {}, tools(), mac=False))
+
+    def test_the_line_where_the_editor_takes_it(self):
+        self.assertEqual(preview.editor(12, {"EDITOR": "/usr/bin/vim"}, tools(), mac=False), ["/usr/bin/vim", "+12"])
+        self.assertEqual(preview.editor(12, {}, tools("micro"), mac=False), ["/opt/bin/micro", "+12"])
+        self.assertEqual(preview.editor(12, {"EDITOR": "code -w"}, tools(), mac=False), ["code", "-w"])
+
+    def test_on_a_mac_micros_status_line_says_the_file_and_the_tabs_keys(self):
+        # the Cmd keys cmd_keys.py gives micro, on its command line alone (never its settings), before +N: its flags
+        # end at the first word that is none
+        argv = preview.editor(12, {}, tools("micro"), mac=True)
+        self.assertEqual((argv[0], argv[-1]), ("/opt/bin/micro", "+12"))
+        options = dict(zip(argv[1:-1:2], argv[2:-1:2]))
+        self.assertEqual(sorted(options), ["-basename", "-statusformatl", "-statusformatr"])
+        self.assertEqual(options["-basename"], "true")
+        self.assertEqual(options["-statusformatl"], " $(filename) $(modified)Ln $(line), Col $(col)")
+        named = re.findall(r"Cmd\+(\w) (\w+)", options["-statusformatr"])
+        self.assertEqual(named, [("S", "Save"), ("F", "Find"), ("Z", "Undo"), ("W", "Close")])
+        self.assertEqual([key for key, _ in named if key.lower() not in cmd_keys.EDITORS["micro"]], [])
+        self.assertLessEqual(len(options["-statusformatr"]) + len(" notes.md + Ln 120, Col 40"), 80)
+        self.assertEqual(preview.editor(None, {"EDITOR": "micro"}, tools(), mac=True)[:2], ["micro", "-basename"])
+
+    def test_on_a_mac_nanos_help_lines_are_hidden_elsewhere_it_is_as_it_was(self):
+        # nano's (and pico's, macOS's nano) two help lines name none of the tab's keys
+        self.assertEqual(preview.editor(5, {}, tools("nano"), mac=True), ["/opt/bin/nano", "-x", "+5"])
+        self.assertEqual(preview.editor(5, {}, tools("nano"), mac=False), ["/opt/bin/nano", "+5"])
+        self.assertEqual(preview.editor(None, {}, tools("micro"), mac=False), ["/opt/bin/micro"])
+        self.assertEqual(preview.editor(None, {}, tools("vim"), mac=True), ["/opt/bin/vim"])
+
+    def test_text_opens_in_the_editor_what_is_drawn_in_the_preview(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp)
+        for name, data in (("limits.json", b"{}\n"), ("README.md", b"# lumen\n"), ("logo.svg", b"<svg/>"),
+                           ("a.bin", b"\0\1"), ("shot.png", b"\x89PNG")):
+            with open(os.path.join(tmp, name), "wb") as f:
+                f.write(data)
+        with mock.patch.object(preview.media, "drawable", return_value=True):
+            self.assertEqual([preview.editable(os.path.join(tmp, name)) for name in ("limits.json", "README.md",
+                              "logo.svg", "a.bin", "shot.png")], [True, True, False, False, False])
+        with mock.patch.object(preview.media, "drawable", return_value=False):     # no WebKit: its code is text
+            self.assertTrue(preview.editable(os.path.join(tmp, "logo.svg")))
+
+    def test_a_drawn_page_or_svg_is_edited_from_its_status_row(self):
+        set_env(self, SSH_CONNECTION=None, SSH_CLIENT=None)
+        with mock.patch.object(preview.media, "drawable", return_value=True):
+            self.assertEqual(preview.file_spec("/repo", "/repo/logo.svg", None, which=tools("bat"))["edit"],
+                             "/repo/logo.svg")
+        self.assertNotIn("edit", preview.file_spec("/repo", "/repo/a.bin", None, which=tools("bat")))
 
     def test_the_shell_ends_with_the_pager_but_not_after_an_error(self):
         self.assertTrue(preview.command("/state/p.json", windows=False).line.endswith(" && exit"))
@@ -344,6 +411,35 @@ class Tabs(unittest.TestCase):
         self.assertIn("tab create --workspace w1 --cwd /repo --label issue: new --no-focus", calls)
         self.assertEqual(calls[1:3], ["pane rename w1:p9 issue", "pane run w1:p9 gh issue create"])
         self.assertEqual(calls[-1], "tab focus w1:t3")
+
+    def test_a_text_file_opens_in_the_users_editor_in_a_tab_named_for_it(self):
+        pane, tab = preview.open_editor(self.herdr, "w1", "/repo", "/repo/config/limits.json", ["/opt/bin/micro"])
+        calls = logged(self.log)
+        create = next(call for call in calls if call.startswith("tab create"))
+        self.assertIn("--cwd /repo --label config/limits.json --env HERDR_FOLD_PROGRAM=/opt/bin/micro "
+                      "--env HERDR_FOLD_FILE=/repo/config/limits.json", create)
+        self.assertIn("pane rename w1:p9 edit", calls)
+        self.assertIn('pane run w1:p9 "$HERDR_FOLD_PROGRAM" "$HERDR_FOLD_FILE" && exit', calls)
+        self.assertEqual((pane, tab), ("w1:p9", "w1:t3"))
+
+    def test_the_same_file_again_shows_its_editors_tab(self):
+        # a second vim on one file would warn of its swap file
+        os.environ["EDITING"] = "edit"
+        self.addCleanup(os.environ.pop, "EDITING")
+        self.assertEqual(preview.open_editor(self.herdr, "w1", "/repo", "/repo/config/limits.json", ["vim"]),
+                         ("w1:p5", "w1:t5"))
+        self.assertFalse([call for call in logged(self.log) if call.startswith("tab create")])
+        self.assertEqual(logged(self.log)[-1], "tab focus w1:t5")
+
+    def test_an_editor_that_ends_at_once_opened_its_own_window(self):
+        self.assertTrue(preview.gone_at_once(self.herdr, "w1:p9", wait=1))
+        self.assertFalse(preview.gone_at_once(self.herdr, "w1:p1", wait=0.3))
+
+    def test_a_file_outside_the_folder_is_named_from_home(self):
+        set_env(self, HOME="/Users/dev")
+        preview.open_editor(self.herdr, "w1", "/Users/dev/lumen-api", "/Users/dev/.claude/settings.json", ["nano"])
+        self.assertIn("--label ~/.claude/settings.json --env", next(call for call in logged(self.log)
+                                                                     if call.startswith("tab create")))
 
     def test_a_failing_herdr_is_an_error(self):
         with self.assertRaises(RuntimeError):
@@ -950,6 +1046,46 @@ class Pictures(unittest.TestCase):
                 view.draw(term)
                 view.draw(term)
             compiled.assert_called_once_with("page-shot")
+
+    def test_a_drawn_page_or_svg_offers_edit_and_e_opens_its_editor(self):
+        svg = os.path.join(self.tmp, "logo.svg")
+        with open(svg, "w", encoding="utf-8") as f:
+            f.write('<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40"/>\n')
+        view = pager.PictureAndCode({"title": "logo.svg", "picture": svg, "file": svg, "pipeline": [], "edit": svg})
+        view.view = "code"
+        view.switch(80)
+        self.assertIn(" Edit ", pager.plain(view.code.lead))
+        at = next(first for first, _, action in view.spans if action == "edit")
+        view.row = 23
+        with mock.patch.object(pager, "edit") as edited:
+            view.handle(Mouse("press", at, 23, 0))
+            view.handle(Key("char", "e"))
+            view.code.typing = ""
+            view.handle(Key("char", "e"))                          # typed into a search, it is a letter
+        self.assertEqual(edited.call_args_list, [mock.call(svg), mock.call(svg)])
+
+    def test_once_saved_in_its_editor_it_is_drawn_again_as_it_was_shown(self):
+        svg = os.path.join(self.tmp, "logo.svg")
+        with open(svg, "w", encoding="utf-8") as f:
+            f.write("<svg/>\n")
+        spec = {"title": "logo.svg", "picture": svg, "file": svg, "pipeline": [], "edit": svg}
+        old, term = pager.PictureAndCode(spec), Written(80, 24)
+        old.view, old.share, old.stacked = "picture", 0.3, True
+        fresh = pager.again(old, spec, term)
+        self.addCleanup(fresh.close, term)
+        self.assertIsNot(fresh, old)
+        self.assertEqual((fresh.view, fresh.share, fresh.stacked), ("picture", 0.3, True))
+
+    def test_e_finds_the_users_editor_and_opens_a_tab_beside_the_preview(self):
+        set_env(self, HERDR_WORKSPACE_ID="w1")
+        opened = []
+        with mock.patch.object(pager.preview, "editor", return_value=["micro"]), \
+                mock.patch.object(pager.preview, "open_editor", side_effect=lambda *args: opened.append(args[1:])):
+            pager.edit("/repo/logo.svg")
+            for thread in [one for one in threading.enumerate() if one is not threading.current_thread()
+                           and one.daemon]:
+                thread.join(2)
+        self.assertEqual(opened, [("w1", os.getcwd(), "/repo/logo.svg", ["micro"])])
 
     def scrolled(self, sizes):
         """A PDF of pages SIZES, each made a 400 x 517 PNG, in an 80 x 24 pane: at 78 columns a letter page takes 48

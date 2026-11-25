@@ -37,7 +37,8 @@ HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"AGENT_LAYER
                                                                     "NAMED_FILES": "named_files.py",
                                                                     "PRICES": "prices.py",
                                                                     "REPORT": "report.py",
-                                                                    "SEARCH": "search.py", "TOKENS": "tokens.py",
+                                                                    "SEARCH": "search.py",
+                                                                    "STATEFILE": "statefile.py", "TOKENS": "tokens.py",
                                                                     "TREE": "tree.py", "UPDATE": "update.py",
                                                                     "USAGE": "usage.py"}}
 # only the mod runs these: its chat, its jobs, the commands of what the sidebar imports itself

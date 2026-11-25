@@ -1,6 +1,6 @@
 """The sidebar's herdr actions: the tab's sidebar gets a key no field takes (KEYS), F7 (a chat found) with the keys
-too, F6 the dock folded or opened; F8 (Cmd + A) only a sidebar with the keys: its field's text.
-Usage: actions.py show-files|show-search|show-git|show-issues|toggle-dock|find-chat|select-all"""
+too, F6 the dock folded or opened.
+Usage: actions.py show-files|show-search|show-git|show-issues|toggle-dock|find-chat"""
 import os
 import sys
 
@@ -14,7 +14,7 @@ from chats import state_folder          # noqa: E402
 from preview import Herdr, seed_file  # noqa: E402
 
 KEYS = {"show-files": "f9", "show-search": "f10", "show-git": "f11", "show-issues": "f12",
-        "toggle-dock": "f6", "find-chat": "f7", "select-all": "f8"}
+        "toggle-dock": "f6", "find-chat": "f7"}
 
 
 def sidebar_of(listed, tab=None):
@@ -57,11 +57,6 @@ def main(argv):
     herdr = Herdr()
     try:
         listed = herdr.call("pane", "list", "--workspace", tab.split(":")[0]).get("panes", [])
-        if argv[1] == "select-all":           # any other pane is left alone, as Cmd + A would do nothing there
-            focused = os.environ.get("HERDR_ACTIVE_PANE_ID") or os.environ.get("HERDR_PANE_ID")   # a plugin action's
-            if any(p.get("pane_id") == focused and p.get("label") == "sidebar" for p in listed):
-                herdr.call("pane", "send-keys", focused, KEYS[argv[1]])
-            return
         def focus(pane):                      # herdr's command line focuses only by direction
             column.call("pane.focus", {"pane_id": pane})
 

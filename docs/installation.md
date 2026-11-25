@@ -20,7 +20,7 @@ The default is what is installed already, else both where the Herdr app is on th
 
 | | The TUI | The Herdr app |
 |---|---|---|
-| Programs | Ghostty, herdr, starship, bat, git-delta | the Herdr app, from its own installer where it is missing |
+| Programs | Ghostty, herdr, starship, bat, git-delta, micro | the Herdr app, from its own installer where it is missing |
 | Font | herdr-fold Mono into `~/Library/Fonts` ([below](#the-font)) | none: the mod brings herdr-fold Mono, its terminals' font as the TUI's |
 | Settings | Ghostty's, herdr's and starship's; a `~/.zshrc` block for herdr's panes | herdr-fold's mod, layout, themes and keys in the app |
 | herdr | herdr-fold's plugins, herdr's hooks into Claude Code and Codex | none: no `herdr` runs for it |

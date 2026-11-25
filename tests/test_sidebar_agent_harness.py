@@ -591,7 +591,7 @@ class Family(Home):
         self.assertEqual(app.error, ".claude/settings.json changed since: nothing saved")
         self.assertTrue(view.foot)
         opened = []
-        app.open_preview = lambda spec, root: opened.append(spec["title"])
+        app.open_file = lambda path, line=None, root=None, name=None: opened.append(name)
         app.act(Action("open_layer", ("Project",)), "agent")
         app.act(Action("open_layer", ("Local",)), "agent")                      # no such file yet: nothing
         self.assertEqual(opened, [".claude/settings.json"])

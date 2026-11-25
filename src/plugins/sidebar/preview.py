@@ -1,6 +1,6 @@
-"""The sidebar's preview: one tab per workspace, laid out as the tab it was opened from, showing a file, a diff, a
-commit or an issue in the pager. The spec goes to a file the pager reads, never through a shell; the line typed into a
-tab's shell stays in its history, so it names no path (a home folder names its account): paths go in Launch's env."""
+"""The sidebar's preview: one tab per workspace, a picture, a page, a diff, a commit or an issue in the pager; a text
+file in the user's editor in a tab of its own. The spec goes to a file the pager reads; the line typed into a tab's
+shell stays in its history, so it names no path (a home folder names its account): paths go in Launch's env."""
 import json
 import os
 import re
@@ -18,7 +18,15 @@ import statefile
 PAGER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pager.py")
 LABEL = "preview: "
 PANE = "preview"              # the preview tab's pane the pager runs in
+EDIT = "edit"                 # an editor tab's pane, the user's editor in it
+EDITORS = ("micro", "nano", "vim")    # looked for in this order where $VISUAL and $EDITOR name none
+AT_LINE = ("micro", "nano", "vim", "vi", "nvim")    # the editors that open at a line given as +N
+# on a Mac, where the tab's Cmd keys reach the editor (cmd_keys.py), what it adds to the editor's words: micro's status
+# line the file, its line and column and those keys; nano's help lines, which name other keys, hidden (pico's too)
+OPTIONS = {"micro": ["-basename", "true", "-statusformatl", " $(filename) $(modified)Ln $(line), Col $(col)",
+                     "-statusformatr", "  Cmd+S Save  Cmd+F Find  Cmd+Z Undo  Cmd+W Close "], "nano": ["-x"]}
 READY = 1.5                   # seconds a new tab's sidebar may take to start before the tab is shown all the same
+QUICK = 2                     # seconds within which an editor that ends opened its own window
 
 
 class Herdr:
@@ -50,6 +58,30 @@ class Herdr:
         return out.stdout if out.returncode == 0 else ""
 
 
+def editor(line=None, env=os.environ, which=shutil.which, mac=sys.platform == "darwin"):
+    """The user's editor's argv, at LINE where it takes +N: $VISUAL, else $EDITOR (its words split as a shell would:
+    code -w), else the first of micro, nano and vim found, on a MAC with its OPTIONS before +N; None without one."""
+    named = env.get("VISUAL") or env.get("EDITOR")
+    try:
+        argv = shlex.split(named, posix=os.name != "nt") if named else []
+    except ValueError:
+        argv = []
+    found = next((which(name) for name in EDITORS if which(name)), None)
+    argv = argv or ([found] if found else [])
+    program = os.path.basename(argv[0] if argv else "").lower()
+    at = [f"+{line}"] if line and program in AT_LINE else []
+    return argv + (OPTIONS.get(program, []) if mac else []) + at if argv else None
+
+
+def editable(path):
+    """Whether PATH opens in the user's editor: text (media.text_refusal()), nothing drawn here (a page or an SVG drawn
+    stays in the preview, where e edits it)."""
+    kind = media.kind_of(path)
+    if kind in ("image", "pdf") or kind in ("svg", "html") and media.drawable(path):
+        return False
+    return media.text_refusal(path) is None
+
+
 def file_spec(root, path, line, which=shutil.which):
     """An image or a PDF as a picture; else bat with LINE marked (one row per line, so the pager's line N is the
     file's), or the file itself: a pipe or a device too, which bat would wait on and the pager does not read."""
@@ -60,8 +92,8 @@ def file_spec(root, path, line, which=shutil.which):
     pipeline = [[bat, "--color=always", "--paging=never", "--wrap=never", "--style=numbers,changes", *marked, path]]
     pipeline = pipeline if bat else []
     spec = {"title": os.path.relpath(path, root), "line": line, "file": None if bat else path, "pipeline": pipeline}
-    if media.kind_of(path) in ("svg", "html") and media.drawable(path):     # code and a picture, side by side
-        spec["picture"] = path
+    if media.kind_of(path) in ("svg", "html") and media.drawable(path):     # code and a picture, side by side; e edits
+        spec.update(picture=path, edit=path)
     return {**spec, "open": path} if media.kind_of(path) in ("html", "svg") and media.browsable() else spec
 
 
@@ -136,14 +168,15 @@ class Launch:
     env: dict = field(default_factory=dict)
 
 
-def interactive(argv, windows=os.name == "nt"):
-    """What runs ARGV with the keyboard, the program's path in the environment: when it ends well, so does the shell,
-    and the tab closes; after an error it stays open."""
-    env = {"HERDR_FOLD_PROGRAM": argv[0]}
+def interactive(argv, file=None, windows=os.name == "nt"):
+    """What runs ARGV with the keyboard (FILE after its words), the program's and the file's paths in the environment:
+    when it ends well, so does the shell, and the tab closes; after an error it stays open."""
+    env = {"HERDR_FOLD_PROGRAM": argv[0], **({"HERDR_FOLD_FILE": file} if file else {})}
     if windows:
-        line = "& $env:HERDR_FOLD_PROGRAM " + " ".join(quote_powershell(arg) for arg in argv[1:]) + "; if ($?) { exit }"
-        return Launch(line, env)
-    return Launch('"$HERDR_FOLD_PROGRAM" ' + shlex.join(argv[1:]) + " && exit", env)
+        words = [quote_powershell(arg) for arg in argv[1:]] + (["$env:HERDR_FOLD_FILE"] if file else [])
+        return Launch(" ".join(["& $env:HERDR_FOLD_PROGRAM", *words]) + "; if ($?) { exit }", env)
+    words = ([shlex.join(argv[1:])] if argv[1:] else []) + (['"$HERDR_FOLD_FILE"'] if file else [])
+    return Launch(" ".join(['"$HERDR_FOLD_PROGRAM"', *words]) + " && exit", env)
 
 
 def command(path, windows=os.name == "nt"):
@@ -226,6 +259,36 @@ def paging(herdr, pane):
     except (RuntimeError, KeyError, TypeError, AttributeError):
         return False
     return any(name.replace("\\", "/").split("/")[-1].lower().startswith("python") for name in names)
+
+
+def open_editor(herdr, workspace, root, path, argv, name=None):
+    """PATH in the user's editor (ARGV, editor()'s) in a tab of its own, named NAME (else its path from ROOT, or from
+    home), or the tab already editing it shown: no second editor on one file (vim's swap file). Its (pane, tab)."""
+    home = os.path.expanduser("~")
+    inside = path.startswith(root.rstrip(os.sep) + os.sep)
+    name = label(name or (os.path.relpath(path, root) if inside else path.replace(home, "~", 1)))
+    panes = [p for p in herdr.call("pane", "list", "--workspace", workspace).get("panes") or [] if isinstance(p, dict)]
+    for tab in herdr.call("tab", "list", "--workspace", workspace).get("tabs") or []:
+        pane = next((p.get("pane_id") for p in panes if isinstance(tab, dict) and tab.get("label") == name
+                     and p.get("tab_id") == tab.get("tab_id") and p.get("label") == EDIT), None)
+        if pane:
+            herdr.call("tab", "focus", tab["tab_id"])
+            return pane, tab["tab_id"]
+    return open_tab(herdr, workspace, root, name, interactive(argv, path), EDIT)
+
+
+def gone_at_once(herdr, pane, wait=QUICK):
+    """Whether PANE's editor ended within WAIT seconds: a desktop editor told no -w opens its own window and returns."""
+    end = time.monotonic() + wait
+    while time.monotonic() < end:
+        time.sleep(0.25)
+        try:
+            if pane not in {p.get("pane_id") for p in herdr.call("pane", "list").get("panes") or []
+                            if isinstance(p, dict)}:
+                return True
+        except RuntimeError:
+            return False
+    return False
 
 
 def label(text):

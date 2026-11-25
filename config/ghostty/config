@@ -86,15 +86,16 @@ keybind = super+alt+b=text:\x02B
 keybind = super+shift+g=text:\x02u
 # Cmd+Shift+I → the sidebar's Issues view, for a repository on GitHub (herdr: Ctrl+B, Shift+I)
 keybind = super+shift+i=text:\x02I
-# Cmd+A → the whole text of the sidebar's field you are in, the commit message's (herdr: Ctrl+B, Shift+A). Ghostty's
-# own select all would take the whole window, every herdr pane in it
+# Cmd+A → the whole text of the sidebar's field you are in, the commit message's, or in an editor's tab all of the
+# file (herdr: Ctrl+B, Shift+A). Ghostty's own select all would take the whole window, every herdr pane in it
 keybind = super+a=text:\x02A
-# Cmd+W → closes the active herdr tab (not the space's main tab), NOT the Ghostty window (herdr: Ctrl+B, t)
+# Cmd+W → closes the active herdr tab (not the space's main tab), NOT the Ghostty window; in an editor's tab the editor
+# quits, asking about unsaved changes (herdr: Ctrl+B, t)
 keybind = super+w=text:\x02t
 # Cmd+Shift+C → commit + push in one step, with an AI-written message (herdr: Ctrl+B, y)
 keybind = super+shift+c=text:\x02y
-# Cmd+F → search the Claude chat (herdr: Ctrl+B, a) — instead of Ghostty's own search, which inside herdr
-# would only see the visible screen
+# Cmd+F → search the Claude chat, or in an editor's tab the editor's own find (herdr: Ctrl+B, a) — instead of
+# Ghostty's own search, which inside herdr would only see the visible screen
 keybind = super+f=text:\x02a
 # Cmd+Shift+L → open a file the focused pane's output names, at its line, in the sidebar's preview (herdr: Ctrl+B,
 # Shift+L)
@@ -108,5 +109,10 @@ keybind = super+shift+u=text:\x02U
 # Cmd+K, Cmd+T → pick a color theme (herdr: Ctrl+B, i). Cmd+K thus starts a key sequence, so
 # Ghostty's default Cmd+K (clear screen) is not available.
 keybind = super+k>super+t=text:\x02i
-# Cmd+C → Ghostty copies only its OWN selection; if there is none, herdr gets it (and copies its selection)
+# Cmd+C → Ghostty copies only its OWN selection; if there is none, herdr gets it (and copies its selection, or in an
+# editor's tab the editor copies); Cmd+X and Cmd+S reach herdr as they are
 keybind = performable:super+c=copy_to_clipboard:mixed
+# Cmd+Z / Cmd+Shift+Z → Ghostty's undo / redo of a closed window or tab, for the few seconds it can; else herdr gets
+# them: in an editor's tab, the editor's undo / redo
+keybind = performable:super+z=undo
+keybind = performable:super+shift+z=redo

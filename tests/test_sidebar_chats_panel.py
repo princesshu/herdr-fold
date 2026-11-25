@@ -175,7 +175,7 @@ class Panel(AppScreen, unittest.TestCase):
         self.assertGreater(read.call_args.args[2], 0)                # on from where the last read stopped
         self.assertEqual((work.view.plan[0], work.view.plan[1]["count"]), ("claude:s2", "0 of 1 done"))
         shown = []
-        app.open_preview = lambda spec, cwd: shown.append((spec["title"], spec.get("file") or spec["pipeline"][0][-1]))
+        app.open_file = lambda path, line=None, root=None, name=None: shown.append((name, path))
         work.show_plan(work.plan_file(item))
         kept = os.path.join(self.state, "plans", "s2", "plan.md")
         self.assertEqual(shown, [("plan · Price list", kept)])

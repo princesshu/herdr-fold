@@ -6,6 +6,7 @@ import { h_flex } from "gpui-base";
 import { knownAgents, layout, openOverlay, panes, spaces, terminals, run as command } from "herdr";
 import { ADAPTERS } from "./agents.js";
 import { chatWaits, newAgentIn, nextAgent } from "./chat.js";
+import { unsavedIn } from "./editor.js";
 import { archivedChoice, waiting } from "./chats.js";
 import { agentsTab } from "./graph.js";
 import { ICONS } from "./icons.js";
@@ -70,7 +71,7 @@ export class TabsView {
     const chats = Object.fromEntries(terminals().filter((c) => c.state === "live" && c.labels?.[CHAT_TAB])
       .map((c) => [c.labels[CHAT_TAB], c]));                // a chat tab's agent: a terminal with no pane
     const agents = agentsTab(space, panes())?.id;           // the Agents tab wears Lucide's share-2, usage.html's
-    const rows = tabRows(space, panes(), chats, chatWaits().tabs).map((row) => (row.id === agents
+    const rows = tabRows(space, panes(), chats, chatWaits().tabs, unsavedIn(space)).map((row) => (row.id === agents
       ? { ...row, icon: ICONS["share-2"], tint: true } : row));
     return this.draw(t, rows, space?.id ?? null,
       { start: START, end: toggleRoom(layout(), BUTTON) }, this.plus(space), { waiting: waiting(),
@@ -113,11 +114,11 @@ export class TabsView {
       .child(barEnd(t, bar, acts));
   }
 
-  /** A tab's pill, as the panel's tabs: an agent's icon, its name, a working agent's spinner or a state's dot, and
-   * the place of its ×, shown on the shown tab and under the pointer (its glyph sits inside its square: closer, so it
-   * looks as far as the start's). @param {Tab} r @param {number} i @param {Tab[]} rows @param {string | null} space */
+  /** A tab's pill: an agent's icon, its name, a working agent's spinner or a state's dot, and its × (on the shown tab
+   * and under the pointer, its glyph inside its square), a neutral dot there while an editor's changes are unsaved.
+   * @param {Tab} r @param {number} i @param {Tab[]} rows @param {string | null} space */
   tab(t, r, i, rows, space) {
-    const closing = r.active || this.hovered === r.id;
+    const closing = r.active || this.hovered === r.id, dot = r.unsaved && this.hovered !== r.id;
     return h_flex().id(`tab-${r.id}`).h(28).pl(12).pr(8).gap(2).rounded(6).items_center().flex_none().text_size(13)
       .border_1().border_color(r.active ? t.border : t.canvas).bg(r.active ? t.raised : t.canvas)
       .text_color(r.active ? t.foreground : t.muted).cursor_pointer().on_hover(hovering(this, r.id))
@@ -145,13 +146,14 @@ export class TabsView {
         .when(r.status === "blocked" || r.status === "done", (e) => e.child(div().size(6).rounded_full()
           .bg(t[String(r.status)]))))
       .child(div().id(`close-${r.id}`).size(16).flex_none().flex().items_center().justify_center().rounded(4)
-        .when(!closing, (s) => s.invisible()).text_color(t.dim).cursor_pointer().tooltip("Close tab")
+        .when(!closing && !dot, (s) => s.invisible()).text_color(t.dim).cursor_pointer()
+        .tooltip(r.unsaved ? "Close tab (its changes kept as a draft)" : "Close tab")
         .hover((s) => s.bg(t.hover).text_color(t.foreground))
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click((_e, cx) => {
           cx.stop_propagation();
           command("tab.close", { id: r.id });
         })
-        .child(icon("x", 12)));
+        .child(dot ? div().size(8).rounded_full().bg(t.foreground) : icon("x", 12)));
   }
 }

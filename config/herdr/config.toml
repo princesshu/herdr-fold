@@ -71,20 +71,21 @@ command = "herdr-fold.sidebar.show-issues"
 description = "sidebar: Issues (Cmd+Shift+I)"
 
 # Select the text of the sidebar's field that has the keys, the commit message's say (Ghostty: Cmd+A → Ctrl+B,
-# Shift+A); in any other pane it does nothing, as Ghostty's own select all would take the whole window there
+# Shift+A); in an editor's tab the editor's select all (micro); in any other pane nothing, as Ghostty's own select all
+# would take the whole window there
 [[keys.command]]
 key = "prefix+shift+a"
-type = "plugin_action"
-command = "herdr-fold.sidebar.select-all"
-description = "sidebar: select the field's text (Cmd+A)"
+type = "shell"
+command = "/usr/bin/python3 ~/.config/herdr-fold/cmd_keys.py a"
+description = "select the field's text, or all in the editor (Cmd+A)"
 
-# Close the active tab (Ghostty: Cmd+W → Ctrl+B, t) — asks first if the tab has a chat; never
-# closes the main tab (a space's first, named as the space)
+# Close the active tab (Ghostty: Cmd+W → Ctrl+B, t) — asks first if the tab has a chat; never closes the main tab (a
+# space's first, named as the space). In an editor's tab the editor quits instead, asking about unsaved changes
 [[keys.command]]
 key = "prefix+t"
 type = "shell"
-command = "/usr/bin/python3 ~/.config/herdr-fold/close_tab.py"
-description = "close tab, asks first if it has a chat; never the main tab (Cmd+W)"
+command = "/usr/bin/python3 ~/.config/herdr-fold/cmd_keys.py w"
+description = "close tab, asks first if it has a chat; never the main tab; quits an editor (Cmd+W)"
 
 # Commit + push in one step, with an AI-written message (Claude, or Codex if Claude is missing) — in a small window
 # (Ghostty: Cmd+Shift+C → Ctrl+B, y). Works on the repository of the focused pane.
@@ -97,12 +98,45 @@ width = "70%"
 height = "60%"
 
 # Search the Claude chat (Ghostty: Cmd+F → Ctrl+B, a): opens the transcript view in the focused Claude pane
-# and starts a search in it (Ctrl+O, /) — does nothing in other panes
+# and starts a search in it (Ctrl+O, /); in an editor's tab, the editor's own find (micro, nano); nothing elsewhere
 [[keys.command]]
 key = "prefix+a"
 type = "shell"
-command = "/usr/bin/python3 ~/.config/herdr-fold/claude_search.py"
-description = "search the Claude chat (Cmd+F)"
+command = "/usr/bin/python3 ~/.config/herdr-fold/cmd_keys.py f"
+description = "search the Claude chat, or find in the editor (Cmd+F)"
+
+# Copy, cut, undo, redo and save in an editor's tab, as the editor's own keys (cmd_keys.py): Ghostty passes these on
+# once it has nothing to copy, undo or redo, and herdr's copy of its own selection comes first. In any other pane
+# Cmd+C, Cmd+X and Cmd+S go on to it as before, and Cmd+Z and Cmd+Shift+Z do nothing
+[[keys.command]]
+key = "super+c"
+type = "shell"
+command = "/usr/bin/python3 ~/.config/herdr-fold/cmd_keys.py c"
+description = "copy in the editor (Cmd+C)"
+
+[[keys.command]]
+key = "super+x"
+type = "shell"
+command = "/usr/bin/python3 ~/.config/herdr-fold/cmd_keys.py x"
+description = "cut in the editor (Cmd+X)"
+
+[[keys.command]]
+key = "super+z"
+type = "shell"
+command = "/usr/bin/python3 ~/.config/herdr-fold/cmd_keys.py z"
+description = "undo in the editor (Cmd+Z)"
+
+[[keys.command]]
+key = "super+shift+z"
+type = "shell"
+command = "/usr/bin/python3 ~/.config/herdr-fold/cmd_keys.py shift+z"
+description = "redo in the editor (Cmd+Shift+Z)"
+
+[[keys.command]]
+key = "super+s"
+type = "shell"
+command = "/usr/bin/python3 ~/.config/herdr-fold/cmd_keys.py s"
+description = "save in the editor (Cmd+S)"
 
 # Open a file the focused pane's output names, at its line, in the sidebar's preview tab — in a small window
 # (Ghostty: Cmd+Shift+L → Ctrl+B, Shift+L): the files its recent lines name that are there, the newest first

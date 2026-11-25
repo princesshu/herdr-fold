@@ -1,9 +1,10 @@
-"""The plugin's state files, its owner's only whatever the umask (every chat's folder and title, a private
-repository's issues): each written whole beside it, then put in place, a planted link never followed; one that every
-tab's sidebar and the app's helper change is changed by one writer at a time (update())."""
+"""The plugin's state files, its owner's only whatever the umask: each written whole beside it, then put in place, a
+planted link never followed; one many change, by one writer at a time (update()). For the app's drafts, which it writes
+itself, in JSON: statefile.py folder NAME, remove NAME FILE, sweep NAME."""
 import contextlib
 import json
 import os
+import sys
 import tempfile
 import threading
 
@@ -82,3 +83,43 @@ def update(path, change, **dump):
         value = change(read(path))
         write(path, value, **dump)
     return value
+
+
+def private(name):
+    """The state folder's folder NAME, made its owner's only (the state folder too), as the app's drafts need."""
+    path = os.path.join(folder(), name)
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    if os.name != "nt":
+        for one in (folder(), path):
+            os.chmod(one, 0o700)
+    return path
+
+
+def sweep(name):
+    """The files in folder NAME about a file that is gone (their JSON's "path") taken out: how many."""
+    gone = [one.path for one in os.scandir(private(name)) if one.is_file()
+            and not os.path.exists(str(read(one.path).get("path") or ""))]
+    for path in gone:
+        os.remove(path)
+    return len(gone)
+
+
+def main(argv):
+    command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
+    if command == "folder" and len(args) == 1:
+        answer = {"folder": private(args[0])}
+    elif command == "remove" and len(args) == 2 and os.path.basename(args[1]) == args[1] not in ("", ".", ".."):
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(os.path.join(private(args[0]), args[1]))
+        answer = {}
+    elif command == "sweep" and len(args) == 1:
+        answer = {"removed": sweep(args[0])}
+    else:
+        print("usage: statefile.py folder NAME | remove NAME FILE | sweep NAME", file=sys.stderr)
+        return 2
+    print(json.dumps(answer))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

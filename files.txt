@@ -12,7 +12,7 @@ src/commit_push.py     | .config/herdr-fold/commit_push.py | tui
 src/rich_clipboard.py  | .config/herdr-fold/rich_clipboard.py | tui
 src/bin/pbcopy    | .config/herdr-fold/bin/pbcopy | tui
 src/pane-env.sh        | .config/herdr-fold/pane-env.sh | tui
-src/claude_search.py   | .config/herdr-fold/claude_search.py | tui
+src/cmd_keys.py        | .config/herdr-fold/cmd_keys.py | tui
 src/tui.py             | .config/herdr-fold/tui.py | tui
 src/herdrlib.py        | .config/herdr-fold/herdrlib.py | tui
 src/add_machine.py     | .config/herdr-fold/add_machine.py | tui

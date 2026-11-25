@@ -1,6 +1,6 @@
 // @ts-check
-// herdr-fold for the Herdr app, the TUI sidebar's Changes, Search and Issues; a diff, a commit or an issue opens in the
-// space's preview tab (preview.js). It runs on the space's machine, with core/'s code (helper.js).
+// herdr-fold for the Herdr app, the TUI sidebar's views; a diff, a commit or an issue opens in the space's preview tab
+// (preview.js), a text file in an editor tab (editor.js). It runs on the space's machine, with core's code (helper.js).
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list } from "gpui-base";
 import { spaces, panes, focused, exec, hc, home, nextCommand, theme, layout, props, closeOverlay,
@@ -31,6 +31,7 @@ import { liveStatus } from "./status.js";
 import { TabsView } from "./tabs.js";
 import { Palette, pickTheme, TitleView, togglePalette } from "./title.js";
 import { openNamed, Preview, showPreview } from "./preview.js";
+import { EditorTab, sweepDrafts } from "./editor.js";
 import { guide, styleguide } from "./styleguide.js";
 import { standIn, TerminalFollower } from "./terminal.js";
 
@@ -164,7 +165,7 @@ export default class HerdrFold extends View {
       forgetFloats();
       forgetMenus();
       cx.timer.every(REFRESH, (cx) => (this.repo.look(place(), cx), this.setup.follow(cx)));
-      cx.timer.after(0, () => void checkUpdates(python));
+      cx.timer.after(0, () => void checkUpdates(python).then(() => sweepDrafts(python)));
       followNotes().catch(() => {});              // the layout's toast as Notifications has it: an install rewrote it
       cx.spawn(async (cx) => {
         for (;;) {
@@ -177,7 +178,19 @@ export default class HerdrFold extends View {
     if (part === "preview") {
       const preview = (this.preview = new Preview(props().space, python));
       return void cx.spawn(async (cx) => {
-        for (;;) preview.menus.answer(await nextCommand(), cx);              // its right click's choices
+        for (;;) {                                // its right click's choices, Cmd+S and Cmd+F for its code
+          const asked = await nextCommand();
+          if (!preview.menus.answer(asked, cx) && (asked === "save" || asked === "find")) preview.command(asked, cx);
+        }
+      });
+    }
+    if (part === "editor") {                      // an editor tab: a text file (editor.js), Cmd+S and Cmd+F its own
+      const tab = (this.editorTab = new EditorTab(props(), python));
+      return void cx.spawn(async (cx) => {
+        for (;;) {
+          const asked = await nextCommand();
+          if (asked === "save" || asked === "find") tab.editing?.command(asked, cx);
+        }
       });
     }
     // the Agents tab: its graph and its usage (a CSV's text read as it is)
@@ -656,6 +669,10 @@ export default class HerdrFold extends View {
     if (this.preview) {
       this.preview.watch(cx);
       return this.preview.render(t, codeFont());
+    }
+    if (this.editorTab) {
+      this.editorTab.watch(cx);
+      return this.editorTab.render(t, codeFont());
     }
     if (this.chat) return this.chat.render(t, codeFont());
     if (this.agents) return this.agents.render(t, cx);

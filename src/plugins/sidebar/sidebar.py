@@ -945,6 +945,27 @@ class App(Loop):
 
         self.job("preview", work)
 
+    def open_file(self, path, line=None, root=None, name=None):
+        """PATH where it is worked on: text in the user's editor, in a tab of its own named NAME (else for its path,
+        from ROOT) at LINE; a picture, a page, a binary file or one past the limit in the preview tab. Files and the
+        preview see what it saved on disk."""
+        root, workspace = root or self.root, os.environ.get("HERDR_WORKSPACE_ID")
+        text = bool(workspace) and preview.editable(path)
+        argv = text and preview.editor(line)
+        if not argv:
+            if text:
+                self.note = "No editor found: set $EDITOR"
+            return self.open_preview(preview.file_spec(root, path, line), root)
+
+        def work():
+            pane, _ = preview.open_editor(self.herdr, workspace, root, path, argv, name)
+            return preview.gone_at_once(self.herdr, pane)
+
+        def then(outside):
+            if outside:
+                self.note = f"Opened in {os.path.basename(argv[0])}, outside herdr"
+        self.job("edit", work, then)
+
     def open_tab(self, label, argv, then=None):
         """ARGV with the keyboard in a tab of its own (gh's prompts for a new issue or a comment, an agent's own
         sign-in); THEN gets its (pane, tab), None where none could open."""

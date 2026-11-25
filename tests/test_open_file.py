@@ -16,7 +16,7 @@ import termios
 import time
 import unittest
 
-from support import ANSI, catalog_text, set_attrs
+from support import ANSI, catalog_text, set_attrs, set_env
 
 import open_file
 import named_files  # noqa: E402  the sidebar's copy of core's, on the path open_file's herdrlib gives
@@ -26,7 +26,7 @@ class Root(unittest.TestCase):
     def setUp(self):
         self.root = os.path.realpath(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.root)
-        for rel in ("src/app.py", "src/web/page.tsx", "README.md", "lib/db.rs"):
+        for rel in ("src/app.py", "src/web/page.tsx", "README.md", "lib/db.rs", "docs/shot.png"):
             os.makedirs(os.path.dirname(self.path(rel)), exist_ok=True)
             with open(self.path(rel), "w") as f:
                 f.write("x\n")
@@ -165,7 +165,20 @@ class Picker(Root):
 
 
 class Open(Root):
-    def test_the_file_shows_at_its_line_in_the_preview_tab_laid_out_as_the_panes_and_files_on_it(self):
+    def test_text_opens_at_its_line_in_the_users_editor(self):
+        edited = []
+
+        class Herdr:
+            def call(self, *args):
+                return {"pane": {"pane_id": "w1:p1", "workspace_id": "w1", "tab_id": "w1:t1"}}
+
+        set_env(self, VISUAL=None, EDITOR="vim")
+        set_attrs(self, open_file.preview, open_editor=lambda herdr, workspace, root, path, argv: edited.append(
+            (workspace, root, path, argv)))
+        open_file.open_found(Herdr(), named_files.Found(self.path("src/web/page.tsx"), 12), self.root, "w1:p1")
+        self.assertEqual(edited, [("w1", self.root, self.path("src/web/page.tsx"), ["vim", "+12"])])
+
+    def test_a_picture_shows_in_the_preview_tab_laid_out_as_the_panes_and_files_on_it(self):
         state = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, state)
         opened, brought = [], []
@@ -185,13 +198,13 @@ class Open(Root):
         set_attrs(self, open_file.preview, open_preview=open_preview)
         set_attrs(self, open_file.panes, bring=lambda call, tab, kinds, state_dir: brought.append(
             (tab, set(kinds), state_dir)))
-        open_file.open_found(Herdr(), named_files.Found(self.path("src/web/page.tsx"), 12), self.root, "w1:p1", state)
-        self.assertEqual(opened, [("w1", self.root, os.path.join("src", "web", "page.tsx"), 12, state, "w1:t1")])
+        open_file.open_found(Herdr(), named_files.Found(self.path("docs/shot.png"), None), self.root, "w1:p1", state)
+        self.assertEqual(opened, [("w1", self.root, os.path.join("docs", "shot.png"), None, state, "w1:t1")])
         self.assertEqual(brought, [("w1:t5", {"sidebar"}, state)])
         with open(open_file.preview.seed_file(state, "w1:t5")) as f:
             seed = json.load(f)
-        self.assertEqual(seed, {"show": "files", "selected": self.path("src/web/page.tsx"),
-                                "expanded": [self.path("src"), self.path("src/web")]})
+        self.assertEqual(seed, {"show": "files", "selected": self.path("docs/shot.png"),
+                                "expanded": [self.path("docs")]})
 
 
 FAKE_HERDR = r'''#!/usr/bin/python3
@@ -212,7 +225,7 @@ print(json.dumps({"result": answers.get(tuple(args[:2]), {})}))
 
 class Popup(Root):
     """The popup in a terminal, herdr a stand-in: it reads the focused pane, lists what it names, and Enter opens the
-    newest at its line in a new preview tab."""
+    newest at its line in the user's editor, in a tab of its own."""
 
     def run_popup(self, typed):
         """The popup in an 80 x 24 terminal: TYPED once both files show; what it wrote, and herdr's calls."""
@@ -262,7 +275,7 @@ class Popup(Root):
         os.chmod(fake, 0o755)
         env = {"HOME": home, "PATH": "/usr/bin:/bin", "TERM": "xterm-256color", "HERDR_BIN_PATH": fake,
                "FAKE_LOG": log, "HERDR_ACTIVE_PANE_ID": "w1:p1", "HERDR_ACTIVE_PANE_CWD": self.root,
-               "PYTHONDONTWRITEBYTECODE": "1"}
+               "PYTHONDONTWRITEBYTECODE": "1", "EDITOR": "vim"}
         master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
         proc = subprocess.Popen(["/usr/bin/python3", "-B", open_file.__file__], stdin=slave, stdout=slave,
@@ -287,14 +300,11 @@ class Popup(Root):
         self.assertIn(["pane", "read", "w1:p1", "--source", "recent-unwrapped", "--lines", str(open_file.LINES)],
                       calls)
         created = next(call for call in calls if call[:2] == ["tab", "create"])
-        self.assertEqual(created[2:7], ["--workspace", "w1", "--cwd", self.root, "--label"])
-        state = os.path.join(home, ".local", "state", "herdr", "plugins", "herdr-fold.sidebar")
-        with open(open_file.preview.spec_file(state, "w1")) as f:
-            spec = json.load(f)
-        self.assertEqual((spec["title"], spec["line"]), (os.path.join("src", "app.py"), 42))
-        with open(open_file.preview.seed_file(state, "w1:t5")) as f:
-            self.assertEqual(json.load(f)["selected"], self.path("src/app.py"))
-        self.assertIn(["pane", "rename", "w1:p9", "preview"], calls)
+        self.assertEqual(created[2:], ["--workspace", "w1", "--cwd", self.root, "--label",
+                                       os.path.join("src", "app.py"), "--env", "HERDR_FOLD_PROGRAM=vim", "--env",
+                                       f"HERDR_FOLD_FILE={self.path('src/app.py')}", "--no-focus"])
+        self.assertIn(["pane", "rename", "w1:p9", "edit"], calls)
+        self.assertIn(["pane", "run", "w1:p9", '"$HERDR_FOLD_PROGRAM" +42 "$HERDR_FOLD_FILE" && exit'], calls)
 
 
 if __name__ == "__main__":

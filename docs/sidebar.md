@@ -30,7 +30,7 @@ sidebar's Files with the page chosen](../assets/screenshots/tui-split.webp)
 - A herdr-sidebar you installed yourself stays; the installer names it, since the two do the same.
 - The `Brewfile` brings `bat` and `git-delta`, which color the previews; without them a file shows plain and a diff in
   git's colors. It brings `ripgrep` for Search too; without it Search runs git grep, or its own search outside a
-  repository.
+  repository. And it brings `micro`, the editor a text file opens in where `$VISUAL` and `$EDITOR` name none.
 - The Issues view uses `gh`, which the installer brings and signs in to GitHub. On a remote machine it shows once gh is
   installed and signed in there; the Mac's sign-in never goes to the machine.
 
@@ -112,8 +112,9 @@ while More leaves it off the row).
 
 Cmd + Shift + G (Changes), Cmd + Shift + I (Issues), Cmd + Shift + E, Cmd + Shift + O and Cmd + Option + B (the
 rail) reach it from anywhere:
-[Keys](keybindings.md#panes-and-tabs). Cmd + Shift + L opens a file the focused pane's output names in its preview,
-at that line ([Opening a file the agent named](usage.md#opening-a-file-the-agent-named)).
+[Keys](keybindings.md#panes-and-tabs). Cmd + Shift + L opens a file the focused pane's output names at that line, a
+text file in your editor and a picture in the preview
+([Opening a file the agent named](usage.md#opening-a-file-the-agent-named)).
 
 More at the row's end (or a right click on the row) lists the views first, each with a ✓ while shown, as Adobe's Window
 menu: one unchecked leaves the row in every tab, and a check or its key brings it back; one view always stays. Below

@@ -185,11 +185,9 @@ class Chats(Family):
         return path, item.title
 
     def show_plan(self, found):
-        """The plan in the preview tab, named after its chat."""
+        """The plan in the user's editor, named after its chat."""
         path, title = found
-        folder = os.path.dirname(path)
-        self.host.open_preview({**preview.file_spec(folder, path, None), "title": f"plan · {preview.label(title)}"},
-                               folder)
+        self.host.open_file(path, None, os.path.dirname(path), f"plan · {preview.label(title)}")
 
     def do_archive(self, *items):
         self.file(items, True)

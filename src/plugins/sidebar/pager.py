@@ -17,6 +17,7 @@ sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import git  # noqa: E402
 import media  # noqa: E402
+import preview  # noqa: E402
 from preview import Herdr  # noqa: E402
 from screen import char_width, width  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
@@ -170,6 +171,20 @@ def controls(groups, cells):
         if cells - at - 1 >= NAME:
             break
     return "".join(out), spans
+
+
+def edit(path):
+    """e: PATH in the user's editor, in a tab of its own (preview.open_editor(); on a thread, as herdr's calls take a
+    moment); once saved, the preview draws it again (main())."""
+    workspace, argv = os.environ.get("HERDR_WORKSPACE_ID"), preview.editor()
+
+    def work():
+        try:
+            preview.open_editor(Herdr(), workspace, os.getcwd(), path, argv)
+        except RuntimeError:
+            pass                                    # herdr said no: the preview stays as it is
+    if workspace and argv:
+        threading.Thread(target=work, daemon=True).start()
 
 
 def turn(stacking):
@@ -582,6 +597,7 @@ class PictureAndCode:
     def __init__(self, spec):
         title = spec.get("title") or ""
         self.picture, self.code = Picture(spec["picture"], title), Pager(load(spec), title, None, spec.get("open"))
+        self.edits = spec.get("edit")                # the file e opens in the user's editor
         self.view, self.share, self.dragging, self.side = "split", 0.5, False, None
         self.stacked = None                          # chosen: code above the picture, or not; None: by the pane's shape
         self.size, self.stacking = (0, 0), False     # the pane's cells and its way, as last drawn
@@ -592,9 +608,12 @@ class PictureAndCode:
         return self.picture if self.view == "picture" else self.code
 
     def switch(self, columns):
-        """The status row's controls in COLUMNS, for the view drawn: the views after c; in Split, the turn after v."""
+        """The status row's controls in COLUMNS, for the view drawn: the views after c; in Split, the turn after v;
+        Edit after e."""
         groups = [("c", [(view.title(), view.title(), view == self.view, view) for view in VIEWS])]
-        lead, self.spans = controls(groups + ([turn(self.stacking)] if self.view == "split" else []), columns)
+        groups += [turn(self.stacking)] if self.view == "split" else []
+        lead, self.spans = controls(groups + ([("e", [("Edit", "Edit", False, "edit")])] if self.edits else []),
+                                    columns)
         self.code.lead = self.picture.lead = lead
 
     def following(self):
@@ -649,6 +668,9 @@ class PictureAndCode:
         if action == "turn":
             self.stacked = not self.stacking
             return True
+        if action == "edit":
+            edit(self.edits)
+            return True
         if action:
             self.view = action
             return True
@@ -664,12 +686,14 @@ class PictureAndCode:
                     self.share = at / max(1, cells)
                 self.dragging = event.kind != "release"
                 return True
-        if isinstance(event, Key) and event.name == "char" and event.char in ("c", "v") and not event.ctrl \
+        if isinstance(event, Key) and event.name == "char" and event.char in ("c", "v", "e") and not event.ctrl \
                 and self.code.typing is None:                # typed into a search, it is a letter
             if event.char == "c":
                 self.view = self.following()
-            else:
+            elif event.char == "v":
                 self.stacked = not self.stacking
+            elif self.edits:
+                edit(self.edits)
             return True
         return self.views().handle(event)
 
@@ -864,6 +888,14 @@ def spec_at(path):
     return spec if isinstance(spec, dict) else None
 
 
+def again(old, spec, term):
+    """SPEC's view anew, its file saved in the user's editor (e): as OLD showed it, the same view, divider and way."""
+    old.close(term)
+    fresh = viewer(spec)
+    fresh.view, fresh.share, fresh.stacked = old.view, old.share, old.stacked
+    return fresh
+
+
 def forget(path, seen):
     """What the pager showed forgotten (its spec at PATH, as SEEN), not the next one a sidebar wrote there meanwhile."""
     if stamp(path) == seen:
@@ -898,7 +930,7 @@ def main():
         if hasattr(signal, name):
             signal.signal(getattr(signal, name), lambda *_: sys.exit(0))
     with Terminal() as term:
-        drawn, menu, going = None, None, True
+        drawn, menu, going, saved = None, None, True, stamp(spec["edit"]) if spec.get("edit") else None
         try:
             while going:
                 if stamp(path) not in (seen, None):     # the next preview, written by a sidebar
@@ -907,6 +939,10 @@ def main():
                         if isinstance(pager, (Picture, PictureAndCode)):
                             pager.close(term)
                         pager, drawn, menu = viewer(spec), None, None
+                        saved = stamp(spec["edit"]) if spec.get("edit") else None
+                elif isinstance(pager, PictureAndCode) and pager.edits and stamp(pager.edits) not in (saved, None):
+                    # its file saved in the user's editor (e): drawn anew
+                    saved, pager, drawn, menu = stamp(pager.edits), again(pager, spec, term), None, None
                 drawn = redraw(pager, term, drawn)      # a mouse move changes nothing: no redraw
                 if menu:
                     term.write(menu.draw())

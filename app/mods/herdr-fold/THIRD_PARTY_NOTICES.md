@@ -162,6 +162,7 @@ and a remote Windows machine gets Python from winget or python.org.
 | bat | [sharkdp/bat](https://github.com/sharkdp/bat) | MIT or Apache-2.0 |
 | delta | [dandavison/delta](https://github.com/dandavison/delta) | MIT |
 | ripgrep | [BurntSushi/ripgrep](https://github.com/BurntSushi/ripgrep) | Unlicense or MIT |
+| micro | [micro-editor/micro](https://github.com/micro-editor/micro) | MIT |
 | Python (Windows machines) | [python/cpython](https://github.com/python/cpython) | Python Software Foundation License Version 2 |
 
 Ghostty's app icon in a theme's colors is herdr-fold's logo, the sheep: herdr-fold's own drawing, in the shape of the

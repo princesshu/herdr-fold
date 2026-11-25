@@ -93,6 +93,62 @@ class Kinds(unittest.TestCase):
             self.assertIsNone(media.size(os.path.join(tmp, "b.png")))
 
 
+class Texts(unittest.TestCase):
+    """A text file opens to edit in both clients; what is not text, past the limit or gone says why."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+
+    def file(self, name, data):
+        path = os.path.join(self.tmp, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(data)
+        return path
+
+    def test_text_up_to_the_limit_is_text(self):
+        self.assertIsNone(media.text_refusal(self.file("limits.json", b'{\r\n  "page": 25\r\n}\r\n')))
+        self.assertIsNone(media.text_refusal(self.file("exact.txt", b"y" * media.TEXT_LIMIT)))
+        self.assertIsNone(media.text_refusal(self.file("late.txt", b"a" * media.SNIFF + b"\0")))
+
+    def test_what_cannot_be_edited_says_why(self):
+        self.assertEqual(media.text_refusal(self.file("big.log", b"x" * (media.TEXT_LIMIT + 1))), "large")
+        self.assertEqual(media.text_refusal(self.file("a.bin", b"nul\0here")), "binary")
+        self.assertEqual(media.text_refusal(self.file("latin.txt", b"caf\xe9\n")), "binary")
+        self.assertEqual(media.text_refusal(self.tmp), "binary")
+        self.assertEqual(media.text_refusal(os.path.join(self.tmp, "none.txt")), "gone")
+
+    @unittest.skipIf(os.name == "nt", "a FIFO is POSIX's")
+    def test_a_pipe_is_never_opened(self):
+        os.mkfifo(os.path.join(self.tmp, "pipe"))
+        self.assertEqual(media.text_refusal(os.path.join(self.tmp, "pipe")), "binary")
+
+    def test_an_agents_settings_files(self):
+        for path, settings in [("/Users/dev/.claude/settings.json", True), ("lumen-api/.claude/settings.local.json",
+                               True), (".codex/config.toml", True), ("lumen-api/config/limits.json", False),
+                               ("/Users/dev/.claude/agents/review.md", False), ("lumen-api/config.toml", False)]:
+            with self.subTest(path=path):
+                self.assertEqual(media.agent_settings(path), settings)
+
+    def test_the_app_is_told_its_real_path_and_a_link_out(self):
+        path = self.file("lumen-api/config/limits.json", b"{}\n")
+        root = os.path.join(self.tmp, "lumen-api")
+        self.assertEqual(media.text(root, path), {"why": None, "real": os.path.realpath(path), "settings": False})
+        outside = self.file("elsewhere/notes.txt", b"kept\n")
+        os.symlink(outside, os.path.join(root, "notes.txt"))
+        os.symlink(path, os.path.join(root, "limits.json"))
+        self.assertEqual(media.text(root, os.path.join(root, "notes.txt"))["why"], "link")
+        self.assertEqual(media.text(root, os.path.join(root, "limits.json")),
+                         {"why": None, "real": os.path.realpath(path), "settings": False})
+
+    def test_past_the_limit_its_start_is_shown(self):
+        path = self.file("big.log", b"line\n" * (media.TEXT_LIMIT // 5 + 10))
+        answer = media.text(self.tmp, path)
+        self.assertEqual(answer["why"], "large")
+        self.assertTrue(answer["start"].endswith("line\n") and len(answer["start"]) <= media.TEXT_LIMIT)
+
+
 class Browser(unittest.TestCase):
     def setUp(self):
         self.home = tempfile.mkdtemp()

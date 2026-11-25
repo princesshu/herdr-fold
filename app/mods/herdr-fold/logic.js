@@ -487,11 +487,11 @@ export const floatStale = (panel, root) => (panel === "spaces" ? !railed(root) |
 export const floating = (kept) => (kept && typeof kept === "object" && typeof kept.panel === "string"
   && typeof kept.overlay === "string" ? { panel: kept.panel, overlay: kept.overlay } : null);
 
-/** SPACE's tabs as the tab bar draws them, as the app's own: one nobody named takes the space's name on the first (the
- * TUI's main tab), else its program's (an agent's, a chat tab's: CHATS), else Terminal; an agent's icon (TINT: in the
- * text's color), its state (a chat WAITING on you blocked), zoomed marked Z. @param {any} space @param {any[]} panes */
+/** SPACE's tabs as the tab bar draws them: one nobody named takes the space's name on the first, else its program's
+ * (a chat tab's: CHATS), else Terminal; an agent's icon (TINT: the text's color), its state (a chat WAITING on you
+ * blocked), zoomed marked Z, an editor's UNSAVED changes. @param {any} space @param {any[]} panes */
 export function tabRows(space, panes, /** @type {Record<string, any>} */ chats = {},
-  /** @type {Set<string>} */ waiting = new Set()) {
+  /** @type {Set<string>} */ waiting = new Set(), /** @type {Set<string>} */ unsaved = new Set()) {
   return (space?.tabs ?? []).map((/** @type {any} */ c, /** @type {number} */ i) => {
     const program = chats[c.id]?.program ?? panes.find((p) => p.tab === c.id && p.program?.agent)?.program
       ?? panes.find((p) => p.tab === c.id)?.program;
@@ -500,7 +500,7 @@ export function tabRows(space, panes, /** @type {Record<string, any>} */ chats =
     const agent = program?.agent ? program : null;
     return { id: c.id, name: c.zoomed ? `${name} Z` : name, active: Boolean(c.active),
       status: waiting.has(c.id) ? "blocked" : c.status ?? chats[c.id]?.status ?? null,
-      icon: agent?.icon ?? null, tint: Boolean(agent?.tint) };
+      icon: agent?.icon ?? null, tint: Boolean(agent?.tint), unsaved: unsaved.has(c.id) };
   });
 }
 
@@ -1707,3 +1707,95 @@ export function changeSides({ before, after }) {
 export function browsable(what) {
   return what?.kind === "file" && !what.on && mediaKind(what.path) !== null;
 }
+
+const MARKDOWN = [".md", ".markdown"];
+/** The editor's language by a file's extension; another is plain text. */
+const LANGUAGES = /** @type {Record<string, string>} */ ({ ".json": "json", ".jsonc": "json", ".toml": "toml",
+  ".yaml": "yaml", ".yml": "yaml", ".js": "javascript", ".mjs": "javascript", ".cjs": "javascript",
+  ".jsx": "javascript", ".ts": "typescript", ".tsx": "tsx", ".py": "python", ".rs": "rust", ".go": "go",
+  ".sh": "bash", ".bash": "bash", ".zsh": "bash", ".md": "markdown", ".markdown": "markdown", ".html": "html",
+  ".htm": "html", ".svg": "html", ".css": "css", ".c": "c", ".h": "c", ".cpp": "cpp", ".hpp": "cpp", ".java": "java",
+  ".rb": "ruby", ".swift": "swift", ".sql": "sql", ".lua": "lua", ".zig": "zig" });
+export const FOUND_MOST = 9999;    // a find's matches counted at most (the count says "9999+")
+
+/** Whether PATH opens in an editor tab of its own: text, nothing the preview draws (a picture, a PDF, a page, an SVG,
+ * Markdown, each with its code a view away). @param {string} path */
+export const editsInTab = (path) => mediaKind(path) === null && !MARKDOWN.includes(extension(path));
+
+/** Whether PATH is Markdown, which the preview draws. @param {string} path */
+export const markdownFile = (path) => MARKDOWN.includes(extension(path));
+
+/** PATH's language for the editor, by its extension. @param {string} path */
+export const editorLanguage = (path) => LANGUAGES[extension(path)] ?? "text";
+
+/** TEXT's indent as its lines have it: tabs where more lines start with one than with spaces, else the fewest
+ * spaces an indented line has (2 to 8), 2 without any. @param {string} text */
+export function indentOf(text) {
+  const starts = text.split("\n", 2000).map((line) => /^(\t+| +)\S/.exec(line)?.[1] ?? "").filter(Boolean);
+  const tabs = starts.filter((start) => start[0] === "\t").length;
+  const spaces = starts.filter((start) => start[0] === " ").map((start) => start.length).filter((n) => n > 1);
+  return { size: Math.min(8, Math.max(2, spaces.length ? Math.min(...spaces) : 2)), hard: tabs > spaces.length };
+}
+
+/** TEXT as it is written over DISK (the file's text as read): CRLF throughout where the file had it, as a line typed
+ * comes in as LF. @param {string} text @param {string | null} disk */
+export const withEnds = (text, disk) => (disk?.includes("\r\n") ? text.replace(/\r?\n/g, "\r\n") : text);
+
+/** QUERY's places in TEXT, case aside, as VS Code's find: [start, end] (UTF-16 offsets), MOST at most.
+ * @param {string} text @param {string} query @returns {[number, number][]} */
+export function findAll(text, query, most = FOUND_MOST) {
+  if (!query) return [];
+  const found = /** @type {[number, number][]} */ ([]);
+  const pattern = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+  for (let hit = pattern.exec(text); hit && found.length < most; hit = pattern.exec(text)) {
+    found.push([hit.index, hit.index + hit[0].length]);
+  }
+  return found;
+}
+
+/** The match to go to among MATCHES from the selection's start AT: the first at or after it, or (BACK) the last before
+ * it, round past either end; -1 for none. @param {[number, number][]} matches @param {number} at */
+export function nextMatch(matches, at, back = false) {
+  if (!matches.length) return -1;
+  if (back) {
+    const after = matches.findIndex(([start]) => start >= at);
+    return (after < 0 ? matches.length : after || matches.length) - 1;
+  }
+  const after = matches.findIndex(([start]) => start >= at);
+  return after < 0 ? 0 : after;
+}
+
+/** The find bar's count: "2 of 3", "No results" for a query found nowhere. @param {number} at
+ * @param {[number, number][]} matches @param {string} query */
+export const findCount = (at, matches, query) => (!query ? "" : !matches.length ? "No results"
+  : `${at + 1} of ${matches.length}${matches.length >= FOUND_MOST ? "+" : ""}`);
+
+/** A draft's file name for the file at PATH: a hash of it (cyrb53), so the state folder's names hold no path.
+ * @param {string} path */
+export function draftName(path) {
+  let a = 0xdeadbeef, b = 0x41c6ce57;
+  for (let i = 0; i < path.length; i++) {
+    const ch = path.charCodeAt(i);
+    a = Math.imul(a ^ ch, 2654435761);
+    b = Math.imul(b ^ ch, 1597334677);
+  }
+  a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909);
+  b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909);
+  return `${(4294967296 * (2097151 & b) + (a >>> 0)).toString(16).padStart(14, "0")}.json`;
+}
+
+/** SPACE's tab named NAME with herdr-fold in it (PANES, the app's panes()): an editor's, named for its file; or null.
+ * @param {{ tabs?: { id: string, name: string }[] } | undefined} space @param {string} name
+ * @param {{ tab: string, mod?: string }[]} panes */
+export const modTab = (space, name, panes) => space?.tabs?.find((t) => t.name === name &&
+  panes.some((p) => p.tab === t.id && p.mod === "herdr-fold"))?.id ?? null;
+
+/** The key an editor's unsaved changes are kept under in UNSAVED (shared): the space and its tab's name.
+ * @param {string} space @param {string} tab */
+export const unsavedKey = (space, tab) => `${space}\t${tab}`;
+
+/** SPACE's tabs with unsaved changes, as UNSAVED (shared: unsavedKey()'s) says: their × a dot.
+ * @param {{ id: string, tabs?: { id: string, name: string }[] } | undefined} space
+ * @param {Record<string, boolean>} unsaved */
+export const unsavedTabs = (space, unsaved) => new Set((space?.tabs ?? [])
+  .filter((t) => unsaved[unsavedKey(space?.id ?? "", t.name)]).map((t) => t.id));
