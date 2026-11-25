@@ -414,6 +414,14 @@ def github_name(root):
     return found.get("origin") or next(iter(found.values()), None)
 
 
+def bases(root):
+    """The branches a pull request of ROOT's branch can go into: its remote's (origin's without one), by name."""
+    branch = run(root, "branch", "--show-current").stdout.strip()
+    remote = run(root, "config", "--get", f"branch.{branch}.remote").stdout.strip() or "origin"
+    out = run(root, "for-each-ref", "--format=%(refname:lstrip=3)", f"refs/remotes/{remote}")
+    return sorted(name for name in out.stdout.split() if name not in ("HEAD", branch))
+
+
 def graph(root, n=20):
     out = run(root, "log", f"-n{n}", "--format=%h%x00%s%x00%an%x00%D%x1e")
     commits = []
@@ -430,19 +438,19 @@ def graph(root, n=20):
 
 # what the Herdr app mod asks for: the arguments each command takes after ROOT, at least and at most (None: any number)
 COMMANDS = {"status": (0, 0), "top": (0, 0), "place": (0, 1), "diff": (1, 1), "show": (1, 1), "graph": (0, 0),
-            "github": (0, 0), "stage": (0, None), "unstage": (1, None), "discard": (1, 1), "commit": (1, 1),
-            "sync": (0, 0), "push": (0, 0), "pull": (0, 0)}
+            "github": (0, 0), "bases": (0, 0), "stage": (0, None), "unstage": (1, None), "discard": (1, 1),
+            "commit": (1, 1), "sync": (0, 0), "push": (0, 0), "pull": (0, 0)}
 
 
 def main(argv):
     """The Herdr app mod runs this on the repository's machine, answering in JSON: status, top (ROOT's repository, else
-    the one inside, as Spaces names it), place (FOLDER: its active pane's), graph, github; diff, show (the text, else
-    why none); stage (no PATH: all), unstage, discard, commit, sync, push, pull (worked, else what to do)."""
+    the one inside, as Spaces names it), place (FOLDER: its active pane's), graph, github, bases; diff, show (the text,
+    else why none); stage (no PATH: all), unstage, discard, commit, sync, push, pull (worked, else what to do)."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     least, most = COMMANDS.get(command, (0, -1))                # an unknown command: no count fits
     given = len(args) - 1                                        # after ROOT
     if not args or given < least or (most is not None and given > most):
-        print("usage: git.py status|top|graph|github|sync|push|pull ROOT, git.py place ROOT [FOLDER], "
+        print("usage: git.py status|top|graph|github|bases|sync|push|pull ROOT, git.py place ROOT [FOLDER], "
               "git.py diff|discard ROOT PATH, git.py show ROOT HASH, git.py stage ROOT [PATH…], "
               "git.py unstage ROOT PATH…, git.py commit ROOT MESSAGE", file=sys.stderr)
         return 2
@@ -466,6 +474,8 @@ def main(argv):
         answer = {"commits": [dict(asdict(c), refs=list(c.refs)) for c in graph(root)]}
     elif command == "github":
         answer = {"name": github_name(root)}
+    elif command == "bases":
+        answer = {"bases": bases(root)}
     else:
         if command in ("unstage", "discard") or (command == "stage" and rest):     # named files: None, or the error
             error = {"stage": stage, "unstage": unstage}[command](root, rest) if command != "discard" \

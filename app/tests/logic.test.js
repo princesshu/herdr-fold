@@ -29,7 +29,8 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   waiting, chatAgents, updateNotice, ABOUT, aboutHeight, licenseOf, aboutTargets, agentsSaid, updateReady, SETTINGS,
   SECTIONS, APP_SECTIONS, settingsSection, sectionStep, settingsTargets, columnToggle, restoreCommands, keyMenuBounds,
   themeChoices, layoutToast, soundsFor, noteShown, modTab, unsavedKey, unsavedTabs, editsInTab, markdownFile,
-  editorLanguage, indentOf, withEnds, findAll, nextMatch, findCount, FOUND_MOST, draftName }
+  editorLanguage, indentOf, withEnds, findAll, nextMatch, findCount, FOUND_MOST, draftName, commentAt, reviewReady,
+  loginColor }
   from "../mods/herdr-fold/logic.js";
 import { format } from "../mods/herdr-fold/timeline.js";
 
@@ -1290,7 +1291,7 @@ test("a view floating beside the rail is as tall as dragged: its head and 3 rows
     const views = ["files", "chats", "search", "issues", "changes", "agent"];
     assert.deepEqual(Object.fromEntries(views.map((v) => [v, floatMin(v)])),
       { files: 36 + 38 + 3 * 26 + 12, chats: 36 + 50 + 26 + 2 * 24 + 12, search: 36 + 81 + 3 * 24 + 12,
-        issues: 36 + 84 + 3 * 48 + 12, changes: 36 + 58 + 97 + 3 * 26 + 12 + 12,
+        issues: 36 + 38 + 84 + 3 * 48 + 12, changes: 36 + 58 + 97 + 3 * 26 + 12 + 12,
         agent: 36 + 44 + 37 + 4 + 28 + 2 * 26 + 12 });       // its head, its health line, a section and two rows
     assert.equal(FLOAT_GRIP, 12);
     // the most: the rail's height, from the centre card's top under the tab bar to its foot over the status bar
@@ -2363,4 +2364,31 @@ test("no view keeps a field under one of its methods' names: the field would hid
   for (const name of sources) {
     assert.deepEqual(hiddenMethods(readFileSync(new URL(name, mod), "utf8")), [], name);
   }
+});
+
+test("a pull request's lists say so in their own words: loading, none open, none matching", () => {
+  const parts = (/** @type {any} */ s) => issuesParts({ asked: false, listing: null, shown: 0, filtered: false,
+    state: "open", noun: "pull requests", ...s });
+  assert.deepEqual(parts({ asked: true }).say, ["Loading pull requests…", "dim"]);
+  assert.deepEqual(parts({ listing: { error: null } }).say, ["No open pull requests", "dim"]);
+  assert.deepEqual(parts({ listing: { error: null }, filtered: true }).say, ["No pull requests match", "dim"]);
+});
+
+test("a review comment goes on its line: a removed one's in the old file, LEFT; none on a hunk's head", () => {
+  assert.deepEqual(commentAt({ kind: "+", old: null, new: 31 }), { line: 31, side: "RIGHT" });
+  assert.deepEqual(commentAt({ kind: " ", old: 29, new: 30 }), { line: 30, side: "RIGHT" });
+  assert.deepEqual(commentAt({ kind: "-", old: 30, new: null }), { line: 30, side: "LEFT" });
+  assert.equal(commentAt({ kind: "@", old: null, new: null }), null);
+});
+
+test("a review goes as GitHub takes it: Approve never on one's own, Comment and Request changes with a summary", () => {
+  assert.equal(reviewReady("approve", "", false), true);
+  assert.equal(reviewReady("approve", "", true), false);
+  assert.equal(reviewReady("comment", "  ", false), false);
+  assert.equal(reviewReady("request", "Page it", true), true);
+});
+
+test("a login's avatar color is one of the spaces' and the same every time", () => {
+  assert.ok(Object.values(MARK).includes(loginColor("ada")));
+  assert.equal(loginColor("tomas"), loginColor("tomas"));
 });

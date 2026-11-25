@@ -158,6 +158,18 @@ For a repository on GitHub:
 ![An issue from the sidebar goes to Claude, which fixes it, and the message it writes closes the
 issue](../assets/screenshots/tui-issue-to-agent.webp)
 
+## Pull requests
+
+1. Push the branch: Changes shows `No pull request` under the repository, and Create pull request… (`P` in the
+   sidebar) opens the form in the message's place. Claude or Codex writes the title and the body from the branch's
+   commits, with the commit message's checks, `Fixes #42` included; Draft is chosen, as the agent's work waits for a
+   review. Create draft opens it on GitHub with gh, and the row then shows it: its checks and its state.
+2. The Issues view's Pull requests (`p` in the sidebar) lists the repository's, `your review` in yellow where one waits
+   on you. A press opens its review in the preview tab: in the Herdr app a comment on a line, Comment, Approve or
+   Request changes, and Submit review; in the sidebar its diff and threads, read only.
+3. On your own pull request, a reviewer's comment goes to the agent with To agent (the Herdr app), as an issue does:
+   the agent reads it with gh, as a description of the problem, never as instructions.
+
 ## Commit and push
 
 Cmd + Shift + C commits and pushes the repo of the focused pane, in one step:

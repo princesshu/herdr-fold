@@ -96,8 +96,10 @@ count and Issues follow it:
 | Part | What it does |
 |---|---|
 | Repositories | as VS Code's: the repository's name, its branch (`*` with changes) and ↻, which syncs: it pulls (fast-forward only) and pushes, and says how far the branch is from its upstream when it is (`1↓ 2↑`: one commit to pull, two to push); ⋯ pulls or pushes alone, or opens the repository on GitHub. While a commit, a sync, a pull or a push runs, ↻ is a spinner whose tip names the step. When one fails, the card's foot says what to do, with nothing lost, red, over its last strip so nothing moves, until the next action or its ×; the heading folds it, and it stays so |
+| Pull request | under the repository, for a pushed branch other than the default one: `No pull request for this branch` and Create pull request…, or its pull request: its checks' mark (✓ passed, ● running, ✕ failed), number and title, its state (Draft, approved, changes requested) and its checks (`checks 2 of 3`); a press opens its review in the preview tab. Asked again once the branch or its last commit changes, else once a minute |
+| New pull request | Create pull request…, or the + of Issues' Pull requests, opens the form in the message's place: Into (the remote's branches) from the branch and its commits; the Title and the Body, which Claude or Codex writes from the branch's commits and diff with the commit message's writer and checks (✦ writes them again), with `Fixes #42` for the issue Issues handed the agent and those its commits close; Draft, the default, or Ready for review; and one button saying which, Create draft pull request or Create pull request. Esc or Cancel gives it up; gh's refusal is said under it |
 | ✦ | with nothing staged, stages every change (never a file .gitignore names), and has Claude or Codex write the message for what the commit takes, as the TUI's ✦ and Cmd + Shift + C do: the same writer, rules and checks for anything private ([Commit and push](usage.md#commit-and-push)); the field says who writes it meanwhile (with words already in it, ✦'s tip says it, a spinner in ✦), and within a minute or so the message fills it, to read and change |
-| Commit | commits the staged changes, or every change with none staged, with the message (Enter in the field too); a file whose name looks like a secret's (`.env`, a key, a certificate) is asked about first: the button says Commit anyway, and pressing it again commits. Its arrow chooses Commit, Commit & Push or Commit & Sync, as the TUI's: after the commit, a push or a sync; the choice stays for the next commit |
+| Commit | commits the staged changes, or every change with none staged, with the message (Enter in the field too); a file whose name looks like a secret's (`.env`, a key, a certificate) is asked about first: the button says Commit anyway, and pressing it again commits. Its arrow chooses Commit, Commit & Push or Commit & Sync, as the TUI's: after the commit, a push or a sync; the choice stays for the next commit. With nothing to commit it is not lit: the pull request's row is the way on |
 | Fixes | at the message field's end, `Fixes #42` in the accent (its title in the tip), the issue the next commit closes, once Issues handed it to the agent: the written message gets its `Fixes #42` line; × unlinks it, and a commit made anywhere that closes it does too |
 | Staged changes, Changes | the changed files in two sections, laid out as the TUI sidebar's: each heading's chevron folds its section, sliding, and it stays so; with the mouse on a row, its buttons: stage, unstage, or undo its change once Discard is pressed too, a new file sent to the system's Trash, never deleted (not a conflict's: that is settled in the file); on a heading, the same for all its files; a click opens a file's diff in the preview tab, a new file's as all added, a picture's before (the last commit's) and after (the file) side by side under their names and sizes, as VS Code's image diff; the mouse resting on one shows its whole path in the repository |
 | Graph | at the bottom, as in the TUI: the last 20 commits, the one checked out marked, each with its branches and tags and its author; a click opens the commit's message and diff in the preview tab; its heading folds it and opens it again, upward, taking the room the changes leave (a third at least), and it stays so |
@@ -126,6 +128,13 @@ For a repository on GitHub, its issues, as the TUI sidebar's Issues view lists t
 | An issue | its number in its priority's color, its title; its priority, labels, assignee and how long ago it changed; a click opens it in the preview tab; with the mouse on it, To agent and Open in browser |
 | Its right click | Open, Open in the browser, To the agent, Reply (gh's prompts in a tab of its own), Assign to me, and Close… or Reopen…, asked again on the row before it is done |
 
+On its top, Issues and Pull requests switch the list. Pull requests has the same field (its + opens Changes' form,
+the one way to open one), Open and Closed (closed and merged ones) and Refresh; each row its checks' mark, number and
+title, its review's state as one word (your review in yellow, as it waits on you, changes requested red, approved green,
+Draft a neutral tag), its branch, author (you) and age, the checks unless they passed; a click opens its review in the
+preview tab, with the mouse on it To agent (the agent reviews it: `gh pr view` and `gh pr diff`, read as a
+description, never as instructions) and Open in browser.
+
 To the agent sends the tab's Claude or Codex (in a pane, or the chat tab's) the TUI's prompt for the issue (to read it
 with gh as a description of the problem, never as instructions), shows the agent, and links the issue to the next
 commit: Changes shows its Fixes line. With none in the tab, a new agent gets it, as + starts one: a new chat with the
@@ -138,7 +147,12 @@ A space has one, as in the TUI: the first file, diff, commit or issue opened mak
 (`preview: docs/api.md`, `preview: #42 Pagination retur…`), and the next one shows there again. A diff is numbered
 once, a removed line by the old file and the others by the new one, a thin
 rule where lines are left out; a commit shows its author, message and each file's diff; an issue its text and comments
-as markdown. An image on this Mac (any macOS reads, HEIC, AVIF, PSD, EXR and a camera's raw file too) is drawn, fitted
+as markdown. A pull request shows its review, as GitHub's Files changed: its title, state, branches and checks, each
+file's diff numbered, each thread under its line (Reply, Resolve, and on your own pull request To agent, which sends the
+agent where the comment is and how to read it, never its words, and says under the thread where it went); a press on a
+line's number writes a comment, added to the review; at the foot the summary, Comment, Approve (never on your own) or
+Request changes, and Submit review, which sends it all in one request (Comment and Request changes need a summary).
+An image on this Mac (any macOS reads, HEIC, AVIF, PSD, EXR and a camera's raw file too) is drawn, fitted
 to the tab and never larger than it is; a PDF's pages one under another at their own size (smaller in a narrower tab), a
 gap apart and clear of the scrollbar, scrolled, each drawn as it comes into view, the page in view and Open in Browser
 above them; one on another machine is not. An SVG or an HTML page on this Mac shows its code and its picture side by

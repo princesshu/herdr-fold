@@ -1,8 +1,9 @@
 """Tests for the sidebar's Issues view (src/plugins/sidebar/issues.py), laid out and keyed like GitHub's issue list,
-with the priority from GitHub's Priority field, else a priority label, a severity label or a word alone; and for its own
-part (issue_work.py): the latest answer kept for the repository's other sidebars, and what a tab of its opens."""
+with the priority from GitHub's Priority field, else a label or a word; its Pull requests (pulls.py); and its own part
+(issue_work.py): the latest answer kept for the repository's other sidebars, and what a tab of its opens."""
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -13,7 +14,7 @@ from support import SRC, text
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import github  # noqa: E402
 import issue_work  # noqa: E402
-from github import Issue, Listing, Query  # noqa: E402
+from github import Issue, Listing, Pull, Pulls, Query  # noqa: E402
 from issues import TEXT, Issues  # noqa: E402
 from icons import glyphs  # noqa: E402
 from screen import PAD, SPINNER, Canvas  # noqa: E402
@@ -433,6 +434,90 @@ class Tabs(unittest.TestCase):
         self.assertEqual(spec["pipeline"][0][1:], ["issue", "view", "42", "-R", "acme/app", "--comments"])
         self.assertTrue(os.path.isabs(spec["pipeline"][0][0]))
         self.assertTrue(spec["env"]["GH_FORCE_TTY"])
+
+
+SHELVES = Pull(57, "Group books by shelf", "feat/shelves", "ada", "2026-10-24T10:00:00Z", checks=(3, 0, 0), yours=True)
+PAGE = Pull(58, "Keep a page past the last one in range", "fix/page-past-end", "dev", "2026-10-24T11:55:00Z",
+            draft=True, checks=(2, 1, 0), url="https://github.com/acme/app/pull/58")
+ERRORS = Pull(55, "Problem details for errors", "fix/errors", "tomas", "2026-10-23T12:00:00Z",
+              decision="CHANGES_REQUESTED", checks=(1, 0, 1))
+
+
+class PullRequests(unittest.TestCase):
+    """The Issues view's other list, its switch on top: each pull request's checks, number, title and review's state,
+    its branch, author and age under them; keyed as the issues, a new one in Changes."""
+    setUp, draw, row_of, lines, click, press, type = (View.setUp, View.draw, View.row_of, View.lines, View.click,
+                                                      View.press, View.type)
+
+    def pulls(self, found=(SHELVES, PAGE, ERRORS), error=None):
+        self.assertEqual(self.press("char", "p"), Action("load_pulls", ("open",)))
+        self.view.pulls.show(Pulls(found, "dev", error), "open")
+        return self.draw(width=50)
+
+    def test_p_or_a_press_on_the_switch_shows_them_asked_for_once(self):
+        self.draw()
+        self.assertIn("Issues   Pull requests", self.lines()[0])
+        self.assertEqual(self.click("Pull requests", 0), Action("load_pulls", ("open",)))
+        self.assertEqual(self.view.board, "pulls")
+        self.draw()
+        self.assertIn("Filter pull requests", "".join(self.lines()))
+        self.assertIsNone(self.press("char", "p"))              # back to the issues: they are there already
+        self.assertEqual(self.view.board, "issues")
+
+    def test_a_row_its_checks_number_title_and_review(self):
+        self.pulls()
+        for pull, glyph, word in ((SHELVES, "✓", "your review"), (PAGE, "●", "Draft"), (ERRORS, "✕", "changes")):
+            with self.subTest(pull.number):
+                y = self.row_of(f"#{pull.number} ")
+                self.assertEqual(self.lines()[y][1], glyph)
+                self.assertTrue(self.lines()[y].rstrip().endswith(word))
+        self.assertEqual(self.canvas.rows[self.row_of("#57 ")][46][1].fg, "modified")      # it waits on you
+        self.assertIn("fix/page-past-end · you · 5m · checks 2 of 3", self.lines()[self.row_of("#58 ") + 1])
+        self.assertNotIn("checks", self.lines()[self.row_of("#57 ") + 1])                  # passed: not said
+
+    def test_keyed_as_the_issues_a_new_one_in_changes(self):
+        self.pulls()
+        self.press("down")
+        self.assertEqual(self.press("enter"), Action("preview_pull", (PAGE,)))
+        self.assertEqual(self.press("char", "t"), Action("pull_to_agent", (PAGE,)))
+        self.assertEqual(self.press("char", "b"), Action("pull_web", (PAGE,)))
+        self.assertEqual(self.press("char", "c"), Action("new_pull", ()))
+        self.assertEqual(self.press("right"), Action("load_pulls", ("closed",)))
+        self.assertEqual(self.click("+"), Action("new_pull", ()))
+
+    def test_the_filter_finds_them_by_number_title_branch_and_author(self):
+        self.pulls()
+        self.press("char", "/")
+        self.type("you")
+        self.draw(width=50)
+        self.assertEqual([pull.number for pull in self.view.pulls.list.items], [58])
+
+    def test_loading_a_failure_or_none_on_the_first_rows_place(self):
+        self.press("char", "p")
+        self.draw()
+        self.row_of("Loading pull requests…")
+        self.view.pulls.show(Pulls(error=github.SIGNED_OUT), "open")
+        self.draw()
+        self.row_of(github.SIGNED_OUT[:30])
+        self.view.pulls.show(Pulls(), "open")
+        self.draw()
+        self.row_of("No open pull requests")
+
+    def test_its_review_in_the_preview_tab_read_only_with_each_thread_on_its_line(self):
+        thread = {"id": "t1", "resolved": False, "path": "src/a.py", "line": 30, "side": "RIGHT",
+                  "comments": [{"id": 1, "author": "tomas", "ago": "1h", "body": "Page it\x1b]0;x\x07 too"}]}
+        review = {**github.pull_listed(SHELVES, "dev"), "base": "main", "head": "3f2c1a9", "mine": False,
+                  "files": [{"path": "src/a.py", "added": 1, "removed": 1, "cut": 0, "loose": [], "rows": [
+                      {"kind": "@", "old": None, "new": None, "text": "@@ -30 +30 @@"},
+                      {"kind": "-", "old": 30, "new": None, "text": "a = 1"},
+                      {"kind": "+", "old": None, "new": 30, "text": "a = 2", "threads": [thread]}]}]}
+        spec = issue_work.pull_spec(review)
+        self.assertEqual((spec["title"], spec["pipeline"], spec["view"]), ("#57 Group books by shelf", [], "r"))
+        plain = [re.sub(r"\x1b\[[\d;]*m", "", line) for line in spec["views"][0]["lines"]]
+        self.assertEqual(plain[0], "#57 Group books by shelf  your review")
+        self.assertEqual(plain[1], "feat/shelves → main · ada · ✓ 3 checks passed · 1 file")
+        self.assertEqual(plain[4:], ["      @@ -30 +30 @@", "   30 - a = 1", "   30 + a = 2", "      ┃ tomas · 1h",
+                                     "      ┃ Page it]0;x too"])
 
 
 if __name__ == "__main__":

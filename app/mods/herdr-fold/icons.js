@@ -31,6 +31,7 @@ export const ICONS = {
   "files": "mods/herdr-fold/icons/lucide/files.svg",
   "folder-plus": "mods/herdr-fold/icons/lucide/folder-plus.svg",
   "git-branch": "mods/herdr-fold/icons/lucide/git-branch.svg",
+  "git-pull-request": "mods/herdr-fold/icons/lucide/git-pull-request.svg",
   "hand": "mods/herdr-fold/icons/lucide/hand.svg",
   "layers": "mods/herdr-fold/icons/lucide/layers.svg",
   "leaf": "mods/herdr-fold/icons/lucide/leaf.svg",

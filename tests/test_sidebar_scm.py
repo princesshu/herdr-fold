@@ -1,5 +1,6 @@
 """Tests for the sidebar's Changes view (src/plugins/sidebar/scm.py): the message field, Commit and its menu, the
-changes, staging, Discard and a secret-looking file's commit only after a question, the graph, unusual states."""
+changes, staging, Discard and a secret-looking file's commit only after a question, the graph, unusual states, the
+branch's pull request and a new one's form."""
 import json
 import os
 import sys
@@ -10,6 +11,8 @@ from support import SRC, set_attrs, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 from git import Change, Commit, Status  # noqa: E402
+from github import Pull  # noqa: E402
+from pulls import PullForm  # noqa: E402
 from scm import MESSAGE_ROWS, Entry, Gap, Scm, Section  # noqa: E402
 from icons import glyphs  # noqa: E402
 from screen import Canvas  # noqa: E402
@@ -608,3 +611,89 @@ class View(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PullRequestRow(unittest.TestCase):
+    """The branch's pull request under the repository, as the app's: none yet, and the way to open one; its checks,
+    number, title and state; a new one's form in the message's place; Commit unlit while nothing is to commit."""
+    draw, rows, shown, row_of, at, click, press = (View.draw, View.rows, View.shown, View.row_of, View.at, View.click,
+                                                   View.press)
+
+    def setUp(self):
+        View.setUp(self)
+        self.view.repo, self.view.github = "/Users/dev/lumen-api", "lumenworks/lumen-api"
+        self.status = Status(branch="fix/page-past-end", upstream="origin/fix/page-past-end")
+        self.view.pull = (None, "main")
+
+    def test_none_yet_offers_one_and_p_or_a_press_asks_for_it(self):
+        self.draw()
+        self.assertGreater(self.row_of("No pull request"), self.row_of("lumen-api"))
+        self.assertLess(self.row_of("No pull request"), self.row_of("Commit message"))
+        self.assertIn("Create pull request…", self.rows()[self.row_of("No pull request")])
+        self.assertEqual(self.click("Create pull request…"), Action("pull_row", ()))
+        self.assertEqual(self.press("P"), Action("pull_row", ()))
+
+    def test_the_default_branch_or_one_never_pushed_has_no_row(self):
+        for status in (Status(branch="main", upstream="origin/main"), Status(branch="fix/x", upstream=None)):
+            with self.subTest(status.branch):
+                self.status = status
+                self.draw()
+                self.assertFalse(any("pull request" in line for line in self.rows()))
+                self.assertIsNone(self.press("P"))
+
+    def test_a_pull_request_its_checks_state_and_review(self):
+        self.view.pull = (Pull(58, "Keep a page past the last one in range", "fix/page-past-end", "dev", draft=True,
+                               checks=(2, 1, 0)), "main")
+        self.draw(width=60)
+        y = self.row_of("#58 Keep a page")
+        self.assertTrue(self.rows()[y].rstrip().endswith("Draft"))
+        self.assertEqual(self.rows()[y][2], "●")
+        self.assertIn("checks 2 of 3 · no review yet", self.rows()[y + 1])
+        self.assertEqual(self.click("#58 Keep a page"), Action("pull_row", ()))
+
+    def test_commit_is_unlit_while_there_is_nothing_to_commit(self):
+        label = f"{glyphs(False)['check']} Commit"
+        for status, fill in ((self.status, "input"), (changes(), "button")):
+            self.status = status
+            self.draw()
+            y = self.row_of(label)
+            self.assertEqual(self.canvas.rows[y][self.rows()[y].index(label)][1].bg, fill)
+
+    def form(self):
+        self.view.form = PullForm("fix/page-past-end", ["main", "release"], icons=False)
+        self.view.form.fill({"title": "Keep a page past the last one in range", "body": "Fixes #42",
+                             "backend": "claude", "commits": 3})
+        return self.view.form
+
+    def test_the_form_in_the_messages_place_written_by_the_agent(self):
+        self.form()
+        self.draw()
+        shown = " ".join(self.shown().split())
+        self.assertNotIn("Commit message", shown)
+        for part in ("New pull request", "Into ‹ main › from fix/page-past-end", "Title Keep a page",
+                     "Body Fixes #42", "As Draft Ready for review", "Claude wrote it from 3 commits", "Create draft"):
+            self.assertIn(part, shown)
+
+    def test_tab_goes_on_arrows_choose_and_the_button_follows_the_choice(self):
+        form = self.form()
+        self.draw()
+        self.assertEqual(form.focus, "title")
+        self.press("tab", "tab")
+        self.assertEqual(form.focus, "as")
+        self.press("right")
+        self.assertFalse(form.draft)
+        self.draw()
+        self.assertIn("Create pull request", self.shown())
+        self.press("tab")
+        self.assertEqual(self.press("enter"), Action("open_pull", ("main", "fix/page-past-end",
+                                                                   "Keep a page past the last one in range",
+                                                                   "Fixes #42", False)))
+        self.press("tab")                                    # round to Into: another branch, written again
+        self.assertEqual(self.press("right"), Action("write_pull", ("release",)))
+        self.assertEqual(self.press("esc"), Action("pull_cancel", ()))
+
+    def test_no_title_no_pull_request(self):
+        form = self.form()
+        form.title.clear()
+        form.focus = "create"
+        self.assertIsNone(self.press("enter"))

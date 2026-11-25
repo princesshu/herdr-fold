@@ -14,6 +14,8 @@ import { Answer } from "./card.js";
 import { Chat } from "./chat.js";
 import { ChatsView } from "./chats.js";
 import { IssuesView } from "./issues.js";
+import { BranchPull, PullsView } from "./pulls.js";
+import { Review } from "./review.js";
 import { contrast } from "./agents.js";
 import { button, chip, CODE_FONT, fileMark, icon, listName, noteToast, PAD, scopeTag, small, SPACE } from "./parts.js";
 import { dockTabs, floatGrip, FloatSize, rail } from "./panel.js";
@@ -66,6 +68,7 @@ const PAGE = "mods/herdr-fold/styleguide-page.svg";      // a PDF's page, as the
 const INERT = ["act", "change", "choose", "commit", "fold", "later", "pick", "refresh", "reveal", "search", "show",
   "submit", "sync", "unask", "unlink", "watch", "write"];
 const INERT_ISSUES = ["act", "change", "filter", "load", "open", "terminal", "toAgent", "unask"];
+const INERT_PULLS = ["cancel", "create", "load", "look", "open", "start", "toAgent", "write"];
 const INERT_CHATS = ["ask", "close", "copy", "delete", "load", "look", "open", "pick", "rename", "unask", "watch"];
 const INERT_TABS = { pick: () => {} };       // the dock tabs' clicks
 const INERT_END = { chats: () => {}, more: () => {}, press: () => {}, away: () => {}, fold: () => {} };  // bar end's
@@ -117,6 +120,41 @@ const LISTED = [
   level, ago]) => ({ number, title, labels, assignees, state: "OPEN", url: `https://example.com/issues/${number}`,
   level, ranked_by: level === null ? null : labels[0], said: String(title).toLowerCase(), ago }));
 const LISTING = { issues: LISTED, error: null };
+// the repository's pull requests, as core/github.py's pull_listed gives them: one waiting on your review, your draft
+// with its checks running, one with changes asked for, one approved
+const PULLED = [
+  [57, "Group books by shelf", "feat/shelves", "ada", "passed", "3 checks passed", "yours", "2h"],
+  [58, "Keep a page past the last one in range", "fix/page-past-end", "you", "running", "checks 2 of 3", "draft", "5m"],
+  [55, "Problem details for errors", "fix/errors", "tomas", "failed", "1 check failed", "changes", "1d"],
+  [53, "Describe the routes", "docs/routes", "you", "passed", "3 checks passed", "approved", "2d"]]
+  .map(([number, title, branch, author, mark, checks, review, ago]) => ({ number, title, branch, author, mark,
+    checks_said: checks, review, ago, state: "OPEN", url: `https://example.com/pull/${number}`,
+    said: String(title).toLowerCase() }));
+const BRANCH = { ...STATUS, branch: "fix/page-past-end", upstream: "origin/fix/page-past-end", ahead: 0, behind: 0,
+  staged: [], changes: [] };
+const PR_BODY = "Past the last page, /books answered an empty list; now it answers the last page, and a page below "
+  + "one answers the first.\n\nTests cover both ends.\n\nFixes #42";
+// a review on its line, and its reply folded under it
+const THREAD = { id: "t1", resolved: false, path: "src/lumen/routes/shelves.py", line: 30, side: "RIGHT", comments: [
+  { id: 901, author: "tomas", body: "This loads every shelf at once; page it like `/books`?", ago: "1h" },
+  { id: 902, author: "ada", body: "Will do.", ago: "40m" }] };
+const REVIEWED = { number: 57, title: "Group books by shelf", branch: "feat/shelves", base: "main", author: "ada",
+  mark: "passed", checks_said: "3 checks passed", review: "yours", mine: false, head: "3f2c1a9", files: [
+    { path: "src/lumen/routes/shelves.py", added: 62, removed: 9, cut: 0, loose: [], rows: [
+      { kind: "@", old: null, new: null, text: "@@ -29,3 +29,4 @@ def list_shelves(request):" },
+      { kind: " ", old: 29, new: 29, text: "def list_shelves(request):" },
+      { kind: "-", old: 30, new: null, text: "    shelves = store.all_shelves()" },
+      { kind: "+", old: null, new: 30, text: "    shelves = store.shelves(order=\"name\")", threads: [THREAD] },
+      { kind: "+", old: null, new: 31, text: "    return {\"shelves\": shelves[:50]}" }] }] };
+// your own: a reviewer's changes asked for, sent to the agent
+const ASKED = { ...THREAD, id: "t2", path: "src/lumen/routes/books.py", line: 31, comments: [{ id: 911,
+  author: "ada", body: "`end` can pass `len(books)`; the slice is fine, but say so, or clamp it.", ago: "20m" }] };
+const OWN = { ...REVIEWED, number: 58, title: "Keep a page past the last one in range", branch: "fix/page-past-end",
+  author: "you", mark: "running", checks_said: "checks 2 of 3", review: "changes", mine: true, files: [
+    { path: "src/lumen/routes/books.py", added: 3, removed: 1, cut: 0, loose: [], rows: [
+      { kind: "@", old: null, new: null, text: "@@ -30,2 +30,4 @@ def list_books(request):" },
+      { kind: " ", old: 30, new: 30, text: "    start = (page - 1) * PAGE" },
+      { kind: "+", old: null, new: 31, text: "    end = start + PAGE", threads: [ASKED] }] }] };
 const TALKS = [
   { agent: "claude", id: "s1", title: "Fix the page past the last one", folder: "/work/lumen-api", time: 6,
     state: "working", pane: "t1", ago: "now" },
@@ -300,7 +338,38 @@ function made(proto, fields = {}) {
   for (const name of INERT) state[name] = () => {};
   if (state.message) state.input.set_value(state.message);
   state.issues = issuesOf(state, fields.issues ?? {});
+  state.pulls = inert(Object.assign(new PullsView(state), { listing: { pulls: PULLED, error: null } },
+    fields.pulls ?? {}));
+  state.pull = inert(Object.assign(new BranchPull(state, async () => ({})), { answer: { pull: null, base: "main",
+    error: null } }, fields.pull ?? {}));
+  state.board = fields.board ?? "issues";
   return state;
+}
+
+/** VIEW with what its clicks would do left out (INERT_PULLS). @template T @param {T} view @returns {T} */
+function inert(view) {
+  for (const name of INERT_PULLS) if (name in /** @type {any} */ (view)) /** @type {any} */ (view)[name] = () => {};
+  return view;
+}
+
+/** The form of a new pull request in Changes, its title and body written, FIELDS over it (writing, Ready, a note). */
+function pullFormOf(fields = {}) {
+  const pull = inert(Object.assign(new BranchPull({ status: BRANCH }, async () => ({})), { answer: { pull: null,
+    base: "main", error: null } }));
+  pull.title.set_value("Keep a page past the last one in range");
+  pull.body.set_value(PR_BODY);
+  pull.form = { base: "main", bases: ["main", "release"], draft: true, commits: 3, writing: null, busy: false,
+    note: { text: "Claude wrote the title and the body from the branch's 3 commits; ✦ writes them again.",
+      error: false }, ...fields };
+  return pull;
+}
+
+/** A pull request's review as the preview tab shows it: PULL, with its SUMMARY typed and FIELDS (comments added, the
+ * event, where a comment went). @param {any} pull @param {Record<string, any>} [fields] */
+function reviewOf(pull, { summary = "", ...fields } = {}) {
+  const review = Object.assign(new Review({ n: 0, kind: "pull" }, null), { pull, loading: false }, fields);
+  review.summary.set_value(summary);
+  return Object.assign(review, { act: () => {}, toAgent: () => {} });
 }
 
 const INERT_FILES = ["ask", "collapse", "copy", "drop", "look", "make", "name", "pick", "toggle", "toggleHidden",
@@ -921,12 +990,23 @@ export function guide(proto, cx) {
       ["No upstream", at({ status: { ...STATUS, upstream: null } })],
       ["Folded", at({ folded: foldedSections(["repositories"]) })]],
     composer: [["Empty", at()], ["Filled", at({ message: MESSAGE })],
+      ["Nothing to commit: not lit, the pull request's row the way on", at({ status: BRANCH })],
       ["Writing", at({ busy: "Claude is writing the message…", writing: "Claude is writing the message…" })],
       ["Asking", at({ message: MESSAGE, asked: [".env"] })],
       ["Commit & Push", at({ message: MESSAGE, mode: "push" })],
       ["Offering a push", at({ status: { ...STATUS, staged: [], changes: [] },
         offer: pushOffer({ ...STATUS, staged: [], changes: [] }) })],
       ["Fixes an issue", at({ message: MESSAGE, linked: [42, LISTED[0].title] })]],
+    branchPull: [["No pull request: the way to open one", at({ status: BRANCH })],
+      ["A draft, its checks running", at({ status: BRANCH, pull: { answer: { pull: PULLED[1], base: "main",
+        error: null } } })],
+      ["Changes asked for, a check failed", at({ status: BRANCH, pull: { answer: { pull: PULLED[2], base: "main",
+        error: null } } })]],
+    pullForm: [["Written by Claude, a draft", pullFormOf(), 330],
+      ["Ready for review", pullFormOf({ draft: false }), 330],
+      ["Writing", pullFormOf({ writing: "Claude is writing the pull request…", note: null }), 330],
+      ["Not opened: gh's words", pullFormOf({ note: { text: "a pull request for branch \"fix/page-past-end\" into "
+        + "branch \"main\" already exists", error: true } }), 330]],
     sections: [["Default", at()], ["Hover", at({ hovered: "section-changes" })],
       ["Asking", at({ confirm: "section-changes" })], ["Folded", at({ folded: foldedSections(["changes"]) })]],
     rows: [["Default", "changes", CHANGES[0], at()], ["Hover", "changes", CHANGES[0],
@@ -955,6 +1035,18 @@ export function guide(proto, cx) {
     ["Closed, none", at({ issues: { listing: { issues: [], error: null },
       query: { state: "closed", assigned: false, authored: false, label: "" } } }), 140],
     ["Error", at({ issues: { listing: { issues: [], error: "gh is not signed in: run gh auth login" } } }), 140]],
+    pullRows: [["Waiting on your review", at(), PULLED[0]], ["Your draft, its checks running", at(), PULLED[1]],
+      ["Changes requested", at(), PULLED[2]], ["Approved", at(), PULLED[3]],
+      ["Hover: to the agent, in the browser", at({ hovered: "pull-57" }), PULLED[0]],
+      ["Selected", at({ pulls: { chosen: 57 } }), PULLED[0]]],
+    pullList: [["Loading", at({ pulls: { listing: null, asked: "styleguide" } }), 140],
+      ["Closed, none", at({ pulls: { listing: { pulls: [], error: null }, state: "closed" } }), 140],
+      ["Error", at({ pulls: { listing: { pulls: [], error: "gh is not signed in: run gh auth login" } } }), 140]],
+    reviews: [["Waiting on your review: a thread, a comment added, Request changes", previewOf({ review: reviewOf(
+      REVIEWED, { summary: "Page the shelves as the books", event: "request", pending: [{ path: THREAD.path,
+        line: 31, side: "RIGHT", body: "Name the 50: PAGE_SIZE is shared with /books." }] }) }), 420],
+    ["Your own: no Approve, To agent on a comment, where it went", previewOf({ review: reviewOf(OWN,
+      { sent: { t2: "Sent to Claude: #58 · books.py:31" } }) }), 300]],
     preview: [["Diff", previewOf({ rows: DIFF }), 200], ["Commit", previewOf({ rows: COMMIT }), 200],
       ["Loading", previewOf({ loading: true }), 52], ["Error", previewOf({ note: "HTTP 404: Not Found" }), 52],
       ["A PDF, scrolled to its second page", previewOf({ pdf: { sizes: Array(12).fill([612, 792]), count: 12,
@@ -997,6 +1089,7 @@ export function guide(proto, cx) {
       peek: "src/lumen/routes/books.py:12", peekRows: PEEK }),
     changes: at({ message: MESSAGE, open: "staged:src/lumen/routes/books.py", hovered: "changes:docs/api.md" }),
     issues: at({ view: "issues", hovered: "issue-41", issues: { chosen: 42 } }),
+    pulls: at({ view: "issues", board: "pulls", pulls: { chosen: 58 } }),
     plans: [["Folded: the step at work, how many are done", chatOf(cx, { state: "working", first: { plan: PLAN } })],
       ["Open: the done steps one row, the rest in order, what a step waits for, the approved plan's link",
         chatOf(cx, { state: "working", first: { plan: PLAN, planOpen: true } })],
@@ -1754,6 +1847,15 @@ function sections(g, t) {
       name, state.repository(t), { spec: i ? "" : "as VS Code's Repositories · h 26 · ⋯ its menu" })))]],
     ["commit", () => [group(t, "Commit", g.composer.map(([name, state], i) => specimen(t, `composer-${i}`, name,
       state.composer(t))))]],
+    ["branch-pull", () => [group(t, "The branch's pull request", g.branchPull.map(([name, state], i) => specimen(t,
+      `branch-pull-${i}`, name, state.repository(t), { spec: i ? "" : "under the repository's row, PAD / 2 in: h 32, "
+        + "radius 8, a hairline, chrome · the checks' mark 14, #N and the title, the state a word or a neutral tag, "
+        + "the checks 12 muted · none: its icon muted, Create pull request… a row button" })))]],
+    ["pull-form", () => [group(t, "New pull request", g.pullForm.map(([name, pull, h], i) => specimen(t,
+      `pull-form-${i}`, name, fixed(h, pull.formView(t)), { spec: i ? "" : "in the composer's place, PAD in, 8 "
+        + "apart · its labels 12 muted in 44 · Into a menu h 26 raised · Title a field h 32 with ✦ · Body grows from "
+        + "4 lines · As a choice of two · what wrote it 11 muted, gh's refusal red · Cancel plain, the one solid "
+        + "button its words following the choice" })))]],
     ["title-row", () => [group(t, "Title row", TITLES.map(([name, title, width], i) => specimen(t, `title-row-${i}`,
       String(name), div().h(36).child(titleRow(t, /** @type {any} */ (title))), { width: Number(width),
         spec: i ? "" : "h 36 with its hairline, the window's level · the lights 18 in, on its middle line · the field "
@@ -1935,6 +2037,12 @@ function sections(g, t) {
         { spec: i ? "" : "h 48 · priority bar 3 · number in its color" })))]],
     ["issue-list", () => [group(t, "Issue list", g.issueList.map(([name, state, h], i) => specimen(t, `issue-list-${i}`,
       name, fixed(h, state.issues.render(t)))))]],
+    ["pulls", () => [group(t, "Pull request row", g.pullRows.map(([name, state, pull], i) => specimen(t,
+      `pull-row-${i}`, name, div().p(6).child(state.pulls.row(t, pull)), { spec: i ? "" : "h 48 · the checks' mark "
+        + "14: ✓ ansi2, ● ansi3 running, ✕ ansi1 · #N muted · the review a word: your review ansi3, changes "
+        + "requested ansi1, approved ansi2, Draft a neutral tag · branch · author · age 11 dim" })))]],
+    ["pull-list", () => [group(t, "Pull request list", g.pullList.map(([name, state, h], i) => specimen(t,
+      `pull-list-${i}`, name, fixed(h, state.pulls.render(t)))))]],
     ["editor", () => [group(t, "Editor tab", g.editors.map(([name, editing, h, w], i) => specimen(t, `editor-${i}`,
       name, fixed(h, editing.render(t, CODE_FONT)), { width: w, spec: i ? "" : "EditorState + Editor, the theme's "
         + "colors, line numbers, folding · a line over it 36 high on chrome, a hairline under it, 12 muted, its icon "
@@ -1948,6 +2056,12 @@ function sections(g, t) {
     ["preview-page", () => [group(t, "An SVG or a page in the preview tab", tabs("preview-page", g.pageViews))]],
     ["preview-issue", () => [group(t, "An issue in the preview tab", [specimen(t, "preview-issue", "Issue",
       fixed(330, g.issue.render(t, CODE_FONT)), { width: 2 * TAB + 24 })])]],
+    ["preview-pull", () => [group(t, "A pull request's review in the preview tab", g.reviews.map(([name, preview, h],
+      i) => specimen(t, `preview-pull-${i}`, name, fixed(h, preview.render(t, CODE_FONT)), { width: 2 * TAB + 24,
+        spec: i ? "" : "the head 15, #N muted, the state at its end; its branches, author, checks, files 12 muted · a "
+          + "file's bar h 32 on chrome, + ansi2 − ansi1 · a line 20 in code, its number 44 (a press comments) · a "
+          + "thread and a comment added under their line, radius 8, a hairline, chrome · the bar: the summary, the "
+          + "count, Comment, Approve, Request changes, Submit review the one solid button" })))]],
     ["spaces", () => [group(t, "Spaces", [
       specimen(t, "sidebar-head", "The sidebar's head: Herdr's mark and name, Go to space or tab, its toggle",
         div().h(42).child(sidebarHead(t, true)), { width: SIDEBAR, spec: "h 42, on the tab row's line, under the "
@@ -2064,6 +2178,8 @@ function sections(g, t) {
       specimen(t, "panel-search", "Search", stack("search", g.search.panel(t))),
       specimen(t, "panel-issues", "Issues", stack("issues", g.issues.panel(t)),
         { spec: "one card: the row on top, a hairline, one view at a time; 12 inside on every side, as the terminal" }),
+      specimen(t, "panel-pulls", "Issues, its switch on Pull requests", stack("issues", g.pulls.panel(t)),
+        { spec: "Issues | Pull requests on the tab's top, a choice of two; the same field, Open and Closed, refresh" }),
     ])]]]],
   ];
 }

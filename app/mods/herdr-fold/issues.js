@@ -112,22 +112,11 @@ export class IssuesView {
    * a new agent as + starts one (a chat, or a terminal), and linked to the next commit (its Fixes line in Changes), as
    * the TUI sidebar's t does. @param {Listed} issue */
   toAgent(issue, cx) {
-    const agent = issueAgent(agents(), focused()?.tab, terminals());
+    const agent = tabAgent();
     this.act(cx, "Sending…", async () => {
       const { root, on, github } = this.host;
       const { prompt } = await this.host.core(GITHUB, ["prompt", github, String(issue.number)], root, on);
-      let to = "";
-      if (agent) {
-        const sent = await hc(["send", agent.address, prompt]);
-        if (sent.code !== 0) return failed((sent.stderr || sent.stdout).trim() || "not sent");
-        if (!agent.chat) command("agent.focus", { terminal: agent.address });       // a chat's is in front already
-        to = `Sent to ${agent.program?.name ?? "the agent"}`;
-      } else {
-        const space = spaces().find((s) => s.active);
-        if (!space) return failed("No space to start an agent in");
-        const opened = await newAgentIn(space, prompt, root);
-        to = opened === "chat" ? "Sent to a new chat" : `Sent to a new ${opened}`;
-      }
+      const to = await sendToAgent(agent, prompt, root);
       const answer = await this.host.core(COMMIT_MESSAGE, ["link", root, String(issue.number), issue.title], root, on);
       this.host.linked = answer.linked;
       return done(`${to}: #${issue.number}`);
@@ -292,6 +281,24 @@ export class IssuesView {
       { label: "Assign to me", act: (cx) => this.change(issue, "assign", cx) },
       { label: verb === "close" ? "Close…" : "Reopen…", act: (cx) => this.change(issue, verb, cx) }];
   }
+}
+
+/** The focused tab's Claude or Codex (a pane's, or its chat's), or null: where To agent sends. */
+export const tabAgent = () => issueAgent(agents(), focused()?.tab, terminals());
+
+/** PROMPT to AGENT (tabAgent's), else to a new agent as + starts one (a chat, or a terminal) in ROOT: where it went,
+ * in words (Sent to Claude); an error when it was not sent. @param {any} agent @param {string} prompt */
+export async function sendToAgent(agent, prompt, root) {
+  if (agent) {
+    const sent = await hc(["send", agent.address, prompt]);
+    if (sent.code !== 0) throw new Error((sent.stderr || sent.stdout).trim() || "not sent");
+    if (!agent.chat) command("agent.focus", { terminal: agent.address });       // a chat's is in front already
+    return `Sent to ${agent.program?.name ?? "the agent"}`;
+  }
+  const space = spaces().find((s) => s.active);
+  if (!space) throw new Error("No space to start an agent in");
+  const opened = await newAgentIn(space, prompt, root);
+  return opened === "chat" ? "Sent to a new chat" : `Sent to a new ${opened}`;
 }
 
 /** The issue the next commit closes (LINKED: its number, its title), in the message field's end: Fixes #N in the

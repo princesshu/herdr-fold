@@ -45,7 +45,6 @@ const THEMES = [
   },
   "prompt": {
    "path": "#cba6f7",
-   "branch": "#9399b2",
    "status": "#f38ba8"
   },
   "colors": {
@@ -147,7 +146,6 @@ const THEMES = [
   },
   "prompt": {
    "path": "#3b8eea",
-   "branch": "#9d9d9d",
    "status": "#cd3131"
   },
   "colors": {
@@ -209,7 +207,6 @@ const THEMES = [
   },
   "prompt": {
    "path": "#ffc799",
-   "branch": "#a0a0a0",
    "status": "#f5a191"
   },
   "colors": {
@@ -271,7 +268,6 @@ const THEMES = [
   },
   "prompt": {
    "path": "#58a6ff",
-   "branch": "#b1bac4",
    "status": "#ff7b72"
   },
   "colors": {
@@ -333,7 +329,6 @@ const THEMES = [
   },
   "prompt": {
    "path": "#7aa2f7",
-   "branch": "#a9b1d6",
    "status": "#f7768e"
   },
   "colors": {
@@ -395,7 +390,6 @@ const THEMES = [
   },
   "prompt": {
    "path": "#7e9cd8",
-   "branch": "#c8c3aa",
    "status": "#c34043"
   },
   "colors": {
@@ -457,7 +451,6 @@ const THEMES = [
   },
   "prompt": {
    "path": "#c4a7e7",
-   "branch": "#c8c5dc",
    "status": "#eb6f92"
   },
   "colors": {
@@ -519,7 +512,6 @@ const THEMES = [
   },
   "prompt": {
    "path": "#61afef",
-   "branch": "#969ca8",
    "status": "#e06c75"
   },
   "colors": {
@@ -581,7 +573,6 @@ const THEMES = [
   },
   "prompt": {
    "path": "#bd93f9",
-   "branch": "#d2d2dc",
    "status": "#ff5555"
   },
   "colors": {
@@ -643,7 +634,6 @@ const THEMES = [
   },
   "prompt": {
    "path": "#d79921",
-   "branch": "#d5c4a1",
    "status": "#cc241d"
   },
   "colors": {
@@ -705,7 +695,6 @@ const THEMES = [
   },
   "prompt": {
    "path": "#88c0d0",
-   "branch": "#d8dee9",
    "status": "#bf616a"
   },
   "colors": {
@@ -767,7 +756,6 @@ const THEMES = [
   },
   "prompt": {
    "path": "#268bd2",
-   "branch": "#839496",
    "status": "#dc322f"
   },
   "colors": {

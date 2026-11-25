@@ -11,6 +11,12 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 
 ### Added
 
+- Pull requests, with gh on the space's machine. Changes shows the branch's own under the repository (its checks and
+  state, a press its review), or Create pull request…, whose form takes the message's place: Into, the title and body
+  Claude or Codex writes from the branch's commits with `Fixes #42`, Draft by default or Ready. The Issues view
+  switches to the repository's Pull requests, `your review` in yellow where one waits on you. In the Herdr app a review
+  in the preview tab: the diff with each thread on its line, comments added on a line, Comment, Approve or Request
+  changes, Submit review; Reply, Resolve and To agent on a comment; the TUI shows the review read only.
 - Editing files. In the Herdr app a text file (JSON, code, TOML, plain text) opens in a tab of its own in the app's
   code editor, typed into at once: a neutral dot in the tab's × place while unsaved, Cmd + S saves in place (its line
   ends and mode kept, no window), Cmd + F its find bar; closing asks nothing, as a draft is kept in herdr-fold's state

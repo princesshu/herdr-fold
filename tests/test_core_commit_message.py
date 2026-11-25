@@ -354,6 +354,81 @@ class CommandLine(unittest.TestCase):
                          "claude failed: rate limited; codex wrote too short a message, twice")
 
 
+class PullRequest(unittest.TestCase):
+    """A pull request's title and body, written from the branch's commits since its base: `commit_message.py pull REPO
+    BASE` as the app mod runs it; its Fixes lines from the linked issue and the commits."""
+
+    def setUp(self):
+        self.tmp = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.home, self.repo = os.path.join(self.tmp, "home"), os.path.join(self.tmp, "lumen-api")
+        self.bin = stubs(os.path.join(self.tmp, "bin"), {"claude": FAKE})
+        self.answers = os.path.join(self.tmp, "answers")
+        os.makedirs(self.home)
+        os.makedirs(self.repo)
+        self.env = {"GIT_CONFIG_GLOBAL": os.devnull, "PATH": "/usr/bin:/bin"}
+        self.git("init", "-q", "-b", "main")
+        self.commit("books.py", "PAGE = 20\n", "feat(books): page the list")
+        self.git("checkout", "-q", "-b", "fix/page-past-end")
+        self.commit("books.py", "PAGE = 20\nend = min(end, len(books))\n", "fix(books): keep the page in range\n\n"
+                    "Fixes #7")
+        self.commit(".env", "TOKEN=x\n", "test(books): pages below one")
+
+    def git(self, *args):
+        subprocess.run(["git", "-C", self.repo, "-c", "user.name=dev", "-c", "user.email=dev@example.com", *args],
+                       check=True, env=self.env, capture_output=True)
+
+    def commit(self, name, text, message):
+        with open(os.path.join(self.repo, name), "w") as f:
+            f.write(text)
+        self.git("add", name)
+        self.git("commit", "-q", "-m", message)
+
+    def test_only_the_branchs_commits_and_changes_a_secret_named_but_not_read(self):
+        set_env(self, GIT_CONFIG_GLOBAL=os.devnull)
+        req = cm.pull_request(self.repo, "main")
+        self.assertTrue(req.pull)
+        self.assertEqual(sorted(req.files), [".env", "books.py"])
+        self.assertIn("+end = min(end, len(books))", req.diff)
+        self.assertNotIn("+PAGE = 20", req.diff)                   # the base's own line
+        self.assertNotIn("TOKEN", req.diff)
+        self.assertIn("fix(books): keep the page in range", req.subjects)
+        self.assertNotIn("feat(books): page the list", req.subjects)
+        self.assertTrue(cm.context(req).startswith("Commits:\n"))
+
+    def test_a_title_and_a_body_or_asked_again(self):
+        self.assertTrue(cm.well_formed("Keep a page in range\n\nPast the last page it answered nothing.", 2, True))
+        self.assertFalse(cm.well_formed("Keep a page in range", 1, True))
+        self.assertFalse(cm.well_formed("x" * 80 + "\n\nBody.", 1, True))
+
+    def answer(self, *answers, command=("pull",)):
+        with open(self.answers, "w") as f:
+            f.write("\n".join(answers) + "\n")
+        env = {"HOME": self.home, "PATH": f"{self.bin}:/usr/bin:/bin", "GIT_CONFIG_GLOBAL": os.devnull,
+               "LOG": os.path.join(self.tmp, "log"), "ANSWERS": self.answers}
+        out = subprocess.run([sys.executable, "-B", cm.__file__, command[0], self.repo, *command[1:]],
+                             capture_output=True, text=True, env=env, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return json.loads(out.stdout)
+
+    def test_the_title_the_body_its_fixes_lines_and_the_commits_counted(self):
+        state = os.path.join(self.home, ".local", "state", "herdr", "plugins", "herdr-fold.sidebar")
+        os.makedirs(state)
+        with open(os.path.join(state, "settings.json"), "w") as f:
+            json.dump({"linked": {self.repo: [42, "Keep a page past the last one"]}}, f)
+        result = self.answer("Keep a page past the last one in range||Past the last page /books answered an empty "
+                             "list.", command=("pull", "main"))
+        self.assertEqual(result["title"], "Keep a page past the last one in range")
+        self.assertEqual(result["body"], "Past the last page /books answered an empty list.\n\nFixes #42\n\n"
+                                         "Fixes #7")
+        self.assertEqual((result["backend"], result["note"], result["commits"]), ("claude", None, 2))
+        log = logged(os.path.join(self.tmp, "log"))[0]
+        self.assertIn("[--tools][]", log)                       # the commit writer's locks, the same
+
+    def test_who_writes_it(self):
+        self.assertEqual(self.answer(command=("writing", "pull")), {"writing": "Claude is writing the pull request…"})
+
+
 class Fixes(unittest.TestCase):
     """The line that closes an issue on GitHub, shared by the sidebar and the commit window."""
 

@@ -174,11 +174,10 @@ def herdr_block(theme):
 
 
 def set_starship(path, prompt):
-    """Prompt colors: the folder (its repository's styles too) and ❯ in the theme's accent color, the branch muted, git
-    status and a failed ❯ red."""
+    """Prompt colors: the folder (its repository's styles too) and ❯ in the theme's accent color, git status and a
+    failed ❯ red."""
     bold = f'"bold {prompt["path"]}"'
     wanted = {"directory": {"style": bold, "repo_root_style": bold, "before_repo_root_style": bold},
-              "git_branch": {"style": f'"{prompt["branch"]}"'},
               "git_status": {"style": f'"{prompt["status"]}"'},
               "character": {"success_symbol": f'"[❯](bold {prompt["path"]})"',
                             "error_symbol": f'"[❯](bold {prompt["status"]})"'}}

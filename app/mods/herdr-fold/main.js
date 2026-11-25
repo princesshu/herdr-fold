@@ -12,7 +12,7 @@ import { activeTerminal, afterCommit, background, branchLabel, changeColor, chan
   secretQuestion, shortCount, sidebarFollow, sidebarPx, swapDraft, syncLabel, written, noteShown }
   from "./logic.js";
 import { button, chip, codeFont, END, field, fileMark, fold, footNote, GAP, icon, iconButton, INDENT, noteToast, PAD,
-  small, SPINNER, SPRING } from "./parts.js";
+  segmented, small, SPINNER, SPRING } from "./parts.js";
 import { forgetMenus, menuGone, Menus, menuFind, menuPopup } from "./menus.js";
 import { askChats, bottomChoice, checkUpdates, chosenView, FloatSize, followFolder, keepBottom, liveDockTabs, liveRail,
   foldDock, openAgents, RepoLook, restDock, restFollow, restorePanels, sizedFloat, summon, tell, toggleChats,
@@ -26,6 +26,7 @@ import { FilesView } from "./files.js";
 import { addMachine, forgetFloat, forgetFloats, liveDock, restSide, sidebarFoot, sidebarHead, spacesBody,
   spacesButtons, toggleSidebar } from "./sidebar.js";
 import { IssuesView, fixesChip } from "./issues.js";
+import { BranchPull, PullsView } from "./pulls.js";
 import { isHome, markUnread, pickSpace, SpacesView } from "./spaces.js";
 import { liveStatus } from "./status.js";
 import { TabsView } from "./tabs.js";
@@ -42,7 +43,9 @@ const LINES = 1500;                // a hit's file's lines shown at most
 const MODE = "herdr-fold.commit_mode", FOLDED = "herdr-fold.folded";   // kept (shared)
 /** A key's command, and the view whose copy runs it (the tab bar hands it on: a view hidden or folded hears none). */
 const VIEWS = { write: "changes", "commit-push": "changes", commit: "changes", sync: "changes", changes: "changes",
-  search: "search", issues: "issues", files: "files", agent: "agent" };
+  "pull-request": "changes", search: "search", issues: "issues", files: "files", agent: "agent" };
+/** @type {[string, string][]} the Issues tab's two lists, its view switch's */
+const BOARDS = [["issues", "Issues"], ["pulls", "Pull requests"]];
 /** The styleguide's tab, named: a mod's tab nobody named is called Terminal. */
 const STYLEGUIDE = { name: "Styleguide", mod: "herdr-fold", props: { part: "styleguide" } };
 const FRESH = 5000;                // ms a key's ask waits for its view to show (a copy starting on it too)
@@ -107,6 +110,33 @@ async function pythonText(source, args, root, on) {
 /** core/'s SOURCE run with ARGS where the repository is: its JSON answer.
  * @param {string} source @param {string[]} args @param {string} root @param {string | null} on */
 const python = async (source, args, root, on) => JSON.parse(await pythonText(source, args, root, on));
+
+/** core/commit_message.py with ARGS in the background on ON's machine, in a core terminal of its own (the AIs may take
+ * minutes), its answer looked for every POLL ms for WRITING ms at most: that answer, its JSON read. */
+async function writer(cx, args, root, on) {
+  const job = background(await pythonOn(on), COMMIT_MESSAGE, args);
+  const prepared = await run(job.prepare, root, on);
+  if (prepared.code !== 0) throw new Error(lastLine(prepared));
+  const folder = prepared.stdout.trim();
+  /** @type {string | null} the core's terminal the job runs in: stopped once its answer is read */
+  let terminal = null;
+  try {
+    const started = await hc(job.start(folder, root, on));
+    if (started.code !== 0) throw new Error(lastLine(started));
+    terminal = JSON.parse(started.stdout).address;
+    for (let waited = 0; waited < WRITING; waited += POLL) {
+      await new Promise((done) => cx.timer.after(POLL, () => done(null)));
+      const out = await run(job.poll(folder), root, on);
+      if (out.code === 3) continue;
+      if (out.code !== 0) throw new Error(`Nothing written: ${lastLine(out)}`);
+      return JSON.parse(out.stdout);
+    }
+    throw new Error("Nothing written: the AIs took longer than six minutes");
+  } finally {
+    await run(job.clear(folder), root, on);
+    if (terminal) await hc(["kill", terminal]);
+  }
+}
 
 /** core/git.py's COMMAND on ROOT: null when it worked, else what to do. @param {string} command @param {string} root
  * @param {string | null} on @param {string[]} [rest] */
@@ -256,6 +286,10 @@ export default class HerdrFold extends View {
     this.alone = !this.float && !props()?.view;
     this.core = python;                           // the Issues view asks core/ through it
     this.issues = new IssuesView(this);
+    this.pulls = new PullsView(this);             // the Issues tab's other list, its switch's
+    /** the Issues tab's list shown: its issues, or its pull requests */
+    this.board = "issues";
+    this.pull = new BranchPull(this, (cx, args) => writer(cx, args, this.root, this.on));    // Changes' row and form
     this.switches = { case: false, word: false, regex: false };
     this.found = null; this.results = []; this.peek = null; this.peekRows = []; this.asking = 0;
     this.find = InputState.new({ placeholder: "Search" });
@@ -331,6 +365,7 @@ export default class HerdrFold extends View {
     else if (asked === "commit") this.commit(cx);
     else if (asked === "sync") this.sync(cx);
     else if (asked === "changes" || asked === "search" || asked === "issues") this.show(asked, cx);
+    else if (asked === "pull-request") this.pull.start(cx);
     else if (asked === "styleguide") command("tab.new", STYLEGUIDE);
   }
 
@@ -345,6 +380,8 @@ export default class HerdrFold extends View {
         asked: null, confirm: null, github: null, linked: null, head: null, once: null, offer: null });
       this.input.set_value(message);
       this.issues.reset();
+      this.pulls.reset();
+      this.pull.reset();
       this.publish();
     }
     if (this.loading || this.busy || !here.cwd) return;
@@ -364,7 +401,9 @@ export default class HerdrFold extends View {
         if (key !== this.key) return;
         Object.assign(this, { root, on: here.on, status, commits, github, linked: settled.linked,
           head: settled.head ?? this.head, offer: this.offer && pushOffer(status) });   // asked anew: pushed, changed
-        if (this.view === "issues" && github && !this.issues.listing && !this.issues.asked) this.issues.load(cx);
+        const board = this.board === "pulls" ? this.pulls : this.issues;
+        if (this.view === "issues" && github && !board.listing && !board.asked) board.load(cx);
+        if (changes) this.pull.look(cx, commits[0]?.hash ?? null);
         followFolder(this, (cx) => this.refresh(cx), cx);   // another machine's space waits for REFRESH
       } catch (e) {
         if (key === this.key) this.note = said(e);
@@ -483,33 +522,12 @@ export default class HerdrFold extends View {
       this.writingKey = key;
       cx.notify();
       await stage(root, on);
-      const job = background(await pythonOn(on), COMMIT_MESSAGE, ["write", root]);
-      const prepared = await run(job.prepare, root, on);
-      if (prepared.code !== 0) throw new Error(lastLine(prepared));
-      const folder = prepared.stdout.trim();
-      /** @type {string | null} the core's terminal the job runs in: stopped once its answer is read */
-      let terminal = null;
-      try {
-        const started = await hc(job.start(folder, root, on));
-        if (started.code !== 0) throw new Error(lastLine(started));
-        terminal = JSON.parse(started.stdout).address;
-        for (let waited = 0; waited < WRITING; waited += POLL) {
-          await new Promise((done) => cx.timer.after(POLL, () => done(null)));
-          const out = await run(job.poll(folder), root, on);
-          if (out.code === 3) continue;
-          if (out.code !== 0) throw new Error(`No message: ${lastLine(out)}`);
-          const answer = written(JSON.parse(out.stdout));
-          if (answer.message && key === this.key) {
-            this.input.set_value(answer.message);
-            this.message = answer.message;
-          } else if (answer.message) this.drafts.set(key, answer.message);      // waiting there for its space
-          return answer.note;
-        }
-        throw new Error("No message: the AIs took longer than six minutes");
-      } finally {
-        await run(job.clear(folder), root, on);
-        if (terminal) await hc(["kill", terminal]);
-      }
+      const answer = written(await writer(cx, ["write", root], root, on));
+      if (answer.message && key === this.key) {
+        this.input.set_value(answer.message);
+        this.message = answer.message;
+      } else if (answer.message) this.drafts.set(key, answer.message);      // waiting there for its space
+      return answer.note;
     });
   }
 
@@ -557,9 +575,25 @@ export default class HerdrFold extends View {
     const was = this.view;
     this.view = ["search", "issues"].includes(view) ? view : "changes";
     if (this.view === "search") this.find.focus();
-    if (this.view === "issues" && !this.issues.listing) this.issues.load(cx);
+    const board = this.board === "pulls" ? this.pulls : this.issues;
+    if (this.view === "issues" && !board.listing) board.load(cx);
     if (this.view !== was && this.view !== "search") this.refresh(cx);
     cx.notify();
+  }
+
+  /** The Issues tab's list BOARD shown (issues, pulls), asked for once. @param {string} board */
+  switchBoard(board, cx) {
+    this.board = board;
+    const shown = board === "pulls" ? this.pulls : this.issues;
+    if (!shown.listing && !shown.asked) shown.load(cx);
+    cx.notify();
+  }
+
+  /** The Pull requests list's +: Changes shown with its form open, as a key's command reaches it. */
+  newPull(cx) {
+    if (!this.alone) return summon("changes", "pull-request");
+    this.show("changes", cx);
+    this.pending = "pull-request";              // once Changes has looked at the branch's pull request
   }
 
   /** The issue the next commit would fix, unlinked by its line's ×: the next commit fixes none. */
@@ -731,10 +765,13 @@ export default class HerdrFold extends View {
    * Changes). */
   panel(t) {
     const frame = v_flex().id("herdr-fold").size_full().min_h(0).text_color(t.foreground).text_size(13);
-    if (this.view === "issues" && this.github) return frame.child(this.issues.render(t));
+    if (this.view === "issues" && this.github) return frame
+      .child(h_flex().flex_none().px(PAD).pt(PAD).child(segmented(t, "board", BOARDS, this.board,
+        (board, cx) => this.switchBoard(board, cx))))
+      .child(this.board === "pulls" ? this.pulls.render(t) : this.issues.render(t));
     if (this.view === "search") return frame.child(this.query(t)).child(this.hits(t)).when(Boolean(this.peek),
       (e) => e.child(this.lines(t)));
-    return frame.relative().child(this.repository(t)).child(this.composer(t))
+    return frame.relative().child(this.repository(t)).child(this.pull.form ? this.pull.formView(t) : this.composer(t))
       .child(v_flex().flex_1().min_h(0).child(this.list(t)).child(this.graph(t)))
       .when(Boolean(this.note && this.root), (e) => e.child(this.problem(t)));
   }
@@ -963,7 +1000,8 @@ export default class HerdrFold extends View {
           () => this.menus.open(this.remote, this.pressed)).on_mouse_down("left", (e) => (this.pressed = e.bounds))));
     const folded = this.folded.has("repositories");
     return v_flex().flex_none().px(PAD / 2).pt(PAD / 2).child(this.section(t, "repositories", "Repositories", []))
-      .when(!folded && Boolean(this.root), (e) => e.child(row));
+      .when(!folded && Boolean(this.root), (e) => e.child(row))
+      .when(!folded && this.pull.shown && !this.pull.form, (e) => e.child(this.pull.row(t)));
   }
 
   /** Under the repository, as the TUI sidebar has it: the message and its ✦, then Commit across, its arrow choosing
@@ -971,6 +1009,7 @@ export default class HerdrFold extends View {
    * commit fixes a chip at its end, who writes in it while empty, else in ✦'s tip (a spinner in ✦ meanwhile). */
   composer(t) {
     const commit = this.ready && (Boolean(this.message.trim()) || Boolean(this.offer));
+    const lit = Boolean(this.changed || this.offer);            // nothing to commit: the pull request's row the way on
     const label = h_flex().gap(8).items_center().child(icon("check"))
       .child(this.offer ? "Push" : `${MODES[this.once ?? this.mode]}${this.asked ? " anyway" : ""}`);
     const writing = this.writing && this.writingKey === this.key ? this.writing : null, empty = !this.message;
@@ -993,8 +1032,8 @@ export default class HerdrFold extends View {
           .child(div().frames(SPINNER, 100)) : icon("sparkles", 15), this.ready, false, (cx) => this.write(cx))
           .bg(t.selection).text_color(this.ready || writing ? t.accent : t.muted).tooltip(writing ?? "Write message")))
       .child(h_flex().gap(8)
-        .child(button(t, "commit", label, commit, true, (cx) => this.submit(cx)).flex_1().justify_center())
-        .child(button(t, "mode", icon("chevron-down"), this.ready, true,
+        .child(button(t, "commit", label, commit, lit, (cx) => this.submit(cx)).flex_1().justify_center())
+        .child(button(t, "mode", icon("chevron-down"), this.ready, lit,
           () => this.menus.open(this.modes, this.pressed))
           .on_mouse_down("left", (e) => (this.pressed = e.bounds)).tooltip("Commit mode")));
   }

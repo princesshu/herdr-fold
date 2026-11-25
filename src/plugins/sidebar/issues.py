@@ -1,11 +1,12 @@
-"""The sidebar's Issues view, laid out and keyed as GitHub's own issue list. Open issues with a priority come first, the
-most pressing at the top: GitHub's Priority field where the organization has it, else a priority label, a severity
-label or a word alone. The view only asks: gh runs in the app's jobs."""
+"""The sidebar's Issues view, laid out and keyed as GitHub's own issue list, its switch on top showing its pull requests
+instead (pulls.py). Open issues with a priority come first, the most pressing at the top: GitHub's Priority field, else
+a priority label, a severity label or a word alone. The view only asks: gh runs in the app's jobs."""
 import time
 from dataclasses import replace
 
 from github import LEVELS, STATES, Query, ago, matches, priority, ranked
 from icons import glyphs
+from pulls import Pulls
 from screen import PAD, PLAIN, SPIN, SPINNER, Canvas, Style, truncate, width
 from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, Popup, TextInput
@@ -15,6 +16,7 @@ HOVER = ("agent", "web")                  # the buttons an issue shows on hover,
 # a priority's traffic-light color role, by its rank (core/github.py's LEVELS)
 PRIORITY_ROLE = ("deleted", "deleted", "modified", "added")
 TEXT = 3                      # an issue's number: its priority's bar, a cell of air and the margin before it
+BOARDS = {"issues": "Issues", "pulls": "Pull requests"}      # its two lists, the switch's; p switches them
 
 
 class Issues:
@@ -26,16 +28,19 @@ class Issues:
         self.list = ListView()
         self.hover = self.pointed = self.confirm = self.doomed = self.canvas = self.menu = None
         self.top, self.height, self.drop = 0, 1, (0, 0)
+        self.board, self.pulls = "issues", Pulls(icons, now)
 
     @property
     def editing(self):
         """Whether the view holds the keys: the search field, a menu, a question (the app's own keys wait)."""
+        if self.board == "pulls":
+            return self.pulls.editing
         return self.searching or self.menu is not None or self.confirm is not None
 
     def kept(self):
-        """What a new version of the sidebar comes back to: the filters."""
+        """What a new version of the sidebar comes back to: the filters, and the list shown."""
         return {"state": self.query.state, "assigned": self.query.assigned, "authored": self.query.authored,
-                "label": self.query.label, "level": self.level}
+                "label": self.query.label, "level": self.level, "board": self.board}
 
     def take(self, kept):
         """The filters a version before this one kept (anything not as kept() writes it is left out)."""
@@ -45,6 +50,7 @@ class Issues:
         label = kept.get("label") if isinstance(kept.get("label"), str) else ""
         self.query = Query(state, kept.get("assigned") is True, kept.get("authored") is True, label)
         self.level = kept.get("level") if kept.get("level") in range(len(LEVELS)) else None
+        self.board = kept.get("board") if kept.get("board") in BOARDS else "issues"
 
     # --- asking and answers
 
@@ -82,9 +88,27 @@ class Issues:
     # --- drawing
 
     def draw(self, canvas, top, height, roomy):
-        """The view from row TOP, HEIGHT rows: the search field with the filters button (tall in a ROOMY pane), Open
+        """The view from row TOP, HEIGHT rows: the switch, Issues or Pull requests, then the list it shows."""
+        self.canvas, x = canvas, 1
+        for name, label in BOARDS.items():              # a choice of two, never the accent: Open's is the screen's
+            chosen = name == self.board
+            end = canvas.put(top, x, f" {label} ", Style(fg="text" if chosen else "muted", bold=chosen,
+                                                         bg="selection" if chosen else None))
+            canvas.region(top, x, end, ("board", name))
+            x = end + 1
+        if self.board == "pulls":
+            return self.pulls.draw(canvas, top + 1, height - 1, roomy)
+        return self.draw_issues(canvas, top + 1, height - 1, roomy)
+
+    def switch(self, board):
+        """BOARD's list shown; its pull requests asked for the first time."""
+        self.board = board
+        return self.pulls.ask() if board == "pulls" and self.pulls.listing is None and not self.pulls.asked else None
+
+    def draw_issues(self, canvas, top, height, roomy):
+        """The issues from row TOP, HEIGHT rows: the search field with the filters button (tall in a ROOMY pane), Open
         and Closed and the refresh button, then the issues, or on the first one's row what is asked or found."""
-        self.canvas, self.top, self.height, cells = canvas, top, height, canvas.width
+        self.top, self.height, cells = top, height, canvas.width
         row, taken = canvas.control(top, 1, cells - 2, 1, "input", roomy)
         for y in range(top, top + taken):
             canvas.region(y, 1, cells - 1, "input")
@@ -159,6 +183,8 @@ class Issues:
 
     def tip(self, target):
         """The refresh button's tip while gh runs; None: the sidebar's own."""
+        if self.board == "pulls":
+            return self.pulls.tip(target)
         return "Loading issues…" if target == "refresh" and self.asked else None
 
     def line(self):
@@ -233,6 +259,14 @@ class Issues:
     # --- events
 
     def handle(self, event):
+        target = self.canvas.hit(event.x, event.y) if isinstance(event, Mouse) and self.canvas else None
+        if isinstance(event, Mouse) and event.kind == "press" and isinstance(target, tuple) and target[0] == "board":
+            return self.switch(target[1])
+        if isinstance(event, Key) and event.name == "char" and event.char == "p" and not self.editing and \
+                not (event.ctrl or event.alt):
+            return self.switch("issues" if self.board == "pulls" else "pulls")
+        if self.board == "pulls":
+            return self.pulls.handle(event)
         if isinstance(event, Mouse):
             return self.mouse(event)
         if not isinstance(event, Key):

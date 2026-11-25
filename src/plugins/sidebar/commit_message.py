@@ -1,7 +1,7 @@
 # Generated from core/commit_message.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
-"""The commit message writer, shared by the sidebar, Cmd+Shift+C and herdr-fold's Herdr app mod (JSON from REPO):
-Claude Haiku, then Codex, both without tools, write it from the staged changes only. A message with a secret or private
-name the changes lack is dropped (a diff can steer an AI); a squashed one is asked again. Returns data, not words."""
+"""The commit message and pull request writer, shared by the sidebar, Cmd+Shift+C and the Herdr app mod (JSON): Claude
+Haiku, then Codex, both without tools, write from the staged changes or the branch's only. A text with a secret or
+private name they lack is dropped (a diff can steer an AI); a squashed one is asked again. Returns data, not words."""
 import fnmatch
 import json
 import os
@@ -33,6 +33,10 @@ SHAPE = ("Output ONLY the message: a subject line of at most 72 characters, a bl
          "changes into one vague line, do not write \"update files\" or \"various fixes\". No quotes, no code fences.")
 PROMPT = ("Write a git commit message in English for the staged changes below, and describe only them. Match the "
           "style of the recent commit subjects shown (for example Conventional Commits, if they use it). " + SHAPE)
+PULL_PROMPT = ("Write a GitHub pull request in English for the branch's commits and changes below, and describe only "
+               "them. Output ONLY the title on the first line, at most 72 characters, in the style of the commit "
+               "subjects; a blank line; then the description: what changed and why in a few short sentences, then how "
+               "it is tested if the changes show it. No headings, no quotes, no code fences.")
 RULES_PROMPT = ("Write the git commit message for the staged changes below, and describe only them, strictly following "
                 "the commit message rules of this repository, quoted between the RULES markers. The message is always "
                 "in English. Parts of the rules about running git commands, staging files or formatting the answer "
@@ -47,6 +51,7 @@ CODEX_LOCKED = [arg for feature in ("shell_tool", "view_image", "apps", "plugins
                                     "computer_use", "standalone_web_search", "multi_agent", "memories", "hooks")
                 for arg in ("--disable", feature)] + ["-c", 'web_search="disabled"', "-c", "mcp_servers={}"]
 AGAIN = "\n\nThe previous answer was too short: add the body with one bullet per change, as described."
+PULL_AGAIN = "\n\nThe previous answer was too short: add the description, as described."
 # what a message may hold only if the text it was written from does
 PRIVATE = (("secret", re.compile(r"gh[pousr]_[A-Za-z0-9]{20,}|github_pat_\w{20,}|\bsk-(?:ant-)?[\w-]{20,}"
                                  r"|AKIA[0-9A-Z]{16}|xox[abpr]-[\w-]{10,}|AIza[\w-]{30,}"
@@ -65,6 +70,7 @@ class Request:
     subjects: str
     rules: str = None
     rules_from: str = None
+    pull: bool = False        # a pull request's: the branch's commits (SUBJECTS their messages) and diff
 
 
 @dataclass(frozen=True)
@@ -145,7 +151,47 @@ def request(root):
     return Request(diff, files, git(root, "log", "-8", "--pretty=%s"), text, where)
 
 
+def base_ref(root, base):
+    """Branch BASE as the current branch's remote has it (origin/main), else as it is here."""
+    branch = git(root, "branch", "--show-current").strip()
+    remote = git(root, "config", "--get", f"branch.{branch}.remote").strip() or "origin"
+    return f"{remote}/{base}" if git(root, "rev-parse", "--verify", "-q", f"{remote}/{base}").strip() else base
+
+
+def pull_request(root, base):
+    """What the AI gets for a pull request into BASE (base_ref's): the branch's commit messages since it, its diff (cut,
+    secret-looking files' contents left out, as request()'s), its files."""
+    since = base_ref(root, base)
+    files = [path for path in git(root, "diff", "--name-only", "-z", f"{since}...HEAD").split("\0") if path]
+    withheld = [path for path in files if secret_looking(path)]
+    diff = git(root, "diff", "--no-ext-diff", "--no-textconv", f"{since}...HEAD", "--", ":/",
+               *(f":(top,exclude,literal){path}" for path in withheld))
+    if len(diff) > MAX_DIFF:
+        diff = diff[:MAX_DIFF] + "\n[diff truncated — the file list is complete]"
+    if withheld:
+        diff += "\n[left out, as their names look like secrets: " + ", ".join(withheld) + "]"
+    return Request(diff, files, git(root, "log", "--format=%B", f"{since}..HEAD").strip(), pull=True)
+
+
+def pull_answer(root, base, state=None):
+    """A pull request into BASE written for ROOT's branch, as both clients take it: its title (None when none was
+    written, the note says why), its body with the Fixes lines (the link in STATE's), its writer, its commits."""
+    req = pull_request(root, base)
+    found = write(req)
+    title, _, body = (found.message or "").partition("\n")
+    linked = linked_issue(root, state)        # the issue Issues gave the agent, and those its commits close
+    for number in dict.fromkeys(([linked[0]] if linked else []) + closed_by(req.subjects)):
+        body = with_fixes(body.strip(), number)
+    commits = git(root, "rev-list", "--count", f"{base_ref(root, base)}..HEAD").strip()
+    return {"title": title.strip() or None, "body": body.strip(), "backend": found.backend,
+            "note": None if found.message else explain(found.problems), "commits": int(commits) if commits.isdigit()
+            else 0}
+
+
 def context(req):
+    if req.pull:
+        return f"Commits:\n{req.subjects or '(none)'}\n\nChanged files:\n" + "\n".join(req.files) + \
+            f"\n\nDiff:\n{req.diff}"
     head = f"<<RULES\n{req.rules}\nRULES>>" if req.rules else f"Recent commit subjects:\n{req.subjects or '(none)'}"
     return f"{head}\n\nChanged files:\n" + "\n".join(req.files) + f"\n\nStaged diff:\n{req.diff}"
 
@@ -158,10 +204,14 @@ def clean(message):
     return "\n".join(lines).strip().strip('"').strip("'").strip()
 
 
-def well_formed(message, file_count):
+def well_formed(message, file_count, pull=False):
+    """Whether MESSAGE has a short subject (a pull request's title) and the body it needs: a pull request's always, a
+    commit's a bullet once it takes more than one file."""
     lines = message.splitlines()
     if not lines or len(lines[0]) > SUBJECT_MAX:
         return False
+    if pull:
+        return any(line.strip() for line in lines[1:])
     return file_count <= 1 or any(line.lstrip().startswith(("- ", "* ")) for line in lines[1:])
 
 
@@ -234,16 +284,17 @@ def writers():
     return [os.environ["HERDR_COMMIT_AI"]] if os.environ.get("HERDR_COMMIT_AI") else ["claude", "codex"]
 
 
-def writing(which=find):
-    """What shows while the message is written: the first AI asked that is here, by its name."""
+def writing(which=find, what="the message"):
+    """What shows while WHAT (the message, the pull request) is written: the first AI asked that is here, by name."""
     who = next((backend for backend in writers() if which(backend)), None)
-    return f"{NAMES.get(who, who)} is writing the message…" if who else "Writing the message…"
+    return f"{NAMES.get(who, who)} is writing {what}…" if who else f"Writing {what}…"
 
 
 def write(req, order=None, which=find):
     """A detailed message for REQ, trying each AI of ORDER (writers() by default)."""
     order = order or writers()
-    prompt, text, problems = (RULES_PROMPT if req.rules else PROMPT), context(req), []
+    prompt, text, problems = (PULL_PROMPT if req.pull else RULES_PROMPT if req.rules else PROMPT), context(req), []
+    again = PULL_AGAIN if req.pull else AGAIN
     for backend in order:
         binary = which(backend)
         if not binary:
@@ -254,9 +305,9 @@ def write(req, order=None, which=find):
         if message is None and backend == "codex":
             model = False                                     # the small model is unknown or failed: Codex's own
             message, reason = ask(backend, binary, prompt, text, model)
-        if message is not None and not well_formed(message, len(req.files)):
-            message, reason = ask(backend, binary, prompt + AGAIN, text, model)
-            if message is not None and not well_formed(message, len(req.files)):
+        if message is not None and not well_formed(message, len(req.files), req.pull):
+            message, reason = ask(backend, binary, prompt + again, text, model)
+            if message is not None and not well_formed(message, len(req.files), req.pull):
                 problems.append(Problem(backend, "short"))
                 continue
         if message is None:
@@ -282,6 +333,14 @@ def fixes(message, number):
     """Whether MESSAGE closes issue NUMBER on GitHub (Fixes, Closes or Resolves #NUMBER)."""
     words = message.replace(":", " ").split()
     return any(word.capitalize() in FIXES and following == f"#{number}" for word, following in zip(words, words[1:]))
+
+
+def closed_by(text):
+    """The issues TEXT closes on GitHub (Fixes, Closes or Resolves #N), their numbers in order, each once."""
+    words = text.replace(":", " ").split()
+    found = [int(after[1:]) for word, after in zip(words, words[1:])
+             if word.capitalize() in FIXES and re.fullmatch(r"#\d+", after)]
+    return list(dict.fromkeys(found))
 
 
 def with_fixes(message, number):
@@ -332,8 +391,8 @@ def settle(repo, seen, state=None):
 
 def main(argv):
     """The Herdr app mod's, on the repository's machine, in JSON: write REPO (the message, its writer, the others'
-    problems, the staged files), writing REPO (who writes it), secrets REPO (files named like secrets), link REPO NUMBER
-    TITLE, unlink REPO, settle REPO [SEEN] (the linked issue, unless a commit after SEEN closed it)."""
+    problems, the staged files), pull REPO BASE (a pull request's title and body), writing REPO [pull], secrets REPO,
+    link REPO NUMBER TITLE, unlink REPO, settle REPO [SEEN] (the linked issue, unless a commit after SEEN closed it)."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     linking = command == "link" and len(args) == 3 and args[1].isdigit() and int(args[1]) > 0
     if linking or command == "unlink" and len(args) == 1:
@@ -345,13 +404,16 @@ def main(argv):
         found, head = settle(args[0], args[1] if len(args) == 2 else None)
         print(json.dumps({"linked": list(found) if found else None, "head": head}))
         return 0
-    if command not in ("write", "writing", "secrets") or len(args) != 1:
-        print("usage: commit_message.py write|writing|secrets|unlink REPO | link REPO NUMBER TITLE | "
+    if command == "writing" and len(args) in (1, 2):
+        print(json.dumps({"writing": writing(what="the pull request" if args[1:] == ["pull"] else "the message")}))
+        return 0
+    if command == "pull" and len(args) == 2:
+        print(json.dumps(pull_answer(*args)))
+        return 0
+    if command not in ("write", "secrets") or len(args) != 1:
+        print("usage: commit_message.py write|writing|secrets|unlink REPO | pull REPO BASE | link REPO NUMBER TITLE | "
               "settle REPO [SEEN]", file=sys.stderr)
         return 2
-    if command == "writing":
-        print(json.dumps({"writing": writing()}))
-        return 0
     if argv[1] == "secrets":
         print(json.dumps({"secret_looking": [path for path in staged(argv[2]) if secret_looking(path)]}))
         return 0

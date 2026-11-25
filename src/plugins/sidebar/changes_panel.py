@@ -1,6 +1,6 @@
-"""The Changes and Issues panels' work in the dock (scm.py and issues.py draw them): staging, a message written by
-Claude or Codex, the commit, push and sync, a diff or a commit in the preview tab; the repository's GitHub issues,
-handed to the agent, answered, closed; done through the sidebar that hosts them."""
+"""The Changes and Issues panels' work in the dock (scm.py, issues.py and pulls.py draw them): staging, a message
+written by Claude or Codex, the commit, push and sync, a diff or a commit in the preview tab; the repository's issues
+and pull requests, handed to the agent, answered, closed, a new one opened; done through the sidebar hosting them."""
 import os
 
 import commit_message
@@ -12,6 +12,7 @@ import preview
 from family import Family
 from fileops import Ops
 from issues import Issues
+from pulls import PullForm
 from scm import Scm
 from screen import SPIN, SPINNER
 
@@ -29,9 +30,11 @@ class Changes(Family):
         icons, settings = host.settings["icons"], host.settings
         self.views = {"changes": Scm(settings["commit_mode"], icons, settings["folded"]), "issues": Issues(icons)}
         self.repo_ops = Ops(host.repo) if host.repo else None
-        self.issues_asked = {}                            # when each query's issues were last asked for
+        self.issues_asked = {}                            # when each query's issues (or state's pulls) were last asked
+        self.branch_asked = (None, float("-inf"))         # what the branch's pull request was asked for, and when
         self.suggesting = None                            # the message as it was when ✦ asked; None: no answer wanted
         self.writing, self.spun = "", 0.0                 # who writes it (commit_message.writing()), its last frame
+        self.pull_writing = ""                            # who writes a new pull request's title and body
         self.views["changes"].linked = self.linked()
 
     def tick(self, now):
@@ -50,7 +53,8 @@ class Changes(Family):
         """Whether a spinner turns: ✦ writing the message, a commit or a sync running (the sync glyph's cell), or the
         issues shown asked for again (Issues' header)."""
         issues, running = self.views["issues"], self.host.running
-        return bool(running & {"suggest", *BUSY}) or bool(issues.asked and issues.list.items)
+        return bool(running & {"suggest", "write_pull", *BUSY}) or bool(issues.asked and issues.list.items) or \
+            bool(issues.pulls.asked and issues.pulls.list.items)
 
     def came(self, panel):
         if panel == "changes":
@@ -68,6 +72,7 @@ class Changes(Family):
         scm.linked, scm.repo, scm.github, scm.status = answer.issue, answer.repo, answer.github, answer.status
         if answer.graph is not None:
             scm.graph = answer.graph
+        self.fresh_branch_pull()
 
     def drawing(self):
         scm = self.views["changes"]
@@ -75,6 +80,8 @@ class Changes(Family):
         scm.busy(next((text for kind, text in BUSY.items() if kind in self.host.running), None), frame)
         scm.writer = self.writing if "suggest" in self.host.running else None
         scm.writing = f"{frame} {scm.writer}" if scm.writer else None
+        if scm.form:
+            scm.form.writing = f"{frame} {self.pull_writing}" if "write_pull" in self.host.running else None
 
     def holds(self):
         return self.views["changes"].confirm, self.views["issues"].confirm
@@ -93,7 +100,11 @@ class Changes(Family):
         """The issues asked for again when their last answer is older than AFTER seconds and none is on its way: an
         answer another sidebar of the repository got less than STALE seconds ago is taken (one question a minute)."""
         issues = self.views["issues"]
-        if self.host.clock() - self.issues_asked.get(issues.query, float("-inf")) > after and not issues.asked:
+        if issues.board == "pulls":
+            pulls = issues.pulls
+            if self.host.clock() - self.issues_asked.get(pulls.state, float("-inf")) > after and not pulls.asked:
+                self.do_load_pulls(pulls.ask().args[0])
+        elif self.host.clock() - self.issues_asked.get(issues.query, float("-inf")) > after and not issues.asked:
             issues.ask()
             self.do_load_issues(issues.query, shared=True)
 
@@ -280,7 +291,17 @@ class Changes(Family):
     def do_issue_to_agent(self, issue):
         """The tab's Claude or Codex gets the issue as a prompt, not sent yet, and the focus; with none there, the agent
         started last in a new tab of the workspace (the TUI's new chat); the next commit fixes it."""
-        me, herdr, name = os.environ.get("HERDR_PANE_ID"), self.host.herdr, self.host.github
+        def then(error):
+            self.host.error = error
+            if not error:
+                self.link((issue.number, issue.title))
+
+        self.to_agent(issue, github.prompt(self.host.github, issue), then)
+
+    def to_agent(self, item, prompt, then):
+        """PROMPT, for ITEM (an issue or a pull request), to the tab's Claude or Codex, else to a new agent as
+        do_issue_to_agent says; THEN with the line that says why not, or None."""
+        me, herdr = os.environ.get("HERDR_PANE_ID"), self.host.herdr
 
         def work():
             pane = herdr.call("pane", "get", me).get("pane", {}) if me else {}
@@ -291,21 +312,16 @@ class Changes(Family):
             if target is None and not workspace:
                 return "It opens in a herdr tab: run the sidebar in herdr"
             if target is None:
-                target = self.new_agent(workspace, issue)
-            herdr.call("pane", "send-text", target, github.prompt(name, issue))
+                target = self.new_agent(workspace, item)
+            herdr.call("pane", "send-text", target, prompt)
             herdr.call("agent", "focus", target)
             return None
-
-        def then(error):
-            self.host.error = error
-            if not error:
-                self.link((issue.number, issue.title))
 
         self.host.job("agent", work, then)
 
     def new_agent(self, workspace, issue):
-        """A new tab in WORKSPACE for ISSUE, as Chats reopens one: the agent started last on the left, ready for input,
-        the right column beside it; its pane."""
+        """A new tab in WORKSPACE for ISSUE (or a pull request), as Chats reopens one: the agent started last on the
+        left, ready for input, the right column beside it; its pane."""
         call, state, folder = self.host.herdr.call, self.host.state_dir, self.host.repo or self.host.root
         agent, title = panes.last_agent(state), preview.label(f"#{issue.number} {issue.title}")
         made = call("tab", "create", "--workspace", workspace, "--cwd", folder, "--label",
@@ -334,3 +350,116 @@ class Changes(Family):
             self.host.error = f"settings not saved: {err}"
             return
         self.views["changes"].linked = issue
+
+    # --- the pull requests: the repository's (Issues' other list), the branch's (Changes' row), a new one's form
+
+    def do_load_pulls(self, state):
+        name = self.host.github
+        if not name:
+            return
+
+        def then(found):
+            self.issues_asked[state] = self.host.clock()
+            self.views["issues"].pulls.show(found, state)
+
+        self.host.job("pulls", lambda: github.pulls(name, state), then)
+
+    def fresh_branch_pull(self):
+        """The pushed branch's pull request asked for again once the branch or its last commit changed, or STALE
+        seconds went by (Changes' own rhythm would ask gh every few seconds)."""
+        scm, name = self.views["changes"], self.host.github
+        branch = scm.status and scm.status.upstream and scm.status.branch      # never pushed: no pull request yet
+        if not name or not branch or "branch_pull" in self.host.running:
+            return
+        key = (name, branch, scm.graph[0].hash if scm.graph else None)
+        if key == self.branch_asked[0] and self.host.clock() - self.branch_asked[1] < STALE:
+            return
+        self.branch_asked = (key, self.host.clock())
+
+        def then(answer):
+            pull, base, error = answer
+            scm.pull = None if error else (pull, base)
+
+        self.host.job("branch_pull", lambda: github.branch_pull(name, branch), then)
+
+    def do_pull_row(self):
+        """Changes' row: the branch's pull request in the preview tab, or with none the form that opens one."""
+        scm = self.views["changes"]
+        if not scm.pull_shown():
+            return
+        pull, base = scm.pull
+        if pull:
+            self.do_preview_pull(pull)
+            return
+        scm.form = PullForm(scm.status.branch, [base], self.host.settings["icons"])
+        repo = self.host.repo
+
+        def then(bases):
+            if scm.form:
+                scm.form.bases = list(dict.fromkeys([base, *bases]))
+
+        self.host.job("bases", lambda: git.bases(repo), then)
+        self.do_write_pull(base)
+
+    def do_new_pull(self):
+        """Issues' + and c: Changes shown, its form open (or the branch's pull request there already)."""
+        self.host.show("changes")
+        self.do_pull_row()
+
+    def do_write_pull(self, base):
+        form, repo, state = self.views["changes"].form, self.host.repo, self.host.state_dir
+        if not form or not repo:
+            return
+        self.pull_writing = commit_message.writing(what="the pull request")
+
+        def then(answer):
+            if self.views["changes"].form is form:
+                form.fill(answer)
+
+        self.host.job("write_pull", lambda: commit_message.pull_answer(repo, base, state), then)
+
+    def do_open_pull(self, base, branch, title, body, draft):
+        scm, name = self.views["changes"], self.host.github
+
+        def then(answer):
+            url, error = answer
+            if error:
+                if scm.form:
+                    scm.form.note = (error, "deleted")
+                return
+            scm.form, self.branch_asked = None, (None, float("-inf"))
+            self.host.note = f"Opened {url}"
+            self.fresh_branch_pull()
+
+        self.host.job("open_pull", lambda: github.open_pull(name, base, branch, title, body, draft), then)
+
+    def do_pull_cancel(self):
+        self.views["changes"].form = None
+
+    def do_preview_pull(self, pull):
+        """PULL's review in the preview tab, read only: its diff by file, each thread under its line."""
+        name, cwd = self.host.github, self.host.repo or self.host.root
+
+        def then(answer):
+            review, error = answer
+            if error:
+                self.host.error = error
+            else:
+                self.host.open_preview(issue_work.pull_spec(review), cwd)
+
+        self.host.job("pull", lambda: github.review(name, pull.number), then)
+
+    def do_pull_web(self, pull):
+        name = self.host.github
+
+        def then(error):
+            if error:
+                self.host.error = f"{error}: {pull.url}"
+        self.host.job("pull", lambda: github.open_in_browser(name, pull.number, "pr"), then)
+
+    def do_pull_to_agent(self, pull):
+        """The tab's Claude or Codex gets the pull request as a prompt, as an issue: to review it."""
+        def then(error):
+            self.host.error = error
+
+        self.to_agent(pull, github.pull_prompt(self.host.github, pull.number), then)

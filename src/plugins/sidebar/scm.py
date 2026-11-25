@@ -1,14 +1,16 @@
-"""The sidebar's Changes view: the repository row (VS Code's Repositories), the message with ✦, Commit and its modes,
-the issue the commit fixes, Staged Changes, Changes and the Graph. A staged file named like a secret is committed only
-after a question. The view only asks: every git command comes back as an Action for the app."""
+"""The sidebar's Changes view: the repository row (VS Code's Repositories), the branch's pull request (a new one's form
+in the message's place, pulls.py), the message with ✦, Commit and its modes, the issue the commit fixes, the changes
+and the Graph. A file named like a secret is committed only after a question. Every git command is an Action."""
 import os
 from dataclasses import dataclass
 
 import widgets
 from commit_message import secret_looking
 from git import Change, Commit, taken
+from github import checks_said
 from icons import GIT_LETTER, glyphs, icon
 from screen import GIT_ROLE, PAD, PLAIN, Canvas, Style, after, centered, short_count, truncate, width
+from pulls import mark, review_word
 from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, TextInput
 
@@ -60,11 +62,14 @@ class Scm:
         self.shown = None             # what the rows were built from: a mouse move must not rebuild 50 000 of them
         self.linked = None            # (number, title) of the issue the next commit fixes
         self.wanted = None            # where the version before this one was (kept()), once the rows are there
+        self.pull = None              # the branch's pull request and its repository's default branch, as last asked
+        self.form = None              # a new pull request's form (pulls.PullForm), in the message's place
 
     @property
     def editing(self):
-        """Whether the view holds the keys — the message, a menu or a question (the app's own keys wait)."""
-        return self.focus == "message" or self.menu is not None or self.confirm is not None
+        """Whether the view holds the keys — the message, a pull request's form, a menu or a question (the app's own
+        keys wait)."""
+        return self.focus == "message" or self.form is not None or self.menu is not None or self.confirm is not None
 
     def set_message(self, text):
         self.field.clear()
@@ -132,8 +137,70 @@ class Scm:
             canvas.put(top, 1, truncate(line, cells - 2), Style(fg="muted"))
             return
         self.sync(status, graph)
-        below_repository = self.repository(canvas, top, status, roomy)
+        below_repository = self.pull_row(canvas, self.repository(canvas, top, status, roomy), roomy)
         top, height = below_repository, height - (below_repository - top)       # the rest of the view under it
+        first, under = (self.form.draw(canvas, top, roomy), top) if self.form else self.composer(canvas, top, roomy)
+        # the changes take what they need, the Graph the rest at the bottom, a third of the room at least
+        room, history = top + height - first, self.graph_list.items
+        least = len(history) if len(history) <= 1 else min(len(history), max(3, room // 3))
+        above = min(len(self.list.items), max(1, room - least - 1))
+        graphed = max(0, min(len(history), room - above - 1))
+        parts = ((self.list, first, above, False), (self.graph_list, top + height - graphed, graphed, True))
+        for rows, y0, shown, graph in parts:
+            if shown and rows.height != shown:
+                rows.resize(shown)
+            for row in range(shown):
+                index = rows.at(row)
+                if index is None:
+                    break
+                self.row(canvas, y0 + row, index, graph)
+        if self.menu:
+            wide = max(1, min(cells - 2 * PAD, self.menu.width()))               # its right edge the content's
+            self.menu.draw(canvas, under if self.menu_at is None else self.menu_at, max(PAD, cells - PAD - wide), wide)
+        if self.confirm:
+            self.draw_confirm(canvas)
+
+    def pull_shown(self):
+        """Whether the branch's pull request row shows: on GitHub, a branch that is not the default one, pushed, or
+        with a pull request already."""
+        status = self.status
+        return bool(self.pull and self.github and status and status.branch and status.branch != self.pull[1]
+                    and (self.pull[0] or status.upstream))
+
+    def pull_row(self, canvas, y, roomy):
+        """The branch's pull request right under the repository row Y comes after, as the app's: its checks' mark,
+        number, title and state, its checks and review under them; or none, and the way to open one. Returns the row
+        the message starts on."""
+        if not self.pull_shown() or "repositories" in self.folded or self.form:
+            return y
+        cells, pull = canvas.width, self.pull[0]
+        at = y - (1 if roomy else 2) + 1                  # right under the repository's row
+        bg = "hover" if self.hover == "pull" else None
+        if pull is None:
+            canvas.band(at, bg)
+            canvas.put(at, 2, "No pull request", Style(fg="muted", bg=bg))
+            label = " Create pull request… "
+            canvas.put(at, cells - 1 - width(label), label, Style(fg="text", bg="input"))
+            canvas.region(at, 0, cells, "pull")
+            return at + (1 if roomy else 2)
+        word = review_word(pull)
+        end = cells - 1 - (width(word[0]) if word else 0)
+        for row in (at, at + 1):
+            canvas.band(row, bg)
+            canvas.region(row, 0, cells, "pull")
+        mark(canvas, at, 2, pull, bg)
+        if word:
+            canvas.put(at, end, word[0], Style(fg=word[1], bg=bg))
+        canvas.put(at, 4, truncate(f"#{pull.number} {pull.title}", max(1, end - 5)), Style(fg="text", bg=bg))
+        waiting = "no review yet" if pull.decision in ("", "REVIEW_REQUIRED") else ""
+        under = " · ".join(part for part in (checks_said(pull.checks), waiting) if part)
+        canvas.put(at + 1, 4, truncate(under, cells - 5), Style(fg="muted", bg=bg))
+        return at + 1 + (1 if roomy else 2)
+
+    def composer(self, canvas, top, roomy):
+        """The message with ✦, Commit and its mode, the issue it fixes; returns the row under them and the one a menu
+        of theirs opens on."""
+        status, cells = self.status, canvas.width
         side = cells - SIDE - 1                           # the AI's and the mode's buttons, a cell in from the edge
         main = side - 2                                   # the message and the commit button: a cell of air before
         inner = main - 4                                  # the text, two cells in from the shape's ends
@@ -161,27 +228,7 @@ class Scm:
                 canvas.region(y, cells - 3, cells, "unlink")
                 continue
             canvas.put(y, 1, truncate(line, cells - 2), Style(fg=role))
-        first = y + (1 if roomy and not lines else 2)    # the button's lower edge, or an empty row, of air
-        # the changes take what they need, the Graph the rest at the bottom, a third of the room at least
-        room, history = top + height - first, self.graph_list.items
-        least = len(history) if len(history) <= 1 else min(len(history), max(3, room // 3))
-        above = min(len(self.list.items), max(1, room - least - 1))
-        graphed = max(0, min(len(history), room - above - 1))
-        parts = ((self.list, first, above, False), (self.graph_list, top + height - graphed, graphed, True))
-        for rows, y0, shown, graph in parts:
-            if shown and rows.height != shown:
-                rows.resize(shown)
-            for row in range(shown):
-                index = rows.at(row)
-                if index is None:
-                    break
-                self.row(canvas, y0 + row, index, graph)
-        if self.menu:
-            wide = max(1, min(cells - 2 * PAD, self.menu.width()))               # its right edge the content's
-            self.menu.draw(canvas, below + tall if self.menu_at is None else self.menu_at, max(PAD, cells - PAD - wide),
-                           wide)
-        if self.confirm:
-            self.draw_confirm(canvas)
+        return y + (1 if roomy and not lines else 2), below + tall    # the button's lower edge, or a row, of air
 
     def repository(self, canvas, y, status, roomy):
         """On top, as VS Code's Repositories: its heading (its chevron folds it), then the repository's name, ⎇ its
@@ -236,12 +283,14 @@ class Scm:
         cells, marks = canvas.width, glyphs(self.icons)
         side = cells - SIDE - 1
         main = side - 2
-        row, taken = canvas.control(y, 1, main, 1, "button", roomy)
-        canvas.control(y, side, SIDE, 1, "button", roomy)
+        lit = "button" if self.status.staged or self.status.changes else "input"     # nothing to commit: not lit
+        row, taken = canvas.control(y, 1, main, 1, lit, roomy)
+        canvas.control(y, side, SIDE, 1, lit, roomy)
         for r in range(y, y + taken):
             canvas.region(r, 1, 1 + main, "commit")
             canvas.region(r, side, side + SIDE, "mode")
-        fill = Style(fg="button_text", bg="button", bold=True)
+        fill = Style(fg="button_text", bg="button", bold=True) if lit == "button" else Style(fg="muted", bg=lit,
+                                                                                               bold=True)
         label = truncate(f" {marks['check']} {MODES[self.mode]} ", main - 4)
         canvas.put(row, 1 + max(0, (main - width(label)) // 2), label, fill)
         canvas.put(row, centered(side, SIDE), marks["more"], fill)
@@ -347,6 +396,8 @@ class Scm:
             return self.answer(self.confirm.handle(event))
         if self.menu:
             return self.choose(self.menu.handle(event))
+        if self.form:
+            return self.form.handle(event)
         if event.name == "enter" and event.alt:
             return self.commit()
         if self.focus == "message":
@@ -414,6 +465,8 @@ class Scm:
                 return self.suggest()
             if event.char == "S":
                 return Action("sync")
+            if event.char == "P" and self.pull_shown():
+                return Action("pull_row", ())
             self.focus = "message"
             if event.char != "c":
                 self.field.handle(event)
@@ -450,6 +503,11 @@ class Scm:
                 return self.choose(self.menu.choices[int(target[5:])])
             self.menu = None
             return None
+        if self.form and (target in ("into", "title", "body", "again", "create") or isinstance(target, tuple) and
+                          target[0] == "as"):
+            return self.form.handle(event)
+        if target == "pull":
+            return Action("pull_row", ())
         if target == "input":                             # the cursor where it is pressed, a drag selecting on
             self.focus, self.selecting = "message", True
             self.field.press(event.x, event.y)

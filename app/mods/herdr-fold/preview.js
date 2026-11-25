@@ -1,6 +1,6 @@
 // @ts-check
 // The preview tab, as the TUI sidebar's: one a space, showing a picture, a PDF, a page, an SVG or Markdown (its code
-// the editor), a diff, a commit or an issue, the panel beside; a text file opens in an editor tab instead (editor.js).
+// the editor), a diff, a commit, an issue or a pull request's review (review.js); a text file opens in an editor tab.
 import { div, image } from "gpui-kit";
 import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, TextView, v_resizable, v_virtual_list }
   from "gpui-base";
@@ -10,6 +10,7 @@ import { GIT, GITHUB, MEDIA, NAMED_FILES, OUTPUT_LINES } from "./helper.js";
 import { browsable, changeSides, commitRows, diffRows, editsInTab, markdownFile, mediaKind, opener, previewName,
   previewTab, priorityColor, said, safeMarkdown, stacks } from "./logic.js";
 import { Menus } from "./menus.js";
+import { Review } from "./review.js";
 import { chip, choices, iconButton } from "./parts.js";
 
 const PREVIEWS = "herdr-fold.previews";   // what each space's preview tab shows, by the space's id (shared)
@@ -85,6 +86,8 @@ export class Preview {
     this.rows = [];
     /** @type {{ issue: any, ago: string[] } | null} core/github.py's view of the issue */
     this.issue = null;
+    /** @type {Review | null} a pull request's review */
+    this.review = null;
     /** @type {{ png: string, size?: number[] | null } | null} core/media.py's PNG, in the app's home, and its size in
      * pixels */
     this.picture = null;
@@ -129,13 +132,15 @@ export class Preview {
     cx.timer.after(0, (cx) => this.load(what, cx));
   }
 
-  /** WHAT from its machine: a file, or from core/ a diff, a commit or an issue; an answer for an older one dropped. */
+  /** WHAT from its machine: a file, or from core/ a diff, a commit, an issue or a pull request; an answer for an older
+   * one dropped. */
   load(what, cx) {
     this.ticking?.cancel();
     this.fitting?.cancel();
     this.editing?.release();
-    Object.assign(this, { what, rows: [], issue: null, picture: null, change: null, pdf: null, ticking: null,
-      editing: null, drawing: false, markdown: false, drawnFor: null, fitting: null, loading: true, note: null });
+    Object.assign(this, { what, rows: [], issue: null, review: null, picture: null, change: null, pdf: null,
+      ticking: null, editing: null, drawing: false, markdown: false, drawnFor: null, fitting: null, loading: true,
+      note: null });
     cx.spawn(async (cx) => {
       try {
         if (what.kind === "file" && ["image", "pdf"].includes(mediaKind(what.path) ?? "")) {
@@ -149,6 +154,12 @@ export class Preview {
           if (what.n !== this.n) return;
           this.markdown = markdownFile(what.path);
           this.drawing = !this.markdown && !what.on;   // beside, for the board
+          return;
+        }
+        if (what.kind === "pull") {
+          const review = new Review(what, this.core);
+          await review.load(cx);
+          if (what.n === this.n) this.review = review;
           return;
         }
         if (what.kind === "issue") {
@@ -281,6 +292,7 @@ export class Preview {
     const frame = v_flex().id("preview").size_full().min_h(0).text_color(t.foreground).text_size(13)  // the pane's fill
       .on_mouse_down("right", () => this.menus.open(this.items()));
     if (this.issue) return frame.child(this.issueView(t));
+    if (this.review) return frame.child(this.review.render(t, code));
     if (this.change && !this.note) return frame.child(this.changeView(t));
     if (this.editing && !this.loading) return frame.child(this.codeAndPicture(t, code));
     if (this.picture) return frame.child(this.pictureView(t));

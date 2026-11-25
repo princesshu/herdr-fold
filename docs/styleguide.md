@@ -468,6 +468,20 @@ the head stays as it is, a refresh of a list shown turns Refresh into a spinner 
 failure or none found is said in the first row's place (48 high, the words 12 in, dim, a failure ansi1), which the
 rows then take.
 
+### Pull requests
+
+The Issues tab's switch (Issues | Pull requests) is a choice of two, never the accent: Open and Closed below it keep
+the screen's one. A pull request's row is an issue's, 48 high: its checks' mark in a column of 14 (✓ `ansi2`, ●
+`ansi3` while they run, ✕ `ansi1`), its number in `muted`, its title; its review's state one word at its end (your
+review `ansi3`, as it waits on you; changes requested `ansi1`; approved `ansi2`; Draft a neutral tag, 18 high,
+`raised`, 11 `muted`); its branch, author and age 11 `dim` under them, the checks too unless they passed. Changes'
+row of the branch's pull request is 32 high under the repository, a hairline round it on `chrome`, rounded 8; its
+form takes the composer's place, its labels 12 `muted` in a column of 44, one solid button whose words follow Draft
+or Ready. Commit is not lit (raised, `dim`) while nothing is to commit. In the preview tab a review: its head 15, a
+file's bar 32 high on `chrome`, a line 20 high in the code font, its number in a column of 44 (a press there writes
+a comment), a thread or a comment added a card under its line (a hairline, rounded 8, `chrome`), each author's mark
+18 across in a color of the spaces' palette; the bar at the foot, Submit review its one solid button.
+
 ### The preview tab
 
 ![The preview tab with a diff, a commit, loading, an error and a PDF scrolled](../assets/styleguide/preview.webp)

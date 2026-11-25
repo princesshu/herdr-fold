@@ -285,7 +285,7 @@ class PackageSettings(unittest.TestCase):
         # repository the path inside it (the space names the repository), none at its top; outside one the path
         with open(os.path.join(PACKAGE, "config", "starship.toml"), encoding="utf-8") as f:
             starship = f.read()
-        self.assertIn('\nformat = "$directory$git_branch$git_status$character"\n', starship)
+        self.assertIn('\nformat = "$directory$git_status$character"\n', starship)
         self.assertIn('\nformat = "[$path]($style)[$read_only]($read_only_style)\\n"\n', starship)
         self.assertIn('\nrepo_root_format = "([$path]($style)[$read_only]($read_only_style)\\n)"\n', starship)
         self.assertIn("\nrepo_root_style = ", starship)                 # starship takes repo_root_format with it only
@@ -298,12 +298,12 @@ class PackageSettings(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp)
         path = os.path.join(tmp, "starship.toml")
         shutil.copy(os.path.join(PACKAGE, "config", "starship.toml"), path)
-        apply.set_starship(path, {"path": "#111111", "branch": "#222222", "status": "#333333"})
+        apply.set_starship(path, {"path": "#111111", "status": "#333333"})
         with open(path, encoding="utf-8") as f:
             made = f.read()
         for key in ("style", "repo_root_style", "before_repo_root_style"):
             self.assertIn(f'\n{key} = "bold #111111"\n', made)
-        self.assertIn('\nstyle = "#222222"\n', made)
+        self.assertNotIn("#222222", made)                                # no branch: the space's row says it
         self.assertIn('success_symbol = "[❯](bold #111111)"', made)
         self.assertIn('error_symbol = "[❯](bold #333333)"', made)
         self.assertNotIn("#cba6f7", made)
@@ -312,7 +312,7 @@ class PackageSettings(unittest.TestCase):
         # the folder from the repository's root alone, then the branch, the status and the ❯, as starship draws them
         import picker
         rows = [re.sub(r"\x1b\[[0-9;]*m", "", row).rstrip() for row in picker.sample(apply.load_themes()[0], 56)]
-        self.assertEqual(rows[:2], [" /src", " main [!] ❯ claude"])
+        self.assertEqual(rows[:2], [" /src", " [!] ❯ claude"])
 
     def test_the_pickers_close_button_leaves_the_theme_as_it_is(self):
         # every popup's close button: a click on it goes as Esc does, nothing applied

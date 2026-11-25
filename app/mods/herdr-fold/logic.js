@@ -334,11 +334,11 @@ export function tabLabel(title) {
   return name.length <= TAB_NAME ? name : `${name.slice(0, TAB_NAME - 1)}…`;
 }
 
-/** An issue as its preview shows it, with its priority as the list ranked it.
- * @typedef {{ kind: "issue", github: string, number: number, title: string, level?: number | null,
+/** An issue as its preview shows it, with its priority as the list ranked it; a pull request's review.
+ * @typedef {{ kind: "issue" | "pull", github: string, number: number, title: string, level?: number | null,
  *   ranked_by?: string | null }} ShownIssue */
-/** What a preview shows, where (ROOT on machine ON): a change's diff (a new file's as all added), a file (from its
- * LINE, What's new's), a commit or an issue. @typedef {{ root: string, on: string | null } & ({ kind: "diff" | "file",
+/** What a preview shows, where (ROOT on ON): a change's diff (a new file's as all added), a file (from its LINE), a
+ * commit, an issue or a pull request. @typedef {{ root: string, on: string | null } & ({ kind: "diff" | "file",
  *   path: string, line?: number } | { kind: "commit", hash: string } | ShownIssue)} Shown */
 
 /** A preview tab's name starts so, as the TUI sidebar's: what it shows follows. */
@@ -925,12 +925,12 @@ export const waitingChats = (agents, local, chats = new Set()) => new Set([...co
 
 const UNITS = /** @type {[number, string][]} */ ([[1e6, "m"], [1e3, "k"]]);     // the largest first, as the TUI's
 
-/** Issues loading, moving nothing, one sign at a time: in the list's first row's place the first load, a failure or
- * none found (faint as the TUI's), else rows; the head's refresh a spinner while a list is ASKED again (it stays put).
+/** Issues (NOUN's: pull requests too) loading, moving nothing: in the list's first row's place the first load, a
+ * failure or none found (faint as the TUI's), else rows; the head's refresh a spinner while a list is ASKED again.
  * @param {any} s @returns {{ refresh: string, say: [string, string] | null }} */
-export function issuesParts({ asked, listing, shown, filtered, state }) {
-  const say = !listing ? (asked ? ["Loading issues…", "dim"] : null) : listing.error ? [listing.error, "ansi1"]
-    : shown ? null : [filtered ? "No issues match" : `No ${state} issues`, "dim"];
+export function issuesParts({ asked, listing, shown, filtered, state, noun = "issues" }) {
+  const say = !listing ? (asked ? [`Loading ${noun}…`, "dim"] : null) : listing.error ? [listing.error, "ansi1"]
+    : shown ? null : [filtered ? `No ${noun} match` : `No ${state} ${noun}`, "dim"];
   return { refresh: asked && listing ? "spinner" : "button", say: /** @type {[string, string] | null} */ (say) };
 }
 
@@ -941,7 +941,7 @@ const FLOAT_PARTS = {           // px: each view's own head, then 3 of its rows
   files: [38, 3 * 26],                          // the toolbar (PAD + an icon button)
   chats: [50, 26 + 2 * 24],                     // the filter (PAD, a field, 6), a space and two chats
   search: [81, 3 * 24],                         // the field and its status line, PAD round them, the rule
-  issues: [84, 3 * 48],                         // the field's row and Open and Closed
+  issues: [38 + 84, 3 * 48],                    // the switch (PAD, a choice), the field's row and Open and Closed
   changes: [58 + 97, 3 * 26 + 12],              // the repository and the composer; the list's rows and its pads
   agent: [44 + 37, 4 + 28 + 2 * 26],            // the head and the health line; a section's head and two rows
   spaces: [0, FLOAT_ROW + FLOAT_FOOT],          // a space's row and the list's foot
@@ -1186,6 +1186,25 @@ export function withHomes(list, empty, home) {
   const rows = homeFirst(list, home, of);
   return names.flatMap((m) => [...(empty.includes(m) ? [{ id: homeId(m), name: HOME_NAME, machine: m, active: false,
     status: null, empty: true }] : []), ...rows.filter((s) => of(s) === m)]);
+}
+
+/** The line a review comment on ROW (core/github.py's files_of) goes on: its number in the new file and the RIGHT
+ * side, a removed line's in the old one and LEFT; null on a hunk's head. @param {{ kind: string, old: number | null,
+ * new: number | null }} row @returns {{ line: number, side: "LEFT" | "RIGHT" } | null} */
+export function commentAt(row) {
+  if (row.kind === "@") return null;
+  return row.kind === "-" ? { line: Number(row.old), side: "LEFT" } : { line: Number(row.new), side: "RIGHT" };
+}
+
+/** Whether a review of EVENT (comment, approve, request) can go: Approve but on one's own pull request (MINE: GitHub
+ * refuses it), Comment and Request changes with a SUMMARY (GitHub's REST API asks for their body).
+ * @param {string} event @param {string} summary @param {boolean} mine */
+export const reviewReady = (event, summary, mine) => (event === "approve" ? !mine : Boolean(summary.trim()));
+
+/** A login's avatar color: one of MARK's, the same for it every time. @param {string} login */
+export function loginColor(login) {
+  const sum = [...login].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 997, 7);
+  return MARK[/** @type {keyof typeof MARK} */ (PALETTE[sum % PALETTE.length])];
 }
 
 // a space's avatar color, as every app mod draws one: one strong color per hue, light and dark alike

@@ -549,6 +549,18 @@ class Actions(Repo):
         self.assertEqual(graph[0].author, "dev")
 
 
+    def test_the_branches_a_pull_request_can_go_into_are_its_remotes(self):
+        self.write("a.txt")
+        self.commit_all()
+        remote = self.folder()
+        self.run_git("init", "-q", "--bare", remote)
+        self.run_git("remote", "add", "upstream", remote)
+        self.run_git("push", "-q", "upstream", "main", "main:release")
+        self.run_git("checkout", "-q", "-b", "fix/page-past-end")
+        self.run_git("push", "-q", "-u", "upstream", "fix/page-past-end")
+        self.assertEqual(git.bases(self.root), ["main", "release"])        # the branch's own left out
+        self.assertEqual(CommandLine.cli(self, "bases", self.root), {"bases": ["main", "release"]})
+
 class Place(Repo):
     """Where a space is, as the Herdr app mod's Spaces list says it: its repository's name, the branch, how far from its
     upstream, and whether the folder is a worktree, listed under its checkout; read without opening a repository's

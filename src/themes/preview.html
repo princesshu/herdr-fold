@@ -131,7 +131,6 @@
   .sb .head { color: var(--s-accent); }
   /* the terminal: the prompt in the theme's colors (starship's), the cursor the theme's */
   .term .path { color: var(--prompt); font-weight: 700; }
-  .term .branch { color: var(--branch); }
   .term .st { color: var(--status); }
   .term .char { color: var(--prompt); font-weight: 700; }
   .term .cursor { background: var(--cursor); }
@@ -176,7 +175,7 @@ function colors(t) {
     "--h-sidebar": h.sidebar_bg, "--h-panel": h.panel_bg, "--h-activerow": h.active_row_bg, "--h-accent": h.accent,
     "--h-text": h.text, "--h-subtext": h.subtext0, "--h-overlay1": h.overlay1, "--h-dim": h.surface_dim,
     "--h-yellow": h.yellow, "--h-teal": h.teal, "--h-green": h.green, "--h-red": h.red,
-    "--frame": PREVIEW.themes[t.id].frame, "--prompt": t.prompt.path, "--branch": t.prompt.branch,
+    "--frame": PREVIEW.themes[t.id].frame, "--prompt": t.prompt.path,
     "--status": t.prompt.status,
   };
   Object.entries(PREVIEW.themes[t.id].sidebar).forEach(([role, color]) => {
@@ -310,7 +309,7 @@ function mock(t) {
           <div class="pane term"><span class="ttl">terminal</span>
             <div class="gap"></div>
             <div><span class="path">/src</span></div>
-            <div><span class="branch">main</span> <span class="st">[!?]</span> <span class="char">❯</span> <span
+            <div><span class="st">[!?]</span> <span class="char">❯</span> <span
               class="cursor"> </span></div>
           </div>
         </div>

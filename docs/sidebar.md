@@ -41,7 +41,8 @@ start it through `src/sidebar.sh` (`src/sidebar.ps1` on Windows), the plugin its
 In your home folder it opens `~/Documents` instead. In a space whose folder is no repository itself (your home
 folder, a folder of projects), Changes shows the repository of the folder or file chosen in Files, however deep, else
 the one the Spaces row names (the only one two folders down), its name in the repository row above the message: its
-changes, commit and sync, Files' marks and the Issues view follow it.
+changes, commit and sync, its branch's pull request (the row under it, a new one's form in the message's place), Files'
+marks and the Issues view, with its Pull requests, follow it.
 Quitting it (`q`) leaves a shell; `python3 ~/.config/herdr-fold/restore_panes.py` starts it there again. After an update
 it starts its new version by itself, where it was, and so it does on its folder's new place when the folder is renamed
 or moved.

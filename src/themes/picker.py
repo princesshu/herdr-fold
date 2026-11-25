@@ -50,7 +50,7 @@ def sample(theme, width):
     p, h = c["palette"], c["herdr"]
     rows = [
         [(prompt["path"], " /src", True)],
-        [(prompt["branch"], " main"), (prompt["status"], " [!]"), (prompt["path"], " ❯", True),
+        [(prompt["status"], " [!]"), (prompt["path"], " ❯", True),
          (c["foreground"], " claude")],
         [(p[2], " + return redirect(next)"), (p[1], "   - return redirect('/')")],
         [(h["green"], " ● idle"), (h["yellow"], "   ● working"), (h["accent"], "   ▎focused pane"),

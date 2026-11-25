@@ -1,5 +1,5 @@
 """The sidebar's own part of its Issues view: the latest answer kept for the repository's other sidebars, and what a
-tab of its opens for an issue (gh's preview with its comments, a new issue, a comment)."""
+tab of its opens: an issue (gh's preview with its comments, a new issue, a comment), a pull request's review."""
 import hashlib
 import json
 import os
@@ -7,8 +7,10 @@ import shutil
 import time
 from dataclasses import asdict
 
+import preview
 import statefile
 from github import Issue, Listing
+from pulls import MARKS, REVIEW
 from screen import truncate
 
 
@@ -67,3 +69,50 @@ def view_spec(repo, issue):
     return {"title": f"#{issue.number} {truncate(issue.title, TAB_TITLE)}", "line": None, "file": None,
             "pipeline": [[binary, "issue", "view", str(issue.number), "-R", repo, "--comments"]],
             "env": {"GH_FORCE_TTY": "100", "GH_PROMPT_DISABLED": "1", "GH_NO_UPDATE_NOTIFIER": "1"}}
+
+
+def printable(text):
+    """TEXT without a control character: a comment or a diff can carry escape codes for the terminal."""
+    return "".join(ch for ch in text if ch.isprintable())
+
+
+PAINT = {"added": "ok", "modified": "warn", "deleted": "bad", "muted": "dim"}     # a view's roles as the pager's
+
+
+def pull_spec(review):
+    """A pull request's REVIEW (core/github.py's review()) in the preview tab, read only: its head (number, title,
+    state, branches, checks), then each file's diff, numbered, each thread under its line; the pager draws it."""
+    word = REVIEW.get(review["review"])
+    glyph, role = MARKS.get(review["mark"], ("", None))
+    rows = [[(f"#{review['number']} ", "dim"), (printable(review["title"]), "bold"),
+             *([(f"  {word[0]}", PAINT[word[1]])] if word else [])],
+            [(f"{review['branch']} → {review['base']} · {review['author']}", "dim"),
+             *([(" · ", "dim"), (glyph, PAINT[role]), (f" {review['checks_said']}", "dim")] if glyph else []),
+             (f" · {len(review['files'])} file{'' if len(review['files']) == 1 else 's'}", "dim")]]
+    side = {"+": "ok", "-": "bad"}
+    for file in review["files"]:
+        rows += [[], [(printable(file["path"]), "bold"), (f"  +{file['added']}", "ok"),
+                      (f" −{file['removed']}", "bad")]]
+        for row in file["rows"]:
+            number = "" if row["kind"] == "@" else str(row["old"] if row["kind"] == "-" else row["new"])
+            rows.append([(f"{number:>5} ", "dim"), (printable(row["text"]) if row["kind"] == "@" else
+                                                    f"{row['kind'].strip() or ' '} {printable(row['text'])}",
+                                                    "dim" if row["kind"] == "@" else side.get(row["kind"]))])
+            rows += thread_rows(row.get("threads", ()))
+        if file["cut"]:
+            rows.append([(f"      {file['cut']} more lines: in the browser", "dim")])
+        rows += thread_rows(file["loose"])
+    title = f"#{review['number']} {truncate(review['title'], TAB_TITLE)}"
+    return {"title": title, "line": None, "file": os.devnull, "pipeline": [],
+            "views": [{"key": "r", "name": "Review", "lines": preview.painted(rows)}], "view": "r"}
+
+
+def thread_rows(threads):
+    """THREADS under their line, as the app shows them: each comment's author and age, then its words."""
+    rows = []
+    for thread in threads:
+        for comment in thread["comments"]:
+            rows.append([("      ┃ ", "dim"), (f"{comment['author']} · {comment['ago']}" +
+                                                 (" · resolved" if thread["resolved"] else ""), "dim")])
+            rows += [[("      ┃ ", "dim"), (printable(line), None)] for line in comment["body"].splitlines()]
+    return rows
