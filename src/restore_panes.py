@@ -1,12 +1,12 @@
 """Restores herdr-fold's started agents after herdr restarts (herdr resumes only agents with chats), only in an
-empty shell and never in HOME_SPACE, where the main chat runs; the ~ workspace is named HOME_SPACE. Without
+empty shell and never in HOME_SPACE, where the main chat runs; herdr's ~ and root names become own_name's. Without
 --startup the dock's columns come back too (the sidebar's panes.py; at herdr's start its own [[startup]] does it)."""
 import os
 import sys
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from herdrlib import (AGENTS, HOME_SPACE, PLUGIN_STATE, agents, herdr, machines, panes,  # noqa: E402
+from herdrlib import (AGENTS, HOME_SPACE, PLUGIN_STATE, agents, herdr, machines, own_name, panes,  # noqa: E402
                       sidebar_command)
 from i18n import line, t  # noqa: E402
 
@@ -28,7 +28,6 @@ def told(where):
         "terminal_failed": lambda label, err: t("restore.terminal_failed", where, label, err),
         "column_next_to": lambda label, name: t("restore.column_next_to", where, label, name or t("restore.the_agent")),
         "column_failed": lambda label, err: t("restore.column_failed", where, label, err),
-        "column_gone": lambda label: t("restore.column_gone", where, label),
         "done": lambda label, role: t("restore.done", where, label, role, started(role)),
         "start_failed": lambda label, role, err: t("restore.start_failed", where, label, role, err),
     }
@@ -36,11 +35,12 @@ def told(where):
 
 
 def named(h, ws, label):
-    """The workspace herdr names after the home folder (~) is called HOME_SPACE. Returns the workspace's name."""
-    if label == "~":
-        h("workspace", "rename", ws, HOME_SPACE, check=False)
-        label = HOME_SPACE
-    return label
+    """A workspace herdr named after the home folder or a root (~, /, C:\\) takes herdr-fold's name (own_name). Returns
+    the workspace's name."""
+    own = own_name(label)
+    if own:
+        h("workspace", "rename", ws, own, check=False)
+    return own or label
 
 
 def restore(machine=None, startup=False):

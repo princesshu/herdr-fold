@@ -1,49 +1,53 @@
 // @ts-check
-// Tests for the Agent panel's own rules (layers.js): the agent shown, a section's rows and its fold, the filter, the
-// tags' column, the health bar's parts, which changes are a new read; a row's properties, the dot, an ask.
+// Tests for the Agent panel's own rules (layers.js): the agent shown, a section's rows, groups and fold, the filter,
+// the tags' column, the bar's colors, which changes are a new read; a row's properties, the dot, an ask, Usage.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { contrast } from "../mods/herdr-fold/agents.js";
-import { addList, agentList, agentOf, ASK_MS, asked, barParts, bodyHeight, CHIP_LIFT, chipColors, chosenAgent,
-  chosenFill, chosenRow, doable, errorColors, FIRST, FOLDED, HEAD_H, keepAgent, keepOpen, keepProblems, matches,
-  MORE_H, problem, problemTone, propertyLines, READ, ROW_H, sectionOpen, serverOf, shown, signInTab, summarized,
-  tabAgent, tagRoom, tagWord, toneColor, toneInk, touches, USAGE_LINE, USAGE_ROW, levelColor,
-  levelFill, levelInk, resetWords, usageAgents, usageHeight, WARN_H, WORKS, actionLook, claudeIn,
-  loginRun, MCP_AGENT, MCP_AT, MCP_LOGIN, overdue, printedAddress, SIGNING_MS, signingRow, signIns, tile, toneOf,
-  checkedOver, plusMenu, switched, COST_BAR, COST_LINE, costHeight, costLines, graphAgent, usageRows, usageOpen,
-  costGlance, tightest, headline }
+import { agentList, agentOf, ASK_MS, asked, bodyHeight, CHIP_LIFT, chipColors, chosenAgent, chosenFill,
+  chosenRow, doable, errorColors, FIRST, FOLDED, GROUP_H, HEAD_H, keepAgent, keepOpen, keepProblems, matches, MORE_H,
+  partColor, problem, problemTone, propertyLines, READ, ROW_H, sectionOpen, serverOf, shown, signInTab, tabAgent,
+  tagRoom, tagWord, toneColor, toneInk, touches, USAGE_LINE, levelColor, levelFill, levelInk, resetWords, usageAgents,
+  usageHeight, WARN_H, WORKS, actionLook, claudeIn, loginRun, MCP_AGENT, MCP_AT, MCP_LOGIN, overdue, printedAddress,
+  SIGNING_MS, signingRow, signIns, tile, checkedOver, plusMenu, switched, graphAgent, usageRows, usageFigure, headline,
+  usageLine, usageRow, afterSave, approves, asking, filePath, footWords, formAsk, headParts, HOOKS, layersShown, MODEL,
+  RULE, removable, rowless, sayOnly, sentence, switchShown }
   from "../mods/herdr-fold/layers.js";
 
 /** A row as core words it, OVER changing it. @param {string} name @param {Record<string, any>} [over] */
-const row = (name, over = {}) => ({ id: `skill:${name}`, icon: "skill", name, note: null, tag: { text: "Project",
-  tone: "project" }, state: null, cost: "0.3k", used: false, agents: ["claude"], dim: false, warn: false, ...over });
+const row = (name, over = {}) => ({ id: `skill:${name}`, icon: "skill", name, note: null, tag: "Project", mark: null,
+  state: null, brand: null, tokens: 300, cost: "300", agents: ["claude"], dim: false, ...over });
 /** A section of ROWS. @param {any[]} rows @param {Record<string, any>} [over] */
-const section = (rows, over = {}) => ({ id: "skills", title: "Skills", count: rows.length, cost: "4.0k", summary: [],
-  rows, ...over });
+const section = (rows, over = {}) => ({ id: "skills", title: "Skills", count: rows.length, tokens: 4000, cost: "4.0k",
+  swatch: "skills", summary: [], rows, groups: [], ...over });
+/** A conflict as core words it: its mark and its sentence. @param {string} rule */
+const conflict = (rule) => row(rule, { id: `conflict:allow:${rule}`, icon: "shield", mark: "warn", tag: null,
+  cost: null, tokens: null, note: "deny in Project hides allow in Global" });
 const names = (/** @type {{ rows: any[] }} */ found) => found.rows.map((r) => r.name);
 
-test("a section shows its first five rows, then N more; its problems and used rows always; never 1 more", () => {
+test("a section shows its first five rows, then N more; its marked rows always; never 1 more", () => {
   const sixteen = section(Array.from({ length: 16 }, (_, n) => row(`skill-${n}`)));
   assert.equal(FIRST, 5);
   assert.deepEqual([shown(sixteen).rows.length, shown(sixteen).more], [5, 11]);
-  assert.deepEqual([shown(sixteen, { more: true }).rows.length, shown(sixteen, { more: true }).more], [16, 0]);
-  const marked = section(sixteen.rows.map((r, n) => (n === 9 ? { ...r, used: true } : n === 12 ? { ...r,
-    state: { text: "failed", tone: "bad" } } : n === 14 ? { ...r, warn: true } : r)));
+  const all = shown(sixteen, { more: new Set(["skills"]) });
+  assert.deepEqual([all.rows.length, all.more], [16, 0]);
+  const marked = section(sixteen.rows.map((r, n) => (n === 9 ? { ...r, mark: "ok" } : n === 12 ? { ...r,
+    mark: "bad", state: { text: "failed", tone: "bad" } } : n === 14 ? { ...r, mark: "warn" } : r)));
   assert.deepEqual(names(shown(marked)).slice(5), ["skill-9", "skill-12", "skill-14"]);    // in their own order
   assert.equal(shown(marked).more, 8);
   const six = section(sixteen.rows.slice(0, 6));        // one past five: its line would show the row itself
   assert.deepEqual([shown(six).rows.length, shown(six).more], [6, 0]);
   const seven = shown(section(sixteen.rows.slice(0, 7)));
   assert.deepEqual([seven.rows.length, seven.more], [5, 2]);
-  assert.deepEqual(shown(section([])), { rows: [], more: 0 });
+  assert.deepEqual(shown(section([])), { rows: [], more: 0, groups: [] });
 });
 
-test("a problem is a failed or sign-in state or a conflict, never a plain state", () => {
-  assert.ok(problem(row("sentry", { state: { text: "failed", tone: "bad" } })));
-  assert.ok(problem(row("Box", { state: { text: "sign in", tone: "warn" } })));
-  assert.ok(problem(row("Bash(git push:*)", { warn: true, tag: null })));
-  assert.ok(!problem(row("github", { state: { text: "32 tools", tone: "ok" } })));
+test("a problem is a row core marks failed (bad) or to sign in or in conflict (warn), never one used or plain", () => {
+  assert.ok(problem(row("sentry", { mark: "bad", state: { text: "failed", tone: "bad" } })));
+  assert.ok(problem(row("Box", { mark: "warn", state: { text: "sign in", tone: "warn" } })));
+  assert.ok(problem(conflict("Bash(git push:*)")));
+  assert.ok(!problem(row("github", { mark: "ok", state: { text: "32 tools", tone: "ok" } })));
   assert.ok(!problem(row("Bash(rm -rf *)", { state: { text: "deny", tone: "deny" } })));   // a rule, not a problem
 });
 
@@ -51,16 +55,16 @@ test("Codex's approval is a row of Permissions as core words it: read, found by 
   const open = { id: "open", label: "Open config.toml", path: "/home/dev/.codex/config.toml", server: null,
     primary: true };
   const approval = row("Approval", { id: "approval", icon: "shield", note: "Ask on request", cost: null,
-    agents: ["codex"], tag: { text: "Personal", tone: "personal" }, properties: { title: "Approval", state: null,
-      lines: [["From", "~/.codex/config.toml", "Personal"]], text: null, error: null, actions: [open] } });
+    agents: ["codex"], tag: "Global", properties: { title: "Approval", state: null,
+      lines: [["From", "~/.codex/config.toml", "Global"]], text: null, error: null, actions: [open] } });
   const rules = Array.from({ length: 7 }, (_, n) => row(`git ${n}`, { id: `permission:allow:git ${n}`,
     state: { text: "allow", tone: "allow" } }));
   const found = shown(section([approval, ...rules], { id: "permissions", title: "Permissions" }));
   assert.equal(found.rows[0], approval);                                       // first: never under "N more"
-  assert.deepEqual([problem(approval), toneOf(approval), serverOf(approval)], [false, "", null]);
-  assert.ok(matches(approval, "ask request") && matches(approval, "approval personal"));
-  assert.equal(bodyHeight([approval], 0), ROW_H);                              // one line, as a rule's
-  assert.deepEqual(propertyLines(approval), [["From", "~/.codex/config.toml", "Personal"]]);
+  assert.deepEqual([problem(approval), serverOf(approval)], [false, null]);
+  assert.ok(matches(approval, "ask request") && matches(approval, "approval global"));
+  assert.equal(bodyHeight({ rows: [approval], more: 0, groups: [] }), ROW_H);  // one line, as a rule's
+  assert.deepEqual(propertyLines(approval), [["From", "~/.codex/config.toml", "Global"]]);
   assert.deepEqual(doable(approval, "codex").map((one) => one.id), ["open"]);  // nothing that sets it
 });
 
@@ -68,57 +72,74 @@ test("the filter finds a row by every word typed, in its name, note, state or ta
   const api = row("api.md", { note: "when src/lumen/** is read", dim: true });
   assert.ok(matches(api, "API"));
   assert.ok(matches(api, "lumen project"));
-  assert.ok(!matches(api, "lumen personal"));
+  assert.ok(!matches(api, "lumen global"));
   assert.ok(matches(row("sentry", { state: { text: "failed", tone: "bad" } }), "fail"));
   assert.ok(matches(api, "  "));
   const many = section(Array.from({ length: 16 }, (_, n) => row(n % 2 ? `route-${n}` : `store-${n}`)));
   assert.deepEqual([shown(many, { query: "route" }).rows.length, shown(many, { query: "route" }).more], [8, 0]);
-  assert.deepEqual(shown(many, { query: "nothing" }), { rows: [], more: 0 });
+  assert.deepEqual(shown(many, { query: "nothing" }), { rows: [], more: 0, groups: [] });
 });
 
 test("a section's rows spring to their own height: a row 26, a conflict's two lines 40, N more 24, none one line",
   () => {
-    assert.deepEqual([HEAD_H, ROW_H, WARN_H, MORE_H], [28, 26, 40, 24]);
-    const conflict = row("Bash(git push:*)", { warn: true, note: "deny in Project hides allow in Personal" });
-    assert.equal(bodyHeight([row("a"), conflict, row("b")], 0), 26 + 40 + 26);
-    assert.equal(bodyHeight([row("a")], 14), 26 + 24);
-    assert.equal(bodyHeight([], 0), 26);
+    assert.deepEqual([HEAD_H, ROW_H, WARN_H, MORE_H, GROUP_H], [28, 26, 40, 24, 22]);
+    assert.equal(bodyHeight({ rows: [row("a"), conflict("Bash(git push:*)"), row("b")], more: 0, groups: [] }),
+      26 + 40 + 26);
+    assert.equal(bodyHeight({ rows: [row("a")], more: 14, groups: [] }), 26 + 24);
+    assert.equal(bodyHeight({ rows: [], more: 0, groups: [] }), 26);
+    // a group under the rows: its head, its rows, its own N more
+    assert.equal(bodyHeight({ rows: [row("a")], more: 0, groups: [{ id: "hooks", title: "Hooks", count: 7,
+      rows: [row("h1"), row("h2")], more: 5 }] }), 26 + 22 + 26 + 26 + 24);
   });
 
-test("a head's summary: the permissions' behaviors always, the sub-agents' names only while folded", () => {
-  const permissions = section([], { id: "permissions", summary: [{ text: "12 allow", tone: "allow" },
-    { text: "2 deny", tone: "deny" }] });
-  const agents = section([], { id: "agents", summary: [{ text: "code-reviewer, Explore, 3 more", tone: "ok" }] });
-  assert.deepEqual([summarized(permissions, true), summarized(permissions, false)], [true, true]);
-  assert.deepEqual([summarized(agents, true), summarized(agents, false)], [false, true]);
-  assert.equal(summarized(section([]), false), false);
-});
+test("Permissions' Hooks group: its rows under the section's own, each shown five at a time, found by the filter",
+  () => {
+    const hooks = Array.from({ length: 8 }, (_, n) => row(`hook-${n}`, { id: `hook:/p:Stop::hook-${n}`,
+      icon: "hook", state: { text: "hook", tone: "muted" } }));
+    const permissions = section([row("Mode", { id: "mode" }), conflict("Bash(git push:*)")], { id: "permissions",
+      title: "Permissions", count: null, groups: [{ id: "hooks", title: "Hooks", count: 8, rows: hooks }] });
+    const found = shown(permissions);
+    assert.deepEqual([found.rows.length, found.groups.length, found.groups[0].rows.length, found.groups[0].more],
+      [2, 1, 5, 3]);
+    assert.equal(shown(permissions, { more: new Set(["hooks"]) }).groups[0].more, 0);
+    assert.deepEqual(shown(permissions, { query: "hook-6" }).groups[0].rows.map((r) => r.name), ["hook-6"]);
+    assert.deepEqual(shown(permissions, { query: "Mode" }).groups, []);        // a group with nothing found goes
+    assert.equal(chosenRow([permissions], "hook:/p:Stop::hook-6")?.row.name, "hook-6");
+    assert.deepEqual(shown(permissions, { chosen: "hook:/p:Stop::hook-6" }).groups[0].rows.length, 6);
+  });
 
-test("a section's fold is kept per space: all open but Agents till folded by hand, a space gone forgotten", () => {
-  assert.deepEqual(FOLDED, ["agents"]);
-  assert.deepEqual(["rules", "agents"].map((id) => sectionOpen(null, "sp1", id)), [true, false]);
-  const kept = keepOpen({ gone: { rules: false }, sp1: { skills: false } }, "sp1", "agents", true, new Set(["sp1"]));
-  assert.deepEqual(kept, { sp1: { skills: false, agents: true } });
-  assert.deepEqual(["rules", "skills", "agents"].map((id) => sectionOpen(kept, "sp1", id)), [true, false, true]);
+test("a section's fold is kept per space: all open but Subagents till folded by hand, a space gone forgotten", () => {
+  assert.deepEqual(FOLDED, ["subagents"]);
+  assert.deepEqual(["rules", "subagents"].map((id) => sectionOpen(null, "sp1", id)), [true, false]);
+  const kept = keepOpen({ gone: { rules: false }, sp1: { skills: false } }, "sp1", "subagents", true,
+    new Set(["sp1"]));
+  assert.deepEqual(kept, { sp1: { skills: false, subagents: true } });
+  assert.deepEqual(["rules", "skills", "subagents"].map((id) => sectionOpen(kept, "sp1", id)), [true, false, true]);
   assert.equal(sectionOpen(kept, "sp2", "skills"), true);            // another space: its own
   assert.deepEqual(keepOpen("x", "sp1", "rules", false, new Set(["sp1"])), { sp1: { rules: false } });
 });
 
-test("a long tag is cut to its column; a tone is its theme's color", () => {
+test("a long tag is cut to its column; a tone is its theme's color; a part of what loads its bar's", () => {
   assert.equal(tagWord("Project"), "Project");
   assert.equal(tagWord("chrome-devtools-mcp"), "chrome-devt…");
-  const t = { ansi1: "red", ansi2: "green", ansi3: "yellow", accent: "accent", dim: "dim", muted: "muted" };
-  assert.deepEqual(["bad", "deny", "warn", "ask", "allow", "busy", "off", "ok", "else"].map((tone) =>
-    toneColor(t, tone)), ["red", "red", "yellow", "yellow", "green", "accent", "dim", "muted", "muted"]);
+  const t = { ansi1: "red", ansi2: "green", ansi3: "yellow", ansi4: "blue", ansi6: "teal", accent: "accent",
+    dim: "dim", muted: "muted" };
+  assert.deepEqual(["bad", "deny", "warn", "ask", "allow", "busy", "off", "ok", "muted", "else"].map((tone) =>
+    toneColor(t, tone)), ["red", "red", "yellow", "yellow", "green", "accent", "dim", "muted", "muted", "muted"]);
+  // the Agent panel's bar and swatches and the Context panel's bar, as connectors.html's and center-chat.html's
+  assert.deepEqual(["rules", "skills", "connectors", "rest"].map((part) => partColor(t, part)),
+    ["accent", "teal", "blue", "muted"]);
 });
 
 test("a section's tags stand in one column as wide as its widest tag; a change touches a setup or not", () => {
-  const plugin = row("d", { tag: { text: "chrome-devtools-mcp", tone: "plugin" } });
+  const plugin = row("d", { tag: "chrome-devtools-mcp" });
   assert.equal(tagRoom(section([row("c", { tag: null }), plugin])), 12 * 6 + 12);     // the cut tag's twelve
-  assert.equal(tagRoom(section([row("a"), row("b", { tag: { text: "claude.ai", tone: "account" } })])), 9 * 6 + 12);
+  assert.equal(tagRoom(section([row("a"), row("b", { tag: "claude.ai" })])), 9 * 6 + 12);
   assert.equal(tagRoom(section(Array.from({ length: 9 }, (_, n) => (n === 8 ? plugin : row(`s${n}`))))),
     12 * 6 + 12);                                         // under "N more" too: nothing moves as it opens
   assert.equal(tagRoom(section([row("c", { tag: null })])), 0);
+  assert.equal(tagRoom(section([row("c", { tag: null })], { groups: [{ id: "hooks", title: "Hooks", count: 1,
+    rows: [row("h", { tag: "Global" })] }] })), 6 * 6 + 12);       // a group's rows in the section's one column
   const folder = "/work/lumen-api";
   assert.ok(touches([`${folder}/.claude/settings.json`], folder, folder));
   assert.ok(touches([`${folder}/docs/CLAUDE.md`], folder, folder));
@@ -143,16 +164,9 @@ test("a tone's small words and a problem's chip read 4.5:1 in every theme; the f
       assert.ok(contrast(ink, fill) >= 4.5, `${name}: the ${tone} chip`);
       assert.notEqual(fill, t.surface);
     }
-    assert.deepEqual([toneInk(t, "off"), toneInk(t, "ok")], [t.dim, t.muted]);
+    assert.deepEqual([toneInk(t, "off"), toneInk(t, "ok"), toneInk(t, "muted")], [t.dim, t.muted, t.muted]);
   }
   assert.equal(toneInk({ ansi1: "red", foreground: "white", surface: "black" }, "bad"), "red");   // no hex: as given
-});
-
-test("the health bar's parts share what loads at start, an empty part left out", () => {
-  const parts = barParts([{ part: "rules", tokens: 5400 }, { part: "skills", tokens: 0 },
-    { part: "connectors", tokens: 16200 }]);
-  assert.deepEqual(parts.map((p) => [p.part, p.share]), [["rules", 0.25], ["connectors", 0.75]]);
-  assert.deepEqual(barParts([{ part: "rules", tokens: 0 }]), []);
 });
 
 test("the agent shown: the one kept for the space, else the focused tab's, else the one used last, else Claude", () => {
@@ -198,7 +212,7 @@ const props = (title, lines, actions, over = {}) => ({ title, state: null, lines
     : null, server: id === "open" ? null : title, primary: !n })), ...over });
 
 test("the dot is the worst problem's tone, red over yellow; kept per space in words, a space gone forgotten", () => {
-  const health = (/** @type {[string, string][]} */ ...problems) => ({ health: { problems: problems.map(([text,
+  const health = (/** @type {[string, string][]} */ ...problems) => ({ head: { problems: problems.map(([text,
     tone]) => ({ text, tone, row: "connector:x" })) } });
   assert.equal(problemTone(health(["1 sign in", "warn"], ["1 failed", "bad"])), "bad");
   assert.equal(problemTone(health(["1 sign in", "warn"])), "warn");
@@ -238,30 +252,31 @@ test("the properties draw core's lines but what their title says; a conflict's b
       ["Runs", "npx -y @sentry/mcp-server", null]]);
     assert.deepEqual(doable(sentry).map((one) => [one.id, one.label, one.server, one.path]),
       [["retry", "Retry", "sentry", null], ["open", "Open .mcp.json", null, "/work/lumen-api/.mcp.json"]]);
-    // a sub-agent's model is its state, a project's rule is from the file it is named after: said once
+    // a subagent's model is its state, a project's rule is from the file it is named after: said once
     const reviewer = row("code-reviewer", { properties: props("code-reviewer", [["From", "pr-review", "Plugin"],
       ["Model", "sonnet", null], ["Tools", "Read, Grep", null]], [], { state: { text: "sonnet", tone: "ok" } }) });
     assert.deepEqual(propertyLines(reviewer).map(([label]) => label), ["From", "Tools"]);
     const rule = row("CLAUDE.md", { properties: props("CLAUDE.md", [["From", "CLAUDE.md", "Project"]],
       [["open", "Open CLAUDE.md"]]) });
     assert.deepEqual(propertyLines(rule), []);
-    const conflict = row("Bash(git push:*)", { warn: true, tag: null, properties: props("Bash(git push:*)",
-      [["Deny", "Bash(git push:*)", "Project"], ["Allow", "Bash(git push:*)", "Personal"]], []) });
-    assert.equal(propertyLines(conflict).length, 2);
+    const hidden = { ...conflict("Bash(git push:*)"), properties: props("Bash(git push:*)",
+      [["Deny", "Bash(git push:*)", "Project"], ["Allow", "Bash(git push:*)", "Global"]], []) };
+    assert.equal(propertyLines(hidden).length, 2);
     // every action core offers is done here; Claude's own commands never on another agent's row
+    // (Turn off and on are the connector's form, its switch: never a button beside it)
     const box = row("Box", { properties: props("claude.ai Box", [], [["connect", "Connect"],
       ["turn-off", "Turn off in lumen-api"]]) });
-    assert.deepEqual(WORKS, ["open", "retry", "connect", "turn-off", "turn-on", "sign-out", "graph"]);
-    assert.deepEqual(doable(box).map((one) => one.id), ["connect", "turn-off"]);
+    assert.deepEqual(WORKS, ["open", "retry", "connect", "sign-out", "graph", "usage"]);
+    assert.deepEqual(doable(box).map((one) => one.id), ["connect"]);
     assert.deepEqual(doable(box, "codex").map((one) => one.id), ["connect"]);
     // Show graph, the last on a row the graph draws: Codex's rows too, after the row's own (never the raised one)
-    const drawn = row("github", { properties: props("github", [], [["turn-off", "Turn off in lumen-api"],
-      ["graph", "Show graph"]]) });
+    const drawn = row("github", { properties: props("github", [], [["retry", "Retry"],
+      ["graph", "Show in graph"]]) });
     assert.deepEqual(doable(drawn, "codex").map((one) => one.id), ["graph"]);
     assert.deepEqual(doable(drawn).map((one, n) => actionLook(one, n)), ["raised", "plain"]);
     const on = row("Linear", { properties: props("Linear", [], [["turn-off", "Turn off in lumen-api"],
       ["sign-out", "Sign out"], ["retry", "Retry"], ["turn-on", "Turn on in lumen-api"], ["remove", "Remove"]]) });
-    assert.deepEqual(doable(on).map((one) => one.id), ["turn-off", "sign-out", "retry", "turn-on"]);
+    assert.deepEqual(doable(on).map((one) => one.id), ["sign-out", "retry"]);
     assert.deepEqual(doable(on, "codex").map((one) => one.id), ["sign-out"]);
     assert.deepEqual(doable(row("old")), []);           // a row with no properties (an older core's)
     assert.deepEqual(propertyLines(row("old")), []);
@@ -303,35 +318,38 @@ test("the properties' words, a pressed chip's and the chosen row's state read 4.
 // the agents as core tells them (agent_state.py agents): Claude on Max, Codex on Plus, Gemini CLI telling nothing
 const MACHINE = [
   { key: "claude", name: "Claude", installed: true, signed_in: true, plan: "Max", login: ["claude", "auth", "login"],
-    install: "npm install -g @anthropic-ai/claude-code", page: "https://lumen.example/claude", empty: null },
+    install: "npm install -g @anthropic-ai/claude-code", page: "https://lumen.example/claude", empty: null,
+    listed: { group: "Agents on this Mac", dim: false, word: "Max", tone: null } },
   { key: "codex", name: "Codex", installed: true, signed_in: false, plan: null, login: ["codex", "login"],
     install: "npm install -g @openai/codex", page: "https://lumen.example/codex",
-    empty: { kind: "sign-in", title: "Codex is not signed in" } },
+    empty: { kind: "sign-in", title: "Codex is not signed in" },
+    listed: { group: "Agents on this Mac", dim: false, word: "sign in", tone: "warn" } },
   { key: "gemini", name: "Gemini CLI", installed: false, signed_in: null, plan: null, login: ["gemini"],
     install: "npm install -g @google/gemini-cli", page: "https://lumen.example/gemini",
-    empty: { kind: "install", title: "Gemini CLI is not installed" } }];
+    empty: { kind: "install", title: "Gemini CLI is not installed" },
+    listed: { group: "Not installed", dim: true, word: null, tone: null } }];
 const APP = { claude: { key: "claude", icon: "icons/claude.svg", tint: false },
   codex: { key: "codex", icon: "icons/codex.svg", tint: true } };
 
-test("the agents' list: installed ones only, a check on the one in use, the plan's word, sign in where told", () => {
-  assert.deepEqual(agentList(MACHINE, APP, "claude"), [
-    { key: "claude", name: "Claude", icon: "icons/claude.svg", tint: false, plan: "Max", check: true, signIn: false },
-    { key: "codex", name: "Codex", icon: "icons/codex.svg", tint: true, plan: null, check: false, signIn: true }]);
-  // an agent the app draws no icon for: none; nothing told yet: no rows
-  const here = MACHINE.map((a) => ({ ...a, installed: true, signed_in: null }));
-  assert.deepEqual(agentList(here, {}, "gemini").map((a) => [a.key, a.icon, a.check, a.signIn]),
-    [["claude", null, false, false], ["codex", null, false, false], ["gemini", null, true, false]]);
-  assert.deepEqual([agentList(null, APP, "claude"), agentList("nonsense", APP, "claude")], [[], []]);
+test("the agents' list in core's words: the installed first, then the others dim under their head, one checked", () => {
+  const here = { group: "Agents on this Mac", dim: false }, mark = { icon: null, tint: false };
+  assert.deepEqual(agentList([MACHINE[2], ...MACHINE.slice(0, 2)], APP, "claude"), [
+    { key: "claude", name: "Claude", icon: "icons/claude.svg", tint: false, ...here, word: "Max", warn: false,
+      check: true },
+    { key: "codex", name: "Codex", icon: "icons/codex.svg", tint: true, ...here, word: "sign in", warn: true,
+      check: false },
+    { key: "gemini", name: "Gemini CLI", ...mark, group: "Not installed", dim: true, word: null, warn: false,
+      check: false }]);
+  // one not installed looked at: the check is its own; nothing told yet, or a record core did not word: no rows
+  assert.deepEqual(agentList(MACHINE, {}, "gemini").map((a) => [a.key, a.icon, a.check]),
+    [["claude", null, false], ["codex", null, false], ["gemini", null, true]]);
+  assert.deepEqual([agentList(null, APP, "claude"), agentList("nonsense", APP, "claude"),
+    agentList([{ key: "claude", name: "Claude" }], APP, "claude")], [[], [], []]);
 });
 
-test("the agents' list never shows an e-mail: a plan's word alone, as core gives it", () => {
-  const leaky = [{ ...MACHINE[0], plan: "dev@lumen.example" }, { ...MACHINE[1], installed: true, plan: 7 }];
-  assert.deepEqual(agentList(leaky, APP, "claude").map((a) => a.plan), [null, null]);
-});
-
-test("Add an agent lists the ones not installed, in core's order", () => {
-  assert.deepEqual(addList(MACHINE, APP), [{ key: "gemini", name: "Gemini CLI", icon: null, tint: false }]);
-  assert.deepEqual(addList(null, APP), []);
+test("the agents' list never shows an e-mail: a word of letters alone beside a name", () => {
+  const word = (/** @type {unknown} */ said) => ({ ...MACHINE[0], listed: { ...MACHINE[0].listed, word: said } });
+  assert.deepEqual(agentList([word("dev@lumen.example"), word(7)], APP, "claude").map((a) => a.word), [null, null]);
 });
 
 test("an agent's record by its key, null while none is told", () => {
@@ -362,49 +380,122 @@ test("the panel shows the agent kept for its space, one core does not read too; 
   }
 });
 
-test("an ask may name the agent to show and open the agents' list", () => {
-  const ask = { space: "s1", section: null, row: null, agent: "codex", list: true, at: 1000 };
-  assert.equal(asked(ask, "s1", null, 1500)?.list, true);
-  assert.equal(asked(ask, "s1", null, 1500)?.agent, "codex");
+test("an ask may name an agent only to look at, as a dim one picked in the list", () => {
+  const ask = { space: "s1", section: null, row: null, look: "gemini", at: 1000 };
+  assert.equal(asked(ask, "s1", null, 1500)?.look, "gemini");
+  assert.equal(asked(ask, "s2", null, 1500), null);                 // another space's
+  assert.equal(asked(ask, "s1", 1000, 1500), null);                 // answered already
 });
 
+/** A window as core words it (usage.py's section()): USED percent at LEVEL, RESETS at a time. @param {string} label
+ * @param {number | null} used @param {string | null} level @param {number | null} [at] */
+const window = (label, used, level, at = null) => ({ label, used, text: used === null ? "–" : `${used}%`, level,
+  resets: at && { at, words: label === "5h" ? "5h resets {time}" : "Week resets {day} {time}" } });
 /** A Usage row as core words it (usage.py's section()), OVER changing it. @param {string} key
  * @param {Record<string, any>} [over] */
-const meter = (key, over = {}) => ({ key, name: key, plan: null, current: false, five: { label: "5h", used: 8,
-  text: "8%", level: "ok" }, week: { label: "wk", used: 3, text: "3%", level: "ok" },
-  tight: { label: "5h", used: 8, text: "8%", level: "ok" }, bar: { used: 8, level: "ok" },
-  resets: { at: 1794581160, words: "5 hour resets at {time}" }, age: null, said: "5 hour 8%, week 3%", ...over });
-const FIRST_METER = meter("claude", { current: true, five: { label: "5h", used: 72, text: "72%", level: "warn" },
-  tight: { label: "5h", used: 72, text: "72%", level: "warn" }, bar: { used: 72, level: "warn" } });
-const OPEN = { claude: true, codex: false };     // core's: the agent in use open, the others folded
+const meter = (key, over = {}) => ({ key, name: key, plan: null, current: false, five: window("5h", 8, "ok", 100),
+  week: window("wk", 3, "ok", 200), tight: window("5h", 8, "ok", 100), reset: null, age: "Read 3 min ago", ...over });
+const FIRST_METER = meter("claude", { name: "Claude", plan: "Max", current: true,
+  five: window("5h", 72, "warn", 100), tight: window("5h", 72, "warn", 100),
+  reset: { at: 100, words: "5h resets {time}" } });
+// core's report's month for Codex on an API key (report.py's month_of()): TODAY of BUDGET, on PACE
+/** @param {number} today @param {number} pace @param {number | null} [budget] */
+const monthOf = (today, pace, budget = 50) => {
+  const over = Boolean(budget) && Math.max(pace, today) > /** @type {number} */ (budget);
+  return { agent: "codex", name: "Codex", label: "November", budget, today, pace, over,
+    level: budget ? (today >= budget ? "bad" : over ? "warn" : "ok") : null,
+    words: { spent: `~$${today.toFixed(2)}`, of: budget ? `of $${budget}` : "", pace: `on pace for ~$${pace}` },
+    pace_line: over ? { text: `on pace for ~$${pace} by November 30`, narrow: `on pace for ~$${pace} by Nov 30` }
+      : null };
+};
+const AGENTS = [{ key: "claude", name: "Claude", plan: "Max" }, { key: "codex", name: "Codex", plan: "API key" }];
+const SECTION = { id: "usage", title: "Usage", none: "Not known yet", rows: [FIRST_METER] };
 
-test("Usage has a row for every agent, none waiting under +N more", () => {
-  const five = [FIRST_METER, ...["codex", "gemini", "amp", "aider"].map((key) => meter(key))];
-  assert.deepEqual(usageRows(five, [], {}).map((r) => r.key), ["claude", "codex", "gemini", "amp", "aider"]);
-  assert.deepEqual(usageRows(null, [], {}), []);                          // not read yet
+test("Usage has a row an agent: core's on a plan, then one on an API key from its month, the one in use first", () => {
+  const rows = usageRows(SECTION, { months: [monthOf(18.4, 46)] }, AGENTS, "claude");
+  assert.deepEqual(rows.map((r) => [r.key, r.name, r.plan, r.current]), [["claude", "Claude", "Max", true],
+    ["codex", "Codex", "API key", false]]);
+  assert.deepEqual([rows[0].month, rows[1].five, rows[1].week, rows[1].tight, rows[1].reset], [null, null, null, null,
+    null]);
+  assert.deepEqual(rows[1].month, { figure: "~$18.40", of: "of $50", level: "ok", used: 18.4 / 50 * 100, pace: null,
+    budget: 50 });
+  const using = usageRows({ ...SECTION, rows: [{ ...FIRST_METER, current: false }] }, { months: [monthOf(18.4, 46)] },
+    AGENTS, "codex");
+  assert.deepEqual(using.map((r) => [r.key, r.current]), [["codex", true], ["claude", false]]);
+  // a plan's agent never twice; nothing read yet: none; an agent not told: its month's own name
+  assert.deepEqual(usageRows({ ...SECTION, rows: [FIRST_METER, meter("codex")] }, { months: [monthOf(1, 2)] },
+    AGENTS, "claude").map((r) => r.key), ["claude", "codex"]);
+  assert.deepEqual(usageRows(null, null, AGENTS, "claude"), []);
+  assert.equal(usageRows(null, { months: [monthOf(1, 2)] }, [], null)[0].name, "Codex");
 });
 
-test("an agent's block is open as turned here till core tells it, else as core keeps it, else the one in use's", () => {
-  assert.deepEqual(["claude", "codex"].map((key) => usageOpen(key, OPEN, {}, "claude")), [true, false]);
-  assert.deepEqual(["claude", "codex"].map((key) => usageOpen(key, OPEN, { codex: true }, "claude")), [true, true]);
-  assert.deepEqual(["claude", "gemini"].map((key) => usageOpen(key, null, {}, "gemini")), [false, true]);
+test("an agent with no reading says so in its row's place, the why in its properties; its month stands instead", () => {
+  const untold = { text: "limits not told", why: "Codex tells its limits in a chat's token counts." };
+  const silent = meter("codex", { current: true, plan: "Plus", five: null, week: null, tight: null, age: null,
+    untold });
+  const [row] = usageRows({ ...SECTION, rows: [silent, { ...FIRST_METER, current: false }] }, null, AGENTS, "codex");
+  assert.deepEqual([row.key, row.untold, usageFigure(row)], ["codex", untold, null]);
+  const shown = usageRow(row, () => "");
+  assert.deepEqual([shown.properties.lines, shown.properties.text], [[["Plan", "Plus", null]], untold.why]);
+  assert.equal(usageRow(usageRows(SECTION, null, AGENTS, "claude")[0], () => "5h resets 14:46").properties.text, null);
+  const keyed = usageRows({ ...SECTION, rows: [silent] }, { months: [monthOf(18.4, 46)] }, AGENTS, "codex");
+  assert.deepEqual(keyed.map((r) => [r.key, r.untold ?? null, r.month?.figure]), [["codex", null, "~$18.40"]]);
 });
 
-test("Usage springs to its rows' height: a row 28, an open one its line of words 16 and its cost lines", () => {
-  assert.deepEqual([USAGE_ROW, USAGE_LINE], [28, 16]);
-  const open = (/** @type {string} */ key) => key === "claude";
-  assert.equal(usageHeight([FIRST_METER, meter("codex")], open), 28 + 16 + 28);
-  assert.equal(usageHeight([FIRST_METER, meter("codex")], () => true), 28 + 16 + 28 + 16);
-  assert.equal(usageHeight([FIRST_METER, meter("codex")], () => false), 28 + 28);              // each one row
-  assert.equal(usageHeight([meter("codex", { resets: null, age: "as of 43 min ago" })], () => true), 28 + 16);
-  assert.equal(usageHeight([{ ...FIRST_METER, resets: null }], open), 28);                    // a reset not told
-  assert.equal(usageHeight([], open), ROW_H);                                                  // "Not known yet"
+test("a line under a row only while there is trouble: a yellow or red window's reset, a pace past the budget", () => {
+  const rows = usageRows({ ...SECTION, rows: [FIRST_METER, meter("gemini")] }, { months: [monthOf(45.1, 58)] },
+    AGENTS, "claude");
+  assert.deepEqual(rows.map(usageLine), [true, false, true]);
+  assert.equal(rows[2].month?.pace?.text, "on pace for ~$58 by November 30");
+  assert.deepEqual([USAGE_LINE, ROW_H], [20, 26]);
+  assert.equal(usageHeight(rows), 26 + 20 + 26 + 26 + 20);
+  assert.equal(usageHeight([]), ROW_H);                                // "Not known yet"
+});
+
+test("a row's figure: a plan's two windows, an API key's month of its budget in its level", () => {
+  const [plan, key] = usageRows(SECTION, { months: [monthOf(45.1, 58)] }, AGENTS, "claude");
+  assert.deepEqual(usageFigure(plan), { label: "5h", figure: "72%", level: "warn", after: "" });
+  assert.deepEqual(usageFigure(key), { label: "", figure: "~$45.10", level: "warn", after: "of $50" });
+  assert.equal(usageFigure({ ...plan, tight: null }), null);                  // neither window known
+  const spent = usageRows(null, { months: [monthOf(51, 60)] }, AGENTS, "codex")[0];
+  assert.equal(usageFigure(spent)?.level, "bad");                              // red once spent
+});
+
+test("a row pressed shows its properties: the plan, both resets, the reading's age, or the budget; Open Usage", () => {
+  const said = (/** @type {{ words: string }} */ resets) => resetWords(resets, "14:46", "Mon");
+  const [plan, key] = usageRows({ ...SECTION, rows: [{ ...FIRST_METER, week: window("wk", 16, "ok", 200) }] },
+    { months: [monthOf(18.4, 46)] }, AGENTS, "claude");
+  const claude = usageRow(plan, said);
+  assert.equal(claude.id, "usage:claude");
+  assert.deepEqual(claude.properties.lines, [["Plan", "Max", null], ["5h", "resets 14:46", null],
+    ["Week", "resets Mon 14:46", null], ["Read", "3 min ago", null]]);
+  assert.deepEqual(doable(claude).map((one) => [one.id, one.label]), [["usage", "Open Usage"]]);
+  assert.deepEqual(usageRow(key, said).properties.lines, [["Plan", "API key", null], ["Budget", "$50", null]]);
+  const none = usageRows(null, { months: [monthOf(18.4, 46, null)] }, AGENTS, "codex")[0];
+  assert.deepEqual(usageRow(none, said).properties.lines.at(-1), ["Budget", "none", null]);
+});
+
+test("Usage's head folded shows the agent in use's figure, another's that is yellow or red and stands worse", () => {
+  const plan = (/** @type {string} */ key, /** @type {number} */ used, /** @type {string} */ level,
+    current = false) => meter(key, { current, tight: window("5h", used, level) });
+  const shown = (/** @type {any[]} */ rows, /** @type {string} */ current) => headline(rows.map((one) => ({ month: null,
+    ...one, current: one.key === current })))?.key ?? null;
+  assert.equal(shown([plan("claude", 40, "ok"), plan("codex", 8, "ok")], "codex"), "codex");
+  assert.equal(shown([plan("claude", 72, "warn"), plan("codex", 8, "ok")], "codex"), "claude");
+  assert.equal(shown([plan("claude", 72, "warn"), plan("codex", 60, "warn")], "codex"), "claude");
+  assert.equal(shown([plan("claude", 60, "warn"), plan("codex", 60, "warn")], "codex"), "codex");   // a tie: in use
+  assert.equal(shown([plan("claude", 91, "bad"), plan("codex", 60, "warn")], "codex"), "claude");
+  const over = usageRows(null, { months: [monthOf(45.1, 58)] }, AGENTS, null)[0];
+  const fine = usageRows(null, { months: [monthOf(18.4, 46)] }, AGENTS, null)[0];
+  assert.equal(shown([plan("claude", 72, "warn"), over], "claude"), "codex");                    // 90% of it
+  assert.equal(shown([plan("claude", 72, "warn"), fine], "claude"), "claude");
+  assert.equal(shown([], "claude"), null);                                                       // nothing known
+  assert.equal(shown([{ ...fine, month: null }], "claude"), null);     // the one in use unknown, the other not yellow
 });
 
 test("a reset's words name this Mac's time, and its day where core asks for it", () => {
-  assert.equal(resetWords({ at: 0, words: "5 hour resets at {time}" }, "2:46 PM", "Mon"), "5 hour resets at 2:46 PM");
-  assert.equal(resetWords({ at: 0, words: "Week resets {day} at {time}" }, "17:00", "Mon"),
-    "Week resets Mon at 17:00");
+  assert.equal(resetWords({ at: 0, words: "5h resets {time}" }, "2:46 PM", "Mon"), "5h resets 2:46 PM");
+  assert.equal(resetWords({ at: 0, words: "Week resets {day} {time}" }, "17:00", "Mon"), "Week resets Mon 17:00");
   assert.equal(resetWords(null, "17:00", "Mon"), "");
 });
 
@@ -434,7 +525,7 @@ test("the agents told to core for Usage: each key, name and plan's word alone, n
   assert.deepEqual(usageAgents(null), []);
 });
 
-// what core says of a sign-in and the add form (agent_setup.py's connecting()), as connectors.html's frames
+// what core says of a sign-in and the add form (agent_layers.py's connecting()), as connectors.html's frames
 const CONNECT = { state: { text: "signing in", tone: "busy" }, words: "Finish in your browser",
   actions: [{ id: "reopen", label: "Open the page again" }, { id: "cancel", label: "Cancel" }],
   needs: { "turn-off": "Start a chat in lumen-api to turn it off",
@@ -468,19 +559,21 @@ test("a sign-in left waiting past ten minutes, or one with no start told, is end
   assert.deepEqual(overdue(list, now), ["t7", "t9"]);
 });
 
-test("a row signing in says so in the accent, and its properties what to do: finish in the browser, or cancel", () => {
-  const box = row("Box", { id: "connector:claude.ai Box", dim: true, state: { text: "sign in", tone: "warn" },
+test("a row signing in says so with the spinner, no mark; its properties what to do: finish in the browser, or cancel",
+  () => {
+  const box = row("Box", { id: "connector:claude.ai Box", dim: true, mark: "warn", state: { text: "sign in",
+    tone: "warn" },
     properties: props("Box", [["From", "claude.ai", "Account"]], [["connect", "Connect"]],
       { state: { text: "sign in", tone: "warn" } }) });
   const made = signingRow(box, CONNECT);
-  assert.deepEqual([made.state, made.dim, made.name, made.tag], [CONNECT.state, false, "Box", box.tag]);
+  assert.deepEqual([made.state, made.dim, made.mark, made.name, made.tag], [CONNECT.state, false, null, "Box",
+    box.tag]);
   assert.deepEqual(made.properties, { title: "Box", state: CONNECT.state, lines: [], text: null, error: null,
     words: "Finish in your browser", actions: [
       { id: "reopen", label: "Open the page again", path: null, server: "claude.ai Box", primary: true },
       { id: "cancel", label: "Cancel", path: null, server: "claude.ai Box", primary: false }] });
   assert.deepEqual(doable(made).map((one) => one.id), ["reopen", "cancel"]);
   assert.equal(box.state.text, "sign in");              // core's row as it was
-  assert.equal(toneOf(made), "busy");
 });
 
 test("the address a sign-in waits on is read off its screen, a long one's wrapped rows put together", () => {
@@ -516,8 +609,8 @@ test("Turn off is typed to the folder's Claude: a chat of the space or one in a 
 
 test("Connect is the one solid button; else the first is raised and the rest plain, as connectors.html's", () => {
   const acts = (/** @type {string[]} */ ...ids) => ids.map((id, n) => actionLook({ id }, n));
-  assert.deepEqual(acts("connect", "turn-off"), ["solid", "plain"]);
-  assert.deepEqual(acts("turn-off", "sign-out"), ["raised", "plain"]);
+  assert.deepEqual(acts("connect", "sign-out"), ["solid", "plain"]);
+  assert.deepEqual(acts("sign-out", "open"), ["raised", "plain"]);
   assert.deepEqual(acts("reopen", "cancel"), ["raised", "plain"]);
   assert.deepEqual(acts("retry", "open"), ["raised", "plain"]);
 });
@@ -571,112 +664,137 @@ test("Claude's own look at a server is shown over the session's word while that 
   assert.deepEqual(checkedOver(null, checked), []);
 });
 
-// usage.html's Áttekintés as core's 7-day report tells it: Claude on a plan, Codex on an API key with a budget
-/** Codex's month as core words it (report.py's month_of()): TODAY of BUDGET on its way to PACE.
- * @param {number} today @param {number} pace @param {number | null} budget */
-const monthOf = (today, pace, budget = 50) => {
-  const over = Boolean(budget) && Math.max(pace, today) > /** @type {number} */ (budget);
-  return { agent: "codex", label: "November", budget, today, pace, over, level: budget ? (over ? "warn" : "ok") : null,
-    words: { spent: `~$${today.toFixed(2)}`, of: budget ? `of $${budget}` : "",
-      pace: `on pace for ~$${Math.round(pace)}` } };
-};
-const CODEX_MONTH = monthOf(18.4, 46);
-const WEEK = { period: { id: "7d" }, summary: [
-  { key: "Claude · Max plan", agent: "claude", value: 130.9, text: "~$130.90", unit: "API value" },
-  { key: "Codex · API key", agent: "codex", value: 8.6, text: "~$8.60", unit: "spent" },
-  { key: "Tokens", value: 1, text: "1" }], months: [CODEX_MONTH] };
+// harness.py's answers as core words them: a plan of FIELDS, OVER changing it; a field; a layer's choice
+/** @param {any[]} fields @param {Record<string, any>} [over] */
+const plan = (fields, over = {}) => ({ fields, saved: "Saved in", layers: [], changes: [], when: null, warns: [],
+  ask: null, submit: null, cancel: "Cancel", remove: null, error: null, edits: [], done: null, undo: "Undo", say: [],
+  now: null, more: null, ...over });
+const HEAD = { name: "Claude", where: "in lumen-api", model: "Opus 5.5", runs: "claude-opus-5-5", effort: "High",
+  starts: 34200, line: "Opus 5.5 · High · starts at 34.2k of 1M", problems: [] };
+const SWITCH = { id: "on", label: "On in lumen-api", kind: "switch", value: true, short: "On here",
+  turn: { on: "Turn on in lumen-api", off: "Turn off in lumen-api" } };
+const SAVED = [["Global", "~/.claude/settings.json"], ["Project", ".claude/settings.json"],
+  ["Local", ".claude/settings.local.json"]].map(([id, path]) => ({ id, label: id, path, chosen: id === "Local" }));
 
-test("under an agent on a plan Usage says this week's API value, never spent", () => {
-  assert.deepEqual(costLines(WEEK).claude, [{ kind: "figure", label: "This week", figure: "~$130.90",
-    unit: "API value", over: false }]);
-  assert.equal(JSON.stringify(costLines(WEEK).claude).includes("spent"), false);
+test("each row opens its own form, as core's interface lists them; a row with none opens none", () => {
+  const ask = (/** @type {string} */ id, over = {}, agent = "claude", name = null) =>
+    formAsk(agent, id, row(id, { id, ...over }), HEAD, name);
+  assert.deepEqual(ask("mode"), { action: "mode" });
+  assert.deepEqual(ask("sandbox"), { action: "sandbox" });
+  assert.deepEqual(ask("sandbox", {}, "codex"), { action: "sandbox" });
+  assert.deepEqual(ask("approval", {}, "codex"), { action: "approval" });
+  assert.deepEqual(formAsk("claude", MODEL, null, HEAD), { action: "model", runs: "claude-opus-5-5" });
+  assert.deepEqual(formAsk("codex", MODEL, null, { ...HEAD, runs: null }), { action: "model" });
+  assert.deepEqual(formAsk("claude", RULE, null, HEAD), { action: "rule" });
+  assert.deepEqual(formAsk("claude", HOOKS, null, HEAD), { action: "hooks" });
+  // a rule's own text may hold colons: the id's first two parts alone are its kind and its behavior
+  assert.deepEqual(ask("permission:allow:Bash(git push:*)", { tag: "Global" }), { action: "rule",
+    was: { rule: "Bash(git push:*)", behavior: "allow", layer: "Global" } });
+  assert.deepEqual(ask("conflict:allow:Bash(git push:*)"), { action: "conflict", behavior: "allow",
+    rule: "Bash(git push:*)" });
+  assert.deepEqual(ask("skill:/home/dev/.claude/skills/release-notes/SKILL.md", { name: "release-notes" }),
+    { action: "skill", name: "release-notes" });
+  assert.deepEqual(ask("subagent:Project:doc-checker", { name: "doc-checker" }), { action: "subagent",
+    name: "doc-checker" });
+  assert.equal(ask("subagent:pr-review:code-reviewer", { name: "code-reviewer" }), null);     // a plugin's
+  assert.equal(ask("subagent:built-in", { names: ["Explore", "Plan"] }), null);       // till one of its names is picked
+  assert.deepEqual(ask("subagent:built-in", { names: ["Explore", "Plan"] }, "claude", "Plan"), { action: "subagent",
+    name: "Plan" });
+  assert.equal(ask("subagent:built-in", { names: ["Explore"] }, "claude", "Other"), null);
+  // a connector's form where core's row can be turned off or on, or waits to be approved
+  const turns = (/** @type {string} */ id) => ({ properties: props("github", [], [[id, "Turn off in lumen-api"]]) });
+  assert.deepEqual(ask("connector:github", { ...turns("turn-off"), tokens: 6800 }), { action: "connector",
+    name: "github", starts: 34200, tokens: 6800 });
+  assert.deepEqual(ask("connector:github", { ...turns("turn-on"), tokens: null }), { action: "connector",
+    name: "github", starts: 34200 });
+  assert.deepEqual(ask("connector:sentry", { state: { text: "not approved", tone: "off" } }).action, "connector");
+  assert.equal(ask("connector:sentry", { state: { text: "failed", tone: "bad" } }), null);
+  // a file's row, a hook's and every Codex row but its two settings: none (Codex has no switch for a folder)
+  for (const id of ["rule:/home/dev/lumen-api/CLAUDE.md", "hook:/home/dev/.claude/settings.json:Stop::notify.sh",
+    "usage:claude"]) assert.equal(ask(id), null);
+  for (const id of ["mode", "permission:allow:git status", "skill:/home/dev/.codex/skills/a/SKILL.md", RULE, HOOKS,
+    "connector:linear"]) assert.equal(formAsk("codex", id, row(id, { id, ...turns("turn-off") }), HEAD), null);
 });
 
-test("under an agent on an API key: the month's spending, its budget's bar, and the pace, in core's words", () => {
-  assert.deepEqual(costLines(WEEK).codex, [
-    { kind: "figure", label: "November", figure: "~$18.40", unit: "", over: false },
-    { kind: "bar", share: 18.4 / 50, over: false },
-    { kind: "words", text: "of $50 · ", pace: "on pace for ~$46", over: false }]);
+test("a control changes what is asked: a value set, an emptied one left out, the form's own kept", () => {
+  const was = { rule: "Bash(curl:*)", behavior: "ask", layer: "Project" };
+  assert.deepEqual(asking({ action: "rule", was }, { layer: "Local" }), { action: "rule", was, layer: "Local" });
+  assert.deepEqual(asking({ action: "rule", was, rule: "Bash(curl -s:*)" }, { rule: "" }), { action: "rule", was });
+  assert.deepEqual(asking({ action: "sandbox", add: "pypi.org" }, { on: false }), { action: "sandbox",
+    add: "pypi.org", on: false });
+  assert.deepEqual(asking({ action: "rule", was, remove: true }, { remove: undefined }), { action: "rule", was });
 });
 
-test("over its budget, or on pace to be, the figure, bar and pace are marked; the bar never past its end", () => {
-  const over = costLines({ ...WEEK, months: [monthOf(45.1, 58)] }).codex;
-  assert.deepEqual(over, [{ kind: "figure", label: "November", figure: "~$45.10", unit: "", over: true },
-    { kind: "bar", share: 45.1 / 50, over: true },
-    { kind: "words", text: "of $50 · ", pace: "on pace for ~$58", over: true }]);
-  const past = costLines({ ...WEEK, months: [monthOf(61, 70)] }).codex;
-  assert.equal(past[1].share, 1);
+test("the layers are offered once a control was touched; a rule's always: its layer is one of its fields", () => {
+  assert.equal(layersShown({ action: "mode" }, false), false);
+  assert.equal(layersShown({ action: "mode" }, true), true);
+  assert.equal(layersShown({ action: "rule" }, false), true);
+  assert.deepEqual([MODEL, RULE, HOOKS, "mode", null].map(rowless), [true, true, true, false, false]);
+  // a sandbox's host goes with its ×, but one an allow rule gives, or the organization
+  assert.deepEqual([{ layer: "Project", rule: null }, { layer: "Global", rule: "WebFetch(domain:pypi.org)" },
+    { layer: "Managed", rule: null }].map(removable), [true, false, false]);
 });
 
-test("with no budget the month has no bar; an agent with nothing used has no line; no report, none", () => {
-  assert.deepEqual(costLines({ ...WEEK, months: [monthOf(18.4, 46, null)] }).codex, [
-    { kind: "figure", label: "November", figure: "~$18.40", unit: "", over: false },
-    { kind: "words", text: "", pace: "on pace for ~$46", over: false }]);
-  assert.deepEqual(costLines({ ...WEEK, summary: [WEEK.summary[2]], months: [] }), {});
-  assert.deepEqual(costLines(null), {});
-  // a model with no price: its tokens are no dollars, so no figure is made up
-  assert.deepEqual(costLines({ ...WEEK, months: [], summary: [{ key: "Codex", agent: "codex", value: null,
-    text: "no price", unit: "API value" }] }), {});
-  // spent this week but nothing yet this month (its first day): the week's, as spent
-  assert.deepEqual(costLines({ ...WEEK, months: [] }).codex, [{ kind: "figure", label: "This week",
-    figure: "~$8.60", unit: "spent", over: false }]);
+test("a switch shows what core's row says till it is touched; a server to approve is asked both ways", () => {
+  const off = row("Notion", { properties: props("Notion", [], [["turn-on", "Turn on in lumen-api"]]) });
+  const on = row("github", { properties: props("github", [], [["turn-off", "Turn off in lumen-api"]]) });
+  assert.equal(switchShown(SWITCH, on, false), true);
+  assert.equal(switchShown(SWITCH, off, false), false);       // off by Claude's own state: the files do not say so
+  assert.equal(switchShown(SWITCH, off, true), true);         // asked on
+  assert.equal(switchShown({ ...SWITCH, value: false }, row("changelog"), false), false);
+  assert.equal(switchShown(SWITCH, null, false), true);       // the Hooks group's: no row
+  assert.equal(approves(row("sentry", { state: { text: "not approved", tone: "off" } })), true);
+  assert.equal(approves(on), false);
+  assert.equal(approves(null), false);
 });
 
-test("an agent with costs and no limits (an API key) has a row of its own: after the meters, first in use", () => {
-  const lines = costLines(WEEK), agents = [{ key: "codex", name: "Codex", plan: "API key" }];
-  const rows = usageRows([FIRST_METER], agents, lines, "claude");
-  assert.deepEqual(rows.map((r) => r.key), ["claude", "codex"]);
-  assert.deepEqual([rows[1].name, rows[1].plan, rows[1].five, rows[1].week, rows[1].bar, rows[1].current],
-    ["Codex", "API key", null, null, null, false]);
-  const using = usageRows([{ ...FIRST_METER, current: false }], agents, lines, "codex");
-  assert.deepEqual(using.map((r) => [r.key, r.current]), [["codex", true], ["claude", false]]);
-  assert.deepEqual(usageRows([FIRST_METER, meter("codex")], agents, lines).map((r) => r.key), ["claude", "codex"]);
-  assert.deepEqual(usageRows(null, agents, {}), []);
-  assert.equal(usageRows([], [], lines)[1].name, "Codex");                  // not told: its own name
+test("Claude's own command alone goes to its chat: a plan that says it and changes no file", () => {
+  assert.equal(sayOnly(plan([SWITCH], { say: ["/mcp enable linear"] })), true);
+  assert.equal(sayOnly(plan([SWITCH], { say: ["/model sonnet"], edits: [{ layer: "Project" }] })), false);
+  assert.equal(sayOnly(plan([SWITCH])), false);
 });
 
-test("Usage is as high as its rows with an open one's cost lines", () => {
-  const lines = costLines(WEEK);
-  assert.deepEqual([COST_LINE, COST_BAR], [20, 8]);
-  assert.deepEqual([costHeight(lines.claude), costHeight(lines.codex), costHeight(undefined)], [20, 20 + 8 + 16, 0]);
-  const rows = usageRows([FIRST_METER], [], lines, "claude");
-  assert.equal(usageHeight(rows, () => true, lines), 28 + 16 + 20 + 28 + 20 + 8 + 16);
-  assert.equal(usageHeight(rows, (key) => key === "claude", lines), 28 + 16 + 20 + 28);
-  assert.equal(usageHeight(rows, () => true), 28 + 16 + 28);
+test("after a save the form opens anew on what was written: a rule on its new row, a removal on none", () => {
+  const was = { rule: "Bash(pytest:*)", behavior: "allow", layer: "Project" }, base = { action: "rule", was };
+  const fields = [{ id: "rule", kind: "text", value: "Bash(python -m pytest:*)" },
+    { id: "behavior", kind: "choice", value: "allow" }];
+  assert.deepEqual(afterSave(base, { ...base, layer: "Local" }, plan(fields, { layers: SAVED })), {
+    chosen: "permission:allow:Bash(python -m pytest:*)",
+    ask: { action: "rule", was: { rule: "Bash(python -m pytest:*)", behavior: "allow", layer: "Local" } } });
+  assert.deepEqual(afterSave({ action: "rule" }, { action: "rule", rule: "WebFetch" }, plan([{ id: "rule",
+    kind: "text", value: "WebFetch" }, { id: "behavior", kind: "choice", value: "ask" }], { layers: SAVED })).chosen,
+  "permission:ask:WebFetch");
+  assert.equal(afterSave(base, { ...base, remove: true }, plan(fields, { layers: SAVED })), null);
+  assert.equal(afterSave({ action: "conflict" }, { action: "conflict", way: "remove" }, plan([])), null);
+  assert.deepEqual(afterSave({ action: "mode" }, { action: "mode", value: "plan" }, plan([])), { chosen: null,
+    ask: { action: "mode" } });
 });
 
-test("a folded agent's figure: an API key's month of its budget in its level, a plan's week's value plainly", () => {
-  assert.deepEqual(costGlance(WEEK), { claude: { figure: "~$130.90", after: "API value", level: null, used: null },
-    codex: { figure: "~$18.40", after: "of $50", level: "ok", used: 18.4 / 50 * 100 } });
-  assert.deepEqual(costGlance({ ...WEEK, months: [monthOf(45.1, 58)] }).codex.level, "warn");    // yellow once over
-  assert.deepEqual(costGlance({ ...WEEK, months: [monthOf(18.4, 46, null)] }).codex,
-    { figure: "~$18.40", after: "", level: null, used: null });                                // no budget: alone
-  assert.deepEqual(costGlance(null), {});
+test("the foot says what was saved in core's words: a removal's line, else the change's first line", () => {
+  assert.deepEqual(footWords(plan([], { done: "Removed Bash(curl:*) from Project" })),
+    { text: "Removed Bash(curl:*) from Project", code: false });
+  assert.deepEqual(footWords(plan([], { changes: [{ path: ".claude/settings.json", lines: [["-", '"model": "opus"'],
+    ["+", '"model": "sonnet"']] }] })), { text: '− "model": "opus"', code: true });
+  assert.deepEqual(footWords(plan([])), { text: "", code: true });
 });
 
-test("an agent's tightest figure: a plan's tighter window, else its cost's; none with neither", () => {
-  const glances = costGlance(WEEK);
-  assert.deepEqual(tightest(FIRST_METER, glances.claude), { label: "5h", figure: "72%", level: "warn", after: "" });
-  assert.deepEqual(tightest({ ...meter("codex"), five: null, week: null, tight: null }, glances.codex),
-    { label: "", figure: "~$18.40", level: "ok", after: "of $50" });
-  assert.equal(tightest({ ...meter("codex"), tight: null }, undefined), null);
-});
+test("core's sentences end as the mockup's: a period added, a question kept; a layer's file by its whole path",
+  () => {
+    assert.equal(sentence("Set by your organization"), "Set by your organization.");
+    assert.equal(sentence("Remove from Project?"), "Remove from Project?");
+    assert.equal(sentence("Done."), "Done.");
+    assert.equal(filePath("~/.claude/settings.json", "/home/dev/lumen-api", "/home/dev"),
+      "/home/dev/.claude/settings.json");
+    assert.equal(filePath(".claude/settings.json", "/home/dev/lumen-api", "/home/dev"),
+      "/home/dev/lumen-api/.claude/settings.json");
+    assert.equal(filePath("/Library/managed-settings.json", "/home/dev/lumen-api", "/home/dev"),
+      "/Library/managed-settings.json");
+  });
 
-test("Usage's head folded shows the agent in use's figure, another's that is yellow or red and stands worse", () => {
-  const glances = costGlance(WEEK);
-  const plan = (/** @type {string} */ key, /** @type {number} */ used, /** @type {string} */ level) => meter(key, {
-    tight: { label: "5h", used, text: `${used}%`, level } });
-  const shown = (/** @type {any[]} */ rows, /** @type {string} */ current, /** @type {any} */ costs = {}) =>
-    headline(rows, costs, current)?.key ?? null;
-  assert.equal(shown([plan("claude", 40, "ok"), plan("codex", 8, "ok")], "codex"), "codex");
-  assert.equal(shown([plan("claude", 72, "warn"), plan("codex", 8, "ok")], "codex"), "claude");
-  assert.equal(shown([plan("claude", 72, "warn"), plan("codex", 60, "warn")], "codex"), "claude");
-  assert.equal(shown([plan("claude", 60, "warn"), plan("codex", 60, "warn")], "codex"), "codex");   // a tie: in use
-  assert.equal(shown([plan("claude", 91, "bad"), plan("codex", 60, "warn")], "codex"), "claude");
-  const key = { ...meter("codex"), five: null, week: null, tight: null };
-  const over = costGlance({ ...WEEK, months: [monthOf(45.1, 58)] });
-  assert.equal(shown([plan("claude", 72, "warn"), key], "claude", over), "codex");                 // 90% of it
-  assert.equal(shown([plan("claude", 72, "warn"), key], "claude", glances), "claude");
-  assert.equal(shown([], "claude"), null);                                                       // nothing known
-  assert.equal(shown([key], "claude"), null);                    // the one in use unknown, the other not yellow
-});
+test("the head's line: its model and effort the model form's way in, the rest words; no model known, no way in",
+  () => {
+    assert.deepEqual(headParts(HEAD), ["Opus 5.5 · High", " · starts at 34.2k of 1M"]);
+    assert.deepEqual(headParts({ ...HEAD, effort: null, line: "Opus 5.5 · starts at 34.2k" }),
+      ["Opus 5.5", " · starts at 34.2k"]);
+    assert.deepEqual(headParts({ ...HEAD, model: null, effort: null, line: "starts at ~9" }), ["", "starts at ~9"]);
+  });

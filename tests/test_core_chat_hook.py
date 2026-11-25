@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import chat  # noqa: E402
 import chat_hook  # noqa: E402
 import statefile  # noqa: E402
+import usage  # noqa: E402
 
 SESSION = "5f0c6d9e-1b2a-4c3d-8e9f-0a1b2c3d4e5f"
 RULE = {"type": "addRules", "rules": [{"toolName": "Bash", "ruleContent": "pytest:*"}], "behavior": "allow",
@@ -191,9 +192,16 @@ class Status(unittest.TestCase):
 
     def test_a_status_without_numbers_keeps_them_empty(self):
         self.assertEqual(chat_hook.write_status({"session_id": SESSION}), "Claude")
-        self.assertEqual(chat.status(SESSION)["limits"], {"five_hour": {"used": None, "resets": None},
-                                                          "week": {"used": None, "resets": None}})
+        self.assertEqual(chat.status(SESSION)["limits"], {"five_hour": None, "week": None})
         self.assertFalse(os.path.exists(os.path.join(self.home, ".local", "state", "herdr-fold", "limits")))
+
+    def test_a_chats_limits_are_the_freshest_any_chat_told(self):
+        # another chat answered later: its 30% stands for the window, where this chat's own last answer said 12%
+        usage.keep("claude", {"five_hour": {"used": 30, "resets": 1794581160}, "week": None}, 1794571200)
+        chat_hook.write_status({"session_id": SESSION, "rate_limits": {
+            "five_hour": {"used_percentage": 12, "resets_at": 1794581160}}})
+        self.assertEqual(chat.status(SESSION)["limits"], {"five_hour": {"used": 30, "resets": 1794581160},
+                                                          "week": None})
 
     def test_the_limits_are_kept_for_usage_too(self):
         data = {"session_id": SESSION, "rate_limits": {"five_hour": {"used_percentage": 12, "resets_at": 1794581160},

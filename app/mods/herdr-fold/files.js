@@ -8,6 +8,7 @@ import { FILEOPS, MEDIA, TREE } from "./helper.js";
 import { changeColor, changeName, fileIcon, fileRows, folderIcon, letter, mediaKind, opener, said } from "./logic.js";
 import { BUTTON, END, fileMark, GAP, icon, iconButton, PAD, small } from "./parts.js";
 import { Menus } from "./menus.js";
+import { newSpace } from "./chat.js";
 import { followFolder } from "./panel.js";
 import { showPreview, shownPreviewTab } from "./preview.js";
 
@@ -48,7 +49,7 @@ export class FilesView {
     this.asking = null;
     /** @type {string | null} what went wrong last */
     this.note = null;
-    this.hidden = shared(HIDDEN) === true;
+    this.hidden = shared(HIDDEN) !== false;         // shown unless turned off
     this.loading = false;
     this.again = false;                           // look asked for again while it ran
     /** @type {string | null} the folder followed on this computer (panel.js's followFolder) */
@@ -112,7 +113,7 @@ export class FilesView {
 
   /** What a right click on ROW offers, as the TUI's menu: a page, a PDF or an image on this Mac opened in the
    * browser (Preview: opener()), the preview tab closed, a new file or folder where it is, a rename, its path, the
-   * Trash; a folder a new workspace in it. @param {{ path: string, dir: boolean }} row */
+   * Trash; a folder a new space in it. @param {{ path: string, dir: boolean }} row */
   items({ path, dir }) {
     const folder = dir ? path : folderOf(path);
     const browsed = !dir && !this.on && mediaKind(path), shown = this.previewTab();
@@ -124,7 +125,7 @@ export class FilesView {
       { label: "Rename", act: (cx) => this.name("rename", path, cx) },
       { label: "Copy Path", act: (cx) => this.copy(path, cx) },
       { label: "Move to Trash", act: (cx) => this.ask(path, cx) },
-      ...(dir ? [{ label: "New Workspace", act: () => this.workspace(path) }] : [])];
+      ...(dir ? [{ label: "New space", act: () => this.workspace(path) }] : [])];
   }
 
   /** A name typed in its row for ACTION: a new file or folder in folder PATH (opened), or PATH renamed.
@@ -206,9 +207,10 @@ export class FilesView {
     });
   }
 
-  /** A new workspace in folder PATH, on its machine, as the TUI's New Workspace makes one. @param {string} path */
+  /** A new space in folder PATH, on its machine, its agent started as the TUI's New space starts one.
+   * @param {string} path */
   workspace(path) {
-    command("space.new", { folder: `${this.root}/${path}`, machine: this.on ?? "" });
+    newSpace({ folder: `${this.root}/${path}`, machine: this.on ?? "" }).catch(() => {});
   }
 
   /** A name being typed or a question asked given up (Esc). */
@@ -238,7 +240,9 @@ export class FilesView {
   /** The view as it is: its toolbar, the tree, what went wrong last. */
   draw(t) {
     return v_flex().id("files").size_full().min_h(0).text_color(t.foreground).text_size(13)
-      .on_key_down((e, cx) => e.key === "escape" && this.drop(cx))
+      .on_key_down((e, cx) => {                  // a name or a question dropped; a float then takes the keys back
+        if (e.key === "escape" && (this.naming || this.asking)) this.drop(cx);
+      })
       .child(this.toolbar(t))
       .child(this.root ? this.tree(t) : div().p(PAD).text_size(12).text_color(t.dim).child("No folder"))
       .when(Boolean(this.note), (e) => e.child(div().px(PAD).pt(PAD / 2).pb(PAD).text_size(11).text_color(t.ansi1)

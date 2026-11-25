@@ -83,9 +83,9 @@
                 "px": 69
               },
               "content": {
-                "mod": "workspace-chrome",
+                "mod": "herdr-fold",
                 "props": {
-                  "footer": true
+                  "part": "footer"
                 }
               }
             }
@@ -103,21 +103,6 @@
                 "px": 42
               },
               "children": [
-                {
-                  "id": "sidebar-trigger",
-                  "type": "block",
-                  "size": {
-                    "px": 40
-                  },
-                  "hidden": true,
-                  "window_drag": true,
-                  "content": {
-                    "mod": "herdr-fold",
-                    "props": {
-                      "part": "trigger"
-                    }
-                  }
-                },
                 {
                   "id": "tabs",
                   "type": "block",
@@ -176,7 +161,6 @@
                   },
                   "min": 76,
                   "max": 900,
-                  "resizable": false,
                   "gap": 8,
                   "children": [
                     {
@@ -304,6 +288,8 @@
                       "id": "panel-rail",
                       "type": "block",
                       "hidden": true,
+                      "background": "chrome",
+                      "radius": 10,
                       "content": {
                         "mod": "herdr-fold",
                         "props": {

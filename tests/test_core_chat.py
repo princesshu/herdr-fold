@@ -14,6 +14,7 @@ from support import PACKAGE, jsonl, set_env
 
 sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import chat  # noqa: E402
+import plan  # noqa: E402
 import statefile  # noqa: E402
 
 BOOKS = "src/lumen/routes/books.py"
@@ -149,19 +150,39 @@ class Steps(Case):
                                       answered("t6", "String not found", error=True)))["steps"]
         self.assertEqual([s["change"] for s in steps if s["kind"] == "result"], [None, None])
 
-    def test_a_skill_a_sub_agent_and_a_todo_list(self):
+    def test_a_skill_and_a_subagent(self):
         steps = chat.steps(self.write(
             call("t7", "Skill", skill="release"),
             call("t8", "Agent", subagent_type="Explore", description="Find the pager", prompt="Where is it?"),
-            call("t9", "Task", subagent_type="general-purpose", description="Read the docs", prompt="Read them"),
-            call("t10", "TodoWrite", todos=[{"content": "Write the test", "status": "completed"},
-                                            {"content": "Make it pass", "status": "in_progress"}])))["steps"]
+            call("t9", "Task", subagent_type="general-purpose", description="Read the docs",
+                 prompt="Read them")))["steps"]
         self.assertEqual(steps[0], {"kind": "skill", "id": "t7", "name": "release", "at": at(1)})
         self.assertEqual(steps[1], {"kind": "agent", "id": "t8", "name": "Explore", "task": "Find the pager",
                                     "at": at(1)})
         self.assertEqual((steps[2]["kind"], steps[2]["name"]), ("agent", "general-purpose"))   # its name before 2.1
-        self.assertEqual(steps[3]["items"], [{"text": "Write the test", "done": True},
-                                             {"text": "Make it pass", "done": False}])
+
+    def test_the_task_list_is_the_chats_own_and_only_its_changes_are_steps(self):
+        answer = chat.steps(self.write(
+            call("k1", "TaskCreate", subject="Keep the page inside 1…pages", description="…", activeForm="Keeping"),
+            answered("k1", "Task #1 created successfully: Keep the page inside 1…pages"),
+            call("k2", "TaskCreate", subject="Add the tests past the end"),
+            answered("k2", "Task #2 created successfully: Add the tests past the end"),
+            call("k3", "TaskUpdate", taskId="1", status="in_progress"), answered("k3", "Updated task #1 status"),
+            call("k4", "TaskList"), answered("k4", "#1 [in_progress] Keep the page"),
+            call("k5", "TaskUpdate", taskId="1", status="completed"), answered("k5", "Updated task #1 status")))
+        calls = [step for step in answer["steps"] if step["kind"] != "result"]
+        self.assertEqual(calls, [{"kind": "tasks", "id": "k1", "added": 1, "at": at(1)},
+                                 {"kind": "tasks", "id": "k2", "added": 1, "at": at(1)},
+                                 {"kind": "task", "id": "k5", "text": "Keep the page inside 1…pages", "at": at(1)}])
+        self.assertEqual((answer["plan"]["count"], [step["state"] for step in answer["plan"]["steps"]]),
+                         ("1 of 2 done", ["done", "next"]))
+
+    def test_an_approved_plan_tells_its_steps_at_its_answer(self):
+        steps = chat.steps(self.write(call("p1", "ExitPlanMode"), answered("p1", "Approved.", toolUseResult={
+            "plan": "1. Keep the page in range\n2. Test it", "isAgent": False,
+            "filePath": "/Users/dev/.claude/plans/calm-red-fox.md"}), READ, READ_OK))["steps"]
+        self.assertEqual([step.get("plan") for step in steps if step["kind"] == "result"], [2, None])
+        self.assertNotIn("plan", steps[3])
 
     def test_a_question_and_a_plan_say_their_first_words(self):
         steps = chat.steps(self.write(
@@ -207,7 +228,8 @@ class Steps(Case):
             said({"type": "text", "text": "Planning."}, requestedModel="claude-opus-5-5[1m]", effort="high")))
         self.assertEqual((answer["model"], answer["effort"], answer["mode"]), ("claude-opus-5-5[1m]", "high", "plan"))
         self.assertEqual(chat.steps(self.path, answer["offset"]),
-                         {"offset": answer["offset"], "steps": [], "model": None, "effort": None, "mode": None})
+                         {"offset": answer["offset"], "steps": [], "model": None, "effort": None, "mode": None,
+                          "plan": None})
 
     def test_helpers_and_meta_lines_are_left_out(self):
         self.assertEqual(self.kinds(
@@ -219,7 +241,7 @@ class Steps(Case):
                     {"type": "text", "text": "Fix it"}])), ["user"])
 
     def test_a_server_that_comes_to_need_a_sign_in_is_a_step(self):
-        """The servers to sign in at the conversation's start are its setup's (the Agent panel's); one added to the
+        """The servers to sign in at the chat's start are its setup's (the Agent panel's); one added to the
         list later is a step, where Claude ran into it."""
         first = needs(["claude.ai Notion"], minute=0)
         answer = chat.steps(self.write(first, USER, ANSWER, needs(["claude.ai Notion", "claude.ai Box"], minute=4)))
@@ -306,7 +328,7 @@ class WrittenAgain(Case):
         self.write(needs(["sentry"], minute=0, uuid=uuid(1)), old)
         again = chat.steps(self.path, newer["offset"])
         self.assertEqual(again, {"offset": os.path.getsize(self.path), "steps": [], "model": None, "effort": None,
-                                 "mode": None})
+                                 "mode": None, "plan": None})
         self.write(needs(["sentry", "claude.ai Box"], minute=6, uuid=uuid(6)))      # the list as it stood: no step
         self.assertEqual(chat.steps(self.path, again["offset"])["steps"], [])
         whole = chat.steps(self.path)
@@ -346,15 +368,35 @@ class Kept(Case):
         self.write(*self.lines)
         texts, offset = self.texts(0)
         self.assertEqual(texts, ["Question 0", "Question 1", "Question 2"])
-        self.assertEqual(statefile.read(self.kept), {"offset": offset, "ids": [uuid(0), uuid(1), uuid(2)]})
+        self.assertEqual(statefile.read(self.kept), {"offset": offset, "ids": [uuid(0), uuid(1), uuid(2)],
+                                                     "plan": plan.new()})
         self.assertEqual(os.stat(self.kept).st_mode & 0o777, 0o600)
         self.write(self.lines[1], prompt("Question 3", uuid=uuid(3)))
-        with mock.patch.object(chat, "ids_before", side_effect=AssertionError("read from the file")):
+        with mock.patch.object(chat, "ids_before", side_effect=AssertionError("read from the file")), \
+                mock.patch.object(plan, "read", side_effect=AssertionError("read from the file")):
             texts, end = self.texts(offset)
         self.assertEqual(texts, ["Question 3"])
-        self.assertEqual(statefile.read(self.kept), {"offset": end, "ids": [uuid(n) for n in range(4)]})
+        self.assertEqual(statefile.read(self.kept), {"offset": end, "ids": [uuid(n) for n in range(4)],
+                                                     "plan": plan.new()})
         with mock.patch.object(statefile, "write", side_effect=AssertionError("written")):
             self.assertEqual(self.texts(end), ([], end))                # nothing new: nothing read, nothing written
+
+    def test_the_list_is_kept_with_the_ids_and_read_from_the_file_when_it_is_not(self):
+        self.write(said({"type": "tool_use", "id": "k1", "name": "TaskCreate",
+                         "input": {"subject": "Keep the page in range"}}, uuid=uuid(1)),
+                   answered("k1", "Task #1 created successfully", uuid=uuid(2)))
+        code, first = cli("steps", SESSION, "0")
+        self.write(said({"type": "tool_use", "id": "k2", "name": "TaskUpdate",
+                         "input": {"taskId": "1", "status": "completed"}}, uuid=uuid(3)))
+        for kept in (True, False):
+            with self.subTest(kept):
+                if not kept:
+                    os.unlink(self.kept)
+                _, answer = cli("steps", SESSION, str(first["offset"]))
+                self.assertEqual((answer["plan"]["count"], [step["kind"] for step in answer["steps"]]),
+                                 ("All 1 done", ["task"]))
+        _, idle = cli("steps", SESSION, str(answer["offset"]))
+        self.assertEqual((idle["steps"], idle["plan"]), ([], answer["plan"]))       # no new line: the list all the same
 
     def test_what_was_kept_for_another_place_is_read_from_the_file(self):
         self.write(*self.lines)
@@ -393,6 +435,20 @@ class CommandLine(Case):
         for bad in (("steps", SESSION, "-1"), ("steps", "../x", "0"), ("steps",)):
             with self.subTest(bad):
                 self.assertEqual(cli(*bad)[0], 2)
+
+    def test_the_approved_plan_is_a_file_in_the_chats_folder(self):
+        set_env(self, HOME=self.home)
+        self.assertEqual(cli("plan", SESSION), (0, {"path": None}))                # Claude has not written it yet
+        self.path = os.path.join(self.home, ".claude", "projects", "-work-lumen-api", f"{SESSION}.jsonl")
+        os.makedirs(os.path.dirname(self.path))
+        self.write(call("p1", "ExitPlanMode"), answered("p1", "Approved.", toolUseResult={
+            "plan": "1. Keep the page in range", "isAgent": False,
+            "filePath": "/Users/dev/.claude/plans/calm-red-fox.md"}))
+        path = cli("plan", SESSION)[1]["path"]
+        self.assertEqual(path, os.path.join(chat.chat_dir(SESSION), "plan.md"))
+        with open(path, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "1. Keep the page in range\n")
+        self.assertEqual(cli("plan", "../x")[0], 2)
 
 
 class Files(unittest.TestCase):

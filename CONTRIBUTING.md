@@ -14,6 +14,13 @@ in a private report, not in an issue: see [Security](SECURITY.md).
 /usr/bin/python3 -m unittest discover -s tests
 ```
 
+The whole run takes over an hour on a Mac, most of it the installer's own tests (`test_install*`, `test_uninstall*`,
+`test_machines_prepare*`). The rest alone, for a change that does not reach the installer:
+
+```bash
+/usr/bin/python3 lab/ci/units.py rest         # every test but the installer's; `installer` for those alone
+```
+
 The Windows scripts' tests need PowerShell 7: put `pwsh` on your `PATH`, or point `PWSH` at it; without it, they are
 skipped. The tests run in temporary folders with stand-ins for herdr, Homebrew, SSH and the clipboard; they never touch
 your own settings.
@@ -21,7 +28,8 @@ your own settings.
 The remote way on a real machine runs in the lab, only when called: `python3 lab/lab.py test` brings up a Linux
 machine in a container (Apple's container tool), runs `lab/tests` on it over SSH and takes it down
 ([the lab's README](lab/README.md)). A clean Mac, Linux on x86_64 and Windows, and the unit tests on a clean Mac,
-are in its workflow on GitHub's runners, started by hand at the end of a larger piece of work: `gh workflow run lab`.
+are in its workflow on GitHub's runners, started by hand before `main` moves or a release: `gh workflow run lab`.
+There the installer's tests run on three runners at once, beside the rest.
 
 ## Writing code
 

@@ -114,9 +114,8 @@ def sets_the_view(root):
             except (OSError, UnicodeDecodeError):
                 pass
     return False
-# the retired Tab Layout among them, from an earlier install: this run takes it off
-herdr_fold_ids = {"herdr-fold", "herdr-fold.sidebar", "herdr-fold.sessions-view", "herdr-fold.workspaces",
-                  "herdr-fold.tab-layout"}
+# FOLD_PLUGIN_IDS: the ids of herdr-fold
+herdr_fold_ids = set(sys.argv[1:])
 valid = re.compile(r"[A-Za-z0-9._:-]+")             # the id characters herdr allows: no line or field break
 for p in plugins:
     pid = str(p.get("plugin_id", ""))
@@ -127,7 +126,7 @@ for p in plugins:
     does += ["agent.view.set"] if not of_herdr_fold and sets_the_view(p.get("plugin_root")) else []
     kind = str((p.get("source") or {}).get("kind") or "local").lower()
     version = str(p.get("version") or "")
-    print("%s|%s|%s|%s" % (pid, version if valid.fullmatch(version) else "", ",".join(does), kind))'
+    print("%s|%s|%s|%s" % (pid, version if valid.fullmatch(version) else "", ",".join(does), kind))' $FOLD_PLUGIN_IDS
 }
 
 # take_over ID FOLDER — one of herdr-fold's installed alone from herdr's marketplace (herdr's own copy): this
@@ -362,8 +361,7 @@ if of_parts tui $parts && [ -f "$herdr_config" ] && ! grep -qxF .config/herdr/co
   else
     section "$(t install.existing_herdr)"
     note "$(t install.existing_config)"
-    theirs=$(printf '%s\n' "$facts" | cut -d'|' -f1 \
-      | grep -vE '^(herdr-fold(\.(sessions-view|workspaces|tab-layout|sidebar))?)?$' \
+    theirs=$(printf '%s\n' "$facts" | cut -d'|' -f1 | grep -vxF -e '' $(printf -- '-e %s ' $FOLD_PLUGIN_IDS) \
       | paste -sd, - | sed 's/,/, /g')
     [ -z "$theirs" ] || note "$(t install.existing_plugins "$theirs")"
     case "${HERDR_FOLD_CONFIG:-}" in
@@ -372,6 +370,9 @@ if of_parts tui $parts && [ -f "$herdr_config" ] && ! grep -qxF .config/herdr/co
     esac
   fi
 fi
+# herdr's toast as Settings left it (the sidebar's Notifications) outlives the package's config.toml, as the theme does
+toast=; [ "$config_mode" != package ] || ! grep -qxF .config/herdr/config.toml "$record" 2>/dev/null \
+  || toast=$(python3 "$DOT/src/herdr_config.py" value "$herdr_config" ui.toast delivery 2>/dev/null)
 : > "$record.new"
 package_files $parts | while IFS='|' read -r src rel; do
   dst="$HOME/$rel"
@@ -400,6 +401,7 @@ package_files $parts | while IFS='|' read -r src rel; do
   if verbose; then ok "$(t install.file_installed "$rel")"; else progress "$rel"; fi
 done
 verbose || ok "$(t install.files_in_place "$(grep -c . "$record.new")")"
+[ -z "$toast" ] || python3 "$DOT/src/herdr_config.py" put "$herdr_config" ui.toast delivery "$toast" >/dev/null 2>&1
 # Where this package is: the TUI's Ctrl+B, Shift+M (add_machine.py) runs its machines.sh
 ! of_parts tui $parts || printf '%s\n' "$DOT" > "$HOME/.config/herdr-fold/setup-folder"
 # Put in place by an earlier install but no longer in the package: delete it, or restore the machine's original. An
@@ -441,7 +443,6 @@ fi
 done
 [ -z "${removed:-}" ] || ok "$(t install.dropped_removed)"
 mv "$record.new" "$record"
-rm -rf "$state"/[0-9]*-[0-9]*          # an earlier version's dated copies of the package's own files: none are kept
 if [ "$config_mode" = add ]; then
   # before the first add, as they were, with the originals; a later run replaces herdr-fold's marked part alone
   kept=; grep -qxF '# >>> herdr-fold >>>' "$herdr_config" || kept="$state/original"
@@ -514,8 +515,8 @@ step "$(t install.step_plugins)"
 # the layout, and through the integration Claude/Codex continue the same chat.
 # The plugins this installer put there (plugins.txt): the uninstaller takes out exactly these
 plugins="$state/plugins.txt"; : > "$plugins.new"
-# an earlier run's take-over stays on the record, but the retired Tab Layout's: it has no way back
-grep '^taken:' "$plugins" 2>/dev/null | grep -vxF taken:herdr-fold.tab-layout >> "$plugins.new"
+# an earlier run's take-over stays on the record
+grep '^taken:' "$plugins" 2>/dev/null >> "$plugins.new"
 linked=() hooked=()                           # said in one line each at the end of the step
 # herdr's own part, with the TUI only: herdr-fold's plugins, then herdr's hooks into Claude and Codex
 if of_parts tui $parts; then
@@ -530,11 +531,11 @@ if of_parts tui $parts; then
   # herdr-fold's plugins: one of someone's own that does the same is named first; with herdr set up already, each is a
   # question — its default the last answer, so one said no to stays unlinked unless you say yes
   doing() {   # doing tab.created|agent.view.set: the ids of the plugins not herdr-fold's that do it
-    printf '%s\n' "$facts" | awk -F'|' -v does="$1" \
-      '$1 !~ /^herdr-fold(\.(sidebar|sessions-view|workspaces|tab-layout))?$/ && index($3, does) { print $1 }'
+    printf '%s\n' "$facts" | awk -F'|' -v does="$1" -v folds=" $FOLD_PLUGIN_IDS " \
+      'index(folds, " " $1 " ") == 0 && index($3, does) { print $1 }'
   }
-  wanted() {   # wanted <id> <question> [<the id it had before>]
-    if grep -qxF -e "declined:$1" -e "declined:${3:-$1}" "$plugins" 2>/dev/null; then   # a no stays
+  wanted() {   # wanted <id> <question>
+    if grep -qxF "declined:$1" "$plugins" 2>/dev/null; then                                # a no stays
       ! updating && ask "$2" n && return 0
     elif [ "$config_mode" = package ] || updating || ask "$2" y; then return 0; fi
     echo "declined:$1" >> "$plugins.new"
@@ -557,29 +558,17 @@ if of_parts tui $parts; then
     herdr plugin unlink herdr-fold.sessions-view >/dev/null 2>&1
     skip "$(t install.plugin_declined herdr-fold.sessions-view)"
   fi
-  # an earlier install's Tab Layout, retired (a new tab's column is the sidebar's now, the rest Workspaces'): off herdr
-  # before Workspaces comes (herdr's marketplace copy uninstalled), its state Workspaces'; one herdr keeps (it is not
-  # running) stays on the record for a later run
-  case $(printf '%s\n' "$facts" | awk -F'|' '$1 == "herdr-fold.tab-layout" { print $4 }') in
-    "") off= ;;
-    github) off="herdr plugin uninstall herdr-fold.tab-layout" ;;
-    *) off="herdr plugin unlink herdr-fold.tab-layout" ;;
-  esac
-  if [ -z "$off" ]; then :
-  elif $off >/dev/null 2>&1; then ok "$(t install.tab_layout_retired)"
-  else warn "$(t install.tab_layout_left "$off")"; echo herdr-fold.tab-layout >> "$plugins.new"; fi
-  retire_tab_layout
-  for other in $(doing tab.created); do warn "$(t install.plugin_like_workspaces "$other")"; done
-  if wanted herdr-fold.workspaces "$(t install.workspaces_ask)" herdr-fold.tab-layout; then
-    take_over herdr-fold.workspaces "$HOME/.config/herdr-fold/plugins/workspaces"
-    if herdr plugin link "$HOME/.config/herdr-fold/plugins/workspaces" >/dev/null 2>&1; then
-      echo herdr-fold.workspaces >> "$plugins.new"
-      linked+=("$(t install.plugin_workspaces)")
+  for other in $(doing tab.created); do warn "$(t install.plugin_like_spaces "$other")"; done
+  if wanted herdr-fold.spaces "$(t install.spaces_ask)"; then
+    take_over herdr-fold.spaces "$HOME/.config/herdr-fold/plugins/spaces"
+    if herdr plugin link "$HOME/.config/herdr-fold/plugins/spaces" >/dev/null 2>&1; then
+      echo herdr-fold.spaces >> "$plugins.new"
+      linked+=("$(t install.plugin_spaces)")
     else
-      warn "$(t install.workspaces_failed)"
+      warn "$(t install.spaces_failed)"
     fi
   else
-    herdr plugin unlink herdr-fold.workspaces >/dev/null 2>&1; skip "$(t install.plugin_declined herdr-fold.workspaces)"
+    herdr plugin unlink herdr-fold.spaces >/dev/null 2>&1; skip "$(t install.plugin_declined herdr-fold.spaces)"
   fi
   # herdr ↔ Claude / Codex: recorded (plugins.txt) when this installer put it there — not there before, or
   # herdr-fold's already
@@ -642,7 +631,7 @@ mv "$plugins.new" "$plugins"
 [ ${#linked[@]} = 0 ] || ok "$(t install.plugins "$(joined "${linked[@]}")")"
 [ ${#hooked[@]} = 0 ] || ok "$(t install.integrations "$(joined "${hooked[@]}")")"
 
-# Tabs left without the right-hand column (e.g. a workspace's first tab) get it now, if herdr is running; the remote
+# Tabs left without the right-hand column (e.g. a space's first tab) get it now, if herdr is running; the remote
 # machines' tabs in step 8
 ! of_parts tui $parts || python3 "$HOME/.config/herdr-fold/restore_panes.py" 2>/dev/null
 

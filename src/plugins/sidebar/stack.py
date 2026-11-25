@@ -4,7 +4,7 @@ the view shown."""
 import os
 
 import statefile
-from dock import FORMER, PANELS
+from dock import PANELS
 from icons import glyphs
 from screen import INSET, MARGIN, Style, centered, truncate, width
 
@@ -60,14 +60,14 @@ def corner(cells):
     return cells - EDGE - ICON_BUTTON
 
 
-def rail_column(cells, left=0):
-    """The column of the rail's icons, « over them, from column LEFT of a pane CELLS wide: its content's very middle."""
-    return centered(left + INSET, max(0, cells - left - 2 * INSET))
+def rail_column(cells):
+    """The column of the rail's icons, « over them, in a pane CELLS wide: its content's very middle."""
+    return centered(INSET, max(0, cells - 2 * INSET))
 
 
-def block(x, cells, left=0):
-    """The cells (first, after the last) of an icon alone's block round column X, inside columns LEFT..CELLS-1."""
-    return max(left + MARGIN, x - ICON_BUTTON // 2), min(cells - MARGIN, x + ICON_BUTTON // 2 + 1)
+def block(x, cells):
+    """The cells (first, after the last) of an icon alone's block round column X, inside columns 0..CELLS-1."""
+    return max(MARGIN, x - ICON_BUTTON // 2), min(cells - MARGIN, x + ICON_BUTTON // 2 + 1)
 
 
 def hover(canvas, lines, first, end):
@@ -107,34 +107,24 @@ def floor(y, top):
     return y - (y - top) % 3 + 2
 
 
-def rail(canvas, top, rows, lit, groups, marks=None, icons=True, left=0, pointed=None, more=False, terminal=None):
-    """The dock folded to its rail in ROWS rows from TOP, from column LEFT on: GROUPS' icons alone as the row's, the
-    tab's TERMINAL's (True: raised, in the accent), then (MORE) the ⋯, each a block with its own half rows; those
-    without room left out from the end but LIT (opened beside it: the accent). The ⋯'s line, or None."""
+def rail(canvas, top, rows, groups, marks=None, icons=True, pointed=None, terminal=None):
+    """The dock folded to its rail in ROWS rows from TOP: GROUPS' icons alone as the row's, then the tab's TERMINAL's
+    (True: raised, in the accent), each a block with its own half rows; those without room left out from the end."""
     marks_ = glyphs(icons)
     items = [(f"icon:{panel}", marks_[PANELS[panel]["glyph"]], panel) for _group, panels in groups for panel in panels]
     items += [("terminal", marks_["terminal"], None)] if terminal is not None else []
-    items += [("panels", "⋯", None)] if more else []
-    shown = items[:rows // 3]
-    chosen = [item for item in items if lit and item[2] == lit]
-    if chosen and chosen[0] not in shown and shown:
-        shown[-1] = chosen[0]
-    x = rail_column(canvas.width, left)
-    first, end = block(x, canvas.width, left)
-    line = None
-    for n, (target, glyph, panel) in enumerate(shown):
+    x = rail_column(canvas.width)
+    first, end = block(x, canvas.width)
+    for n, (target, glyph, panel) in enumerate(items[:rows // 3]):
         y = top + 1 + 3 * n                         # its icon's line, under its own ▄ row, the last one's ▀ before it
-        raised = (panel and panel == lit) or (target == "terminal" and terminal)
-        look = "accent" if raised else "text" if target == pointed else None
-        text, role = (marks or {}).get(panel or target) or ("", None)        # the ⋯'s by its target, as the row's
+        look = "accent" if target == "terminal" and terminal else "text" if target == pointed else None
+        text, role = (marks or {}).get(panel) or ("", None)
         canvas.put(y, x, glyph, Style(fg=look or "subtext"))
         canvas.put(y, x + 2, truncate(text, max(0, end - x - 2)), Style(fg=role))
         if target == pointed:
             hover(canvas, (y,), first, end)
         for row in (y - 1, y + 1, y):
-            canvas.region(row, left, canvas.width, target)
-        line = y if target == "panels" else line
-    return line
+            canvas.region(row, 0, canvas.width, target)
 
 
 def state(state_dir, folder):
@@ -143,16 +133,15 @@ def state(state_dir, folder):
 
 
 def parsed(kept):
-    """state() of a folder's entry KEPT in FILE, an older version's id read as today's; what cannot be read (an older
-    version's groups too) is None."""
+    """state() of a folder's entry KEPT in FILE; what cannot be read is None."""
     shown = kept.get("shown") if isinstance(kept, dict) else None
-    return {"shown": FORMER.get(shown, shown) if isinstance(shown, str) else None}
+    return {"shown": shown if isinstance(shown, str) else None}
 
 
 def keep(state_dir, folder, shown):
     """FOLDER's view SHOWN kept, on what FILE holds then (statefile.update: another sidebar on this folder, a preview
-    tab's, writes it too); every entry rewritten as parsed() reads it, so a folder gone and what an older version kept
-    go on the way. OSError when it cannot be written."""
+    tab's, writes it too); every entry rewritten as parsed() reads it, so a folder gone goes on the way. OSError when
+    it cannot be written."""
     def changed(data):
         kept = {name: parsed(entry) for name, entry in data.items() if os.path.isdir(name)}
         kept[folder] = {"shown": shown}

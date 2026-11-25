@@ -298,11 +298,11 @@ class View(unittest.TestCase):
             self.draw()
             self.click(name, button=2)
             self.draw()
-            return [y for y in range(12) if "New Workspace" in text(self.canvas, y)]
+            return [y for y in range(12) if "New space" in text(self.canvas, y)]
         self.assertEqual(menu_of("src"), [])                     # the sidebar on its own: no folder picker
         self.view.opens_workspace = True
         self.assertTrue(menu_of("src"))
-        self.assertEqual(self.click("New Workspace"), Action("new_workspace", (self.path("src"),)))
+        self.assertEqual(self.click("New space"), Action("new_workspace", (self.path("src"),)))
         self.assertEqual(menu_of("README.md"), [])               # a file is no workspace
 
     def test_the_wheel_scrolls_the_list(self):

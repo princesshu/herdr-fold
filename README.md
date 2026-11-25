@@ -2,9 +2,10 @@
 
 <img src="src/themes/logo.svg" alt="herdr-fold's logo: a white sheep with round eyes" width="120" align="right">
 
-Files, search, git and GitHub issues, AI sessions and chats, AI commit messages and themes for Claude Code and
-Codex in herdr and Ghostty, on a Mac and on Linux, macOS and Windows machines over SSH. One installer sets up all of
-it; the sidebar and AI Sessions also install alone; herdr's desktop app gets it as a mod, alone or beside the TUI.
+AI agents' harnesses in herdr and Ghostty: chats, rules, skills, subagents, permissions, connectors, usage, costs and
+graph for Claude Code and Codex, with files, search, git and GitHub issues, AI commit messages and themes, on a Mac and
+on Linux, macOS and Windows machines over SSH. One installer sets up all of it; the sidebar and AI Sessions also install
+alone; herdr's desktop app gets it as a mod, alone or beside the TUI.
 
 Created by [princesshu](https://github.com/princesshu).
 
@@ -15,37 +16,36 @@ https://github.com/princesshu/herdr-fold/releases/latest)
 https://img.shields.io/badge/clients-TUI%20%28herdr%200.9.5%2B%29%20%C2%B7%20Herdr%20app-cba6f7?labelColor=313244)
 ![License: MIT](https://img.shields.io/badge/license-MIT-45475a?labelColor=313244)
 
-![Three workspaces under Spaces, one saying how long its agent has waited; Claude's report of an issue it fixed,
-above its status line (model, context, limits); the Chats column with each workspace's chats; and on
-the right the sidebar's Changes view with the message Claude wrote and the issue it closes,
-above a terminal](assets/screenshots/hero.webp)
+![Spaces with how long two agents have waited, AI Sessions under them; Claude's report of the issue it fixed, its change
+and its status line (model, context); and on the right the sidebar's Agent view, Usage open with Claude's limits,
+Codex's month against its budget and what each space cost, above a terminal](assets/screenshots/tui-hero.webp)
 
 ## What you get
 
-- One workspace per repo: Claude or Codex on the left; on the right, a sidebar (Chats, Files, Search, Changes
-  (git) and, for a repo on GitHub, Issues) above a terminal. An issue goes to the agent in one key, and the next commit
+- One space per repo: Claude or Codex on the left; on the right, a sidebar (Files, Search, Changes (git), for a
+  repo on GitHub Issues, and Agent) above a terminal. An issue goes to the agent in one key, and the next commit
   closes it; a file the agent names opens at its line in one key too, and a picture or a PDF shows as it looks.
 
-  ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the message
-  Claude wrote, the issue it fixes and the Graph, Issues by priority](assets/screenshots/sidebar.webp)
+  ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with a message,
+  the issue it fixes and the Graph, Issues by priority](assets/screenshots/tui-sidebar.webp)
 
-- Chats over the sidebar, a click or Cmd + Shift + R away: every workspace's Claude and Codex chats, running and
+- Chats over the sidebar, a click or Cmd + Shift + R away: every space's Claude and Codex chats, running and
   closed.
-- The agent's setup, limits, costs and graph in the sidebar's [Agent view](docs/sidebar.md#the-agent-view).
+- The agent's setup, shown and changed, with its limits, costs and graph: [The agent's harness](docs/harness.md).
 - AI Sessions in herdr's sidebar, with each chat's state, and in the Spaces list how long an agent has waited
-  on you. Cmd + D / Cmd + E step through the sessions, Cmd with the arrows through the workspaces and the panes, even
+  on you. Cmd + D / Cmd + E step through the sessions, Cmd with the arrows through the spaces and the panes, even
   while you type.
 - Commit and push in one step, with a message Claude or Codex writes and you approve.
 - Twelve color themes for Ghostty, herdr and the prompt, Ghostty's app icon too: herdr-fold's logo, the sheep, in the
   theme's colors. A status line with the model, effort, context with its window size and limits, the same for Claude
   and Codex.
-- Workspaces on Linux, macOS and Windows machines over SSH; the agents keep running there when the Mac sleeps.
+- Spaces on Linux, macOS and Windows machines over SSH; the agents keep running there when the Mac sleeps.
 - In herdr's desktop app too, as a layout of its own: the chat drawn as a timeline, the Agent panel, the Agents tab
   with the graph and the usage report, the sidebar's views and a terminal, Spaces with the waits; on remote machines
   alike: [The Herdr app](docs/app.md).
 
 ![An issue from the sidebar goes to Claude, which fixes it, and the message it writes closes the
-issue](assets/screenshots/issue-to-agent.webp)
+issue](assets/screenshots/tui-issue-to-agent.webp)
 
 ## Requirements
 
@@ -73,7 +73,7 @@ cd herdr-fold
 Either way it is the same installer with the same questions, the first one the TUI, the Herdr app or both. From the
 folder, you can also double-click `install.command`. On macOS 15 and later, a downloaded copy may need System Settings
 → Privacy & Security → **Open Anyway**. Enter always gives the default answer. When it is done, open Ghostty (herdr
-starts in it; the **new** button under Spaces makes a workspace) or the Herdr app (herdr-fold's layout is there).
+starts in it; the **new** button under Spaces makes a space) or the Herdr app (herdr-fold's layout is there).
 
 The parts, the questions, what each one changes, and the switches: [Installation](docs/installation.md).
 
@@ -81,7 +81,7 @@ The parts, the questions, what each one changes, and the switches: [Installation
 
 - the settings of Ghostty, herdr and starship, and Claude Code's and Codex's status lines;
 - one marked block in `~/.zshrc`, active only inside herdr panes;
-- three herdr plugins of its own (the sidebar with Chats, AI Sessions, Workspaces), and
+- three herdr plugins of its own (the sidebar with Chats, AI Sessions, Spaces), and
   herdr's Claude and Codex integrations;
 - in the Herdr app, herdr-fold's mod, layout, themes and keys.
 
@@ -92,18 +92,18 @@ Your own files are saved first, in `~/.local/state/herdr-fold/`. Your chats are 
 
 | Key | What it does |
 |---|---|
-| Cmd + 1…9 | jump to a workspace |
-| Cmd + ↓ / Cmd + ↑ | next / previous workspace |
+| Cmd + 1…9 | jump to a space |
+| Cmd + ↓ / Cmd + ↑ | next / previous space |
 | Cmd + → / Cmd + ← | next / previous pane: the agent, the sidebar, the terminal |
 | Cmd + T / Cmd + R | next / previous tab |
 | Cmd + D / Cmd + E | next / previous session |
 | Cmd + Shift + U | mark the agent unread, to come back to |
 | Ctrl + B, then w | the Spaces list: W / S move, Enter switches |
-| Ctrl + B, then Shift + N | new workspace |
+| Ctrl + B, then Shift + N | new space |
 | Cmd + Shift + C | commit and push |
 | Cmd + Shift + L | open a file the agent named, at its line |
 | Cmd + Shift + R | find a chat in the sidebar's Chats |
-| Cmd + Shift + E | show / hide the sidebar and terminal |
+| Cmd + Shift + E | show / hide the sidebar and terminal (Cmd + Option + B: the sidebar folded to its icons or open) |
 | Cmd + Shift + O | restore the panels closed in the tab |
 | Cmd + Shift + G / Cmd + Shift + I | the sidebar's Changes / Issues |
 | Cmd + A | select the whole text of the sidebar's field you are in |
@@ -157,12 +157,12 @@ More: [Troubleshooting](docs/troubleshooting.md).
 ## Documentation
 
 - [Installation](docs/installation.md): the questions, what changes, the switches
-- [Using it](docs/usage.md): workspaces, sessions, chats, GitHub issues, commit and push, copying, the status
-  line, restarting
+- [Using it](docs/usage.md): spaces, sessions, chats, issues, commit and push, copying, the status line
+- [The agent's harness](docs/harness.md): the Agent panel, each edit and what it writes, Usage and the graph
 - [Keys](docs/keybindings.md): every key, and remapping
 - [Remote machines](docs/remote-machines.md): Linux, macOS and Windows machines
 - [Themes](docs/themes.md): the twelve themes and the picker
-- [The sidebar](docs/sidebar.md): Files, Search, Changes, Issues and Agent, as herdr-fold uses them
+- [The sidebar](docs/sidebar.md): the TUI's right column, its row of views and its rail
 - [The Herdr app](docs/app.md): herdr-fold's layout for herdr's desktop app, its views, themes and machines; its
   parts in each state: [Styleguide](docs/styleguide.md)
 - [Troubleshooting](docs/troubleshooting.md)

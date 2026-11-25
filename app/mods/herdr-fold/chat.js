@@ -7,25 +7,26 @@ import { randomUUID } from "crypto";
 import { exec, focused, hc, home, knownAgents, notify, panes, playSound, readTextFile, setShared, shared, spaces,
   terminals, theme, window, writeTextFile, run as command } from "herdr";
 import { AGENT_SETUP, AGENT_STATE, CHAT, CHATS, CONNECTORS, COSTS, GIT, REPORT, SEARCH } from "./helper.js";
-import { ICONS } from "./icons.js";
 import { ADAPTERS, agentChoices, AGENTS_OPEN, agentsOpen, atTyped, barFolds, budgetNotice, cardFor, claudeArgv,
-  contextColor, contextLine, contextParts, costBlock, DRAWABLE, effortAt, effortLabel, exportName, kilo, limitNotice,
-  mentionMenu, mentionPick,
-  mentionQuery, menuSkills, modelName, modelOf, modelRows, modeOf, modeRows, nearEffort, newAgent, panelStep,
-  promptText, readableOn, RECENT_AGENTS, rememberAgent, ruleWhere, screenChoices, screenMode, skillCommand, skillOf,
-  slashMenu, slashQuery, SLIDER, switchCommand, switchRefused, terminalTab, uploadPaths, usedSkills, withFiles }
-  from "./agents.js";
+  contextColor, contextLine, contextParts, costBlock, DRAWABLE, effortAt, effortLabel, exportName, limitNotice,
+  mentionMenu, mentionPick, mentionQuery, menuSkills, modelName, modelOf, modelRows, modeOf, modeRows, nearEffort,
+  newAgent, panelStep, promptText, readableOn, RECENT_AGENTS, rememberAgent, screenChoices, screenMode, shellsOnly,
+  skillCommand,
+  skillOf, slashMenu, slashQuery, SLIDER, switchCommand, switchRefused, terminalSpace, terminalTab, uploadPaths,
+  withFiles } from "./agents.js";
 import { Answer } from "./card.js";
 import { groupHead, keepInView, listNote, listWords, Menus, panelList, panelRow, panelSurface, rule }
   from "./menus.js";
-import { checkedOver, chipColors, loginRun, overdue, plusMenu, signIns, switched, toneInk, usageAgents }
+import { checkedOver, chipColors, loginRun, overdue, partColor, plusMenu, signIns, switched, toneInk, usageAgents }
   from "./layers.js";
 import { askChats, openAgentPanel, openAgents } from "./panel.js";
 import { brandMark, BUTTON, fileMark, fold, icon, iconButton, keyCap, ring, savePanel, SAVING, spinner, swatch,
   systemForms, toggle } from "./parts.js";
 import { showPreview } from "./preview.js";
-import { bottomLayout, callWords, CARD_HEAD, clock, connectorRow, RHYTHM as R, setForms, signinRow, stepLayout,
-  timeline, timelineMarkdown, userLayout } from "./timeline.js";
+import { notesOn } from "./settings.js";
+import { tokens } from "./report.js";
+import { bottomLayout, callWords, CARD_HEAD, clock, connectorRow, planStrip, planWords, RHYTHM as R, setForms,
+  signinRow, stepLayout, timeline, timelineMarkdown, userLayout } from "./timeline.js";
 import { CHAT_LABEL, CHAT_TAB, CHAT_WAITS, chatWait, diffRows, fileIcon, folderGroup, folderSpaces, keepWait,
   lastLine, said, waiting } from "./logic.js";
 
@@ -47,6 +48,7 @@ const PLUS = 380;                     // px: the + menu, as connectors.html's
 const ATTACHED = 200;                 // px: an attached file's name on its chip at most
 const LISTED = 5000;                  // files Add context lists at most: its filter finds among them
 const SETTLE = [2000, 6000];          // ms after Claude was told to turn a connector off or on: its setup read again
+const CHAT_FIRST = "herdr-fold.chat-first";  // shared: the spaces met once with Chat, given a chat first or not
 const FEW = 5;                        // the / menu's rows of a part before anything is typed: the rest found by typing
 const PRESS = 400;                    // ms: a press beside the / menu closing it, its button's own (not opened again)
 const CHIP_GAP = 6;                   // px: inside a chip, between its words (the model and its level, `context` and %)
@@ -54,6 +56,7 @@ const LEVEL = 76;                     // px: the effort's name at the slider's r
 const REST = 500;                     // ms the slider's arrows rest before the level they reached is sent
 const ASKED = 10000;                  // ms a model or an effort sent is shown before the agent says it
 const SWITCHES = "herdr-fold.chat-switches";   // each chat's switches on (Ultracode), by its session: none reports it
+const AFTER_SHRINK = 4;               // what a plan's step waits for gives way that much sooner than the step's words
 const ANSWER = 1500;                  // ms after a switch's command before the agent's screen is read for a refusal
 // macOS's file chooser (osascript's): the files attached to a message, ARGV its folder at first; a path a line, ""
 // for none (cancelled)
@@ -85,14 +88,15 @@ const chatName = (prompt) => {
 };
 
 /** @typedef {{ space: string, agent?: string, session?: string, resume?: boolean, prompt?: string, name?: string,
- *   folder?: string | null }} NewChat */
+ *   folder?: string | null, first?: boolean }} NewChat */
 /** A new chat tab in SPACE (its id): AGENT's chat SESSION in FOLDER (the space's by default), a new one with its first
- * PROMPT, sent at once, or the empty chat (no PROMPT: its agent starts with the first message), or one it resumes.
- * @param {NewChat} chat */
+ * PROMPT, sent at once, or the empty chat (no PROMPT: its agent starts with the first message), or one it resumes;
+ * FIRST: the space's first tab. @param {NewChat} chat */
 export function openChat({ space, agent = DRAWABLE[0], session = randomUUID(), resume = false, prompt = "",
-  name = "", folder = null }) {
+  name = "", folder = null, first = false }) {
   command("tab.new", { name: name || chatName(prompt), mod: "herdr-fold",
     props: { part: "chat", space, agent, session, resume, prompt, folder } });
+  if (first) command("tab.move", { index: 1 });            // the new tab, shown: first of its space
 }
 
 /** KEY started by a way in: the latest agent from now on (agents.js's rememberAgent). @param {string} key */
@@ -117,11 +121,15 @@ export async function choiceOf(agent, machine) {
     ?? agentChoices([{ key: agent, name: agent }], DRAWABLE, []).find((c) => c.key === agent);
 }
 
-/** A new agent in SPACE as + and To agent start one (newAgent's, by Settings' Open agents in): a new chat (PROMPT
- * sent at once; none: empty), or the latest agent in a terminal tab, PROMPT its first message, in FOLDER (the space's
- * by default); "chat", or the agent's name. @param {any} space @param {string} [prompt] @param {any} [folder] */
+/** The agent every way in starts in a space on MACHINE (null: this Mac), and how, by Settings' Open agents in: the
+ * one place it is decided (newAgent's). @param {string | null} machine */
+export const nextAgent = (machine) => newAgent(shared(RECENT_AGENTS), agentsOpen(shared(AGENTS_OPEN)), machine);
+
+/** A new agent in SPACE as +, Cmd+N and To agent start one (nextAgent's): a new chat (PROMPT sent at once; none:
+ * empty), or the latest agent in a terminal tab, PROMPT its first message, in FOLDER (the space's by default);
+ * "chat", or the agent's name. @param {any} space @param {string} [prompt] @param {any} [folder] */
 export async function newAgentIn(space, prompt = "", folder = null) {
-  const { agent, as } = newAgent(shared(RECENT_AGENTS), agentsOpen(shared(AGENTS_OPEN)), space.machine);
+  const { agent, as } = nextAgent(space.machine);
   if (as === "chat") {
     openChat({ space: space.id, agent, prompt, folder });
     return "chat";
@@ -129,6 +137,29 @@ export async function newAgentIn(space, prompt = "", folder = null) {
   const choice = await choiceOf(agent, space.machine);
   openTerminal(choice, space, prompt, folder);
   return choice.name;
+}
+
+/** A new space as WHERE makes it (space.new's machine and folder; none: as the app makes one), its agent started as
+ * + starts one (nextAgent's): the agent's own CLI its first tab; a chat, firstChat's as it shows, as for one the app
+ * makes. @param {{ machine?: string, folder?: string }} [where] */
+export async function newSpace(where = {}) {
+  const machine = where.machine ?? spaces().find((s) => s.active)?.machine ?? null;
+  const { agent, as } = nextAgent(machine || null);
+  const choice = as === "terminal" ? await choiceOf(agent, machine || null) : null;
+  command("space.new", choice ? terminalSpace(choice, where) : where);
+  if (choice) usedAgent(choice.key);
+}
+
+/** The space herdr-fold's layout shows, met the first time with Open agents in a chat (nextAgent's: this Mac): an
+ * empty chat its first tab, shown, where it holds shells alone and is not a home (ISHOME, spaces.js's); kept once
+ * (CHAT_FIRST), so a chat closed stays closed. @param {(space: any) => boolean} isHome */
+export function firstChat(isHome) {
+  const space = spaces().find((s) => s.active), kept = shared(CHAT_FIRST);
+  const met = Array.isArray(kept) ? kept : [], { agent, as } = nextAgent(space?.machine ?? null);
+  if (!space || as !== "chat" || met.includes(space.id)) return;
+  const live = new Set(spaces().map((s) => s.id));
+  setShared(CHAT_FIRST, [...met.filter((id) => live.has(id)), space.id]);
+  if (shellsOnly(space, panes()) && !isHome(space)) openChat({ space: space.id, agent, first: true });
 }
 
 export class Chat {
@@ -178,6 +209,10 @@ export class Chat {
     /** @type {any} the status line's numbers (core/chat.py's status); what Claude waits on (Task 7's cards) */
     this.status = null;
     this.pending = null;
+    /** @type {any} its task list (core/plan.py's, null for none): the strip over the prompt, open or folded, its
+     * done steps listed or in one row */
+    this.plan = null;
+    this.planOpen = this.doneOpen = false;
     /** @type {{ model: string | null, effort: string | null, mode: string | null }} as the session file names them */
     this.named = { model: null, effort: null, mode: null };
     /** @type {string | null} the mode asked for, and the shift+tab presses made towards it */
@@ -189,7 +224,7 @@ export class Chat {
     /** @type {any} core's budget notices (report.py notice): an API-key agent's month near or past its budget */
     this.budget = null;
     this.budgetAt = 0;
-    /** @type {any} what this conversation cost (costs.py), read as the Context panel opens; null: not told */
+    /** @type {any} what this chat cost (costs.py), read as the Context panel opens; null: not told */
     this.costs = null;
     /** @type {any} the bounds of the chip pressed, the menu's place */
     this.pressed = null;
@@ -350,7 +385,7 @@ export class Chat {
    * may not be shown) or started with its first PROMPT (the empty chat's: its first message); true when started. A tab
    * DRAWN anew whose session was started before (its agent ended since) resumes it. */
   async start(prompt = String(this.props.prompt ?? ""), drawn = true) {
-    const space = this.space, folder = this.props.folder || space?.folder;
+    const space = this.space, folder = this.props.folder || space?.folder || (space?.machine === null ? home() : "");
     if (!folder) throw new Error("its space has no folder");
     if (space.machine) throw new Error("a chat runs on this Mac for now");
     const kept = terminals().find((t) => t.labels?.[CHAT_LABEL] === this.session && t.state === "live");
@@ -451,7 +486,7 @@ export class Chat {
     cx.notify();
   }
 
-  /** What this conversation cost, read as the Context panel opens (costs.py, by the session's id; the models'
+  /** What this chat cost, read as the Context panel opens (costs.py, by the session's id; the models'
    * colors read on the theme's popover); kept where a read fails. */
   readCosts(cx) {
     if (this.fresh || this.space?.machine) return;
@@ -481,15 +516,20 @@ export class Chat {
   }
 
   /** The empty chat's agent list (its chip's, decisions.html's): the installed agents, the RECENT ones first, one no
-   * adapter draws marked terminal, one to sign in marked so, the one chosen checked; a rule, then Manage agents…,
-   * the Agent panel's list. @param {unknown} [recent] */
+   * adapter draws marked terminal, one to sign in marked so, the one chosen checked; under a rule those core lists
+   * dim (not installed), in its order, each opening the Agent panel at how it installs. @param {unknown} [recent] */
   agentList(recent = shared(RECENT_AGENTS)) {
     const item = (/** @type {import("./agents.js").Choice} */ c) => ({ label: c.name, on: c.key === this.agentKey,
       note: c.signIn ? "sign in" : c.terminal ? "terminal" : undefined, tone: c.signIn ? "warn" : undefined,
       icon: c.icon ? { path: c.icon, tint: c.tint } : undefined, act: (/** @type {any} */ cx) => this.pick(c, cx) });
-    return [...agentChoices(this.known, DRAWABLE, recent, this.machine).map(item), null,
-      { label: "Manage agents…", icon: { path: ICONS.plus, tint: true, dim: true },
-        act: () => openAgentPanel({ list: true }) }];
+    const absent = (Array.isArray(this.machine) ? this.machine : []).filter((a) => a?.listed?.dim === true)
+      .map((/** @type {any} */ a) => {
+        const program = this.known.find((p) => p.key === a.key);
+        return { label: String(a.name ?? a.key), dim: true, act: () => openAgentPanel({ look: a.key }),
+          icon: typeof program?.icon === "string" ? { path: program.icon, tint: Boolean(program.tint) } : undefined };
+      });
+    return [...agentChoices(this.known, DRAWABLE, recent, this.machine).map(item), ...(absent.length ? [null] : []),
+      ...absent];
   }
 
   /** CHOICE picked in the empty chat's list: the chat's agent (its models and efforts its own), or one no adapter
@@ -530,9 +570,11 @@ export class Chat {
       try {
         const got = await this.core(CHAT, ["steps", this.session, String(this.offset)], this.space?.folder ?? "/",
           null);
-        const before = JSON.stringify([this.status, this.pending, this.named, this.waits, this.terminalShown()]);
+        const before = JSON.stringify([this.status, this.pending, this.named, this.waits, this.terminalShown(),
+          this.plan]);
         this.offset = got.offset;
         this.status = got.status;
+        this.plan = got.plan ?? null;
         this.pending = got.pending?.id === this.answered ? null : got.pending;
         const choices = this.pending?.kind === "dialog"           // asked in Claude's own dialog: its choices there
           ? screenChoices((await hc(["read", String(this.address)])).stdout) : undefined;
@@ -551,7 +593,7 @@ export class Chat {
           if (got.steps.some((/** @type {any} */ step) => step.kind === "signin")) this.readSetup(cx);
         }
         if (got.steps.length || before !== JSON.stringify([this.status, this.pending, this.named, this.waits,
-          this.terminalShown()])) cx.notify();
+          this.terminalShown(), this.plan])) cx.notify();
       } catch (e) {
         this.note = said(e);
         cx.notify();
@@ -604,6 +646,7 @@ export class Chat {
   /** A new wait told, as Herdr tells an agent's: the blocked sound, and unless the chat is in front a toast (WHAT it
    * asks, its tab's name) that shows its tab when clicked. @param {string} what */
   alert(what) {
+    if (!notesOn()) return;                       // Settings' An agent waits on you off: no note, no sound
     playSound("blocked");
     if (this.inFront() && window()?.active) return;
     const tab = spaces().flatMap((s) => s.tabs ?? []).find((c) => c.id === this.tab);
@@ -646,7 +689,7 @@ export class Chat {
   /** The mode the chip names and the Modes panel checks: the one in effect, else the launch's (the one picked before
    * the agent started, else the one its settings start it in, else the adapter's first); null for an agent without. */
   modeShown() {
-    const set = this.setup?.default_mode;
+    const set = this.setup?.permissions?.mode;
     return this.mode ?? this.adapter.modes.find((m) => m.id === this.firstMode)
       ?? (typeof set === "string" ? modeOf(this.adapter, set) : null) ?? this.adapter.modes[0] ?? null;
   }
@@ -924,11 +967,13 @@ export class Chat {
   }
 
   /** The level the chip and the slider show: the one dragged or stepped to, else the one sent till the status line
-   * says it, else the status line's, else the session file's, else the launch's. */
+   * says it, else the status line's, else the session file's, else the launch's (the one picked before the agent
+   * started, else the one its settings start it with: the Agent panel's). */
   effortShown() {
-    const said = this.status?.effort ?? this.named.effort;
+    const said = this.status?.effort ?? this.named.effort, set = this.setup?.effort;
     if (this.asked && (this.asked.id === said || Date.now() - this.asked.at > ASKED)) this.asked = null;
-    return this.draft ?? this.asked?.id ?? said ?? this.firstEffort;
+    return this.draft ?? this.asked?.id ?? said ?? this.firstEffort
+      ?? (this.adapter.efforts.some((e) => e.id === set) ? set : null);
   }
 
   /** LEVEL sent to the agent, unless it is in effect already; the slider then shows it till the status line says it.
@@ -952,15 +997,16 @@ export class Chat {
     });
   }
 
-  /** The model the chip names and the panel checks, { id, label } (id null: one the adapter does not list, named as
-   * the agent names it): the one picked till the agent names another (ASKED ms at most), else the agent's, else the
-   * launch's (the one picked before it started, else the adapter's first, the agent's own default). */
+  /** The model the chip names and the panel checks, { id, label } (id null: one the adapter does not list): the one
+   * picked till the agent names another (ASKED ms at most), else the agent's, else the launch's (the one picked
+   * before it started, else the one its settings name, the Agent panel's, else the adapter's first, its default). */
   modelShown() {
     const said = this.status?.model ?? this.named.model ?? null;
     const row = modelOf(this.adapter, this.status?.model) ?? modelOf(this.adapter, this.named.model);
     const asked = this.modelAsked;
     if (asked && (asked.from !== said || Date.now() - asked.at > ASKED)) this.modelAsked = null;
-    const id = this.modelAsked?.id ?? (said ? row?.id : this.firstModel ?? this.adapter.models[0]?.id);
+    const id = this.modelAsked?.id ?? (said ? row?.id : this.firstModel ?? modelOf(this.adapter, this.setup?.model)?.id
+      ?? this.adapter.models[0]?.id);
     const listed = this.adapter.models.find((m) => m.id === id);
     if (listed) return { id: listed.id, label: listed.label };
     return said ? { id: null, label: this.status?.model ?? modelName(String(said)) } : null;
@@ -1094,7 +1140,7 @@ export class Chat {
       this.showPanel(null, cx);
       return openAgentPanel({ agent: this.agentKey });
     }
-    if (row.kind === "usage") {                   // the Agents tab's Usage, this conversation's row marked
+    if (row.kind === "usage") {                   // the Agents tab's Usage, this chat's row marked
       this.showPanel(null, cx);
       return openAgents({ view: "usage", session: this.session });
     }
@@ -1250,20 +1296,21 @@ export class Chat {
     return panelRow(t, this, n, true).cursor_pointer().on_click((_e, cx) => this.act(rows[n], cx));
   }
 
-  /** What the / menu offers, in center-chat.html's parts: This conversation (Export the conversation…, once there is
-   * one), the skills (those the chat used first; a skill as the agent takes it, for its words), the agent's own
-   * commands. @returns {import("./agents.js").SlashItem[]} */
+  /** What the / menu offers, in center-chat.html's parts: This chat (Export the chat…, once there is one), the skills
+   * (those the chat used first; a skill as the agent takes it, for its words; Lucide's scroll-text among the other
+   * kinds), the agent's own commands. @returns {import("./agents.js").SlashItem[]} */
   slashItems() {
     /** @type {import("./agents.js").SlashItem[]} */
     const items = [];
     if (this.rows.length) {
-      items.push({ part: "This conversation", name: "Export the conversation…", typed: null, line: "", tag: null,
+      items.push({ part: "This chat", name: "Export the chat…", typed: null, line: "", tag: null,
         icon: "download", row: { kind: "export" } });
     }
-    for (const skill of this.adapter.skill ? menuSkills(this.adapter, this.rows, this.setup?.skills ?? []) : []) {
+    const skills = (this.setup?.skills ?? []).filter((/** @type {any} */ one) => !one?.off);     // on in this folder
+    for (const skill of this.adapter.skill ? menuSkills(this.adapter, this.rows, skills) : []) {
       const typed = String(skillCommand(this.adapter, skill));
       items.push({ part: "Skills", name: skill.name, typed, line: skill.description, tag: skill.source,
-        icon: "sparkle", row: { kind: "command", text: typed, words: true } });
+        icon: "scroll-text", row: { kind: "command", text: typed, words: true } });
     }
     for (const c of this.adapter.commands) {
       items.push({ part: `${this.adapter.name}'s commands`, name: c.name, typed: c.name, line: c.description,
@@ -1318,7 +1365,7 @@ export class Chat {
 
   /** The + menu (connectors.html's), upward from the +: Upload from computer… and Add context… with their keys (an
    * agent that takes files), a rule, then Connectors (one a chat switches them of): the failed and sign-in ones on
-   * pills, Manage › (the Agent panel's Connectors), each one on or off in this folder with its logo and switch. */
+   * pills, Manage (the Agent panel's Connectors), each one on or off in this folder with its logo and switch. */
   plusPanel(t) {
     const files = Boolean(this.adapter.files), ground = t.popover ?? t.raised;
     /** @type {import("./agents.js").PanelRow[]} */
@@ -1346,7 +1393,7 @@ export class Chat {
       .child(div().id(`panel-${manage}`).h(24).flex_none().px(R.gap).flex().items_center().rounded(6).text_size(12)
         .text_color(linkInk(t)).cursor_pointer().when(this.cursor === manage, (e) => e.bg(t.hover))
         .on_mouse_move((_e, cx) => void (this.cursor !== manage && ((this.cursor = manage), cx.notify())))
-        .on_click((_e, cx) => this.act(rows[manage], cx)).child("Manage ›")));
+        .on_click((_e, cx) => this.act(rows[manage], cx)).child("Manage")));
     for (const one of menu.rows) {
       const next = /** @type {const} */ ({ kind: "connector", name: one.name, on: one.on });
       drawn.push(row(next).child(brandMark(t, one.brand, one.label))
@@ -1364,7 +1411,7 @@ export class Chat {
     return this.surface(t, PLUS, rows, drawn);
   }
 
-  /** The / menu (center-chat.html's), over the prompt: This conversation, the skills, the agent's commands, a few of
+  /** The / menu (center-chat.html's), over the prompt: This chat, the skills, the agent's commands, a few of
    * each and how many more; typed after "/", what it finds, the best first, lit (a press or Enter acts on it). Null
    * while nothing is shown. */
   commandsPanel(t) {
@@ -1387,7 +1434,7 @@ export class Chat {
       false);
   }
 
-  /** The conversation as Markdown (core/chats.py's, Copy chat's), saved where macOS's save panel says, named after
+  /** The chat as Markdown (core/chats.py's, Copy chat's), saved where macOS's save panel says, named after
    * it in the chat's folder at first (a file there replaced as the panel asks); a failure said in a notice. */
   exportChat(cx) {
     const folder = String(this.props.folder || this.space?.folder || home());
@@ -1395,54 +1442,21 @@ export class Chat {
       try {
         const { markdown } = await this.core(CHATS, ["markdown", this.agentKey, this.session], folder, null);
         if (typeof markdown !== "string") throw new Error("its file is gone");
-        const path = await savePanel("Export the conversation", exportName(markdown), folder);
+        const path = await savePanel("Export the chat", exportName(markdown), folder);
         if (path) await writeTextFile(path, markdown, await readTextFile(path));
       } catch (e) {
-        notify({ title: "Couldn't export the conversation", body: said(e), level: "error" });
+        notify({ title: "Couldn't export the chat", body: said(e), level: "error" });
       }
     });
   }
 
-  /** The Context panel (center-chat.html's), upward from the context meter: the use in numbers, a bar of what fills
-   * it with its legend, the rules in effect and the skills used (a press opens one's file in the preview tab); under
-   * a hairline Compact and Show all in Agent (the dock's panel); a setup not read yet, or not readable, said. */
+  /** The Context panel (center-chat.html's, usage.html's), upward from the context meter: the use in numbers, a bar
+   * of what fills it with its legend (each part in the Agent panel's colors), what this chat cost; under a hairline
+   * Compact and Show all in Agent (the dock's panel, where the rules, skills and connectors are listed). */
   contextPanel(t) {
-    const setup = this.setup, folder = String(this.props.folder || this.space?.folder || "");
-    const parts = contextParts(this.status, setup), named = parts.filter((p) => p.label);
-    const tone = { rules: t.accent, skills: t.ansi6, rest: t.muted, used: t.muted };
+    const parts = contextParts(this.status, this.setup), named = parts.filter((p) => p.label);
     /** @type {import("./agents.js").PanelRow[]} */
     const rows = [];
-    /** @type {any[]} */
-    const items = [], places = [];
-    const row = (/** @type {import("./agents.js").PanelRow} */ next) => {
-      places.push(items.length);
-      return this.listRow(t, rows.push(next) - 1, rows);
-    };
-    const name = (/** @type {string} */ path) => path.slice(path.lastIndexOf("/") + 1);
-    if (this.adapter.setup && !setup) {
-      items.push(listNote(t, this.setupError ? `Couldn't read the rules and skills: ${this.setupError}`
-        : "Reading the rules and skills…", Boolean(this.setupError)).pl(R.inset).pt(R.gap));
-    } else if (setup) {
-      const rules = /** @type {any[]} */ (setup.rules ?? []), skills = /** @type {any[]} */ (setup.skills ?? []);
-      items.push(groupHead(t, "Rules"));
-      if (!rules.length) items.push(listNote(t, "None"));
-      for (const r of rules) {
-        items.push(row({ kind: "file", path: r.path })
-          .children(listWords(t, "file", name(r.path), ruleWhere(r, folder, home()), r.scope)));
-      }
-      const used = usedSkills(this.adapter, this.rows, skills), more = skills.length - used.filter((u) => u.skill.known)
-        .length;
-      items.push(groupHead(t, "Skills"));
-      used.forEach(({ skill, at }, k) => {          // a skill with no file here: the row as it is, nothing to open
-        const words = listWords(t, "sparkle", skill.name, at ? `used ${clock(at)}` : "used", skill.source);
-        items.push((skill.path ? row({ kind: "file", path: skill.path }) : panelRow(t, this, `used-${k}`, false))
-          .children(words));
-      });
-      if (!used.length) {
-        items.push(listNote(t, skills.length ? `${skills.length} available` : "None"));
-      }
-      else if (more > 0) items.push(listNote(t, `${more} more available`));
-    }
     const cost = costBlock(this.costs), usage = cost ? rows.push({ kind: "usage" }) - 1 : -1;
     const compact = this.adapter.compact, n = compact ? rows.push({ kind: "command", text: compact, words: false }) - 1
       : -1;
@@ -1458,13 +1472,13 @@ export class Chat {
         .child(div().flex_none().text_size(12).text_color(t.foreground)
           .child(this.status ? contextLine(this.status) : "")),
       h_flex().h(8).flex_none().mx(R.inset).gap(2).rounded(4).bg(t.canvas).overflow_hidden()
-        .children(parts.filter((p) => p.share > 0).map((p) => div().h_full().flex_none().min_w(2)
-          .w(`${Math.min(100, p.share * 100)}%`).bg(tone[p.key]))),
+        .children(parts.filter((p) => p.share > 0).map((p, n, shown) => div().h_full().flex_none().min_w(2)
+          .when(n === 0, (e) => e.rounded_l(4)).when(n === shown.length - 1, (e) => e.rounded_r(4))
+          .w(`${Math.min(100, p.share * 100)}%`).bg(partColor(t, p.key)))),
       ...(named.length ? [h_flex().flex_none().flex_wrap().px(R.inset).pt(R.gap).pb(R.pad).gap_x(R.inset)
         .gap_y(R.pad).text_size(12).text_color(t.muted).children(named.map((p) => h_flex().flex_none().gap(6)
-          .items_center().child(div().size(8).flex_none().rounded_xs().bg(tone[p.key]))
-          .child(`${p.label} ${kilo(p.tokens)}`)))] : []),
-      ...(items.length ? [panelList(this, `${this.open ?? "panel"}-list`, items, places)] : []),
+          .items_center().child(swatch(partColor(t, p.key))).child(`${p.label} ${tokens(Math.round(p.tokens))}`)))]
+        : []),
       ...(cost ? [this.costBlock(t, cost, usage)] : []),
       // under a hairline: Compact, its edge with the rows' and its word over their icons; the link at the end, in the
       // accent as words read it on the hover's fill, its end with the tags'
@@ -1473,31 +1487,31 @@ export class Chat {
         .when(Boolean(compact), (e) => e.child(foot(n).bg(this.cursor === n ? t.hover : t.raised).child("Compact")))
         .child(div().flex_1())
         .when(all >= 0, (e) => e.child(foot(all).when(this.cursor === all, (e) => e.bg(t.hover))
-          .text_color(linkInk(t)).child("Show all in Agent ›")))] : []),
+          .text_color(linkInk(t)).child("Show all in Agent")))] : []),
     ]);
   }
 
-  /** The Context panel's cost block (usage.html's .ctxcost) under a hairline: This conversation's figure 15 semibold
-   * with core's word, a row a model (square, name, figure), the tokens' line and Usage › (the panel's row AT).
+  /** The Context panel's cost block (usage.html's .ctxcost) under a hairline: This chat's figure 15 semibold with
+   * core's word, a row a model (square, name, figure), the tokens' line and Usage (the panel's row AT).
    * @param {NonNullable<ReturnType<typeof costBlock>>} cost @param {number} at */
   costBlock(t, cost, at) {
     const line = (/** @type {any} */ name, /** @type {any} */ figure, /** @type {string} */ unit) => h_flex().h(20)
       .flex_none().px(R.inset).gap(R.gap).items_center().child(h_flex().flex_1().min_w(0).gap(6).items_center()
         .children([name].flat()))
-      .child(figure).child(div().w(UNIT).flex_none().truncate().text_color(t.dim).child(unit));
+      .child(figure).child(div().w(UNIT).flex_none().truncate().text_color(t.muted).child(unit));
     return v_flex().flex_none().mt(R.pad).pt(R.gap).border_t_1().border_color(t.border).text_size(12)
       .text_color(t.muted)
-      .child(line(div().text_color(t.dim).child(cost.label), div().flex_none().text_size(15).font_semibold()
+      .child(line(div().child(cost.label), div().flex_none().text_size(15).font_semibold()
         .text_color(t.foreground).child(cost.figure), cost.unit).h(24))
       .children(cost.rows.map((row) => line([swatch(row.color), div().min_w(0).truncate().child(row.name)],
-        div().flex_none().font_medium().text_color(/\d/.test(row.figure) ? t.foreground : t.dim).child(row.figure),
+        div().flex_none().font_medium().text_color(/\d/.test(row.figure) ? t.foreground : t.muted).child(row.figure),
         "")))
-      .child(h_flex().h(BUTTON).flex_none().mt(2).pl(R.inset).items_center().text_color(t.dim)
+      .child(h_flex().h(BUTTON).flex_none().mt(2).pl(R.inset).items_center()
         .child(div().flex_1().min_w(0).truncate().child(cost.line))
         .child(div().id(`panel-${at}`).h(BUTTON).px(R.inset).flex().items_center().rounded(6)
           .cursor_pointer().text_color(linkInk(t)).when(this.cursor === at, (e) => e.bg(t.hover))
           .on_mouse_move((_e, cx) => void (this.cursor !== at && ((this.cursor = at), cx.notify())))
-          .on_click((_e, cx) => this.act({ kind: "usage" }, cx)).child("Usage ›")));
+          .on_click((_e, cx) => this.act({ kind: "usage" }, cx)).child("Usage")));
   }
 
   /** A row's key, its place in the timeline (rows only ever come after it). @param {number} index */
@@ -1572,7 +1586,7 @@ export class Chat {
   }
 
   /** Under the timeline, as wide as its column: a usage limit near its end and a budget near or past its own (each
-   * closed by its ×), then what Claude waits on in the prompt's place, else the prompt and its bar. */
+   * closed by its ×), the plan strip, then what Claude waits on in the prompt's place, else the prompt and its bar. */
   bottom(t, code) {
     const limit = limitNotice(this.status, this.dismissed), budget = budgetNotice(this.budget, this.dismissed);
     const place = bottomLayout(this.carded());
@@ -1591,8 +1605,59 @@ export class Chat {
         })))
         .when(Boolean(budget), (e) => e.child(notice("budget-close", budget?.text ?? "",
           (cx) => budget && this.closeBudget(budget.key, cx))))
+        .when(Boolean(this.plan), (e) => e.child(this.strip(t)))
         .child(this.answer?.card ? this.answer.render(t, code) : this.waits === "terminal" ? this.wayOut(t)
           : this.prompt(t)));
+  }
+
+  /** The plan strip, the task list's one home: folded a line (the step at work, how many are done), pressed it opens
+   * upward: the done steps one row (pressed: listed, faint), the rest in order, what a step waits for at its end, the
+   * approved plan's link in its head. Folded while a card waits. */
+  strip(t) {
+    const open = this.planOpen && !this.carded(), strip = planStrip(this.plan, open, this.doneOpen);
+    if (!strip) return div();
+    const mark = (/** @type {string | null} */ state) => div().w(14).flex_none().flex().justify_center()
+      .child(state === "now" ? spinner(t) : state === "done" || state === "fold" ? icon("check", 12).text_color(t.done)
+        : div().size(10).rounded_full().border(1).border_color(t.dim));
+    const head = h_flex().id("plan-head").h(34).pl(R.inset).pr(R.gap).gap(R.gap).items_center().cursor_pointer()
+      .on_click((_e, cx) => {
+        this.planOpen = !open;
+        cx.notify();
+      })
+      .when(strip.head.state !== null, (e) => e.child(mark(strip.head.state)))
+      .child(div().flex_1().min_w(0).truncate().child(strip.head.text))
+      .when(Boolean(strip.head.count), (e) => e.child(div().flex_none().text_size(12).text_color(t.muted)
+        .child(strip.head.count)))
+      .when(open && this.plan.plan !== null, (e) => e.child(this.planLink(t, "plan-open")))
+      .child(icon(open ? "chevron-down" : "chevron-up", 12).text_color(t.dim));
+    const row = (/** @type {{ kind: string, text: string, after: string | null }} */ one, /** @type {number} */ n) =>
+      h_flex().id(`plan-${n}`).h(26).px(R.inset).gap(R.gap).items_center()
+        .text_color(one.kind === "done" || one.kind === "fold" ? t.muted : t.foreground).child(mark(one.kind))
+        .child(div().min_w(0).truncate().child(one.text))
+        .when(one.kind === "fold", (e) => e.cursor_pointer().child(fold("plan-done", this.doneOpen, 12, t.dim))
+          .on_click((_e, cx) => {
+            this.doneOpen = !this.doneOpen;
+            cx.notify();
+          }))
+        .when(Boolean(one.after), (e) => e.child(div().flex_1()).child(div().min_w(0).flex_shrink(AFTER_SHRINK)
+          .truncate().text_size(12).text_color(t.dim).child(String(one.after))));
+    return v_flex().id("plan").w_full().rounded(10).border(1).border_color(t.border).bg(t.chrome).text_size(13)
+      .child(head)
+      .when(open, (e) => e.child(v_flex().pt(R.pad).pb(R.pad).border_t(1).border_color(t.border)
+        .children(strip.rows.map(row))));
+  }
+
+  /** Open the plan: the approved plan as a document in the preview tab, from the strip's head and its step. */
+  planLink(t, id) {
+    return div().id(id).flex_none().text_size(12).text_color(linkInk(t)).cursor_pointer().child("Open the plan")
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())      // not its row's press, nor the strip's head's
+      .on_click((_e, cx) => {
+        cx.spawn(async () => {
+          const { path } = await this.core(CHAT, ["plan", this.session], this.space?.folder ?? "/", null);
+          const cut = String(path ?? "").lastIndexOf("/");
+          if (path) showPreview({ kind: "file", root: path.slice(0, cut), path: path.slice(cut + 1), on: null });
+        });
+      });
   }
 
   /** The way out, in the prompt's place while the agent asks in its own terminal: a card's head saying so, its
@@ -1648,7 +1713,7 @@ export class Chat {
         .on_mouse_down_out((/** @type {any} */ _e, /** @type {any} */ cx) => this.shutMenu(false, cx))));
   }
 
-  /** The clock: this folder's conversations, in the dock's Chats list (their one home), its group open and scrolled
+  /** The clock: this folder's chats, in the dock's Chats list (their one home), its group open and scrolled
    * to: the space's, else the folder's own, as the list names it. */
   history() {
     askChats({ space: folderGroup(this.folder(), folderSpaces(spaces(), panes())) ?? this.space?.name ?? null });
@@ -1671,7 +1736,7 @@ export class Chat {
   }
 
   /** The prompt's bar: the + (its menu), the commands (the / menu), Claude's terminal, the context meter (the Context
-   * panel), the clock (this folder's conversations), the model chip with its effort (its panel), the mode (the Modes
+   * panel), the clock (this folder's chats), the model chip with its effort (its panel), the mode (the Modes
    * panel), send or stop; never wider than the prompt (fit's). */
   bar(t) {
     const context = this.status?.context, mode = this.modeShown(), working = this.agent?.status === "working";
@@ -1699,7 +1764,7 @@ export class Chat {
         }, { size: 16, color: shown ? t.accent : t.muted })))
       .when(typeof context === "number", (e) => e.child(this.panelChip(t, "context", this.meter(t, Number(context)),
         false)))
-      .child(iconButton(t, "chat-history", "clock", "This folder's conversations", () => this.history(),
+      .child(iconButton(t, "chat-history", "clock", "This folder's chats", () => this.history(),
         { size: 16 }));
     return h_flex().px(R.gap).pb(R.gap).pt(R.pad).gap(R.pad).items_center().child(tools)
       .child(div().id("bar-room").flex_1().on_size_change((size, cx) => this.fit({ spare: size.width }, cx)))
@@ -1824,13 +1889,14 @@ export class Chat {
     return row.ok === null && this.agent?.status === "blocked";
   }
 
-  /** The row's dot on the timeline's line, on the middle of its first line (stepLayout's): done green, failed red,
-   * running the accent, waiting on the person yellow and hesitating, else gray; a sign-in's step as it stands. */
+  /** The row's dot on the timeline's line, on the middle of its first line (stepLayout's): done green (a task added
+   * or done is), failed red, running the accent, waiting on the person yellow and hesitating, else gray; a sign-in's
+   * step as it stands. */
   dot(t, row, step = stepLayout(row.kind)) {
     const signin = row.kind === "signin" ? this.signin(row).state : null;
     const running = this.running(row) || signin === "busy", waiting = this.waiting(row) || signin === "ask";
-    const color = row.ok === true || signin === "done" ? t.done : row.ok === false ? t.ansi1 : waiting ? t.ansi3
-      : running ? t.accent : t.dim;
+    const done = row.ok === true || signin === "done" || row.kind === "tasks" || row.kind === "task";
+    const color = done ? t.done : row.ok === false ? t.ansi1 : waiting ? t.ansi3 : running ? t.accent : t.dim;
     const disc = () => div().absolute().top(step.dotTop).left(0.5).size(step.dot).rounded_full();   // on the line
     return div().w(10).flex_none().self_stretch().relative()                 // the line through the whole row
       .child(div().absolute().top_0().bottom_0().left(4).w(1).bg(t.border))
@@ -1841,12 +1907,12 @@ export class Chat {
   /** Whether row INDEX has more to show than its line: a change, an output. */
   opens(index) {
     const row = this.rows[index];
-    return Boolean(row.change || (row.output && ["tool", "agent"].includes(row.kind)));
+    return typeof row.plan !== "number" && Boolean(row.change || (row.output && ["tool", "agent"].includes(row.kind)));
   }
 
   /** What a step says, its first line stepLayout's line high (its dot on its middle): a thought dim, a call's name
-   * bold with its main argument (a skill's source, a connector's logo, tool and first words) and a chevron when it
-   * has more, a sign-in with Connect, the agent's text as markdown (headings bold, its time at the first line's end) */
+   * bold with its main argument (a skill's source, a connector's logo, tool and first words), a chevron for more; a
+   * sign-in with Connect, tasks added, a step done ticked, a plan approved and its link, the agent's markdown timed */
   body(t, code, row, index, step = stepLayout(row.kind)) {
     const line = () => h_flex().h(step.line).items_center();
     const head = (/** @type {string} */ name, /** @type {string | null | undefined} */ main,
@@ -1880,16 +1946,20 @@ export class Chat {
         .child(line().flex_none().text_size(11).text_color(t.dim).child(clock(row.at)));
     }
     if (row.kind === "other") return line().gap(R.gap).text_color(t.dim).child(row.summary || row.type);
-    if (row.kind === "skill") {                   // its source matched from the setup: Project, Personal, a plugin's
+    if (row.kind === "skill") {                   // its source matched from the setup: Project, Global, a plugin's
       const skill = skillOf(this.adapter, String(row.name ?? ""), this.setup?.skills ?? []);
       return head("Skill", skill.name, skill.source);
     }
     if (row.kind === "agent") return v_flex().gap(R.inner).child(head(row.name ?? "Agent", row.task))
       .when(this.isOpen(index) && Boolean(row.output), (e) => e.child(this.output(t, code, row.output)));
-    if (row.kind === "todo") {
-      return v_flex().child(head("Todos", null)).children((row.items ?? []).map((item) => h_flex().h(R.text)
-        .items_center().gap(R.gap)
-        .text_color(item.done ? t.dim : t.foreground).child(item.done ? "☑" : "☐").child(item.text)));
+    const named = (/** @type {string} */ mark, /** @type {string} */ name, /** @type {string} */ words) => line()
+      .gap(R.gap).child(icon(mark).text_color(t.muted)).child(div().flex_none().font_semibold().child(name))
+      .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(words));
+    if (row.kind === "tasks") return named("list-checks", "Tasks", `${row.added} added`);
+    if (row.kind === "task") return line().gap(R.gap).child(icon("check").text_color(t.done))
+      .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(row.text));
+    if (typeof row.plan === "number") {     // the Plan mode's icon
+      return named("notebook", "Plan", planWords(row.plan)).child(this.planLink(t, `row-${index}-plan`));
     }
     const open = this.isOpen(index), via = this.adapter.connectors ? connectorRow(row.name, this.servers()) : null;
     return v_flex().gap(R.inner)

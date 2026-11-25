@@ -126,6 +126,12 @@ class Symbols(unittest.TestCase):
             for new, own in (("⏺", "●"), ("⎿", "└")):
                 self.assertEqual(box(tables, chars[ord(new)]), box(tables, chars[ord(own)]), f"{style}: {new}")
 
+    def test_herdrs_folds_are_the_sidebars_chevrons(self):
+        # herdr's ▾ ▸ before a machine in its Spaces list: the glyphs of the sidebar's open and shut chevrons
+        for style in STYLES:
+            chars = cmap(font_tables(font(style)))
+            self.assertEqual([chars[ord("▾")], chars[ord("▸")]], [chars[0xEAB4], chars[0xEAB6]], style)
+
     def test_the_drawn_ones_sit_where_the_fonts_symbols_do(self):
         tables = font_tables(font("Regular"))
         chars = cmap(tables)

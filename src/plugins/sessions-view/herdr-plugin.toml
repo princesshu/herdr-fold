@@ -3,8 +3,8 @@ name = "AI Sessions"
 version = "0.4.0"
 min_herdr_version = "0.9.5"
 description = """\
-  herdr's Agents panel as AI sessions: the current workspace's Claude and Codex chats with their state, \
-  each under the chat's name or your pane name, the same name on its own tab; and for each workspace, how \
+  herdr's Agents panel as AI sessions: the current space's Claude and Codex chats with their state, \
+  each under the chat's name or your pane name, the same name on its own tab; and for each space, how \
   long an agent there has waited on you. Created by princesshu"""
 platforms = ["macos", "linux", "windows"]
 
@@ -44,7 +44,7 @@ title = "AI Sessions: reapply"
 command = ["/usr/bin/python3", "sessions.py"]
 platforms = ["macos", "linux"]
 
-# Mark unread (Cmd+Shift+U): the focused agent waits on you again, its workspace says so, until you come back to it
+# Mark unread (Cmd+Shift+U): the focused agent waits on you again, its space says so, until you come back to it
 [[actions]]
 id = "mark-unread"
 title = "AI Sessions: mark unread"

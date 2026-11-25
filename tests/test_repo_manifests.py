@@ -67,11 +67,11 @@ class Manifests(unittest.TestCase):
         self.check(rows("remote/files.txt", "unix", "both"))
         self.check(rows("remote/files.txt", "windows", "both"))
 
-    def test_workspaces_copies_go_where_it_goes(self):
+    def test_spaces_copies_go_where_it_goes(self):
         # it loads its copy of core/git.py by its path (herdrlib's sidebar modules bring the sidebar's as git): no
         # import names it for the checks above
-        folder = os.path.join("src", "plugins", "workspaces")
-        script = os.path.join(folder, "workspaces.py")
+        folder = os.path.join("src", "plugins", "spaces")
+        script = os.path.join(folder, "spaces.py")
         own = sorted(os.path.join(folder, name) for name in os.listdir(os.path.join(PACKAGE, folder))
                      if name.endswith(".py"))
         self.assertIn(os.path.join(folder, "git.py"), own)
@@ -115,7 +115,7 @@ def outside_needs(folder):
 
 class Standalone(unittest.TestCase):
     """The herdr marketplace lists every plugin of the repository as installable on its own: the sidebar and
-    AI Sessions run without the rest of the package; Workspaces, which does not, says so."""
+    AI Sessions run without the rest of the package; Spaces, which does not, says so."""
 
     def test_the_sidebar_and_the_sessions_list_need_nothing_else(self):
         for plugin in ("sidebar", "sessions-view"):
@@ -128,8 +128,8 @@ class Standalone(unittest.TestCase):
             f.write("import os\nfrom herdrlib import herdr\nCONFIG = '~/.config/herdr-fold/settings.json'\n")
         self.assertEqual(outside_needs(folder), ["view.py imports herdrlib", "view.py names ~/.config/herdr-fold"])
 
-    def test_workspaces_says_it_needs_the_installer(self):
-        with open(os.path.join(PACKAGE, "src", "plugins", "workspaces", "herdr-plugin.toml"), encoding="utf-8") as f:
+    def test_spaces_says_it_needs_the_installer(self):
+        with open(os.path.join(PACKAGE, "src", "plugins", "spaces", "herdr-plugin.toml"), encoding="utf-8") as f:
             self.assertIn("install it with herdr-fold's installer", f.read())
 
 
@@ -165,9 +165,16 @@ class SidebarAlone(unittest.TestCase):
         self.assertEqual(found.get("restore-panels-windows"),
                          (["python", "panes.py", "--restore"], ["windows"]))
 
+    def test_the_dock_folds_and_opens_by_an_action_on_every_system(self):
+        # Cmd + Option + B: herdr's key for it in herdr-fold's config.toml, Ghostty's sending that
+        found = actions("sidebar")
+        self.assertEqual((found.get("toggle-dock"), found.get("toggle-dock-windows")),
+                         ((["/usr/bin/python3", "actions.py", "toggle-dock"], ["macos", "linux"]),
+                          (["python", "actions.py", "toggle-dock"], ["windows"])))
+
 
 class Hooks(unittest.TestCase):
-    """What herdr runs by itself: the dock lays out a new tab and comes back when herdr starts, Workspaces brings back
+    """What herdr runs by itself: the dock lays out a new tab and comes back when herdr starts, Spaces brings back
     herdr-fold's agents, each on every system."""
 
     def test_the_dock_lays_out_a_new_tab(self):
@@ -180,8 +187,8 @@ class Hooks(unittest.TestCase):
                          [(["/usr/bin/python3", "panes.py", "--startup"], ["macos", "linux"]),
                           (["python", "panes.py", "--startup"], ["windows"])])
 
-    def test_workspaces_brings_back_the_agents_when_herdr_starts(self):
-        self.assertEqual(hooks("workspaces", "startup"),
+    def test_spaces_brings_back_the_agents_when_herdr_starts(self):
+        self.assertEqual(hooks("spaces", "startup"),
                          [(["/bin/sh", "-c", 'exec /usr/bin/python3 "$HOME/.config/herdr-fold/restore_panes.py" '
                                              "--startup"], ["macos", "linux"]),
                           (["python", "..\\..\\restore_panes.py", "--startup"], ["windows"])])

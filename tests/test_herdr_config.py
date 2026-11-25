@@ -10,6 +10,7 @@ import unittest
 SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src")
 sys.path.insert(0, SRC)
 import herdr_config  # noqa: E402
+import herdr_toml  # noqa: E402
 
 with open(os.path.join(SRC, "..", "config", "herdr", "config.toml"), encoding="utf-8") as f:
     PACKAGE_CONFIG = f.read()
@@ -135,6 +136,66 @@ class Add(unittest.TestCase):
             merged, notes = herdr_config.add(PACKAGE_CONFIG, theirs)
             self.assertIsNone(merged, theirs)
             self.assertTrue(notes, theirs)
+
+
+class Put(unittest.TestCase):
+    """One key set from Settings: a line of theirs outside the markers, which the next add keeps."""
+
+    def test_it_reads_a_tables_string_and_none_where_none_is_set(self):
+        self.assertEqual(herdr_toml.value(PACKAGE_CONFIG, "ui.toast", "delivery"), "herdr")
+        self.assertEqual(herdr_toml.value('[ui.toast]\ndelivery = "off"  # quiet\n', "ui.toast", "delivery"), "off")
+        self.assertIsNone(herdr_toml.value(THEIRS, "ui.toast", "delivery"))
+        self.assertIsNone(herdr_toml.value('a = """\n', "ui.toast", "delivery"))
+
+    def test_in_the_packages_own_file_the_line_changes_in_place(self):
+        made = herdr_toml.put(PACKAGE_CONFIG, "ui.toast", "delivery", '"off"')
+        self.assertEqual(herdr_toml.value(made, "ui.toast", "delivery"), "off")
+        self.assertEqual(made.replace('delivery = "off"', 'delivery = "herdr"'), PACKAGE_CONFIG)
+
+    def test_out_of_the_marked_part_it_becomes_theirs_and_survives_the_next_add(self):
+        added, _ = herdr_config.add(PACKAGE_CONFIG, THEIRS)
+        made = herdr_toml.put(added, "ui.toast", "delivery", '"off"')
+        self.assertIn('delivery = "off"', outside_markers(made))
+        self.assertEqual(made.count("[ui.toast]"), 1)                           # no table twice
+        self.assertEqual([line for line in made.split("\n") if line.startswith("delivery")], ['delivery = "off"'])
+        self.assertFalse([line for line in THEIRS.split("\n") if line not in outside_markers(made)])
+        again, notes = herdr_config.add(PACKAGE_CONFIG, made)
+        self.assertEqual(herdr_toml.value(again, "ui.toast", "delivery"), "off")
+        self.assertEqual(again.count("[ui.toast]"), 1)
+        back = herdr_toml.put(again, "ui.toast", "delivery", '"herdr"')        # on again: still theirs
+        self.assertIn('delivery = "herdr"', outside_markers(back))
+        self.assertIsNotNone(herdr_toml.parse(back))
+
+    def test_under_a_table_of_theirs_it_goes_after_their_header(self):
+        theirs = THEIRS + "\n[ui.toast]\nposition = \"top\"\n"
+        added, _ = herdr_config.add(PACKAGE_CONFIG, theirs)
+        made = herdr_toml.put(added, "ui.toast", "delivery", '"off"')
+        self.assertEqual(table(made, "ui.toast")[:2], ['delivery = "off"', 'position = "top"'])
+        self.assertNotIn('delivery = "herdr"', made)
+        self.assertEqual(herdr_toml.value(herdr_config.add(PACKAGE_CONFIG, made)[0], "ui.toast", "delivery"), "off")
+
+    def test_a_file_with_none_gets_the_table_and_an_unsure_one_is_left_alone(self):
+        self.assertEqual(herdr_toml.put("", "ui.toast", "delivery", '"off"'), '[ui.toast]\ndelivery = "off"\n')
+        self.assertTrue(herdr_toml.put(THEIRS, "ui.toast", "delivery", '"off"').endswith(
+            '\n[ui.toast]\ndelivery = "off"\n'))
+        self.assertIsNone(herdr_toml.put('a = """\n', "ui.toast", "delivery", '"off"'))
+        self.assertIsNone(herdr_toml.put(BEGIN + "\n", "ui.toast", "delivery", '"off"'))
+
+
+    def test_the_installer_reads_a_key_before_it_copies_the_packages_file_and_puts_it_back_after(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "config.toml")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(PACKAGE_CONFIG.replace('delivery = "herdr"', 'delivery = "off"'))
+            run = [sys.executable, os.path.join(SRC, "herdr_config.py")]
+            kept = subprocess.run(run + ["value", path, "ui.toast", "delivery"], capture_output=True, text=True)
+            self.assertEqual((kept.returncode, kept.stdout), (0, "off\n"))
+            with open(path, "w", encoding="utf-8") as f:                        # the update's copy
+                f.write(PACKAGE_CONFIG)
+            self.assertEqual(subprocess.run(run + ["put", path, "ui.toast", "delivery", "off"]).returncode, 0)
+            with open(path, encoding="utf-8") as f:
+                self.assertEqual(f.read(), PACKAGE_CONFIG.replace('delivery = "herdr"', 'delivery = "off"'))
+            self.assertEqual(subprocess.run(run + ["put", path, "ui.toast", "delivery", 'a"b']).returncode, 1)
 
 
 class SidebarKey(unittest.TestCase):

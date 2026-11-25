@@ -90,7 +90,7 @@ install.step_plugins = 6/8 Plugins and integrations
 install.plugins = herdr plugins: %s
 install.plugin_sidebar = sidebar with Chats
 install.plugin_sessions = AI Sessions
-install.plugin_workspaces = Workspaces
+install.plugin_spaces = Spaces
 install.integrations = herdr ↔ %s
 install.herdr_sidebar_too = herdr-sidebar is installed too: it does what herdr-fold's sidebar does
 install.sidebar_failed = sidebar not linked — later: herdr plugin link %s
@@ -107,16 +107,14 @@ install.package_kept = herdr-fold is kept in %s: Shift+M, its updates and its un
 install.package_not_herdr_folds = %s is someone else's: move it out of ~/.local/share, then open the installer again
 install.package_not_kept = herdr-fold could not be kept in %s: nothing was changed
 install.plugin_taken_over = %s came from herdr's marketplace: herdr-fold's own copy takes its place
-install.plugin_like_workspaces = %s acts on new tabs too — both would act on every new tab
+install.plugin_like_spaces = %s acts on new tabs too — both would act on every new tab
 install.sessions_ask = Show your chats in herdr's Agents list?
-install.workspaces_ask = Let a new workspace ask for its folder, and herdr-fold's agents start again after a restart?
+install.spaces_ask = Let a new space ask for its folder, and herdr-fold's agents start again after a restart?
 install.plugin_declined = %s not linked
 install.sessions_failed = sessions plugin not linked — later: herdr plugin link \
   ~/.config/herdr-fold/plugins/sessions-view
-install.workspaces_failed = workspaces plugin not linked — later: herdr plugin link \
-  ~/.config/herdr-fold/plugins/workspaces
-install.tab_layout_retired = Tab Layout taken off: the sidebar lays out a new tab now, Workspaces keeps the workspaces
-install.tab_layout_left = Tab Layout is still in herdr: start herdr, then run %s
+install.spaces_failed = spaces plugin not linked — later: herdr plugin link \
+  ~/.config/herdr-fold/plugins/spaces
 install.claude_integration_failed = Claude integration not installed — later: herdr integration install claude
 install.codex_not_found = Codex not found — once you install it and sign in: herdr integration install codex
 install.codex_not_run = Codex has not run on this machine yet — sign in (codex), then: herdr integration install codex
@@ -172,7 +170,7 @@ install.open_ghostty = Open Ghostty: herdr starts in it.
 install.open_app = Open the Herdr app: herdr-fold's layout is set in it.
 install.handoff = herdr %s is installed, but %s still runs in the background: herdr server live-handoff switches \
   without stopping your agents
-install.next_steps = A workspace per repo: the "new" button under Spaces · all keys: Ctrl+B, ? · the rest: README.md
+install.next_steps = A space per repo: the "new" button under Spaces · all keys: Ctrl+B, ? · the rest: README.md
 install.finished = herdr-fold %s is installed
 install.finished_warnings = herdr-fold %s is installed, with %s warning(s) — see the [!] lines above
 install.in_trash = this herdr-fold folder is in the Trash (%s): cd into the folder you unpacked again, then \
@@ -198,7 +196,7 @@ install.stopped = The installer stopped before the end — see the lines above.
 # machines.sh: help, status and adding machines
 machines.help = Remote machines (Linux, macOS, Windows) in herdr — on the central Mac. install.sh calls it, but it can\
   \nalso run on its own later (e.g. to add a new machine).\
-  \nGhostty + herdr run on the central Mac; the machines' workspaces show up in herdr's sidebar, while Claude/Codex,\
+  \nGhostty + herdr run on the central Mac; the machines' spaces show up in herdr's sidebar, while Claude/Codex,\
   \nthe sidebar and the terminal run on the machine itself.\n\
   \n  ./machines.sh                 status per machine: SSH, connection, apps\
   \n  ./machines.sh sshconfig       pick from the machines in ~/.ssh/config, one question each → the list\
@@ -230,7 +228,7 @@ machines.connected = connected to herdr
 machines.preparing = apps and settings onto the machine
 machines.phase_sending = sending the files
 machines.finishing = agent integrations on the machine
-machines.linking = the sidebar, AI Sessions and Workspaces on the machine
+machines.linking = the sidebar, AI Sessions and Spaces on the machine
 machines.taken_over = %s: taken over from herdr onto the machine list (%s)
 machines.take_over_unreachable = %s is connected in herdr but not reachable now — it goes onto the machine list when \
   it is
@@ -289,7 +287,7 @@ machines.agent_missing = %s not on this machine
 machines.codex_sign_in = codex: sign in first (codex), then: ./machines.sh prepare
 machines.integration_failed = herdr ↔ %s failed
 machines.sessions_failed = sessions plugin not linked — later: herdr --machine %s plugin link '%s'
-machines.workspaces_failed = workspaces plugin not linked — later: herdr --machine %s plugin link '%s'
+machines.spaces_failed = spaces plugin not linked — later: herdr --machine %s plugin link '%s'
 machines.sidebar_failed = sidebar not linked — later: herdr --machine %s plugin link '%s'
 
 # remote/prepare-unix.sh: on a Linux / macOS machine
@@ -439,7 +437,6 @@ restore.column_failed = %s · %s: the column could not be added (%s)
 restore.done = %s · %s/%s: %s
 restore.start_failed = %s · %s/%s: could not start (%s)
 restore.column_added = column added
-restore.column_gone = %s · %s: the old chat column closed, its list in the sidebar now
 restore.sidebar_started = started
 restore.agent_started = agent started
 restore.usage = Usage: restore_panes.py [--machine <machine> | --all]
@@ -496,11 +493,11 @@ layout.no_folder = no such folder: %s
 layout.no_machine = no connected machine named %s (herdr machine list)
 layout.unreachable = %s cannot be reached over SSH (%s)
 layout.no_folder_on = no such folder on %s: %s
-layout.exists = a workspace named %s is there already
+layout.exists = a space named %s is there already
 layout.agent = %s agent: %s
 layout.agent_asks = %s did not start — in a new folder it asks first whether you trust it: answer in the %s pane
-layout.ready = workspace %s is ready (%s)
-layout.ready_on = workspace %s is ready on %s (%s)
+layout.ready = space %s is ready (%s)
+layout.ready_on = space %s is ready on %s (%s)
 clip.usage = Usage: rich_clipboard.py --upgrade < <file with the selected text>
 trust.usage = Usage: claude_trust.py list | trust
 add_machine.no_record = ~/.config/herdr-fold/setup-folder is missing

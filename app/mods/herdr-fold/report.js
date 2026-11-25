@@ -28,12 +28,21 @@ export function money(dollars, about = false) {
  * @param {number} dollars @param {boolean} [about] */
 export const whole = (dollars, about = false) => `${about ? ABOUT : ""}$${grouped(String(Math.floor(dollars + 0.5)))}`;
 
-/** COUNT tokens in a few characters, as core's short(): 999, 1.0k, 68k, 38.2M, 2.1B. @param {number} count */
-export function tokensShort(count) {
+/** VALUE to PLACES decimals as Python formats it: an exact half to even (toFixed takes it up). It is an exact half
+ * only where VALUE times 2^(PLACES+1) is an odd whole number. @param {number} value @param {number} places */
+function fixed(value, places) {
+  const halves = value * 2 ** (places + 1);
+  if (!Number.isInteger(halves) || halves % 2 === 0) return value.toFixed(places);
+  const low = Math.floor(value * 10 ** places);
+  return ((low % 2 === 0 ? low : low + 1) / 10 ** places).toFixed(places);
+}
+
+/** COUNT tokens by the number rule, core's words.tokens: 850, 5.9k, 21.4k, 120k, 1.2M, 2.1B. @param {number} count */
+export function tokens(count) {
   if (count < 1000) return String(count);
-  if (count < 9950) return `${(count / 1e3).toFixed(1)}k`;
-  if (count < 999_500) return `${(count / 1e3).toFixed(0)}k`;
-  return count < 999_950_000 ? `${(count / 1e6).toFixed(1)}M` : `${(count / 1e9).toFixed(1)}B`;
+  if (count < 99_950) return `${fixed(count / 1e3, 1)}k`;
+  if (count < 999_500) return `${fixed(count / 1e3, 0)}k`;
+  return count < 999_950_000 ? `${fixed(count / 1e6, 1)}M` : `${fixed(count / 1e9, 1)}B`;
 }
 
 /** An axis's ticks from 0 up to MAX or past it: the smallest clean step (1, 2 or 5 times a power of ten) that takes
@@ -105,30 +114,23 @@ export function monthLine(month) {
 export function projectBars(projects) {
   const most = Math.max(0, ...projects.map((one) => one.cost ?? 0));
   return projects.map((one) => ({ name: one.name, share: most > 0 && one.cost ? one.cost / most : 0,
-    text: one.cost === null ? `${tokensShort(one.tokens)} tokens` : money(one.cost) }));
+    text: one.cost === null ? `${tokens(one.tokens)} tokens` : money(one.cost) }));
 }
 
-/** The SUMMARY row's cells (core's): the first the wide one (usage.html's 1.4fr), a line whose pace is over its
- * budget parted so the pace is told apart. @param {any[]} summary */
-export const summaryCells = (summary) => summary.map((cell, n) => {
-  const line = String(cell.line ?? ""), at = cell.over ? line.lastIndexOf("on pace for") : -1;
-  return { key: String(cell.key), text: String(cell.text), grow: n ? 1 : 1.4,
-    unit: cell.value === null ? "" : String(cell.unit ?? ""),
-    line: at < 0 ? line : line.slice(0, at), pace: at < 0 ? "" : line.slice(at) };
-});
+/** The SUMMARY row's cells (core's): the first the wide one (usage.html's 1.4fr); a unit only beside a figure.
+ * @param {any[]} summary */
+export const summaryCells = (summary) => summary.map((cell, n) => ({ key: String(cell.key), text: String(cell.text),
+  grow: n ? 1 : 1.4, unit: cell.value === null ? "" : String(cell.unit ?? ""), line: String(cell.line ?? "") }));
 
-/** A conversation's ROW (core's) as the table's cells; WORDS core's. @param {any} row
- * @param {{ none_yet: string, no_price: string }} words */
-export const conversationCells = (row, words) => ({ title: String(row.title), space: String(row.space),
+/** A chat's ROW (core's) as the table's cells; WORDS core's. @param {any} row @param {{ no_price: string }} words */
+export const chatCells = (row, words) => ({ title: String(row.title), space: String(row.space),
   models: (row.models ?? []).map((/** @type {{ color: string }} */ one) => one.color), turns: String(row.turns),
-  tokens: tokensShort(row.tokens), cache: row.cache === null ? "–" : `${row.cache}%`,
-  cost: row.cost === null ? words.no_price : money(row.cost), kind: row.cost === null ? "" : String(row.kind),
-  commits: String(row.commits_text), changed: String(row.changed ?? ""),
-  per: row.per_commit === null ? "–" : money(row.per_commit), none: !row.commits });
+  tokens: tokens(row.tokens), cache: row.cache === null ? "–" : `${row.cache}%`,
+  cost: row.cost === null ? words.no_price : money(row.cost), kind: row.cost === null ? "" : String(row.kind) });
 
 /** A model's ROW (core's) as the table's cells: each kind of token short, – for none. @param {any} row */
 export function modelCells(row) {
-  const count = (/** @type {number} */ n) => (n ? tokensShort(n) : "–");
+  const count = (/** @type {number} */ n) => (n ? tokens(n) : "–");
   return { name: String(row.name), color: String(row.color), agent: String(row.agent), input: count(row.input),
     write: count(row.write), read: count(row.read), output: count(row.output), cost: String(row.text),
     kind: row.cost === null ? "" : String(row.kind), priced: row.cost !== null };
@@ -149,9 +151,9 @@ export const budgetRows = (agents, budgets) => (Array.isArray(agents) ? agents :
     value: !budgets?.[one.key] ? "" : Number.isInteger(budgets[one.key]) ? String(budgets[one.key])
       : budgets[one.key].toFixed(2) }));
 
-/** Where SESSION's row is among CONVERSATIONS (core's); -1 for none. @param {any[] | null | undefined} conversations
+/** Where SESSION's row is among CHATS (core's); -1 for none. @param {any[] | null | undefined} chats
  * @param {string | null | undefined} session */
-export const markedRow = (conversations, session) => (session ? (conversations ?? [])
+export const markedRow = (chats, session) => (session ? (chats ?? [])
   .findIndex((one) => one?.session === session) : -1);
 
 /** An index brought up to date: LOOK (one call of core's index) again until nothing is left, a look read nothing,

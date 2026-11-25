@@ -1,6 +1,6 @@
 """herdr-fold's Usage view in the TUI (the Agent view's Usage head opens it over the tab), as usage.html's TUI usage
 pane: core's report (report.py) in cells: the period's and the agents' chips, the summary, each day by model, a month
-against its budget (Enter edits the budget), the projects, conversations and models. ↑ ↓ scroll, Esc closes."""
+against its budget (Enter edits the budget), the projects, chats and models. ↑ ↓ scroll, Esc closes."""
 import os
 import sys
 import time
@@ -8,48 +8,57 @@ import time
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import agent_state  # noqa: E402
-import commits  # noqa: E402
 import preview  # noqa: E402
 import report  # noqa: E402
 import statefile  # noqa: E402
 import tokens  # noqa: E402
 import usage  # noqa: E402
 from icons import glyphs  # noqa: E402
-from layers import PERIODS, READING, SPARK, commits_said, day_color, period_said  # noqa: E402
+from layers import SWATCH  # noqa: E402
 from loop import Loop  # noqa: E402
-from prices import money, short  # noqa: E402
+from prices import money  # noqa: E402
 from screen import INSET, SPIN, SPINNER, Canvas, Style, icons_on, truncate, width  # noqa: E402
 from settings import CLOSE_CELLS, CLOSE_TIP, TIP_DELAY  # noqa: E402
 from vt import Focus, Key, Mouse  # noqa: E402
+from words import tokens as short  # noqa: E402
 from widgets import TextInput, wrap  # noqa: E402
 
-PERIOD_ENV = "HERDR_FOLD_USAGE_PERIOD"        # the period it opens on, as the Agent view's Usage had it
+PERIODS, PERIOD = tuple(report.PERIODS), "7d"   # the periods' chips, and the one it opens on (the app's too)
 POLL = 60.0                   # seconds between two reads while open
 AGENTS = (None, *usage.AGENTS)                # the agents' chips: every one, then each
 ALL = "All agents"
-LOADING, FAILED = "Loading usage…", "Couldn't read the usage"
+LOADING, FAILED, READING = "Loading usage…", "Couldn't read the usage", "Reading chats…"
 CHART = 5                     # rows of a day's column, an eighth of a row its least step
+SPARK = " ▁▂▃▄▅▆▇█"           # a cell of a day's column by the eighths of it filled
 MONTH = 24                    # cells of a month's bar: its budget, or its pace where that is more
 PACE = "│"                    # where the month's pace ends, on its bar
 DAY_STEPS = (1, 2, 5, 10, 15)  # days between two of a month's named days: the smallest that fits
-SWATCH = "■"                  # a model's color before its name
-NAME, SPACE, AGENT = 20, 14, 20               # cells a project's name, a conversation's space, a model's agent keep
+NAME, SPACE, AGENT = 20, 14, 20               # cells a project's name, a chat's space, a model's agent keep
 WIDE = 90                     # cells from which the tables show every column
 BUDGET, PER_MONTH = "Monthly budget", "a month"     # the budget's form, as the Herdr app's
 SAVE, CANCEL = "Save", "Cancel"
 AMOUNT = 12                   # cells of a budget's field
-HEADS = {"conversations": ("space", "turns", "tokens", "cache", "cost", "commits"),
-         "models": ("agent", "input", "write", "read", "output", "cost")}       # the tables' columns, on their heads
-TEXTS = ("space", "agent")    # the columns of names, left-aligned: every other is a figure
+TEXTS = ("Space", "Agent")    # core's columns of names, left-aligned: every other is a figure
 
 
 def figures(period, agents, theme, home, agent=None, state=None):
     """On a job's thread: what the agents cost in PERIOD (AGENT's alone), {"report": core's, "left": the bytes of
-    conversations still to read}: the token and commit indexes each brought on by one look (core bounds it), then the
-    report from them; AGENTS the agents' list (their plans), THEME the pane's ground and text (the models' colors)."""
+    chats still to read}: the token index brought on by one look (core bounds it), then the report from it;
+    AGENTS the agents' list (their plans), THEME the pane's ground and text (the models' colors)."""
     state = state or statefile.folder()
-    left = tokens.index(state, home)["left"] + commits.index(state, home)["left"]
+    left = tokens.index(state, home)["left"]
     return {"report": report.report(state, home, period, agent, agents=agents, theme=theme), "left": left}
+
+
+def period_said(period, short=False):
+    """PERIOD's words on its chip, as core says them: Today, 7 days, 30 days, the month in full (SHORT: Nov)."""
+    month = report.MONTHS[time.localtime().tm_mon - 1]
+    return report.PERIODS[period][1] or (month[:3] if short else month)
+
+
+def day_color(day):
+    """The color of the model DAY cost the most in, None for a day with no cost."""
+    return max(day["models"], key=lambda one: one["cost"])["color"] if day["models"] else None
 
 
 def chart(daily, rows=CHART):
@@ -135,15 +144,15 @@ class Row:
 
 
 class UsageView(Loop):
-    def __init__(self, terminal, herdr, state_dir, clock=time.monotonic, period=None, home=None, state=None):
+    def __init__(self, terminal, herdr, state_dir, clock=time.monotonic, home=None, state=None):
         super().__init__(terminal, herdr, state_dir, clock)
-        self.period = period if period in PERIODS else PERIODS[0]
+        self.period = PERIOD
         self.agent = None                 # the agent it is narrowed to: None for every one
         self.home, self.state = home or os.path.expanduser("~"), state or statefile.folder()
         self.icons = icons_on(state_dir)
         self.report = self.agents = None  # core's report and agents' list, as last read
         self.budgets = {}                 # each agent's budget, as core keeps it
-        self.reading = False              # conversations still being read
+        self.reading = False              # chats still being read
         self.failed = None                # why the last read gave nothing
         self.read_at = None
         self.top = 0                      # the first line shown under the chips
@@ -340,26 +349,26 @@ class UsageView(Loop):
         self.term.flush()
 
     def chip(self, canvas, y, x, words, target, lit):
-        """A chip at X: the chosen one on the accent, the one under the mouse on the hover's. Its end."""
-        bg = "button" if lit else "hover" if self.pointed == target else None
-        if bg:
-            canvas.chip(y, x, width(words) + 2, bg)
-        canvas.put(y, x + 1, words, Style(fg="button_text", bg=bg, bold=True) if lit else Style(
-            fg="text" if bg else "subtext", bg=bg))
+        """A chip at X: the chosen one bold on the hover's fill, the one under the mouse in the text's color. Its
+        end."""
+        if lit:
+            canvas.chip(y, x, width(words) + 2, "hover")
+        canvas.put(y, x + 1, words, Style(fg="text", bg="hover", bold=True) if lit else Style(
+            fg="text" if self.pointed == target else "subtext"))
         canvas.region(y, x, x + width(words) + 2, target)
         return x + width(words) + 2
 
     def chips(self, canvas):
-        """The periods' chips, then the agents' (under them where one row has no room for both), the close button at
-        the right; the rows they take."""
+        """The periods' chips (the month as Nov where November leaves no room), then the agents' (under them where one
+        row has no room for both), the close button at the right; the rows they take."""
         cells, corner = canvas.width, canvas.width - CLOSE_CELLS
         lit = self.pointed == "close"
         canvas.put(0, corner, f" {glyphs(self.icons)['close']} ", Style(fg="text" if lit else "subtext",
                                                                         bg="hover" if lit else None))
         canvas.region(0, corner, cells, "close")
-        x = INSET
+        x, short = INSET, INSET + sum(width(period_said(one)) + 3 for one in PERIODS) - 1 > corner
         for period in PERIODS:
-            x = self.chip(canvas, 0, x, period_said(period), ("period", period), period == self.period) + 1
+            x = self.chip(canvas, 0, x, period_said(period, short), ("period", period), period == self.period) + 1
         told = {one["id"]: one["label"] for one in (self.report or {}).get("filters", {}).get("agents", ())}
         names = [(agent, told.get(agent) or (usage.NAMES[agent] if agent else ALL)) for agent in AGENTS]
         y = 0 if x + 2 + sum(width(name) + 3 for _, name in names) - 1 <= corner else 1
@@ -391,7 +400,7 @@ class UsageView(Loop):
             lines += [Row()] + self.budget_form(cells)
         if found["projects"]:
             lines += [Row(), self.title(end, words["projects"], words["projects_note"])] + self.projects(found, end)
-        lines += [Row()] + self.conversations(found, end, cells >= WIDE)
+        lines += [Row()] + self.chats(found, end, cells >= WIDE)
         lines += [Row()] + self.models(found, end, cells >= WIDE)
         lines.append(Row())
         for start, stop in wrap(words["foot"], max(1, end - INSET)):
@@ -421,12 +430,11 @@ class UsageView(Loop):
             row.put(INSET, truncate(cell["key"], value - INSET - 2), Style(fg="subtext"))
             at = row.put(value, cell["text"], Style(fg="text", bold=True))
             if cell.get("unit") and cell.get("value") is not None:
-                row.put(at + 1, cell["unit"], Style(fg="muted"))
+                row.put(at + 1, truncate(cell["unit"], max(0, end - at - 1)), Style(fg="muted"))
             lines.append(row)
             if cell.get("line"):
                 lines.append(Row())
-                lines[-1].put(INSET + 2, truncate(cell["line"], end - INSET - 2),
-                              Style(fg="modified" if cell.get("over") else "muted"))
+                lines[-1].put(INSET + 2, truncate(cell["line"], end - INSET - 2), Style(fg="muted"))
         return lines
 
     def per_day(self, found, end):
@@ -515,16 +523,13 @@ class UsageView(Loop):
         return lines + [row]
 
     def projects(self, found, end):
-        """By project, in aligned columns: a name, a bar by the costliest one's cost (MONTH cells at most), the cost,
-        its conversations' commits dim; in a narrow pane the commits go, then the bars."""
+        """By project, in aligned columns: a name, a bar by the costliest one's cost (MONTH cells at most), the cost;
+        in a narrow pane the bars go."""
         projects = found["projects"]
         name = min(NAME, max(width(one["name"]) for one in projects))
-        said = max(width(commits_said(one)) for one in projects)
         cost = max(width(self.cost(one)) for one in projects)
-        if end - INSET - name - 2 - cost - 2 - said < 4:        # no room for both: the commits go
-            said = 0
         most = max([one["cost"] or 0 for one in projects])
-        room = min(MONTH, end - (said + 2 if said else 0) - cost - 2 - (INSET + name + 2))
+        room = min(MONTH, end - cost - 2 - (INSET + name + 2))
         bars, lines = (room + 2 if room >= 4 else 0), []
         for one in projects:
             row, x = Row(), INSET + name + 2
@@ -532,8 +537,6 @@ class UsageView(Loop):
             if bars and one["cost"] and most:
                 row.put(x, "▰" * max(1, round(room * one["cost"] / most)), Style(fg="muted"))
             row.right(x + bars + cost, self.cost(one), Style(fg="text" if one["cost"] is not None else "muted"))
-            if said:
-                row.put(x + bars + cost + 2, commits_said(one), Style(fg="muted"))
             lines.append(row)
         return lines
 
@@ -541,10 +544,10 @@ class UsageView(Loop):
         return self.report["words"]["no_price"] if one["cost"] is None else money(one["cost"])
 
     @staticmethod
-    def table(end, head, rows, least):
-        """A table's lines: its HEAD's name bold and, dim, its columns' names over them; each of ROWS its first cell
-        (parts, kept LEAST cells at least) left, the others in their columns two cells apart, figures right-aligned,
-        names (TEXTS) left."""
+    def table(end, head, rows, least, note=""):
+        """A table's lines: its HEAD's name bold, a NOTE dim after it where there is room, and, dim, its columns'
+        names over them; each of ROWS its first cell (parts, kept LEAST cells at least) left, the others in their
+        columns two cells apart, figures right-aligned, names (TEXTS) left."""
         widths = [max([width(name)] + [width(row[1][n][0]) for row in rows]) for n, name in enumerate(head[1])]
         while widths and end - INSET - sum(size + 2 for size in widths) < least:      # the first columns go first
             widths, head, rows = widths[1:], (head[0], head[1][1:]), [(row[0], row[1][1:]) for row in rows]
@@ -552,7 +555,9 @@ class UsageView(Loop):
         for size, name in reversed(list(zip(widths, head[1]))):
             first.put(x - size, name, Style(fg="muted")) if name in TEXTS else first.right(x, name, Style(fg="muted"))
             x -= size + 2
-        first.put(INSET, truncate(head[0], max(1, x - INSET)), Style(fg="text", bold=True))
+        at = first.put(INSET, truncate(head[0], max(1, x - INSET)), Style(fg="text", bold=True))
+        if note and at + 1 + width(note) <= x:
+            first.put(at + 1, note, Style(fg="muted"))
         lines = [first]
         for parts, cells_ in rows:
             row, at = Row(), end
@@ -566,33 +571,37 @@ class UsageView(Loop):
             lines.append(row)
         return lines
 
-    def conversations(self, found, end, wide):
-        """Conversations, the most first: its title, cost and commits; in a wide pane its space, turns, tokens and
-        the cache's share too."""
+    def chats(self, found, end, wide):
+        """Chats, the costliest first: its title and cost; in a wide pane its space, turns, tokens and the cache's share
+        too, under core's columns (a chat's models are the legend's colors)."""
         words, rows = found["words"], []
-        for one in found["conversations"]:
-            cost = (self.cost(one), "text" if one["cost"] is not None else "muted")
-            made = (one["commits_text"], "text" if one["commits"] else "muted")
-            more = [(truncate(one["space"], SPACE), "subtext"), (str(one["turns"]), "subtext"),
-                    (short(one["tokens"]), "subtext"), ("–" if one["cache"] is None else f"{one['cache']}%", "subtext")]
-            rows.append(([(one["title"], Style(fg="text"))], (more if wide else []) + [cost, made]))
-        head = (words["conversations"], HEADS["conversations"] if wide else HEADS["conversations"][-2:])
-        lines = self.table(end, head, rows, 12)
+        head = [name for name in found["columns"]["chats"][1:] if name != "Models"]
+        for one in found["chats"]:
+            cells_ = {"Space": (truncate(one["space"], SPACE), "subtext"), "Turns": (str(one["turns"]), "subtext"),
+                      "Tokens": (short(one["tokens"]), "subtext"),
+                      "Cache": ("–" if one["cache"] is None else f"{one['cache']}%", "subtext"),
+                      "Cost": (self.cost(one), "text" if one["cost"] is not None else "muted")}
+            rows.append(([(one["title"], Style(fg="text"))], [cells_[name] for name in head if wide or name == "Cost"]))
+        lines = self.table(end, (words["chats"], head if wide else head[-1:]), rows, 12, words["chats_note"])
         if found["more"]:
             lines.append(Row())
             lines[-1].put(INSET, f"+{found['more']} more", Style(fg="muted"))
         return lines
 
     def models(self, found, end, wide):
-        """Models: each one's color and name, its tokens by kind, its cost; in a wide pane its agent too."""
+        """Models: each one's color and name, its tokens by kind, its cost, under core's columns; in a wide pane its
+        agent too."""
         def count(n):
             return (short(n) if n else "–", "subtext")
-        rows = [([(SWATCH, Style(fg=one["color"])), (one["name"], Style(fg="text"))],
-                 ([(truncate(one["agent"], AGENT), "subtext")] if wide else [])
-                 + [count(one[kind]) for kind in ("input", "write", "read", "output")]
-                 + [(one["text"], "text" if one["cost"] is not None else "muted")]) for one in found["models"]]
-        head = (found["words"]["models"], HEADS["models"] if wide else HEADS["models"][1:])
-        return self.table(end, head, rows, 12)
+        head, rows = found["columns"]["models"][1:], []
+        for one in found["models"]:
+            cells_ = {"Agent": (truncate(one["agent"], AGENT), "subtext"), "Input": count(one["input"]),
+                      "Cache write": count(one["write"]), "Cache read": count(one["read"]),
+                      "Output": count(one["output"]), "Cost": (one["text"], "text" if one["cost"] is not None
+                                                                else "muted")}
+            rows.append(([(SWATCH, Style(fg=one["color"])), (one["name"], Style(fg="text"))],
+                         [cells_[name] for name in head if wide or name != "Agent"]))
+        return self.table(end, (found["words"]["models"], head if wide else head[1:]), rows, 12)
 
 
 def main():
@@ -602,7 +611,7 @@ def main():
         from keys_windows import WindowsTerminal as Terminal
     else:
         from keys_unix import UnixTerminal as Terminal
-    UsageView(Terminal(), preview.Herdr(), state, period=os.environ.get(PERIOD_ENV)).run()
+    UsageView(Terminal(), preview.Herdr(), state).run()
 
 
 if __name__ == "__main__":

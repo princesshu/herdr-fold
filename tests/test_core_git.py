@@ -239,6 +239,15 @@ class CommandLine(Repo):
             "repo": os.path.realpath(os.path.join(self.root, ".git")), "linked": False, "inside": False})
         self.assertIsNone(self.cli("place", self.folder()))
 
+    def test_the_repository_changes_shows_its_own_else_the_one_inside(self):
+        holder = os.path.realpath(self.folder())
+        self.assertEqual(self.cli("top", holder), {"root": None})
+        inner = os.path.join(holder, "app")
+        os.makedirs(inner)
+        self.run_git("init", "-q", "-b", "main", cwd=inner)
+        self.assertEqual(self.cli("top", holder), {"root": inner})              # as the Spaces row names it
+        self.assertEqual(self.cli("top", self.root), {"root": os.path.realpath(self.root)})
+
     def test_a_files_diff_a_new_ones_as_all_added(self):
         self.write("a.txt")
         self.commit_all()
@@ -584,7 +593,7 @@ class Place(Repo):
 
 
 class RepositoryInside(unittest.TestCase):
-    """A folder that is no repository but holds one, as both clients' Spaces rows show it (the TUI's Workspaces token,
+    """A folder that is no repository but holds one, as both clients' Spaces rows show it (the TUI's Spaces token,
     the Herdr app mod's list): the repository its active pane is in, else the one a pane was last in, else the only one
     two folders down; found from the files, git asked only for the branch and how far it is from its upstream."""
 

@@ -1,7 +1,9 @@
 """Tests for open_file.py (Cmd+Shift+L): the files a pane's output names that are there, the newest first, with their
 lines; the list as the folder picker's (filter while typing, mouse, Cancel and Open); Open shows the file at its line
 in the sidebar's preview tab, laid out as the pane's tab, Files on the file."""
+import contextlib
 import fcntl
+import io
 import json
 import os
 import pty
@@ -17,6 +19,7 @@ import unittest
 from support import ANSI, catalog_text, set_attrs
 
 import open_file
+import named_files  # noqa: E402  the sidebar's copy of core's, on the path open_file's herdrlib gives
 
 
 class Root(unittest.TestCase):
@@ -65,13 +68,28 @@ class Named(Root):
     def test_an_absolute_path(self):
         self.assertEqual(self.names(f"wrote {self.path('lib/db.rs')}:7"), [("lib/db.rs", 7)])
 
+    def test_the_herdr_app_asks_core_for_them_with_their_rows_words(self):
+        """core/named_files.py is the one set of rules: the TUI's picker imports it, the Herdr app mod runs it on the
+        terminal's machine (CWD, the output's text) and gets JSON back, each file with the name its row shows."""
+        set_attrs(self, named_files, HOME=os.path.dirname(self.root))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(named_files.main(["named_files.py", self.root, "src/app.py:42\nREADME.md"]), 0)
+        self.assertEqual(json.loads(out.getvalue()), {"files": [
+            {"path": self.path("README.md"), "line": None, "name": "README.md"},
+            {"path": self.path("src/app.py"), "line": 42, "name": "src/app.py:42"}]})
+        self.assertIs(open_file.named, named_files.named)                       # no copy of them in the picker
+        self.assertEqual(named_files.main(["named_files.py"]), 2)
+
 
 class Picker(Root):
     def setUp(self):
         super().setUp()
-        set_attrs(self, open_file, HOME=os.path.dirname(self.root), icons_on=lambda state_dir: False)
-        self.picker = open_file.Picker([open_file.Found(self.path("src/app.py"), 42),
-                                        open_file.Found(self.path("README.md"), None)], self.root)
+        for module in (named_files, open_file):                     # a row's name, the title's folder
+            set_attrs(self, module, HOME=os.path.dirname(self.root))
+        set_attrs(self, open_file, icons_on=lambda state_dir: False)
+        self.picker = open_file.Picker([named_files.Found(self.path("src/app.py"), 42),
+                                        named_files.Found(self.path("README.md"), None)], self.root)
 
     def lines(self, width=60):
         return ANSI.sub("", open_file.screen(self.picker, 10, width)).split("\n")
@@ -114,7 +132,7 @@ class Picker(Root):
     def test_every_row_fits_the_width_with_the_icons_too(self):
         # a row one cell too wide wraps, and every click below it lands a row off
         set_attrs(self, open_file, icons_on=lambda state_dir: True)
-        self.picker.files.append(open_file.Found(self.path("src/web/page.tsx"), 12))
+        self.picker.files.append(named_files.Found(self.path("src/web/page.tsx"), 12))
         for width in (40, 60):
             self.assertLessEqual(max(len(line) for line in self.lines(width)), width, width)
 
@@ -140,7 +158,7 @@ class Picker(Root):
         name = "\x1b]52;c;ZWNobyBoaQ==\x07app.py"
         with open(self.path(name), "w") as f:
             f.write("x\n")
-        self.picker = open_file.Picker([open_file.Found(self.path(name), 1)], self.root)
+        self.picker = open_file.Picker([named_files.Found(self.path(name), 1)], self.root)
         shown = open_file.screen(self.picker, 10, 60)
         self.assertNotIn("\x1b]", shown)
         self.assertIn("?]52;c;ZWNobyBoaQ==?app.py:1", shown)
@@ -167,7 +185,7 @@ class Open(Root):
         set_attrs(self, open_file.preview, open_preview=open_preview)
         set_attrs(self, open_file.panes, bring=lambda call, tab, kinds, state_dir: brought.append(
             (tab, set(kinds), state_dir)))
-        open_file.open_found(Herdr(), open_file.Found(self.path("src/web/page.tsx"), 12), self.root, "w1:p1", state)
+        open_file.open_found(Herdr(), named_files.Found(self.path("src/web/page.tsx"), 12), self.root, "w1:p1", state)
         self.assertEqual(opened, [("w1", self.root, os.path.join("src", "web", "page.tsx"), 12, state, "w1:t1")])
         self.assertEqual(brought, [("w1:t5", {"sidebar"}, state)])
         with open(open_file.preview.seed_file(state, "w1:t5")) as f:

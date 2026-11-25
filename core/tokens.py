@@ -1,4 +1,4 @@
-"""Every message's tokens, for Usage: Claude's sessions with their sub-agents' files and Codex's token records, each
+"""Every message's tokens, for Usage: Claude's sessions with their subagents' files and Codex's token records, each
 message once by its id, kept by the hour in INDEX. The files are large: each is read once, then only where it grew.
 Only read: nothing of Claude's or Codex's is ever written. Usage (in JSON): tokens.py index."""
 import base64
@@ -20,7 +20,7 @@ VERSION = 1                     # another version's index (its shape) is not rea
 CHUNK = 32 << 20                # bytes of a file read at a time, then on to its line's end
 MOST = 256 << 20                # bytes one look reads (half a second of this Mac's): the next look goes on
 FIRST_LINE = 1 << 20            # bytes of a Codex file's first line read for its session (some 28 KB in use)
-NAME = 64                       # characters of a sub-agent's type kept
+NAME = 64                       # characters of a subagent's type kept
 # what a message's tokens are told apart as: output holds its reasoning, input neither the cache's reads nor writes
 KINDS = ("input", "write_5m", "write_1h", "read", "output", "reasoning", "searches")
 # thousands of prompt tokens past which a price table may ask more (LiteLLM's above_272k_tokens): a message tells
@@ -92,7 +92,7 @@ def once(messages):
 
 
 def sub_type(path):
-    """The type of the sub-agent whose file is PATH (Explore), from the meta file beside it, as text; "agent" where
+    """The type of the subagent whose file is PATH (Explore), from the meta file beside it, as text; "agent" where
     that does not tell it."""
     try:
         with open_regular(path[:-len(".jsonl")] + ".meta.json", "rb") as f:
@@ -104,7 +104,7 @@ def sub_type(path):
 
 def claude_messages(path, offset=0, most=CHUNK):
     """The messages in the Claude session file PATH from OFFSET (MOST bytes of it), each once by its id, and where the
-    next read starts. A sub-agent's file (<session>/subagents/agent-*.jsonl): its type as "sub", its parent's
+    next read starts. A subagent's file (<session>/subagents/agent-*.jsonl): its type as "sub", its parent's
     session."""
     lines, offset = marked(path, offset, most, CLAUDE)
     folder, name = os.path.split(path)
@@ -181,7 +181,7 @@ def codex_messages(path, offset=0, most=CHUNK, model=""):
 # --- the index
 
 def files(home):
-    """Every file with messages under HOME, by agent: Claude's sessions and their sub-agents', Codex's chats."""
+    """Every file with messages under HOME, by agent: Claude's sessions and their subagents', Codex's chats."""
     projects = os.path.join(home, ".claude", "projects", "*")
     return {"claude": glob.glob(os.path.join(projects, "*.jsonl"))
             + glob.glob(os.path.join(projects, "*", "subagents", "agent-*.jsonl")),
@@ -302,7 +302,7 @@ def index(state, home=None, most=MOST):
 
 def rows(index, since, until):
     """INDEX's (load()'s) sums for the hours from SINCE until UNTIL (seconds since 1970, UNTIL not in it): a row for
-    each agent, model, sub-agent type, session, hour and prompt step, [{"agent", "model", "sub", "session", "folder",
+    each agent, model, subagent type, session, hour and prompt step, [{"agent", "model", "sub", "session", "folder",
     "hour", "over", KINDS…, "messages"}]."""
     found = {}
     for entry in index["files"].values():

@@ -1,4 +1,4 @@
-"""The folder picker for a new workspace, opened by the Workspaces plugin after herdr's "new" button: herdr alone would
+"""The folder picker for a new workspace, opened by the Spaces plugin after herdr's "new" button: herdr alone would
 reuse the active workspace's folder. herdr_layout.py builds the chosen folder's workspace (or it jumps to an existing
 one), and the empty one is closed."""
 import collections
@@ -84,7 +84,7 @@ class Picker:
         self.agent = agent if agent in AGENTS else AGENTS[0]      # the toggle on the agent started last
         self.chosen = self.top = 0
         self.last = None                          # the click before: its time and row (a second one there opens)
-        if target and os.path.isdir(target):      # the sidebar's New Workspace: on that folder, in its parent
+        if target and os.path.isdir(target):      # the sidebar's New Space: on that folder, in its parent
             self.root = os.path.dirname(target.rstrip(os.sep)) or target
             self.choose(target)
 

@@ -1,6 +1,6 @@
-"""Writes core/price_table.py, the prices that come with herdr-fold, from LiteLLM's model cost map
-(https://github.com/BerriAI/litellm, MIT): Anthropic's and OpenAI's own rows for the agents' models. Run it for a
-newer table or when a family is added, then tools/build.py; nothing but core/prices.py asks for the map otherwise."""
+"""Writes core/price_table.py and core/model_windows.py, the prices and context windows that come with herdr-fold, from
+LiteLLM's model cost map (https://github.com/BerriAI/litellm, MIT): the makers' own rows. Run it for a newer table or a
+new family, then tools/build.py; nothing but core/prices.py asks for the map otherwise."""
 import json
 import os
 import re
@@ -11,11 +11,11 @@ import urllib.request
 sys.dont_write_bytecode = True    # core's modules it loads leave no bytecode behind
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TABLE = os.path.join(ROOT, "core", "price_table.py")
+WINDOWS = os.path.join(ROOT, "core", "model_windows.py")
 AGENT = "herdr-fold-tools"    # the request's User-Agent: the tool, nothing else
 # the models bundled: Claude's, and the GPT-5 line and later that Codex runs on, each without a date (a dated id is
 # priced as its undated one, core/prices.py's price_of())
 BUNDLED = re.compile(r"claude-[a-z0-9-]+|gpt-[5-9][a-z0-9.-]*")
-DATED = re.compile(r"-(\d{8}|\d{4}-\d\d-\d\d)$")
 
 
 def core():
@@ -48,10 +48,29 @@ def models(answer, prices):
     them."""
     found = {}
     for id, one in sorted(prices.table(answer).items()):
-        if BUNDLED.fullmatch(id) and not DATED.search(id):
+        if BUNDLED.fullmatch(id) and not prices.DATED.search(id):
             found[id] = (*(one[kind] for kind in prices.KINDS),
                          {step: tuple(past[kind] for kind in prices.KINDS) for step, past in one["above"].items()})
     return found
+
+
+def windows(answer, prices):
+    """{id: its context window in tokens} for the BUNDLED models in ANSWER, the makers' own rows that tell one
+    (max_input_tokens)."""
+    return {id: row["max_input_tokens"] for id, row in sorted(answer.items())
+            if BUNDLED.fullmatch(id) and not prices.DATED.search(id) and isinstance(row, dict)
+            and row.get("litellm_provider") in prices.MAKERS and type(row.get("max_input_tokens")) is int
+            and row["max_input_tokens"] > 0}
+
+
+def windows_source(found):
+    """core/model_windows.py's text for FOUND, a model a line."""
+    lines = ['"""Each model\'s context window in tokens, from LiteLLM\'s model cost map (max_input_tokens) beside',
+             "price_table.py's prices (https://github.com/BerriAI/litellm, MIT: see THIRD_PARTY_NOTICES.md). Written",
+             'by tools/prices.py: run that for a newer table, never edit this."""',
+             "WINDOWS = {"]
+    lines += [f"    {json.dumps(id)}: {tokens}," for id, tokens in found.items()]
+    return "\n".join(lines + ["}"]) + "\n"
 
 
 def source(as_of, models):
@@ -78,12 +97,16 @@ def source(as_of, models):
 
 def main():
     prices = core()
-    found = models(checked(fetch(prices.PRICES_URL), prices), prices)
+    answer = checked(fetch(prices.PRICES_URL), prices)
+    found = models(answer, prices)
     if not found:
         sys.exit("LiteLLM's map has none of the bundled models")
     with open(TABLE, "w", encoding="utf-8") as f:
         f.write(source(time.strftime("%Y-%m-%d", time.gmtime()), found))
-    print(f"core/price_table.py: {len(found)} models")
+    sizes = windows(answer, prices)
+    with open(WINDOWS, "w", encoding="utf-8") as f:
+        f.write(windows_source(sizes))
+    print(f"core/price_table.py: {len(found)} models; core/model_windows.py: {len(sizes)} windows")
 
 
 if __name__ == "__main__":

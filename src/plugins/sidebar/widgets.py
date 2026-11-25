@@ -2,7 +2,7 @@
 message), a drop-down menu and a confirmation. Plus Action, what a view asks the app to do: the views stay free of
 side effects, so they are tested without a terminal."""
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from icons import glyphs
 from screen import PLAIN, Style, char_width, truncate, width
@@ -344,9 +344,19 @@ def wrap(text, cells, breaks=" "):
 MENU_WIDEST = 14              # a menu's cells at least, as herdr's own
 
 
+class Keyed(str):
+    """A menu's line that a key does too: the line's words, KEY dim at its right."""
+
+    def __new__(cls, words, key):
+        made = super().__new__(cls, words)
+        made.key = key
+        return made
+
+
 class Menu:
     """A choice a row: ↑ ↓ and Enter, or a click; drawn as herdr's own menus: a frame in the accent on the panel's
-    background, the chosen row lit in the accent. A None among CHOICES: a rule between two kinds, never chosen."""
+    background, the chosen row lit in the accent, a Keyed line's key dim at its right. A None among CHOICES: a rule
+    between two kinds, never chosen."""
 
     def __init__(self, choices):
         self.choices = list(choices)
@@ -359,7 +369,8 @@ class Menu:
 
     def width(self):
         """The cells it takes, as herdr's own: its widest choice and four more (the frame, a cell of air each side)."""
-        return max(MENU_WIDEST, max(width(choice) for choice in self.choices if choice is not None) + 4)
+        return max(MENU_WIDEST, max(width(choice) + (2 + width(choice.key) if isinstance(choice, Keyed) else 0)
+                                    for choice in self.choices if choice is not None) + 4)
 
     def height(self):
         return len(self.choices) + 2
@@ -397,6 +408,9 @@ class Menu:
             canvas.put(y + i, x, "│", frame)                 # lit from frame to frame, a cell of air round its text
             text = " " + truncate(choice, max(0, cells - 4))
             canvas.put(y + i, x + 1, text.ljust(cells - 2), style)
+            if isinstance(choice, Keyed) and width(text) + 2 + width(choice.key) <= cells - 3:
+                canvas.put(y + i, x + cells - 2 - width(choice.key), choice.key,
+                           style if i - 1 == self.index else replace(style, fg="muted"))
             canvas.put(y + i, x + cells - 1, "│", frame)
             canvas.region(y + i, x + 1, x + cells - 1, f"menu:{i - 1}")
         canvas.put(y + len(self.choices) + 1, x, "└" + "─" * (cells - 2) + "┘", frame)

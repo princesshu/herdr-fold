@@ -4,7 +4,7 @@
 
 import { CHAT_HOOK } from "./helper.js";
 import { pythonCommand } from "./logic.js";
-import { money } from "./report.js";
+import { money, tokens } from "./report.js";
 import { written } from "./timeline.js";
 
 /** @typedef {{ id: string, label: string, description: string, icon: string, written?: string, shown: RegExp }} Mode */
@@ -83,13 +83,14 @@ export const ADAPTERS = {
   },
 };
 
-// the ways in (+, Chats, Issues, a new chat's agent list) open an agent as More's menu says, in a chat or a terminal
+// the ways in (+, Chats, Issues, a new chat's agent list, a new space) open an agent as Settings' Open agents in
+// says, in a chat or a terminal
 export const DRAWABLE = Object.keys(ADAPTERS);               // the agents a chat draws; every other one a terminal's
 export const RECENT_AGENTS = "herdr-fold.agents-recent";     // shared: the agents started last, the latest first
 export const AGENTS_OPEN = "herdr-fold.agents-open";         // shared: chat or terminal, Settings' General's
 const RECENT = 8;                                            // agents remembered at most
 
-/** How a way in opens an agent, as More's menu left it (KEPT): "chat", the default, or "terminal".
+/** How a way in opens an agent, as Settings' Open agents in left it (KEPT): "chat", the default, or "terminal".
  * @param {unknown} kept @returns {"chat" | "terminal"} */
 export const agentsOpen = (kept) => (kept === "terminal" ? "terminal" : "chat");
 
@@ -146,6 +147,20 @@ export function agentChoices(known, drawable, recent, agents = null) {
  * @param {{ space?: string, folder?: string | null, prompt?: string }} where */
 export const terminalTab = (choice, { space, folder = null, prompt = "" }) => ({ name: choice.name,
   ...(space ? { space } : {}), ...(folder ? { folder } : {}), argv: choice.run, ...(prompt ? { task: prompt } : {}) });
+
+/** Whether SPACE's tabs hold shells alone, as the app makes a space (PANES: panes()): no agent in a terminal, no mod's
+ * pane (a chat, a preview, Agents); a space with no tab yet holds nothing. @param {{ tabs?: { id: string }[] }} space
+ * @param {any[]} panes */
+export function shellsOnly(space, panes) {
+  const tabs = new Set((space.tabs ?? []).map((tab) => tab.id));
+  return tabs.size > 0 && panes.filter((p) => tabs.has(p.tab)).every((p) => Boolean(p.terminal) && !p.program?.agent);
+}
+
+/** space.new's arguments for a new space on MACHINE ("": this computer; none: the shown one's), in FOLDER (none: as
+ * the app starts one), CHOICE's own CLI its first tab. @param {{ name: string, run: string[] }} choice
+ * @param {{ machine?: string, folder?: string }} where */
+export const terminalSpace = (choice, { machine, folder }) => ({ ...(machine === undefined ? {} : { machine }),
+  ...(folder ? { folder } : {}), tab: choice.name, argv: choice.run });
 
 /** The mode ADAPTER's agent says it is in on SCREEN (its terminal's text): its footer's mode line, in the screen's last
  * FOOTER lines (the words of its output never pass for it); null for none. @param {Adapter} adapter
@@ -227,18 +242,13 @@ export function ringArc(percent) {
   return { x: 8 + 6 * Math.sin(turn), y: 8 - 6 * Math.cos(turn), large: percent > 50 };
 }
 
-/** TOKENS as the Context panel's legend says them: 6k, 18k, 1.2M; under a thousand to a tenth of one (0.3k).
- * @param {number} tokens */
-export const kilo = (tokens) => (tokens >= 1e6 ? `${+(tokens / 1e6).toFixed(1)}M` : tokens >= 1000
-  ? `${Math.round(tokens / 1000)}k` : `${Math.max(0.1, +(tokens / 1000).toFixed(1))}k`);
+const REST = "Chat & tools";          // the context beside the rules, skills and connectors: one part, tools unread
 
-const REST = "Conversation & tools";  // the context beside the rules and skills: one part till tools are read
-
-/** A part of the context in use. @typedef {{ key: "rules" | "skills" | "rest" | "used", label: string | null,
- * tokens: number, share: number }} ContextPart */
-/** The context in use as the Context panel's bar draws it, from STATUS (its share, the window) and SETUP (the
- * estimates): the rules read at the start, the skills' list, the rest, each at most what is left, with its share of
- * the window; while either is unknown, the use. @param {any} status @param {any} setup @returns {ContextPart[]} */
+/** A part of the context in use. @typedef {{ key: "rules" | "skills" | "connectors" | "rest" | "used",
+ * label: string | null, tokens: number, share: number }} ContextPart */
+/** The Context panel's bar from STATUS (share, window) and SETUP (estimates): rules read at start, skills' list,
+ * connectors' tools, the rest, each at most what is left, with its share; either unknown, the use alone.
+ * @param {any} status @param {any} setup @returns {ContextPart[]} */
 export function contextParts(status, setup) {
   const percent = Number(status?.context) || 0, window = Number(status?.window) || 0;
   if (!(window > 0) || !setup) return [{ key: "used", label: null, tokens: (window * percent) / 100,
@@ -254,26 +264,15 @@ export function contextParts(status, setup) {
   const parts = [{ key: /** @type {const} */ ("rules"), label: "Rules",
     tokens: take(sum((setup.rules ?? []).filter((r) => !r?.paths?.length))) },
   { key: /** @type {const} */ ("skills"), label: "Skills", tokens: take(sum(setup.skills ?? [])) },
+  { key: /** @type {const} */ ("connectors"), label: "Connectors", tokens: take(sum(setup.servers ?? [])) },
   { key: /** @type {const} */ ("rest"), label: REST, tokens: left }];
   return parts.filter((p) => p.tokens > 0).map((p) => ({ ...p, share: p.tokens / window }));
-}
-
-/** Where RULE (agent_setup.py's) is, as the Context panel says it after its name: the chat's FOLDER by its name, a
- * folder in it from it (.claude/rules), one in HOME from ~, else whole; the globs it is read for after a dot.
- * @param {{ path: string, paths?: string[] }} rule @param {string} folder @param {string} home */
-export function ruleWhere(rule, folder, home) {
-  const trim = (/** @type {string} */ path) => path.replace(/\/+$/, "") || "/";
-  const dir = rule.path.slice(0, rule.path.lastIndexOf("/")) || "/", top = trim(folder), mine = trim(home);
-  const inside = (/** @type {string} */ base) => base !== "/" && dir.startsWith(`${base}/`);
-  const where = dir === top ? top.slice(top.lastIndexOf("/") + 1) : inside(top) ? dir.slice(top.length + 1)
-    : dir === mine ? "~" : inside(mine) ? `~${dir.slice(mine.length)}` : dir;
-  return [where, (rule.paths ?? []).join(", ")].filter(Boolean).join(" · ");
 }
 
 /** A skill as a chat names it. @typedef {{ name: string, source: string | null, path: string | null,
  * known: boolean }} Skill */
 /** The skill CALLED names (the Skill tool's input, a plugin's plugin:skill) as SKILLS (agent_setup.py's) list it: its
- * name, source (Personal, Project, a plugin's) and file; one they lack its name, a plugin's its plugin as its source.
+ * name, source (Global, Project, a plugin's) and file; one they lack its name, a plugin's its plugin as its source.
  * @param {Adapter} adapter @param {string} called @param {any[]} skills @returns {Skill} */
 export function skillOf(adapter, called, skills) {
   const cut = adapter.skill ? called.indexOf(adapter.skill.plugin) : -1;
@@ -396,27 +395,14 @@ export function mentionMenu(changed, files, query, few) {
     .map(item("Files"))], query, few);
 }
 
-/** The file a conversation exported as MARKDOWN (core/chats.py's, "# its title" first) is named at first: its title,
+/** The file a chat exported as MARKDOWN (core/chats.py's, "# its title" first) is named at first: its title,
  * no slash or colon (macOS's), 80 characters at most, .md. @param {string} markdown */
 export function exportName(markdown) {
   const title = (/^# (.*)/.exec(markdown)?.[1] ?? "").replace(/[/:\\]/g, "-").replace(/\s+/g, " ").trim();
-  return `${title.slice(0, 80).trim() || "Conversation"}.md`;
+  return `${title.slice(0, 80).trim() || "Chat"}.md`;
 }
 
-/** @typedef {"personal" | "project" | "plugin" | "account" | "local"} TagRole */
-
-/** A source's tag role, as center-chat.html's and connectors.html's tags: the user's own (.tagu), the project's
- * (.tagp), the account's connectors' (claude.ai, .tagc), a local or managed one's (muted), else a plugin's (.tagl).
- * @param {string} source @returns {TagRole} */
-export const tagRole = (source) => (source === "Personal" ? "personal" : source === "Project" ? "project"
-  : source === "claude.ai" ? "account" : source === "Local" || source === "Managed" ? "local" : "plugin");
-
-// the tags' hues (OKLCh degrees) as the mockups draw them: Project teal, a plugin's peach, claude.ai blue; each taken
-// from the theme's palette, the nearest at least TAG_PART from the ones taken before it (Personal's accent first)
-export const TAG_HUES = { project: 183, plugin: 53, account: 260 }, TAG_PART = 30;
 export const READ = 4.5;                // small text's contrast on what it stands on (WCAG AA)
-const TAG_SLOTS = [2, 3, 4, 5, 6, 10, 11, 12, 13, 14];     // the palette's hues; red (1, 9) is the errors'
-const GRAY = 0.03;                      // a color's chroma (OKLCh) under which it reads as gray, as Local's muted
 
 /** @param {string} hex @returns {number[]} its channels, 0 to 1 */
 const channels = (hex) => [1, 3, 5].map((n) => parseInt(hex.slice(n, n + 2), 16) / 255);
@@ -438,20 +424,6 @@ export function contrast(one, other) {
   return (light + 0.05) / (dark + 0.05);
 }
 
-/** HEX's chroma and hue (OKLCh, degrees). @param {string} hex @returns {{ chroma: number, hue: number }} */
-export function oklch(hex) {
-  const [r, g, b] = channels(hex).map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
-  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
-  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
-  const x = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, y = 0.0259040371 * l + 0.7827717662 * m
-    - 0.808675766 * s;
-  return { chroma: Math.hypot(x, y), hue: ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360 };
-}
-
-/** The degrees between two hues. @param {number} a @param {number} b */
-export const hueGap = (a, b) => Math.min(Math.abs(a - b) % 360, 360 - (Math.abs(a - b) % 360));
-
 /** HEX, or moved toward TOWARD by tenths until it reads READ on GROUND (apply.py's readable).
  * @param {string} hex @param {string} toward @param {string} ground */
 export function readableOn(hex, toward, ground) {
@@ -462,43 +434,11 @@ export function readableOn(hex, toward, ground) {
   return toward;
 }
 
-/** @type {Map<string, Record<TagRole, string>>} */
-const TAGS = new Map();
-
-/** Each tag role's color in theme T, read by READ on canvas, where a tag stands: Personal the accent; Project, a
- * plugin's and claude.ai the palette's hues nearest TAG_HUES, each TAG_PART from those taken before; Local muted.
- * @param {Record<string, string>} t @returns {Record<TagRole, string>} */
-export function tagColors(t) {
-  const key = [t.accent, t.muted, t.foreground, t.canvas, t.ansi1, ...TAG_SLOTS.map((n) => t[`ansi${n}`])].join();
-  const known = TAGS.get(key);
-  if (known) return known;
-  const hexes = (/** @type {string[]} */ ...all) => all.every((v) => /^#[0-9a-f]{6}/i.test(v ?? ""));
-  const read = (/** @type {string} */ hex) => (hexes(hex, t.foreground, t.canvas) ? readableOn(hex, t.foreground,
-    t.canvas) : hex);
-  const slots = TAG_SLOTS.map((n) => t[`ansi${n}`]).filter((hex) => hexes(hex));
-  const pool = [...slots, ...(hexes(t.ansi1, t.ansi3) ? [mixColor(t.ansi1, t.ansi3, 0.5)] : [])].map(read)
-    .map((hex) => ({ hex, ...oklch(hex) })).filter((c) => c.chroma >= GRAY);
-  const accent = read(t.accent), taken = [{ hex: accent, ...(hexes(accent) ? oklch(accent) : { chroma: 0, hue: 0 }) }];
-  /** @type {Record<string, string>} */
-  const colors = { personal: taken[0].hex };
-  for (const [role, target] of Object.entries(TAG_HUES)) {
-    const free = pool.filter((c) => taken.every((o) => hueGap(c.hue, o.hue) >= TAG_PART));
-    const near = free.reduce((best, c) => (!best || hueGap(c.hue, target) < hueGap(best.hue, target) ? c : best),
-      /** @type {typeof pool[number] | null} */ (null)) ?? pool[0] ?? taken[0];
-    taken.push(near);
-    colors[role] = near.hex;
-  }
-  const made = /** @type {Record<TagRole, string>} */ ({ ...colors, local: read(t.muted) });
-  TAGS.set(key, made);
-  return made;
-}
-
-/** The context in use in words, from the status line's numbers: "68k of 200k · 34%"; its share alone while the window
- * is not known. @param {{ context: number, window?: number | null }} status */
-export function contextLine({ context, window }) {
-  const size = (/** @type {number} */ n) => (n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1000)}k`);
-  return window ? `${size((window * context) / 100)} of ${size(window)} · ${context}%` : `${context}%`;
-}
+/** The context in use in words, from the status line's numbers by the number rule: "68.0k of 200k · 34%", the window
+ * a size as core's head says it (1M, never 1.0M); its share alone while the window is not known.
+ * @param {{ context: number, window?: number | null }} status */
+export const contextLine = ({ context, window }) => (window ? `${tokens(Math.round((window * context) / 100))} of ${
+  tokens(window).replace(".0", "")} · ${context}%` : `${context}%`);
 
 /** A model's ID as its name ("claude-opus-5-5[1m]": Opus 5.5), for the bar until the status line names it; an id of
  * another kind as it is. @param {string} id */
@@ -617,7 +557,7 @@ export function budgetNotice(answer, dismissed) {
 }
 
 /** The Context panel's cost block from COSTS (costs.py's answer for the conversation): its whole with core's word
- * for it (API value, spent; none with no price), a row a model (the agent's, then the sub-agents' by their model),
+ * for it (API value, spent; none with no price), a row a model (the agent's, then the subagents' by their model),
  * and the tokens' line; null with no costs. @param {any} costs */
 export function costBlock(costs) {
   if (!costs?.agent?.model || typeof costs.text !== "string") return null;
@@ -628,10 +568,10 @@ export function costBlock(costs) {
     subs.set(one.model.name, { ...was, count: was.count + 1,
       cost: typeof one.cost === "number" ? (was.cost ?? 0) + one.cost : was.cost });
   }
-  return { session: String(costs.session ?? ""), label: "This conversation", figure: costs.text,
+  return { session: String(costs.session ?? ""), label: "This chat", figure: costs.text,
     unit: /\d/.test(costs.text) ? String(costs.kind ?? "") : "",
     rows: [{ name: costs.agent.model.name, color: costs.agent.model.color, figure: costs.agent.text },
-      ...[...subs].map(([name, one]) => ({ name: `${name} · ${one.count} sub-agent${one.count === 1 ? "" : "s"}`,
+      ...[...subs].map(([name, one]) => ({ name: `${name} · ${one.count} subagent${one.count === 1 ? "" : "s"}`,
         color: one.color, figure: one.cost === null ? "no price" : money(one.cost, true) }))],
     line: String(costs.line ?? "") };
 }

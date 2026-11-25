@@ -1,6 +1,6 @@
 """herdr-fold's Settings in herdr's popup (the sidebar's More: Settings…), as settings.html's TUI box: its sections in a
-list (↑ ↓), the chosen one beside it. General: the sidebar's icons (settings.json's `icons`, in use at once). About: the
-version, its license, the update check and its switch, What's new, the notices (Tab, ← →, Enter, Space). Esc closes."""
+list (↑ ↓). General: the sidebar's icons (settings.json's `icons`). Notifications: herdr's own toast for an agent that
+waits (its config.toml, reloaded). About: the version, license, update check and its switch, the notices. Esc closes."""
 import json
 import os
 import re
@@ -9,6 +9,7 @@ import time
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import herdr_toml  # noqa: E402
 import media  # noqa: E402
 import panels  # noqa: E402
 import panes  # noqa: E402
@@ -24,11 +25,16 @@ LICENSE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "LICENSE")   
 COPYRIGHT = re.compile(r"Copyright \(c\) (\S+) (.+?)(?: \((https://\S+)\))?")
 SWITCH = "Check for updates automatically"
 NOTICES = "Third-party notices"
-SECTIONS = {"general": "General", "about": "About"}     # the list at the left, from the row under the close button
-LIST, ROOM = 11, 45           # the list's cells (a cell of air before a name); the rule, a cell of air; the section's
+# the list at the left, from the row under the close button
+SECTIONS = {"general": "General", "notifications": "Notifications", "about": "About"}
+LIST, ROOM = 15, 45           # the list's cells (a cell of air before a name); the rule, a cell of air; the section's
 INSET = LIST + 2              # the section's first column
 ICONS = {True: "Nerd Font", False: "Plain marks"}       # General's one setting: the option in use is the lit one
 ICONS_NOTE = ("Plain marks where the terminal's font has no", "Nerd Font icons; ", "i", " in Files switches it too.")
+WAITS = "An agent waits on you"         # Notifications' one setting: herdr's [ui.toast] delivery, "herdr" or "off"
+WAITS_ON = {True: "on", False: "off"}
+WAITS_NOTE = ("herdr's note at the bottom right,", "once per agent")
+TOAST = ("ui.toast", "delivery")
 CLOSE, NAME, LEGAL, STATE, HOW, BOX, LINK, BUTTONS = 0, 1, 2, 4, 5, 7, 9, 11    # each one's row, in every state
 CHOICES = ("first", "check", "author", "notices")   # Tab's way: What's new (or the notes), Check now, then the links
 RIGHT = 0                     # the right inset: herdr's popup keeps a blank column of its own inside its right edge
@@ -76,6 +82,7 @@ class Settings(Loop):
         self.legal = legal()
         self.section = "about" if newer_out() else "general"
         self.icons = icons_on(state_dir)  # the sidebar's icons, as its settings.json has them
+        self.waits = self.toast() != "off"     # herdr's toast for an agent that waits: on unless its file says off
         self.chosen = "first"             # About's control Tab is on
         self.pointed = None
         self.over, self.tip = None, False      # since when the mouse rests on the close button; its tip drawn
@@ -132,9 +139,9 @@ class Settings(Loop):
             names = list(SECTIONS)
             at = names.index(self.section) + (1 if key.name == "down" else -1)
             self.section = names[max(0, min(len(names) - 1, at))]
-        elif self.section == "general":
+        elif self.section in ("general", "notifications"):
             if key.name in ("tab", "right", "backtab", "left"):       # two options: a step is the other one
-                self.set_icons(not self.icons)
+                self.set_icons(not self.icons) if self.section == "general" else self.set_waits(not self.waits)
         elif key.name == "char" and key.char == " ":
             self.press("box")
         elif key.name in ("tab", "right", "backtab", "left"):
@@ -154,6 +161,45 @@ class Settings(Loop):
             return
         self.icons = on
 
+    @staticmethod
+    def config():
+        return os.path.join(os.path.expanduser("~"), ".config", "herdr", "config.toml")
+
+    def toast(self):
+        """herdr's toast delivery as its config.toml sets it, or None: not set, or a file not read for sure."""
+        try:
+            with open(self.config(), encoding="utf-8") as f:
+                return herdr_toml.value(f.read(), *TOAST)
+        except (OSError, ValueError):
+            return None
+
+    def set_waits(self, on):
+        """herdr's toast ON ("herdr") or off in its config.toml (herdr_toml.py's put(): a line of the user's own),
+        then herdr asked to read it again; as it was where the file is not one it changes for sure."""
+        try:
+            try:
+                with open(self.config(), encoding="utf-8") as f:
+                    theirs = f.read()
+            except FileNotFoundError:
+                theirs = ""
+            made = herdr_toml.put(theirs, *TOAST, '"herdr"' if on else '"off"')
+            if made is None:
+                return
+            os.makedirs(os.path.dirname(self.config()), exist_ok=True)
+            with open(self.config(), "w", encoding="utf-8") as f:     # into the file itself: a link stays a link
+                f.write(made)
+        except (OSError, ValueError):
+            return
+        self.waits = on
+
+        def work():
+            try:
+                self.herdr.call("server", "reload-config")
+            except RuntimeError:                  # no server to tell: herdr reads its file when it starts
+                pass
+
+        self.job("reload", work)
+
     def choices(self):
         """What Tab reaches: the buttons with an install here, the author's page where the LICENSE names it, the
         notices."""
@@ -169,6 +215,9 @@ class Settings(Loop):
         elif isinstance(target, tuple) and target[0] == "icons":
             if target[1] != self.icons:
                 self.set_icons(target[1])
+        elif isinstance(target, tuple) and target[0] == "waits":
+            if target[1] != self.waits:
+                self.set_waits(target[1])
         elif target == "author" and self.legal and self.legal[2]:
             media.open_in_browser(self.legal[2])
             self.quit = True
@@ -225,7 +274,12 @@ class Settings(Loop):
         canvas.region(CLOSE, corner, corner + CLOSE_CELLS, "close")
         self.draw_list(canvas)
         if self.section == "general":
-            self.draw_general(canvas)
+            self.draw_options(canvas, "Icons", "icons", ICONS, self.icons)
+            self.draw_icons_note(canvas)
+        elif self.section == "notifications":
+            self.draw_options(canvas, WAITS, "waits", WAITS_ON, self.waits)
+            for y, words in zip((STATE, HOW), WAITS_NOTE):
+                canvas.put(y, INSET, words, Style(fg="muted"))
         else:
             self.draw_about(canvas, self.found or {})
         if self.tip:                                  # under the button at its right edge, as the sidebar's tips
@@ -249,20 +303,23 @@ class Settings(Loop):
         for y in range(canvas.height):
             canvas.put(y, LIST, "│", Style(fg="guide"))
 
-    def draw_general(self, canvas):
-        """Icons: its two options side by side, a cell of air round each name and one between them, the one in use lit
-        as a chosen button; what it is for under them."""
-        canvas.put(NAME, INSET, "Icons", Style(fg="text"))
+    def draw_options(self, canvas, name, key, options, held):
+        """A setting of two: its NAME, its OPTIONS side by side, a cell of air round each and one between them, the
+        one HELD lit as a chosen button; a press on one is (KEY, the option)."""
+        canvas.put(NAME, INSET, name, Style(fg="text"))
         x = INSET
-        for on, words in ICONS.items():
-            target = ("icons", on)
-            if on == self.icons:
+        for on, words in options.items():
+            target = (key, on)
+            if on == held:
                 style = Style(fg="button_text", bg="button", bold=True)
             else:
                 style = Style(fg="text", bg="hover") if self.pointed == target else Style(fg="muted")
             end = canvas.put(LEGAL, x, f" {words} ", style)
             canvas.region(LEGAL, x, end, target)
             x = end + 1
+
+    def draw_icons_note(self, canvas):
+        """What Icons is for, under its options, the key that switches it too in the text's color."""
         first, before, key, after_ = ICONS_NOTE
         canvas.put(STATE, INSET, first, Style(fg="muted"))
         x = canvas.put(HOW, INSET, before, Style(fg="muted"))

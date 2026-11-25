@@ -7,8 +7,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import { contrast } from "../mods/herdr-fold/agents.js";
 import { AGENT, AGENTS_TAB, agentsAsked, agentsTab, APART, askAgents, boxes, dragTo, dropLayout, EDGE, edgePath,
   extent, FIRST, folded, gateAt, gatesRoom, GROUP, INDENT, IN_ROOM, keepLayout, layout, layoutKey, nodeFor, nodeLines,
-  placed, portOf, sizeOf, stepNode, tagInk, UNDER, USES_ROOM, wireColor, badgeAt, DISC, faded, FAINT, legendOf,
-  measured, nodeShown, propertiesOf, running, seen, shareWidth, shownInAgent, unzoomed, VIEWS, wireLook }
+  placed, portOf, sizeOf, stepNode, TIGHT, UNDER, USES_ROOM, GATES_MOST, wireColor, badgeAt, DISC, faded,
+  FAINT, legendOf, measured, nodeShown, propertiesOf, running, seen, shareWidth, shownInAgent, unzoomed, VIEWS,
+  viewWords, wireLook }
   from "../mods/herdr-fold/graph.js";
 
 /** A node as core words it. @param {string} id @param {string} column @param {string} kind @param {string} title
@@ -26,7 +27,7 @@ const LUMEN = { agent: "claude", name: "Claude", folder: "/home/dev/lumen-api", 
   node("rule:/home/dev/lumen-api/.claude/rules/api.md", "in", "rule", "api.md"),
   node("skill:/home/dev/lumen-api/.claude/skills/routes/SKILL.md", "in", "skill", "api-routes"),
   node("skills:more", "in", "skills", "15 more skills", { properties: { title: "15 more skills", state: null,
-    lines: [["commit", "Personal", null], ["release-notes", "pr-review", null]], text: null, error: null,
+    lines: [["commit", "Global", null], ["release-notes", "pr-review", null]], text: null, error: null,
     actions: [] } }),
   node(AGENT, "agents", "agent", "Claude", { chips: ["PermissionRequest → herdr-fold"] }),
   node("agent:pr-review:code-reviewer", "agents", "sub", "code-reviewer"),
@@ -60,7 +61,7 @@ test("the Agents tab is the space's tab so named whose pane is the mod's; an ask
   assert.equal(agentsAsked({ s1: { at: "now" } }, "s1", null, 1500), null);
 });
 
-test("the tools a conversation alone called fold into one node on a long Uses column; one alone stays itself", () => {
+test("the tools a chat alone called fold into one node on a long Uses column; one alone stays itself", () => {
   assert.equal(folded(LUMEN), LUMEN);                                     // nothing to fold
   const one = { ...LUMEN, nodes: [...LUMEN.nodes, node("tool:Grep", "uses", "tool", "Grep")],
     edges: [...LUMEN.edges, edge(AGENT, "tool:Grep", "always", [{ text: "allow", tone: "allow" }])] };
@@ -89,7 +90,7 @@ test("the tools a conversation alone called fold into one node on a long Uses co
   assert.equal(long.nodes.length, 15);                                    // core's answer as it was
 });
 
-test("three columns: In from the left, the agent in the middle with its sub-agents under it, Uses at the right",
+test("three columns: In from the left, the agent in the middle with its subagents under it, Uses at the right",
   () => {
     const at = layout(LUMEN.nodes, SIZE), box = boxes(LUMEN.nodes, at);
     const [personal, project, api, skill, more] = LUMEN.nodes.slice(0, 5).map((n) => at[n.id]);
@@ -98,7 +99,7 @@ test("three columns: In from the left, the agent in the middle with its sub-agen
     assert.equal(skill.y - api.y, sizeOf(LUMEN.nodes[2]).h + GROUP);        // the skills a group of their own
     assert.equal(more.y - skill.y, sizeOf(LUMEN.nodes[3]).h + APART);
     assert.ok([project, api, skill, more].every((one) => one.x === EDGE));
-    // the agent on the canvas's middle, its sub-agent under it and a step in
+    // the agent on the canvas's middle, its subagent under it and a step in
     const agent = box[AGENT], sub = box["agent:pr-review:code-reviewer"];
     assert.equal(agent.x + agent.w / 2, SIZE.width / 2);
     assert.deepEqual([sub.x - agent.x, sub.y - (agent.y + agent.h)], [INDENT, UNDER]);
@@ -120,7 +121,7 @@ test("a node is as large as it was measured; a narrow canvas keeps the columns a
   const at = layout(LUMEN.nodes, SIZE, sizes), box = boxes(LUMEN.nodes, at, sizes);
   assert.equal(box["tool:Bash"].x, SIZE.width - EDGE - 240);               // the column as wide as its widest
   const narrow = layout(LUMEN.nodes, { width: 500, height: 300 }), small = boxes(LUMEN.nodes, narrow);
-  assert.equal(small[AGENT].x, EDGE + 190 + IN_ROOM);
+  assert.equal(small[AGENT].x, EDGE + 190 + TIGHT);
   assert.equal(small["tool:files"].x, small[AGENT].x + 250 + USES_ROOM);
   const room = extent(small, { width: 500, height: 300 });
   assert.equal(room.width, small["tool:files"].x + 190 + EDGE);
@@ -139,7 +140,9 @@ test("the columns stand as far apart as the widest gate needs; with nothing goin
   assert.equal(gatesRoom(LUMEN.edges), IN_ROOM);                          // ask, hook: two short pills
   const wide = gatesRoom([{ gates: [{ text: "ask · pytest allowed" }, { text: "deny git push" }] }]);
   assert.ok(wide > 240 && wide <= USES_ROOM, String(wide));
-  assert.equal(gatesRoom([{ gates: [{ text: "x".repeat(80) }] }]), USES_ROOM);      // never wider
+  const bash = [{ text: "ask · python3 -m pytest, git status +1 allowed" }, { text: "deny rm -rf" }, { text: "hook" }];
+  assert.ok(gatesRoom([{ gates: bash }]) > USES_ROOM);                      // its three pills whole, over no node
+  assert.equal(gatesRoom([{ gates: [{ text: "x".repeat(120) }] }]), GATES_MOST);     // never wider
   const narrow = { width: 500, height: 300 };
   const close = boxes(LUMEN.nodes, layout(LUMEN.nodes, narrow, {}, IN_ROOM));
   assert.equal(close["tool:files"].x, close[AGENT].x + 250 + IN_ROOM);
@@ -147,7 +150,31 @@ test("the columns stand as far apart as the widest gate needs; with nothing goin
   assert.equal(layout(alone, narrow)[AGENT].x, EDGE);
 });
 
-test("an edge leaves a node's right for the next one's left; a sub-agent's drops from its agent's foot", () => {
+test("a canvas narrower than the columns' room brings them nearer, to TIGHT and the gates' own; then it scrolls",
+  () => {
+    // the demo app's canvas with the sidebar and the panel open is 781 wide: three rules, two tools, an ask each
+    const asks = LUMEN.edges.map((one) => (one.gates.length ? { ...one, gates: [{ text: "ask", tone: "ask" }] } : one));
+    const [room, least] = [gatesRoom(asks), gatesRoom(asks, true)];
+    assert.deepEqual([room, least, gatesRoom([], true)], [IN_ROOM, 49, TIGHT]);     // the pill's own room at least
+    const ins = LUMEN.nodes.filter((one) => one.column === "in");
+    for (const width of [781, 830, 860]) {
+      const size = { width, height: 700 }, all = boxes(LUMEN.nodes, layout(LUMEN.nodes, size, {}, room, least));
+      const agent = all[AGENT], uses = all["tool:files"];
+      const apart = agent.x - Math.max(...ins.map((one) => all[one.id].x + all[one.id].w));
+      assert.equal(extent(all, size).width, width, `at ${width}`);          // within the canvas: nothing cut
+      assert.equal(uses.x + uses.w, width - EDGE, `at ${width}`);           // Uses at the right edge
+      assert.ok(apart >= TIGHT && apart < IN_ROOM, `at ${width}: ${apart}`);
+      assert.ok(uses.x - (agent.x + agent.w) >= least, `at ${width}`);       // room for the gates' pills
+    }
+    // narrower than the columns at their nearest: TIGHT and the gates' room apart, and the canvas scrolls
+    const size = { width: 700, height: 700 }, all = boxes(LUMEN.nodes, layout(LUMEN.nodes, size, {}, room, least));
+    assert.deepEqual([all[AGENT].x, all["tool:files"].x], [EDGE + 190 + TIGHT, EDGE + 190 + TIGHT + 250 + least]);
+    assert.equal(extent(all, size).width, all["tool:files"].x + 190 + EDGE);
+    // with room enough, as far apart as ever
+    assert.deepEqual(layout(LUMEN.nodes, SIZE, {}, room, least), layout(LUMEN.nodes, SIZE, {}, room));
+  });
+
+test("an edge leaves a node's right for the next one's left; a subagent's drops from its agent's foot", () => {
   const a = { x: 100, y: 100, w: 200, h: 50 }, b = { x: 600, y: 300, w: 190, h: 54 };
   assert.deepEqual(edgePath(a, b, 2), [[300, 125], [420, 125], [480, 327], [600, 327]]);
   // the agent's edges leave a little apart, as agent-graph.html's
@@ -262,7 +289,7 @@ test("the inspector lists a node's lines but what its title says; a folded node'
       ["Model", "opus", null], ["Tools", "Read, Grep", null]], text: null, error: null, actions: [] } });
   assert.deepEqual(nodeLines(sub), { list: false, lines: [["From", "pr-review", "Plugin"],
     ["Tools", "Read, Grep", null]] });
-  assert.deepEqual(nodeLines(LUMEN.nodes[4]), { list: true, lines: [["commit", "Personal", null],
+  assert.deepEqual(nodeLines(LUMEN.nodes[4]), { list: true, lines: [["commit", "Global", null],
     ["release-notes", "pr-review", null]] });
   assert.deepEqual(nodeLines(node("x", "uses", "tool", "Bash", { properties: null })), { list: false, lines: [] });
 });
@@ -270,8 +297,8 @@ test("the inspector lists a node's lines but what its title says; a folded node'
 test("Show graph chooses its row's node, or the fold that holds it", () => {
   assert.equal(nodeFor(LUMEN.nodes, "connector:github"), "connector:github");
   assert.equal(nodeFor(LUMEN.nodes, "skill:/home/dev/.claude/skills/commit/SKILL.md"), "skills:more");
-  assert.equal(nodeFor(LUMEN.nodes, "agent:Claude:Plan"), null);            // no fold of sub-agents here
-  assert.equal(nodeFor([...LUMEN.nodes, node("agents:more", "agents", "subs", "5 more sub-agents")],
+  assert.equal(nodeFor(LUMEN.nodes, "agent:Claude:Plan"), null);            // no fold of subagents here
+  assert.equal(nodeFor([...LUMEN.nodes, node("agents:more", "agents", "subs", "5 more subagents")],
     "agent:Claude:Plan"), "agents:more");
   assert.equal(nodeFor(LUMEN.nodes, null), null);
 });
@@ -297,7 +324,7 @@ test("Show in Agent leads to the node's row by core's id, the agent's to its pan
       run: { properties: props([]) } }), "run"), null);            // what it ran has no row either
   });
 
-test("an edge is seen 3:1 on the canvas and a node's tag reads 4.5:1 on it, in every theme", () => {
+test("an edge is seen 3:1 on the canvas and a node's words read 4.5:1 on it, in every theme", () => {
   const dir = new URL("../themes/", import.meta.url);
   const themes = readdirSync(dir).filter((name) => name.endsWith(".json"));
   assert.equal(themes.length, 13);
@@ -308,11 +335,8 @@ test("an edge is seen 3:1 on the canvas and a node's tag reads 4.5:1 on it, in e
     for (const style of ["always", "demand", "waiting", "failed"]) {
       assert.ok(contrast(wireColor(t, style), t.surface) >= 3, `${name}: a ${style} edge`);
     }
-    for (const role of ["personal", "project", "plugin", "account", "local"]) {
-      assert.ok(contrast(tagInk(t, role, t.chrome), t.chrome) >= 4.5, `${name}: a ${role} tag on a node`);
-    }
     assert.ok(contrast(t.foreground, t.chrome) >= 4.5 && contrast(t.muted, t.chrome) >= 4.5, `${name}: a node`);
-    // This conversation: a lit edge on the canvas, a first use's number on its disc, the projects' bars on a card
+    // This chat: a lit edge on the canvas, a first use's number on its disc, the projects' bars on a card
     assert.ok(contrast(wireLook(t, { from: "a", to: "b", style: "always", gates: [], run: { ran: true } }, "run")
       .color, t.surface) >= 3, `${name}: an edge that ran`);
     assert.ok(contrast(t.accent_foreground ?? t.background, t.accent) >= 4.5, `${name}: a first use's number`);
@@ -327,24 +351,25 @@ const ran = (over = {}) => ({ ran: true, order: null, sub: null, tag: null, call
 // usage.html's Gráf: Claude on Opus with an Explore on Haiku, the files' tools and Bash called, Box never
 const OPUS = { name: "Opus 5.5", color: "#3987e5" }, HAIKU = { name: "Haiku 5.5", color: "#199e70" };
 const RUN = { nodes: [
-  node("rule:a", "in", "rule", "CLAUDE.md", { tag: { text: "Personal", tone: "personal" }, run: ran() }),
-  node("skill:r", "in", "skill", "api-routes", { run: ran({ order: 2, sub: "skill · used once · 0.3k" }) }),
-  node(AGENT, "agents", "agent", "Claude", { tag: { text: "this conversation", tone: "muted" }, run: ran({
+  node("rule:a", "in", "rule", "CLAUDE.md", { tag: "Global", run: ran() }),
+  node("skill:r", "in", "skill", "api-routes", { run: ran({ order: 2, sub: "used once · 300" }) }),
+  node(AGENT, "agents", "agent", "Claude", { run: ran({
     cost: "$3.70", model: OPUS, share: 0.9, sub: "Opus 5.5 · 38 turns · 1.0M tokens", properties: { title: "Claude",
       state: { text: "$3.70 API value", tone: "ok" }, lines: [["Model", "Opus 5.5 · High", null],
         ["Cache read", "0.79M", "84% of its input"]], text: null, error: null,
       actions: [{ id: "usage", label: "Open in Usage", session: "abc" }] } }) }),
   node("sub:Explore", "agents", "sub", "Explore", { run: ran({ order: 3, cost: "$0.42", model: HAIKU, share: 0.1,
-    sub: "Haiku 5.5 · sub-agent · 210k tokens" }) }),
-  node("sub:reviewer", "agents", "sub", "code-reviewer", { tag: { text: "pr-review", tone: "plugin" },
-    run: ran({ ran: false, sub: "not run in this conversation" }) }),
-  node("tool:files", "uses", "tool", "Read · Edit · Write", { sub: "built-in", run: ran({ order: 1, count: 14,
+    sub: "Haiku 5.5 · 210k tokens" }) }),
+  node("sub:reviewer", "agents", "sub", "code-reviewer", { tag: "pr-review",
+    run: ran({ ran: false, sub: "not run in this chat" }) }),
+  node("tool:files", "uses", "tool", "Read · Edit · Write", { sub: null, run: ran({ order: 1, count: 14,
     calls: "14 calls" }) }),
-  node("tool:Bash", "uses", "tool", "Bash", { sub: "built-in", run: ran({ order: 4, count: 3, calls: "3 calls" }) }),
+  node("tool:Bash", "uses", "tool", "Bash", { sub: "sandboxed, 2 hosts", run: ran({ order: 4, count: 3,
+    calls: "3 calls" }) }),
   node("tool:Grep", "uses", "tool", "Grep", { run: ran({ order: 5, count: 1, calls: "1 call" }) }),
   node("tool:Glob", "uses", "tool", "Glob", { run: ran({ order: 6, count: 2, calls: "2 calls" }) }),
-  node("connector:box", "uses", "connector", "Box", { state: "warn", sub: "needs sign-in",
-    tag: { text: "sign in", tone: "warn" }, run: ran({ ran: false, sub: "connector · not used" }) }),
+  node("connector:box", "uses", "connector", "Box", { state: "warn", sub: "sign in", tag: "claude.ai",
+    run: ran({ ran: false, sub: "not used", tag: { text: "sign in", tone: "warn" } }) }),
   node("connector:notion", "uses", "connector", "Notion", { dim: true, run: ran({ ran: false }) })],
 edges: [{ ...edge("rule:a", AGENT), run: { ran: true, running: false, calls: 0 } },
   { ...edge(AGENT, "tool:files"), run: { ran: true, running: false, calls: 14 } },
@@ -355,12 +380,12 @@ const byId = (/** @type {string} */ id) => /** @type {any} */ (RUN.nodes.find((o
 const THEME = { accent: "#cba6f7", foreground: "#cdd6f4", surface: "#1e1e2e", dim: "#7f849c", ansi1: "#f38ba8",
   ansi3: "#f9e2af" };
 
-test("in This conversation what did not run stands at half strength, in Wiring only what does not run here", () => {
+test("in This chat what did not run stands at half strength, in Wiring only what does not run here", () => {
   assert.deepEqual(VIEWS, ["wiring", "run"]);
   const faint = (/** @type {string} */ view) => RUN.nodes.filter((one) => faded(one, view)).map((one) => one.id);
   assert.deepEqual(faint("wiring"), ["connector:notion"]);
   assert.deepEqual(faint("run"), ["sub:reviewer", "connector:box", "connector:notion"]);
-  assert.equal(faded(node("x", "in", "rule", "x"), "run"), false);          // no conversation read: nothing fades
+  assert.equal(faded(node("x", "in", "rule", "x"), "run"), false);          // no chat read: nothing fades
 });
 
 test("a first use's number stands on its node's top right corner, clear of the edges coming in", () => {
@@ -380,13 +405,15 @@ test("a node says what it ran: its cost and model, its calls, its own line; in W
   assert.deepEqual(nodeShown(byId(AGENT), "run"), { sub: "Opus 5.5 · 38 turns · 1.0M tokens", tag: null,
     calls: null, cost: "$3.70", color: "#3987e5", share: 0.9, order: null });
   assert.deepEqual(nodeShown(byId(AGENT), "wiring"), { sub: "always · 2.4k", calls: null, cost: null, color: null,
-    tag: { text: "this conversation", tone: "muted" }, share: null, order: null });
-  assert.deepEqual(nodeShown(byId("tool:files"), "run"), { sub: "built-in", tag: null, calls: "14 calls", cost: null,
+    tag: null, share: null, order: null });
+  assert.deepEqual(nodeShown(byId("tool:files"), "run"), { sub: null, tag: null, calls: "14 calls", cost: null,
     color: null, share: null, order: 1 });
+  // a source's tag a word (its chip); what This chat says of a node a state in its tone
   const sub = nodeShown(byId("sub:reviewer"), "run"), box = nodeShown(byId("connector:box"), "run");
-  assert.deepEqual([sub.sub, sub.tag?.text, sub.cost], ["not run in this conversation", "pr-review", null]);
-  assert.deepEqual([box.sub, box.tag?.text], ["connector · not used", "sign in"]);
-  assert.equal(nodeShown(byId("skill:r"), "run").sub, "skill · used once · 0.3k");
+  assert.deepEqual([sub.sub, sub.tag, sub.cost], ["not run in this chat", "pr-review", null]);
+  assert.deepEqual([box.sub, box.tag], ["not used", { text: "sign in", tone: "warn" }]);
+  assert.equal(nodeShown(byId("connector:box"), "wiring").tag, "claude.ai");
+  assert.equal(nodeShown(byId("skill:r"), "run").sub, "used once · 300");
 });
 
 test("the edges that ran are lit, the running one stronger, the others faint; Wiring keeps its own", () => {
@@ -406,13 +433,19 @@ test("the edges that ran are lit, the running one stronger, the others faint; Wi
   assert.equal(running({ edges: [files] }), false);
 });
 
-test("This conversation keeps every tool that ran as its own node; its legend says ran here, Wiring's does not", () => {
+test("This chat keeps every tool that ran as its own node; its legend says ran here, Wiring's does not", () => {
   assert.equal(seen(RUN, "run"), RUN);
   assert.ok(seen(RUN, "wiring").nodes.some((/** @type {any} */ one) => one.id === "tools:more"));
   const legend = /** @type {[string, string][]} */ ([["always", "always"], ["demand", "on demand"],
-    ["ran", "ran here"], ["failed", "failed"]]);
-  assert.deepEqual(legendOf(legend, "wiring").map(([style]) => style), ["always", "demand", "failed"]);
+    ["ran", "ran here"], ["failed", "failed"], ["waiting", "sign in"]]);
+  assert.deepEqual(legendOf(legend, "wiring").map(([, word]) => word), ["always", "on demand", "failed", "sign in"]);
   assert.deepEqual(legendOf(legend, "run"), legend);
+});
+
+test("the graph's two views in core's words, This chat with the chat's whole beside it once there is one", () => {
+  const words = { views: { wiring: "Wiring", run: "This chat" } };
+  assert.deepEqual(viewWords({ words, cost: "~$4.12" }), [["wiring", "Wiring"], ["run", "This chat · ~$4.12"]]);
+  assert.deepEqual(viewWords({ words, cost: null }), [["wiring", "Wiring"], ["run", "This chat"]]);
 });
 
 test("the properties are what the node ran where it tells them, its setup's in Wiring", () => {

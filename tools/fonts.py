@@ -47,6 +47,9 @@ STYLES = {"Regular": ("Regular", "Regular", "Bold", "Regular"), "Bold": ("Bold",
           "Italic": ("Italic", "Italic", "Bold", "Regular"),
           "BoldItalic": ("Bold Italic", "BoldItalic", "ExtraBold", "Bold")}
 TALLER = 1.10
+# herdr's folds of its machines in the Spaces list (▾ open, ▸ shut, built into herdr) drawn as the sidebar's
+# chevrons, Nerd Fonts' own, so every fold on the screen looks alike (the owner, 2026-11-20)
+SAME_AS = {0x25BE: 0xEAB4, 0x25B8: 0xEAB6}
 WIDTH = 600
 CENTRE = (300, 360)                                # where ● and ✶ sit: the middle of the caps
 REACH = 300                                        # ✶'s radius, which the spinner's stars keep to
@@ -677,6 +680,15 @@ def add_symbols(font, heavy, upright):
     glyf.glyphOrder = order
 
 
+def same_as(font):
+    """Each character of SAME_AS drawn as its other one: its cmap entries pointed at that one's glyph."""
+    cmap = font.getBestCmap()
+    for code, other in SAME_AS.items():
+        for table in font["cmap"].tables:
+            if table.isUnicode() and code in table.cmap:
+                table.cmap[code] = cmap[other]
+
+
 def build(source, style):
     words, own, heavier, straight = STYLES[style]
     font = TTFont(io.BytesIO(source_file(source, own)), recalcTimestamp=False)
@@ -685,6 +697,7 @@ def build(source, style):
     rename(font, style)
     taller(font)
     add_symbols(font, heavy, upright)
+    same_as(font)
     font["head"].modified = timestampFromString(BUILT)
     out = io.BytesIO()
     font.save(out)

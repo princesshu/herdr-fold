@@ -10,6 +10,7 @@ import toggle_column
 class Toggle(unittest.TestCase):
     def setUp(self):
         self.calls, self.brought, self.zoomed = [], [], False
+        self.widths = {"w1:p1": 100, "w1:p2": 30, "w1:p3": 30}
         self.panes = [{"pane_id": "w1:p1", "tab_id": "w1:t1", "label": "claude"},
                       {"pane_id": "w1:p2", "tab_id": "w1:t1", "label": "sidebar"},
                       {"pane_id": "w1:p3", "tab_id": "w1:t1", "label": "terminal"}]
@@ -18,10 +19,9 @@ class Toggle(unittest.TestCase):
         def herdr(*args, check=True):
             self.calls.append(args)
             if args[:2] == ("api", "snapshot"):
-                rects = {"w1:p1": 100, "w1:p2": 30, "w1:p3": 30}
                 return {"snapshot": {"layouts": [{"tab_id": "w1:t1", "zoomed": self.zoomed, "focused_pane_id": "w1:p1",
                                                   "panes": [{"pane_id": p["pane_id"], "rect": {
-                                                      "width": rects[p["pane_id"]], "height": 40}}
+                                                      "width": self.widths[p["pane_id"]], "height": 40}}
                                                             for p in self.panes]}]}}
             if args[:2] == ("pane", "list"):
                 return {"panes": self.panes}
@@ -38,6 +38,13 @@ class Toggle(unittest.TestCase):
         toggle_column.main()
         self.assertEqual([c for c in self.calls if c[:2] == ("pane", "zoom")], [("pane", "zoom", "w1:p1", "--toggle")])
         self.assertEqual(self.brought, [])
+
+    def test_without_an_agent_the_tabs_own_pane_is_zoomed_never_the_wider_column(self):
+        # a tab of a shell alone (herdr's +): its pane hides the column, however wide the column was dragged
+        self.panes[0]["label"], self.widths = None, {"w1:p1": 40, "w1:p2": 86, "w1:p3": 86}
+        set_attrs(self, toggle_column, agent_pane_ids=lambda panes: set())
+        toggle_column.main()
+        self.assertEqual([c for c in self.calls if c[:2] == ("pane", "zoom")], [("pane", "zoom", "w1:p1", "--toggle")])
 
     def test_a_sidebar_or_terminal_closed_by_hand_comes_back_instead(self):
         self.panes = self.panes[:1] + self.panes[2:]                        # the sidebar closed

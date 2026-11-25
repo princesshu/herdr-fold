@@ -302,7 +302,7 @@ class Pager:
 
 
 class Views(Pager):
-    """A text in several views (an agent's graph as a tree: Wiring, This conversation), each its own lines: the status
+    """A text in several views (an agent's graph as a tree: Wiring, This chat), each its own lines: the status
     row's controls or a view's key (w, c) show it, from its top."""
 
     def __init__(self, spec):

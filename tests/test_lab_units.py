@@ -25,5 +25,14 @@ class Halves(unittest.TestCase):
         self.assertNotIn("test_lab_units.py", installer)
 
 
+    def test_a_halfs_shares_are_its_cases_whole_each_once(self):
+        # the installer's half on three runners: every third case from the first, the second and the third
+        whole = [case.id() for case in units.share("installer")]
+        shares = [[case.id() for case in units.share("installer", k, 3)] for k in (1, 2, 3)]
+        self.assertEqual(sorted(sum(shares, [])), sorted(whole))
+        self.assertEqual(len(set(sum(shares, []))), len(whole))
+        self.assertLessEqual(max(map(len, shares)) - min(map(len, shares)), 1)       # as even as the count allows
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,5 @@
 """Tests for tools/build.py: the shared data layer lives once, in core/, and each piece that installs on its own (the
-TUI sidebar, Workspaces, the Herdr app mod) carries a copy of what it needs; a copy differing from core/ fails here."""
+TUI sidebar, Spaces, the Herdr app mod) carries a copy of what it needs; a copy differing from core/ fails here."""
 import ast
 import importlib.util
 import json
@@ -62,9 +62,9 @@ class Copies(unittest.TestCase):
         self.assertEqual(build.HELPERS[helper]["CONNECTORS"], "connectors.py")
         self.assertIn("connectors", build.imports("agent_setup.py"))                # a server's brand is core's
 
-    def test_workspaces_gets_core_git_and_what_it_imports(self):
+    def test_spaces_gets_core_git_and_what_it_imports(self):
         # its Spaces row's repository inside a folder is core/git.py's, as the Herdr app mod's Spaces list's is
-        folder = os.path.join("src", "plugins", "workspaces")
+        folder = os.path.join("src", "plugins", "spaces")
         made = sorted(os.path.basename(rel) for rel in build.outputs() if os.path.dirname(rel) == folder)
         self.assertEqual(made, sorted(["git.py"] + [module + ".py" for module in build.imports("git.py")]))
 
@@ -80,6 +80,17 @@ class Literal(unittest.TestCase):
         self.assertTrue(all(len(row) <= 120 for row in made.split("\n")))
 
 
+def undocumented(tree):
+    """TREE without its docstrings, a body that was one alone a pass: what slim() leaves of a module."""
+    for node in ast.walk(tree):
+        body = getattr(node, "body", None)
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and body \
+                and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
+                and isinstance(body[0].value.value, str):
+            node.body = body[1:] or [ast.Pass()]
+    return tree
+
+
 class Runnable(unittest.TestCase):
     def test_a_module_that_imports_another_runs_alone_as_the_mod_runs_it(self):
         # one source given to Python's -c on the space's machine: the core modules it imports defined there first
@@ -91,7 +102,8 @@ class Runnable(unittest.TestCase):
         self.assertEqual(json.loads(done.stdout), {"chats": [], "archived": []})
 
     def test_what_an_imported_module_imports_is_made_first_too(self):
-        # chat.py imports chats.py, which imports fileops.py, statefile.py, github.py and jsonl.py: each made once first
+        # chat.py imports plan.py, which imports chats.py, which imports fileops.py, statefile.py, github.py and
+        # jsonl.py: each made once, before what imports it
         with tempfile.TemporaryDirectory() as home:
             session = "5f0c6d9e-1b2a-4c3d-8e9f-0a1b2c3d4e5f"
             done = subprocess.run(["/usr/bin/python3", "-I", "-c", build.runnable("chat.py"), "steps", session, "0"],
@@ -100,9 +112,10 @@ class Runnable(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(json.loads(done.stdout)["steps"], [])
         made = re.findall(r"^_sys\.modules\['(\w+)'\] =", build.runnable("chat.py"), re.M)
-        self.assertEqual(sorted(made), ["chats", "fileops", "github", "jsonl", "statefile"])
+        self.assertEqual(sorted(made), ["chats", "fileops", "github", "jsonl", "plan", "statefile"])
         self.assertGreater(made.index("chats"), max(made.index(name) for name in ("fileops", "github", "jsonl",
                                                                                   "statefile")))
+        self.assertGreater(made.index("plan"), made.index("chats"))
 
     def test_a_made_module_keeps_its_lines(self):
         # each line of a module made first stays a line: helper.js reads as core/ does, and the privacy scan sees what
@@ -114,20 +127,30 @@ class Runnable(unittest.TestCase):
 
     def test_a_made_module_leaves_its_blank_and_comment_lines_out(self):
         # a helper is one argument of 120 KiB at most: what Python never runs of a module made first stays in core/;
-        # a string's own lines stay, and a comment after code on its line
-        source = 'A = 1\n\n# alone\nB = """a\n\n# kept\n"""  # after\nC = [\n    # inside\n\n    2]\n'
-        self.assertEqual(build.slim(source), 'A = 1\nB = """a\n\n# kept\n"""  # after\nC = [\n    2]')
+        # a string's own lines stay; a comment after code goes, its code staying
+        source = 'A = 1\n\n# alone\nB = """a\n\n# kept\n"""  # after\nC = [\n    # inside\n\n    2]  # "#"\nD = "#"\n'
+        self.assertEqual(build.slim(source), 'A = 1\nB = """a\n\n# kept\n"""\nC = [\n    2]\nD = "#"')
         for name in sorted(os.listdir(CORE)):
             if name.endswith(".py"):
                 with self.subTest(name):
                     slim = build.slim(build.core(name))
-                    self.assertEqual(ast.dump(ast.parse(slim)), ast.dump(ast.parse(build.core(name))))
+                    self.assertEqual(ast.dump(ast.parse(slim)), ast.dump(undocumented(ast.parse(build.core(name)))))
                     self.assertFalse([line for line in slim.split("\n") if line.lstrip().startswith("# ")])
         made = build.runnable("graph.py")
         self.assertTrue(made.endswith(build.core("graph.py")), "the module itself as its source: its own lines count")
+        self.assertIn('"""', build.core("graph.py").split("\n")[0])
+        self.assertNotIn(repr(build.core("agent_setup.py").split("\n")[0]), made)    # a made one's docstrings out
         alone = next(line for line in build.core("agent_setup.py").split("\n") if line.startswith("# "))
         self.assertNotIn(f"{alone!r},\n", made[:-len(build.core("graph.py"))])
         self.assertIn(alone, build.core("agent_setup.py"))
+
+    def test_a_made_module_leaves_its_docstrings_out(self):
+        # what Python never runs either: a body that was a docstring alone keeps a pass; another string stays
+        source = ('"""The module."""\nimport os\n\n\ndef f():\n    """What f does,\n    on two lines."""\n'
+                  '    return 1\n\n\nclass C:\n    """Only this."""\n\n\ndef g():\n    x = """not a docstring"""\n'
+                  '    return x\n')
+        self.assertEqual(build.slim(source), 'import os\ndef f():\n    return 1\nclass C:\n    pass\ndef g():\n'
+                                             '    x = """not a docstring"""\n    return x')
 
     def test_the_graphs_helper_has_room_to_grow(self):
         # agent_setup.py is most of it, and grows with the Agent panel: a few KiB at least stay free

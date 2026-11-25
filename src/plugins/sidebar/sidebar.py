@@ -27,7 +27,7 @@ from chat_list import STATE_MARK, STATE_ROLE  # noqa: E402
 from chats_panel import Chats                  # noqa: E402
 from files_panel import Files  # noqa: E402
 from loop import CODE, Loop  # noqa: E402
-from dock import FORMER, GROUPS, PANELS  # noqa: E402
+from dock import GROUPS, PANELS  # noqa: E402
 from layers import FOLDED, STATE_ROLE as LAYER_ROLE  # noqa: E402
 from screen import GIT_ROLE, INSET, MARGIN, ROOMY, Canvas, Style, short_count, truncate, width  # noqa: E402
 from tree import git_marks  # noqa: E402
@@ -40,14 +40,15 @@ VIEW_KEYS = {"1": "files", "2": "search", "3": "changes", "4": "issues", "5": "a
              "f11": "changes", "f12": "issues"}
 TERMINAL_KEY = "6"            # on the rail, the tab's terminal raised or lowered: the digit after the views' keys
 FIND = "f7"
-CHATS = "chats"       # the ✦'s: its list opens over the sidebar (on the rail, beside it), no view of the row
+DOCK_KEY = "f6"               # the dock folded or opened again, in every tab (herdr's action: Cmd + Option + B)
+CHATS = "chats"       # the ✦'s: its list opens over the sidebar (on the rail, the dock opened), no view of the row
 AGENT = "agent"       # the Agent view: a dot by its icon while its setup has a problem
 DOT = STATE_MARK["blocked"]   # a count by an icon in the row and on the rail: there is something; its number in the tip
 VIEWS = tuple(panel for panel in PANELS if panel != CHATS)
 START = "files"               # the view a folder starts on
 # linked: the issue each repository's next commit fixes, {repository: [number, title]}
 # agent: the one herdr-fold started last (panes.py's last_agent); agent_folded: the Agent view's sections folded
-DEFAULTS = {"hidden": False, "icons": True, "commit_mode": "commit", "linked": {}, "folded": [], "hidden_panels": [],
+DEFAULTS = {"hidden": True, "icons": True, "commit_mode": "commit", "linked": {}, "folded": [], "hidden_panels": [],
             "agent": "claude", "agent_folded": list(FOLDED), "agent_chosen": {}}
 UPDATES = 3600.0              # seconds between two looks at update.json (GitHub itself is asked once a day at most)
 SETTINGS = "Settings…"        # More's last line: herdr's popup (settings.py), at its About while a newer version is out
@@ -60,6 +61,7 @@ FOLLOWED = (("settings.json", "follow_settings"), ("colors.json", "follow_theme"
                               # (the icons, the views) is here within it, at any pace of the poll; read once changed
 NOTE = 4.0                    # seconds a note ("Archived", "Renamed") stays on the last row; an error stays till a key
 UNFOLD = 3                    # the cells past the rail's width a drag widens it by to open the dock, more than a nudge
+FOLD_REST = 0.8               # seconds the open column stays under its row's least before the dock folds: let go there
 TIP_DELAY = 0.5               # seconds the mouse rests on a control shown by an icon before it says what it does
 # what each such control does, by its target (a row's buttons by their kind)
 TIPS = {"suggest": "Write message", "mode": "Commit mode", "sync": "Sync",
@@ -87,10 +89,8 @@ def load_settings(path):
 
 
 def settings_of(data):
-    """DEFAULTS' keys in DATA (settings.json's), each of its own type, else its default; an older version's id of a
-    hidden panel read as today's."""
-    found = {key: data[key] if isinstance(data.get(key), type(value)) else value for key, value in DEFAULTS.items()}
-    return {**found, "hidden_panels": [FORMER.get(name, name) for name in found["hidden_panels"]]}
+    """DEFAULTS' keys in DATA (settings.json's), each of its own type, else its default."""
+    return {key: data[key] if isinstance(data.get(key), type(value)) else value for key, value in DEFAULTS.items()}
 
 
 def identity(path):
@@ -153,18 +153,16 @@ class App(Loop):
         self.dock = stack.state(state_dir, self.root)    # the view shown in this folder
         self.saw(column.FILE)
         self.railed = column.railed(state_dir)            # the dock folded to its rail, in every tab (column.json)
-        self.beside = False                               # on the rail, the view shown opened beside it in this tab
         self.chats = False                                # the Chats list open, with the keys
-        self.flew = False                                 # on the rail, the column widened for the list alone
         self.box = None                                   # the list's place, as last drawn: (top, left, bottom, right)
         self.named = True                                 # the row's names under its icons, as last drawn
         self.owed = False                                 # this tab left as it was by a fold (its agent zoomed)
         self.body = None                                  # the panel's rows, as last drawn: (top, rows)
-        self.reach = 0                                    # the cells the panel takes, as last drawn: up to the rail
+        self.reach = 0                                    # the cells the panel takes, as last drawn: none on the rail
         self.watcher = watch.Watcher(self.work["files"].tree.expanded_dirs, git.git_dir(self.root), clock)
         self.pointed = None                               # under the mouse: a button, the ⋯, », a rail's icon
         self.terminal = None                              # on the rail, the tab's terminal: (share, under the agent)
-        self.split = None                                 # on the rail, the agent's share this sidebar last set
+        self.split = None                                 # the agent's share this sidebar last set or saw
         self.dots = (0, None, 0)                          # where the ⋯'s menu opens: open_menu()'s arguments
         self.needs = None                                 # the cells this tab's row was said to take
         self.menu = None                                  # the pane's own menu: (Menu, its row, its column, its tab)
@@ -188,7 +186,7 @@ class App(Loop):
 
     def hide(self, panel, hidden):
         """View PANEL hidden (HIDDEN) or shown again, in every tab, on what settings.json holds then (another tab's
-        sidebar may hide one at the same moment); never the last one shown. An older version's Chats goes on the way."""
+        sidebar may hide one at the same moment); never the last one shown, nor a name no view has."""
         last = []
 
         def change(settings):
@@ -232,15 +230,15 @@ class App(Loop):
         return kept if kept in views else START if START in views else views[0]
 
     def showing(self, panel):
-        """Whether PANEL is on screen: the Chats list while open; a view while it is the one shown, the dock
-        open or, on the rail, PANEL opened beside it (under the list too, back as it was once that closes)."""
+        """Whether PANEL is on screen: the Chats list while open; a view while it is the one shown and the dock
+        open (under the list too, back as it was once that closes)."""
         if panel == CHATS:
             return self.chats
-        return panel == self.shown() and (self.beside or not self.railed)
+        return panel == self.shown() and not self.railed
 
     def keyed(self):
         """The panel with the keys: the Chats list while open, else the view shown while it is on screen; None
-        on the rail alone."""
+        on the rail."""
         shown = self.shown()
         return CHATS if self.chats else shown if self.showing(shown) else None
 
@@ -267,7 +265,8 @@ class App(Loop):
 
         def work():
             own = git.top(root)
-            repo = own or (git.top(place) if place != root else None)      # else that of the folder chosen in Files
+            # else that of the folder chosen in Files, else the one inside the folder, as the Spaces row names it
+            repo = own or (git.top(place) if place != root else None) or git.repo_inside(root)
             # not a repository when looked up: so it is shown, even if git init ran meanwhile (the next status has it)
             status = git.status(repo) if repo else git.Status(error=git.status(root).error or "not a git repository")
             graph = git.graph(repo) if repo and with_graph and not status.error else None
@@ -421,7 +420,7 @@ class App(Loop):
     def take(self, left):
         if isinstance(left.get("dock"), dict):
             self.dock = stack.parsed(left["dock"])
-        show = FORMER.get(left.get("show"), left.get("show"))
+        show = left.get("show")
         if show == CHATS:                               # the list open, or actions.find's seed
             self.open_chats()
         elif show in self.panels():                     # hidden in the ⋯'s Panels: shown again
@@ -452,11 +451,11 @@ class App(Loop):
             tip = f"{stack.MORE} · herdr-fold {self.update['latest']} is out"
         if target == "terminal" and not (self.terminal and self.terminal[1]):
             tip = "No terminal in this tab"
-        if tip and (kind == "button" or target == "to_rail" or target == "panels" and not self.railed):  # the row's
+        if tip and (kind == "button" or target in ("to_rail", "panels")):                  # the row's
             y = (stack.NAMES if self.named else stack.ROW) + 1
         elif tip and self.on_rail(target):              # under its block's ▀ row, on its icon's column
             y = stack.ROW + 1 if target == "to_dock" else stack.floor(y, stack.ROW + 2)
-            x = stack.rail_column(self.canvas.width if self.canvas else self.term.size()[0], self.reach)
+            x = stack.rail_column(self.canvas.width if self.canvas else self.term.size()[0])
         view = self.views.get(self.panel_at(y, x))
         if hasattr(view, "tip"):                        # a view's own first: a path, a name cut short, what runs
             tip = view.tip(target) or tip
@@ -466,21 +465,23 @@ class App(Loop):
             self.tip = (target, tip, x, y, self.clock() + TIP_DELAY, False)
 
     def on_rail(self, target):
-        """Whether TARGET is the rail's: an icon, «, the terminal's, the ⋯ beside a view."""
-        return self.railed and (str(target).startswith("icon:") or target in ("panels", "to_dock", "terminal"))
+        """Whether TARGET is the rail's: an icon, «, the terminal's."""
+        return self.railed and (str(target).startswith("icon:") or target in ("to_dock", "terminal"))
 
     def draw_tip(self, canvas):
         """The tip under the mouse (above it where the rows below are too few), whole inside the content's inset (the
-        rail alone: the pane, edge to edge), a cell of air round it where its words have room, once it is due; one too
-        wide for a row goes on in the next (a path after a /)."""
+        rail: the pane, edge to edge), a cell of air round it where its words have room, once it is due; one too
+        wide for a row goes on in the next (a path after a /, a count's dot with its count)."""
         target, tip, x, y, due, _ = self.tip
         if self.clock() < due:
             return
         self.tip = (target, tip, x, y, due, True)
-        inset = 0 if self.railed and not self.reach else INSET
+        inset = 0 if self.railed else INSET
         room = max(1, canvas.width - 2 * inset)
         air = int(max(width(word) for word in re.split("[ /]", tip)) + 2 <= room)
-        lines = [tip[start:end].rstrip() for start, end in wrap(tip, max(1, room - 2 * air), breaks=" /")]
+        glued = tip.replace(" · ", " ·\u00a0")                              # "Changes · 2" breaks before its dot
+        lines = [glued[start:end].rstrip().replace("\u00a0", " ")
+                 for start, end in wrap(glued, max(1, room - 2 * air), breaks=" /")]
         cells = max(width(line) for line in lines) + 2 * air
         top = y + 1 if y + len(lines) < canvas.height else max(0, y - len(lines))
         start = x - (cells - 1) // 2 if self.on_rail(target) else x       # a rail's: its middle on the icon's column
@@ -510,6 +511,7 @@ class App(Loop):
             self.tip = None                               # a key, a click or the wheel: the tip goes
         if isinstance(event, Resize):
             self.renderer.reset()
+            self.pointed = None                   # what was under the mouse moved with the pane: lit at its next move
             self.follow_dock()                    # folded or opened in another tab, which set this one's width
             self.resized()
             return
@@ -538,17 +540,18 @@ class App(Loop):
             if name == FIND:
                 self.open_chats(find=True)
                 return
+            if name == DOCK_KEY:                  # as » or «, the list closing on the way
+                self.close_chats()
+                self.fold_dock(not self.railed)
+                return
             if name == TERMINAL_KEY and self.railed and not editing:   # the rail's terminal
                 self.raise_terminal()
                 return
             if name == "q" and not editing:
                 self.quit = True
                 return
-            if name == "esc" and (self.chats or self.beside) and not self.engaged(panel):
-                if self.chats:
-                    self.close_chats()
-                else:
-                    self.fly(False)
+            if name == "esc" and self.chats and not self.engaged(panel):
+                self.close_chats()
                 return
             if panel:
                 self.act(self.views[panel].handle(event), panel)
@@ -559,17 +562,16 @@ class App(Loop):
             self.pointed = target if lit else None
             if self.menu:
                 self.menu[0].point(target)
-        if self.chats:
-            self.chats_mouse(event)
-            return
+        if self.chats and not self.chats_mouse(event, target):     # else closed by one of the dock's own controls,
+            return                                                  # which acts too
         if event.kind == "move":
             self.point(target, event.x, event.y)
             if self.menu and str(target).startswith("menu:"):       # over More's menu, not the view under it
                 return
         elif event.kind == "press":
             self.error = self.note = None
-            if self.railed and not self.reach and event.button == 2:
-                return                                # the rail alone: no room for a menu
+            if self.railed and event.button == 2:
+                return                                # the rail: no room for a menu
             own = target in ("row", "sync", "panels", "to_rail", "to_dock") or str(target).startswith("button:")
             if own:                                   # outside the views: their menus close, as a click in one does
                 for view in self.views.values():
@@ -581,22 +583,14 @@ class App(Loop):
                 self.fold_dock(target == "to_rail")
                 return
             if target == "terminal":
-                if event.button != 2:
-                    self.raise_terminal()
+                self.raise_terminal()
                 return
             if own and event.button == 2:             # a right click on the row: there
                 self.open_menu(event.y, event.x)
                 return
             kind, _, name = str(target).partition(":")
-            if kind == "icon":
-                if event.button != 2:
-                    self.press_icon(name)
-                return
-            if kind == "button" and name == CHATS:
-                self.open_chats()
-                return
-            if kind == "button":
-                self.show(name)
+            if kind in ("icon", "button"):           # a rail's icon as the row's button: on the rail, the dock opened
+                self.open_chats() if name == CHATS else self.show(name)
                 return
             if target == "sync":
                 self.work["changes"].do_sync()
@@ -605,16 +599,23 @@ class App(Loop):
         if panel:                                       # in the view's own cells, from its first
             self.act(self.views[panel].handle(replace(event, x=event.x - MARGIN)), panel)
 
-    def chats_mouse(self, event):
-        """The mouse while the Chats list is open: a press outside it closes it (and does nothing else); inside, the
-        list has it, from its own corner."""
+    def chats_mouse(self, event, target):
+        """The mouse while the Chats list is open: a press outside it closes it, on one of the dock's own controls
+        (True) to do that one's too, as Adobe switches a flyout; the star's only closes it, More's opens its menu over
+        it (the list's own lines first). Inside, the list has it."""
         top, left, bottom, right = self.box or (0, 0, -1, -1)       # not drawn yet: all of the pane outside it
+        if event.kind == "press" and target == "panels":
+            return True
         if event.kind == "press" and not (top <= event.y <= bottom and left <= event.x <= right):
             self.error = self.note = None
+            own = event.button != 2 and target != "button:" + CHATS and (
+                target == "to_rail" or str(target).startswith("button:"))
             self.close_chats()
-        elif top <= event.y <= bottom and left <= event.x <= right:
+            return own
+        if top <= event.y <= bottom and left <= event.x <= right:
             inside = replace(event, x=event.x - left - MARGIN, y=event.y - top)
             self.act(self.views[CHATS].handle(inside), CHATS)
+        return False
 
     def act(self, action, panel=None):
         """ACTION done by its PANEL's family where that has it, else by the dock (the icons, a URL opened)."""
@@ -650,26 +651,35 @@ class App(Loop):
                 column.arrange(here, right=least / here.cells)
 
     def drag(self, pane):
-        """On the job's thread: PANE resized: by hand while the dock is open (Loop.drag()); on the rail alone, dragged
-        more than UNFOLD cells wider, "open" (dragged()); else its column set back to the rail's width or the rail's
-        and its panel's (a window resized, a nudge), nothing kept."""
-        if not self.railed:
-            return super().drag(pane)
-        tab = column.settled(pane)                       # where it was let go, not on the way
+        """On the job's thread: PANE resized. Dragged (a share not the one last seen): the open dock kept that wide,
+        under its row's least "fold" once let go; the rail more than UNFOLD cells wider "open" (dragged()). Else
+        (herdr's sidebar folded, a window resized) back to its cells at once."""
+        tab = column.read(pane)
+        if tab and (self.split is None or abs(tab.left - self.split) > column.TOLERANCE):
+            tab = column.settled(pane)                   # dragged: where it was let go, not on the way
         if not tab or not tab.cells:
             return 0
-        rail = column.width(self.state_dir, tab, True, self.beside)
-        dragged = self.split is None or abs(tab.left - self.split) > column.TOLERANCE     # a window keeps the share
-        if dragged and not self.beside and column.cells(tab)[1] - round(rail * tab.cells) > UNFOLD:
+        dragged = self.split is None or abs(tab.left - self.split) > column.TOLERANCE
+        inside = self.term.size()[0]
+        least = column.least(self.state_dir, tab.tab) + column.frame(tab, pane, inside)
+        if dragged and not self.railed:
+            if self.split is not None and tab.left > self.split and column.cells(tab)[1] < least:   # under its row
+                return "fold" if column.rested(pane, tab, FOLD_REST) else 0
+            moved = column.drag(self.state_dir, pane, inside, tab)
+            self.split = (column.read(pane) or tab).left                    # as it stands now, set back or not
+            return moved
+        right = column.width(self.state_dir, tab, self.railed)
+        if dragged and self.railed and column.cells(tab)[1] - round(right * tab.cells) > UNFOLD:
             return "open"
-        column.arrange(tab, right=rail)
-        self.split = round(column.share(1 - rail), 4)
+        column.arrange(tab, right=right)
+        self.split = round(column.share(1 - right), 4)
         return 0
 
     def dragged(self, answer):
-        """The rail dragged open (drag()): the dock opened in every tab, as «; whether it was."""
-        if answer == "open" and self.railed:
-            self.fold_dock(False)
+        """The rail dragged open or the open dock under its row's least (drag()): the dock opened or folded in every tab
+        as « or » would, the open width kept; whether it was."""
+        if answer in ("open", "fold") and self.railed == (answer == "open"):
+            self.fold_dock(answer == "fold")
             return True
         return False
 
@@ -687,7 +697,7 @@ class App(Loop):
         present = {p.get("label") for p in listed if p.get("tab_id") == tab} & set(panels.KINDS)
         shown = self.row()
         lines = [f"{'✓' if panel in shown else ' '} {PANELS[panel]['name']}" for panel in self.panels()]
-        own = self.own_lines()                          # the view shown: what it adds (a connector), first
+        own = self.own_lines()                          # the panel with the keys: its own lines first
         lines = own + [None] + lines if own else lines
         for part in (panels.menu(present) if tab else [], [SETTINGS] if os.name != "nt" else []):  # herdr's popup
             lines += [None] + part if part else []
@@ -695,8 +705,9 @@ class App(Loop):
         self.menu = (menu, y, x if right is None else right - menu.width(), tab, present)
 
     def own_lines(self):
-        """What the view shown lists in More before the views (the Agent view: its ways to add a connector)."""
-        view = self.views.get(self.shown())
+        """What the panel with the keys lists in More before the views: the Agent view its Usage view, graph and ways
+        to add a connector, the Chats list Show archived."""
+        view = self.views.get(self.keyed())
         return view.menu_lines() if hasattr(view, "menu_lines") else []
 
     def got_update(self, found):
@@ -719,7 +730,7 @@ class App(Loop):
             choice = menu.choices[int(target[5:])] if str(target).startswith("menu:") else "cancel"
         self.menu = None
         if choice in self.own_lines():
-            self.act(self.views[self.shown()].menu_pick(choice), self.shown())
+            self.act(self.views[self.keyed()].menu_pick(choice), self.keyed())
             return None
         panel = next((name for name in self.panels() if choice[2:] == PANELS[name]["name"]), None)
         if panel:                                       # a view's ✓: hidden, or shown again
@@ -737,8 +748,8 @@ class App(Loop):
         return None
 
     def show(self, panel):
-        """View PANEL shown (hidden in the ⋯'s Panels: shown again; on the rail, beside it), with the keys; what it
-        needs as it comes (came()); one it cannot show here (Issues off GitHub) left as it is, in every tab."""
+        """View PANEL shown (hidden in the ⋯'s Panels: shown again; on the rail, the dock opened as « does), with the
+        keys; what it needs as it comes (came()); one it cannot show here (Issues off GitHub) left as it is."""
         if panel not in self.panels():
             return
         if panel in self.settings["hidden_panels"]:
@@ -748,8 +759,8 @@ class App(Loop):
         coming = not self.showing(panel)
         if self.dock["shown"] != panel:                 # kept for the folder, the dock folded or not
             self.keep_dock(panel)
-        if self.railed and not self.beside:
-            self.fly(True)
+        if self.railed:
+            self.fold_dock(False)
         if coming or panel == "issues":             # Issues shown already: asked again once their answer is old
             self.came(panel)
 
@@ -759,58 +770,36 @@ class App(Loop):
         self.work[panel].came(panel)
 
     def open_chats(self, find=False):
-        """The Chats list open over the sidebar, with the keys (on the rail alone, beside it: the column widened
-        for it); FIND: its filter emptied (Cmd+Shift+R). Any other menu closes."""
+        """The Chats list open over the sidebar, with the keys (on the rail, the dock opened as « does); FIND: its
+        filter emptied (Cmd+Shift+R). Any other menu closes."""
         self.menu = None
         for view in self.views.values():
             view.close_menu()
         if find:
             self.work[CHATS].find()
-        if not self.chats and self.railed and not self.beside:
-            self.flew = True
-            self.fly(True)
+        if self.railed:
+            self.fold_dock(False)
         self.chats = True
 
     def close_chats(self):
-        """The list closed (ChatList.shut()); the keys back with the view shown, and on the rail the column
-        narrowed again where it was widened for the list."""
+        """The list closed (ChatList.shut()); the keys back with the view shown."""
         if not self.chats:
             return
         self.chats = False
         self.views[CHATS].shut()
-        if self.flew:
-            self.flew = False
-            self.fly(False)
 
     # --- the dock folded to its rail: the same in every tab, as the column's width
 
     def fold_dock(self, rail):
         """The dock folded to its RAIL, or opened again, in every tab: kept in column.json first (another tab's sidebar
         takes it at its next look), then each tab's column and terminal set (shape())."""
-        self.railed, self.beside, self.flew = rail, False, False
+        self.railed = rail
         if not column.keep(self.state_dir, {"rail": rail}):
             self.error = "settings not saved"
         self.reshape(every=True)
 
-    def press_icon(self, panel):
-        """PANEL's icon on the rail pressed: PANEL opened beside the rail (the ✦'s list over the view there, or alone),
-        the icon lit; the lit one again folds it back."""
-        if panel == CHATS:
-            self.open_chats()
-        elif self.showing(panel):
-            self.fly(False)
-        else:
-            self.show(panel)
-
-    def fly(self, beside):
-        """On the rail, the panel shown opened BESIDE it, or folded back: this tab's column widened for it, or
-        narrowed."""
-        self.beside = beside
-        self.reshape()
-
     def engaged(self, panel):
-        """Whether PANEL has what Esc closes before the list or the view beside the rail: a menu, a name typed, a
-        question."""
+        """Whether PANEL has what Esc closes before the list: a menu, a name typed, a question."""
         return bool(panel) and bool(getattr(self.views[panel], "menu", None) or any(self.work[panel].holds()))
 
     def follow_dock(self):
@@ -820,9 +809,8 @@ class App(Loop):
         kept = column.kept(self.state_dir)
         railed, changed = kept.get("rail") is True, (kept.get("rail") is True) != self.railed
         if changed:                             # the list too: the column is the other tab's now
-            self.flew = False
             self.close_chats()
-            self.railed, self.beside = railed, False
+            self.railed = railed
         self.owed = os.environ.get("HERDR_PANE_ID") in (kept.get("owed") if isinstance(kept.get("owed"), list) else [])
         if self.owed:
             self.reshape()
@@ -834,8 +822,8 @@ class App(Loop):
         if "dock" in self.running:
             self.again.add("dock-every" if every else "dock")
             return
-        rail, beside = self.railed, self.beside
-        self.job("dock", lambda: self.shape(rail, beside, every), self.reshaped)
+        rail = self.railed
+        self.job("dock", lambda: self.shape(rail, every), self.reshaped)
 
     def reshaped(self, failed):
         if failed:
@@ -847,7 +835,7 @@ class App(Loop):
             self.again -= {"dock", "dock-every"}
             self.reshape(every)
 
-    def shape(self, rail, beside, every):
+    def shape(self, rail, every):
         """On the job's thread: this tab's column (EVERY: every tab's, this one first) as wide as the dock takes, its
         terminal under the agent on the RAIL, else under the sidebar (moved before a column narrows, after it widens);
         a tab whose agent is zoomed left to its own sidebar (column.owe()). What failed, or None."""
@@ -869,7 +857,7 @@ class App(Loop):
                 moved = rail and panes.place_terminal(self.herdr.call, pane, True, low)
                 if moved:
                     tab = column.read(pane) or tab                      # the column's place in the tree may move
-                right = column.width(self.state_dir, tab, rail, beside and pane == here)
+                right = column.width(self.state_dir, tab, rail)
                 column.arrange(tab, right=right)
                 self.split = round(column.share(1 - right), 4) if pane == here else self.split
                 if not rail:
@@ -996,32 +984,19 @@ class App(Loop):
     def draw(self):
         cells, rows = self.term.size()
         canvas = Canvas(cells, rows)
-        edge = max(0, cells - column.RAIL)              # the rail's edge
-        # the view beside the rail once the column is widened for it: as wide as the row it had, or FEWEST
-        beside = self.railed and self.beside and edge >= min(column.FEWEST, narrowest(self.row()))
-        self.reach, self.body, self.box = edge if beside else 0 if self.railed else cells, None, None
-        if beside:                                      # no row: the lit icon names it, the ⋯ its tip
-            self.named = False
-            area = Canvas(edge, rows)
-            self.draw_panel(area, 1)
-            if self.chats:
-                self.draw_chats(area, 1)
-            canvas.paste(area)
-        elif not self.railed:
+        self.reach, self.body, self.box = 0 if self.railed else cells, None, None
+        if not self.railed:
             self.named = stack.named(self.groups(), cells)          # too narrow: the icons alone, a row less
             top = stack.TOP if self.named else stack.TOP - 1
             self.draw_panel(canvas, top)
             self.draw_row(canvas)
             if self.chats:                              # in the view's place, under the blank row
                 self.draw_chats(canvas, top)
-        if self.railed:                                 # « on the row's icons' line as », the icons under it
-            lit, left = CHATS if self.chats else self.shown() if self.beside else None, edge if beside else 0
-            self.dock_head(canvas, stack.ROW, True, left)
-            # alone, across the whole pane: herdr keeps a tenth of the tab at least; the ⋯ beside a view, no room alone
-            more = stack.rail(canvas, stack.ROW + 2, rows - stack.ROW - 2, lit, self.groups(), self.marks(),
-                              self.settings["icons"], left, self.pointed, more=beside, terminal=self.terminal_up())
-            if more is not None:                        # its menu under its block, its right edge with it
-                self.dots = (more + 2, None, stack.block(stack.rail_column(cells, left), cells, left)[1])
+        else:                                           # « on the row's icons' line as », the icons under it
+            self.dock_head(canvas, stack.ROW, True)
+            # across the whole pane: herdr keeps a tenth of the tab at least
+            stack.rail(canvas, stack.ROW + 2, rows - stack.ROW - 2, self.groups(), self.marks(), self.settings["icons"],
+                       self.pointed, terminal=self.terminal_up())
         if self.menu:
             menu, y, x = self.menu[:3]
             menu.draw(canvas, *menu.at(y, x, cells, 0, rows, INSET))
@@ -1032,8 +1007,7 @@ class App(Loop):
         self.term.flush()
 
     def draw_panel(self, canvas, top):
-        """The view shown on CANVAS (the pane's, or its part left of the rail) from row TOP down, what went wrong
-        or a note over its last row."""
+        """The view shown on CANVAS from row TOP down, what went wrong or a note over its last row."""
         cells, rows = canvas.width, canvas.height
         line = self.error or self.note
         self.body, full = (top, max(0, rows - top - bool(line))), max(0, rows - top)
@@ -1058,18 +1032,18 @@ class App(Loop):
         self.dots = (stack.NAMES + 1 if self.named else stack.ROW + 1, more, None)      # its menu under More
         self.dock_head(canvas, stack.ROW, False)
 
-    def dock_head(self, canvas, y, rail, left=0):
+    def dock_head(self, canvas, y, rail):
         """The dock's own button on row Y, a block of an icon alone as the row's: » that folds the dock to its rail at
-        the row's right end, or (RAIL) « that opens it again over the rail's icons from column LEFT; lit under the
-        mouse as they are, its half rows its own."""
+        the row's right end, or (RAIL) « that opens it again over the rail's icons; lit under the mouse as they are,
+        its half rows its own."""
         target, cells = "to_dock" if rail else "to_rail", canvas.width
-        x = stack.rail_column(cells, left) if rail else stack.corner(cells) + stack.ICON_BUTTON // 2
-        first, end = stack.block(x, cells, left)
+        x = stack.rail_column(cells) if rail else stack.corner(cells) + stack.ICON_BUTTON // 2
+        first, end = stack.block(x, cells)
         canvas.put(y, x, OPEN_DOCK if rail else FOLD_DOCK, Style(fg="text" if self.pointed == target else "subtext"))
         if self.pointed == target:
             stack.hover(canvas, (y,), first, end)
         for row in (y - 1, y + 1, y):
-            canvas.region(row, left if rail else first, cells if rail else end, target)
+            canvas.region(row, 0 if rail else first, cells if rail else end, target)
 
     def draw_chats(self, canvas, top):
         """The Chats list in the view's place, from row TOP to the view's last, edge to edge on the views' own

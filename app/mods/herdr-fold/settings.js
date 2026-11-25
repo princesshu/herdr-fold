@@ -1,13 +1,14 @@
 // @ts-check
-// herdr-fold's own Settings, the window More's Settings… opens (settings.html), one size whatever it shows: General,
-// how agents open; About, the version, the update check and its switch in the TUI's words, What's new, the notices.
+// The one Settings, the window the sidebar's Settings and Cmd+, open (settings.html), one size: General, how agents
+// open; Notifications; About in the TUI's words; under Application the app's own sections, each opening them there.
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { appHome, closeOverlay, home, openOverlay, props, readTextFile, setShared, shared } from "herdr";
+import { appHome, closeOverlay, home, openOverlay, props, readTextFile, setShared, shared, writeTextFile,
+  run as command } from "herdr";
 import { AGENTS_OPEN, agentsOpen } from "./agents.js";
 import { UPDATE } from "./helper.js";
-import { ABOUT, aboutState, licenseOf, SECTIONS, sectionStep, SETTINGS, settingsSection, settingsTargets }
-  from "./logic.js";
+import { ABOUT, aboutState, APP_SECTIONS, layoutToast, licenseOf, SECTIONS, sectionStep, SETTINGS, settingsSection,
+  settingsTargets, soundsFor } from "./logic.js";
 import { button, choices, icon, iconButton, SPINNER } from "./parts.js";
 import { showPreview } from "./preview.js";
 
@@ -17,10 +18,37 @@ const OPEN = "herdr-fold.settings-open";          // shared: its dialog while it
 const FAILED = "GitHub did not answer";           // core/update.py's, for a look that did not answer at all
 const SWITCH = "Check for updates automatically";
 const OPENS = /** @type {[string, string][]} */ ([["chat", "Chat"], ["terminal", "Terminal"]]);
-const OPENS_NOTE = "+, Chats, Issues' To agent and the agent list open agents this way. Codex has no chat yet and "
-  + "always opens in a terminal.";
+const OPENS_NOTE = "+, Chats, Issues' To agent and the agent list open agents this way, and a space starts on one. "
+  + "Codex has no chat yet and always opens in a terminal.";
+const NOTES = "herdr-fold.agent-notes";           // shared: false while An agent waits on you is off
+const SOUNDS_KEPT = "herdr-fold.sounds-kept";     // shared: the app's sounds as the switch found them, given back on
+const ON_OFF = /** @type {[string, string][]} */ ([["on", "On"], ["off", "Off"]]);
+const NOTES_NOTE = "A note at the window's corner and a sound, when an agent in another tab asks or finishes. Errors "
+  + "always show.";
 /** @type {Promise<any> | null} the mod's own LICENSE, read once: its holder's name and page for the version line */
 let license = null;
+
+/** Whether An agent waits on you is on (the default): the app's notes and sounds, and a chat's own. */
+export const notesOn = () => shared(NOTES) !== false;
+
+/** herdr-fold's layout file with its root's toast as the switch has it (layoutToast's): from the tab bar's copy at
+ * start too, as an install writes the file anew. */
+export async function followNotes() {
+  const path = `${appHome()}/layouts/herdr-fold.json`, text = await readTextFile(path);
+  const next = text && layoutToast(text, notesOn(), "herdr-fold");
+  if (next) await writeTextFile(path, next, text);
+}
+
+/** An agent waits on you turned ON or off: kept, the layout's toast following, the app's sounds with it (the person's
+ * own value kept while off, soundsFor's). @param {boolean} on */
+async function setNotes(on) {
+  setShared(NOTES, on);
+  await followNotes();
+  const path = `${appHome()}/settings.json`, text = await readTextFile(path);
+  const next = soundsFor(text, on, /** @type {boolean | null} */ (shared(SOUNDS_KEPT) ?? null));
+  setShared(SOUNDS_KEPT, next.kept);
+  await writeTextFile(path, next.text, text);
+}
 
 /** Settings opened over the window at SECTION (none: the one last looked at); open already, it shows SECTION.
  * @param {string} [section] */
@@ -30,6 +58,9 @@ export function openSettings(section) {
   setShared(OPEN, openOverlay({ mod: "herdr-fold", kind: "dialog", width: SETTINGS.wide, height: SETTINGS.high,
     props: { part: "settings" } }));
 }
+
+/** Whether Settings is open now (a float beside a rail takes a press in it as its own). */
+export const settingsOpen = () => typeof shared(OPEN) === "string";
 
 /** A Settings the app's last run left open is gone (the tab bar's copy says so once, as it starts). */
 export const forgetSettings = () => void (shared(OPEN) && setShared(OPEN, null));
@@ -72,6 +103,8 @@ export class SettingsView {
     this.found = undefined;
     /** @type {string | undefined} how agents open, as the styleguide gives it; undefined: as kept */
     this.opens = undefined;
+    /** @type {boolean | undefined} An agent waits on you, as the styleguide gives it; undefined: as kept */
+    this.notes = undefined;
   }
 
   /** The section shown: the styleguide's, else the one last looked at. */
@@ -85,6 +118,14 @@ export class SettingsView {
     this.chosen = null;
     setShared(SECTION, section);
     cx.notify();
+  }
+
+  /** The app's own Settings at SECTION (APP_SECTIONS'), in this one's place (a styleguide's copy: nowhere).
+   * @param {string} section */
+  appSection(section) {
+    if (!this.core) return;
+    this.shut();
+    command("app.settings", { section });
   }
 
   /** The window closed. */
@@ -135,6 +176,8 @@ export class SettingsView {
    * author's page, its buttons, the box, the notices. @param {string} target */
   act(target, cx) {
     if (target === "opens") return this.open(this.opening() === "chat" ? "terminal" : "chat", cx);
+    if (target === "notes") return this.note(!this.noting(), cx);
+    if (target === "alerts") return this.appSection("alerts");
     if (!this.core) return;                       // the styleguide's copies: About's presses go nowhere
     const shown = aboutState(this.shown(), { license: this.license });
     const pressed = shown.buttons.find((b) => b.id === target);
@@ -167,7 +210,7 @@ export class SettingsView {
     if (e.key === "enter" || e.key === "space") this.act(this.chosen, cx);
     else if (this.chosen === "opens" && (e.key === "left" || e.key === "right")) {
       this.open(OPENS[e.key === "left" ? 0 : 1][0], cx);
-    }
+    } else if (this.chosen === "notes" && (e.key === "left" || e.key === "right")) this.note(e.key === "left", cx);
   }
 
   /** The check shown: the styleguide's, else the last one kept. */
@@ -210,31 +253,68 @@ export class SettingsView {
   }
 
   /** The window: its name and × over a hairline; its sections on the side's level (chrome), the shown one on the
-   * selection as Spaces' row; the section 24 inside. */
+   * selection as Spaces' row, the app's under Application; the section 24 inside. */
   render(t, code) {
     const section = this.section();
     return v_flex().id("settings").size_full().text_size(13).text_color(t.foreground)
       .when(Boolean(this.focus), (e) => e.track_focus(this.focus).on_key_down((ev, cx) => this.key(ev, cx)))
       .child(h_flex().h(SETTINGS.head).flex_none().pl(16).pr(8).items_center().border_b(1).border_color(t.border)
-        .child(div().flex_1().min_w(0).truncate().font_semibold().child("herdr-fold Settings"))
+        .child(div().flex_1().min_w(0).truncate().font_semibold().child("Settings"))
         .child(div().mr(1).child(iconButton(t, "settings-close", "x", "Close", () => this.shut()))))
       .child(h_flex().flex_1().min_h(0).items_start()
         .child(v_flex().w(SETTINGS.side).h_full().flex_none().py(SETTINGS.pad).px(8).gap(2).bg(t.chrome).border_r(1)
-          .border_color(t.border).children(SECTIONS.map(([id, name]) => div().id(`settings-${id}`).h(28).flex_none()
-            .px(8).flex().items_center().rounded(6).cursor_pointer()
-            .when(id === section, (e) => e.bg(t.selected))
-            .when(id !== section, (e) => e.text_color(t.muted).hover((s) => s.bg(t.hover).text_color(t.foreground)))
-            .on_click((_e, cx) => this.show(id, cx)).child(name))))
+          .border_color(t.border)
+          .children(SECTIONS.map(([id, name]) => this.row(t, id, name, id === section, (cx) => this.show(id, cx))))
+          .child(div().mt(SETTINGS.apart).h(SETTINGS.row).flex_none().px(8).flex().items_center().text_size(11)
+            .text_color(t.dim).opacity(0.7).child("Application"))              // a group's name: fainter than its rows
+          .children(APP_SECTIONS.map(([id, name]) => this.row(t, `app-${id}`, name, false, () => this.appSection(id)))))
         .child(v_flex().flex_1().min_w(0).h_full().p(SETTINGS.pad)
-          .children(section === "about" ? this.about(t, code) : this.general(t))));
+          .children(section === "about" ? this.about(t, code)
+            : section === "notifications" ? this.notifications(t) : this.general(t))));
   }
 
-  /** General: how agents open, a choice of two at its row's end, what it steers under it. */
+  /** A row of the sections' list, ID's: LIT the one shown, else muted, the text's color under the pointer.
+   * @param {string} id @param {string} name @param {boolean} lit @param {(cx: any) => void} act */
+  row(t, id, name, lit, act) {
+    return div().id(`settings-${id}`).h(SETTINGS.row).flex_none().px(8).flex().items_center().rounded(6)
+      .cursor_pointer().when(lit, (e) => e.bg(t.selected))
+      .when(!lit, (e) => e.text_color(t.muted).hover((s) => s.bg(t.hover).text_color(t.foreground)))
+      .on_click((_e, cx) => act(cx)).child(name);
+  }
+
+  /** Whether An agent waits on you is on: the styleguide's, else as kept. */
+  noting() {
+    return this.notes ?? notesOn();
+  }
+
+  /** An agent waits on you turned ON or off (a styleguide's copy: its own picture's). @param {boolean} on */
+  note(on, cx) {
+    if (this.notes !== undefined) this.notes = on;
+    else if (on !== notesOn()) setNotes(on).catch(() => {});
+    cx.notify();
+  }
+
+  /** A setting's row, Tab's ID: its NAME, a choice of OPTIONS at its end (VALUE lit, ACT picking), NOTE under it.
+   * @param {string} id @param {string} name @param {[string, string][]} options @param {string} value
+   * @param {(value: string, cx: any) => void} act @param {string} note */
+  setting(t, id, name, options, value, act, note) {
+    return [h_flex().h(28).flex_none().gap(16).items_center().child(div().flex_1().min_w(0).child(name))
+      .child(this.ringed(t, id, choices(t, `settings-${id}`, options, value, act))),
+    div().mt(8).max_w(360).flex_none().text_size(12).line_height("16px").text_color(t.dim).child(note)];
+  }
+
+  /** General: how agents open. */
   general(t) {
-    return [h_flex().h(28).flex_none().gap(16).items_center().child(div().flex_1().min_w(0).child("Open agents in"))
-      .child(this.ringed(t, "opens", choices(t, "settings-opens", OPENS, this.opening(),
-        (/** @type {string} */ value, /** @type {any} */ cx) => this.open(value, cx)))),
-    div().mt(8).max_w(360).flex_none().text_size(12).line_height("16px").text_color(t.dim).child(OPENS_NOTE)];
+    return this.setting(t, "opens", "Open agents in", OPENS, this.opening(), (value, cx) => this.open(value, cx),
+      OPENS_NOTE);
+  }
+
+  /** Notifications: An agent waits on you, then the app's own alerts (its sounds), a quiet row 16 under it. */
+  notifications(t) {
+    return [...this.setting(t, "notes", "An agent waits on you", ON_OFF, this.noting() ? "on" : "off",
+      (value, cx) => this.note(value === "on", cx), NOTES_NOTE),
+    div().mt(16).mx(-8).flex_none().child(this.ringed(t, "alerts",
+      this.row(t, "app-alerts", "Herdr app alerts", false, () => this.appSection("alerts"))))];
   }
 
   /** About, its rows where they were: the name and the version line, the state's row, how to update while a newer

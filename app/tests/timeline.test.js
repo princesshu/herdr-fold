@@ -4,8 +4,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { bottomLayout, callWords, clock, connectorRow, format, RHYTHM, setForms, signinRow, stepLayout, timeline,
-  timelineMarkdown, userLayout } from "../mods/herdr-fold/timeline.js";
+import { bottomLayout, callWords, clock, connectorRow, format, planStrip, planWords, RHYTHM, setForms, signinRow,
+  stepLayout, timeline, timelineMarkdown, userLayout } from "../mods/herdr-fold/timeline.js";
 
 const at = (minute) => `2026-11-08T14:${String(minute).padStart(2, "0")}:00.000Z`;
 const EDIT = { path: "src/books.py", lines: ["@@ -12,1 +12,1 @@", "-    return page", "+    return min(page, last)"] };
@@ -44,19 +44,64 @@ test("a thought says how long it took, past a minute in minutes and seconds", ()
   assert.deepEqual(labels, ["Thought for 4s", "Thought for 1m 5s", "Thought for 1s", "Thought"]);
 });
 
-test("a skill, a sub-agent and a todo list take their results; a result with no call is left out", () => {
+test("a skill and a subagent take their results; a result with no call is left out", () => {
   const rows = timeline([
     { kind: "skill", id: "s1", name: "api-routes", at: at(1) },
     { kind: "result", id: "s1", ok: true, output: "Launching skill: api-routes", change: null, at: at(1) },
     { kind: "agent", id: "a1", name: "Explore", task: "Find the pager", at: at(2) },
     { kind: "result", id: "a1", ok: true, output: "In src/lumen/routes/books.py", change: null, at: at(3) },
-    { kind: "todo", id: "d1", items: [{ text: "Write the test", done: true }], at: at(3) },
+    { kind: "tool", id: "t1", name: "Bash", main: "pytest -q", input: {}, at: at(3) },
     { kind: "result", id: "gone", ok: true, output: "from a call before this read", change: null, at: at(4) },
     { kind: "other", type: "compact_boundary", summary: "Chat compacted", at: at(5) },
   ]);
-  assert.deepEqual(rows.map((r) => r.kind), ["skill", "agent", "todo", "other"]);
+  assert.deepEqual(rows.map((r) => r.kind), ["skill", "agent", "tool", "other"]);
   assert.deepEqual([rows[0].ok, rows[1].ok, rows[1].output], [true, true, "In src/lumen/routes/books.py"]);
   assert.equal(rows[2].ok, null);
+});
+
+test("tasks added one after another are one row, a step done its own, an approved plan with its call", () => {
+  const rows = timeline([
+    { kind: "tool", id: "p1", name: "ExitPlanMode", main: null, input: {}, at: at(1) },
+    { kind: "result", id: "p1", ok: true, output: "Approved.", change: null, plan: 4, at: at(1) },
+    { kind: "tasks", id: "k1", added: 1, at: at(2) },
+    { kind: "result", id: "k1", ok: true, output: "Task #1 created successfully", change: null, at: at(2) },
+    { kind: "tasks", id: "k2", added: 1, at: at(2) },
+    { kind: "task", id: "k3", text: "Keep the page inside 1…pages", at: at(3) },
+    { kind: "result", id: "k3", ok: true, output: "Updated task #1 status", change: null, at: at(3) },
+    { kind: "tasks", id: "k4", added: 1, at: at(4) },
+  ]);
+  assert.deepEqual(rows.map((r) => [r.kind, r.added ?? r.text ?? r.plan]),
+    [["tool", 4], ["tasks", 2], ["task", "Keep the page inside 1…pages"], ["tasks", 1]]);
+  assert.equal(rows[1].at, at(2));
+  assert.deepEqual([4, 1, 0].map(planWords), ["approved · 4 steps", "approved · 1 step", "approved"]);
+});
+
+const PLAN = { steps: [{ text: "Keep the page inside 1…pages", state: "done", after: null },
+  { text: "Add the tests past the end", state: "now", after: null },
+  { text: "Run the whole suite", state: "next", after: "after Add the tests past the end" }],
+note: null, done: "1 done", count: "1 of 3 done", finished: false, plan: 4 };
+
+test("the plan strip folded is the step at work and how many are done", () => {
+  assert.equal(planStrip(null, false, false), null);
+  assert.equal(planStrip({ ...PLAN, steps: [] }, true, false), null);
+  assert.deepEqual(planStrip(PLAN, false, true), { head: { state: "now", text: "Add the tests past the end",
+    count: "1 of 3 done" }, rows: [] });
+  const waiting = { ...PLAN, steps: PLAN.steps.map((step) => ({ ...step, state: step.state === "now" ? "next"
+    : step.state })) };
+  assert.equal(planStrip(waiting, false, false)?.head.state, "next");            // none at work: the next one
+  const all = { ...PLAN, steps: PLAN.steps.map((step) => ({ ...step, state: "done" })), count: "All 3 done" };
+  assert.deepEqual(planStrip(all, false, false)?.head, { state: "done", text: "All 3 done", count: "" });
+});
+
+test("the plan strip open folds the done steps into one row over the rest, its head not counting again", () => {
+  const open = planStrip(PLAN, true, false);
+  assert.deepEqual(open?.head, { state: null, text: "Plan", count: "" });
+  assert.deepEqual(open?.rows.map((row) => [row.kind, row.text]), [["fold", "1 done"],
+    ["now", "Add the tests past the end"], ["next", "Run the whole suite"]]);
+  assert.equal(open?.rows[2].after, "after Add the tests past the end");
+  assert.deepEqual(planStrip(PLAN, true, true)?.rows.map((row) => row.kind), ["fold", "done", "now", "next"]);
+  const none = { ...PLAN, steps: PLAN.steps.slice(1), done: null };
+  assert.deepEqual(planStrip(none, true, true)?.rows.map((row) => row.kind), ["now", "next"]);
 });
 
 /** RUN with this Mac in New York, the system's forms FORMS (none: not known yet), both put back after it.
@@ -101,7 +146,7 @@ test("a pattern's letters are the time's parts, a quoted word as it is", () => {
 });
 
 // every kind of step the timeline draws with a dot on its line (the person's message has none: a turn starts there)
-const KINDS = ["thought", "tool", "skill", "agent", "todo", "text", "other"];
+const KINDS = ["thought", "tool", "skill", "agent", "tasks", "task", "text", "other"];
 
 test("every step's dot stands on the middle of its first line, whatever its kind", () => {
   for (const kind of KINDS) {

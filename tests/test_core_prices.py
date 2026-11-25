@@ -1,6 +1,6 @@
 """Tests for core/prices.py: each kind of token at its model's price from LiteLLM's table, fetched at most once a day
-(never with the daily look switched off), the last kept or the bundled table when it cannot be had, a model's name and
-its color. Nothing here reaches the network: the asking is handed in, or urlopen is a stand-in."""
+(never with the daily look switched off), the last kept or the bundled table when it cannot be had, a model's
+color. Nothing here reaches the network: the asking is handed in, or urlopen is a stand-in."""
 import contextlib
 import importlib.util
 import io
@@ -287,16 +287,6 @@ class Bundled(unittest.TestCase):
 
 
 class Models(unittest.TestCase):
-    def test_a_model_is_named_as_people_say_it(self):
-        for model, name in (("claude-opus-5-5", "Opus 5.5"), ("claude-haiku-4-5-20251001", "Haiku 4.5"),
-                            ("claude-opus-5", "Opus 5"), ("claude-3-5-sonnet-20241022", "Sonnet 3.5"),
-                            ("claude-mythos-preview", "Mythos Preview"), ("anthropic/claude-sonnet-5-5", "Sonnet 5.5"),
-                            ("gpt-5-codex", "GPT-5 Codex"), ("gpt-6.2-astra", "GPT-6.2 Astra"),
-                            ("gpt-5.1-codex-max", "GPT-5.1 Codex Max"), ("codex-auto-review", "Codex Auto Review"),
-                            ("o3", "o3"), ("unknown", "Unknown"), ("", ""), (None, "")):
-            with self.subTest(model):
-                self.assertEqual(prices.model_name(model), name)
-
     def test_the_four_families_keep_the_mockups_colors(self):
         for model, color in (("claude-opus-5-5", "#3987e5"), ("claude-opus-4-8", "#3987e5"),
                              ("claude-sonnet-5-5", "#d95926"), ("claude-haiku-4-5-20251001", "#199e70"),

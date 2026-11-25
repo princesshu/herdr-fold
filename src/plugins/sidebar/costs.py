@@ -1,7 +1,7 @@
 # Generated from core/costs.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
-"""What one conversation cost, for the graph's This conversation in both clients: its agent and each sub-agent type
-with its model, turns, tokens, share and inspector lines, from tokens.py's index at prices.py's prices, and Claude's
-own count beside it. Only read. Usage (in JSON): costs.py AGENT SESSION [--agents=JSON] [--surface=# --text=#]."""
+"""What one chat cost, for the graph's This chat in both clients: its agent and each subagent type with its model,
+turns, tokens, share (beside a subagent) and inspector lines, from tokens.py's index at prices.py's prices. Only read.
+Usage (in JSON): costs.py AGENT SESSION [--agents=JSON] [--surface=# --text=#]."""
 import json
 import os
 import sys
@@ -10,48 +10,14 @@ sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 import prices  # noqa: E402
 import statefile  # noqa: E402
 import tokens  # noqa: E402
-from jsonl import obj, open_regular, parse  # noqa: E402
-from prices import money, short  # noqa: E402
+from jsonl import obj  # noqa: E402
+from prices import money  # noqa: E402
+from words import model_name, percent, tokens as said_tokens  # noqa: E402
 
 AGENTS = ("claude", "codex")
 API_KEY = "API key"             # the agents' list's word for an agent on an API key: its cost is spent
-COUNT = b'"type":"cost-state"'  # a line of Claude's own count of a conversation; the newest one is its whole
-BACK = 8 << 20                  # bytes read at a time from a session's end, looking for that line
-LINE = 64 << 20                 # bytes of one line kept while looking: a longer one is no count
 PROMPT = ("input", "write_5m", "write_1h", "read")      # the kinds a prompt is made of
 EVER = 1 << 62                  # past every hour
-
-
-def millions(count):
-    """COUNT tokens as an inspector's value: 0.79M, a small one as it is (short()'s), none as 0."""
-    return f"{count / 1e6:.2f}M" if count >= 10_000 else short(count)
-
-
-def percent(share):
-    return f"{int(share * 100 + 0.5)}%"
-
-
-def counted(path):
-    """Claude's own count of the conversation in the session file PATH in dollars, its newest cost-state line's (read
-    from the file's end); None where it has none, or one that is no amount."""
-    try:
-        with open_regular(path, "rb") as f:
-            end, kept = f.seek(0, os.SEEK_END), b""
-            while end > 0 and len(kept) <= LINE:
-                start = max(0, end - BACK)
-                f.seek(start)
-                data = f.read(end - start) + kept
-                place, cut = data.rfind(COUNT), data.find(b"\n")
-                first = data.rfind(b"\n", 0, place) + 1 if place >= 0 else 0
-                if place >= 0 and (first or not start):
-                    stop = data.find(b"\n", place)
-                    total = parse(data[first:stop if stop >= 0 else len(data)]).get("totalCostUSD")
-                    return total if prices.number(total) else None
-                # its line starts further back: all of it kept; none here: the first line, cut where it was read
-                kept, end = data if place >= 0 or cut < 0 else data[:cut + 1], start
-    except OSError:
-        pass
-    return None
 
 
 def summed(rows, models):
@@ -68,33 +34,34 @@ def summed(rows, models):
             "models": sorted(by_model, key=lambda model: -by_model[model])}
 
 
-def said(one, whole, kind, sub, seen, theme):
-    """An agent's sums ONE as the graph says them (SUB: a sub-agent's), beside the conversation's WHOLE; KIND: "API
-    value" or "spent"; SEEN the conversation's models in order, THEME a card and its text (the models' colors)."""
+def said(one, whole, kind, sub, seen, theme, shared):
+    """An agent's sums ONE as the graph says them (SUB: a subagent's), beside the chat's WHOLE (its share of it where
+    SHARED, more than one agent ran); KIND: "API value" or "spent"; SEEN the chat's models in order, THEME a card and
+    its text (the models' colors)."""
     model, cost = one["models"][0], one["cost"]
     share = cost / whole["cost"] if cost is not None and whole["cost"] else \
         one["tokens"] / whole["tokens"] if whole["tokens"] else 1.0
-    prompt, written = sum(one[kind] for kind in PROMPT), one["write_5m"] + one["write_1h"]
+    prompt = sum(one[kind] for kind in PROMPT)
     text = "no price" if cost is None else money(cost, True)
-    turns = "sub-agent" if sub else f"{one['turns']} turn{'s' * (one['turns'] != 1)}"
-    lines = [["Model", ", ".join(prices.model_name(each) for each in one["models"]), None],
-             ["Input", millions(one["input"]), None],
-             ["Cache write", millions(written),
-              f"1 hour {millions(one['write_1h'])} · 5 min {millions(one['write_5m'])}" if written else None],
-             ["Cache read", millions(one["read"]), f"{percent(one['read'] / prompt)} of its input" if one["read"]
+    turns = [] if sub else [f"{one['turns']} turn{'s' * (one['turns'] != 1)}"]
+    lines = [["Model", ", ".join(model_name(each) for each in one["models"]), None],
+             ["Input", said_tokens(one["input"]), None],
+             ["Cache write", said_tokens(one["write_5m"] + one["write_1h"]), None],
+             ["Cache read", said_tokens(one["read"]), f"{percent(one['read'] / prompt)} of its input" if one["read"]
               else None],
-             ["Output", millions(one["output"]), None], ["Share", f"{percent(share)} of this conversation", None]]
+             ["Output", said_tokens(one["output"]), None]]
+    lines += [["Share", f"{percent(share)} of this chat", None]] * shared
     return {"cost": cost, "text": text, "title": text if cost is None else f"{text} {kind}",
-            "model": {"id": model, "name": prices.model_name(model),
+            "model": {"id": model, "name": model_name(model),
                       "color": prices.model_color(model, seen, *(theme or (None, None)))},
             "turns": one["turns"], "tokens": one["tokens"], "share": share,
-            "sub": f"{prices.model_name(model)} · {turns} · {short(one['tokens'])} tokens", "lines": lines}
+            "sub": " · ".join([model_name(model)] + turns + [f"{said_tokens(one['tokens'])} tokens"]), "lines": lines}
 
 
 def costs(state, agent, path, agents=None, table=None, theme=None):
-    """What the conversation in AGENT's session file PATH cost, from STATE's index (tokens.index()'s, brought up to
-    date by the caller): {"session", "kind", "text", "tokens", "agent": said()'s, "subs": {type: said()'s}}; None with
-    no message yet. AGENTS: the agents' list (a plan "API key": spent); TABLE: prices.prices()'s; THEME: said()'s."""
+    """What the chat in AGENT's file PATH cost, from STATE's index: {"session", "kind", "text" (its whole), "tokens",
+    "agent": said()'s, "subs": {type: said()'s}, "line"}; None with no message yet. AGENTS: the agents' list (a plan
+    "API key": spent); TABLE: prices.prices()'s; THEME: said()'s."""
     try:
         session = os.path.basename(path)[:-len(".jsonl")] if agent == "claude" else tokens.codex_session(path)[0]
     except OSError:
@@ -108,21 +75,16 @@ def costs(state, agent, path, agents=None, table=None, theme=None):
     plan = next((obj(one).get("plan") for one in agents if obj(one).get("key") == agent), None) \
         if isinstance(agents, list) else None
     kind, seen = "spent" if plan == API_KEY else "API value", list(dict.fromkeys(row["model"] for row in rows))
-    whole = summed(rows, models)
-    own = said(summed([row for row in rows if row["sub"] is None], models), whole, kind, False, seen, theme)
-    subs = {sub: said(summed([row for row in rows if row["sub"] == sub], models), whole, kind, True, seen, theme)
-            for sub in dict.fromkeys(row["sub"] for row in rows if row["sub"] is not None)}
-    count = counted(path) if agent == "claude" and whole["cost"] is not None else None
-    if count is not None:
-        apart = round(count * 100) - round(whole["cost"] * 100)
-        note = "the same" if not apart else f"{money(abs(apart) / 100, True)} {'more' if apart > 0 else 'less'}"
-        own["lines"].append(["Claude's count", money(count, True), note + ", sub-agents included" * bool(subs)])
+    whole, types = summed(rows, models), list(dict.fromkeys(row["sub"] for row in rows if row["sub"] is not None))
+    own = said(summed([row for row in rows if row["sub"] is None], models), whole, kind, False, seen, theme,
+               bool(types))
+    subs = {sub: said(summed([row for row in rows if row["sub"] == sub], models), whole, kind, True, seen, theme,
+                      True) for sub in types}
     prompt = sum(whole[kind] for kind in PROMPT)
     text = "no price" if whole["cost"] is None else money(whole["cost"], True)
-    return {"session": session, "kind": kind, "text": text,
-            "tokens": short(whole["tokens"]), "agent": own, "subs": subs,
-            "line": f"{short(whole['tokens'])} tokens" + (f" · {percent(whole['read'] / prompt)} from cache"
-                                                          if whole["read"] else "")}
+    return {"session": session, "kind": kind, "text": text, "tokens": said_tokens(whole["tokens"]), "agent": own,
+            "subs": subs, "line": f"{said_tokens(whole['tokens'])} tokens" + (
+                f" · {percent(whole['read'] / prompt)} from cache" if whole["read"] else "")}
 
 
 def filed(state, agent, session):

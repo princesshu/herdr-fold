@@ -115,7 +115,7 @@ the default: the capital letter in `[Y/n]` (yes) or `[y/N]` (no). Each line it p
 | 5 Status line | `What should the status line show next to the model?`: one checkbox list, a group for Claude Code and one for Codex, its title off for your own status line | always (↑ ↓ move, Space toggles, one Enter for both) | everything on |
 | 5 Status line | `Trust them, so the status line shows there too? (Claude then also runs their own .claude settings and hooks)` | some of your Claude panes are in git repositories Claude does not trust yet (never a folder outside one, your home folder or a folder above it) | no |
 | 6 Plugins | `Show your chats in herdr's Agents list?` | herdr was set up before | yes, or your last answer |
-| 6 Plugins | `Let a new workspace ask for its folder, and herdr-fold's agents start again after a restart?` | herdr was set up before | yes, or your last answer (a no to the earlier Tab Layout counts) |
+| 6 Plugins | `Let a new space ask for its folder, and herdr-fold's agents start again after a restart?` | herdr was set up before | yes, or your last answer |
 | 6 Plugins | `Set up herdr-fold in the Herdr app too?` | an update of the TUI alone, the Herdr app on this Mac and never asked about | yes: its mod, layout and keys in the app, and the remote machines there too ([The Herdr app](app.md)) |
 | 7 GitHub | `Sign in to GitHub now?` | the Mac is not signed in to GitHub | yes |
 | 7 GitHub | `Let git push through your GitHub sign-in?` | signed in, but git does not use it yet | yes |
@@ -170,11 +170,11 @@ For the TUI:
   between `# >>> herdr-fold >>>` and `# <<< herdr-fold <<<` marks.
 - `~/.zshrc`: one marked block that loads the herdr pane environment, only inside herdr panes.
 - `~/Library/Fonts/`: herdr-fold Mono's four files and its license, `herdr-fold-Mono-OFL.txt` ([below](#the-font)).
-- herdr plugins (the sidebar, AI Sessions, Workspaces) and the herdr integrations for Claude and Codex; a
+- herdr plugins (the sidebar, AI Sessions, Spaces) and the herdr integrations for Claude and Codex; a
   herdr-sidebar of your own stays, and is named ([The sidebar](sidebar.md)).
 - The theme's colors for the sidebar, in `~/.local/state/herdr/plugins/herdr-fold.sidebar/colors.json`.
-- In `~/.local/state/herdr/plugins/herdr-fold.workspaces/`: the workspaces named after their folder (`spaces.json`),
-  so a renamed folder renames its workspace, and the workspace in front with the one before it (`focus.json`), so Esc
+- In `~/.local/state/herdr/plugins/herdr-fold.spaces/`: the spaces named after their folder (`spaces.json`),
+  so a renamed folder renames its space, and the space in front with the one before it (`focus.json`), so Esc
   in the folder picker goes back there.
 - `~/.config/ghostty/herdr-fold-icon`: which app icon Ghostty shows (the theme's), a PNG written into
   `~/.local/state/herdr-fold/ghostty-icon/`.
@@ -210,7 +210,7 @@ It never touches your chats (Claude and Codex sessions and their names) or herdr
 herdr-fold Mono is the one monospace font of both parts: Ghostty's, and in the Herdr app its layout's terminals and
 the code its views draw (a chat's Markdown keeps the app's JetBrains Mono, which has its letters). It is JetBrains
 Mono with Nerd Fonts' icons at full size (JetBrainsMono Nerd Font, whose drawing it keeps), renamed, as its license
-asks of a changed font, with two changes:
+asks of a changed font, with three changes:
 
 - Its line is 10% taller, the room split evenly above and below the text: a row of the TUI and of the app is as tall,
   where Ghostty's `adjust-cell-height` did it before for the TUI alone.
@@ -219,6 +219,8 @@ asks of a changed font, with two changes:
   ✢ ✳ ✻ ✽ and ◐ ◓ ◑ ◒, ⏵ ⏸ ⏹ of the modes and tasks, the task list's ✔ ◼ ◻, /context's ⛁ ⛀ ⛶ ⛝, starship's ⇡ ⇣ ⇕,
   ↻ ↵ ↳ ↯ ⇆, Codex's ☑ ⓘ and math signs (⁻ ₊ …), and more. Emoji, other scripts and herdr-fold's own plain marks
   (✦ ⌕ ⎇ …) stay with the system's fonts.
+- herdr's ▾ ▸ before a machine in its Spaces list are drawn as the sidebar's chevrons, so every fold on the screen
+  looks alike; any other program's ▾ ▸ in these terminals shows them too.
 
 The TUI's installer puts it in `~/Library/Fonts`, where Ghostty finds it by name; the uninstaller takes it off again.
 A JetBrainsMono Nerd Font an earlier version installed with Homebrew stays: `brew uninstall --cask
@@ -232,14 +234,9 @@ the other part ([above](#the-tui-the-herdr-app-or-both)). What is done is skippe
 earlier version left behind is listed and removed once you say yes (one you changed is saved first). Your parts,
 theme, status line choices and machine list stay.
 
-What runs takes the new version at once. In a running herdr every sidebar starts it in place, on the folder it shows,
-and an earlier version's chat column closes. A running Herdr app closes for the update and opens again behind the
-installer, so it loads the new mod and keeps nothing an earlier version left in it; your terminals keep running.
-
-An earlier install's Tab Layout (`herdr-fold.tab-layout`) is taken off herdr (uninstalled when it came from herdr's
-marketplace): the sidebar lays out a new tab now, and Workspaces does the rest, with Tab Layout's `spaces.json` and
-`focus.json` moved into its own state folder. A no to Tab Layout stays a no to Workspaces. When herdr cannot take it
-off (it is not running), the installer names the command, and the next run tries again.
+What runs takes the new version at once. In a running herdr every sidebar starts it in place, on the folder it
+shows. A running Herdr app closes for the update and opens again behind the installer, so it loads the new mod and
+keeps nothing an earlier version left in it; your terminals keep running.
 
 ### A newer version
 

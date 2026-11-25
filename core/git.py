@@ -1,4 +1,4 @@
-"""The git layer of the sidebar, Workspaces and the app mod: nothing loses work (a pull is fast-forward only; no reset,
+"""The git layer of the sidebar, Spaces and the app mod: nothing loses work (a pull is fast-forward only; no reset,
 clean or force push). Every command runs without optional locks or prompts, with a time limit, a file name never read
 as a pattern. The unasked status and diff run nothing a repository's config names (fsmonitor, filters, submodules)."""
 import json
@@ -195,22 +195,22 @@ def refs_stamp(root):
     return stamp
 
 
-def place(path, active=None):
-    """Where PATH is, as the Herdr app mod's Spaces list names it; for a PATH in no repository, the one inside it marked
+def place(path, active=None, timeout=TIMEOUT):
+    """Where PATH is, as both clients' Spaces rows name it; for a PATH in no repository, the one inside it marked
     inside (repo_inside, ACTIVE its active pane's folder); else None. Only .git's own files are read, so nothing a
     repository's config names runs. git that cannot answer (a folder gone) raises RuntimeError."""
-    where = run(path, "rev-parse", "--show-toplevel", "--git-common-dir")
+    where = run(path, "rev-parse", "--show-toplevel", "--git-common-dir", timeout=timeout)
     if where.returncode != 0:
         if "not a git repository" in where.stderr:
             found = repo_inside(path, active)
-            found = found and place(found)
+            found = found and place(found, timeout=timeout)
             return found and replace(found, inside=True)
         raise RuntimeError(last_line(where) or "git did not answer")
     top, common = where.stdout.splitlines()[:2]
     common = os.path.realpath(os.path.join(path, common))      # relative to PATH before git 2.31's --path-format
     linked = common != os.path.realpath(os.path.join(top, ".git"))
     name = os.path.basename(os.path.dirname(common) if os.path.basename(common) == ".git" else common)
-    return Place(name[:-4] if name.endswith(".git") else name, *tracking(path), common, linked)
+    return Place(name[:-4] if name.endswith(".git") else name, *tracking(path, timeout), common, linked)
 
 
 def status(root):
@@ -429,20 +429,20 @@ def graph(root, n=20):
 
 
 # what the Herdr app mod asks for: the arguments each command takes after ROOT, at least and at most (None: any number)
-COMMANDS = {"status": (0, 0), "place": (0, 1), "diff": (1, 1), "show": (1, 1), "graph": (0, 0), "github": (0, 0),
-            "stage": (0, None), "unstage": (1, None), "discard": (1, 1), "commit": (1, 1), "sync": (0, 0),
-            "push": (0, 0), "pull": (0, 0)}
+COMMANDS = {"status": (0, 0), "top": (0, 0), "place": (0, 1), "diff": (1, 1), "show": (1, 1), "graph": (0, 0),
+            "github": (0, 0), "stage": (0, None), "unstage": (1, None), "discard": (1, 1), "commit": (1, 1),
+            "sync": (0, 0), "push": (0, 0), "pull": (0, 0)}
 
 
 def main(argv):
-    """herdr-fold's Herdr app mod runs this on the repository's machine, answering in JSON: status, place (FOLDER: its
-    active pane's), graph, github (its name on GitHub); diff, show (the text, else why none); stage (no PATH: every
-    change), unstage, discard, commit, sync, push, pull (whether each worked, else what to do). COMMANDS: arguments."""
+    """The Herdr app mod runs this on the repository's machine, answering in JSON: status, top (ROOT's repository, else
+    the one inside, as Spaces names it), place (FOLDER: its active pane's), graph, github; diff, show (the text, else
+    why none); stage (no PATH: all), unstage, discard, commit, sync, push, pull (worked, else what to do)."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     least, most = COMMANDS.get(command, (0, -1))                # an unknown command: no count fits
     given = len(args) - 1                                        # after ROOT
     if not args or given < least or (most is not None and given > most):
-        print("usage: git.py status|graph|github|sync|push|pull ROOT, git.py place ROOT [FOLDER], "
+        print("usage: git.py status|top|graph|github|sync|push|pull ROOT, git.py place ROOT [FOLDER], "
               "git.py diff|discard ROOT PATH, git.py show ROOT HASH, git.py stage ROOT [PATH…], "
               "git.py unstage ROOT PATH…, git.py commit ROOT MESSAGE", file=sys.stderr)
         return 2
@@ -450,6 +450,8 @@ def main(argv):
     if command == "status":
         st = status(root)
         answer = dict(asdict(st), ignored=sorted(st.ignored))
+    elif command == "top":
+        answer = {"root": top(root) or repo_inside(root)}
     elif command == "place":
         try:
             found = place(root, *rest)

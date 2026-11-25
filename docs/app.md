@@ -47,19 +47,28 @@ badge, 18 px high, short when large (1.2k, 18k, 1.3m), whichever view shows. Nar
 leave the row, never the one shown. The dock's own actions stand at the tab bar's right end, over it, open or folded:
 Chats (the four-point star: [Chats](#chats)), More and », each an icon, its tip opening to its left. More lists the
 views, each with a check while it shows, as Adobe's Window menu: one unchecked leaves the tabs, and one always stays;
-below them one line, Settings…, opens [herdr-fold's Settings](#herdr-fold-settings). », in the row of the left sidebar's
-own toggle, folds the dock to a rail, as the left sidebar folds, and « in the same place opens it again as wide as it
-was; dragged narrower than 160 px, it folds too. The dock is open or a rail, never hidden. The rail, as Adobe's
-collapsed panels: each view shown (Agent under Lucide's bot, as the rail's icons are one color) and the tab's Terminal,
-each a square with its name under it, Changes with its count on its icon's corner; a press floats that view beside the
-rail, one at a time, its head dragging it and its × closing it, as tall as last dragged by the grip at its foot (at
-least its head and three rows, at most the window's height less 56; a double click there its tallest, or back to the
-height dragged last), each view keeping its own; a view's key floats it too. Terminal shows or hides the tab's terminal
-under the tab, as VS Code's panel, lit in the accent while it shows. The tab bar is herdr-fold's, drawn as the app's
-own: the space's tabs, the first one named as the space until it is renamed (as the TUI's main tab), dragged into order,
-a double click renaming one, a right click the app's menu, the wheel stepping through them; after the last tab, + starts
-an agent (New chat, Cmd + N: [New chats](#new-chats)) and >_ (New terminal) opens the app's own list of a terminal, each
-agent in its terminal, a new space and a worktree, as its + did; every button there says what it does. A file, a
+below them one line, About herdr-fold, opens [Settings](#settings) at About. », in the row of the left sidebar's
+own toggle, or Cmd + Option + B folds the dock to a rail, as the left sidebar folds, and « in the same place (or the
+key) opens it again as wide as it was; the Chats list in the dock's view place closes as it folds. Dragged, it settles
+once let go, as the TUI sidebar does: narrower than 160 px it folds to its rail; its rail dragged more than 24 px wider
+opens it as « does, a smaller nudge leaving the rail as it was; the width it is let go at open is the one « opens it to.
+The dock is open or a rail, never hidden. The rail, as Adobe's collapsed panels, on the side's level as the folded left
+sidebar, its first icon level with that one's: each view shown (Agent under Lucide's bot, as the rail's icons are one
+color) and the tab's Terminal, each a square with its name under it, Changes with its count on its icon's corner; a
+press floats that view beside the rail, under the tab bar, every time there, one at a time, its icon lit meanwhile and
+the keys in it: its icon again, Esc, its × or a press beside it closes it, as the dock opening does (a press in a menu
+it opened is its own). Another icon on the rail, Terminal, «, More or ✦ closes it and does its own at once, as Adobe
+switches its panels: the next float opens, the terminal shows, More's menu opens, a press never only closing it. Esc
+goes to its view first while that is editing (a search typed, a commit message, a name being given, a list open), then
+the keys go back to the float, and the next Esc closes it. Its head drags it while it is open, and it is as tall as last
+dragged by the grip at its foot (at least its head and three rows, at most the rail's height; a double click there its
+tallest, or back to the height dragged last), each view keeping its own and opening at it; its width is the dock's; a
+view's key floats it too. Terminal shows or hides the tab's terminal under the tab, as VS Code's panel, lit in the
+accent while it shows. The tab bar is herdr-fold's, drawn as the app's own: the space's tabs, the first one named as the
+space until it is renamed (as the TUI's main tab), dragged into order, a double click renaming one, a right click the
+app's menu, the wheel stepping through them; after the last tab, + starts an agent (New chat, Cmd + N: [New
+chats](#new-chats)) and >_ (New terminal) opens a terminal tab with the machine's shell (an agent starts as + starts
+it, a space from Spaces' +, a worktree from a space's right click); every button there says what it does. A file, a
 picture, a diff, a commit or an issue opens in the space's preview tab, as in the TUI.
 
 ## Files
@@ -72,14 +81,16 @@ The space's folder, read on the space's machine, as the TUI sidebar's Files show
 | Icons | Catppuccin Icons' for each file type and for a folder, closed or open, as the Changes view's |
 | Marks | git's letter on each changed file and a dot on a folder holding changes, in git's colors, as in the TUI |
 | A click | a file opens in the space's preview tab, its lines numbered, an image or a PDF drawn; a folder opens or closes |
-| Right click | Open in Browser (a page, a PDF or an image on this Mac, in the default browser; Open in Preview for a picture no browser shows, as a PSD or an EXR), Close Preview (while the space has a preview tab), New File, New Folder, Rename (the name typed in its row; Enter makes it, Esc gives it up), Copy Path (the path on its machine, onto this computer's clipboard), Move to Trash (asked on its row first), and on a folder New Workspace there |
-| The toolbar | New File and New Folder at the top, Refresh, Collapse Folders, and hidden files shown or not, kept for the next start |
+| Right click | Open in Browser (a page, a PDF or an image on this Mac, in the default browser; Open in Preview for a picture no browser shows, as a PSD or an EXR), Close Preview (while the space has a preview tab), New File, New Folder, Rename (the name typed in its row; Enter makes it, Esc gives it up), Copy Path (the path on its machine, onto this computer's clipboard), Move to Trash (asked on its row first), and on a folder New Space there |
+| The toolbar | New File and New Folder at the top, Refresh, Collapse Folders, and hidden files shown (the default) or not, kept for the next start |
 
 It follows the folder as it changes; a folder on another machine is looked at again every ten seconds.
 
 ## Changes
 
-For the repository of the focused pane, top to bottom, as the TUI sidebar has it:
+For the repository of the focused pane, top to bottom, as the TUI sidebar has it. In a space whose folder is no
+repository itself but holds one, it is the repository the Spaces row names (`core/git.py`'s `top`), and the tab bar's
+count and Issues follow it:
 
 | Part | What it does |
 |---|---|
@@ -137,11 +148,11 @@ Picture above them show either alone or both again, and the button beside them s
 the other. WebKit draws it offline, as in the TUI. A right click in the tab offers those, Open in Browser and Close
 Preview. Herdr-fold's panel stays beside it.
 
-![A PDF's pages one under another in the preview tab, scrolled to where its first page meets its second, under the
-page in view and Open in Browser; beside it Files with the PDF chosen in its folder](../assets/screenshots/app-pdf.webp)
+![A PDF's pages one under another in the preview tab, its first page in view under the page count and Open in
+Browser; beside it Files](../assets/screenshots/app-pdf.webp)
 
-![An HTML page's code left and the page right, drawn for its side, under Code, Split and Picture; beside it Files
-with the page chosen](../assets/screenshots/app-split.webp)
+![An HTML page's code left and the page right, drawn for its side, under Code, Split and Picture; beside it
+Files](../assets/screenshots/app-split.webp)
 
 ## Spaces
 
@@ -152,43 +163,54 @@ an agent in a space waits on you, as the TUI's Space rows do:
 |---|---|
 | A space | its avatar in the color every app mod gives it (a worktree's, the branch icon, under its checkout's space), its name, then its branch (where its folder only holds a repository, that one's: the active pane's among several), main too, as the TUI shows it, with the repository where it is not the name (never what its name says already), ↑ the commits to push and ↓ to pull; and `waiting 12m` in yellow while an agent there waits on you, blocked or done and not seen yet, or a chat tab there asks you something, the longest wait when several do. A click shows it, a drag puts it elsewhere among its machine's spaces, a right click opens the app's own menu for it |
 | Home | each machine's home folder is always a row, `~`, first among its machine's spaces: this computer's, and each connected machine's. The app ends a space with its last tab (it asks first), so with no space there the row stays as a stand-in with nothing open: its avatar an outline, its name dim, no branch. A click opens a terminal there, the space the app calls `~`; the stand-in has no menu, and it is never dragged, nor anything dropped above it. Any other space closed is gone, as the app has it. Folded to its dock, the floating list shows the same rows |
+| A root | a space on a machine's root, which the app names by its path (`/`, `C:\`), is named by a word, as in the TUI: `root`, or the drive, `C:`. Its avatar is home's kind: a glyph tile in home's color, `/` or the drive's letter |
 | A machine | once another machine is known, a head for each: this computer first, then the others by name, how each is (asleep, unreachable…), + for a new space there on its hover, its dot green while connected; a click folds its spaces away, and folded, it says their longest wait. A machine rebuilt or replaced says so, and Connect adds it again the way it was added |
-| + | a new space |
+| + | a new space, its agent started as + after the last tab starts one ([New chats](#new-chats)) |
+| The foot | Settings, which opens [Settings](#settings), and Add machine…, as the app's own foot has them |
 
 Cmd + Shift + U marks the focused agent unread, as in the TUI: its space says `waiting` again, from then, until you come
 back to it after leaving it; again, it takes the mark off. The app keeps its own waits, apart from the TUI's.
 
-Folded, by its toggle or dragged as narrow, the sidebar is a dock, as Illustrator's and Photoshop's panels collapse to
-icons: Spaces, its icon and name, its most urgent state's dot at the corner, and at its foot the app's Settings and Add
-machine, centered. A press floats Spaces beside the dock, as tall as its list: dragged by its head, it stays where it is
-dropped, and opens there next time, until its × closes it. The toggle left of the tabs opens the sidebar again.
+Folded, by its toggle, by Cmd + B or dragged narrower than 160 px and let go, the sidebar is a dock as wide as the right
+dock's rail, as Illustrator's and Photoshop's panels collapse to icons: Spaces, its icon and name, its most urgent
+state's dot at the corner, level with the right rail's first icon, and at its foot Settings and Add machine…, centered,
+as the open sidebar's foot has them, Settings opening [Settings](#settings). Dragged more than 24 px wider, it opens
+again as wide as it was, as the right dock's rail does. Its toggle is in its head, on the tab bar's line: at its end
+while it is open, centred over the dock while folded, as the right dock's « over its rail; both say Collapse to icons
+and Expand panels, and Cmd + B does what it does. The sidebar is open or a dock, never hidden: hidden by anything else,
+it shows again at once. A press floats Spaces beside the dock, every time there, as tall as its list and the window's
+room under it until the grip at its foot sizes it, which it keeps; its icon lit meanwhile and the keys in it: dragged by
+its head, it stays where it is dropped until its icon again, Esc, its ×, a press beside it or the dock's Settings and
+Add machine (which go on to their own) close it, or the sidebar opens.
 
 ## Chats
 
 Chats, the four-point star at the tab bar's end, over the dock, its dot in the waiting color while chats wait on you (on
 a question or a permission, in a pane or a chat tab, each once), their number in its tip, shows every chat of this Mac,
 running or closed, as the TUI sidebar's Chats lists them: in the view's place, on the card, its filter taking the keys,
-no tab shown, Chats lit. Chats again, Esc in the list or its filter, or a tab brings the view back, and so does a chat
-opened from it. While the dock is a rail, Chats floats the list beside it, as the rail's views float. What is a row
-and what is not (a program's runs through the Agent SDK, the agents' helpers): [Chats](usage.md#chats).
+no tab shown, Chats lit. Chats again, Esc in the list or its filter (once the filter's words are cleared: Esc clears
+them first), a tab or » brings the view back (More keeps it), and so does a chat opened from it. While the dock is a
+rail, Chats floats the list beside it, as the rail's views float, lit meanwhile, and Chats again, Esc, its × or a press
+beside it closes it. What is a row and what is not (a program's runs through the Agent SDK, the agents' helpers):
+[Chats](usage.md#chats).
 
 | Part | What it does |
 |---|---|
 | Filter | the words a chat's name, space or folder holds, `archived` for the archived ones; Cmd + Shift + R from anywhere opens the list with the keys here (the dock a rail: floating beside it), Enter opens the first one |
-| A space | its most urgent agent's state mark, as the Spaces list has it, and its chats, the active tab's first, then the newest; a chat whose folder has no space open stands under that folder's name, the newest folder first; a click folds or opens it, the shown space open by itself |
-| A chat | its state's mark in herdr's colors (a closed one's a faint dot; a chat tab's blocked while it asks you something), its name, its agent and how long ago it changed; a click goes to a running one (a chat tab's: its tab; one in a terminal: its pane), or reopens a closed one in a new tab of its space as Agents open in says (More): a Claude chat as a chat tab, resuming it, else its agent resuming it in a terminal (`claude --resume`, `codex resume`; Codex's always, until the chat draws Codex), and the list closes |
-| Its right click | Open, Copy chat (all of it, as Markdown), Rename (in its row: Enter keeps it, as herdr's Rename pane names it), for a closed one Archive or Unarchive, and Delete…, the rarer one: asked in its row first (`Move to Trash?`, Cancel and Move, the chat's name staying beside them; Esc gives it up), then its row leaves at once and its file goes to the Mac's Trash, its archive mark and its name dropped; a running chat's Delete… is faint, its tip saying to close it first; elsewhere in the list, Show or Hide archived |
+| A space | its chevron first (14, dim), its name, how many chats it holds muted at its end, no dot; its chats, the active tab's first, then the newest; a space with none is left out (so nothing shows `0` while the list is read); a chat whose folder has no space open stands under that folder's name, the newest folder first; a click folds or opens it, the shown space open by itself |
+| A chat | its state's mark in herdr's colors (a closed one's a faint dot; a chat tab's blocked while it asks you something), its agent's icon and its name, then its agent's name (where the app draws no icon of it: `Claude`, `Codex`) and how long ago it changed, two right-aligned muted columns; a click goes to a running one (a chat tab's: its tab; one in a terminal: its pane), or reopens a closed one in a new tab of its space as Settings' Open agents in says: a Claude chat as a chat tab, resuming it, else its agent resuming it in a terminal (`claude --resume`, `codex resume`; Codex's always, until the chat draws Codex), and the list closes |
+| Its right click | Open, Copy chat (all of it, as Markdown), Rename (in its row: Enter keeps it, as herdr's Rename pane names it), for a closed one Archive or Unarchive, and Delete…, the rarer one: asked in its row first (`Move to Trash?`, Cancel and Move, the chat's name staying beside them; Esc gives it up), then its row leaves at once and its file goes to the Mac's Trash, its archive mark and its name dropped; a running chat's Delete… is faint, its tip saying to close it first; elsewhere in the list, Show or Hide archived; while the list shows, More keeps it and lists `Show archived` first, ✓ while they are |
 
 The archived ones and the names are the TUI's own, so either shows what the other changed. Unlike the TUI's, it copies a
-chat as Markdown text, not formatted beside it, and archives one at a time. What it did (`Chat copied`, `Archived`,
-`Unarchived`, `Moved to Trash`) or what went wrong (a Trash that did not take the file: its row is back) stands under
-the list, as the TUI's last row has it: a done thing for four seconds, a
-failure until the next; no row moves for it. A list that cannot be read says why where its first row will be.
+chat as Markdown text, not formatted beside it, and archives one at a time. What it did (`Chat copied`, `Archived "Login
+redirect fix"`, `Unarchived "…"`, `Moved to Trash`) or what went wrong (a Trash that did not take the file: its row is
+back) stands under the list, as the TUI's last row has it: a done thing for four seconds, a failure until the next; no
+row moves for it. A list that cannot be read says why where its first row will be.
 
 ## New chats
 
 + after the last tab (Cmd + N) starts an agent in the space's folder, the way Settings' Open agents in says, for every
-way in alike (+, a closed chat reopened from Chats, Issues' To the agent, a new chat's agent list):
+way in alike (+, a closed chat reopened from Chats, Issues' To the agent, a new chat's agent list, a new space):
 
 - Chat, the default: a new chat tab, named New chat until its first message names it. Nothing runs yet: New chat and
   `in <space> · <branch>` stand high up in its middle, the prompt at its foot with the agent's chip, the model chip
@@ -196,14 +218,20 @@ way in alike (+, a closed chat reopened from Chats, Issues' To the agent, a new 
   upward, as a menu: a filter on top taking the
   keys (Enter picks the first), the installed agents only, the recent ones first, then the rest by name, one the chat
   cannot draw yet marked `terminal` (Codex, and every agent without an adapter), one signed out `sign in` in yellow;
-  under a rule, `Manage agents…` shows the [Agent](#agent) panel with its agents' list open, where an agent is added
-  and signs in. Picking a `terminal` one opens its own CLI in a terminal tab of the space, what is typed its first
+  under a rule, dim, the ones not installed, each showing the [Agent](#agent) panel at how it installs (the space
+  keeps its agent). Picking a `terminal` one opens its own CLI in a terminal tab of the space, what is typed its first
   message, in the chat's place; picking one to sign in shows the Agent panel as that agent's. The first message
   starts the agent with it, the model, mode, effort and Ultracode picked meanwhile at its start (`--model`,
   `--permission-mode`, `--effort`, Ultracode in its settings); until then the bar has no commands, terminal or
   context, which come with the agent.
-- Terminal: the agent used last, its own CLI in a terminal tab of the space, as the app's list starts it; >_ has every
-  other.
+- Terminal: the agent used last, its own CLI in a terminal tab of the space.
+
+A new space (Spaces' +, a machine's, New space there, Files' New space on a folder, the palette's New space) starts its
+agent so too: with Terminal, the agent's CLI as its first tab. With Chat, any space this layout shows on this Mac that
+holds shells alone (one the app made, its own picker's + New space too, or an older one) gets an empty chat as its
+first tab, shown, the first time it shows: once, so a chat closed stays closed and a space worked in terminals is left
+alone. A home space, home's stand-in (a plain terminal in the home folder) and a space on another machine get none:
+nothing starts there unasked.
 
 The model chip in a chat's bar names the model and, dimmer, its effort (Opus 5.5 High); a press opens Claude's models
 upward, as VS Code's Claude has them: each with its line (Default, the account's own, then Opus 5.5, Fable 5.2, Sonnet
@@ -224,21 +252,28 @@ Ultracode.
 
 The context meter in a running chat's bar, the ring and `context 34%` (the share in the ring's color: green, yellow from
 50 %, red from 80 %), opens the Context panel upward: Context and how much is in use (68k of 200k · 34%); a bar of what
-fills it with its legend: the rules Claude reads at the start and its skills' list (estimated at four characters a
-token) and the rest, the conversation and Claude's tools, as one part; the rules in effect, each file with its folder
-(`~/.claude`, the folder's name, `.claude/rules` and the paths a rule is read for) and its scope (Personal, Project or
-Local); the skills this chat used, each with when (`used 1:32 PM`) and its source (Project, Personal or a plugin's
-name), and how many more there are; under them Compact (`/compact`) and, at the end, `Show all in Agent ›`, which
-shows the dock's [Agent](#agent) panel, the whole setup's home. A press on a rule or a skill opens its file in the
-space's preview tab; ↑ ↓ step the rows, Enter acts on one, Esc or a press beside closes the panel. Over Compact it
-says what the conversation cost, read as the panel opens: `This conversation ~$4.12 API value` (`spent` with an API
-key), a row a model with its color (`Opus 5.5 ~$3.70`, `Haiku 5.5 · 1 sub-agent ~$0.42`; a model with no price says
-`no price`), then `1.2M tokens · 82% from cache` and `Usage ›`, which shows the Agents tab's [Usage](#usage) with
-this conversation's row marked.
+fills it with its legend in the Agent panel's colors: the rules Claude reads at the start, its skills' list and its
+connectors' tools (estimated at four characters a token), and the rest, the chat and Claude's tools, as one part
+(`Rules 6.0k`, `Chat & tools 40.0k`, by the number rule); under them Compact (`/compact`) and, at the end, `Show all
+in Agent`, which shows the dock's [Agent](#agent) panel, where the rules, skills and connectors are listed. ↑ ↓ step
+the buttons, Enter presses one, Esc or a press beside closes the panel. Over Compact it says what the chat cost, read
+as the panel opens: `This chat ~$4.12 API value` (`spent` with an API key), a row a model with its color (`Opus 5.5
+~$3.70`, `Haiku 5.5 · 1 subagent ~$0.42`; a model with no price says `no price`), then `1.2M tokens · 82% from
+cache` and `Usage`, which shows the Agents tab's [Usage](harness.md#the-usage-view) with this chat's row marked.
 
 Over the prompt a chat also says when an agent on an API key has spent 80% of the monthly budget you set for it, or
 is on pace to pass it: `Codex has spent ~$45.10 of $50 this month · on pace for ~$58 by Nov 30` (core's words and
 threshold, looked at every 5 minutes while the chat is in front). Its × closes it for that month, in both clients.
+
+While Claude works through a task list (its task tools), a strip over the prompt is the list's one home. Folded, it is
+a line: the step at work with a spinner and `3 of 5 done` at its end. A press opens it upward: the done steps folded
+into one `3 done` row (a press lists them, faint), the step at work, then the ones to do, `after <step>` dim at the end
+of one that waits for another; its head says Plan, with `Open the plan` once a plan is approved. It stays folded while
+a card waits, and a finished list says `All 5 done` until the next message, then goes. The timeline tells only the
+changes: `Tasks 5 added` (calls one after another one row) and a ticked line for each step done, never the list again.
+A plan approved in plan mode is a step of its own, `Plan approved · 4 steps`, its `Open the plan` the strip's: the plan
+as a document in the preview tab, copied into the chat's folder in herdr-fold's own state (`plan.md`, its owner's only).
+Codex's list (its `update_plan`) comes to the same strip once a chat draws Codex; the TUI's Chats list shows it now.
 
 The + at the bar's start opens the + menu upward (its first row lit: ↑ ↓ step the rows, Enter or Space acts, Esc or a
 press beside closes it). `Upload from computer…` (⌘ U in a chat) opens macOS's own file chooser on the chat's folder,
@@ -249,31 +284,30 @@ the text's end, and an "@" typed at a word's start does the same: a list opens o
 repository's changed files first (Changed), then the folder's files as a search walks them (Files, no ignored one), five
 of each and how many more there are; what is typed after the "@" filters it, the best match first, and Enter or a press
 puts the file's path in its place, a space after it (the app's text field tells no caret, so the "@" that counts is the
-one at the text's end). Under a rule, Connectors: the failed ones and the ones to sign in counted on pills, `Manage ›`,
+one at the text's end). Under a rule, Connectors: the failed ones and the ones to sign in counted on pills, `Manage`,
 which shows the dock's [Agent](#agent) panel with Connectors open (their home: Connect, add, sign out), and each
 connector on or off in this folder with its service's logo and a switch. A switch gives Claude its own `/mcp disable
 <name>` or `/mcp enable <name>` in this chat: shown at once, sent once Claude is idle (a new chat's once its agent
 runs), and the setup is read again as Claude writes it. The menu's two parts are the agent's: one that takes no files
 has no first part, one whose connectors a chat does not switch no second.
 
-The clock after the context meter (`This folder's conversations`) shows the dock's [Chats](#chats) list, the
-conversations' one home, with this folder's group open and scrolled to; while the dock is a rail, the list floats beside
-it.
+The clock after the context meter (`This folder's chats`) shows the dock's [Chats](#chats) list, the chats' one
+home, with this folder's group open and scrolled to; while the dock is a rail, the list floats beside it.
 
-A "/" typed at the start of a running chat's prompt opens the / menu over the prompt, as Claude Code's own: This
-conversation (Export the conversation…, once there is one), Skills (those the chat used first, each with its line and
+A "/" typed at the start of a running chat's prompt opens the / menu over the prompt, as Claude Code's own: This chat
+(Export the chat…, once there is one), Skills (Lucide's scroll-text; those the chat used first, each with its line and
 its source's tag), Claude's commands (`/compact` runs at once, `/review` waits in the prompt for its words), the first
-five of each and how many more there are. What is typed after the "/" filters it into one list, the best match first
-(a name's start, a word's, a name holding it, then a line), and lights it: Enter picks the lit row, ↑ ↓ step the rows,
-Esc closes the menu until the text changes, as do a space and a press beside it; with nothing found it goes, and Enter
-sends what is typed to Claude as it is (a command of Claude's the menu does not list, as `/init`). A skill goes into
-the prompt as Claude takes it (`/api-routes`, a plugin's `/code-review:code-review`) for its words. The / button types
-the "/" into an empty prompt; over a message it opens the menu as it is, and a command picked goes before the message.
-Export the conversation saves it as Markdown (Copy chat's, from Chats: its title, then each turn under who said it)
-where macOS's save panel says, named after it in the chat's folder at first. In the timeline a skill's step names its
-source after it, dim (Skill api-routes Project). The rules, the skills (the user's, the project's and the enabled
-plugins') and the start mode come from `core/agent_setup.py`, which only reads them, as the chat opens, when it comes
-back in front and as the Context panel or the / menu opens.
+five of each and how many more there are. What is typed after the "/" filters it into one list, the best match first (a
+name's start, a word's, a name holding it, then a line), and lights it: Enter picks the lit row, ↑ ↓ step the rows, Esc
+closes the menu until the text changes, as do a space and a press beside it; with nothing found it goes, and Enter sends
+what is typed to Claude as it is (a command of Claude's the menu does not list, as `/init`). A skill goes into the
+prompt as Claude takes it (`/api-routes`, a plugin's `/code-review:code-review`) for its words. The / button types the
+"/" into an empty prompt; over a message it opens the menu as it is, and a command picked goes before the message.
+Export the chat saves it as Markdown (Copy chat's, from Chats: its title, then each turn under who said it) where
+macOS's save panel says, named after it in the chat's folder at first. In the timeline a skill's step names its source
+after it, dim (Skill api-routes Project). The rules, the skills (the user's, the project's and the enabled plugins') and
+the start mode come from `core/agent_setup.py`, which only reads them, as the chat opens, when it comes back in front
+and as the Context panel or the / menu opens.
 
 A connector's call in the timeline wears its service's logo (a server of no known service its letter on a tile) and its
 name, then the tool's own name in the code font and the call's first words: `Google Drive search_files paging spec`.
@@ -288,17 +322,27 @@ A space on another machine starts its agents in a terminal there: a chat runs on
 the way it opened when the setting changes; Chats lists both kinds as one list, each opening the way it runs. The
 agents used last are the mod's own (`herdr-fold.agents-recent`, eight at most), apart from the TUI's.
 
-## herdr-fold Settings
+## Settings
 
-More's last line, Settings…, opens herdr-fold's own settings in a window over the app's, always the same size: its
-sections at its left, the chosen one beside them. A mod cannot add a section to Herdr's own Settings (the sidebar's
-foot), so this is a window of its own. Every change is in effect at once: there is no OK and no Cancel. It opens at
-the section looked at last. ↑ and ↓ change the section; Tab steps through the section's controls, a ring in the accent
-round the one it is on, and Enter or Space presses it; ×, Esc or a click beside closes the window.
+The sidebar's Settings (at its foot, open or folded) and Cmd + , open the one Settings, in a window over the app's,
+always the same size (600 × 380): its sections at its left, the chosen one beside them. herdr-fold's come first,
+General, Notifications and About; under Application, Look, Machines, Updates and Privacy each open the app's own
+Settings at that section, as a mod cannot add a section there. Every change is in effect at once: there is no OK and
+no Cancel.
+It opens at the section looked at last; More's About herdr-fold opens it at About. ↑ and ↓ change the section; Tab steps
+through the section's controls, a ring in the accent round the one it is on, and Enter or Space presses it; ×, Esc or a
+click beside closes the window.
 `herdr-fold.settings` opens it from a key or `herdr-app do`.
 
 General has one setting, Open agents in: Chat (the default) or Terminal, for every way in alike
 ([New chats](#new-chats)); with Tab on it, ← and → choose too.
+
+Notifications has An agent waits on you, On (the default) or Off: off, no note at the window's corner and no sound when
+an agent asks or finishes; errors always show. herdr-fold's layout then names herdr-fold as its toast, which closes
+every note at once (herdr-fold's own too, as an update's) but an error or a warning, which it draws as the app's own
+toast (its icon or its level's dot, the title, the body's first line; a click runs its action and closes it), the app's
+sounds are turned off (your own setting kept and given back when it is on again), and a chat's own wait is quiet. Under
+it, Herdr app alerts opens the app's own Settings at Alerts, where its sounds are chosen.
 
 About is as the TUI sidebar's About in herdr's popup and in the same words: herdr-fold's version and license (the
 author's name a link to their GitHub page, from the mod's LICENSE); the update check's state, Up to date and when it
@@ -315,7 +359,8 @@ Under herdr-fold, each tab has a terminal of its own, as in the TUI: it starts t
 space's folder on its machine, with that machine's shell, and switching tabs switches it. Like the tab's own terminals,
 it keeps running when the app quits, and ends when the tab closes; a shell that exits makes way for a new one. It has no
 header of its own; one that could not start says why in its place. With the dock open it stands at the dock's foot, two
-sevenths of its height and 120 px at least; with the dock folded to its rail it stands under the tab, the centre's full
+sevenths of its height at first and 120 px at least, and the boundary between the views and the terminal drags, as
+the TUI's does; with the dock folded to its rail it stands under the tab, the centre's full
 width, 240 px high at first, a card of its own 8 px under the tab's, the edge between them resizing it; a tab with no
 terminal leaves the centre whole there, as the TUI shows nothing under its agent then, until one comes. The rail's
 Terminal shows or hides it there, as the TUI's rail raises and lowers its terminal; its height and whether it shows stay
@@ -331,8 +376,9 @@ herdr-fold's command palette onto it: the field becomes the palette's field, 600
 the window's top (the nearest the app lets it come), and under it the app's commands, named and grouped as the app's own
 palette has them (Tab, Pane, Space, Layout, Terminal, Agent, Window, App), each with its key at its end as it works in
 this layout, the first lit. After them herdr-fold's own, in a group of its name: Settings…, the views (Files, Search,
-Changes, Issues where the repository is on GitHub, Agent, Chats), Agents (the space's Agents tab), New chat (or the
-agent + would start), Styleguide,
+Changes, Issues where the repository is on GitHub, Agent, Chats), Agents (the space's Agents tab), Show or hide the
+dock, Restore panels, New chat (or the agent + would start), New space in a folder…, Add machine…, Open file from
+output…, Color theme…, Styleguide,
 Mark agent unread, Commit and push and Write commit message, each with its key where it has one. What you type finds
 them all as the chat's / menu finds its rows, the best first: a name or command that starts so, then one with a word
 that does, then one that holds it, then one whose other words do (`fullscreen` finds Zoom pane), each with its group.
@@ -351,8 +397,8 @@ its right end: a green dot and `Update ready: herdr-core 0.1.21`, a press updati
 running (a spinner and `Updating herdr-core to 0.1.21…` meanwhile), or `Update ready: Herdr 0.1.16`, a press restarting
 into it, herdr-core with it when it waits too; its tip says which. A herdr-core a package manager owns shows none (it
 updates there). With neither ready, a newer herdr-fold stands there the same way, `herdr-fold 0.4.0 is out`: a press
-updates nothing, it opens [herdr-fold's Settings](#herdr-fold-settings) at About, which says how. One item shows at a
-time, in that order. This is the one place herdr-fold says it: the folded sidebar's Settings has no dot. The app's own
+updates nothing, it opens [Settings](#settings) at About, which says how. One item shows at a
+time, in that order. This is the one place herdr-fold says it: the sidebar's Settings has no dot. The app's own
 notice in the window's corner is Herdr's: a layout cannot turn it off, and its × closes it.
 
 ## Installing it
@@ -392,29 +438,34 @@ Without the layout, herdr-fold also opens beside a terminal, as a pane of that t
 
 ## Keys
 
-In the herdr-fold layout:
+The keys are in one table for both clients: [Keys](keybindings.md#the-herdr-app). In herdr-fold's layout the app
+takes the TUI's keys, and a few are the app's own. Where a shared key does its work the app's way:
 
-| Key | What it does |
-|---|---|
-| Cmd + Shift + G | shows Changes, as in the TUI, the dock opened (the dock a rail: floating beside it) |
-| Cmd + Shift + F | shows Search, its field taking the keys |
-| Cmd + Shift + C | commits and pushes in one step, as in the TUI: Claude or Codex writes the message into the field, and Commit says Commit & Push for this one commit; Enter commits and pushes, the field changes the message, ✦ writes another, Esc cancels; with nothing to commit, it offers to push the commits ahead, the empty field asking, and Enter or Push pushes them |
-| Cmd + Shift + I | shows Issues, as in the TUI |
-| Cmd + Shift + R | opens Chats in the view's place, its filter taking the keys, as in the TUI; again, the view comes back |
-| Cmd + Shift + U | marks the focused agent unread: its space says `waiting` again, as in the TUI |
-| Cmd + N | starts an agent, as + after the last tab does: a new chat, or with Open agents in: Terminal the agent used last in a terminal tab ([New chats](#new-chats)); the app's own New space stays on Spaces' + and >_ |
-| Cmd + Shift + P | opens the command palette onto the title row's field ([The title row](#the-title-row)); again, it closes |
+- Cmd + Shift + G, Cmd + Shift + I and Cmd + Shift + R open the dock on their view; while the dock is a rail, the
+  view floats beside it.
+- Cmd + Shift + C writes the message into Changes' field, and Commit says Commit & Push for this one commit: Enter
+  commits and pushes, ✦ writes another, Esc cancels. With nothing to commit it offers to push the commits ahead.
+- Cmd + Shift + E hides the dock entirely, open or its rail, and shows it again as it was; Cmd + Option + B stays
+  the fold.
+- Cmd + Shift + L lists the files the focused terminal's output names at the window's top, by the TUI's rules
+  (core's `named_files.py`). In this layout it takes the app's Next layout key, which stays in the palette.
+- Cmd + K, then Cmd + T sets the app's theme, from herdr-fold's themes by the TUI's names.
+- Ctrl + B, then Shift + N opens the Mac's folder picker, then the space there, its agent started as Spaces' + starts
+  one.
+
+The layout takes the app's own Cmd + 1…9 (its tabs), Cmd + T (a new tab: + and >_ after the tabs) and Cmd + D (Split
+right: the palette); the app's other navigation keys stay as it has them.
 
 The mod takes commands for keys of your own: `herdr-fold.commit-push`, `herdr-fold.write`, `herdr-fold.commit` and
-`herdr-fold.sync`, and `herdr-fold.files`, `herdr-fold.changes`, `herdr-fold.search` and `herdr-fold.issues`, which
-show that view (Search with the keys in its field), `herdr-fold.chats`, which opens Chats with the keys in its filter,
+`herdr-fold.sync`, and `herdr-fold.files`, `herdr-fold.changes`, `herdr-fold.search` and `herdr-fold.issues`, which show
+that view (Search with the keys in its field), `herdr-fold.chats`, which opens Chats with the keys in its filter,
 `herdr-fold.new-agent`, which starts an agent as + does, `herdr-fold.unread`, which marks the focused agent unread,
-`herdr-fold.palette`, which opens or closes the command palette, `herdr-fold.agents`, which shows the space's
-[Agents](#agents) tab, `herdr-fold.usage`, which shows that tab's [Usage](#usage), and `herdr-fold.settings`, which
-opens herdr-fold's Settings;
-they reach a herdr-fold that shows, and in its layout the tab bar hands a view's on to it, the view shown first.
-`herdr-fold.styleguide` opens the mod's parts, each in each of its states, in a tab, an index of them at its side:
-[Styleguide](styleguide.md).
+`herdr-fold.palette`, which opens or closes the command palette, `herdr-fold.new-space`, `herdr-fold.add-machine`,
+`herdr-fold.column`, `herdr-fold.restore`, `herdr-fold.open-file` and `herdr-fold.theme`, the six commands the TUI has
+too, `herdr-fold.agents`, which shows the space's [Agents](#agents) tab, `herdr-fold.usage`, which shows that tab's
+[Usage](harness.md#the-usage-view), and `herdr-fold.settings`, which opens Settings; they reach a herdr-fold that shows,
+and in its layout the tab bar hands a view's on to it, the view shown first. `herdr-fold.styleguide` opens the mod's
+parts, each in each of its states, in a tab, an index of them at its side: [Styleguide](styleguide.md).
 
 ## On another machine
 
@@ -428,145 +479,40 @@ not take it.
 
 ## Agent
 
-What the space's agent starts with in the space's folder, as a design tool's layers, in the words of the TUI sidebar's
-Agent view (`core/agent_setup.py` words both). It shows the agent picked in its head's list, kept per space until
-another is picked; with none picked, Claude or Codex: the agent of the tab in front (a chat tab's, else one in a pane),
-else the one started last, else Claude. It writes nothing of the agent's: it reads, opens a file in the preview tab,
-and every change is the agent's own command, run on your press (Claude's check of a server, an agent's sign-in, a
-connector's sign-in, sign-out and add, Claude's `/mcp` in a conversation). It keeps no token and reads none.
+The dock's fifth view: what the space's agent, Claude or Codex, starts with in the space's folder, as a design tool's
+layers, with a form on each row that can be changed. Its sections, each edit and what it writes are in
+[The agent's harness](harness.md#the-agent-panel), for both clients.
 
-| Part | What it shows |
-|---|---|
-| Head | a chip of the agent's icon and name, `in lumen-api` (the folder) and ⌄, which opens the agents' list under it; at its end the filter's button |
-| Agents on this Mac | the chip's list: the installed agents (Claude, Codex, Gemini CLI), each with its icon, its name and its plan's word dim (`Max`, `Plus`, `API key`; never an e-mail, and none for a plan with no word), ✓ on the one shown, `sign in` in yellow where the agent says it is signed out (no state where it tells none: Gemini CLI); a pick makes the whole panel that agent's; under a rule `Add an agent…` lists the ones not installed. ↑ ↓ step, Enter picks, Esc or a press beside closes it |
-| Filter | its button shows a field under the head, with the keys: every word typed must be in a row's name, note, state or tag; the sections with a row found show, open, with all the rows found, the others leave; `Nothing matches` where none does; the button again hides and empties it |
-| Health | a bar of what loads when the agent starts, one part each for the rules read always, the skills' listing and the connectors' tools (the accent, teal and blue; the pointer on a part names it with its size), under it `21k loaded at start`, and at the line's end a chip per problem: `1 failed` red, `1 sign in` yellow; a press on a chip chooses its row, its section opened and scrolled to |
-| Usage | the first section, folding as the others, Open Usage at its head's end (the [Agents](#usage) tab's Usage, where all of it is read); folded, one figure before Open Usage: the agent in use's mark and its tighter limit (`5h 72%`; on an API key its month of its budget, `~$18.40 of $50`), or another agent's where that one is yellow or red and stands worse. Open, a row for each agent whose limits or costs are known, the agent in use first and lit: its icon, its name, its plan's word dim (never an e-mail), at its end the 5-hour and the week's limit each in its column (`5h 72%`, `wk 16%`, the words muted, each percent green under 50, yellow from 50, red from 80, as the status line's) and its chevron. The agent in use is open, the others folded to their row, and a press on a row opens or folds it; what you open or fold stays, kept once for the TUI too in herdr-fold's own `usage.json`. A folded row on an API key ends with its month of its budget (`~$18.40 of $50`, green, yellow once over or on pace to be; with no budget the cost alone); the color is the only sign. Under an open agent a thin bar of its first limit and `5 hour resets at 2:46 PM`, in this Mac's time and its 12 or 24 hours; a limit past its reset shows nothing (the week's bar and `Week resets Mon at 9:00 AM` then); `as of 43 min ago` at the line's end where the reading is older than ten minutes; `Not known yet` until an agent on a plan has answered once. The pointer on a row says it in words. Then what it cost, the label left and the figure right: on a plan `This week` and `~$130.90 API value`; on an API key (which has no limits) the month and what was spent in it (`November`, `~$18.40`), a thin bar of its budget and `of $50 · on pace for ~$46`, the figure, the bar and the pace yellow once it is over or on pace to be; with no budget kept, the month and its pace. Each dollar figure herdr-fold computes wears `~`: an estimate at list prices, not the provider's invoice; the budget you set wears none |
-| Sections | Rules, Permissions, Skills, Connectors and Agents, those the agent has (Connectors always), each with its count; at its end what its rows cost in tokens (`6.1k`), Permissions its rules by behavior instead (`12 allow` green, `3 ask` yellow, `2 deny` red; the section starts with what the agent starts in as a row where a file tells it, Claude's `Mode` from a settings file's `defaultMode` (`Plan`), Codex's `Approval` from its `config.toml`'s top level (`Ask on request`), only read, Open its one action), a folded Agents its first names; a click folds or opens it, each space keeping its own, Agents folded until opened |
-| Rows | a section's first five, its problems first, and every problem and everything the open conversation used past them, then `11 more`, which opens the rest in place (never `1 more`: that row shows instead) |
-| A row | its icon (a connector's: its service's logo, Box, Dropbox, Figma, Google Drive, Linear, Notion, OneDrive or Sentry, a one-color mark in the text's color; another's its letter on a tile), its name, a note (`when src/lumen/** is read`, such a rule's name faint), both agents' icons where Claude and Codex read the same file or server, a green dot where the open conversation used it; then its state (`failed` red, `sign in` yellow, `32 tools`, `on`, `off here` faint, a permission's `allow`, `ask` or `deny`, a sub-agent's model), its source's tag (Personal, Project, a plugin's name, claude.ai) and its cost, each in a column of its own |
-| A conflict | a permission a deny or an ask hides: a yellow shield, the rule, and under it the sentence (`deny in Project hides allow in Personal`) |
-| Properties | a press chooses a row (again: none), tinted in the accent; its properties stand under the layers, as a design tool's Properties: its icon, name and state, then lines with the label left and the value right (`From` its file and scope, `Runs` or `URL`, a rule's `Paths`, a sub-agent's `Tools`, `Used`; a conflict's two rules, each with where it is), a server's error as Claude said it, a rule's first lines or a skill's description, and what can be done |
-| Actions | `Open …` shows the row's file (a rule, a skill, a settings file, `.mcp.json`) in the space's preview tab; `Retry`, on a server that failed or was never checked, asks Claude to look at it (`claude mcp get`), its state a spinner meanwhile, and Claude's answer stays until a newer conversation says otherwise. The connectors' own are below |
-| Connect | on a server to `sign in`: the agent's own login (`claude mcp login <name>`, `codex mcp login <name>`) runs in a terminal with no pane and opens your browser; the row says `signing in` beside a spinner, its properties `Finish in your browser`, `Open the page again` (the address the login printed, opened again) and `Cancel` (the login ended). When it ends, signed in or cancelled, the agent is asked about the server again; one left waiting ten minutes is ended |
-| Turn off, Turn on | `Turn off in lumen-api` on a Claude server that is on or to sign in, `Turn on in lumen-api` on one off here: Claude's own `/mcp disable <name>` or `/mcp enable <name>`, sent to the folder's Claude once it is idle (a chat of the space, or Claude in a pane there); it holds for that folder from the next message. With no Claude running there the button is faint and its tip says `Start a chat in lumen-api to turn it off`. Codex has no such command, so its rows have no such button |
-| Sign out | on a claude.ai connector that is on, and on a Codex server signed in through Codex: the agent's own `mcp logout <name>`, then the server is asked about again. A Claude server added by its address has no such button: signing it out is Claude's own, and its properties name the command on a line (`Sign out`, `claude mcp logout <name>`) |
-| Add a connector | the + at Connectors' end: `From claude.ai…` opens claude.ai's connectors page in the browser, `By URL…` a form in the properties' place: Name (letters, digits, `-` and `_`), URL (https, or http to this machine) and, for Claude, For: this folder (Claude's `local` scope, yours alone, nothing written into the repository) or `All projects` (`user`); Codex adds for every folder, so its + opens the form at once, with no For. `Add and connect` (or Enter) runs the agent's own `mcp add`; a field it does not take is edged in red with why, and what the agent itself refuses is said in its words. Added, the server is chosen and signed in to where its agent says it must be. Tab steps between the fields, Esc or `Cancel` leaves |
+What is the app's own: the Agent tab carries a dot after its name, and the rail's Agent one on its corner, while the
+setup has a problem, red for a server that failed, else yellow for one to sign in to. A chat's Context panel leads
+here (`Show all in Agent` shows the panel as that chat's agent's, beside the rail while the dock is folded), and an
+agent not installed, picked in a new chat's list, shows it at how it installs. The command palette's Agent shows it.
 
-The states and the tags stand in a column each within a section, the costs in one for the whole panel, so nothing moves
-as `11 more` opens; a tag is twelve characters at most (its tip says the rest), and a panel narrower than 300 px drops
-the tags, keeping the states and the costs. The open conversation is the chat tab's in front when it is that agent's,
-else the folder's newest. The setup is read when the panel shows, when the folder's rules and settings or the agent's
-own folder (`~/.claude`, `~/.codex`) change, at most every 5 s, and every 30 s while it shows; never while another view
-is in front. In its place it says `Loading setup…` or why it could not be read, in red; a space on another machine
-says `On <machine>: with a later version`. The command palette's Agent shows it.
+The picture is from before the panel's redesign: its head, sections and tags are as that page says.
 
-An agent with no setup to show says why in the setup's place, centered under its icon, in core's words (`standing()`):
-
-- `Gemini CLI is not signed in`: Sign in opens the agent's own login in a terminal tab of the space (`claude auth
-  login`, `codex login`, `gemini`), where you finish, or in the browser if it asks; the panel asks the agents again
-  every 5 s, 10 minutes at most, and shows the setup once it is in. herdr-fold keeps no token.
-- `Codex is not installed` (picked under Add an agent…, or gone since): its vendor's install line with Copy, and Open
-  its page; herdr-fold runs no installer. Picked there, it is only looked at: the space keeps its agent.
-
-An agent whose setup herdr-fold does not read (Gemini CLI, signed in) has its head alone.
-
-The agents are asked for (`agent_state.py agents`: `claude auth status --json`, `codex login status` by its exit code,
-an API key by how its words start) when the panel first shows, as the list opens and every 5 minutes while it shows.
-
-While the setup has a problem, the Agent tab carries a dot after its name and the rail's Agent one on its corner, red
-for a server that failed, else yellow for one to sign in, with the problems in the tip; behind another view the setup
-is looked at every 5 minutes for it. A chat's Context panel leads here: its `Show all in Agent ›` shows the panel
-as that chat's agent's, beside the rail while the dock is folded; a new chat's `Manage agents…` shows it with the
-agents' list open. A rule's, a skill's, a connector's and a sub-agent's properties end with `Show graph`, which shows
-that row's node in the space's [Agents](#agents) tab.
+![A chat at work in lumen-api: Claude's two edits of tests/test_books.py open in the timeline, then git diff --stat,
+the prompt queuing a message while Claude works; beside it the Agent panel: Claude on Max, its 5 hours at 64% and the
+week at 38%, Codex's month against its budget, the project's rules and permissions with its mode, Edit
+automatically](../assets/screenshots/app-chat.webp)
 
 ## Agents
 
 A tab of the main area, one a space, under Lucide's share icon, with two views its head switches at its right end:
-Graph, how the space's agent is wired in the space's folder (`core/graph.py` words it, for Claude and Codex alike),
-and Usage, what the agents used and what that cost. The palette's Agents opens it on its graph and the Agent panel's
-`Show graph` on a row's node; the palette's Usage, the Agent panel's Open Usage and a chat's `Usage ›` open it on
-Usage; opened again, the same tab is shown. In Graph its head names what it shows (`Claude in lumen-api`); a press
-lists the installed agents herdr-fold reads, and a pick there is the space's agent from then on, the Agent panel's
-too; where the space's agent is one it draws no graph of, the tab shows the one used last that it does.
+Graph, how the space's agent is wired in the folder, and Usage, what the agents used and what that cost. Both are in
+[The agent's harness](harness.md#the-graph), with [the Usage view](harness.md#the-usage-view). The palette's Agents
+opens the tab on its graph and the Agent panel's `Show in graph` on a row's node; the palette's Usage, the panel's
+Open Usage and a chat's `Usage` open it on Usage; opened again, the same tab is shown.
 
-The graph, Wiring, stands in three columns on a canvas of dots. In: the rules and the skills (a skill the project
-owns or the conversation used a node each, the others one node, `15 more skills`). Agents: the agent, with its model,
-effort and mode where a chat of herdr-fold's told them (Codex's effort and its approval policy, `Ask on request`,
-from the conversation's last turn, else its `config.toml`) and the hook herdr-fold answers its questions through,
-and its
-sub-agents under it. Uses: the files' tools, the shell, and each connector (one that is off here faint, with no
-edge); the other built-in tools a conversation called stand as one node (`12 more tools`), each with its gates in
-that node's properties. An edge is solid for what always loads and dashed for what loads on demand, yellow and
-dashed for a connector to sign in to, red and dashed for one that failed, as the legend at the canvas's top right
-says. On an edge to a tool or a connector stands its gate: the permission (`allow`, `ask`, `deny` with its
-exceptions: `ask · pytest allowed`, `deny git push`) and `hook` where herdr-fold's hook answers.
+The two pictures are from before the redesign (the switch says `This chat` now, the gates read `allow pytest`, and
+`Budget…` stands on the month's card).
 
-A press chooses a node: its properties at the canvas's foot, as the Agent panel's (where it is from, what it runs,
-its error), with Open for its file, in the preview tab; × , Esc or a press beside the nodes puts them away. `Show in
-Agent`, the last of its buttons, shows the dock's [Agent](#agent) panel as that agent's with the node's row chosen,
-its section opened and scrolled to (a rule, a skill, a connector, a sub-agent; the agent's own node: its panel); a
-node the panel has no row of (a built-in tool, a folded one) has none. The arrows step to the nearest node that way.
-A node drags by its body, its edges following; where it is let go is kept
-for that space, folder and agent (`herdr-fold.graph-layout`, the app's shared values), and a double click beside the
-nodes lays the graph out again. A canvas narrower or lower than its graph scrolls. Changing a server (Retry, Connect,
-Turn off) stays the Agent panel's.
+![The Agents tab's graph, Wiring: Claude in lumen-api, Edit automatically, between the project's CLAUDE.md, AGENTS.md
+and three skills on the left and Read · Edit · Write and Bash with their allow, ask and deny gates, and the project's
+github, linear and sentry behind an ask, on the right](../assets/screenshots/app-agents-graph.webp)
 
-The graph is read when the tab first shows, when the folder's or the agent's setup files change (5 seconds apart at
-least) and every 30 seconds while it shows; a long conversation, whose file takes seconds to read, no sooner than ten
-times as long as its last read took. A space on another machine says `On <machine>: with a later version`.
-
-Where the folder has a conversation, a switch beside the head's name turns the graph from `Wiring` to `This
-conversation`: the same graph with what that conversation ran lit. The edges that ran are drawn in the accent (the
-legend's `ran here`), the one a call is still waiting on wider; what did not run stands at half strength, its edges
-faint. Each first use carries its number, in order, on its node's top right corner. The agent and each sub-agent
-that ran show what they cost (`~$3.70`), their model's color before their line (`Opus 5.5 · 38 turns · 1.0M tokens`)
-and their share of the conversation as a thin bar in that color; a tool and a connector show their calls (`14
-calls`). A press on the agent shows its figures, the label left and the value right: its model and effort, input,
-the cache's writes (1 hour and 5 minutes apart) and reads with their share of its input, output, its share, and
-Claude's own count of the conversation beside herdr-fold's (`the same`, or by how much it differs); `Open in Usage`
-shows the Usage view with this conversation's row marked, `Show in Agent` beside it the Agent panel. The costs are
-`core/costs.py`'s, read after the token index
-is brought up to date; while a call runs the view is read again every 5 seconds.
-
-### Usage
-
-The tab's other view, the one place usage is read in full: `core/report.py`'s report, each message at its own
-model's prices. An agent on a plan reads `API value` (what the same use would cost on the API; the plan charges
-nothing more), never spent; one on an API key reads `spent`; an agent whose sign-in is not told yet reads `API
-value`. Its head names the spaces it covers (`All spaces`, or one picked from its list). Under it, in one row: the
-period (`Today`, `7 days`, `30 days`, the month), the agent (`All agents`, `Claude`, `Codex`), and at the right
-`Budget…` (with an agent on an API key) and `Export CSV`.
-
-- The summary row: a cell an agent (its cost, its plan's line or its month against its budget, a pace past the
-  budget in yellow), then the tokens with the share read from the cache, and the commits from these conversations
-  with what one cost. Its dollar figures wear `~` (`~$130.90`, `~$18.40 of $50 · on pace for ~$46`); the tables'
-  cells under it do not, and the foot says once that the costs are estimates.
-- `Per day, by model`: a column a day, its models stacked in their colors, the legend beside the title; the pointer
-  on a day shows its date, its sum (`~$33.50`) and each model's cost. The colors are the models' own everywhere (the
-  graph's too), moved toward the text where a theme's card would not show them 3:1.
-- An API-key agent's month against its budget: what was spent by each day, the pace on to the month's end drawn
-  fainter, the budget a line across, `~$18.40 today` and `on pace for ~$46`. With no budget kept, the line and the
-  pace alone.
-- `By project`: a bar a folder, the most first.
-- `Conversations`, the costliest first: its space, its models, turns, tokens, the share read from the cache, its
-  cost, its commits with their lines (`about` where some only followed its edits, `none yet`, `–` where they are
-  not known: a folder that is no repository, Codex's conversations, one not read yet) and what one cost. The
-  pointer on a row says what a turn cost; a press opens the conversation as Chats does.
-- `Models`: each model by agent (Claude's sub-agents apart) with its input, cache writes and reads, output and
-  cost; a model with no price shows its tokens and `no price`, never $0.00.
-- The foot: `Costs are estimates from the conversations' token counts at list prices (LiteLLM's model cost map, as
-  of Nov 9, 2026), not the provider's invoice`, and that a model with no price shows its tokens alone.
-
-`Budget…` opens a field for each agent on an API key, dollars a month; an empty field takes the budget away, Enter
-or Save keeps it (in herdr-fold's own `usage.json`, the TUI's too). `Export CSV` saves the period as CSV where
-macOS's save panel says, a row for each day, agent, model and conversation, its costs plain numbers.
-
-The conversations are read into herdr-fold's indexes before the figures are whole (`core/tokens.py index`, then
-`core/commits.py index`, each called again until nothing is left to read): a first read of many sessions takes a
-while, `Reading the conversations…` says so, and until then a cost is what was read so far and a commit `–`. While
-the view shows, the indexes and the report are read again every minute.
+![The Agents tab's Usage, seven days of all spaces: Claude on Max as API value, Codex on an API key spent with
+November against its $150 budget, 35.3M tokens, per day by model, the month's line and pace, and by
+project](../assets/screenshots/app-agents-usage.webp)
 
 ## What it runs and reads
 
@@ -588,18 +534,12 @@ the view shows, the indexes and the report are read again every minute.
   beside the TUI column's settings. Delete… alone moves one: a closed chat's own file, to the Trash, once you answer
   its question: [A chat you delete](../SECURITY.md#a-chat-you-delete). A closed one reopens only by an id that is one
   (letters, digits, `.`, `_`, `-`): read from a file, it is never taken for an option or a control code.
-- Agent reads the agent's own files as text and never writes them: the folder's and the home's rules, settings, skills
-  and sub-agents (`CLAUDE.md`, `AGENTS.md`, `.claude/`, `.mcp.json`, `~/.claude`, `~/.claude.json`, `~/.codex`), and
-  Claude's file of the open conversation for the servers' state and what it used. It starts no server; with Codex
-  installed it runs `codex mcp list`, to mark a server both agents read. A server's command line and address show; its
-  environment, its headers' values and an address's query never leave the reader. For the agents' list it asks each
-  agent whether it is signed in (`claude auth status --json`, of which only that, the way and the plan's id are kept,
-  never the e-mail or the organization; `codex login status`, its exit code and whether its words start as an API
-  key's do, nothing after that start); Sign in starts the agent's own
-  login in a terminal tab, on your press, and herdr-fold sees and keeps nothing of it.
+- Agent reads the agent's own files as text, and writes one of its settings files only on a form's Save, one key at
+  a time; every other change is the agent's own command, run on your press. It starts no server and keeps no token:
+  [What it reads and writes](harness.md#what-it-reads-and-writes).
 - An SVG or a page is drawn with nothing asked of the network and none of its scripts run, so a file cannot learn who
   opened it.
 - The mod itself sends nothing anywhere but two daily looks, each the request alone: for a newer herdr-fold
   (api.github.com) and for the model prices Usage's costs are counted with (LiteLLM's public table,
-  raw.githubusercontent.com), both switched in herdr-fold's Settings (More, then About). The sync talks to the
+  raw.githubusercontent.com), both switched in herdr-fold's Settings, under About. The sync talks to the
   repository's remote, gh to GitHub, the AI tool to its own service.

@@ -228,26 +228,17 @@ class Kept(unittest.TestCase):
             f.write('{"%s": {"shown": [1]}, "%s": "files"}' % (self.one, self.two))
         self.assertEqual([stack.state(self.state, folder) for folder in (self.one, self.two)], [{"shown": None}] * 2)
 
-    def test_an_older_versions_groups_are_read_as_nothing_and_go_at_the_next_write(self):
-        # the stacked groups' file: each group's panel, the folded ones and their shares
-        older = {"shown": {"work": "issues"}, "folded": ["project"], "weights": {"project": 0.3, "work": 0.7}}
+    def test_what_it_cannot_read_goes_at_the_next_write(self):
+        unread = {"shown": {"work": "issues"}, "folded": ["project"]}
         with open(os.path.join(self.state, stack.FILE), "w", encoding="utf-8") as f:
-            json.dump({self.one: older, self.two: older}, f)
+            json.dump({self.one: unread, self.two: unread}, f)
         self.assertEqual(stack.state(self.state, self.one), {"shown": None})
         stack.keep(self.state, self.one, "files")
         self.assertEqual(self.kept(), {self.one: {"shown": "files"}})
 
 
-    def test_an_older_versions_id_is_read_as_chats_and_written_so(self):
-        with open(os.path.join(self.state, stack.FILE), "w", encoding="utf-8") as f:
-            json.dump({self.one: {"shown": "conversations"}, self.two: {"shown": "files"}}, f)
-        self.assertEqual(stack.state(self.state, self.one), {"shown": "chats"})
-        stack.keep(self.state, self.two, "search")
-        self.assertEqual(self.kept(), {self.one: {"shown": "chats"}, self.two: {"shown": "search"}})
-
-
 ORDER = ["files", "search", "changes", "issues", "chats"]          # GROUPS' panels, as the rail stacks them
-SIDES = ((sidebar_column.RAIL, 0), (13, 0), (19, 0), (30, 30 - sidebar_column.RAIL))   # (cells, the rail's column)
+SIDES = (sidebar_column.RAIL, 13, 19)     # the rail's cells: its own, a 155-cell tab's tenth, a 200-cell one's
 
 
 def painted(canvas):
@@ -263,17 +254,15 @@ class Rail(unittest.TestCase):
     def test_every_item_is_its_icon_on_five_cells_three_rows_apart(self):
         # the row's icon alone on its block's middle cell, no name, a dot on the last; its own half rows, the next
         # block right under (half a row of air between two lit ones, as the row's cell); the hover paints the block,
-        # all of it answers; the ones with no room left out from the end, never the lit one
+        # all of it answers; the ones with no room left out from the end
         dots = {"changes": CHANGED, "chats": WAITING}
         self.assertEqual(sidebar_column.RAIL, stack.ICON_BUTTON + 2 * MARGIN)
-        for (cells, left), rows, lit in itertools.product(SIDES, (15, 16, 9, 6, 3, 2), (None, "chats", "files")):
-            fit = rows // 3
-            shown = ORDER[:fit] if lit is None or lit in ORDER[:fit] or not fit else ORDER[:fit - 1] + [lit]
-            middle = left + (cells - left) // 2
+        for cells, rows in itertools.product(SIDES, (15, 16, 9, 6, 3, 2)):
+            shown, middle = ORDER[:rows // 3], cells // 2
             block = list(range(middle - 2, middle + 3))
-            with self.subTest(cells=cells, left=left, rows=rows, lit=lit):
+            with self.subTest(cells=cells, rows=rows):
                 canvas = Canvas(cells, rows)
-                stack.rail(canvas, 0, rows, lit, GROUPS, dots, left=left)
+                stack.rail(canvas, 0, rows, GROUPS, dots)
                 self.assertEqual([(y, x) for y, row in enumerate(canvas.rows) for x, (ch, _) in enumerate(row)
                                   if ch in ICONS], [(1 + 3 * n, middle) for n in range(len(shown))])
                 self.assertEqual([text(canvas, 1 + 3 * n)[middle + 1:].rstrip() for n in range(len(shown))],
@@ -283,10 +272,10 @@ class Rail(unittest.TestCase):
                 self.assertEqual([text(canvas, y).strip() for y in blank], [""] * len(blank))
                 for n, panel in enumerate(shown):
                     canvas, top = Canvas(cells, rows), 3 * n
-                    stack.rail(canvas, 0, rows, lit, GROUPS, dots, left=left, pointed=f"icon:{panel}")
+                    stack.rail(canvas, 0, rows, GROUPS, dots, pointed=f"icon:{panel}")
                     self.assertEqual(painted(canvas), {(y, x) for y in range(top, top + 3) for x in block})
                     self.assertEqual((halves(canvas, top, "▄"), halves(canvas, top + 2, "▀")), (block, block))
-                    self.assertEqual(canvas.rows[top + 1][middle][1].fg, "accent" if panel == lit else "text")
+                    self.assertEqual(canvas.rows[top + 1][middle][1].fg, "text")
                     self.assertEqual([canvas.hit(middle, y) for y in range(top, top + 3)], [f"icon:{panel}"] * 3)
 
     def test_two_neighbours_keep_their_own_half_rows(self):
@@ -295,74 +284,38 @@ class Rail(unittest.TestCase):
             seen = {}
             for pointed in (None, ORDER[n - 1], ORDER[n]):
                 canvas = Canvas(sidebar_column.RAIL, 15)
-                stack.rail(canvas, 0, 15, None, GROUPS, pointed=pointed and f"icon:{pointed}")
+                stack.rail(canvas, 0, 15, GROUPS, pointed=pointed and f"icon:{pointed}")
                 seen[pointed] = (text(canvas, 3 * n - 1), text(canvas, 3 * n))
             with self.subTest(between=ORDER[n - 1:n + 1]):
                 self.assertEqual(seen, {None: (" " * 5, " " * 5), ORDER[n - 1]: ("▀" * 5, " " * 5),
                                         ORDER[n]: (" " * 5, "▄" * 5)})
 
     def test_the_tabs_terminal_comes_after_the_views_lit_while_raised(self):
-        # its own block, as theirs; the accent while it stands raised under the agent, as a view opened beside
+        # its own block, as theirs, the last; the accent while it stands raised under the agent
         for raised in (False, True):
             canvas = Canvas(sidebar_column.RAIL, 21)
-            stack.rail(canvas, 0, 21, None, GROUPS, terminal=raised, more=True, pointed="terminal")
+            stack.rail(canvas, 0, 21, GROUPS, terminal=raised, pointed="terminal")
             with self.subTest(raised=raised):
-                self.assertEqual([text(canvas, y).strip() for y in (16, 19)], [NERD["terminal"], "⋯"])
+                self.assertEqual([text(canvas, y).strip() for y in (16, 19)], [NERD["terminal"], ""])
                 self.assertEqual((canvas.rows[16][2][1].fg, canvas.hit(2, 15), canvas.hit(2, 17)),
                                  ("accent" if raised else "text", "terminal", "terminal"))
                 self.assertEqual(painted(canvas), {(y, x) for y in range(15, 18) for x in range(5)})
-
-    def test_beside_a_view_the_more_button_comes_last_as_one_of_them(self):
-        # the pane's own menu, ⋯ as the row's More, in a block of its own after the views'; its line returned
-        canvas = Canvas(sidebar_column.RAIL, 18)
-        line = stack.rail(canvas, 0, 18, None, GROUPS, more=True, pointed="panels")
-        self.assertEqual((line, text(canvas, 16).rstrip(), canvas.hit(2, 15), canvas.hit(2, 17)),
-                         (16, "  ⋯", "panels", "panels"))
-        self.assertEqual(painted(canvas), {(y, x) for y in range(15, 18) for x in range(5)})
-        self.assertIsNone(stack.rail(Canvas(sidebar_column.RAIL, 18), 0, 18, None, GROUPS))
-
-    def test_the_lit_one_is_in_the_accent_as_the_rows_chosen_button(self):
-        # no bar of its own: the row marks its chosen button by the accent alone
-        canvas = Canvas(sidebar_column.RAIL, 15)
-        stack.rail(canvas, 0, 15, "changes", GROUPS, {"changes": CHANGED}, pointed="icon:changes")
-        self.assertEqual(painted(canvas), {(y, x) for y in range(6, 9) for x in range(0, 5)})
-        self.assertEqual((canvas.rows[7][2][1], text(canvas, 7).rstrip()),
-                         (Style(fg="accent", bg="hover"), f"  {NERD['git']} ●"))
-        canvas = Canvas(sidebar_column.RAIL, 15)
-        stack.rail(canvas, 0, 15, "changes", GROUPS)
-        self.assertEqual([canvas.rows[y][2][1].fg for y in (1, 4, 7, 10, 13)],
-                         ["subtext", "subtext", "accent", "subtext", "subtext"])
-        self.assertNotIn("▌", "".join(text(canvas, y) for y in range(15)))
 
     def test_on_its_own_cells_every_item_has_as_much_air_left_as_right(self):
         # from the rail's sides: its icon on the very middle, its block as much each side inside the margins; a dot (on
         # the block's last cell) moves nothing
         dots = {"changes": CHANGED, "chats": WAITING}
-        for (cells, left), lit, marks, (n, panel) in itertools.product(SIDES, (None, "changes"), ({}, dots),
-                                                                       enumerate(ORDER)):
-            with self.subTest(cells=cells, left=left, lit=lit, dots=bool(marks), panel=panel):
+        for cells, marks, (n, panel) in itertools.product(SIDES, ({}, dots), enumerate(ORDER)):
+            with self.subTest(cells=cells, dots=bool(marks), panel=panel):
                 canvas, y, last = Canvas(cells, 15), 1 + 3 * n, cells - 1
-                stack.rail(canvas, 0, 15, lit, GROUPS, marks, left=left, pointed=f"icon:{panel}")
+                stack.rail(canvas, 0, 15, GROUPS, marks, pointed=f"icon:{panel}")
                 icons = {x for row in canvas.rows for x, (ch, _) in enumerate(row) if ch in ICONS}
-                self.assertEqual({x - left for x in icons}, {last - x for x in icons})
+                self.assertEqual(icons, {last - x for x in icons})
                 lit_cells = sorted({x for _, x in painted(canvas)})
-                self.assertEqual((lit_cells[0] - left, last - lit_cells[-1]),
-                                 (MARGIN + (cells - left - sidebar_column.RAIL) // 2,) * 2)
+                self.assertEqual((lit_cells[0], last - lit_cells[-1]),
+                                 (MARGIN + (cells - sidebar_column.RAIL) // 2,) * 2)
                 if panel in marks:
                     self.assertEqual(text(canvas, y).index("●"), lit_cells[-1])     # inside it, its last cell
-
-    def test_it_stands_at_the_right_edge_the_panel_opened_beside_it_lit(self):
-        left = 30 - sidebar_column.RAIL
-        canvas = Canvas(30, 17)
-        stack.rail(canvas, 1, 16, "changes", GROUPS, icons=False, left=left)
-        marks = glyphs(False)
-        icon = left + sidebar_column.RAIL // 2          # the middle of its content
-        self.assertEqual([text(canvas, y)[left:].rstrip() for y in (2, 5, 8, 11, 14)],
-                         [f"  {marks[glyph]}" for glyph in ("files", "search", "git", "issues", "ai")])
-        self.assertEqual([canvas.rows[y][icon][1].fg for y in (2, 5, 8, 11, 14)],
-                         ["subtext", "subtext", "accent", "subtext", "subtext"])
-        self.assertEqual([text(canvas, y).strip() for y in range(17) if y % 3 != 2], [""] * 12)
-        self.assertEqual("".join(text(canvas, y)[:left] for y in range(17)).strip(), "")
 
 
 if __name__ == "__main__":

@@ -1,66 +1,18 @@
 #!/usr/bin/env python3
 """Adds herdr-fold's settings to the user's herdr config.toml between "# >>> herdr-fold >>>" markers; theirs win.
-  herdr_config.py add <package's> <theirs>   in place; exit 1: a file it cannot read for sure, left alone
-  herdr_config.py strip <theirs>             takes herdr-fold's settings out again (the uninstaller)"""
+  herdr_config.py add <package's> <theirs> | strip <theirs>   in place; exit 1: a file not read for sure, left alone
+  herdr_config.py value|put <theirs> <table> <key> [<string>]   a key of theirs read, or set (kept over an update)"""
 import os
 import re
 import sys
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from herdr_toml import BEGIN, END, HEADER, KEY, STRING, marked, parse, put, value  # noqa: E402
 from i18n import line, t  # noqa: E402
 
-BEGIN, END = "# >>> herdr-fold >>>", "# <<< herdr-fold <<<"
 THEME_BEGIN, THEME_END = "# --- theme: ", "# --- end of theme ---"
-HEADER = re.compile(r"^(\[\[?)([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*)(\]\]?)\s*(#.*)?$")
-KEY = re.compile(r"^\s*([A-Za-z0-9_-]+)\s*=\s*(.*)$")
-UNSURE = re.compile(r'"""|\'\'\'|^\s*[A-Za-z0-9_-]+\s*\.\s*[A-Za-z0-9_.-]+\s*=|^\s*["\'][^"\']*["\']\s*=')
-STRING = re.compile(r'"((?:\\.|[^"\\])*)"|\'([^\']*)\'')
-
-
-def depth(text):
-    """How many more [ than ] a value line opens (strings and comments do not count)."""
-    bare = STRING.sub("", text).split("#", 1)[0]
-    return bare.count("[") - bare.count("]")
-
-
-def parse(text):
-    """The file's tables ({name: {key: value}}, "" = the top level, each [[array]] item its own), the key chords it
-    binds ({chord: what}), its headers in order ([(line, name)]) and the tables it writes inline (key = { … }) — None
-    if it has anything this reading is unsure of."""
-    tables, chords, headers, inline = {"": {}}, {}, [], set()
-    current, open_brackets = "", 0
-    for n, raw in enumerate(text.split("\n")):
-        if open_brackets > 0:                                 # inside a value spanning several lines
-            open_brackets += depth(raw)
-            continue
-        stripped = raw.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        if UNSURE.search(raw):
-            return None
-        header = HEADER.match(raw)
-        if header:
-            if len(header.group(1)) != len(header.group(3)):
-                return None
-            headers.append((n, header.group(2)))
-            current = header.group(2) + (f"#{n}" if header.group(1) == "[[" else "")
-            tables[current] = {}
-            continue
-        key = KEY.match(raw)
-        if not key or raw.startswith("["):
-            return None
-        name, value = key.group(1), key.group(2).strip()
-        tables[current][name] = value
-        if value.startswith("{"):                            # an inline table: [<table>.<name>] is written already
-            inline.add(f"{current.split('#')[0]}.{name}".lstrip("."))
-        open_brackets = depth(value)
-        table = current.split("#")[0]
-        if table == "keys.command" and name == "key" or table == "keys" or table.startswith("keys.") \
-                and table != "keys.command":
-            for chord in (a or b for a, b in STRING.findall(value)):
-                chords[chord.lower().replace(" ", "")] = f"{table}.{name}" if table != "keys.command" else table
-    return tables, chords, headers, inline
+WORD = re.compile(r"[A-Za-z0-9_-]+")        # a string `put` writes as it is, between quotes
 
 
 def paragraphs(text):
@@ -80,22 +32,6 @@ def paragraphs(text):
         else:
             n += 1
     return units
-
-
-def marked(lines):
-    """The (begin, end) line numbers of herdr-fold's marked parts — None if a marker has lost its pair."""
-    found, start = [], None
-    for n, raw in enumerate(lines):
-        if raw == BEGIN:
-            if start is not None:
-                return None
-            start = n
-        elif raw == END:
-            if start is None:
-                return None
-            found.append((start, n))
-            start = None
-    return None if start is not None else found
 
 
 def strip(text):
@@ -196,6 +132,17 @@ def add(package, theirs):
 
 
 def main(args):
+    if args[:1] in (["value"], ["put"]) and len(args) == (4 if args[0] == "value" else 5):
+        with open(args[1], encoding="utf-8") as f:
+            theirs = f.read()
+        if args[0] == "value":
+            print(value(theirs, args[2], args[3]) or "")
+            return 0
+        made = put(theirs, args[2], args[3], f'"{args[4]}"') if WORD.fullmatch(args[4]) else None
+        if made is not None and made != theirs:
+            with open(args[1], "w", encoding="utf-8") as f:
+                f.write(made)
+        return 0 if made is not None else 1
     if args[:1] == ["strip"] and len(args) == 2:
         with open(args[1], encoding="utf-8") as f:
             theirs = f.read()

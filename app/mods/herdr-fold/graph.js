@@ -1,23 +1,25 @@
 // @ts-check
 // The Agents tab's graph, pure: its tab and what it is asked to show, where its nodes stand (three columns, a dragged
 // one where it was left), an edge's path, its gate's place. The nodes, edges and words are core's (graph.py).
-import { contrast, mixColor, readableOn, tagColors } from "./agents.js";
+import { contrast, mixColor } from "./agents.js";
 import { ASK_MS } from "./layers.js";
 
 export const AGENTS_TAB = "Agents";                  // the tab's name, usage.html's: one a space
 export const AGENTS_ASK = "herdr-fold.agents-ask";   // shared: {space: {node, session, at}}, openAgents()'s ask
 export const GRAPH_LAYOUT = "herdr-fold.graph-layout";       // shared: {"space|folder|agent": {node: {x, y}}}
 export const AGENT = "agent";                        // the agent's own node, as core names it
-export const MORE_TOOLS = "tools:more";              // the node the tools a conversation alone called fold into
+export const MORE_TOOLS = "tools:more";              // the node the tools a chat alone called fold into
 // px: the canvas's edge to a column, the columns' names' and the first node's top, between two nodes, two groups
 export const EDGE = 24, HEADS = 48, FIRST = 80, APART = 12, GROUP = 32;
-export const UNDER = 48, INDENT = 16;                // px: a sub-agent under its agent, and in from its left
+export const UNDER = 48, INDENT = 16;                // px: a subagent under its agent, and in from its left
 export const IN_ROOM = 96, USES_ROOM = 264;          // px at least between two columns: the edges', the gates' too
+export const TIGHT = 48;                             // px at least between two columns on a canvas too narrow for those
+export const GATES_MOST = 2 * USES_ROOM;             // px at most a row of gates keeps: two named, a deny and a hook
 const NODE = 190, HIGH = 54, CHIPS = 24;             // px: a node's width at least, its height, its chips' row
 const WIDE = /** @type {Record<string, number>} */ ({ agent: 250, sub: 230, subs: 230 });
 const HANDLE = 120, SHORT = 40;                      // px: an edge's handles, agent-graph.html's; at least
 const SPREAD = 4, PORTS = 5;                         // px between two edges leaving a node, and how many apart
-const DROP = 24, CORNER = 12;                        // px: a sub-agent's edge from its left, a corner kept clear
+const DROP = 24, CORNER = 12;                        // px: a subagent's edge from its left, a corner kept clear
 const GATE = 0.55, STEPS = 40;                       // a gate's place along its edge; the pieces it is measured in
 const PILL_CHAR = 6.2, PILL_PAD = 14;                // px: a gate's character at 11, its pill's padding and edge
 const SHAKE = 4;                                     // px a press may move and still be a click
@@ -29,13 +31,13 @@ const LISTS = ["skills", "subs", "tools"];           // a folded node's kinds: i
 const HEX = /^#[0-9a-f]{6}$/i;
 export const VIEWS = ["wiring", "run"];              // the graph's two views, core's words' keys (graph.py's)
 export const DISC = 18;                              // px: a first use's number, on its node's top right corner
-export const FAINT = "59";                           // an edge that did not run, This conversation's: at 35%
+export const FAINT = "59";                           // an edge that did not run, This chat's: at 35%
 const WIRE = 1.5, RAN = 2, RUNNING = 3;              // px: an edge's line; one that ran; the one running now
 const STYLES = ["always", "demand", "waiting", "failed"];     // an edge's styles, core's; any other as on demand
 
-/** A node as core words it. @typedef {{ id: string, column: string, kind: string, title: string, dim: boolean,
- * icon: string | null, brand: string | null, tag: { text: string, tone: string } | null, sub: string | null, run: any,
- * state: string | null, chips: string[], parent: string | null, properties: any }} Node */
+/** A node as core words it: TAG its source's word. @typedef {{ id: string, column: string, kind: string,
+ * title: string, dim: boolean, icon: string | null, brand: string | null, tag: string | null, sub: string | null,
+ * run: any, state: string | null, chips: string[], parent: string | null, properties: any }} Node */
 /** An edge. @typedef {{ from: string, to: string, style: string, gates: { text: string, tone: string }[],
  * run: any }} Edge */
 /** @typedef {{ x: number, y: number }} Point */
@@ -64,7 +66,7 @@ export function agentsAsked(kept, space, last, now) {
     && now - ask.at <= ASK_MS ? ask : null;
 }
 
-/** GRAPH (core's) as Wiring draws it: the built-in tools a conversation alone called (every one but FIXED) as one
+/** GRAPH (core's) as Wiring draws it: the built-in tools a chat alone called (every one but FIXED) as one
  * node where there are two or more, each with its gates in that node's properties, one edge from whatever reached
  * any. @template {{ nodes: any[], edges: any[] }} G @param {G} graph @returns {G} */
 export function folded(graph) {
@@ -117,25 +119,31 @@ function stack(nodes, groups, sizes, y) {
   return { tops, foot };
 }
 
-/** The room the agents and Uses keep between them for EDGES' gates: the widest edge's pills (about PILL_CHAR a
- * character, PILL_PAD round each, 4 apart) and 8 at each end; IN_ROOM at least, USES_ROOM at most.
- * @param {{ gates: { text: string }[] }[]} edges */
-export const gatesRoom = (edges) => Math.min(USES_ROOM, Math.max(IN_ROOM, ...edges.map((edge) => (edge.gates.length
-  ? Math.ceil(edge.gates.reduce((sum, gate) => sum + [...gate.text].length * PILL_CHAR + PILL_PAD + 4, 12)) : 0))));
+/** The room between the agents and Uses for EDGES' gates: the widest edge's pills (PILL_CHAR a character, PILL_PAD
+ * round each, 4 apart), 8 at each end, so no pill lies over a node; IN_ROOM at least (TIGHT for a canvas too narrow),
+ * GATES_MOST at most. @param {{ gates: { text: string }[] }[]} edges @param {boolean} [tight] */
+export const gatesRoom = (edges, tight = false) => Math.min(GATES_MOST, Math.max(tight ? TIGHT : IN_ROOM,
+  ...edges.map((edge) => (edge.gates.length ? Math.ceil(edge.gates.reduce((sum, gate) => sum + [...gate.text].length
+    * PILL_CHAR + PILL_PAD + 4, 12)) : 0))));
 
-/** Where NODES stand on a canvas SIZE large, agent-graph.html's three columns (docs/styleguide.md, The Agents tab);
- * a canvas too narrow keeps them IN_ROOM and ROOM (gatesRoom()'s) apart. @param {Node[]} nodes @param {number} [room]
- * @param {Record<string, Size>} [sizes] @param {{ width: number, height: number }} size */
-export function layout(nodes, size, sizes = {}, room = USES_ROOM) {
+/** Where NODES stand on a canvas SIZE large, agent-graph.html's three columns (docs/styleguide.md, The Agents tab),
+ * IN_ROOM and ROOM apart; nearer on a canvas too narrow for that, to TIGHT and LEAST (gatesRoom()'s), then grown.
+ * @param {Node[]} nodes @param {{ width: number, height: number }} size @param {Record<string, Size>} [sizes] */
+export function layout(nodes, size, sizes = {}, room = USES_ROOM, least = room) {
   const of = (/** @type {string} */ column) => nodes.filter((one) => one.column === column);
   const widest = (/** @type {Node[]} */ some) => Math.max(0, ...some.map((one) => sizeOf(one, sizes).w));
   const ins = of("in"), uses = of("uses"), agents = of("agents");
   const subs = agents.filter((one) => one.id !== AGENT), agent = agents.find((one) => one.id === AGENT);
   const wide = Math.max(agent ? sizeOf(agent, sizes).w : 0, subs.length ? INDENT + widest(subs) : 0);
-  const least = EDGE + (ins.length ? widest(ins) + IN_ROOM : 0);
-  const right = Math.max(size.width - EDGE - widest(uses), least + wide + room);
+  const [most, fewest] = [(ins.length ? IN_ROOM : 0) + room, (ins.length ? TIGHT : 0) + least];
+  const spare = size.width - 2 * EDGE - (ins.length ? widest(ins) : 0) - wide - widest(uses);
+  const share = most > fewest ? Math.min(1, Math.max(0, (spare - fewest) / (most - fewest))) : 1;
+  const apart = (/** @type {number} */ far, /** @type {number} */ near) => near + Math.floor((far - near) * share);
+  const inRoom = apart(IN_ROOM, TIGHT), usesRoom = apart(room, least);
+  const start = EDGE + (ins.length ? widest(ins) + inRoom : 0);
+  const right = Math.max(size.width - EDGE - widest(uses), start + wide + usesRoom);
   const middle = Math.round((size.width - (agent ? sizeOf(agent, sizes).w : wide)) / 2);
-  const x = Math.max(least, Math.min(middle, right - room - wide));
+  const x = Math.max(start, Math.min(middle, right - usesRoom - wide));
   const left = stack(ins, [["rule"], ["skill", "skills"]], sizes, FIRST);
   const used = stack(uses, [["tool", "tools"], ["connector"]], sizes, FIRST);
   const high = agents.reduce((sum, one, n) => sum + sizeOf(one, sizes).h + (n === 0 ? 0 : n === 1 && agent ? UNDER
@@ -169,7 +177,7 @@ export function extent(all, size) {
 }
 
 /** The edge from box A to box B as a cubic: from A's right to B's left (from its K-th port), handles HANDLE long, half
- * the way where close; B under A (a sub-agent): straight down from A's foot, DROP in from B's left; B left of A: from
+ * the way where close; B under A (a subagent): straight down from A's foot, DROP in from B's left; B left of A: from
  * A's left to B's right. @param {Box} a @param {Box} b @param {number} [k] @returns {Path} */
 export function edgePath(a, b, k = 0) {
   if (b.y >= a.y + a.h && b.x < a.x + a.w && b.x + b.w > a.x) {
@@ -242,8 +250,8 @@ export const dropLayout = (kept, key) => Object.fromEntries(Object.entries(place
 /** Where NODES stand: a dragged one where KEPT has it under KEY, every other (a new one too) where layout() puts it;
  * a kept place of a node gone is not drawn. @param {any} kept @param {string} key @param {Node[]} nodes
  * @param {{ width: number, height: number }} size @param {Record<string, Size>} [sizes] @param {number} [room] */
-export function placed(kept, key, nodes, size, sizes = {}, room = USES_ROOM) {
-  const mine = places(kept)[key] ?? {}, at = layout(nodes, size, sizes, room);
+export function placed(kept, key, nodes, size, sizes = {}, room = USES_ROOM, least = room) {
+  const mine = places(kept)[key] ?? {}, at = layout(nodes, size, sizes, room, least);
   for (const one of nodes) {
     const was = mine[one.id];
     if (Number.isFinite(was?.x) && Number.isFinite(was?.y)) at[one.id] = { x: was.x, y: was.y };
@@ -270,7 +278,7 @@ export function stepNode(all, chosen, key) {
   return best;
 }
 
-/** NODE's properties in VIEW: what it ran, where This conversation tells them (an agent's cost lines, a tool's
+/** NODE's properties in VIEW: what it ran, where This chat tells them (an agent's cost lines, a tool's
  * calls), else its setup's. @param {Node} node @param {string} [view] */
 export const propertiesOf = (node, view = "wiring") => (view === "run" && node.run?.properties) || node.properties;
 
@@ -313,23 +321,18 @@ export function wireColor(t, style) {
   return t.foreground;
 }
 
-/** A source's tag of ROLE on a node, whose fill is GROUND: its color (tagColors'), read 4.5:1 there.
- * @param {Record<string, string>} t @param {import("./agents.js").TagRole} role @param {string} ground */
-export const tagInk = (t, role, ground) => ([t.foreground, ground].every((hex) => HEX.test(hex ?? ""))
-  ? readableOn(tagColors(t)[role], t.foreground, ground) : tagColors(t)[role]);
-
-/** GRAPH (core's) as VIEW draws it: Wiring folds the tools a conversation alone called (folded()), This conversation
- * keeps each, as every one of them ran. @template {{ nodes: any[], edges: any[] }} G @param {G} graph
+/** GRAPH (core's) as VIEW draws it: Wiring folds the tools a chat alone called (folded()), This chat keeps each, as
+ * every one of them ran. @template {{ nodes: any[], edges: any[] }} G @param {G} graph
  * @param {string} view @returns {G} */
 export const seen = (graph, view) => (view === "run" ? graph : folded(graph));
 
-/** Whether NODE stands at half strength in VIEW: one that does not run here, and in This conversation one that did
- * not run in it. @param {Node} node @param {string} view */
+/** Whether NODE stands at half strength in VIEW: one that does not run here, and in This chat one that did not run
+ * in it. @param {Node} node @param {string} view */
 export const faded = (node, view) => Boolean(node.dim || (view === "run" && node.run && !node.run.ran));
 
-/** What NODE shows in VIEW besides its title: its line, and at its top right its tag, or in This conversation its
- * cost (with its model's color and its share) or its calls; ORDER: its first use's number there.
- * @param {Node} node @param {string} view */
+/** What NODE shows in VIEW besides its title: its line, and at its top right its source's tag (a word) or what This
+ * chat says of it ({text, tone}: sign in, failed), or there its cost (with its model's color and its share) or its
+ * calls; ORDER: its first use's number there. @param {Node} node @param {string} view */
 export function nodeShown(node, view) {
   const ran = view === "run" ? node.run : null, top = Boolean(ran?.cost || ran?.calls);
   return { sub: ran?.sub ?? node.sub, tag: top ? null : ran?.tag ?? node.tag, calls: ran?.calls ?? null,
@@ -346,7 +349,7 @@ export const badgeAt = (box) => ({ x: box.x + box.w - DISC / 2, y: box.y - DISC 
 export const shareWidth = (share, width) => (share && share > 0 ? Math.min(width, Math.max(2, Math.round(share
   * width))) : 0);
 
-/** How EDGE is drawn in VIEW: Wiring by its style (wireColor()); in This conversation one that ran in the accent,
+/** How EDGE is drawn in VIEW: Wiring by its style (wireColor()); in This chat one that ran in the accent,
  * the running one wider, any other in its style's color at FAINT. KEY: the path it is drawn with.
  * @param {Record<string, string>} t @param {Edge} edge @param {string} view */
 export function wireLook(t, edge, view) {
@@ -361,6 +364,11 @@ export function wireLook(t, edge, view) {
  * @param {{ edges: Edge[] }} graph */
 export const running = (graph) => graph.edges.some((edge) => Boolean(edge.run?.running));
 
-/** LEGEND (core's [style, word]) as VIEW shows it: "ran here" in This conversation alone, where edges are lit.
+/** LEGEND (core's [style, word]) as VIEW shows it: "ran here" in This chat alone, where edges are lit.
  * @param {[string, string][]} legend @param {string} view */
 export const legendOf = (legend, view) => legend.filter(([style]) => view === "run" || style !== "ran");
+
+/** GRAPH's two views in core's words, the head's switch: This chat with the chat's whole after it once told.
+ * @param {{ words: { views: Record<string, string> }, cost: string | null }} graph @returns {[string, string][]} */
+export const viewWords = (graph) => VIEWS.map((view) => [view, view === "run" && graph.cost
+  ? `${graph.words.views.run} · ${graph.cost}` : String(graph.words.views[view])]);

@@ -1,6 +1,6 @@
-"""Writes src/themes/preview-colors.js: what the theme preview shows beyond themes.js (the sidebar's colors and icons,
-the loading animation, the app icon), taken from where the package keeps it; on a Mac with Swift it first redraws the
-logo (tools/logo.swift). Run it after changing any of those: tests/test_themes.py fails while the file is outdated."""
+"""Writes src/themes/preview-colors.js: what the theme preview shows beyond themes.js (the sidebar's colors and views,
+herdr's frames, the loading sheep, the app icon), from where the package keeps it; on a Mac with Swift it first redraws
+the logo (tools/logo.swift). Run it after changing any of those: tests/test_themes.py fails while it is outdated."""
 import json
 import os
 import re
@@ -17,6 +17,7 @@ MEDIA_TOOL = os.path.join(os.path.dirname(ROOT), "media", "tools", "overview.py"
 sys.dont_write_bytecode = True
 sys.path[:0] = [os.path.join(ROOT, "src", "themes"), os.path.join(ROOT, "src", "plugins", "sidebar")]
 import apply  # noqa: E402
+from dock import GROUPS, PANELS  # noqa: E402
 from icons import glyphs  # noqa: E402
 
 
@@ -58,10 +59,14 @@ def content():
     views = glyphs(True)
     with open(apply.LOGO, encoding="utf-8") as f:
         drawn = f.read()
-    data = {"sheep": sheep(), "views": {view: views[view] for view in ("files", "search", "git", "issues")},
+    # the dock's row as the TUI has it (core/dock.py): each view's short name and its icon, in the row's order; and
+    # herdr's frames of the panes out of focus, its small labels too, as the theme setter quiets them
+    data = {"sheep": sheep(),
+            "views": {panel: {"name": PANELS[panel]["name"], "glyph": views[PANELS[panel]["glyph"]]}
+                      for _group, panels in GROUPS for panel in panels},
             "logo": for_cards(drawn).splitlines(),
-            "themes": {theme["id"]: {"sidebar": apply.sidebar_colors(theme), "loading": apply.loading_colors(theme),
-                                     "icon": apply.icon_colors(theme)}
+            "themes": {theme["id"]: {"sidebar": apply.sidebar_colors(theme), "frame": apply.quiet_frames(theme),
+                                     "loading": apply.loading_colors(theme), "icon": apply.icon_colors(theme)}
                        for theme in apply.load_themes()}}
     return ("// What the theme preview shows beyond themes.js — written by tools/preview_colors.py, do not edit\n"
             "const PREVIEW = " + json.dumps(data, indent=1, ensure_ascii=False) + ";\n")

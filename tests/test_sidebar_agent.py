@@ -1,6 +1,6 @@
 """Tests for the sidebar's Agent view (layers.py draws it, agent_panel.py reads it): core's layers() in cells, the head,
-the sections, each row's mark, state and tag in aligned columns, the chosen row's properties and buttons; read in a
-temporary home, a rule opened in the preview tab, a server checked again, the row's dot by the worst problem."""
+Usage, the sections, each row's mark, state and tag in columns, the chosen row's properties; read in a temporary home,
+a rule opened in the preview tab, a server checked again, the row's dot by the worst problem."""
 import json
 import os
 import re
@@ -14,6 +14,7 @@ from unittest import mock
 from support import SRC, FakeTerminal, end_jobs, set_attrs, set_env, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
+import agent_layers  # noqa: E402
 import agent_panel  # noqa: E402
 import agent_setup  # noqa: E402
 import agent_state  # noqa: E402
@@ -29,82 +30,113 @@ from theme import Theme  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
 from widgets import Action  # noqa: E402
 
-A = agent_setup
+A = agent_layers
 MCPJSON = "/work/lumen-api/.mcp.json"
 CLAUDE_MD = "/work/lumen-api/CLAUDE.md"
 NERD = glyphs(True)
+OPENED, CLOSED = f" {NERD['open']}  ", f" {NERD['closed']}  "            # a section's chevron, then its title
 WIDE = 60
+GRAPH = A.act("graph", "Show in graph")
 
 
 def state(text_, tone):
     return {"text": text_, "tone": tone}
 
 
-def tag(text_, tone):
-    return {"text": text_, "tone": tone}
+def section(key, title, rows, count=None, tokens=None, summary=(), groups=()):
+    """A section as core's layers() tells it: its swatch the start-up rule's part it is, its cost by the number rule."""
+    return {"id": key, "title": title, "count": len(rows) if count is None else count, "tokens": tokens,
+            "cost": tokens and A.words.tokens(tokens), "swatch": key if key in A.PARTS else None,
+            "summary": list(summary), "rows": rows, "groups": list(groups)}
 
 
 def lumen(skills=7, used=6):
-    """lumen-api as connectors.html's TUI pane has it, in core's layers() shape: four rules, a conflict among the
-    permissions, SKILLS skills (the one at USED used), five connectors (sentry failed, Box to sign in), a sub-agent."""
-    project, personal, account = tag("Project", "project"), tag("Personal", "personal"), tag("claude.ai", "account")
+    """lumen-api as connectors.html's TUI pane has it, in core's layers() shape: a subagent of one's own and the
+    built-ins folded, four rules (one path-scoped), SKILLS skills (the one at USED used), Mode and Sandbox, a conflict
+    and two rules among the permissions with two hooks, five connectors (sentry failed, Box to sign in)."""
+    subagents = [A.layer("subagent:pr-review:code-reviewer", "bot", "code-reviewer", A.properties(
+                    "code-reviewer", lines=[["From", "pr-review", "Plugin"], ["Tools", "Read, Grep, Glob, Bash", None]],
+                    actions=[GRAPH]), note="Opus · 4 tools", mark="ok", place="pr-review"),
+                 {**A.layer("subagent:built-in", "bot", "Explore, general-purpose, Plan", A.properties(
+                     "Built-in", lines=[["From", "Claude", "Built-in"], ["Explore", "Haiku · read-only", None]]),
+                     note="2 more", place="Built-in"), "names": ["Explore", "general-purpose", "Plan", "x", "y"]}]
     rules = [A.layer("rule:" + CLAUDE_MD, "file", "CLAUDE.md", A.properties(
                 "CLAUDE.md", lines=[["From", "CLAUDE.md", "Project"]], text="# lumen-api\nRoutes live in src.",
-                actions=[A.act("open", "Open CLAUDE.md", CLAUDE_MD)]), mark=project, tokens=1800),
-             A.layer("rule:/home/dev/.claude/CLAUDE.md", "file", "CLAUDE.md", A.properties(
-                "CLAUDE.md", lines=[["From", "~/.claude/CLAUDE.md", "Personal"]],
-                actions=[A.act("open", "Open CLAUDE.md", "/home/dev/.claude/CLAUDE.md")]), mark=personal, tokens=2400),
-             A.layer("rule:/work/lumen-api/AGENTS.md", "file", "AGENTS.md", A.properties("AGENTS.md"), mark=project,
+                actions=[A.act("open", "Open CLAUDE.md", CLAUDE_MD), GRAPH]), place="Project", tokens=1800),
+             A.layer("rule:/home/dev/.claude/CLAUDE.md", "file", "~/.claude/CLAUDE.md", A.properties(
+                "~/.claude/CLAUDE.md", lines=[["From", "~/.claude/CLAUDE.md", "Global"]],
+                actions=[A.act("open", "Open CLAUDE.md", "/home/dev/.claude/CLAUDE.md")]), place="Global",
+                     tokens=2400),
+             A.layer("rule:/work/lumen-api/AGENTS.md", "file", "AGENTS.md", A.properties("AGENTS.md"), place="Project",
                      tokens=1200),
              A.layer("rule:/work/lumen-api/.claude/rules/api.md", "file", "api.md", A.properties("api.md"),
-                     note="when src/lumen/** is read", mark=project, tokens=700, dim=True)]
-    conflict = A.layer("conflict:allow:Bash(git push:*)", "shield", "Bash(git push:*)", A.properties(
-        "Bash(git push:*)", lines=[["Allow", "Bash(git push:*)", "Personal"], ["Deny", "Bash(git push:*)", "Project"]]),
-        note="deny in Project hides allow in Personal", warn=True)
-    permissions = [conflict] + [A.layer(f"permission:{kind}:{rule}", "shield", rule, A.properties(rule),
-                                        mark=personal, state=state(kind, kind))
-                                for kind, rule in (("allow", "Bash(npm test)"), ("ask", "WebSearch"))]
-    skill_rows = [A.layer(f"skill:s{n}", "skill", f"skill-{n}", A.properties(f"skill-{n}"), mark=project,
-                          tokens=300, used=n == used) for n in range(skills)]
+                     note="when src/lumen/** is read", place="Project", tokens=700, dim=True)]
+    permissions = [
+        A.layer("mode", "shield", "Mode", A.properties("Mode", lines=[["From", ".claude/settings.json", "Project"]]),
+                note="Edit automatically", place="Project"),
+        A.layer("sandbox", "shield", "Sandbox", A.properties("Sandbox", lines=[
+            ["From", ".claude/settings.json", "Project"], ["Hosts", "pypi.org, github.com", None]]),
+            note="Bash · 2 hosts", place="Project"),
+        A.layer("conflict:allow:Bash(git push:*)", "shield", "Bash(git push:*)", A.properties(
+            "Bash(git push:*)", lines=[["Allow", "Bash(git push:*)", "Global"],
+                                       ["Deny", "Bash(git push:*)", "Project"]]),
+            note="deny in Project hides allow in Global", mark="warn")] + [
+        A.layer(f"permission:{kind}:{rule}", "shield", rule, A.properties(rule), place="Global",
+                state=state(kind, kind)) for kind, rule in (("allow", "Bash(npm test)"), ("ask", "WebSearch"))]
+    hook = state("hook", "muted")
+    hooks = [A.layer(f"hook:/work/lumen-api/.claude/settings.json:PreToolUse:Bash:{name}", "hook", name, A.properties(
+                name, hook, [["On", on, None], ["From", ".claude/settings.json", "Project"], ["Runs", runs, None]],
+                actions=[GRAPH]), note=f"on {on}", place=place, state=hook)
+             for name, on, runs, place in (("guard.sh", "PreToolUse · Bash", "./scripts/guard.sh", "Project"),
+                                           ("herdr-fold", "PermissionRequest", "herdr-fold", "Global"))]
+    skill_rows = [A.layer(f"skill:s{n}", "skill", f"skill-{n}", A.properties(f"skill-{n}"), place="Project",
+                          tokens=300, mark="ok" if n == used else None) for n in range(skills)]
     connectors = [
         A.layer("connector:sentry", "plug", "sentry", A.properties(
             "sentry", state("failed", "bad"), [["From", ".mcp.json", "Project"], ["Runs", "npx -y @sentry/mcp-server",
                                                                                     None]],
             error="npx is not on this machine's PATH",
             actions=[A.act("retry", "Retry", server="sentry"), A.act("open", "Open .mcp.json", MCPJSON)]),
-            mark=project, state=state("failed", "bad"), known="sentry"),
+            mark="bad", place="Project", state=state("failed", "bad"), known="sentry"),
         A.layer("connector:claude.ai Box", "plug", "Box", A.properties(
-            "Box", state("sign in", "warn"), [["From", "claude.ai", "Account"], ["URL", "mcp.box.com", None]],
+            "Box", state("sign in", "warn"), [["From", "claude.ai", "claude.ai"], ["URL", "mcp.box.com", None]],
             actions=[A.act("connect", "Connect", server="claude.ai Box"),
                      A.act("turn-off", "Turn off in lumen-api", server="claude.ai Box")]),
-            mark=account, state=state("sign in", "warn"), known="box"),
+            mark="warn", place="claude.ai", state=state("sign in", "warn"), known="box"),
         A.layer("connector:claude.ai Google Drive", "plug", "Google Drive", A.properties(
-            "Google Drive", state("on", "ok"), [["From", "claude.ai", "Account"]],
+            "Google Drive", state("on", "ok"), [["From", "claude.ai", "claude.ai"]],
             actions=[A.act("turn-off", "Turn off in lumen-api", server="claude.ai Google Drive"),
-                     A.act("sign-out", "Sign out", server="claude.ai Google Drive")]), mark=account,
+                     A.act("sign-out", "Sign out", server="claude.ai Google Drive")]), place="claude.ai",
                 state=state("on", "ok"), known="google-drive"),
         A.layer("connector:claude.ai Notion", "plug", "Notion", A.properties(
-            "Notion", actions=[A.act("turn-on", "Turn on in lumen-api", server="claude.ai Notion")]), mark=account,
+            "Notion", actions=[A.act("turn-on", "Turn on in lumen-api", server="claude.ai Notion")]), place="claude.ai",
                 state=state("off here", "off"), dim=True, known="notion"),
-        A.layer("connector:Dropbox", "plug", "Dropbox", A.properties("Dropbox"), mark=personal,
-                state=state("on", "ok"), known="dropbox")]
-    agents = [A.layer("agent:Claude:Explore", "bot", "Explore", A.properties("Explore"), mark=tag("Built-in", "muted"),
-                      state=state("haiku", "ok"))]
-    sections = [{"id": key, "title": title, "count": len(rows), "rows": rows}
-                for key, title, rows in (("rules", "Rules", rules), ("permissions", "Permissions", permissions),
-                                         ("skills", "Skills", skill_rows), ("connectors", "Connectors", connectors),
-                                         ("agents", "Agents", agents))]
-    return {"agent": "claude", "folder": "/work/lumen-api", "head": {"name": "Claude", "where": "in lumen-api"},
-            "health": {"problems": [{"text": "1 failed", "tone": "bad", "row": "connector:sentry"},
-                                    {"text": "1 sign in", "tone": "warn", "row": "connector:claude.ai Box"}]},
-            "sections": sections, "connect": A.connecting("claude", "/work/lumen-api"), "claude": True}
+        A.layer("connector:Dropbox", "plug", "Dropbox", A.properties("Dropbox"), place="Global",
+                state=state("32 tools", "ok"), mark="ok", known="dropbox", tokens=6800)]
+    sections = [section("subagents", "Subagents", subagents, count=6),
+                section("rules", "Rules", rules, count=3, tokens=5400),
+                section("skills", "Skills", skill_rows, tokens=300 * skills),
+                {**section("permissions", "Permissions", permissions, summary=[
+                    state("1 allow", "allow"), state("1 ask", "ask"), state("1 deny", "deny")],
+                    groups=[{"id": "hooks", "title": "Hooks", "count": 2, "rows": hooks}]), "count": None},
+                section("connectors", "Connectors", connectors, tokens=6800)]
+    return {"agent": "claude", "folder": "/work/lumen-api", "head": {
+                "name": "Claude", "where": "in lumen-api", "model": "Opus 5.5", "effort": "High", "starts": 34200,
+                "measured": True, "window": 1000000, "line": "Opus 5.5 · High · starts at 34.2k of 1M",
+                "problems": [{**state("1 failed", "bad"), "row": "connector:sentry"},
+                             {**state("1 sign in", "warn"), "row": "connector:claude.ai Box"}]},
+            "bar": [{"part": "rules", "tokens": 5400, "share": 0.25}, {"part": "skills", "tokens": 2100,
+                                                                      "share": 0.1},
+                    {"part": "connectors", "tokens": 13900, "share": 0.65}],
+            "error": None, "sections": sections, "connect": A.connecting("claude", "/work/lumen-api"),
+            "claude": True}
 
 
 def machine(key, name, **over):
-    """An agent as core tells it (machine_agents()'s), with where it stands (standing()'s) as the family adds it."""
+    """An agent as core tells it (told()'s): machine_agents()'s, its row in the list, where it stands."""
     one = {"key": key, "name": name, "installed": True, "signed_in": True, "plan": None, "login": [key, "login"],
            "install": f"npm install -g {key}", "page": f"https://lumen.example/{key}", **over}
-    return {**one, "empty": agent_state.standing(one)}
+    return {**one, "listed": agent_state.listed(one), "empty": agent_state.standing(one)}
 
 
 # connectors.html's Ágensek: Claude on Max, Codex on Plus, Gemini CLI to sign in; and one not installed
@@ -113,7 +145,7 @@ MACHINE = [machine("claude", "Claude", plan="Max"), machine("codex", "Codex", pl
 
 
 class AgentsList(unittest.TestCase):
-    """The agents managed on the head's row: its list, a pick, Add an agent…, and what stands in a setup's place."""
+    """The agents on the head's row: its list, a pick, one not installed, and what stands in a setup's place."""
 
     def setUp(self):
         self.view = layers.Layers(icons=False)
@@ -139,7 +171,7 @@ class AgentsList(unittest.TestCase):
         return [" ".join(line.split("│")[1].split()) if "│" in line else "" for line in self.lines(canvas)[1:rows]]
 
     def test_the_head_is_the_first_item_and_says_it_opens_a_list(self):
-        self.assertEqual(self.view.chosen, ("section", "rules"))                # a new view: its first section still
+        self.assertEqual(self.view.chosen, ("section", "subagents"))            # a new view: its first section still
         self.press("home")
         self.assertEqual(self.view.chosen, ("head", None))
         canvas = self.draw()
@@ -147,16 +179,39 @@ class AgentsList(unittest.TestCase):
         self.assertEqual(canvas.rows[0][1][1], Style(fg="text", bg="selection", bold=True))
         self.assertTrue(text(canvas, 0).rstrip().endswith("1 failed  1 sign in"))
 
-    def test_enter_on_the_head_opens_the_agents_on_this_machine_installed_ones_only(self):
+    def test_enter_on_the_head_opens_the_agents_on_this_machine_then_the_ones_not_installed(self):
         self.press("home")
         self.assertIsNone(self.press("enter"))
         canvas = self.draw()
-        self.assertEqual(self.listed(canvas, 8), ["", "Agents on this Mac", "✓ Claude Max", "Codex Plus",
-                                                  "Gemini CLI sign in", "Add an agent…", ""])
-        self.assertEqual(self.style(canvas, "Agents on this Mac").fg, "muted")
+        rule = "─" * (len(text(canvas, 2).split("│")[1]) - 2)
+        self.assertEqual(self.listed(canvas, 10), ["", "Agents on this Mac", "✓ Claude Max", "Codex Plus",
+                                                   "Gemini CLI sign in", rule, "Not installed", "Aider", ""])
+        self.assertEqual({self.style(canvas, words).fg for words in ("Agents on this Mac", "Not installed", "Aider")},
+                         {"muted"})
+        y = next(y for y in range(canvas.height) if "Not installed" in text(canvas, y)) - 1
+        self.assertEqual(canvas.rows[y][text(canvas, y).index(rule)][1].fg, "muted")    # a quiet rule, not the frame's
         self.assertEqual((self.style(canvas, "Plus").fg, self.style(canvas, "sign in").fg), ("muted", "modified"))
-        self.assertNotIn("Aider", "\n".join(self.lines(canvas)))                # not installed: under Add an agent…
         self.assertTrue(text(canvas, 3).split("│")[1].endswith("Max "))         # the plan at the row's right end
+        self.assertNotIn("Add an agent", "\n".join(self.lines(canvas)))
+
+    def test_with_every_agent_installed_the_list_has_one_group(self):
+        self.view.set({**lumen(), "agents": MACHINE[:3]})
+        self.press("home")
+        self.press("enter")
+        self.assertEqual(self.listed(self.draw(), 7), ["", "Agents on this Mac", "✓ Claude Max", "Codex Plus",
+                                                       "Gemini CLI sign in", ""])
+
+    def test_a_narrow_list_drops_a_plans_word_before_it_cuts_a_name_and_keeps_sign_in(self):
+        self.press("home")
+        self.press("enter")
+        canvas = self.draw(20)
+        self.assertEqual(self.listed(canvas, 10)[1:8], ["Agents on thi…", "✓ Claude Max", "Codex Plus",
+                                                        "Ge… sign in", "─" * 14, "Not installed", "Aider"])
+        self.assertTrue(all(len(line) <= 20 for line in self.lines(canvas)))
+        self.view.set({**lumen(), "agents": [machine("claude", "Claude", plan="Enterprise"), *MACHINE[1:]]})
+        self.press("esc")
+        self.press("enter")
+        self.assertEqual(self.listed(self.draw(16), 4)[2], "✓ Claude")          # "Enterprise" has no room: gone
 
     def test_a_pick_asks_for_that_agent_and_esc_closes_the_list(self):
         self.press("home")
@@ -176,13 +231,10 @@ class AgentsList(unittest.TestCase):
         self.assertEqual(self.view.handle(Mouse("press", text(canvas, y).index("Gemini"), y, 0)),
                          Action("choose_agent", ("gemini",)))
 
-    def test_add_an_agent_lists_the_ones_not_installed_and_a_pick_shows_how_it_is_installed(self):
+    def test_a_pick_of_one_not_installed_shows_how_it_is_installed_and_the_list_checks_it(self):
         self.press("home")
         self.press("enter")
-        self.press("up")                                                        # round to the last line
-        self.assertIsNone(self.press("enter"))
-        canvas = self.draw()
-        self.assertEqual(self.listed(canvas, 5), ["", "Add an agent", "Aider", ""])
+        self.press("up")                                                        # round to the last line, past the rule
         self.assertIsNone(self.press("enter"))
         lines = self.lines(self.draw())
         self.assertEqual(lines[0], " Aider in lumen-api ⌄")
@@ -194,16 +246,12 @@ class AgentsList(unittest.TestCase):
         self.assertEqual(self.press("enter"), Action("copy_text", ("npm install -g aider",)))
         self.press("down")
         self.assertEqual(self.press("enter"), Action("open_url", ("https://lumen.example/aider",)))
-
-    def test_with_every_agent_installed_add_an_agent_says_so(self):
-        self.view.set({**lumen(), "agents": MACHINE[:3]})
         self.press("home")
         self.press("enter")
-        self.press("up")
-        self.press("enter")
-        self.assertIn("Every agent herdr-fold knows is installed", "\n".join(self.lines(self.draw())))
-        self.press("enter")
-        self.assertIsNone(self.view.menu)
+        self.assertEqual(self.listed(self.draw(), 10)[2:8], ["Claude Max", "Codex Plus", "Gemini CLI sign in",
+                                                             "─" * 21, "Not installed", "✓ Aider"])
+        self.assertEqual(self.press("enter"), None)                             # the keys start on it: looked at still
+        self.assertEqual(self.lines(self.draw())[0], " Aider in lumen-api ⌄")
 
     def test_an_agent_not_signed_in_shows_sign_in_in_its_setups_place(self):
         self.view.set({"agent": "gemini", "folder": "/work/lumen-api", "agents": MACHINE,
@@ -231,10 +279,15 @@ class AgentsList(unittest.TestCase):
         self.assertEqual(self.view.chosen, layers.HEAD)                         # the agents' list, a key away
         self.assertIsNone(self.view.tone())
 
-    def test_the_list_checks_none_while_an_agent_to_add_is_looked_at(self):
-        self.assertEqual([one.get("check") for one in layers.agent_choices(MACHINE, "codex")],
-                         [False, True, False, None])
-        self.assertEqual([one["name"] for one in layers.add_choices(MACHINE)], ["Aider"])
+    def test_the_lists_lines_are_cores_the_installed_first(self):
+        gone = machine("aider", "Aider", installed=False)
+        found = layers.agent_choices([gone, *MACHINE[:3]], "codex")
+        self.assertEqual([(one["kind"], one["key"], one["check"], one["group"], one["right"], one["role"])
+                          for one in found], [
+            ("agent", "claude", False, "Agents on this Mac", "Max", "muted"),
+            ("agent", "codex", True, "Agents on this Mac", "Plus", "muted"),
+            ("agent", "gemini", False, "Agents on this Mac", "sign in", "modified"),
+            ("install", "aider", False, "Not installed", "", "muted")])
         self.assertEqual(layers.agent_choices(None, "claude"), [])
 
 
@@ -290,67 +343,128 @@ class View(unittest.TestCase):
         self.assertEqual(text(canvas, 0).rstrip(), " Loading setup…")
         self.assertEqual(canvas.rows[0][1][1].fg, "muted")
 
-    def test_the_head_names_the_agent_and_its_folder_its_problems_at_the_right(self):
+    def test_the_head_names_the_agent_its_folder_and_problems_then_cores_line_then_the_start_up_rule(self):
         canvas = self.draw()
         head = text(canvas, 0)
         self.assertTrue(head.startswith(" Claude in lumen-api "), head)
         self.assertTrue(head.endswith("1 failed  1 sign in "), head)             # a cell in from the pane's side
         self.assertEqual([self.look(canvas, words) for words in ("Claude", "in lumen-api", "1 failed", "1 sign in")],
                          [Style(fg="text", bold=True), Style(fg="muted"), Style(fg="deleted"), Style(fg="modified")])
-        self.assertEqual(text(canvas, 1).strip(), "")                           # a blank row under it
+        self.assertEqual(text(canvas, 1).rstrip(), " Opus 5.5 · High · starts at 34.2k of 1M")
+        self.assertEqual(self.look(canvas, "Opus 5.5"), Style(fg="muted"))
+        # the blank row's place: what loads at start, a part by its share of the pane's cells, in its colors
+        self.assertEqual(text(canvas, 2), " " + "━" * (WIDE - 2) + " ")
+        self.assertEqual([canvas.rows[2][x][1].fg for x in (1, 14, 15, 20, 21, WIDE - 2)],
+                         ["accent", "accent", "done", "done", "account", "account"])
+        answer = lumen()
+        answer["bar"] = [{**one, "tokens": 0, "share": 0} for one in answer["bar"]]
+        answer["head"]["line"] = "starts at ~0"
+        self.view.set(answer)
+        canvas = self.draw()
+        self.assertEqual((text(canvas, 1).rstrip(), text(canvas, 2).strip()), (" starts at ~0", ""))   # nothing loads
 
-    def test_the_sections_in_cores_order_connectors_open_the_rest_folded_problems_first(self):
+    def test_the_sections_in_cores_order_their_counts_after_the_title_swatches_and_summary_at_the_right(self):
         lines = self.lines(self.draw())
-        closed, opened = NERD["closed"], NERD["open"]
         sentry, drive, notion, dropbox = (connectors.BRANDS[key]["glyph"] for key in (
             "sentry", "google-drive", "notion", "dropbox"))
-        self.assertEqual([line[:20].rstrip() for line in lines[2:13]], [        # a connector's brand before its name
-            f" {closed}  Rules", f" {closed}  Permissions", f" {closed}  Skills", f" {opened}  Connectors",
-            f"    ✕ {sentry} sentry", "    ● B Box", f"    ● {drive} Google Drive", f"    ○ {notion} Notion",
-            f"    ● {dropbox} Dropbox", f" {closed}  Agents", ""])
-        self.assertEqual([line[-2:].strip() for line in lines[2:6]], ["4", "3", "7", "5"])   # counts at the right
-        self.assertEqual(len(lines[2]), WIDE - 1)
-
-    def test_a_connectors_mark_wears_its_states_color_a_row_off_here_dim(self):
+        self.assertEqual([line[:24].rstrip() for line in lines[3:14]], [        # a connector's brand before its name
+            CLOSED + "Subagents 6", CLOSED + "Rules 3", CLOSED + "Skills 7", CLOSED + "Permissions",
+            OPENED + "Connectors 5", f"    ✕ {sentry} sentry", "    ● B Box", f"      {drive} Google Drive",
+            f"      {notion} Notion", f"    ● {dropbox} Dropbox", ""])
+        self.assertEqual([lines[n][30:].strip() for n in range(3, 8)],
+                         ["", "■ 5.4k", "■ 2.1k", "1 allow  1 ask  1 deny  +", "■ 6.8k"])
+        self.assertEqual(len(lines[4]), WIDE - 1)
+        self.view.chosen = layers.HEAD                                          # no row lit
         canvas = self.draw()
-        marks = {name: canvas.rows[self.at(canvas, name)[0]][4][1].fg
-                 for name in ("sentry", "Box", "Google Drive", "Notion", "Dropbox")}
-        self.assertEqual(marks, {"sentry": "deleted", "Box": "modified", "Google Drive": "added", "Notion": "muted",
-                                 "Dropbox": "added"})
-        self.assertEqual((self.look(canvas, "Notion").fg, self.look(canvas, "Dropbox").fg), ("muted", "text"))
-        self.assertEqual([self.look(canvas, words).fg for words in ("failed", "sign in", "off here", "Project",
-                                                                     "claude.ai", "Personal")],
-                         ["deleted", "modified", "muted", "done", "account", "accent"])
+        self.assertEqual([self.look(canvas, "■", row) for row in ("Rules", "Skills", "Connectors")],
+                         [Style(fg="accent"), Style(fg="done"), Style(fg="account")])     # the rule's parts' colors
+        self.assertEqual([self.look(canvas, words, "Permissions") for words in ("1 allow", "1 ask", "1 deny")],
+                         [Style(fg="added"), Style(fg="modified"), Style(fg="deleted")])
+        self.assertEqual([self.look(canvas, words) for words in (NERD["closed"], "6", "5.4k")], [Style(fg="muted")] * 3)
 
-    def test_what_the_open_conversation_used_wears_a_green_dot_in_the_mark_column(self):
-        # a skill, a sub-agent, a connector: the app's dot, under the section's title; nothing moves for it, and a
-        # connector's problem keeps its own mark
-        setup = lumen()
-        rows = {section["id"]: section["rows"] for section in setup["sections"]}
-        rows["agents"][0]["used"] = rows["connectors"][0]["used"] = rows["connectors"][4]["used"] = True
-        self.view.set(setup)
-        for section in ("skills", "agents"):
-            self.choose(("section", section))
+    def test_an_empty_section_has_no_chevron_and_nothing_to_fold(self):
+        answer = lumen()
+        answer["sections"][4] = section("connectors", "Connectors", [])
+        self.view.set(answer)
+        self.assertEqual(self.lines(self.draw())[7], "    Connectors 0")
+        self.choose(("section", "connectors"))
+        self.assertIsNone(self.press("enter"))
+        self.assertIsNone(self.press("left"))
+
+    def test_one_mark_column_red_failed_yellow_to_sign_in_green_used_none_for_on_or_off(self):
+        canvas = self.draw()
+        marks = {name: canvas.rows[self.at(canvas, name)[0]][4] for name in ("sentry", "Box", "Google Drive",
+                                                                              "Notion", "Dropbox")}
+        self.assertEqual(marks, {"sentry": ("✕", Style(fg="deleted")), "Box": ("●", Style(fg="modified")),
+                                 "Google Drive": (" ", Style()), "Notion": (" ", Style()),
+                                 "Dropbox": ("●", Style(fg="added"))})
+        self.assertEqual((self.look(canvas, "Notion").fg, self.look(canvas, "Dropbox").fg), ("muted", "text"))
+        self.assertEqual([self.look(canvas, words).fg for words in ("failed", "sign in", "off here", "32 tools")],
+                         ["deleted", "modified", "muted", "muted"])
+        self.assertEqual({self.look(canvas, words).fg for words in ("Project", "claude.ai", "Global")}, {"muted"})
+
+    def test_grey_on_the_chosen_row_is_the_readable_shade(self):
+        self.choose(("row", "connector:claude.ai Notion"))
+        canvas = self.draw()
+        self.assertEqual([self.look(canvas, words, "Notion") for words in ("off here", "claude.ai")],
+                         [Style(fg="muted_row", bg="selection")] * 2)
+        self.assertEqual(self.look(canvas, "Notion"), Style(fg="muted_row", bg="selection"))    # off: dimmed name
+        self.choose(("section", "rules"))
+        self.assertEqual(self.look(self.draw(), "3", "Rules"), Style(fg="muted_row", bg="selection"))
+
+    def test_what_the_open_chat_used_wears_a_green_dot_in_the_mark_column(self):
+        for name in ("subagents", "skills"):
+            self.choose(("section", name))
             self.press("enter")
         canvas = self.draw()
-        marks = {name: canvas.rows[self.at(canvas, name)[0]][4] for name in ("skill-6", "skill-5", "Explore",
-                                                                              "sentry", "Dropbox")}
+        marks = {name: canvas.rows[self.at(canvas, name)[0]][4] for name in ("skill-6", "skill-5", "code-reviewer")}
         dot = ("●", Style(fg="added"))
-        self.assertEqual(marks, {"skill-6": dot, "skill-5": (" ", Style()), "Explore": dot,
-                                 "sentry": ("✕", Style(fg="deleted")), "Dropbox": dot})
-        self.assertEqual({self.at(canvas, name)[1] for name in ("skill-6", "skill-5", "Explore")}, {6})
+        self.assertEqual(marks, {"skill-6": dot, "skill-5": (" ", Style()), "code-reviewer": dot})
+        self.assertEqual({self.at(canvas, name)[1] for name in ("skill-6", "skill-5", "code-reviewer")}, {6})
 
     def test_the_states_and_tags_stand_in_aligned_columns_the_tags_at_the_right(self):
         canvas = self.draw()
         rows = [text(canvas, self.at(canvas, name)[0]) for name in ("sentry", "Box", "Google Drive", "Dropbox")]
         self.assertEqual({len(row.rstrip()) for row in rows}, {WIDE - 1})     # each tag ends a cell in
-        states = {re.search(r"(failed|sign in|on)\s+\S+\s*$", row).end(1) for row in rows}
+        states = {re.search(r"(failed|sign in|on|32 tools)\s+\S+\s*$", row).end(1) for row in rows}
         self.assertEqual(states, {WIDE - 1 - len("claude.ai") - 2})             # the widest tag's column, 2 cells off
         self.assertIn("sign in  claude.ai", rows[1])
         self.view.folded.discard("permissions")                                # one column in every section
         canvas = self.draw()
         self.assertEqual(text(canvas, self.at(canvas, "Bash(npm test)")[0]).index("allow") + len("allow"),
                          states.pop())
+
+    def test_a_sub_agents_model_and_tools_stand_in_the_states_column_and_give_way_to_its_name(self):
+        self.view.folded.discard("subagents")
+        canvas = self.draw()
+        own, built_in = (text(canvas, self.at(canvas, name)[0]).rstrip() for name in ("code-reviewer", "Explore"))
+        self.assertTrue(own.endswith("Opus · 4 tools  pr-review"), own)
+        self.assertEqual(own.index("Opus") + len("Opus · 4 tools"), WIDE - 1 - len("claude.ai") - 2)
+        self.assertEqual(self.look(canvas, "Opus · 4 tools").fg, "muted")
+        self.assertTrue(built_in.startswith("      Explore, general-purpose, Plan 2 more"), built_in)
+        self.assertTrue(built_in.endswith("Built-in"), built_in)
+        self.assertEqual(self.look(canvas, "2 more").fg, "muted")
+        narrow = text(self.draw(sidebar.column.FEWEST), self.at(canvas, "code-reviewer")[0]).rstrip()
+        self.assertTrue(narrow.startswith("    ● code-reviewer  Opus"), narrow)     # the name whole, its words cut
+        self.assertTrue(narrow.endswith("…  pr-review"), narrow)
+
+    def test_permissions_mode_sandbox_the_conflict_the_rules_then_every_hook_in_its_group(self):
+        self.view.folded.discard("permissions")
+        lines = self.lines(self.draw())
+        start = next(n for n, line in enumerate(lines) if "Permissions" in line)
+        left = [re.match(r"(\s*\S.*?)(\s{2,}|$)", line).group(1) for line in lines[start + 1:start + 10]]
+        self.assertEqual(left, [
+            "      Mode Edit automatically", "      Sandbox Bash · 2 hosts", "    ● Bash(git push:*)",
+            "        deny in Project hides allow in Global", "      Bash(npm test)", "      WebSearch", "      Hooks 2",
+            "      guard.sh on PreToolUse · Bash", "      herdr-fold on PermissionRequest"])
+        canvas = self.draw()
+        self.assertEqual(self.look(canvas, "Hooks 2").fg, "muted")
+        guard = text(canvas, self.at(canvas, "guard.sh")[0]).rstrip()
+        self.assertTrue(guard.endswith(" Project"), guard)
+        self.assertNotIn("hook ", guard)                                        # the group's head says it
+        self.assertEqual(self.look(canvas, "on PreToolUse").fg, "muted")
+        self.assertIn(("row", "hook:/work/lumen-api/.claude/settings.json:PreToolUse:Bash:guard.sh"),
+                      [key for key, _ in self.view.items()])
 
     def test_the_chosen_rows_properties_lie_under_it_label_and_value_its_error_its_buttons(self):
         self.choose(("row", "connector:sentry"))
@@ -359,18 +473,31 @@ class View(unittest.TestCase):
         self.assertEqual(canvas.rows[y][0][1].bg, "selection")                 # the chosen row, edge to edge
         self.assertEqual(canvas.rows[y][WIDE - 1][1].bg, "selection")
         under = [text(canvas, y + n).rstrip() for n in range(1, 5)]
-        # under its name, past its brand's cell
-        self.assertEqual(under[0], "        From  .mcp.json")                      # its tag says Project above
-        self.assertEqual(under[1], "        Runs  npx -y @sentry/mcp-server")
-        self.assertEqual(under[2], "        npx is not on this machine's PATH")
-        self.assertEqual(under[3], "         Retry    Open .mcp.json")
-        self.assertEqual(canvas.rows[y + 3][8][1].fg, "deleted")
-        self.assertEqual([canvas.rows[y + 1][x][1].fg for x in (8, 14)], ["muted", "text"])
+        # two cells in from its name, past its brand's cell
+        self.assertEqual(under[0], "          From  .mcp.json")                    # its tag says Project above
+        self.assertEqual(under[1], "          Runs  npx -y @sentry/mcp-server")
+        self.assertEqual(under[2], "          npx is not on this machine's PATH")
+        self.assertEqual(under[3], "           Retry    Open .mcp.json")
+        self.assertEqual(canvas.rows[y + 3][10][1].fg, "deleted")
+        self.assertEqual([canvas.rows[y + 1][x][1].fg for x in (10, 16)], ["muted", "text"])
         # each button a block of its own, a cell of air each side of its label, two cells between two
         buttons = canvas.rows[y + 4]
         self.assertEqual([x for x in range(WIDE) if buttons[x][1].bg == "input"],
-                         list(range(8, 15)) + list(range(17, 33)))
+                         list(range(10, 17)) + list(range(19, 35)))
         self.assertTrue(text(canvas, y + 5).startswith("    ● B Box "))       # the next row right after
+
+    def test_an_error_says_what_failed_and_why_the_files_it_names_in_its_tip(self):
+        answer = lumen()
+        answer["error"] = {"text": "Couldn't read Claude's setup: permission denied", "tip": "~/.claude/settings.json"}
+        answer["sections"][4]["rows"][0]["properties"].update(error="spawn npx: not found", tip="/opt/lumen/npx")
+        self.view.set(answer)
+        self.choose(("row", "connector:sentry"))
+        canvas = self.draw()
+        self.assertEqual(text(canvas, 3).rstrip(), " Couldn't read Claude's setup: permission denied")
+        self.assertEqual(canvas.rows[3][1][1].fg, "deleted")
+        self.assertEqual(self.view.tip(canvas.hit(3, 3)), "~/.claude/settings.json")
+        y, x = self.at(canvas, "spawn npx: not found")
+        self.assertEqual(self.view.tip(canvas.hit(x, y)), "/opt/lumen/npx")
 
     def test_only_what_works_here_is_a_button(self):
         # an action this client does not know (a newer core's) is no button; a row with none has no buttons' line
@@ -380,33 +507,33 @@ class View(unittest.TestCase):
         self.choose(("row", "connector:Dropbox"))
         canvas = self.draw()
         y = self.at(canvas, "Dropbox")[0]
-        self.assertIn("Agents", text(canvas, y + 1))                            # nothing under it: the next head
+        self.assertEqual(text(canvas, y + 1).strip(), "")                        # nothing under it
         self.assertIsNone(self.press("enter"))
 
-    def test_the_tuis_own_words_on_a_button_else_cores(self):
-        # connectors.html's TUI pane: "Turn off here" for the app's "Turn off in lumen-api" (Task 14 makes it work)
-        self.assertEqual([layers.label(A.act(kind, words)) for kind, words in (
-            ("turn-off", "Turn off in lumen-api"), ("turn-on", "Turn on in lumen-api"), ("open", "Open .mcp.json"))],
-            ["Turn off here", "Turn on here", "Open .mcp.json"])
+    def test_show_in_graph_is_a_rows_action(self):
+        self.view.folded.discard("rules")
+        self.choose(("row", "rule:" + CLAUDE_MD))
+        canvas = self.draw()
+        self.assertIn("Open CLAUDE.md    Show in graph", text(canvas, self.at(canvas, "Show in graph")[0]))
+        y, x = self.at(canvas, "Show in graph")
+        self.assertEqual(self.view.handle(Mouse("press", x, y, 0)), Action("show_graph", ()))
 
     def test_a_property_the_row_shows_already_is_left_out_a_conflict_keeps_both_rules(self):
-        # a rule's From is its own name, a plugin's skill's its tag, a sub-agent's Model its state word: said above
+        # a rule's From is its own name, a plugin's skill's its tag, the built-ins' From its tag again: said above
         answer = lumen()
         answer["sections"][2]["rows"][0]["properties"]["lines"] = [["From", "atlas", "Plugin"]]
-        answer["sections"][2]["rows"][0]["tag"] = tag("atlas", "plugin")
-        answer["sections"][4]["rows"][0]["properties"]["lines"] = [["From", "Claude", "Built-in"],
-                                                                   ["Model", "haiku", None], ["Tools", "Read", None]]
+        answer["sections"][2]["rows"][0]["tag"] = "atlas"
         self.view.set(answer)
         self.view.folded.clear()
         found = {}
-        for key in ("rule:" + CLAUDE_MD, "skill:s0", "agent:Claude:Explore", "conflict:allow:Bash(git push:*)"):
+        for key in ("rule:" + CLAUDE_MD, "skill:s0", "subagent:built-in", "conflict:allow:Bash(git push:*)"):
             self.choose(("row", key))
             row = self.view.chosen_row()
             found[key] = [line for kind, line in self.view.properties(row, WIDE) if kind == "property"]
         self.assertEqual(found, {
             "rule:" + CLAUDE_MD: [], "skill:s0": [],
-            "agent:Claude:Explore": [(["From", "Claude", None], 5), (["Tools", "Read", None], 5)],
-            "conflict:allow:Bash(git push:*)": [(["Allow", "Bash(git push:*)", "Personal"], 5),
+            "subagent:built-in": [(["From", "Claude", None], 7), (["Explore", "Haiku · read-only", None], 7)],
+            "conflict:allow:Bash(git push:*)": [(["Allow", "Bash(git push:*)", "Global"], 5),
                                                 (["Deny", "Bash(git push:*)", "Project"], 5)]})
 
     def test_right_and_enter_open_a_section_left_folds_it_or_goes_up_to_it(self):
@@ -453,45 +580,44 @@ class View(unittest.TestCase):
         start = next(n for n, line in enumerate(lines) if "Skills" in line)
         self.assertEqual([line.lstrip("● ").split()[0] for line in lines[start + 1:start + 8]],
                          [f"skill-{n}" for n in range(7)])
-        self.assertEqual((lines[start + 8].split()[-2:], ("more", "skills") in dict(self.view.items())),
-                         (["Connectors", "5"], False))
+        self.assertEqual((lines[start + 8].split()[1], ("more", "skills") in dict(self.view.items())),
+                         ("Permissions", False))
 
     def test_a_conflict_says_its_sentence_under_it_in_yellow(self):
         self.choose(("section", "permissions"))
         self.press("right")
         canvas = self.draw()
         y = self.at(canvas, "Bash(git push:*)")[0]
-        self.assertEqual(text(canvas, y)[4], "●")
-        self.assertEqual(canvas.rows[y][4][1].fg, "modified")
-        self.assertEqual(text(canvas, y + 1).strip(), "deny in Project hides allow in Personal")
+        self.assertEqual((text(canvas, y)[4], canvas.rows[y][4][1].fg), ("●", "modified"))
+        self.assertEqual(text(canvas, y + 1).rstrip(), "        deny in Project hides allow in Global")
         self.assertEqual(self.look(canvas, "deny in Project").fg, "modified")
         self.assertEqual([self.look(canvas, "allow", "Bash(npm test)").fg, self.look(canvas, "ask", "WebSearch").fg],
                          ["added", "modified"])
 
     def test_codexs_approval_is_a_permissions_row_to_read_with_open_alone(self):
         found, path = lumen(), "/home/dev/.codex/config.toml"
-        section = next(one for one in found["sections"] if one["id"] == "permissions")
-        section["rows"].insert(0, A.layer("approval", "shield", "Approval", A.properties(
-            "Approval", lines=[["From", "~/.codex/config.toml", "Personal"]],
-            actions=[A.act("open", "Open config.toml", path)]), note="Ask on request", mark=tag("Personal", "personal"),
-            agents=["codex"]))
+        permissions = next(one for one in found["sections"] if one["id"] == "permissions")
+        permissions["rows"][:2] = [A.layer("approval", "shield", "Approval", A.properties(
+            "Approval", lines=[["From", "~/.codex/config.toml", "Global"]],
+            actions=[A.act("open", "Open config.toml", path)]), note="Ask on request", place="Global",
+            agents=["codex"])]
         self.view.set({**found, "agent": "codex"})
         self.choose(("section", "permissions"))
         self.press("right")
         canvas = self.draw()
         y, x = self.at(canvas, "Approval")
         self.assertLess(y, self.at(canvas, "Bash(git push:*)")[0])              # before the rules, a conflict too
-        self.assertEqual(text(canvas, y).split(), ["Approval", "Ask", "on", "request", "Personal"])
+        self.assertEqual(text(canvas, y).split(), ["Approval", "Ask", "on", "request", "Global"])
         self.assertEqual(text(canvas, y)[4], " ")                               # no mark: nothing is wrong with it
         self.assertEqual((canvas.rows[y][x][1].fg, self.look(canvas, "Ask on request").fg), ("text", "muted"))
-        self.assertEqual(self.look(canvas, "Personal", "Approval").fg, "accent")
+        self.assertEqual(self.look(canvas, "Global", "Approval").fg, "muted")
         # its row says its words and whose it is; under it where it is set, and Open, nothing that changes it
         self.choose(("row", "approval"))
         canvas = self.draw()
         y = self.at(canvas, "Approval")[0]
         self.assertEqual(text(canvas, y + 1).split(), ["From", "~/.codex/config.toml"])
         self.assertEqual(text(canvas, y + 2).split(), ["Open", "config.toml"])
-        self.assertEqual([one["id"] for one in self.view.doable(section["rows"][0])], ["open"])
+        self.assertEqual([one["id"] for one in self.view.doable(permissions["rows"][0])], ["open"])
         self.assertEqual(self.press("enter"), Action("open_setup", (path,)))
 
     def test_a_buttons_press_does_its_action(self):
@@ -511,7 +637,7 @@ class View(unittest.TestCase):
         self.view.handle(Mouse("press", x, y, 0))
         self.assertEqual((self.view.chosen, "rules" in self.view.folded), (("section", "rules"), False))
 
-    def test_a_right_click_on_a_row_offers_its_actions(self):
+    def test_a_right_click_on_a_row_offers_its_actions_the_head_none(self):
         canvas = self.draw()
         y, x = self.at(canvas, "sentry")
         self.view.handle(Mouse("press", x, y, 2))
@@ -519,6 +645,8 @@ class View(unittest.TestCase):
         self.assertEqual(self.press("enter"), Action("retry_server", ("sentry",)))
         y, x = self.at(self.draw(), "Dropbox")
         self.view.handle(Mouse("press", x, y, 2))                               # nothing to do on it: no menu
+        self.assertIsNone(self.view.menu)
+        self.view.handle(Mouse("press", 3, 0, 2))                               # More has the graph
         self.assertIsNone(self.view.menu)
 
     def test_a_problem_chip_chooses_its_row(self):
@@ -532,10 +660,10 @@ class View(unittest.TestCase):
     def test_the_worst_problem_gives_the_tone_red_over_yellow(self):
         self.assertEqual(self.view.tone(), "bad")
         answer = lumen()
-        answer["health"]["problems"] = answer["health"]["problems"][1:]
+        answer["head"]["problems"] = answer["head"]["problems"][1:]
         self.view.set(answer)
         self.assertEqual((self.view.tone(), self.view.problems()), ("warn", ["1 sign in"]))
-        answer["health"]["problems"] = []
+        answer["head"]["problems"] = []
         self.view.set(answer)
         self.assertIsNone(self.view.tone())
 
@@ -549,8 +677,8 @@ class View(unittest.TestCase):
     def test_the_chosen_row_stays_chosen_through_a_new_answer(self):
         self.choose(("row", "connector:claude.ai Google Drive"))
         answer = lumen()
-        connectors = answer["sections"][3]["rows"]
-        connectors.insert(0, connectors.pop(3))                                 # Notion now first
+        rows = answer["sections"][4]["rows"]
+        rows.insert(0, rows.pop(3))                                             # Notion now first
         self.view.set(answer)
         self.assertEqual(self.view.chosen, ("row", "connector:claude.ai Google Drive"))
 
@@ -563,9 +691,10 @@ class View(unittest.TestCase):
         self.assertEqual(lines[1:3], ["", " Codex is not installed"])
 
     def test_at_the_columns_least_every_row_keeps_a_cell_in_from_each_side(self):
+        self.view.folded.clear()
         for cells in (sidebar.column.FEWEST, sidebar.column.NARROWEST, sidebar.column.IDEAL):
             self.choose(("row", "connector:sentry"))
-            canvas = self.draw(cells)
+            canvas = self.draw(cells, rows=60)
             with self.subTest(cells=cells):
                 for y in range(canvas.height):
                     row = text(canvas, y)
@@ -600,27 +729,41 @@ class View(unittest.TestCase):
 
 NOW = 1794571200                # Friday, 13 November 2026, 12:00 UTC
 FIVE, WEEK = NOW + 2 * 3600 + 46 * 60, NOW + 3 * 86400 + 5 * 3600       # 14:46 UTC; Monday, 17:00 UTC
+SHUT = f" {NERD['closed']}  "
 
 
-def reading(agent, five=None, week=None, source="status", at=NOW - 60):
-    """AGENT's limits as core's limits() tells them: FIVE and WEEK each a percent used, or None."""
-    return {"agent": agent, "five_hour": five is not None and {"used": five, "resets": FIVE} or None,
-            "week": week is not None and {"used": week, "resets": WEEK} or None, "at": at, "source": source}
+def reading(agent, five=None, week=None, at=NOW - 60):
+    """AGENT's limits as core's limits() tells them: FIVE and WEEK each a percent used, or None; "–" for one read
+    before something ran."""
+    def window(used, resets):
+        return {"used": None if used == "–" else used, "resets": resets} if used is not None else None
+    return {"agent": agent, "five_hour": window(five, FIVE), "week": window(week, WEEK), "at": at, "source": "status"}
 
 
-def metered(*readings, current="claude", twelve=True, kept=None):
-    """lumen-api with its Usage as the family answers it: core's section(), each reset said in local time; KEPT: the
-    blocks the user opened or folded, as core keeps them."""
-    found = usage.section(list(readings), MACHINE, current, NOW, kept)
-    for row in found["rows"]:
-        if row["resets"]:
-            row["resets"]["said"] = usage.reset_said(row["resets"], twelve)
-    return {**lumen(), "agent": current, "agents": MACHINE, "usage": found}
+def metered(*readings, current="claude", twelve=False, agents=MACHINE):
+    """lumen-api with its Usage as the family answers it: core's section(), whether hours have AM and PM."""
+    return {**lumen(), "agent": current, "agents": agents, "usage": usage.section(list(readings), agents, current, NOW),
+            "twelve": twelve}
+
+
+def month(today=18.4, pace=46.0, budget=50):
+    """Codex's November as core's report tells it (month_of()'s), TODAY spent on the way to PACE."""
+    over = bool(budget) and max(pace, today) > budget
+    return {"agent": "codex", "name": "Codex", "budget": budget, "today": today, "pace": pace, "over": over,
+            "words": {"spent": f"~${today:,.2f}", "of": f"of ${budget}" if budget else "",
+                      "pace": f"on pace for ~${int(pace + 0.5)}"},
+            "level": ("bad" if today >= budget else "warn" if over else "ok") if budget else None,
+            "pace_line": {"text": f"on pace for ~${int(pace + 0.5)} by November 30",
+                          "narrow": f"on pace for ~${int(pace + 0.5)} by Nov 30"} if over else None}
+
+
+KEYED = [machine("claude", "Claude", plan="Max"), machine("codex", "Codex", plan="API key")]
 
 
 class Usage(unittest.TestCase):
-    """Usage, the view's first section, as usage.html's TUI pane and usage-agents.html: the agent in use open, its
-    name and plan, then both windows' bars and percents in their levels' colors; another agent one row, folded."""
+    """Usage, the view's first section, as usage-agents.html's TUI pane: an agent a row, no fold of its own: a plan's
+    windows with their bars and percents in their levels' colors, its reset under it only while yellow or red; an API
+    key's month spent of its budget, its pace under it only when heading over; a chosen row's properties."""
 
     draw, lines, at, look, press, choose = View.draw, View.lines, View.at, View.look, View.press, View.choose
 
@@ -633,401 +776,185 @@ class Usage(unittest.TestCase):
         self.view = layers.Layers(icons=True)
         self.view.set(metered(reading("claude", 72, 16), reading("codex", 8, 3)))
 
-    def test_it_is_the_first_section_open_the_agent_in_use_open_another_one_row(self):
-        lines = self.lines(self.draw())
-        self.assertEqual(lines[2], f" {NERD['open']}  Usage" + "7 days".rjust(WIDE - 1 - 9))    # its period, no count
-        self.assertEqual(lines[3], "    ▾ Claude Max" + "5 hour resets at 2:46 PM".rjust(WIDE - 1 - 16))
-        self.assertEqual(lines[4], "      5h ▰▰▰▰▰▱▱ 72%  wk ▰▱▱▱▱▱▱ 16%")
-        self.assertEqual(lines[5], "    ▸ Codex Plus" + "5h 8%  wk 3%".rjust(WIDE - 1 - 16))
-        self.assertTrue(lines[6].startswith(f" {NERD['closed']}  Rules"), lines[6])
+    def keyed(self, *months, current="claude"):
+        """Claude on its plan, Codex on an API key with MONTHS (its report's)."""
+        self.view.set(metered(reading("claude", 32, 16), current=current, agents=KEYED))
+        self.view.costs = {"months": list(months)}
 
-    def test_a_bar_and_its_percent_wear_the_levels_color_the_labels_and_the_plan_dim(self):
-        self.view.set(metered(reading("claude", 72, 91), reading("codex", 8, 3)))
+    def test_it_is_the_first_section_an_agent_a_row_the_arrow_at_its_heads_right(self):
+        lines = self.lines(self.draw())
+        self.assertEqual(lines[3], OPENED + "Usage" + "↗".rjust(WIDE - 1 - 9))
+        self.assertEqual(lines[4], "      Claude Max" + "5h ▰▰▰▰▱ 72%  wk ▰▱▱▱▱ 16%".rjust(WIDE - 1 - 16))
+        self.assertEqual(lines[5], "        5h resets 14:46")                      # yellow: when it frees up
+        self.assertEqual(lines[6], "      Codex Plus" + "5h ▰▱▱▱▱ 8%  wk ▰▱▱▱▱ 3%".rjust(WIDE - 1 - 16))
+        self.assertEqual(lines[7], SHUT + "Subagents 6")
+
+    def test_a_percent_and_its_bar_wear_its_levels_color_the_labels_and_the_plan_dim(self):
         canvas = self.draw()
-        y = self.at(canvas, "5h ▰")[0]
-        styles = {words: canvas.rows[y][text(canvas, y).index(words)][1]
-                  for words in ("5h", "▰▰▰▰▰▱▱", "72%", "wk", "▰▰▰▰▰▰▱", "91%")}
-        self.assertEqual(styles, {"5h": Style(fg="muted"), "▰▰▰▰▰▱▱": Style(fg="modified"),
-                                  "72%": Style(fg="modified"), "wk": Style(fg="muted"),
-                                  "▰▰▰▰▰▰▱": Style(fg="deleted"), "91%": Style(fg="deleted")})
-        self.assertEqual([self.look(canvas, words) for words in ("▾", "Claude", "Max", "5 hour resets")],
-                         [Style(fg="muted"), Style(fg="text", bold=True), Style(fg="muted"), Style(fg="muted")])
+        self.assertEqual([self.look(canvas, words) for words in ("Claude", "Max", "5h ▰", "▰▰▰▰▱ 72%", "wk ▰",
+                                                                  "▰▱▱▱▱ 16%", "5h resets")],
+                         [Style(fg="text", bold=True), Style(fg="muted"), Style(fg="muted"), Style(fg="modified"),
+                          Style(fg="muted"), Style(fg="added"), Style(fg="muted")])
+        self.view.set(metered(reading("claude", 91, 16)))
+        self.assertEqual(self.look(self.draw(), "91%").fg, "deleted")
 
-    def test_a_folded_rows_figures_wear_the_levels_colors_the_labels_dim_no_other_mark(self):
-        self.view.set(metered(reading("claude", 72, 16), reading("codex", 55, 91)))
+    def test_the_reset_shows_only_while_a_window_is_yellow_or_red_its_hours_as_the_machine_writes_them(self):
+        self.view.set(metered(reading("claude", 32, 16)))
+        self.assertNotIn("resets", "\n".join(self.lines(self.draw())))
+        self.view.set(metered(reading("claude", 72, 16), twelve=True))
+        self.assertIn("        5h resets 2:46 PM", self.lines(self.draw()))
+
+    def test_a_window_just_reset_is_0_one_used_since_with_no_reading_a_dash(self):
+        self.view.set(metered(reading("claude", 0, "–")))
         canvas = self.draw()
-        self.assertEqual([self.look(canvas, words, row="Codex") for words in ("5h", "55%", "wk", "91%")],
-                         [Style(fg="muted"), Style(fg="modified"), Style(fg="muted"), Style(fg="deleted")])
-        self.assertEqual(self.look(canvas, "▸"), Style(fg="muted"))
-        self.assertEqual(self.lines(canvas)[5], "    ▸ Codex Plus" + "5h 55%  wk 91%".rjust(WIDE - 1 - 16))
+        self.assertTrue(text(canvas, 4).rstrip().endswith("5h ▱▱▱▱▱ 0%  wk ▱▱▱▱▱ –"), text(canvas, 4))
+        self.assertEqual((self.look(canvas, "0%").fg, self.look(canvas, "–").fg), ("added", "muted"))
 
-    def test_a_bar_fills_by_its_percent_never_empty_with_some_used_full_only_at_all(self):
-        self.assertEqual([layers.bar(used) for used in (0, 1, 8, 16, 50, 72, 96, 99, 100, 140)],
-                         ["▱▱▱▱▱▱▱", "▰▱▱▱▱▱▱", "▰▱▱▱▱▱▱", "▰▱▱▱▱▱▱", "▰▰▰▰▱▱▱", "▰▰▰▰▰▱▱", "▰▰▰▰▰▰▱", "▰▰▰▰▰▰▱",
-                          "▰▰▰▰▰▰▰", "▰▰▰▰▰▰▰"])
+    def test_a_narrow_pane_drops_the_bars_then_the_looser_window(self):
+        narrow, narrower = self.lines(self.draw(sidebar.column.FEWEST))[4], self.lines(self.draw(30))[4]
+        self.assertEqual(narrow, "      Claude Max" + "5h 72%  wk 16%".rjust(sidebar.column.FEWEST - 1 - 16))
+        self.assertEqual(narrower, "      Claude Max" + "5h 72%".rjust(30 - 1 - 16))
 
-    def test_a_window_past_its_reset_leaves_its_place_empty_the_other_keeps_its_column(self):
-        self.view.set(metered(reading("claude", None, 16), reading("codex", 100, None), kept={"codex": True}))
-        lines = self.lines(self.draw())
-        self.assertEqual(lines[3], "    ▾ Claude Max" + "Week resets Mon at 5:00 PM".rjust(WIDE - 1 - 16))
-        self.assertEqual(lines[4], "                      wk ▰▱▱▱▱▱▱ 16%")
-        self.assertEqual(lines[5], "    ▾ Codex Plus" + "5 hour resets at 2:46 PM".rjust(WIDE - 1 - 16))
-        self.assertEqual(lines[6], "      5h ▰▰▰▰▰▰▰100%")
-        self.view.set(metered(reading("claude", None, 16), reading("codex", 100, None)))
-        self.assertEqual(self.lines(self.draw())[5], "    ▸ Codex Plus" + "5h 100%".rjust(WIDE - 1 - 16))
-
-    def test_hours_as_the_machine_writes_them(self):
-        self.view.set(metered(reading("claude", 72, 16), twelve=False))
-        self.assertTrue(self.lines(self.draw())[3].endswith("5 hour resets at 14:46"))
-
-    def test_claudes_own_cache_says_its_age_before_the_reset_and_keeps_it_where_only_one_fits(self):
-        self.view.set(metered(reading("codex", 8, 3), reading("claude", 72, 16, source="claude", at=NOW - 43 * 60),
-                              current="codex", kept={"claude": True}))
-        lines = self.lines(self.draw())
-        self.assertEqual(lines[3], "    ▾ Codex Plus" + "5 hour resets at 2:46 PM".rjust(WIDE - 1 - 16))
-        self.assertEqual(lines[5], "    ▾ Claude Max" + "as of 43 min ago".rjust(WIDE - 1 - 16))
-        self.view.set(metered(reading("claude", 72, 16, source="claude", at=NOW - 43 * 60)))
-        self.assertTrue(self.lines(self.draw(70))[3].endswith("  as of 43 min ago  5 hour resets at 2:46 PM"))
-        self.assertEqual(self.lines(self.draw(48))[3], "    ▾ Claude Max" + "as of 43 min ago".rjust(48 - 1 - 16))
-        self.assertEqual(self.lines(self.draw(30))[3], "    ▾ Claude Max")      # no room: the name
-
-    def test_a_narrow_pane_keeps_the_percents_and_drops_the_bars_a_folded_row_its_tightest(self):
-        lines = self.lines(self.draw(34))
-        self.assertEqual(lines[4], "      5h  72%  wk  16%")
-        self.assertEqual(lines[5], "    ▸ Codex Plus" + "5h 8%  wk 3%".rjust(33 - 16))
-        self.assertTrue(all(len(line) <= 33 for line in lines))
-        self.assertEqual(self.lines(self.draw(30))[5], "    ▸ Codex Plus" + "5h 8%".rjust(29 - 16))
-        self.assertEqual(self.lines(self.draw(22))[5], "    ▸ Codex Plus")
-
-    def test_every_agent_is_a_row_of_its_own_and_none_waits_under_more(self):
-        five = [reading(agent, 8, 3) for agent in ("claude", "codex", "gemini", "amp", "aider")]
-        self.view.set(metered(*five))
-        lines = self.lines(self.draw())
-        self.assertEqual([line[:16] for line in lines[3:9]],
-                         ["    ▾ Claude Max", "      5h ▰▱▱▱▱▱▱", "    ▸ Codex Plus", "    ▸ Gemini CLI",
-                          "    ▸ amp" + " " * 7, "    ▸ Aider" + " " * 5])
-        self.assertTrue(lines[9].startswith(f" {NERD['closed']}  Rules"), lines[9])
-        self.assertTrue(all(line.endswith("5h 8%  wk 3%") for line in lines[5:9]), lines[5:9])
-        self.assertEqual([key for key, _ in self.view.items()][1:7],
-                         [("section", "usage"), ("usage", "claude"), ("usage", "codex"), ("usage", "gemini"),
-                          ("usage", "amp"), ("usage", "aider")])
-
-    def test_with_no_reading_it_says_not_known_yet(self):
-        self.view.set(metered())
+    def test_an_api_key_is_its_month_spent_of_its_budget_in_its_levels_color(self):
+        self.keyed(month())
         canvas = self.draw()
-        self.assertEqual(self.lines(canvas)[3], "      Not known yet")
-        self.assertEqual(self.look(canvas, "Not known yet"), Style(fg="muted"))
+        lines = self.lines(canvas)
+        self.assertEqual(lines[4:6], ["      Claude Max" + "5h ▰▰▱▱▱ 32%  wk ▰▱▱▱▱ 16%".rjust(WIDE - 1 - 16),
+                                      "      Codex API key" + "~$18.40 of $50".rjust(WIDE - 1 - 19)])
+        self.assertEqual((self.look(canvas, "~$18.40").fg, self.look(canvas, "of $50").fg), ("added", "muted"))
+        self.assertTrue(lines[6].startswith(SHUT + "Subagents"))              # no pace: not heading over
+        self.keyed(month(budget=None))
+        self.assertEqual(self.lines(self.draw())[5], "      Codex API key" + "~$18.40".rjust(WIDE - 1 - 19))
 
-    def test_the_keys_walk_its_head_and_agents_and_fold_it_kept_as_the_others(self):
-        keys = [key for key, _ in self.view.items()]
-        self.assertEqual(keys[:5], [layers.HEAD, ("section", "usage"), ("usage", "claude"), ("usage", "codex"),
-                                    ("section", "rules")])
-        self.choose(("section", "usage"))
-        self.assertIsNone(self.press("right"))                                  # open: on to its first agent
-        self.assertEqual(self.view.chosen, ("usage", "claude"))
-        self.choose(("section", "usage"))
-        action = self.press("left")                                             # Enter is its view's (Costs)
-        self.assertEqual(action, Action("remember_agent_folded", (sorted(self.view.folded),)))
-        self.assertIn("usage", self.view.folded)
-        self.assertEqual([key for key, _ in self.view.items()][2], ("section", "rules"))
+    def test_heading_over_its_figure_turns_yellow_and_its_pace_shows_under_it_narrow_with_nov(self):
+        self.keyed(month(45.1, 58.0))
+        canvas = self.draw()
+        self.assertEqual(self.lines(canvas)[6], "        on pace for ~$58 by November 30")
+        self.assertEqual((self.look(canvas, "~$45.10").fg, self.look(canvas, "on pace").fg), ("modified", "modified"))
+        self.assertEqual(self.lines(self.draw(36))[6], "        on pace for ~$58 by Nov 30")
+        self.keyed(month(51.0, 58.0))
+        self.assertEqual(self.look(self.draw(), "~$51.00").fg, "deleted")                # spent: red
+
+    def test_the_agent_in_use_on_an_api_key_is_first(self):
+        self.keyed(month(), current="codex")
         lines = self.lines(self.draw())
-        self.assertEqual(lines[3][:9], f" {NERD['closed']}  Rules")
+        self.assertTrue(lines[4].startswith("      Codex API key"), lines[4])
+        self.assertTrue(lines[5].startswith("      Claude Max"), lines[5])
 
-    def test_enter_or_right_opens_an_agent_left_folds_it_then_goes_up_kept_for_both_clients(self):
+    def test_a_chosen_row_shows_its_resets_and_its_readings_age_and_open_usage(self):
+        self.choose(("usage", "claude"))
+        canvas = self.draw()
+        self.assertEqual(self.lines(canvas)[5:9], ["        5h    resets 14:46", "        Week  resets Mon 17:00",
+                                                   "        Read  1 min ago", "         Open Usage"])
+        self.assertEqual(self.look(canvas, "Open Usage").bg, "input")
+        self.assertEqual(self.press("enter"), Action("open_usage", ()))
+        y, x = self.at(canvas, "Open Usage")
+        self.assertEqual(self.view.handle(Mouse("press", x, y, 0)), Action("open_usage", ()))
+        self.keyed(month())
         self.choose(("usage", "codex"))
-        self.assertEqual(self.press("right"), Action("usage_open", ("codex", True)))
-        self.assertEqual(self.lines(self.draw())[5:7], ["    ▾ Codex Plus" + "5 hour resets at 2:46 PM".rjust(
-            WIDE - 1 - 16), "      5h ▰▱▱▱▱▱▱  8%  wk ▰▱▱▱▱▱▱  3%"])
-        self.assertIsNone(self.press("right"))                                  # open already: stays
-        self.assertEqual(self.press("left"), Action("usage_open", ("codex", False)))
-        self.assertIsNone(self.press("left"))                                   # folded: up to its section
-        self.assertEqual(self.view.chosen, ("section", "usage"))
-        self.choose(("usage", "claude"))
-        self.assertEqual(self.press("enter"), Action("usage_open", ("claude", False)))
-        self.assertEqual(self.lines(self.draw())[3], "    ▸ Claude Max" + "5h 72%  wk 16%".rjust(WIDE - 1 - 16))
-        self.assertEqual(self.press("enter"), Action("usage_open", ("claude", True)))
+        self.assertEqual(self.lines(self.draw())[6], "         Open Usage")    # its figures say the rest
 
-    def test_a_press_on_an_agents_row_opens_or_folds_it_lit_under_the_mouse(self):
+    def test_a_press_on_a_row_chooses_it_lit_under_the_mouse(self):
         canvas = self.draw()
-        y, x = self.at(canvas, "Codex")
-        self.assertEqual(self.view.handle(Mouse("press", x, y, 0)), Action("usage_open", ("codex", True)))
+        self.assertIsNone(self.view.handle(Mouse("press", 8, 6, 0)))
         self.assertEqual(self.view.chosen, ("usage", "codex"))
-        self.assertEqual(self.draw().rows[y][0][1].bg, "selection")
-        self.assertEqual(self.view.handle(Mouse("press", x, y, 0)), Action("usage_open", ("codex", False)))
+        self.view.handle(Mouse("move", 8, 4, 0))
+        self.assertEqual(self.draw().rows[4][0][1].bg, "hover")
+        self.assertEqual(canvas.rows[4][WIDE - 1][1].bg, None)
 
-    def test_the_blocks_are_as_core_keeps_them_a_turn_shown_at_once_till_core_tells_it(self):
-        self.view.set(metered(reading("claude", 72, 16), reading("codex", 8, 3), kept={"claude": False,
-                                                                                         "codex": True}))
-        lines = self.lines(self.draw())
-        self.assertEqual((lines[3][:16], lines[4][:16]), ("    ▸ Claude Max", "    ▾ Codex Plus"))
-        self.choose(("usage", "claude"))
-        self.press("enter")
-        stale = metered(reading("claude", 72, 16), reading("codex", 8, 3), kept={"claude": False, "codex": True})
-        self.view.set(stale)                                                    # read before the change was kept
-        self.assertEqual(self.lines(self.draw())[3][:16], "    ▾ Claude Max")
-        self.view.set(metered(reading("claude", 72, 16), reading("codex", 8, 3), kept={"claude": True}))
-        self.assertEqual(self.view.opened, {})                                  # core tells it now
-        self.view.set(metered(reading("claude", 72, 16), reading("codex", 8, 3), kept={"claude": False}))
-        self.assertEqual(self.lines(self.draw())[3][:16], "    ▸ Claude Max")   # another client folded it
-
-    def test_folded_whole_its_head_shows_the_agent_in_uses_tightest_figure_open_none(self):
-        self.choose(("section", "usage"))
-        self.press("left")
-        self.press("home")                                                      # the head's band off its row
-        canvas = self.draw()
-        self.assertEqual(self.lines(canvas)[2], f" {NERD['closed']}  Usage" + "Claude 5h 72%".rjust(WIDE - 1 - 9))
-        self.assertEqual([self.look(canvas, words) for words in ("Claude 5h", "72%")],
-                         [Style(fg="muted"), Style(fg="modified")])
-        self.assertEqual(self.press("p"), Action("usage_period", ("30d",)))    # its period steps, unseen
-        self.assertTrue(self.lines(self.draw())[2].endswith("Claude 5h 72%"))
-        self.view.set(metered(reading("claude", 12, 64), reading("codex", 8, 3)))
-        self.assertTrue(self.lines(self.draw())[2].endswith("Claude wk 64%"))  # the tighter window
-
-    def test_folded_whole_another_agent_stands_there_when_yellow_or_red_and_worse(self):
+    def test_folded_its_head_shows_the_tightest_figure_of_the_agent_in_use_then_the_arrow(self):
         self.view.folded.add("usage")
-        for claude, codex, shown in ((40, 8, "Codex 5h 8%"), (72, 8, "Claude 5h 72%"), (72, 60, "Claude 5h 72%"),
-                                     (91, 60, "Claude 5h 91%"), (40, 50, "Codex 5h 50%"), (60, 60, "Codex 5h 60%")):
-            self.view.set(metered(reading("claude", claude, 3), reading("codex", codex, 3), current="codex"))
-            self.assertTrue(self.lines(self.draw())[2].endswith(shown), (claude, codex, self.lines(self.draw())[2]))
-        self.view.set(metered(current="codex"))
-        self.assertEqual(self.lines(self.draw())[2], f" {NERD['closed']}  Usage")      # nothing known: no figure
+        self.view.chosen = layers.HEAD
+        canvas = self.draw()
+        self.assertEqual(self.lines(canvas)[3], SHUT + "Usage" + "Claude 5h 72%  ↗".rjust(WIDE - 1 - 9))
+        self.assertEqual([self.look(canvas, words) for words in ("Claude 5h", "72%", "↗")],
+                         [Style(fg="muted"), Style(fg="modified"), Style(fg="muted")])
+        self.assertEqual(self.lines(canvas)[4], SHUT + "Subagents 6")
+
+    def test_folded_another_agent_stands_there_when_yellow_or_red_and_worse(self):
+        self.keyed(month(45.1, 58.0))
+        self.view.folded.add("usage")
+        canvas = self.draw()
+        self.assertTrue(self.lines(canvas)[3].endswith("Codex ~$45.10  ↗"), self.lines(canvas)[3])
+        self.assertEqual(self.look(canvas, "~$45.10").fg, "modified")
+
+    def test_enter_and_a_click_fold_its_head_the_arrow_and_u_open_the_usage_view(self):
+        self.choose(("section", "usage"))
+        self.assertEqual(self.press("enter"), Action("remember_agent_folded", (sorted(self.view.folded),)))
+        self.assertIn("usage", self.view.folded)
+        canvas = self.draw()
+        y, x = self.at(canvas, "Usage")
+        self.view.handle(Mouse("press", x, y, 0))
+        self.assertNotIn("usage", self.view.folded)
+        canvas = self.draw()
+        y, x = self.at(canvas, "↗")
+        self.assertEqual(self.view.handle(Mouse("press", x, y, 0)), Action("open_usage", ()))
+        self.assertEqual(self.press("U"), Action("open_usage", ()))
+        self.assertIsNone(self.press("u"))                                      # Undo's alone: no second key
+        self.assertIsNone(self.press("p"))                                      # no period of its own
+
+    def test_the_keys_walk_its_head_and_agents_left_goes_up_to_its_head(self):
+        self.press("home")
+        self.press("down")
+        self.assertEqual(self.view.chosen, layers.MODEL)                        # the head's line: the model's form
+        self.press("down")
+        self.assertEqual(self.view.chosen, ("section", "usage"))
+        self.press("down")
+        self.assertEqual(self.view.chosen, ("usage", "claude"))
+        self.assertIsNone(self.press("right"))
+        self.press("left")
+        self.assertEqual(self.view.chosen, ("section", "usage"))
+
+    def test_with_no_reading_and_no_agent_told_it_says_not_known_yet(self):
+        self.view.set(metered(agents=[]))
+        lines = self.lines(self.draw())
+        self.assertEqual(lines[3:5], [OPENED + "Usage" + "↗".rjust(WIDE - 1 - 9), "      Not known yet"])
+
+    def test_the_agent_shown_with_no_reading_says_limits_not_told_and_why_when_chosen(self):
+        self.view.set(metered(reading("claude", 72, 16), current="codex"))
+        canvas = self.draw()
+        lines = self.lines(canvas)
+        self.assertEqual(lines[4], "      Codex Plus" + "limits not told".rjust(WIDE - 1 - 16))
+        self.assertEqual(self.look(canvas, "limits not told").fg, "muted")
+        self.assertTrue(lines[5].startswith("      Claude Max"), lines[5])
+        self.assertEqual(lines[3], OPENED + "Usage" + "↗".rjust(WIDE - 1 - 9))  # folded or not: no figure of its own
+        self.choose(("usage", "codex"))
+        lines = self.lines(self.draw(44))
+        self.assertEqual(lines[5:8], ["        Codex tells its limits in a chat's",
+                                      "        token counts: none of its newest", "        chats holds one yet."])
+        self.assertEqual(lines[8], "         Open Usage")
 
     def test_an_answer_without_it_draws_no_usage(self):
         self.view.set(lumen())
         self.assertNotIn("Usage", "\n".join(self.lines(self.draw())))
-
-
-OPUS, SONNET, CODEX = "#3987e5", "#d95926", "#c98500"
-DAYS = (16.75, 29.3, 12.6, 25.1, 33.5, 8.4, 16.75)      # usage.html's row of blocks: ▄▇▃▆█▂▄
-
-
-def month(today=18.4, pace=46.0, budget=50):
-    """Codex's November as core's report tells it (month_of()'s), TODAY spent on the way to PACE."""
-    over = bool(budget) and max(pace, today) > budget
-    return {"agent": "codex", "name": "Codex", "key": "Codex · API key", "id": "2026-11", "label": "November",
-            "budget": budget, "days": 30, "day": 12, "today": today, "pace": pace, "over": over,
-            "words": {"spent": f"~${today:,.2f}", "of": f"of ${budget}" if budget else "",
-                      "pace": f"on pace for ~${int(pace + 0.5)}"},
-            "level": ("warn" if over else "ok") if budget else None, "end": "Nov 30", "color": CODEX}
-
-
-def reported(months=None, projects=None, none=None, days=DAYS, claude=130.9):
-    """A week as core's report() tells it, the parts Usage draws: usage.html's TUI sidebar pane's figures."""
-    months = [month()] if months is None else months
-    daily = [{"day": f"2026-11-{n + 3:02d}", "label": f"Nov {n + 3}", "total": cost, "models": [
-        {"model": "claude-opus-5-5", "name": "Opus 5.5", "color": OPUS, "cost": cost * (0.2 if n == 3 else 0.8)},
-        {"model": "claude-sonnet-5-5", "name": "Sonnet 5.5", "color": SONNET, "cost": cost * (0.8 if n == 3 else 0.2)}]
-              if cost else []} for n, cost in enumerate(days)]
-    project = [("lumen-api", 84.2, 5, False), ("harbor-web", 41.1, 2, False), ("tidepool", 14.2, 0, False)]
-    return {"period": {"id": "7d", "label": "7 days"}, "prices_as_of": "Nov 9, 2026", "none": none,
-            "summary": [{"key": "Claude · Max plan", "agent": "claude", "value": claude,
-                         "text": "no price" if claude is None else f"~${claude:,.2f}", "unit": "API value", "line": "",
-                         "over": False}]
-            + [{"key": "Codex · API key", "agent": "codex", "value": 8.6, "text": "~$8.60", "unit": "spent",
-                "line": "", "over": one["over"]} for one in months]
-            + [{"key": "Tokens", "value": 38200000, "text": "38.2M", "line": "81% read from cache"}],
-            "daily": daily, "months": months, "month": months[0] if months else None,
-            "projects": [{"folder": f"/work/{name}", "name": name, "cost": cost, "tokens": 1000, "commits": commits,
-                          "about": about, "commits_text": f"{'about ' * about}{commits}" if commits else "none yet"}
-                         for name, cost, commits, about in (project if projects is None else projects)]}
-
-
-class Costs(unittest.TestCase):
-    """Usage with what the agents cost, as usage.html's TUI sidebar pane: each agent's figure at its name's right, an
-    API-key agent's month under it, the days as a row of blocks, the projects, the cache's share and the prices'
-    day; its period stepped on its head, Enter there for the Usage view."""
-
-    draw, lines, at, look, press, choose = View.draw, View.lines, View.at, View.look, View.press, View.choose
-    setUp = Usage.setUp
-
-    def cost(self, report=None, left=False, kept=None):
-        keyed = [machine("codex", "Codex", plan="API key") if one["key"] == "codex" else one for one in MACHINE]
-        self.view.set({**metered(reading("claude", 72, 16), kept=kept), "agents": keyed})
-        self.view.costs, self.view.reading = reported() if report is None else report, left
-
-    def test_the_section_as_the_mockup_draws_it(self):
-        self.cost()
-        lines, edge = self.lines(self.draw()), WIDE - 1
-        self.assertEqual(lines[2], f" {NERD['open']}  Usage" + "7 days".rjust(edge - 9))
-        self.assertEqual(lines[3], "    ▾ Claude Max" + "~$130.90 API value".rjust(edge - 16))
-        self.assertEqual(lines[4], "      5h ▰▰▰▰▰▱▱ 72%  wk ▰▱▱▱▱▱▱ 16%")
-        self.assertEqual(lines[5], "    ▸ Codex API key" + "~$18.40 of $50".rjust(edge - 19))
-        self.assertEqual(lines[6:9], ["", "      per day", "      ▄▇▃▆█▂▄  Nov 3 – 9"])
-        self.assertEqual(lines[9:13], ["", "      lumen-api" + "~$84.20  5 commits".rjust(edge - 15),
-                                       "      harbor-web" + "~$41.10  2 commits".rjust(edge - 16),
-                                       "      tidepool" + "~$14.20  none yet".rjust(edge - 15)])
-        self.assertEqual(lines[13:15], ["", "      81% read from cache · prices Nov 9"])
-        self.assertTrue(lines[15].startswith(f" {NERD['closed']}  Rules"), lines[15])
-        self.cost(kept={"codex": True})                                         # opened: its month under it
-        lines = self.lines(self.draw())
-        self.assertEqual(lines[5:7], ["    ▾ Codex API key" + "~$18.40 of $50".rjust(edge - 19),
-                                      "      Nov ▰▰▰▱▱▱▱  on pace for ~$46"])
-
-    def test_an_agent_on_an_api_key_in_use_is_first_and_open(self):
-        keyed = [machine("codex", "Codex", plan="API key") if one["key"] == "codex" else one for one in MACHINE]
-        self.view.set({**metered(reading("claude", 72, 16), current="codex"), "agents": keyed})
-        self.view.costs = reported()
-        lines = self.lines(self.draw())
-        self.assertEqual(lines[3:6], ["    ▾ Codex API key" + "~$18.40 of $50".rjust(WIDE - 1 - 19),
-                                      "      Nov ▰▰▰▱▱▱▱  on pace for ~$46",
-                                      "    ▸ Claude Max" + "5h 72%  wk 16%".rjust(WIDE - 1 - 16)])
-        self.assertEqual([key for key, _ in self.view.items()][2:4], [("usage", "codex"), ("usage", "claude")])
-
-    def test_only_the_figures_and_names_are_lit_the_rest_dim_the_blocks_in_their_models_colors(self):
-        self.cost(kept={"codex": True})
-        self.view.choose(layers.HEAD)
-        canvas = self.draw()
-        self.assertEqual([self.look(canvas, words) for words in (
-            "7 days", "~$130.90", "API value", "API key", "~$18.40", "of $50", "Nov ", "▰▰▰▱▱▱▱", "on pace", "per day",
-            "Nov 3", "harbor-web", "~$41.10", "2 commits", "81% read")],
-            [Style(fg="muted"), Style(fg="text"), Style(fg="muted"), Style(fg="muted"), Style(fg="text"),
-             Style(fg="muted"), Style(fg="muted"), Style(fg="added"), Style(fg="muted"), Style(fg="muted"),
-             Style(fg="muted"), Style(fg="text"), Style(fg="text"), Style(fg="muted"), Style(fg="muted")])
-        y, x = self.at(canvas, "▄▇▃▆█▂▄")
-        self.assertEqual([canvas.rows[y][x + n][1] for n in range(7)],
-                         [Style(fg=OPUS)] * 3 + [Style(fg=SONNET)] + [Style(fg=OPUS)] * 3)     # each day's largest
-
-    def test_a_folded_api_keys_figure_is_green_yellow_once_over_its_budget_no_budget_plain(self):
-        for one, role in ((month(), "added"), (month(45.1, 58.0), "modified"), (month(budget=None), "text")):
-            self.cost(reported([one]))
-            canvas = self.draw()
-            self.assertEqual(self.look(canvas, one["words"]["spent"], row="Codex"), Style(fg=role), one)
-        self.assertEqual(self.lines(canvas)[5], "    ▸ Codex API key" + "~$18.40".rjust(WIDE - 1 - 19))
-
-    def test_a_month_over_its_pace_turns_its_bar_and_pace_yellow(self):
-        self.cost(reported([month(45.1, 58.0)]), kept={"codex": True})
-        canvas = self.draw()
-        lines = self.lines(canvas)
-        self.assertEqual(lines[5], "    ▾ Codex API key" + "~$45.10 of $50".rjust(WIDE - 1 - 19))
-        self.assertEqual(lines[6], "      Nov ▰▰▰▰▰▰▱  on pace for ~$58")
-        self.assertEqual([self.look(canvas, words) for words in ("▰▰▰▰▰▰▱", "on pace for ~$58", "~$45.10")],
-                         [Style(fg="modified"), Style(fg="modified"), Style(fg="text")])
-
-    def test_a_month_with_no_budget_says_spent_and_draws_no_bar(self):
-        self.cost(reported([month(budget=None)]), kept={"codex": True})
-        lines = self.lines(self.draw())
-        self.assertEqual(lines[5:7], ["    ▾ Codex API key" + "~$18.40 spent".rjust(WIDE - 1 - 19),
-                                      "      Nov  on pace for ~$46"])
-
-    def test_an_agent_with_no_price_keeps_its_reset_and_is_never_zero(self):
-        self.cost(reported([], claude=None))
-        lines = self.lines(self.draw())
-        self.assertEqual(lines[3], "    ▾ Claude Max" + "5 hour resets at 2:46 PM".rjust(WIDE - 1 - 16))
-        self.assertNotIn("$0", "\n".join(lines))
-
-    def test_a_wide_pane_keeps_the_reset_after_the_bars(self):
-        self.cost()
-        lines = self.lines(self.draw(80))
-        self.assertEqual(lines[4], "      5h ▰▰▰▰▰▱▱ 72%  wk ▰▱▱▱▱▱▱ 16%" + "5 hour resets at 2:46 PM".rjust(79 - 36))
-
-    def test_a_narrow_pane_drops_the_figures_word_then_the_commits_and_the_bar(self):
-        self.cost()
-        lines = self.lines(self.draw(34))
-        self.assertEqual(lines[3], "    ▾ Claude Max" + "~$130.90".rjust(33 - 16))
-        self.assertEqual(lines[5], "    ▸ Codex API key" + "~$18.40".rjust(33 - 19))
-        self.assertEqual(lines[10], "      lumen-api" + "~$84.20".rjust(33 - 15))
-        self.assertTrue(all(len(line) <= 33 for line in lines), lines)
-        self.cost(kept={"codex": True})
-        lines = self.lines(self.draw(34))
-        self.assertEqual(lines[5:7], ["    ▾ Codex API key" + "~$18.40".rjust(33 - 19), "      Nov  on pace for ~$46"])
-
-    def test_commits_say_about_one_and_not_known(self):
-        self.cost(reported(projects=[("lumen-api", 84.2, 2, True), ("harbor-web", 41.1, 1, False),
-                                     ("tidepool", None, 0, False)]))
-        lines = self.lines(self.draw())
-        self.assertEqual(lines[10:13], ["      lumen-api" + "~$84.20  about 2 commits".rjust(WIDE - 1 - 15),
-                                        "      harbor-web" + "~$41.10  1 commit".rjust(WIDE - 1 - 16 - 7),
-                                        "      tidepool" + "no price  none yet".rjust(WIDE - 1 - 14 - 7)])
-        self.assertEqual(layers.commits_said({"commits": None, "commits_text": "–"}), "–")
-
-    def test_the_days_they_span_and_a_day_with_no_cost(self):
-        self.assertEqual(layers.days_said([{"label": "Oct 28"}, {"label": "Nov 3"}]), "Oct 28 – Nov 3")
-        self.assertEqual(layers.days_said([{"label": "Nov 9"}]), "Nov 9")
-        daily = reported(days=(0, 0.2, 33.5))["daily"]
-        self.assertEqual([block for block, _ in layers.spark(daily, 30)], [" ", "▁", "█"])
-        self.assertEqual([block for block, _ in layers.spark(daily, 2)], ["▁", "█"])        # the last that fit
-
-    def test_a_narrow_pane_names_the_days_it_draws(self):
-        self.cost(reported(days=(1.0,) * 20))                  # Nov 3 to 22: 30 cells have no room for twenty blocks
-        lines = self.lines(self.draw(30))
-        self.assertIn("      " + "█" * 10 + "  Nov 13 – 22", lines)
-        self.assertIn("      " + "█" * 20 + "  Nov 3 – 22", self.lines(self.draw()))
-
-    def test_nothing_used_says_so_and_conversations_still_read_say_that(self):
-        self.cost(reported([], none="Nothing used in this period", claude=None, projects=[], days=(0,) * 7))
-        lines = self.lines(self.draw())
-        self.assertEqual(lines[5], "      Nothing used in this period")
-        self.assertTrue(lines[6].startswith(f" {NERD['closed']}  Rules"), lines[6])
-        self.view.reading = True
-        self.assertEqual(self.lines(self.draw())[5], "      Reading the conversations…")
-        self.cost(left=True)
-        self.assertEqual(self.lines(self.draw())[14], "      Reading the conversations…")
-
-    def test_before_the_report_it_is_the_limits_alone(self):
-        self.cost()
-        self.view.costs = None
-        lines = self.lines(self.draw())
-        self.assertEqual(lines[3], "    ▾ Claude Max" + "5 hour resets at 2:46 PM".rjust(WIDE - 1 - 16))
-        self.assertTrue(lines[5].startswith(f" {NERD['closed']}  Rules"), lines[5])
-
-    def test_p_and_a_press_on_the_period_step_it_round_and_ask_for_its_costs(self):
-        self.cost()
-        self.assertEqual(self.press("p"), Action("usage_period", ("30d",)))
-        self.assertTrue(self.lines(self.draw())[2].endswith("30 days"))
-        canvas = self.draw()
-        y, x = self.at(canvas, "30 days")
-        self.assertEqual(self.view.handle(Mouse("press", x + 1, y, 0)), Action("usage_period", ("month",)))
-        self.assertTrue(self.lines(self.draw())[2].endswith(time.strftime("%b")))
-        self.assertEqual(self.view.handle(Key("char", "p")), Action("usage_period", ("7d",)))
-        self.assertNotIn("usage", self.view.folded)                             # the press did not fold it
-
-    def test_enter_on_its_head_opens_the_usage_view_a_press_folds_it_a_right_click_offers_the_view(self):
-        self.cost()
-        self.choose(("section", "usage"))
-        self.assertEqual(self.press("enter"), Action("open_usage", ("7d",)))
-        canvas = self.draw()
-        y, x = self.at(canvas, "Usage")
-        self.assertEqual(self.view.handle(Mouse("press", x, y, 2)), None)
-        self.assertEqual(self.view.menu.menu.choices, ["Open Usage"])
-        self.assertEqual(self.view.handle(Key("enter")), Action("open_usage", ("7d",)))
-        folded = self.view.handle(Mouse("press", x, y, 0))
-        self.assertEqual((folded.name, "usage" in self.view.folded), ("remember_agent_folded", True))
-
-    def test_its_period_is_handed_over(self):
-        self.cost()
-        self.view.handle(Key("char", "p"))
-        other = layers.Layers()
-        other.take(json.loads(json.dumps(self.view.kept())))
-        self.assertEqual(other.period, "30d")
-        other.take({"period": "today"})                                         # not one its head steps through
-        self.assertEqual(other.period, "30d")
+        self.assertIsNone(self.press("U"))
 
 
 def wired(ran=False):
     """lumen-api's graph as agent-graph.html draws it, in core's shape (graph.py's node() and edge()); RAN: with what
-    usage.html's conversation ran laid in, as core's run() does."""
-    G, tagged = graph, lambda text_: {"tag": tag(text_, "muted")}
+    usage.html's chat ran laid in, as core's run() does."""
+    G, tagged = graph, lambda text_: {"tag": text_}
     made = [
-        G.node("rule:p", "in", "rule", "CLAUDE.md", "always · 2.4k", tagged("Personal")),
+        G.node("rule:p", "in", "rule", "~/.claude/CLAUDE.md", "always · 2.4k", tagged("Global")),
         G.node("rule:l", "in", "rule", "CLAUDE.md", "always · 1.8k", tagged("Project")),
         G.node("rule:a", "in", "rule", "api.md", "when src/lumen/** is read", tagged("Project")),
-        G.node("skill:api", "in", "skill", "api-routes", "skill · when routes change", tagged("Project")),
-        G.node("skills:more", "in", "skills", "15 more skills", "on demand · 3.7k"),
-        G.node("agent", "agents", "agent", "Claude", "Opus 5.5 · Extra high · Manual"),
-        G.node("agent:rev", "agents", "sub", "code-reviewer", "sub-agent · Opus · reads, github",
-               tagged("pr-review-toolkit")),
-        G.node("tool:files", "uses", "tool", "Read · Edit · Write", "built-in"),
-        G.node("tool:Bash", "uses", "tool", "Bash", "built-in"),
-        G.node("connector:github", "uses", "connector", "github", "MCP · 32 tools · 6.1k", tagged("Personal")),
-        G.node("connector:figma", "uses", "connector", "figma", "needs sign-in", tagged("figma"), state="warn"),
-        G.node("connector:sentry", "uses", "connector", "sentry", "failed · spawn npx ENOENT", tagged("Project"),
+        G.node("hook:ctx", "in", "hook", "SessionStart hook", "context.sh · adds context", tagged("Global")),
+        G.node("skill:api", "in", "skill", "api-routes", "when routes change", tagged("Project")),
+        G.node("skills:more", "in", "skills", "15 more skills", "listed always · 3.7k"),
+        G.node("agent", "agents", "agent", "Claude", "Opus 5.5 · High · Manual"),
+        G.node("agent:rev", "agents", "sub", "code-reviewer", "Opus · 3 tools", tagged("pr-review")),
+        G.node("tool:files", "uses", "tool", "Read · Edit · Write"),
+        G.node("tool:Bash", "uses", "tool", "Bash", "sandboxed, 2 hosts"),
+        G.node("connector:github", "uses", "connector", "github", "32 tools · 6.8k", tagged("Global")),
+        G.node("connector:figma", "uses", "connector", "figma", "sign in", tagged("figma"), state="warn"),
+        G.node("connector:sentry", "uses", "connector", "sentry", "failed · npx not found", tagged("Project"),
                state="bad"),
         G.node("connector:notion", "uses", "connector", "Notion", "off here", tagged("claude.ai"), dim=True)]
-    made[5]["chips"] = ["PermissionRequest → herdr-fold"]
+    made[6]["chips"] = ["PermissionRequest → herdr-fold", "Stop → notify.sh"]
     gate = lambda *words: [{"text": text_, "tone": text_.split()[0]} for text_ in words]     # noqa: E731
-    edges = [G.edge(one["id"], "agent", "always") for one in made[:5]] + [
+    edges = [G.edge(one["id"], "agent", "always") for one in made[:6]] + [
         G.edge("agent", "agent:rev", "demand"), G.edge("agent", "tool:files", "always", gate("ask", "hook")),
-        G.edge("agent", "tool:Bash", "always", gate("ask · pytest allowed", "deny git push", "hook")),
+        G.edge("agent", "tool:Bash", "always", gate("ask", "allow pytest", "deny git push", "hook guard.sh")),
         G.edge("agent", "connector:github", "always", gate("allow")), G.edge("agent", "connector:figma", "waiting"),
         G.edge("agent", "connector:sentry", "failed"), G.edge("agent:rev", "connector:github", "always")]
     ran_ = {"skill:api": 0, "tool:files": 14, "tool:Bash": 6, "agent:rev": 0, "connector:github": 2}
@@ -1041,22 +968,24 @@ def wired(ran=False):
                               "calls": f"{count} call{'s' * (count != 1)}" if count else None, "cost": None,
                               "model": None, "share": None, "properties": None}
     if ran:
-        made[5]["run"].update(sub="Opus 5.5 · 38 turns · 1.2M tokens", properties=A.properties(
+        made[6]["run"].update(sub="Opus 5.5 · 38 turns · 1.2M tokens", properties=A.properties(
             "Claude", state("~$3.70 API value", "ok"), [
-                ["Model", "Opus 5.5 · Extra high", None], ["Input", "0.08M", None],
-                ["Cache write", "0.31M", "1 hour 0.25M · 5 min 0.06M"], ["Cache read", "2.40M", "84% of its input"],
-                ["Output", "0.03M", None], ["Share", "90% of this conversation", None]]))
-        made[6]["run"].update(sub="Haiku 5.5 · sub-agent · 0.4M tokens", properties=A.properties(
+                ["Model", "Opus 5.5 · High", None], ["Input", "80.0k", None], ["Cache write", "310k", None],
+                ["Cache read", "2.4M", "84% of its input"], ["Output", "30.0k", None],
+                ["Share", "90% of this chat", None]]))
+        made[7]["run"].update(sub="Haiku 5.5 · 210k tokens", properties=A.properties(
             "code-reviewer", state("~$0.42 API value", "ok"), [
-                ["From", "pr-review-toolkit", "plugin"], ["Started", "by Claude at {time}, step 4", None],
-                ["Share", "10% of this conversation", None]]))
+                ["From", "pr-review", "Plugin"], ["Model", "Haiku 5.5", None],
+                ["Started", "by Claude at {time}, step 4", None], ["Share", "10% of this chat", None]]))
     return {"agent": "claude", "name": "Claude", "folder": "/work/lumen-api", "session": "c1" if ran else None,
-            "run": ran, "words": graph.WORDS, "nodes": made, "edges": edges, "path": list(ran_) if ran else []}
+            "run": ran, "cost": "~$4.12" if ran else None, "words": graph.WORDS, "nodes": made, "edges": edges,
+            "path": list(ran_) if ran else []}
 
 
 class Tree(unittest.TestCase):
-    """The graph as a tree (agent-chat-design.md's "The TUI"): the agent, what goes in, what it uses with each edge's
-    gates in brackets, its sub-agents; This conversation as the numbered path that ran, with its costs."""
+    """The graph as a tree (agent-graph.html's TUI pane): the agent with its line and hooks, what goes in, what it uses
+    with each edge's gates in brackets, its subagents, their names, tags and words in columns; This chat as the
+    numbered path that ran, with its costs."""
 
     def setUp(self):
         self.addCleanup(time.tzset)
@@ -1065,58 +994,59 @@ class Tree(unittest.TestCase):
 
     def test_wiring_is_the_agent_then_what_goes_in_what_it_uses_and_its_sub_agents(self):
         self.assertEqual(layers.tree(wired()), [
-            "Claude  Opus 5.5 · Extra high · Manual  [PermissionRequest → herdr-fold]",
-            "├ in",
-            "│ ├ CLAUDE.md       Personal  always · 2.4k",
-            "│ ├ CLAUDE.md       Project   always · 1.8k",
-            "│ ├ api.md          Project   when src/lumen/** is read",
-            "│ ├ api-routes      Project   skill · when routes change",
-            "│ └ 15 more skills            on demand · 3.7k",
-            "├ uses",
-            "│ ├ Read · Edit · Write             built-in  [ask, hook]",
-            "│ ├ Bash                            built-in  [ask · pytest allowed, deny git push, hook]",
-            "│ ├ github               Personal   MCP · 32 tools · 6.1k  [allow]",
-            "│ ├ figma                figma      needs sign-in",
-            "│ ├ sentry               Project    failed · spawn npx ENOENT",
-            "│ └ Notion               claude.ai  off here",
-            "└ sub-agents",
-            "  └ code-reviewer  pr-review-toolkit  sub-agent · Opus · reads, github"])
+            "Claude  Opus 5.5 · High · Manual  [PermissionRequest → herdr-fold]  [Stop → notify.sh]",
+            "in",
+            "  ~/.claude/CLAUDE.md  Global     always · 2.4k",
+            "  CLAUDE.md            Project    always · 1.8k",
+            "  api.md               Project    when src/lumen/** is read",
+            "  SessionStart hook    Global     context.sh · adds context",
+            "  api-routes           Project    when routes change",
+            "  15 more skills                  listed always · 3.7k",
+            "uses",
+            "  Read · Edit · Write             [ask, hook]",
+            "  Bash                            sandboxed, 2 hosts",
+            "                                  [ask, allow pytest, deny git push, hook guard.sh]",
+            "  github               Global     32 tools · 6.8k [allow]",
+            "  figma                figma      sign in",
+            "  sentry               Project    failed · npx not found",
+            "  Notion               claude.ai  off here",
+            "subagents",
+            "  code-reviewer        pr-review  Opus · 3 tools"])
 
-    def test_a_failed_and_a_waiting_connector_wear_their_colors_one_off_here_is_dim(self):
-        rows = {"".join(words for words, _ in row).split()[2]: row for row in layers.tree_rows(wired()) if len(row) > 2}
+    def test_states_wear_their_colors_tags_are_dim_a_gates_verb_its_tones(self):
+        rows = {"".join(words for words, _ in row).split()[0]: row for row in layers.tree_rows(wired())[1:]}
         self.assertEqual([rows[name][-1] for name in ("sentry", "figma", "Notion")],
-                         [("failed · spawn npx ENOENT", "bad"), ("needs sign-in", "warn"), ("off here", "dim")])
-        self.assertEqual(rows["Notion"][1][1], "dim")
-        self.assertEqual((rows["Bash"][1][1], rows["Bash"][-1]),
-                         (None, ("  [ask · pytest allowed, deny git push, hook]", None)))
+                         [("failed · npx not found", "bad"), ("sign in", "warn"), ("off here", "dim")])
+        self.assertEqual((rows["Notion"][0][1], rows["github"][1][1]), ("dim", "dim"))
+        gates = layers.tree_rows(wired())[11][1:]
+        self.assertEqual(gates, [("[", "dim"), ("ask", "warn"), (", ", "dim"), ("allow pytest", "ok"), (", ", "dim"),
+                                 ("deny git push", "bad"), (", ", "dim"), ("hook guard.sh", "dim"), ("]", "dim")])
         first = layers.tree_rows(wired())[0]
-        self.assertEqual((first[0], first[1][1]), (("Claude", "bold"), "dim"))
+        self.assertEqual((first[0], first[1][1], first[2][1]), (("Claude", "bold"), "dim", "dim"))
 
     def test_a_graph_with_nothing_going_in_and_no_sub_agent_ends_on_uses(self):
         made = wired()
         made["nodes"] = [one for one in made["nodes"] if one["column"] == "uses" or one["id"] == "agent"]
-        self.assertEqual(layers.tree(made)[1:3],
-                         ["└ uses", "  ├ Read · Edit · Write             built-in  [ask, hook]"])
+        self.assertEqual(layers.tree(made)[1:3], ["uses", "  Read · Edit · Write             [ask, hook]"])
 
-    def test_this_conversation_is_the_numbered_path_then_each_agents_costs_and_the_tools_calls(self):
+    def test_this_chat_is_the_numbered_path_then_each_agents_costs_its_model_in_its_head_alone(self):
         self.assertEqual(layers.tree(wired(True), True, twelve=True), [
             "Claude  Opus 5.5 · 38 turns · 1.2M tokens",
             "1 api-routes → 2 Read · Edit · Write → 3 Bash → 4 code-reviewer → 5 github",
             "",
             "Claude",
             "  Cost         ~$3.70 API value",
-            "  Model        Opus 5.5 · Extra high",
-            "  Input        0.08M",
-            "  Cache write  0.31M  1 hour 0.25M · 5 min 0.06M",
-            "  Cache read   2.40M  84% of its input",
-            "  Output       0.03M",
-            "  Share        90% of this conversation",
+            "  Input        80.0k",
+            "  Cache write  310k",
+            "  Cache read   2.4M  84% of its input",
+            "  Output       30.0k",
+            "  Share        90% of this chat",
             "",
-            "code-reviewer  Haiku 5.5 · sub-agent · 0.4M tokens",
+            "code-reviewer  Haiku 5.5 · 210k tokens",
             "  Cost     ~$0.42 API value",
-            "  From     pr-review-toolkit  plugin",
+            "  From     pr-review  Plugin",
             "  Started  by Claude at 1:36 PM, step 4",
-            "  Share    10% of this conversation",
+            "  Share    10% of this chat",
             "",
             "uses",
             "  Read · Edit · Write  14 calls",
@@ -1131,26 +1061,18 @@ class Tree(unittest.TestCase):
         path = layers.tree_rows(wired(True), True)[1]
         self.assertEqual(path[:3], [("1", "accent"), (" api-routes", None), (" → ", "dim")])
 
-    def test_a_conversation_with_no_costs_yet_is_its_path_and_calls(self):
+    def test_a_chat_with_no_costs_yet_is_its_path_and_calls(self):
         made = wired(True)
         for one in made["nodes"]:
             one["run"]["properties"] = None
         self.assertEqual(layers.tree(made, True)[2:5], ["", "uses", "  Read · Edit · Write  14 calls"])
 
-    def test_g_and_the_heads_right_click_ask_for_the_graph_only_where_a_setup_shows(self):
+    def test_g_asks_for_the_graph_only_where_a_setup_shows(self):
         view = layers.Layers(icons=False)
         view.set({**lumen(), "agents": MACHINE})
         self.assertEqual(view.handle(Key("char", "g")), Action("show_graph", ()))
-        canvas = Canvas(WIDE, 30)
-        view.draw(canvas, 0, 30, True)
-        self.assertIsNone(view.handle(Mouse("press", 3, 0, 2)))
-        self.assertEqual(view.menu.menu.choices, ["Show graph"])
-        self.assertEqual(view.handle(Key("enter")), Action("show_graph", ()))
         view.set({**lumen(), "agents": MACHINE, "agent": "gemini", "empty": MACHINE[2]["empty"]})
         self.assertIsNone(view.handle(Key("char", "g")))
-        view.draw(canvas, 0, 30, True)
-        view.handle(Mouse("press", 3, 0, 2))
-        self.assertIsNone(view.menu)
 
 
 class Reading(unittest.TestCase):
@@ -1211,33 +1133,27 @@ class Reading(unittest.TestCase):
                          ("codex", "/work/lumen-api", "019a"))
         self.assertIsNone(agent_panel.tab_agent(lambda *args: listed.get(args, {}), "w1:p9"))
 
-    def test_claudes_session_is_the_tabs_else_the_folders_newest(self):
-        older = self.put(os.path.join(os.path.dirname(self.session), "b1.jsonl"), "\n")
-        os.utime(older, (time.time() - 60, time.time() - 60))
-        self.assertEqual(agent_panel.session_file(self.folder, "b1", self.home), older)
-        self.assertEqual(agent_panel.session_file(self.folder, None, self.home), self.session)
-        self.assertEqual(agent_panel.session_file(self.folder, "../x", self.home), self.session)    # never a path
-
     def test_it_reads_the_folders_setup_and_dots_its_button_by_the_worst_problem(self):
         app = self.app()
         self.assertNotIn("agent", app.marks())
         self.read(app)
         view = app.views["agent"]
-        self.assertEqual(view.answer["head"], {"name": "Claude", "where": "in lumen-api"})
+        self.assertEqual((view.answer["head"]["name"], view.answer["head"]["where"]), ("Claude", "in lumen-api"))
         self.assertEqual(view.problems(), ["1 failed"])
         self.assertEqual(app.marks()["agent"], (sidebar.DOT, "deleted"))
 
-    def test_its_answer_tells_the_limits_the_shown_agent_first_its_reset_in_local_time(self):
+    def test_its_answer_tells_the_limits_the_shown_agent_first_and_how_the_machine_writes_hours(self):
         now = int(time.time())
         usage.keep("claude", {"five_hour": {"used": 72, "resets": now + 3600},
                               "week": {"used": 16, "resets": now + 86400}}, now)
         self.put(os.path.join(self.home, ".local", "state", "herdr-fold", "time.json"), '{"twelve": true}')
         app = self.app()
         self.read(app)
-        row, = app.views["agent"].answer["usage"]["rows"]
+        answer = app.views["agent"].answer
+        row, = answer["usage"]["rows"]
         self.assertEqual((row["name"], row["plan"], row["current"], row["five"]["text"], row["week"]["text"]),
                          ("Claude", "Max", True, "72%", "16%"))
-        self.assertRegex(row["resets"]["said"], r"^5 hour resets at \d\d?:\d\d [AP]M$")
+        self.assertEqual((row["reset"]["words"], answer["twelve"]), ("5h resets {time}", True))
 
     def talk(self, name, model, at, tokens=1000):
         """A Claude conversation NAME in the folder with one answer of MODEL at AT."""
@@ -1248,7 +1164,7 @@ class Reading(unittest.TestCase):
                                         "input_tokens": tokens, "output_tokens": tokens}}},
                                    separators=(",", ":")) + "\n")
 
-    def test_what_the_agents_cost_is_read_on_a_job_once_usage_shows_then_a_minute_apart(self):
+    def test_the_api_key_agents_months_are_read_on_a_job_once_usage_shows_then_a_minute_apart(self):
         now, clock = int(time.time()), [100.0]
         usage.keep("claude", {"five_hour": {"used": 72, "resets": now + 3600}, "week": None}, now)
         session = self.talk("c1", "claude-opus-5-5", now - 60)
@@ -1262,53 +1178,24 @@ class Reading(unittest.TestCase):
         app.show("agent")
         self.read(app)
         self.read(app)
-        self.assertEqual(view.costs["period"]["id"], "7d")
-        self.assertEqual([one["name"] for one in view.costs["projects"]], [os.path.basename(self.folder)])
-        self.assertEqual((view.reading, family.next_costs()), (False, 100.0 + agent_panel.COSTS))
+        self.assertEqual((view.costs["period"]["id"], view.costs["months"]), ("month", []))    # on its plan: none
+        self.assertEqual(family.next_costs(), 100.0 + agent_panel.COSTS)
         canvas = Canvas(WIDE, 40)
         view.draw(canvas, 0, 40, True)
         shown = [text(canvas, y).rstrip() for y in range(40)]
-        self.assertRegex(shown[3], r"^    ▾ Claude Max +~\$\d+\.\d\d API value$")
-        self.assertIn("      per day", shown)
+        self.assertRegex(shown[4], r"^      Claude Max +5h ▰▰▰▰▱ 72%$")              # no API value in the sidebar
         with open(session, encoding="utf-8") as f:
             self.assertEqual(f.read(), was)                                     # Claude's file as it was
         self.assertTrue(os.path.isfile(os.path.join(self.home, ".local", "state", "herdr-fold", "usage-index.json")))
 
-    def test_a_stepped_period_is_read_at_once_and_an_answer_for_another_period_is_not_shown(self):
-        app = self.app()
-        family, view = app.work["agent"], app.views["agent"]
-        self.read(app)
-        app.show("agent")
-        self.read(app)
-        self.read(app)
-        app.act(view.handle(Key("char", "p")), "agent")
-        self.assertEqual(view.costs["period"]["id"], "7d")                      # the last one, till the new is read
-        family.cost("7d", {"report": {"period": {"id": "stale"}}, "left": 0})
-        self.assertEqual(view.costs["period"]["id"], "7d")
-        end_jobs()
-        app.collect()
-        self.assertEqual(view.costs["period"]["id"], "30d")
-
-    def test_enter_on_usage_opens_the_plugins_usage_pane_on_the_period(self):
+    def test_open_usage_opens_the_plugins_usage_pane(self):
         calls = []
         app = sidebar.App(self.folder, FakeTerminal(WIDE, 40), mock.Mock(call=lambda *args: calls.append(args) or {}),
                           self.state)
-        app.act(Action("open_usage", ("30d",)), "agent")
+        app.act(Action("open_usage", ()), "agent")
         end_jobs()
-        self.assertIn(("plugin", "pane", "open", "--plugin", "herdr-fold.sidebar", "--entrypoint", "usage", "--env",
-                       "HERDR_FOLD_USAGE_PERIOD=30d", "--focus"), calls)
-
-    def test_an_agent_opened_or_folded_is_kept_by_core_for_both_clients_and_read_back(self):
-        now = int(time.time())
-        usage.keep("claude", {"five_hour": {"used": 72, "resets": now + 3600}, "week": None}, now)
-        app = self.app()
-        app.act(Action("usage_open", ("codex", True)), "agent")
-        end_jobs()
-        app.collect()
-        state = os.path.join(self.home, ".local", "state", "herdr-fold")
-        self.assertEqual(usage.kept_open(state), {"codex": True})
-        self.read(app)
-        self.assertEqual(app.views["agent"].answer["usage"]["open"], {"claude": True, "codex": True})
+        self.assertIn(("plugin", "pane", "open", "--plugin", "herdr-fold.sidebar", "--entrypoint", "usage", "--focus"),
+                      calls)
 
     def test_show_graph_reads_the_folders_graph_on_a_job_and_opens_its_tree_in_the_preview_tab(self):
         app, opened = self.app(), []
@@ -1319,13 +1206,13 @@ class Reading(unittest.TestCase):
         end_jobs()
         app.collect()
         (spec, cwd), = opened
-        self.assertEqual((cwd, spec["title"], app.note), (self.folder, "Claude in lumen-api", None))
+        self.assertEqual((cwd, spec["title"], app.note), (self.folder, "graph: Claude in lumen-api", None))
         self.assertEqual([(one["key"], one["name"]) for one in spec["views"]],
-                         [("w", "Wiring"), ("c", "This conversation")])       # the folder's newest conversation
+                         [("w", "Wiring"), ("c", "This chat")])               # the folder's newest chat
         plain = [re.sub(r"\x1b\[[0-9;]*m", "", line) for line in spec["views"][0]["lines"]]
-        self.assertEqual(plain[:2], ["Claude  Manual", "├ in"])
-        self.assertIn("│ └ CLAUDE.md  Project  always · <0.1k", plain)
-        self.assertTrue(any(line.startswith("  └ sentry") and "failed" in line for line in plain), plain)
+        self.assertEqual(plain[:2], ["Claude  Manual", "in"])
+        self.assertTrue(any(re.fullmatch(r"  CLAUDE\.md +Project +always · \d+", line) for line in plain), plain)
+        self.assertTrue(any(line.startswith("  sentry ") and "failed" in line for line in plain), plain)
 
     def test_its_answer_tells_the_agents_on_this_machine_each_with_where_it_stands(self):
         app = self.app()
@@ -1395,7 +1282,8 @@ class Reading(unittest.TestCase):
         app.open_preview = lambda spec, cwd: opened.append((spec, cwd))
         self.read(app)
         app.show("agent")
-        for key in ("home", "down", "down", "right", "down", "enter"):         # the head, Usage, Rules opened, its rule
+        # the head, its line, Usage, its one row (limits not told), Rules
+        for key in ("home", "down", "down", "down", "down", "right", "down", "enter"):
             app.handle(Key(key))
         spec, cwd = opened[0]
         self.assertEqual((spec["title"], cwd), ("CLAUDE.md", self.folder))
@@ -1496,7 +1384,7 @@ class Dock(unittest.TestCase):
 
 class Connectors(unittest.TestCase):
     """Connectors as connectors.html's TUI panes: a brand's glyph or letter, Connect, a sign-in under way, Turn off
-    here, the ⋯ menu's lines and the form a connector is added with."""
+    in lumen-api, the ⋯ menu's lines and the form a connector is added with."""
 
     BOX = "claude.ai Box"
     setUp, draw, lines, at, look, press, choose = (View.setUp, View.draw, View.lines, View.at, View.look, View.press,
@@ -1514,11 +1402,11 @@ class Connectors(unittest.TestCase):
         self.assertTrue(text(canvas, self.at(canvas, "Box")[0]).startswith("    ● B Box"))      # no glyph in the font
         self.assertEqual(self.look(canvas, "B Box").fg, "#3b8fe6")
         found = lumen()                                 # one of no known brand: its own letter, dim
-        found["sections"][3]["rows"][4] = A.layer("connector:tidepool-db", "plug", "tidepool-db", A.properties(
-            "tidepool-db"), mark=tag("Local", "muted"), state=state("on", "ok"))
+        found["sections"][4]["rows"][4] = A.layer("connector:tidepool-db", "plug", "tidepool-db", A.properties(
+            "tidepool-db"), place="Local", state=state("on", "ok"))
         self.view.set(found)
         canvas = self.draw()
-        self.assertTrue(text(canvas, self.at(canvas, "tidepool-db")[0]).startswith("    ● T tidepool-db"))
+        self.assertTrue(text(canvas, self.at(canvas, "tidepool-db")[0]).startswith("      T tidepool-db"))
         self.assertEqual(self.look(canvas, "T tidepool-db").fg, "muted")
         self.assertEqual(self.at(canvas, "Rules")[1], 4)                        # a section's title where it was
         self.view.icons = False                         # plain glyphs: every brand by its letter
@@ -1528,50 +1416,36 @@ class Connectors(unittest.TestCase):
         self.assertEqual(Theme().sgr(Style(fg="#3b8fe6")), "\x1b[38;2;59;143;230m")
         self.assertEqual(Theme().sgr(Style(fg="muted")), "\x1b[90m")
 
-    def test_box_to_sign_in_offers_connect_lit_and_turn_off_here(self):
+    def test_box_to_sign_in_offers_connect_lit_and_core_s_turn_off_is_its_forms_switch_not_a_button(self):
         self.choose(("row", "connector:" + self.BOX))
         canvas = self.draw()
-        self.assertEqual(self.under(canvas, "B Box", 2), ["        URL  mcp.box.com",
-                                                          "         Connect    Turn off here"])
-        lit = self.look(canvas, "Connect    Turn")
+        self.assertEqual(self.under(canvas, "B Box", 2), ["          URL  mcp.box.com", "           Connect"])
+        y = self.at(canvas, "B Box")[0] + 2
+        lit = canvas.rows[y][text(canvas, y).index("Connect")][1]
         self.assertEqual((lit.bg, lit.fg, lit.bold), ("button", "button_text", True))
-        self.assertEqual((self.look(canvas, "Turn off here").bg, self.look(canvas, "Turn off here").fg),
-                         ("input", "subtext"))
         self.assertEqual(self.press("enter"), Action("connect_server", (self.BOX,)))
-        y, x = self.at(canvas, "Turn off here")
-        self.assertEqual(self.view.handle(Mouse("press", x, y, 0)), Action("turn_server", (self.BOX, False)))
-
-    def test_with_no_claude_in_the_tab_turn_off_waits_and_says_for_what(self):
-        self.view.set({**lumen(), "claude": False})
-        self.choose(("row", "connector:" + self.BOX))
-        canvas = self.draw()
-        self.assertEqual(self.look(canvas, "Turn off here").fg, "muted")
-        y, x = self.at(canvas, "Turn off here")
-        self.assertEqual(self.view.handle(Mouse("press", x, y, 0)),
-                         Action("say", ("Start Claude in this tab to turn it off here",)))
-        self.choose(("row", "connector:claude.ai Notion"))
-        self.assertEqual(self.press("enter"), Action("say", ("Start Claude in this tab to turn it on here",)))
+        self.assertEqual(self.view.asks(), {"action": "connector", "name": self.BOX, "starts": 34200})
 
     def test_a_row_signing_in_turns_its_mark_and_says_what_to_do(self):
         self.view.signing = {self.BOX}
         self.choose(("row", "connector:" + self.BOX))
         canvas = self.draw()
         y = self.at(canvas, "B Box")[0]
-        self.assertTrue(text(canvas, y).startswith("    ◐ B Box"))
+        self.assertTrue(text(canvas, y).startswith(f"    {self.view.frame} B Box"))          # it spins meanwhile
         self.assertEqual(canvas.rows[y][4][1].fg, "accent")
         self.assertEqual(self.look(canvas, "signing in").fg, "accent")
-        self.assertEqual(self.under(canvas, "B Box", 2), ["        Finish in your browser",
-                                                          "         Open the page again    Cancel"])
+        self.assertEqual(self.under(canvas, "B Box", 2), ["          Finish in your browser",
+                                                          "           Open the page again    Cancel"])
         self.assertEqual(self.look(canvas, "Open the page again").bg, "input")          # neither is Connect
         self.assertEqual(self.press("enter"), Action("reopen_sign_in", (self.BOX,)))
         y, x = self.at(canvas, "Cancel")
         self.assertEqual(self.view.handle(Mouse("press", x, y, 0)), Action("cancel_sign_in", (self.BOX,)))
 
-    def test_one_signed_in_offers_turn_off_and_sign_out(self):
+    def test_one_signed_in_offers_sign_out(self):
         self.choose(("row", "connector:claude.ai Google Drive"))
         canvas = self.draw()
-        self.assertIn("         Turn off here    Sign out", self.under(canvas, "Google Drive", 2))
-        self.assertEqual(self.look(canvas, "Turn off here").bg, "input")                # only Connect is lit
+        self.assertIn("           Sign out", self.under(canvas, "Google Drive", 2))
+        self.assertEqual(self.look(canvas, "Sign out").bg, "input")                     # only Connect is lit
         y, x = self.at(canvas, "Sign out")
         self.assertEqual(self.view.handle(Mouse("press", x, y, 0)),
                          Action("sign_out_server", ("claude.ai Google Drive",)))
@@ -1582,17 +1456,22 @@ class Connectors(unittest.TestCase):
             A.act("retry", "Retry", server="linear"),
             A.act("open", "Open config.toml", "/home/dev/.codex/config.toml")]))
         self.assertEqual([one["id"] for one in layers.doable(row, "codex")], ["sign-out", "open"])
-        self.assertEqual([one["id"] for one in layers.doable(row, "claude")], ["sign-out", "turn-off", "retry", "open"])
+        self.assertEqual([one["id"] for one in layers.doable(row, "claude")], ["sign-out", "retry", "open"])
 
-    def test_the_more_menu_adds_a_connector_two_ways_and_reads_again(self):
-        self.assertEqual(self.view.menu_lines(), ["Add from claude.ai", "Add by URL", "Refresh"])
-        self.assertEqual(self.view.menu_pick("Add from claude.ai"), Action("open_url", (connectors.CLAUDE_AI,)))
+    def test_the_more_menu_opens_usage_and_the_graph_adds_a_connector_two_ways_and_reads_again(self):
+        self.view.set(metered())
+        lines = self.view.menu_lines()
+        self.assertEqual(lines, ["Open Usage", "Show graph", "Add from claude.ai…", "Add by URL…", "Refresh"])
+        self.assertEqual([getattr(line, "key", None) for line in lines], ["U", "g", None, "a", None])
+        self.assertEqual(self.view.menu_pick("Open Usage"), Action("open_usage", ()))
+        self.assertEqual(self.view.menu_pick("Show graph"), Action("show_graph", ()))
+        self.assertEqual(self.view.menu_pick("Add from claude.ai…"), Action("open_url", (connectors.CLAUDE_AI,)))
         self.assertEqual(self.view.menu_pick("Refresh"), Action("refresh_agent", ()))
-        self.assertIsNone(self.view.menu_pick("Add by URL"))
+        self.assertIsNone(self.view.menu_pick("Add by URL…"))
         self.assertTrue(self.view.form and self.view.editing)
         codex = layers.Layers(icons=True)
         codex.set({**lumen(), "agent": "codex", "connect": A.connecting("codex", "/work/lumen-api")})
-        self.assertEqual(codex.menu_lines(), ["Add by URL", "Refresh"])     # claude.ai's are Claude's alone
+        self.assertEqual(codex.menu_lines(), ["Show graph", "Add by URL…", "Refresh"])  # claude.ai's: Claude's
         for none in (None, {**lumen(), "agents": MACHINE, "empty": MACHINE[2]["empty"]}):
             empty = layers.Layers(icons=True)
             if none:
@@ -1612,7 +1491,7 @@ class Connectors(unittest.TestCase):
         self.assertIsNone(self.view.form)
 
     def test_the_form_lies_under_connectors_head_and_the_keys_walk_it(self):
-        self.view.menu_pick("Add by URL")
+        self.view.menu_pick("Add by URL…")
         self.type("dropbox")
         self.press("tab")
         self.type("https://mcp.dropbox.com/mcp")
@@ -1640,7 +1519,7 @@ class Connectors(unittest.TestCase):
         self.assertEqual((self.view.form, self.view.editing), (None, False))
 
     def test_enter_in_a_field_adds_esc_leaves_and_a_refused_field_says_why_with_the_keys_back_in_it(self):
-        self.view.menu_pick("Add by URL")
+        self.view.menu_pick("Add by URL…")
         self.type("my box")
         self.assertEqual(self.press("enter"), Action("add_connector", ("my box", "", "local")))
         self.press("tab")
@@ -1656,13 +1535,13 @@ class Connectors(unittest.TestCase):
 
     def test_codex_adds_by_its_address_alone_for_every_folder(self):
         self.view.set({**lumen(), "agent": "codex", "connect": A.connecting("codex", "/work/lumen-api")})
-        self.view.menu_pick("Add by URL")
+        self.view.menu_pick("Add by URL…")
         self.type("figma")
         self.assertNotIn("For", "\n".join(self.under(self.draw(), "Connectors", 5)))
         self.assertEqual(self.press("enter"), Action("add_connector", ("figma", "", None)))
 
     def test_a_click_in_the_form_puts_the_keys_there_and_presses_its_buttons(self):
-        self.view.menu_pick("Add by URL")
+        self.view.menu_pick("Add by URL…")
         canvas = self.draw()
         y, x = self.at(canvas, "All projects")
         self.view.handle(Mouse("press", x, y, 0))
@@ -1769,7 +1648,7 @@ class Commands(unittest.TestCase):
         self.assertEqual(opened, [asked])
         self.assertEqual(app.note, "Its address is not printed yet")
 
-    def test_turn_off_types_claudes_own_command_into_the_tabs_claude_not_sent(self):
+    def test_claudes_own_command_is_typed_into_the_tabs_claude_not_sent(self):
         app = self.started()
         set_env(self, HERDR_PANE_ID="w1:p1")
 
@@ -1781,14 +1660,14 @@ class Commands(unittest.TestCase):
                 return {"agents": [{"pane_id": "w1:p2", "tab_id": "w1:t1", "agent": "claude", "cwd": self.folder}]}
             return {}
         app.herdr.call = call
-        app.act(Action("turn_server", ("sentry", False)), "agent")
-        self.settle(app)
-        self.assertIn(("pane", "send-text", "w1:p2", "/mcp disable sentry"), self.calls)
-        self.assertIn(("agent", "focus", "w1:p2"), self.calls)
-        self.assertFalse([args for args in self.calls if args[:2] == ("pane", "send-keys")])     # typed, not sent
-        app.act(Action("turn_server", ("sentry", True)), "agent")
+        app.act(Action("turn_server", ("sentry",)), "agent")
         self.settle(app)
         self.assertIn(("pane", "send-text", "w1:p2", "/mcp enable sentry"), self.calls)
+        self.assertIn(("agent", "focus", "w1:p2"), self.calls)
+        self.assertFalse([args for args in self.calls if args[:2] == ("pane", "send-keys")])     # typed, not sent
+        app.act(Action("type_command", ("/model sonnet",)), "agent")            # a form's Switch this chat now
+        self.settle(app)
+        self.assertIn(("pane", "send-text", "w1:p2", "/model sonnet"), self.calls)
 
     def test_sign_out_runs_the_agents_own_logout_then_asks_again(self):
         app, ran, checks = self.started(), [], []
@@ -1804,7 +1683,7 @@ class Commands(unittest.TestCase):
     def test_a_refused_form_runs_nothing_and_says_which_field(self):
         app, ran = self.started(), []
         view = app.views["agent"]
-        view.menu_pick("Add by URL")
+        view.menu_pick("Add by URL…")
         with mock.patch.object(agent_setup, "run", lambda *args, **more: ran.append(args) or (0, "", "")):
             app.act(Action("add_connector", ("my box", "https://mcp.box.com", "local")), "agent")
             self.settle(app)
@@ -1814,7 +1693,7 @@ class Commands(unittest.TestCase):
     def test_add_runs_the_agents_own_command_chooses_the_new_row_and_connects_where_it_must(self):
         app, ran = self.started(), []
         view = app.views["agent"]
-        view.menu_pick("Add by URL")
+        view.menu_pick("Add by URL…")
         with mock.patch.object(agent_setup, "run", lambda argv, cwd=None, timeout=None, read=True: (
                 ran.append((argv, cwd)), (0, "Added HTTP MCP server dropbox", ""))[1]), \
                 mock.patch.object(agent_state, "check", lambda folder, name: {"state": agent_setup.SIGN_IN,
@@ -1829,7 +1708,7 @@ class Commands(unittest.TestCase):
     def test_what_the_agent_says_of_a_failed_add_stays_in_the_form(self):
         app = self.started()
         view = app.views["agent"]
-        view.menu_pick("Add by URL")
+        view.menu_pick("Add by URL…")
         with mock.patch.object(agent_setup, "run", lambda *args, **more: (
                 1, "MCP server sentry already exists in local config\n", "")):
             app.act(Action("add_connector", ("sentry", "https://mcp.sentry.dev/mcp", "local")), "agent")
@@ -1848,8 +1727,10 @@ class Commands(unittest.TestCase):
     def test_more_lists_the_agent_views_own_lines_first_while_it_shows(self):
         app = self.started()
         app.open_menu(0, 0)
-        self.assertEqual(app.menu[0].choices[:4], ["Add from claude.ai", "Add by URL", "Refresh", None])
-        app.handle(Key("down"))
+        self.assertEqual(app.menu[0].choices[:6], ["Open Usage", "Show graph", "Add from claude.ai…", "Add by URL…",
+                                                   "Refresh", None])
+        for _ in range(3):
+            app.handle(Key("down"))
         app.handle(Key("enter"))
         self.assertTrue(app.views["agent"].form)
         app.show("files")

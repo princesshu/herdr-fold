@@ -33,73 +33,122 @@
   code { font-family: var(--mono); font-size: 12.5px; background: #26262b; padding: 1px 5px; border-radius: 5px;
          color: var(--ink); }
 
-  /* sketch of the work window — colors per card from CSS variables */
-  .win { font: 10.5px/1.5 var(--mono); background: var(--bg); color: var(--fg); border-radius: 10px; overflow: hidden;
-         display: grid; grid-template-columns: 22% 1fr; height: 340px; box-shadow: 0 6px 24px rgba(0,0,0,.45);
-         border: 1px solid rgba(255,255,255,.06); }
-  .win * { white-space: pre; overflow: hidden; text-overflow: clip; }
-  .hs { background: var(--h-sidebar); border-right: 1px solid var(--h-dim); padding: 8px 0; }
-  .hs .title { color: var(--h-overlay0); padding: 0 9px; display: flex; justify-content: space-between;
-               margin-top: 2px; }
-  .hs .title b { color: var(--h-overlay1); font-weight: 400; }
-  .hs .row { padding: 1px 9px 1px 7px; color: var(--h-subtext); border-left: 2px solid transparent; display: flex;
-             gap: 6px; }
-  .hs .row .n { color: var(--h-overlay0); }
-  .hs .row .dot { margin-left: auto; }
-  .hs .row.on { background: var(--h-activerow); color: var(--h-text); border-left-color: var(--h-accent); }
-  .hs .gap { height: 10px; }
-  .main { display: grid; grid-template-rows: 21px 1fr; min-width: 0; }
-  .tabs { background: var(--h-panel); display: flex; align-items: stretch; gap: 2px; padding: 0 6px; }
-  .tabs span { padding: 3px 9px 0; color: var(--h-subtext); }
-  .tabs .on { color: var(--h-accent); box-shadow: inset 0 -2px 0 var(--h-accent); font-weight: 700; }
-  .tabs .plus { color: var(--h-overlay0); }
-  .panes { display: grid; grid-template-columns: 2.5fr 1.5fr; min-height: 0; }
-  .agent { border: 1px solid var(--h-accent); padding: 7px 9px; display: flex; flex-direction: column; min-width: 0; }
-  .agent .you { color: var(--p8); }
-  .agent .dotg { color: var(--p2); }
-  .agent .tool { color: var(--fg); font-weight: 700; }
-  .agent .del { color: var(--p1); background: color-mix(in srgb, var(--p1) 14%, transparent); }
-  .agent .add { color: var(--p2); background: color-mix(in srgb, var(--p2) 14%, transparent); }
-  .agent .dim { color: var(--p8); }
-  .agent .input { margin-top: auto; border: 1px solid var(--p8); border-radius: 5px; padding: 3px 7px; }
-  .cursor { background: var(--cursor); color: var(--bg); }
-  .agent .status { color: var(--p8); padding: 3px 2px 0; }
-  .col { display: grid; grid-template-rows: 1.5fr 1fr; border-left: 1px solid var(--h-dim); min-width: 0; }
-  /* the sidebar in the colors the theme setter gives it (preview-colors.js) */
-  .sb { color: var(--s-text); border-bottom: 1px solid var(--h-dim); display: flex; flex-direction: column;
-        min-width: 0; }
-  .sb .views { display: flex; gap: 3px; align-items: center; padding: 5px 6px 6px; }
-  .sb .tab { background: var(--s-badge); color: var(--s-muted); padding: 1px 6px; }
-  .sb .tab.on { background: var(--s-selection); color: var(--s-accent); font-weight: 700; }
-  .sb .title { color: var(--s-accent); font-weight: 700; padding-left: 5px; }
-  .sb > div:not(.views):not(.bar) { padding: 0 8px; }
-  .sb .on-row { background: var(--s-selection); }
-  .sb .dir { font-weight: 700; }
-  .sb .ign { color: var(--s-ignored); }
-  .sb .mod { color: var(--s-modified); }
-  .sb .add { color: var(--s-added); }
-  .sb .btn { margin: auto 8px 4px; align-self: flex-start; background: var(--s-button); color: var(--s-button-text);
-             padding: 1px 10px; font-weight: 700; }
-  .sb .bar { background: var(--s-badge); color: var(--s-text); padding: 0 8px; }
-  .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 0;
-          padding: 6px 10px; border-radius: 8px; }
-  .sheep { display: block; }
-  .foot .icon, .foot .icon svg { display: block; width: 56px; height: 56px; }
-  .term { padding: 6px 8px; }
+  /* sketch of the work window as the TUI draws it, a character a cell (--row tall), in proportion: colors per card
+     from CSS variables */
+  .win { --row: 11px; font: 8px/var(--row) "herdr-fold Mono", var(--mono); background: var(--bg); color: var(--fg);
+         border-radius: 10px; overflow: hidden; display: grid; grid-template-columns: 22.5% 1px 1fr; height: 340px;
+         box-shadow: 0 6px 24px rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.06); }
+  .win * { white-space: pre; overflow: hidden; text-overflow: clip; min-width: 0; }
+  .gap { height: var(--row); flex: none; }
+  .edge { background: var(--h-dim); }
+  /* herdr's sidebar: Spaces, a space's wait beside its name and its branch under it, then the agents and sessions */
+  .hs { background: var(--h-sidebar); display: flex; flex-direction: column; padding: 0 1ch; }
+  .hs > div { height: var(--row); flex: none; display: flex; gap: 1ch; }
+  .hs > div > span { flex: none; }
+  .hs .q { color: var(--frame); }
+  .hs .name { color: var(--h-subtext); flex: 0 1 auto; text-overflow: ellipsis; }
+  .hs .sub { padding-left: 2ch; }
+  .hs .on { background: var(--h-activerow); margin: 0 -1ch; padding: 0 1ch; }
+  .hs .on.sub { padding-left: 3ch; }
+  .hs .on .name { color: var(--h-text); font-weight: 700; }
+  .hs .on .branch { color: var(--h-accent); }
+  .hs .branch { color: var(--frame); }
+  .hs .done { color: var(--h-teal); }
+  .hs .idle { color: var(--h-green); }
+  .hs .asks { color: var(--h-red); }
+  .hs .wait { color: var(--h-yellow); }
+  .hs .agent-name { color: var(--s-muted); }
+  .hs .tab { color: var(--h-accent); font-weight: 700; }
+  .hs .ends { justify-content: space-between; }
+  .hs .hs-fill { flex: 1 1 0; height: auto; }
+  .hs .split { margin: 0 -1ch; background: linear-gradient(var(--h-dim), var(--h-dim)) center / 100% 1px no-repeat; }
+  /* the tab bar, then the tab's panes in herdr's frames: Claude's in the accent (it has the focus), on the right the
+     sidebar over the terminal */
+  .main { display: grid; grid-template-rows: var(--row) 1fr; }
+  .tabs { background: var(--h-panel); display: flex; gap: 1ch; }
+  .tabs .on { background: var(--h-accent); color: var(--h-panel); font-weight: 700; padding: 0 1ch; }
+  .tabs .plus { color: var(--h-overlay1); }
+  .panes { display: grid; grid-template-columns: 32fr 68fr; min-height: 0; }
+  .col { display: grid; grid-template-rows: 55fr 45fr; min-height: 0; }
+  .pane { position: relative; margin: calc(var(--row) / 2) .5ch; border: 1px solid var(--frame); overflow: visible;
+          padding: calc(var(--row) / 2 - 1px) calc(.5ch - 1px); display: flex; flex-direction: column; min-height: 0; }
+  .pane > .ttl { position: absolute; top: calc(var(--row) / -2 - 1px); left: calc(.5ch - 1px); padding: 0 1ch;
+                 max-width: calc(100% - 2ch); background: var(--bg); color: var(--frame); text-overflow: ellipsis; }
+  .pane.focus { border-color: var(--h-accent); }
+  .pane.focus > .ttl { color: var(--h-accent); font-weight: 700; }
+  /* Claude in its pane: its reply in the terminal's text color, the rest in Claude Code's own colors (the diff's,
+     the code's, the status line's), the same in every theme */
+  .agent > div { flex: none; }
+  .agent .code, .agent .del, .agent .add { color: #f8f8f2; }
+  .agent .del { background: #3d0101; }
+  .agent .add { background: #022800; }
+  .agent .ln { color: color-mix(in srgb, var(--fg) 50%, var(--bg)); }
+  .agent .del .ln { color: #dc5a5a; }
+  .agent .add .ln { color: #50c850; }
+  .agent .fn { color: #a7e22e; }
+  .agent .kw { color: #f92572; }
+  .agent .nu { color: #be83ff; }
+  .agent .str { color: #e6db74; }
+  .agent .dot { color: #fff; }
+  .agent .tick { color: #b0b9f9; }
+  .agent .gray { color: #999; }
+  .agent .rule { height: var(--row); background: linear-gradient(#888, #888) center / 100% 1px no-repeat; }
+  .agent .bottom { margin-top: auto; }
+  .agent .cur { background: var(--fg); }
+  .agent .status { color: #9399b2; }
+  .agent .model { color: #4ec9d4; }
+  .agent .ctx { color: #d7ba7d; }
+  .agent .mode { color: #af87ff; }
+  /* the sidebar in the colors the theme setter gives it (preview-colors.js); what it leaves unstyled, the commit
+     message, in the terminal's own: its row of views (the chosen one in the accent), then Changes */
+  .sb > div { flex: none; }
+  .sb .views { display: grid; grid-template-columns: repeat(7, 1fr) 3ch; padding: 0 1ch; margin-top: var(--row); }
+  .sb .view { text-align: center; }
+  .sb .icon-row { position: relative; color: var(--s-subtext); }
+  .sb .label { color: var(--s-muted); }
+  .sb .view.on .icon-row, .sb .view.on .label { color: var(--s-accent); }
+  .sb .view.on .label { font-weight: 700; }
+  .sb .mark { position: absolute; left: calc(50% + 1.5ch); color: var(--s-modified); }
+  .sb .fold { color: var(--s-subtext); text-align: right; }
+  .sb .line { display: flex; gap: 1ch; padding: 0 1ch; }
+  .sb .in { padding-left: 3ch; }
+  .sb .end { margin-left: auto; }
+  .sb .chev { color: var(--s-muted); }
+  .sb .chev, .sb .turn { display: flex; align-items: center; justify-content: center; }
+  .sb .chev { width: 1ch; overflow: visible; }
+  .sb .chevron { flex: none; width: 1.2em; height: 1.2em; fill: none; stroke: currentColor; stroke-width: 1.4;
+                 stroke-linecap: round; stroke-linejoin: round; }
+  .sb .title { color: var(--s-text); font-weight: 700; }
+  .sb .text { color: var(--s-text); }
+  .sb .dim { color: var(--s-muted); }
+  .sb .ctl { display: grid; grid-template-columns: 1fr 4ch; gap: 1ch; padding: 0 1ch; }
+  .sb .field { background: var(--s-input); padding: 0 1ch; text-overflow: ellipsis; }
+  .sb .side { background: var(--s-selection); color: var(--s-accent); font-weight: 700; text-align: center; }
+  .sb .button { background: var(--s-button); color: var(--s-button-text); font-weight: 700; text-align: center; }
+  .sb .issue { color: var(--s-accent); text-overflow: ellipsis; }
+  .sb .modified { color: var(--s-modified); }
+  .sb .added { color: var(--s-added); }
+  .sb .head { color: var(--s-accent); }
+  /* the terminal: the prompt in the theme's colors (starship's), the cursor the theme's */
   .term .path { color: var(--prompt); font-weight: 700; }
   .term .branch { color: var(--branch); }
   .term .st { color: var(--status); }
   .term .char { color: var(--prompt); font-weight: 700; }
+  .term .cursor { background: var(--cursor); }
+  .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 0;
+          padding: 6px 10px; border-radius: 8px; }
+  .sheep { display: block; }
+  .foot .icon, .foot .icon svg { display: block; width: 56px; height: 56px; }
 </style>
 </head>
 <body>
 <header>
   <h1>herdr-fold themes</h1>
   <p>Each card is a sketch of the work window in the colors the package sets for that theme: herdr's sidebar on the
-     left (Spaces, Sessions), the tab bar on top, Claude in the middle, on the right the sidebar (its views, the files,
-     the Commit button) above the terminal, under the window the installer's loading sheep, and beside them the
-     theme's app icon, herdr-fold's sheep. Claude Code's own colors (its orange logo, the diff background) are the same
-     in every theme.</p>
+     left (Spaces, then the agents and sessions), the tab bar on top, Claude in the middle, on the right the sidebar
+     (its row of views, Changes with a commit message and the Commit button) above the terminal, under the window the
+     installer's loading sheep, and beside them the theme's app icon, herdr-fold's sheep. Claude Code's own colors (the
+     diff's background, its status line) are the same in every theme.</p>
   <p><b>Choosing:</b> the installer asks for the card's number. You can switch any time later:
      <b>Cmd + K, then Cmd + T</b> (picker window), or in a herdr pane
      <code>python3 ~/.config/herdr-fold/themes/apply.py 2</code> (the number or the name, e.g. <code>vscode</code>).
@@ -125,10 +174,11 @@ function colors(t) {
   const v = {
     "--bg": c.background, "--fg": c.foreground, "--cursor": c.cursor,
     "--h-sidebar": h.sidebar_bg, "--h-panel": h.panel_bg, "--h-activerow": h.active_row_bg, "--h-accent": h.accent,
-    "--h-text": h.text, "--h-subtext": h.subtext0, "--h-overlay0": h.overlay0, "--h-overlay1": h.overlay1,
-    "--h-dim": h.surface_dim, "--prompt": t.prompt.path, "--branch": t.prompt.branch, "--status": t.prompt.status,
+    "--h-text": h.text, "--h-subtext": h.subtext0, "--h-overlay1": h.overlay1, "--h-dim": h.surface_dim,
+    "--h-yellow": h.yellow, "--h-teal": h.teal, "--h-green": h.green, "--h-red": h.red,
+    "--frame": PREVIEW.themes[t.id].frame, "--prompt": t.prompt.path, "--branch": t.prompt.branch,
+    "--status": t.prompt.status,
   };
-  c.palette.forEach((color, n) => { v["--p" + n] = color; });
   Object.entries(PREVIEW.themes[t.id].sidebar).forEach(([role, color]) => {
     v["--s-" + role.replace(/_/g, "-")] = color;
   });
@@ -165,55 +215,102 @@ function sheep(t) {
     `shape-rendering="crispEdges" aria-hidden="true">${rects.join("")}</svg>`;
 }
 
+// The sidebar's chevron, open, as its codicon draws it (a right angle, its ends and corner round), never a font's ⌄
+const CHEVRON = '<svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6"/></svg>';
+
+// The work window as the TUI draws it, in proportion, in the theme's colors, its spaces and work invented: herdr's
+// sidebar, the tab bar, then the tab's panes in herdr's frames: Claude's, with the focus, and the sidebar on Changes
+// over the terminal. The sidebar's row of views is the TUI's (PREVIEW.views), More and » last
 function mock(t) {
-  const dot = key => `<span class="dot" style="color:${t.colors.herdr[key]}">●</span>`;
-  const green = dot("green"), yellow = dot("yellow"), blue = dot("blue");
+  const views = [...Object.entries(PREVIEW.views), ["more", { name: "More", glyph: "⋯" }]]
+    .map(([id, view]) => `<div class="view${id === "changes" ? " on" : ""}"><div class="icon-row">${view.glyph}${
+      id === "changes" ? '<span class="mark">●</span>' : ""}</div><div class="label">${view.name}</div></div>`)
+    .join("");
   return `<div class="win" style="${colors(t)}">
     <div class="hs">
-      <div class="title">SPACES <b>+ new</b></div>
-      <div class="row"><span class="n">1</span>home${green}</div>
-      <div class="row on"><span class="n">2</span>webshop${yellow}</div>
-      <div class="row"><span class="n">3</span>api${green}</div>
-      <div class="row"><span class="n">4</span>docs${blue}</div>
-      <div class="gap"></div>
-      <div class="title">SESSIONS</div>
-      <div class="row on">Login redirect${yellow}</div>
-      <div class="row">Code review${green}</div>
-      <div class="row">Release notes${blue}</div>
+      <div class="q">spaces</div>
+      <div></div>
+      <div><span class="q">·</span><span class="name">home</span></div>
+      <div class="on"><span class="done">●</span><span class="name">lumen-api</span><span class="q">·</span><span
+        class="wait">waiting 6m</span></div>
+      <div class="on sub"><span class="branch">main</span></div>
+      <div><span class="idle">○</span><span class="name">harbor-web</span></div>
+      <div class="sub"><span class="branch">main</span></div>
+      <div><span class="asks">●</span><span class="name">tidepool</span><span class="q">·</span><span
+        class="wait">waiting 4m</span></div>
+      <div class="sub"><span class="branch">main</span></div>
+      <div class="hs-fill"></div>
+      <div class="ends q"><span>new</span><span>menu</span></div>
+      <div class="split"></div>
+      <div class="ends"><span class="q">agents</span><span class="tab">sessions</span></div>
+      <div></div>
+      <div class="on"><span class="done">●</span><span class="name">Empty page past the last one</span></div>
+      <div class="on sub"><span class="done">done</span><span class="q">·</span><span
+        class="agent-name">lumen-api</span></div>
+      <div class="hs-fill"></div>
+      <div class="ends"><span></span><span class="q">«</span></div>
     </div>
+    <div class="edge"></div>
     <div class="main">
-      <div class="tabs"><span class="on">1 webshop</span><span>2 review</span><span class="plus">+</span></div>
+      <div class="tabs"><span class="on">lumen-api</span><span class="plus">+</span></div>
       <div class="panes">
-        <div class="agent">
-          <div class="you">&gt; keep ?next= in the login redirect</div>
-          <div>&nbsp;</div>
-          <div><span class="dotg">⏺</span> <span class="tool">Update</span>(src/auth/login.ts)</div>
-          <div class="del">   12 -   return redirect("/")</div>
-          <div class="add">   12 +   return redirect(next ?? "/")</div>
-          <div>&nbsp;</div>
-          <div><span class="dotg">⏺</span> Done — the redirect keeps ?next= now.</div>
-          <div class="dim">  Tests: 48 passed</div>
-          <div class="input">&gt; <span class="cursor"> </span></div>
-          <div class="status">Opus 5.5 (medium) | context: 22%/1M</div>
+        <div class="pane focus agent"><span class="ttl">Empty page past the last one</span>
+          <div class="code"><span class="ln"> 8</span>    books = <span class="fn">sorted</span>(store.books, key=<span
+            class="kw">lambda</span> b: b[<span class="str">"title"</span>])</div>
+          <div class="del"><span class="ln"> 9 -</span>  page = <span class="fn">int</span>(query.get(<span
+            class="str">"page"</span>, <span class="nu">1</span>))</div>
+          <div class="add"><span class="ln"> 9 +</span>  last = <span class="fn">max</span>(<span
+            class="nu">1</span>, -(-<span class="fn">len</span>(books) // PAGE))</div>
+          <div class="add"><span class="ln">10 +</span>  page = <span class="fn">min</span>(<span
+            class="fn">max</span>(<span class="nu">1</span>, <span class="fn">int</span>(query.get(<span
+            class="str">"page"</span>, <span class="nu">1</span>))), last)</div>
+          <div class="code"><span class="ln">11</span>    start = (page - <span class="nu">1</span>) * PAGE</div>
+          <div class="code"><span class="ln">12</span>    <span class="kw">return</span> {<span
+            class="str">"books"</span>: books[start:start + PAGE], <span class="str">"page"</span>: page}</div>
+          <div class="gap"></div>
+          <div><span class="dot">●</span> Now the tests.</div>
+          <div class="gap"></div>
+          <div>  Ran <b>1</b> shell command</div>
+          <div class="gap"></div>
+          <div><span class="dot">●</span> Fixed. <span class="tick">GET /books</span> now</div>
+          <div>  clamps the page: past</div>
+          <div>  the last one it answers</div>
+          <div>  the last page, and</div>
+          <div>  <span class="tick">page=0</span> or below gives</div>
+          <div>  the first.</div>
+          <div class="gap"></div>
+          <div class="gray">✻ Sautéed for 7s</div>
+          <div class="rule bottom"></div>
+          <div><span class="gray">❯</span> <span class="cur"> </span></div>
+          <div class="rule"></div>
+          <div class="status">  <span class="model">Opus 5.5</span> | ctx <span class="ctx">2%</span></div>
+          <div class="mode">  ⏵⏵ accept edits on</div>
         </div>
         <div class="col">
-          <div class="sb">
-            <div class="views"><span class="tab on">${PREVIEW.views.files}</span>
-              <span class="tab">${PREVIEW.views.search}</span><span class="tab">${PREVIEW.views.git}</span>
-              <span class="tab">${PREVIEW.views.issues}</span><span class="title">Files</span></div>
-            <div class="dir">webshop</div>
-            <div class="on-row">▾ src/auth</div>
-            <div>    login.ts <span class="mod">M</span></div>
-            <div>    token.ts <span class="add">U</span></div>
-            <div class="ign">▸ node_modules</div>
-            <div class="ign">  .env</div>
-            <div>  package.json</div>
-            <div class="btn">✓ Commit</div>
-            <div class="bar">⎇ main*  ↻</div>
+          <div class="pane sb"><span class="ttl">sidebar</span>
+            <div class="views">${views}<div class="fold">»</div></div>
+            <div class="gap"></div>
+            <div class="line"><span class="chev">${CHEVRON}</span><span class="title">Repositories</span></div>
+            <div class="line in"><span class="text">lumen-api</span><span class="dim end">⎇ main*  ↻  ⋯</span></div>
+            <div class="ctl"><span class="field">fix(books): clamp the page to the last one</span><span
+              class="side">${PREVIEW.views.chats.glyph}</span></div>
+            <div class="gap"></div>
+            <div class="ctl"><span class="button">✓ Commit</span><span class="button turn">${CHEVRON}</span></div>
+            <div class="line"><span
+              class="issue">Fixes #42 Pagination returns an empty page past the last one</span><span
+              class="dim end">×</span></div>
+            <div class="gap"></div>
+            <div class="line in"><span class="text">books.py</span><span class="dim">src/lumen/routes</span><span
+              class="modified end">M</span></div>
+            <div class="line in"><span class="text">test_books.py</span><span class="dim">tests</span><span
+              class="added end">U</span></div>
+            <div class="line in"><span class="head">◉</span><span class="text">feat(books): page the list</span><span
+              class="head">main origin/main</span></div>
           </div>
-          <div class="term">
-            <div><span class="path">webshop</span></div>
-            <div><span class="branch">main</span> <span class="st">[!]</span> <span class="char">❯</span> <span
+          <div class="pane term"><span class="ttl">terminal</span>
+            <div class="gap"></div>
+            <div><span class="path">/src</span></div>
+            <div><span class="branch">main</span> <span class="st">[!?]</span> <span class="char">❯</span> <span
               class="cursor"> </span></div>
           </div>
         </div>

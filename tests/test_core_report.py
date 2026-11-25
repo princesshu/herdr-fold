@@ -59,7 +59,7 @@ def meta(folder=TIDEPOOL):
 
 
 class Used(made.Home):
-    """A home with twelve days of November: a Claude conversation in lumen-api with its Explore sub-agent, an older
+    """A home with twelve days of November: a Claude conversation in lumen-api with its Explore subagent, an older
     one in harbor-web, and a Codex one in tidepool with a model that has no price."""
 
     def setUp(self):
@@ -136,19 +136,15 @@ class Summary(Used):
         found = self.report()
         cell = self.cell(found, "Claude")
         self.assertEqual(cell, {"key": "Claude · Max plan", "agent": "claude", "value": cell["value"],
-                                "text": "~$4.78", "unit": "API value",
-                                "line": "no charge on the plan · week 16% of its limit", "over": False})
+                                "text": "~$4.78", "unit": "API value", "line": "no charge on the plan"})
         self.assertAlmostEqual(cell["value"], 4.78)
         claude = self.report(agent="claude")
         self.assertNotIn("spent", json.dumps(claude))
-        self.assertEqual({one["kind"] for one in claude["conversations"] + claude["models"]}, {"value"})
-        self.assertEqual(claude["words"]["projects_note"], "API value · 7 days")
-        self.assertEqual(found["words"]["projects_note"], "value and spent together · 7 days")
-        self.assertEqual(self.report(agent="codex")["words"]["projects_note"], "spent · 7 days")
-
-    def test_a_plan_whose_week_is_not_known_says_the_plan_alone(self):
-        os.unlink(os.path.join(self.state, "limits", "claude.json"))
-        self.assertEqual(self.cell(self.report(), "Claude")["line"], "no charge on the plan")
+        self.assertEqual({one["kind"] for one in claude["chats"] + claude["models"]}, {"value"})
+        # the period said once, by the filters: never in a note
+        self.assertEqual(claude["words"]["projects_note"], "API value")
+        self.assertEqual(found["words"]["projects_note"], "API value and spend combined")
+        self.assertEqual(self.report(agent="codex")["words"]["projects_note"], "spent")
 
     def test_an_agent_whose_sign_in_is_not_told_is_never_spent(self):
         for agents in (None, [], "no", [{"key": "codex", "plan": None}], [{"key": "codex"}, 7]):
@@ -156,20 +152,13 @@ class Summary(Used):
                 cell = self.cell(self.report(agents=agents), "Codex")
                 self.assertEqual((cell["key"], cell["unit"], cell["line"]), ("Codex", "API value", ""))
 
-    def test_an_api_keys_figure_is_spent_with_its_month_budget_and_pace(self):
+    def test_an_api_keys_figure_is_spent_in_the_period_with_no_month_repeated(self):
         report.set_budget(self.state, "codex", 50)
         cell = self.cell(self.report(), "Codex")
-        self.assertEqual((cell["key"], cell["text"], cell["unit"], cell["line"], cell["over"]),
-                         ("Codex · API key", "~$8.60", "spent", "November ~$18.40 of $50 · on pace for ~$46", False))
-
-    def test_a_pace_past_the_budget_is_over(self):
-        report.set_budget(self.state, "codex", 40)
-        cell = self.cell(self.report(), "Codex")
-        self.assertEqual((cell["line"], cell["over"]), ("November ~$18.40 of $40 · on pace for ~$46", True))
-
-    def test_an_api_key_with_no_budget_says_its_month_and_pace(self):
-        cell = self.cell(self.report(), "Codex")
-        self.assertEqual((cell["line"], cell["over"]), ("November ~$18.40 · on pace for ~$46", False))
+        self.assertEqual((cell["key"], cell["text"], cell["unit"], cell["line"]),
+                         ("Codex · API key", "~$8.60", "spent in 7 days", ""))
+        self.assertEqual([self.cell(self.report(period), "Codex")["unit"] for period in ("30d", "month")],
+                         ["spent in 30 days", "spent in November"])
 
     def test_the_tokens_and_the_share_read_from_the_cache(self):
         cell = self.cell(self.report(), "Tokens")
@@ -177,16 +166,28 @@ class Summary(Used):
 
     def test_a_period_with_nothing_used_says_so(self):
         found = self.report("today")
-        self.assertEqual((found["summary"][0], found["conversations"], found["models"], found["projects"]),
-                         ({"key": "Tokens", "value": 0, "text": "0", "line": ""}, [], [], []))
+        self.assertEqual((found["summary"], found["chats"], found["models"], found["projects"]),
+                         ([{"key": "Tokens", "value": 0, "text": "0", "line": ""}], [], [], []))
         self.assertEqual(found["none"], "Nothing used in this period")
 
+    def test_no_commit_count_beside_the_costs(self):
+        # a conversation's or a project's commits tell nothing about its cost (the owner, 2026-11-20): none counted
+        found = self.report()
+        self.assertEqual(found["summary"][-1]["key"], "Tokens")
+        self.assertEqual(found["columns"]["chats"], ["Chat", "Space", "Models", "Turns", "Tokens", "Cache", "Cost"])
+        gone = {"commits", "about", "commits_text", "added", "removed", "changed", "per_commit", "commits_tip"}
+        self.assertEqual([key for one in found["chats"] + found["projects"] for key in one if key in gone], [])
+        self.assertEqual((found["words"]["chats"], found["words"]["chats_note"]), ("Chats", "by cost"))
+        self.assertNotIn("models_note", found["words"])
+
     def test_the_prices_day_and_the_foot(self):
+        # where the prices come from, said once: estimated, from tokens, each maker's API list prices, their day, and
+        # that a plan's figure is what the use would cost on the API
         found = self.report()
         self.assertEqual(found["prices_as_of"], "Nov 9, 2026")
-        self.assertEqual(found["words"]["foot"], "Costs are estimates from the conversations' token counts at list "
-                                                 "prices (LiteLLM's model cost map, as of Nov 9, 2026), not the "
-                                                 "provider's invoice · a model with no price shows its tokens alone")
+        self.assertEqual(found["words"]["foot"], "~ estimated from token counts at Anthropic's and OpenAI's list "
+                                                 "prices (Nov 9, 2026); on a plan, what the same use would cost on "
+                                                 "the API")
 
     def test_a_figure_herdr_fold_computes_wears_a_tilde_a_cell_of_the_tables_and_the_csv_none(self):
         report.set_budget(self.state, "codex", 50)
@@ -194,7 +195,7 @@ class Summary(Used):
         self.assertEqual([one["text"][:2] for one in found["summary"][:2]], ["~$", "~$"])
         self.assertEqual(found["months"][0]["line"], "~$18.40 of $50 · on pace for ~$46")        # the budget none
         self.assertTrue(all(one["text"].startswith("$") or one["text"] == "no price" for one in found["models"]))
-        self.assertTrue(all(one["tip"].startswith("$") for one in found["conversations"] if one["tip"]))
+        self.assertTrue(all(one["tip"].startswith("$") for one in found["chats"] if one["tip"]))
         self.assertNotIn("~", report.csv(self.state, self.home, "7d", now=NOW, agents=AGENTS, table=TABLE))
 
 
@@ -223,7 +224,7 @@ class Breakdown(Used):
                          ["tidepool", "harbor-web", "lumen-api"])
 
     def test_a_conversations_row(self):
-        rows = self.report()["conversations"]
+        rows = self.report()["chats"]
         self.assertEqual([one["title"] for one in rows], ["Spike the search API", "Fix the page past the last one"])
         row = rows[1]
         self.assertEqual({key: row[key] for key in ("session", "agent", "folder", "space", "turns", "tokens", "cache",
@@ -237,7 +238,7 @@ class Breakdown(Used):
         self.assertEqual(row["tip"], "$2.39 a turn · 68% read from cache")
 
     def test_a_conversation_with_a_model_that_has_no_price_keeps_its_tokens(self):
-        row = self.report()["conversations"][0]
+        row = self.report()["chats"][0]
         self.assertEqual((row["tokens"], round(row["cost"], 2), row["kind"], row["unpriced"], row["turns"]),
                          (1_760_000, 8.6, "spent", True, 2))
 
@@ -248,14 +249,14 @@ class Breakdown(Used):
         first = next(one for one in kept["files"] if one.endswith(f"{SESSION}.jsonl"))
         kept["files"][first] = {"prompt": "Fix\x1b[31m the\npage " + "x" * 300}
         self.write(os.path.relpath(path, self.home), json.dumps(kept))
-        titles = {one["session"]: one["title"] for one in self.report("30d")["conversations"]}
+        titles = {one["session"]: one["title"] for one in self.report("30d")["chats"]}
         self.assertEqual(titles[SESSION], "Fix[31m the page " + "x" * 63)
         self.assertEqual(titles[OTHER], "Untitled")
 
     def test_a_name_given_by_hand_is_the_title(self):
         self.write(".local/state/herdr/plugins/herdr-fold.sessions-view/names.json",
                    json.dumps({SESSION: {"name": "Paging"}, OTHER: {"name": "made up", "given": True}}))
-        titles = {one["session"]: one["title"] for one in self.report("30d")["conversations"]}
+        titles = {one["session"]: one["title"] for one in self.report("30d")["chats"]}
         self.assertEqual((titles[SESSION], titles[OTHER]), ("Paging", "Untitled"))
 
     def test_the_models_table_tells_sub_agents_apart_and_no_price(self):
@@ -264,14 +265,13 @@ class Breakdown(Used):
                            one["cost"] and round(one["cost"], 2), one["kind"], one["text"]) for one in rows],
                          [("GPT-6 Astra", "Codex", 860_000, 0, 0, 0, 8.6, "spent", "$8.60"),
                           ("Opus 5.5", "Claude", 120_000, 100_000, 880_000, 10_000, 4.58, "value", "$4.58"),
-                          ("Haiku 5.5", "Claude · sub-agents", 200_000, 0, 0, 0, 0.2, "value", "$0.20"),
+                          ("Haiku 5.5", "Claude · subagents", 200_000, 0, 0, 0, 0.2, "value", "$0.20"),
                           ("Codex Auto Review", "Codex", 800_000, 0, 100_000, 0, None, "spent", "no price")])
 
     def test_one_agent_alone(self):
         found = self.report(agent="codex")
-        self.assertEqual([one["key"] for one in found["summary"]],
-                         ["Codex · API key", "Tokens", "Commits from these conversations"])
-        self.assertEqual({one["agent"] for one in found["conversations"]}, {"codex"})
+        self.assertEqual([one["key"] for one in found["summary"]], ["Codex · API key", "Tokens"])
+        self.assertEqual({one["agent"] for one in found["chats"]}, {"codex"})
         with self.assertRaises(ValueError):
             self.report(agent="gemini")
 
@@ -307,9 +307,14 @@ class Month(Used):
         self.assertEqual((month["words"], month["level"]), ({"spent": "~$18.40", "of": "of $50",
                                                              "pace": "on pace for ~$46"}, "ok"))
 
-    def test_a_months_level_is_the_open_blocks_yellow_once_over_and_none_without_a_budget(self):
+    def test_a_months_level_yellow_on_pace_past_its_budget_red_once_spent_and_none_without_one(self):
+        self.assertIsNone(self.report()["month"]["pace_line"])           # no pace line while under
         report.set_budget(self.state, "codex", 40)
-        self.assertEqual(self.report()["month"]["level"], "warn")
+        month = self.report()["month"]
+        self.assertEqual((month["level"], month["pace_line"]), ("warn", {
+            "text": "on pace for ~$46 by November 30", "narrow": "on pace for ~$46 by Nov 30"}))
+        report.set_budget(self.state, "codex", 18)
+        self.assertEqual(self.report()["month"]["level"], "bad")
         report.set_budget(self.state, "codex", None)
         month = self.report()["month"]
         self.assertEqual((month["words"]["of"], month["level"]), ("", None))
@@ -318,7 +323,7 @@ class Month(Used):
         report.set_budget(self.state, "claude", 100)
         found = self.report(agent="claude")
         self.assertEqual((found["month"], found["months"]), (None, []))
-        self.assertEqual(self.cell(found, "Claude")["line"], "no charge on the plan · week 16% of its limit")
+        self.assertEqual(self.cell(found, "Claude")["line"], "no charge on the plan")
 
     def test_the_pace_is_the_month_at_the_days_so_far(self):
         self.assertAlmostEqual(report.pace(18.40, 12, 30), 46)
@@ -400,7 +405,7 @@ class Budget(Used):
 class Csv(Used):
     def test_its_head_and_a_row(self):
         lines = report.csv(self.state, self.home, "7d", now=NOW, agents=AGENTS, table=TABLE).split("\r\n")
-        self.assertEqual(lines[0], "day,agent,model,conversation,space,input,cache_write_5m,cache_write_1h,"
+        self.assertEqual(lines[0], "day,agent,model,chat,space,input,cache_write_5m,cache_write_1h,"
                                    "cache_read,output,reasoning,searches,cost,kind")
         self.assertIn("2026-11-11,Claude,Opus 5.5,Fix the page past the last one,lumen-api,100000,0,0,0,0,0,0,"
                       "1.000000,value", lines)
@@ -444,9 +449,7 @@ class Reads(Used):
                          ["$0.00", "$0.00", "$4.13", "$130.90", "$1,234.50"])
         self.assertEqual([report.whole(n) for n in (50, 45.6, 1250.51, 1250)], ["$50", "$46", "$1,251", "$1,250"])
         self.assertEqual((report.money(130.9, about=True), report.whole(45.6, about=True)), ("~$130.90", "~$46"))
-        self.assertEqual([report.short(n) for n in (0, 999, 1000, 68_400, 210_000, 999_950, 1_000_000, 38_240_000,
-                                                    2_100_000_000)],
-                         ["0", "999", "1.0k", "68k", "210k", "1.0M", "1.0M", "38.2M", "2.1B"])
+        self.assertEqual(self.cell(self.report(), "Tokens")["text"], "3.1M")      # the number rule, words.py's
 
 
 class Cli(Used):
@@ -464,7 +467,8 @@ class Cli(Used):
         agents = "--agents=" + json.dumps(AGENTS)
         code, out = self.run_cli("report", "7d", "codex", TIDEPOOL, agents, "--surface=#3b4252", "--text=#eceff4")
         found = json.loads(out)
-        self.assertEqual((code, found["period"]["label"], found["summary"][0]["unit"]), (0, "7 days", "spent"))
+        self.assertEqual((code, found["period"]["label"], found["summary"][0]["unit"]), (0, "7 days",
+                                                                                         "spent in 7 days"))
         self.assertEqual(json.loads(self.run_cli("report", "month")[1])["summary"][0]["unit"], "API value")
         self.assertEqual(json.loads(self.run_cli("notice", agents)[1])["notices"][0]["key"], "codex:2026-11")
         self.assertEqual(self.run_cli("dismiss", "codex:2026-11"), (0, '{"ok": true}\n'))

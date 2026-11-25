@@ -9,6 +9,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 
 from support import SRC, AppScreen, FakeTerminal, end_jobs, jsonl, logged, set_attrs, set_env, stubs
 
@@ -17,6 +18,7 @@ import chats          # noqa: E402
 import chats_panel          # noqa: E402
 import fileops  # noqa: E402
 import panes  # noqa: E402
+import plan  # noqa: E402
 import preview  # noqa: E402
 import sidebar  # noqa: E402
 from icons import glyphs  # noqa: E402
@@ -108,14 +110,14 @@ class Panel(AppScreen, unittest.TestCase):
         at = next(n for n, line in enumerate(self.screen().splitlines()) if n > y and f"│ {choice} " in line)
         self.term.type(Mouse("press", 7, at, 0))
 
-    def test_it_lists_the_spaces_in_their_order_their_chats_under_them(self):
+    def test_it_lists_the_spaces_with_chats_in_their_order_their_chats_under_them(self):
         self.start()
         self.assertEqual(self.app.box[0], self.app.body[0])              # in the view's place, under the blank row
         shown = self.listed()
-        self.assertEqual((shown[0].split()[1], shown[0][-1]), ("app", glyphs(True)["open"]), shown)   # this pane's
-        self.assertTrue(shown[1].startswith("├─ ● Fix the login"), shown)
-        self.assertTrue(shown[2].startswith("└─ · Price list"), shown)
-        self.assertEqual(shown[3].split(), ["○", "docs", "0", glyphs(True)["closed"]], shown)   # an idle agent
+        self.assertEqual(shown[0].split(), [glyphs(True)["open"], "app", "2"], shown)       # this pane's
+        self.assertTrue(shown[1].startswith("● Fix the login"), shown)
+        self.assertTrue(shown[2].startswith("· Price list"), shown)
+        self.assertEqual(len(shown), 3, shown)                              # docs has no chat: not listed
         self.assertNotIn("Old notes", self.screen())                        # /elsewhere: no workspace has it
 
     def test_a_running_one_is_gone_to(self):
@@ -153,15 +155,44 @@ class Panel(AppScreen, unittest.TestCase):
         self.assertEqual(copied[0], "# Price list\n\n**You**\n\nPrice list\n\n**Claude**\n\n**Done.**\n")
         self.assertEqual(copied[1:], ["formatted"] if sys.platform == "darwin" else [])
 
+    def test_the_chosen_chats_plan_is_read_on_and_its_approved_plan_opens_in_the_preview(self):
+        path = os.path.join(self.home, ".claude", "projects", "-repo-app", "s2.jsonl")
+        task = {"type": "tool_use", "id": "k1", "name": "TaskCreate", "input": {"subject": "Keep the page in range"}}
+        with open(path, "a") as f:
+            f.write(jsonl({"type": "assistant", "message": {"content": [task]}}) + jsonl({
+                "type": "user", "toolUseResult": {"plan": "1. Keep the page in range", "isAgent": False,
+                                                  "filePath": "/Users/dev/.claude/plans/calm-red-fox.md"},
+                "message": {"content": [{"type": "tool_result", "tool_use_id": "p1", "content": "Approved."}]}}))
+        app = self.make()
+        work, item = app.work["chats"], chats.Chat("claude", "s2", "Price list", "/repo/app", 0)
+        work.got_plan(work.read_plan(item))
+        self.assertIsNone(work.view.plan[1])                         # asked for, not numbered yet: no list
+        with open(path, "a") as f:
+            f.write(jsonl({"type": "user", "message": {"content": [{
+                "type": "tool_result", "tool_use_id": "k1", "content": "Task #1 created successfully"}]}}))
+        with mock.patch.object(plan, "lines", wraps=plan.lines) as read:
+            work.got_plan(work.read_plan(item))
+        self.assertGreater(read.call_args.args[2], 0)                # on from where the last read stopped
+        self.assertEqual((work.view.plan[0], work.view.plan[1]["count"]), ("claude:s2", "0 of 1 done"))
+        shown = []
+        app.open_preview = lambda spec, cwd: shown.append((spec["title"], spec.get("file") or spec["pipeline"][0][-1]))
+        work.show_plan(work.plan_file(item))
+        kept = os.path.join(self.state, "plans", "s2", "plan.md")
+        self.assertEqual(shown, [("plan · Price list", kept)])
+        with open(kept, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "1. Keep the page in range\n")
+        with self.assertRaises(RuntimeError):
+            work.plan_file(chats.Chat("claude", "s1", "Fix the login", "/repo/app", 0))
+
     def test_archive_takes_a_closed_one_off_the_list_in_every_tab_and_back(self):
         self.start()
         self.choose("Price list", "Archive")
-        self.until(lambda s: "Price list" not in s and "Archived" in s)
+        self.until(lambda s: s.count("Price list") == 1 and 'Archived "Price list"' in s)    # the foot's alone
         self.assertEqual(chats.archived(self.state), {"claude:s2"})
         with open(os.path.join(self.home, ".claude", "projects", "-repo-app", "s2.jsonl"), encoding="utf-8") as f:
             self.assertIn("Price list", f.read())                  # its file as it was: resumable as before
         self.term.type(*[Key("char", ch) for ch in "archived"])
-        self.until(lambda s: "Price list" in s)
+        self.until(lambda s: any(line.rstrip().endswith("archived") for line in s.splitlines() if "Price" in line))
         self.choose("Price list", "Unarchive")
         self.until(lambda s: "Back in the list" in s)
         self.assertEqual(chats.archived(self.state), set())
@@ -222,7 +253,7 @@ class Panel(AppScreen, unittest.TestCase):
         self.term.type(Mouse("press", 12, y, 2))
         self.until(lambda s: "Archive 2 chats" in s.splitlines()[y + 1])
         self.term.type(Mouse("press", 14, y + 1, 0))
-        self.until(lambda s: "Price list" not in s and "Draft notes" not in s and "2 archived" in s)
+        self.until(lambda s: "Price list" not in s and "Draft notes" not in s and "Archived 2 chats" in s)
         self.assertEqual(chats.archived(self.state), {"claude:s2", "claude:s4"})
 
     def names(self):

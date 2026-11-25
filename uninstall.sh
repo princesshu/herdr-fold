@@ -12,7 +12,7 @@ changed="$state/changed-$(date +%Y%m%d-%H%M%S)"
 [ -f "$record" ] || { note "$(t uninstall.nothing)"; exit 0; }
 # The parts it takes off: both installed, the question which (the default both); one, the question as before.
 # HERDR_FOLD_PARTS answers either. What both share goes with the last part (last)
-had=$(python3 "$DOT/src/parts.py" "$state" | xargs); had=${had:-tui}      # no part on the record: an earlier TUI's
+had=$(python3 "$DOT/src/parts.py" "$state" | xargs)
 off=$(parts_of "${HERDR_FOLD_PARTS:-}")
 if [ -n "${HERDR_FOLD_PARTS:-}" ]; then
   [ -n "$off" ] || { note "$(t uninstall.parts_unknown "$HERDR_FOLD_PARTS")"; exit 0; }
@@ -150,7 +150,7 @@ if [ -n "$tui" ]; then
 fi
 # This Mac's state (the machine list and the private word list stay: written by you), and the sidebar plugin's (each
 # file with its lock): its own with the TUI (the colors, the column, the panels, handovers, previews, issues), with the
-# last part what the app shares (the settings and the linked issues; the chats' archived and index, by older names too)
+# last part what the app shares (the settings and the linked issues; the chats' archived and index)
 [ -z "$tui" ] || rm -f "$HOME/.config/herdr-fold/setup-folder"
 [ -z "$last" ] || rm -f "$HOME/.config/herdr-fold/statusline.json"
 remove_empty_dirs "$HOME/.config/herdr-fold"
@@ -161,30 +161,24 @@ sidebar_state="$HOME/.local/state/herdr/plugins/herdr-fold.sidebar"
   "$sidebar_state/dock.json.lock" "$sidebar_state/panels.json.lock"
 [ -z "$last" ] || rm -f "$sidebar_state/settings.json" "$sidebar_state/chats.json" \
   "$sidebar_state/chat-index.json" "$sidebar_state/settings.json.lock" "$sidebar_state/chats.json.lock" \
-  "$sidebar_state/chat-index.json.lock" "$sidebar_state/conversations.json" \
-  "$sidebar_state/conversation-index.json" "$sidebar_state/conversations.json.lock" \
-  "$sidebar_state"/.*.tmp                                           # .*.tmp: a write cut short
+  "$sidebar_state/chat-index.json.lock" "$sidebar_state"/.*.tmp              # .*.tmp: a write cut short
 rmdir "$sidebar_state" 2>/dev/null                                  # only when nothing else is in it
-# the empty folders herdr keeps of the plugins taken off above (the chat names stay), an earlier install's
-# Tab Layout's too; with the last part, the whole environment's marks once it is off (left on, it would offer the
-# installer again on herdr's start)
+# the empty folders herdr keeps of the plugins taken off above (the chat names stay); with the last part, the whole
+# environment's marks once it is off (left on, it would offer the installer again on herdr's start)
 [ -z "$last" ] || [ -n "${whole_left:-}" ] || rm -f "$HOME/.local/state/herdr/plugins/herdr-fold"/offered-*
-drop_plugin_folders ${last:+herdr-fold} \
-  ${tui:+herdr-fold.sidebar herdr-fold.sessions-view herdr-fold.workspaces herdr-fold.tab-layout}
+drop_plugin_folders ${last:+herdr-fold} ${tui:+herdr-fold.sidebar herdr-fold.sessions-view herdr-fold.spaces}
 [ -z "$tui" ] || herdr server reload-config >/dev/null 2>&1         # a running herdr drops herdr-fold's keys
 
 if [ -n "$last" ]; then
-  # The records, the loading colors and earlier versions go; anything of yours stays and is named with where it is:
+  # The records and the loading colors go; anything of yours stays and is named with where it is:
   # the chat names, the machine list, the private word list, outside.txt (named, then removed), a file changed
   # since the install, an original that did not go back, another Mac's prepare record.
-  rm -rf "$state"/[0-9]*-[0-9]*
   rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/herdr-fold"          # the preview's helpers, compiled on first use
   rm -rf "$state/limits"                # the usage limits both clients' status lines keep
   rm -f "$record" "$state/installed.sha256" "$state/version" "$state/plugins.txt" "$state/loading-colors.txt" \
     "$state"/.loading-colors.txt.*.tmp "$state/update.json" "$state/update.json.lock" "$state"/.update.json.*.tmp \
     "$state/time.json" "$state/usage-index.json" "$state/usage-index.json.lock" "$state"/.usage-index.json.*.tmp \
     "$state/prices.json" "$state/prices.json.lock" "$state"/.prices.json.*.tmp \
-    "$state/commits-index.json" "$state/commits-index.json.lock" "$state"/.commits-index.json.*.tmp \
     "$state/usage.json" "$state/usage.json.lock" "$state"/.usage.json.*.tmp   # Usage's counts, prices and budgets
   [ -d "$state/original" ] && find "$state/original" -depth -type d -empty -delete
   names="$HOME/.local/state/herdr/plugins/herdr-fold.sessions-view/names.json"

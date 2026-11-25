@@ -13,7 +13,7 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   previewTab, priorityColor, pushOffer, pythonCommand, railed, resumeArgv, rowActions, safeMarkdown, said, searchRows,
   searchSummary, secretQuestion, shownView, strays, syncLabel, tabLabel, TALL, terminalId, TERMINALS, urgent,
   withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread, spaceWaits, placeLabel, nested, folderKey,
-  atHome, homeFirst, homeId, homesEmpty, homesSeen, withHomes, HOME_NAME,
+  atHome, homeFirst, homeId, homesEmpty, homesSeen, withHomes, HOME_NAME, spaceLabel, spaceColor,
   placeKey, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow, railToggle, RAIL, RAIL_BLOCK,
   PANEL_PX, activeTerminal, hovering, tabRows, titleSide, fieldWidth, FIELD, FIELD_LEAST, paletteKey, toggleRoom,
   keyNames, keyWord, paletteEntries, entryKey, palettePlace, PALETTE_NAMED, PALETTE_GROUPS, PALETTE_OWNED,
@@ -22,10 +22,13 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   CHATS_BLOCK, BADGE, badgeSpot, DOCK, TAB_COUNT, TAB_GAP, TAB_H, TAB_IN, TABS_H, TABS_IN, TABS_PAD, TABS_SIDE,
   shownPanels, panelsFollow, pickCommands, panelChoices, hideCommands, PAD, waitingChats, shortCount, chosenFor,
   keepChosen, chatsToggle, tabFit, repoTold, issuesParts, NOTE_MS, CENTER, BOTTOM_PX, TERMINALS_WEIGHT,
-  floatMin, floatMax, railFloatPx, keepFloat, dragPx, FLOAT_GRIP,
+  floatMin, floatMax, railFloatPx, keepFloat, dragPx, FLOAT_GRIP, restWidth, UNFOLD, SETTLE, dockRest, sidebarRest,
+  sidebarRail, SIDEBAR_PX, sidebarFollow, sidebarToggle, floatStale, floating, floatX, floatTop, FLOAT_GAP, restAt,
+  pressCloses, foldCommands, fitFloatPx,
   terminalsAt, bottomPx, bottomShown, placeTerminals, bottomToggle, find, CHAT_LABEL, chatWait, keepWait, WAY_OUT,
   waiting, chatAgents, updateNotice, ABOUT, aboutHeight, licenseOf, aboutTargets, agentsSaid, updateReady, SETTINGS,
-  SECTIONS, settingsSection, sectionStep, settingsTargets }
+  SECTIONS, APP_SECTIONS, settingsSection, sectionStep, settingsTargets, columnToggle, restoreCommands, keyMenuBounds,
+  themeChoices, layoutToast, soundsFor, noteShown }
   from "../mods/herdr-fold/logic.js";
 import { format } from "../mods/herdr-fold/timeline.js";
 
@@ -115,13 +118,16 @@ test("About's author is the mod's LICENSE's holder, a link to their page; the ke
     ["first", "check", "box", "notices"]);                                     // a name with no page: no link
 });
 
-test("Settings keeps one size: About's tallest state, a newer one's how line, fills its section's room", () => {
+test("Settings keeps one size, 600 × 380: its sections and the Herdr app's beside About's tallest state", () => {
   const now = NOON * 1000, room = SETTINGS.high - SETTINGS.head - 2 * SETTINGS.pad;
   const plain = aboutHeight(aboutState(FOUND, { now })), newer = aboutHeight(aboutState({ ...FOUND, latest: "0.4.0",
     newer: true }, { now }));
+  assert.deepEqual([SETTINGS.wide, SETTINGS.high], [600, 380]);
   assert.equal(plain, ABOUT.head + ABOUT.gap + ABOUT.state + ABOUT.gap + ABOUT.box + ABOUT.gap + ABOUT.legal);
   assert.equal(newer - plain, ABOUT.howGap + ABOUT.how);
-  assert.equal(newer, room);                                                // nothing grows, nothing is cut
+  assert.ok(newer <= room);                                                 // nothing grows, nothing is cut
+  const rows = SECTIONS.length + 1 + APP_SECTIONS.length;                   // Application, their title, a row too
+  assert.ok(rows * SETTINGS.row + (rows - 1) * 2 + SETTINGS.apart <= room, "every section in the list");
   for (const more of [{ error: "GitHub did not answer", latest: "0.4.0", newer: true }, { version: null },
     { on: false, checked: null }]) {
     assert.ok(aboutHeight(aboutState({ ...FOUND, ...more }, { now })) <= room);
@@ -129,14 +135,157 @@ test("Settings keeps one size: About's tallest state, a newer one's how line, fi
 });
 
 test("Settings opens at the section last looked at, General at first; ↑ ↓ step them, Tab its controls", () => {
-  assert.deepEqual(SECTIONS, [["general", "General"], ["about", "About"]]);
-  assert.deepEqual([settingsSection(null), settingsSection("about"), settingsSection("gone")],
-    ["general", "about", "general"]);
+  assert.deepEqual(SECTIONS, [["general", "General"], ["notifications", "Notifications"], ["about", "About"]]);
+  // the app's own, under Application: each opens the app's Settings there (app.settings' sections), never shown here;
+  // Alerts is Notifications' Herdr app alerts
+  assert.deepEqual(APP_SECTIONS, [["look", "Look"], ["machines", "Machines"], ["updates", "Updates"],
+    ["privacy", "Privacy"]]);
+  assert.deepEqual([settingsSection(null), settingsSection("about"), settingsSection("gone"),
+    settingsSection("look")], ["general", "about", "general", "general"]);
   assert.deepEqual([sectionStep("general", 1), sectionStep("about", 1), sectionStep("about", -1),
-    sectionStep("general", -1)], ["about", "about", "general", "general"]);
+    sectionStep("general", -1)], ["notifications", "about", "notifications", "general"]);
   const about = aboutState(FOUND, { now: NOON * 1000 });
   assert.deepEqual(settingsTargets("general", about), ["opens"]);
+  assert.deepEqual(settingsTargets("notifications", about), ["notes", "alerts"]);
   assert.deepEqual(settingsTargets("about", about), aboutTargets(about));
+});
+
+test("An agent waits on you: off, the layout's toast is herdr-fold's, closing each note; the sounds go", () => {
+  const layout = `${JSON.stringify({ theme: "herdr-fold", children: [] }, null, 2)}\n`;
+  const off = layoutToast(layout, false, "herdr-fold");
+  assert.deepEqual(JSON.parse(String(off)), { theme: "herdr-fold", children: [], toast: "herdr-fold" });
+  assert.equal(layoutToast(String(off), false, "herdr-fold"), null);                  // so already: nothing written
+  assert.equal(layoutToast(String(off), true, "herdr-fold"), layout);                 // on: the app's own toast
+  assert.equal(layoutToast(layout, true, "herdr-fold"), null);
+  const mine = JSON.stringify({ toast: "my-toast" });
+  assert.equal(layoutToast(mine, true, "herdr-fold"), null);                          // another mod's: left alone
+  // the sounds: off keeps the person's own value to give back; on gives it back (theirs off: still off)
+  const settings = JSON.stringify({ zoom: 1, sounds: { enabled: true, done: "a.mp3" } });
+  const quiet = soundsFor(settings, false, null);
+  assert.deepEqual([JSON.parse(quiet.text).sounds, quiet.kept, JSON.parse(quiet.text).zoom],
+    [{ enabled: false, done: "a.mp3" }, true, 1]);
+  assert.deepEqual([JSON.parse(soundsFor(quiet.text, true, true).text).sounds.enabled,
+    soundsFor(quiet.text, true, true).kept], [true, null]);
+  assert.equal(JSON.parse(soundsFor(quiet.text, true, false).text).sounds.enabled, false);
+  assert.deepEqual([JSON.parse(soundsFor(null, false, null).text), soundsFor(null, false, null).kept],
+    [{ sounds: { enabled: false } }, true]);                                            // no file yet: the default on
+  const source = (/** @type {string} */ name) => readFileSync(new URL(`../mods/herdr-fold/${name}`, import.meta.url),
+    "utf8");
+  assert.match(source("main.js"), /"level" in shown && !shown\.part[^]*?closeOverlay\(shown\.overlay\)/);
+  // errors always show: an error or a warning (notify()'s levels) drawn by herdr-fold's part, as the app's toast
+  assert.deepEqual(["error", "warning", "info", "success", undefined].map((level) => noteShown(level)),
+    [true, true, false, false, false]);
+  assert.match(source("main.js"), /if \(noteShown\(shown\.level\)\) return void \(this\.note = shown\);/);
+  assert.match(source("main.js"), /if \(this\.note\) return noteToast\(t, this\.note\);/);
+  assert.match(source("settings.js"), /when an agent in another tab asks or finishes\. Errors "\s*\+ "always show\."/);
+  assert.match(source("main.js"), /followNotes\(\)/);                                // at start: an install rewrote it
+  assert.match(source("settings.js"), /"Herdr app alerts", false, \(\) => this\.appSection\("alerts"\)/);
+});
+
+test("one Settings: the sidebar's Settings, open or on its rail, and ⌘, open herdr-fold's; the app's from it", () => {
+  const source = (/** @type {string} */ name) => readFileSync(new URL(`../mods/herdr-fold/${name}`, import.meta.url),
+    "utf8");
+  const sidebar = source("sidebar.js"), settings = source("settings.js");
+  const keys = JSON.parse(readFileSync(new URL("../keys.json", import.meta.url), "utf8"));
+  assert.equal(keys["layout:herdr-fold"]["cmd-,"], "herdr-fold.settings");
+  const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
+  assert.deepEqual(find(root, "sidebar-footer")?.content, { mod: "herdr-fold", props: { part: "footer" } });
+  assert.doesNotMatch(JSON.stringify(root), /workspace-chrome/);                // the app's footer ran app.settings
+  assert.doesNotMatch(sidebar, /app\.settings/);
+  assert.match(sidebar, /\["settings", "settings", "Settings",\s*\(\) => openSettings\(\)\]/);
+  assert.match(sidebar, /\["machine", "plus", "Add machine…", \(\) => addMachine\(\)\]/);    // it opens a window
+  assert.equal(sidebar.match(/FOOT\.map\(/g)?.length, 2);                        // open, and on its rail
+  assert.match(settings, /\.child\("Settings"\)/);                                // its title, the one Settings
+  assert.match(settings, /command\("app\.settings", \{ section \}\)/);           // Look … Privacy: the app's, there
+});
+
+test("the TUI's six in the app, a key each: a new space in a folder, Add machine, the dock, Restore, a file, a theme",
+  () => {
+    const keys = JSON.parse(readFileSync(new URL("../keys.json", import.meta.url), "utf8"))["layout:herdr-fold"];
+    assert.deepEqual(["ctrl-b shift-n", "ctrl-b shift-m", "cmd-shift-e", "cmd-shift-o", "cmd-shift-l", "cmd-k cmd-t"]
+      .map((key) => keys[key]), ["herdr-fold.new-space", "herdr-fold.add-machine", "herdr-fold.column",
+      "herdr-fold.restore", "herdr-fold.open-file", "herdr-fold.theme"]);
+    const main = readFileSync(new URL("../mods/herdr-fold/main.js", import.meta.url), "utf8");
+    for (const asked of ["new-space", "add-machine", "column", "restore", "open-file", "theme"]) {
+      assert.match(main, new RegExp(`asked === "${asked}"`), asked);
+    }
+    // a list a key opens stands where the palette does, at the window's top centre
+    const room = { width: 1280, height: 820 };
+    assert.deepEqual(menuPlace(keyMenuBounds(room, 320), 200, room, 320),
+      { x: 480, y: palettePlace(room, 320, 200).y });
+  });
+
+test("the TUI's navigation keys in herdr-fold's layout: spaces, tabs and agents, each shown in the palette", () => {
+  const all = JSON.parse(readFileSync(new URL("../keys.json", import.meta.url), "utf8"))["layout:herdr-fold"];
+  const app = Object.fromEntries(Object.entries(all).filter(([, action]) => !String(action).startsWith("herdr-fold.")));
+  assert.deepEqual(app, { ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => [`cmd-${n}`,
+    `space.select:${n}`])), "cmd-down": "space.next", "cmd-up": "space.prev", "cmd-t": "tab.next", "cmd-r": "tab.prev",
+  "cmd-d": "agent.next", "cmd-e": "agent.prev",
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => [`ctrl-b ${n}`, `tab.select:${n}`])),
+  "ctrl-b w": "mod.open:picker" });
+  // Cmd+← → stay the terminal's line start and end (the app's): its pane.go steps only a tab's splits, and the TUI's
+  // cycle (the tab, the dock's view, its terminal) needs a view's focus the app does not report; the keys of two
+  // strokes are the TUI's own, Ctrl+B's and Cmd+K's (the owner tried Ctrl+B, then w, from a terminal)
+  const terminal = JSON.parse(readFileSync(new URL("../keys.json", import.meta.url), "utf8")).terminal;
+  assert.ok(!["cmd-left", "cmd-right"].some((keys) => keys in terminal || keys in all));
+  assert.ok(Object.keys(all).filter((keys) => keys.includes(" ")).every((keys) => /^(ctrl-b|cmd-k) \S+$/.test(keys)));
+  assert.ok(!["cmd-shift-n", "cmd-shift-m", "cmd-shift-t"].some((keys) => keys in all));     // no stand-ins left
+  const bound = Object.entries(all).map(([keys, action]) => ({ section: "layout:herdr-fold", keys, action }));
+  const named = paletteEntries(["space.next", "tab.prev", "agent.next"].map((name) => ({ name, args: [], about: "" })),
+    [], true);
+  assert.deepEqual(Object.fromEntries(named.map((entry) => [entry.name, entryKey(entry, bound, "herdr-fold")])),
+    { "space.next": "cmd-down", "tab.prev": "cmd-r", "agent.next": "cmd-d" });
+});
+
+test("Cmd+Shift+E hides the dock entirely or shows it as it was; Cmd+Shift+O brings back all that was hidden", () => {
+  const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
+  assert.deepEqual(columnToggle(root), [["layout.hide", { id: PANEL }]]);
+  const hidden = JSON.parse(JSON.stringify(root));
+  find(hidden, PANEL).hidden = true;
+  const shown = JSON.parse(JSON.stringify(root));
+  const bottom = { shown: true, px: BOTTOM_PX };
+  assert.deepEqual(columnToggle(hidden, bottom), [["layout.show", { id: PANEL }], ...railFollow(shown, bottom)]);
+  // Restore panels: the views More hid (Issues on GitHub only), the dock, the terminal under the tab on its rail
+  for (const view of ["search", "issues"]) find(hidden, view).hidden = true;
+  assert.deepEqual(restoreCommands(hidden, false, bottom), [["layout.show", { id: "search" }],
+    ["layout.show", { id: PANEL }], ...railFollow(shown, bottom)]);
+  assert.deepEqual(restoreCommands(hidden, true, bottom).slice(0, 3).map(([, args]) => args.id),
+    ["search", "issues", PANEL]);
+  assert.deepEqual(restoreCommands(root, true, bottom), railFollow(root, bottom));
+});
+
+test("the theme picker: herdr-fold's themes by the TUI's names, in its order, the one in use checked", () => {
+  const list = [{ name: "graphite", light: false, colors: { a: "1" } }, { name: "herdr-fold-nord", light: false,
+    colors: { a: "2" } }, { name: "herdr-fold-dracula", light: false, colors: { a: "3" } },
+  { name: "herdr-fold", light: false, colors: { a: "3" } }];
+  const names = { "herdr-fold-dracula": "Dracula", "herdr-fold-nord": "Nord", "herdr-fold-gone": "Gone" };
+  assert.deepEqual(themeChoices(list, names, "herdr-fold"), [{ name: "herdr-fold-dracula", label: "Dracula", on: true },
+    { name: "herdr-fold-nord", label: "Nord", on: false }]);        // the layout's own: the one of its colors
+  assert.deepEqual(themeChoices(list, names, "graphite").map((c) => c.on), [false, false]);
+});
+
+test("every new agent's way in decides by Open agents in in one place; a new space starts one, >_ a terminal", () => {
+  const folder = new URL("../mods/herdr-fold/", import.meta.url);
+  const mods = Object.fromEntries(readdirSync(folder).filter((name) => name.endsWith(".js") && name !== "helper.js")
+    .map((name) => [name, readFileSync(new URL(name, folder), "utf8")]));
+  const all = Object.values(mods).join("\n");
+  assert.equal(all.match(/newAgent\(shared\(RECENT_AGENTS\), agentsOpen\(shared\(AGENTS_OPEN\)\)/g)?.length, 1);
+  assert.match(mods["chat.js"], /export const nextAgent = /);
+  for (const name of ["tabs.js", "title.js"]) assert.match(mods[name], /nextAgent\(/, name);
+  // a space shown with shells alone gets its chat first, once (chat.js's firstChat, from the tab bar's copy): so does
+  // one newSpace or the app's own picker made; newSpace itself starts only Terminal's CLI
+  assert.match(mods["chat.js"], /export function firstChat\(/);
+  assert.match(mods["main.js"], /firstChat\(/);
+  assert.equal(all.match(/openChat\(\{ space: space\.id, agent, first: true \}\)/g)?.length, 1);
+  const spaceMade = mods["chat.js"].slice(mods["chat.js"].indexOf("export async function newSpace"));
+  assert.doesNotMatch(spaceMade.slice(0, spaceMade.indexOf("\n}\n")), /openChat/);
+  // a space made by herdr-fold starts its agent too (newSpace), but home's stand-in, a terminal in the home folder
+  const made = Object.entries(mods).flatMap(([name, text]) => (text.match(/command\("space\.new"/g) ?? [])
+    .map(() => name));
+  assert.deepEqual(made.sort(), ["chat.js", "spaces.js"]);
+  assert.match(mods["spaces.js"], /export function openHome[^]*?command\("space\.new"/);
+  for (const name of ["spaces.js", "sidebar.js", "files.js", "title.js"]) assert.match(mods[name], /newSpace\(/, name);
+  assert.doesNotMatch(all, /mod: "new-menu"/);              // the app's list started each agent's CLI, as it was
 });
 
 test("an update's toast is said once: by the copy that marked it seen, with What's new", () => {
@@ -220,6 +369,10 @@ test("the palette's entries: the app's, named and grouped as its palette, a layo
   assert.ok(!mac.some((e) => e.name === "window.close"));
   assert.ok(PALETTE_NAMED.every(([, , group]) => PALETTE_GROUPS.includes(group)));
   assert.equal(new Set(PALETTE_NAMED.map(([, , , title]) => title)).size, PALETTE_NAMED.length);   // one name each
+  // one Settings: herdr-fold's, the app's sections in it, found by the app's words too
+  assert.ok(!PALETTE_NAMED.some(([name]) => name === "app.settings"));
+  assert.ok(!paletteEntries([{ name: "app.settings", args: [], about: "" }], [], true).length);
+  assert.match(String(PALETTE_OWNED.find(([name]) => name === "herdr-fold.settings")?.[2]), /\btheme\b.*\bmachines\b/);
 });
 
 test("the palette's own group: herdr-fold's commands after the app's groups, in their order, each its real key", () => {
@@ -231,7 +384,12 @@ test("the palette's own group: herdr-fold's commands after the app's groups, in 
     ["Settings…", "herdr-fold.settings"], ["Files", "herdr-fold.files"], ["Search", "herdr-fold.search"],
     ["Changes", "herdr-fold.changes"], ["Issues", "herdr-fold.issues"], ["Agent", "herdr-fold.agent"],
     ["Agents", "herdr-fold.agents"], ["Usage", "herdr-fold.usage"], ["Chats", "herdr-fold.chats"],
-    ["New chat", "herdr-fold.new-agent"], ["Styleguide", "herdr-fold.styleguide"],
+    ["Collapse or expand sidebar", "herdr-fold.sidebar"], ["Collapse or expand panels", "herdr-fold.panels"],
+    ["Show or hide the dock", "herdr-fold.column"], ["Restore panels", "herdr-fold.restore"],
+    ["New chat", "herdr-fold.new-agent"], ["New space in a folder…", "herdr-fold.new-space"],
+    ["Add machine…", "herdr-fold.add-machine"], ["Open file from output…", "herdr-fold.open-file"],
+    ["Color theme…", "herdr-fold.theme"],
+    ["Styleguide", "herdr-fold.styleguide"],
     ["Mark agent unread", "herdr-fold.unread"], ["Commit and push", "herdr-fold.commit-push"],
     ["Write commit message", "herdr-fold.write"]]);
   assert.ok(!paletteEntries(commands, [], true).some((e) => e.group === "herdr-fold"));      // asked for, else none
@@ -245,10 +403,10 @@ test("the palette's own group: herdr-fold's commands after the app's groups, in 
   // each key keys.json binds in the layout is a row's, but the palette's own; a row shows it (entryKey)
   const bound = Object.entries(JSON.parse(readFileSync(new URL("../keys.json", import.meta.url), "utf8"))[
     "layout:herdr-fold"]).map(([keys, action]) => ({ section: "layout:herdr-fold", keys, action: String(action) }));
-  for (const { keys, action } of bound.filter((k) => k.action !== "herdr-fold.palette")) {
+  const mine = (/** @type {string} */ action) => /^herdr-fold\./.test(action) && action !== "herdr-fold.palette";
+  for (const { keys, action } of bound.filter((k) => mine(k.action))) {
     assert.equal(entryKey(/** @type {any} */ (own.find((e) => e.name === action)), bound, "herdr-fold"), keys);
   }
-  assert.equal(entryKey(/** @type {any} */ (own.find((e) => e.title === "Settings…")), bound, "herdr-fold"), null);
 });
 
 test("an entry's key: the layout's own, else a global one the layout leaves, else a terminal's; none", () => {
@@ -783,11 +941,12 @@ test("the tab bar's end over the dock: Chats, More, then » or «; the rail with
   assert.match(end, /waiting \? `Chats · \$\{waiting\} waiting` : "Chats"/);              // the number in its tip
   assert.match(end, /lit: listed, dot: waiting \? t\.ansi3 : null/);
   // More has no dot: a newer herdr-fold is the status bar's to say, and its menu's one line under the views opens
-  // Settings (how agents open and About live there)
+  // Settings at About (Settings itself is the sidebar's and ⌘,'s)
   assert.match(end, /\{ size: 15, left: true, press: acts\.press \}/);
   assert.match(end, /menu \? null : "More"/);                             // its tip never over its own menu
-  assert.match(panel, /\[\.\.\.panels, null, \{ label: "Settings…", act: \(\) => openSettings\(\) \}\], bounds\)/);
-  assert.doesNotMatch(tabs + panel, /About herdr-fold|Agents open in:/);
+  assert.match(panel, new RegExp(String.raw`\[\.\.\.\(chats \? \[chats, null\] : \[\]\), \.\.\.panels, null,\s*`
+    + String.raw`\{ label: "About herdr-fold", act: \(\) => openSettings\("about"\) \}\], bounds\)`));
+  assert.doesNotMatch(tabs + panel, /Settings…|Agents open in:/);
   assert.match(tabs, /\.child\(div\(\)\.flex_1\(\)\)\s*\.child\(barEnd\(t, bar, acts/);       // at the bar's end
   // the dot as center-chat.html's .wdot, 7 with a 2 px ring of the bar's fill (the window's level, canvas), its
   // centre on the icon's top-right corner as a count's badge sits: clear of the sparkle's arms and the ellipsis' dot
@@ -841,7 +1000,7 @@ test("the dock's lists keep one inset: a head's field 12 in, a row's highlight 6
   assert.match(files, /\.pl\(PAD \/ 2 \+ depth \* INDENT\)\.pr\(PAD \/ 2\)/);         // a tree's indent at the left
   assert.match(chats, /id\(`space-\$\{row\.name\}`\)\.h\(SPACE_ROW\)\.flex_none\(\)\.px\(PAD \/ 2\)/);
   assert.match(chats, /id\(`chat-\$\{key\}`\)\.h\(CHAT_ROW\)\.flex_none\(\)\.pl\(UNDER\)\.pr\(PAD \/ 2\)/);
-  assert.match(chats, /const UNDER = PAD \/ 2 \+ STATE_MARK \+ 6;/);   // a chat's mark under its space's name
+  assert.match(chats, /const UNDER = PAD \/ 2 \+ CHEVRON \+ 6;/);      // a chat's mark under its space's name
   // what a list says in its first row's place, its words PAD in, as Issues'
   assert.match(chats, /h_flex\(\)\.min_h\(SPACE_ROW\)\.py\(2\)\.px\(PAD \/ 2\)\.items_center\(\)\.text_size\(12\)/);
   assert.match(issues, /h_flex\(\)\.min_h\(ROW\)\.flex_none\(\)\.px\(PAD \/ 2\)/);
@@ -864,7 +1023,7 @@ test("what was done or went wrong stands under the list, never over its rows: Is
     const list = body(chats, "  list(t, rows) {");
     assert.ok(list.indexOf("this.note") > list.indexOf('id("chats")'), "the line under the list, not over it");
     assert.match(list, /\.when\(Boolean\(this\.note\), \(e\) => e\.child\(footNote\(t, this\.note\)\)\)/);
-    assert.match(list, /this\.failed \?\? "Loading chats…"/);
+    assert.match(list, /this\.failed \? `Couldn't read the chats: \$\{this\.failed\}` : "Loading chats…"/);
     // one line for both, as Files' and Changes' problems: PAD in, PAD / 2 over it, 11, dim or ansi1; done things go
     assert.match(parts, new RegExp(String.raw`export const footNote = \(t, note\) => div\(\)\.flex_none\(\)`
       + String.raw`\.px\(PAD\)\.pt\(PAD / 2\)\.pb\(PAD\)`));
@@ -1068,7 +1227,7 @@ test("folded, a tab with no terminal leaves the centre whole: no stand-in under 
   assert.deepEqual(folded.filter(([name, args]) => args.id === TERMINALS && name === "layout.hide").length, 1);
 });
 
-test("a view floating beside the rail is as tall as dragged: its head and 3 rows at least, the window less 56 at most",
+test("a view floating beside the rail is as tall as dragged: its head and 3 rows at least, the rail's height at most",
   () => {
     // the least: the float's head (36), the view's own head, 3 of its rows, the grip; each view's own
     const views = ["files", "chats", "search", "issues", "changes", "agent"];
@@ -1077,10 +1236,9 @@ test("a view floating beside the rail is as tall as dragged: its head and 3 rows
         issues: 36 + 84 + 3 * 48 + 12, changes: 36 + 58 + 97 + 3 * 26 + 12 + 12,
         agent: 36 + 44 + 37 + 4 + 28 + 2 * 26 + 12 });       // its head, its health line, a section and two rows
     assert.equal(FLOAT_GRIP, 12);
-    // the most: the window's height (the rail's, the title row's, the tab bar's, the status bar's, the work body's
-    // pads) less 56
+    // the most: the rail's height, from the centre card's top under the tab bar to its foot over the status bar
     const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
-    assert.equal(floatMax(700, root), 700 + 36 + 42 + 28 + 2 * 8 - 56);
+    assert.equal(floatMax(700, root), 700);
     // as kept for the view, inside those; else the most; the rail not measured yet: a height that fits a laptop
     assert.equal(railFloatPx("files", { files: 300 }, 700, root), 300);
     assert.equal(railFloatPx("files", { files: 90 }, 700, root), floatMin("files"));
@@ -1107,7 +1265,7 @@ test("the rail's Terminal shows and hides the terminal under the centre, lit whi
   assert.doesNotMatch(panel, /rail-terminal|float-head/);
   assert.doesNotMatch(main, /float-head/);
   const at = panel.indexOf("export function rail("), rail = panel.slice(at, panel.indexOf("\n}\n", at));
-  assert.match(rail, /panel === "terminal" \? toggleBottom\(\) : openRail\(panel, e\.bounds\)/);
+  assert.match(rail, /panel === "terminal" \? terminalPress\(\) : railPress\(panel, e\.bounds\)/);
   assert.match(rail, /active: lit/);
   assert.match(rail, /tip: off \? "No terminal in this tab" : label/);
 });
@@ -1129,8 +1287,9 @@ test("the right dock folds to its rail and opens again, as its » and « and a d
     ["layout.resize", { id: PANEL, px: PANEL_PX }]);
   assert.deepEqual(railToggle(tree(420, { hidden: true }), 368), [["layout.show", { id: PANEL }],
     ["layout.resize", { id: PANEL, px: 420 }]]);
-  // dragged narrow: the rail, at its own width; dragged wide again: the dock; hidden: nothing
-  assert.deepEqual(railFollow(tree(120)), [...blocks(false), ["layout.resize", { id: PANEL, px: RAIL }]]);
+  // dragged narrow: the rail's blocks at once, its width once let go (dockRest), never fighting the drag; dragged
+  // wide again: the dock; hidden: nothing
+  assert.deepEqual(railFollow(tree(120)), blocks(false));
   assert.deepEqual(railFollow(tree(300, { rail: true })), blocks(true));
   assert.deepEqual(railFollow(tree(RAIL, { rail: true })), []);
   assert.deepEqual(railFollow(tree(120, { hidden: true })), []);
@@ -1138,6 +1297,368 @@ test("the right dock folds to its rail and opens again, as its » and « and a d
   assert.equal(panelShown(tree(420, { hidden: true })), false);
   assert.equal(panelShown({ id: "root" }), false);
   assert.equal(PANEL, "fold-panel");                       // herdr-fold's own id: the app's Settings leaves it alone
+});
+
+test("a side let go of comes to rest as the TUI's: a rail widened past 24 px opens as its toggle does, else the rail",
+  () => {
+    assert.deepEqual([UNFOLD, SETTLE], [24, 300]);         // the TUI's 3 cells; a drag's width unchanged that long
+    // from its rail: a nudge back to the rail, a drag past UNFOLD the width it had open, however far it went
+    assert.equal(restWidth(RAIL + UNFOLD, RAIL, RAIL, 368), RAIL);
+    assert.equal(restWidth(RAIL + UNFOLD + 1, RAIL, RAIL, 368), 368);
+    assert.equal(restWidth(300, RAIL, RAIL, 368), 368);
+    assert.equal(restWidth(368, RAIL, RAIL, 368), null);   // « or a view's key opened it: as it is
+    // from open: narrower than 160 the rail, else as dragged
+    assert.equal(restWidth(120, 368, RAIL, 368), RAIL);
+    assert.equal(restWidth(200, 368, RAIL, 368), null);
+    // first seen (a start): a rail at its own width, an open one as it is; none: nothing
+    assert.equal(restWidth(120, null, RAIL, 368), RAIL);
+    assert.equal(restWidth(RAIL, null, RAIL, 368), null);
+    assert.equal(restWidth(420, null, RAIL, 368), null);
+    assert.equal(restWidth(null, RAIL, RAIL, 368), null);
+  });
+
+test("a side's rest counts once its own setting held: a pause mid-drag never turns a fold into an unfold", () => {
+  const rest = (/** @type {number | null} */ from, /** @type {number} */ px) => {
+    const to = restWidth(px, from, RAIL, 368);
+    return to ?? px;
+  };
+  /** @param {any} seen @param {number} px */
+  const step = (seen, px) => restAt(seen, px, (/** @type {number | null} */ from) => rest(from, px));
+  // let go narrower than 160: set to the rail, which counts once it holds there
+  const seen = { px: null, from: 368, pending: null };
+  step(seen, 150);
+  assert.deepEqual([seen.from, seen.pending], [368, RAIL]);
+  step(seen, RAIL);
+  assert.deepEqual([seen.from, seen.pending], [RAIL, null]);
+  // a pause at 150 mid-drag set the rail, the drag went on to 145 and let go: still a fold, from the open width
+  const paused = { px: null, from: 368, pending: null };
+  step(paused, 150);
+  step(paused, 145);
+  assert.deepEqual([paused.from, paused.pending], [368, RAIL]);
+  // a rail widened and let go: open as « opens it, which counts once it holds
+  const rail = { px: null, from: RAIL, pending: null };
+  step(rail, 130);
+  assert.equal(rail.pending, 368);
+  step(rail, 368);
+  assert.deepEqual([rail.from, rail.pending], [368, null]);
+  // let go where it may stay: rested there at once
+  const open = { px: null, from: 368, pending: null };
+  step(open, 300);
+  assert.deepEqual([open.from, open.pending], [300, null]);
+});
+
+test("the right dock let go of: narrowed under 160 its rail, a rail widened the dock as « opens it; hidden, as it is",
+  () => {
+    /** @param {number} px @param {{ hidden?: boolean, rail?: boolean }} [shown] */
+    const tree = (px, { hidden = false, rail = false } = {}) => dock({ [PANEL]: { hidden, size: { px } },
+      [DOCK]: { hidden: rail }, [TERMINALS]: { hidden: rail }, [RAIL_BLOCK]: { hidden: !rail } });
+    // narrowed while open: the rail's blocks came at once (railFollow), its width once let go
+    assert.deepEqual(dockRest(tree(120, { rail: true }), 368, 420),
+      { to: RAIL, open: false, commands: [["layout.resize", { id: PANEL, px: RAIL }]] });
+    // a rail widened: the dock at the width it had, its card and terminal back, the rail gone
+    assert.deepEqual(dockRest(tree(130, { rail: true }), RAIL, 420), { to: 420, open: true, commands: [
+      ["layout.resize", { id: PANEL, px: 420 }], ["layout.show", { id: DOCK }], ["layout.show", { id: TERMINALS }],
+      ["layout.hide", { id: RAIL_BLOCK }]] });
+    assert.deepEqual(dockRest(tree(130, { rail: true }), RAIL, undefined).to, PANEL_PX);
+    // a nudge: back to the rail; open as dragged: nothing to do, its width the one « opens to
+    assert.deepEqual(dockRest(tree(90, { rail: true }), RAIL, 420).commands,
+      [["layout.resize", { id: PANEL, px: RAIL }]]);
+    assert.deepEqual(dockRest(tree(300), 368, 420), { to: 300, open: true, commands: [] });
+    assert.deepEqual(dockRest(tree(120, { hidden: true }), 368, 420), { to: 120, open: false, commands: [] });
+    // its terminal moves back from under the centre with it
+    const folded = placeTerminals(shipped(), "bottom", { shown: true, px: 240 }).tree;
+    Object.assign(find(folded, PANEL), { size: { px: 140 } });
+    Object.assign(find(folded, DOCK), { hidden: true });
+    Object.assign(find(folded, RAIL_BLOCK), { hidden: false });
+    const back = dockRest(folded, RAIL, 400, { shown: true, px: 240 }).commands;
+    assert.equal(terminalsAt(back.find(([name]) => name === "layout.set")[1].layout), "dock");
+  });
+
+test("the left sidebar let go of as the right dock: under 160 its rail, a rail widened past 24 px open again", () => {
+  /** @param {number} px @param {boolean} [hidden] */
+  const at = (px, hidden = false) => ({ id: "root", children: [{ id: "sidebar", size: { px }, hidden }] });
+  assert.deepEqual([sidebarRail(true), sidebarRail(false), SIDEBAR_PX], [76, 44, 268]);
+  assert.deepEqual(sidebarRest(at(140), 268, 300, true), { to: 76, open: false,
+    commands: [["layout.resize", { id: "sidebar", px: 76 }]] });
+  assert.deepEqual(sidebarRest(at(130), 76, 300, true), { to: 300, open: true,
+    commands: [["layout.resize", { id: "sidebar", px: 300 }]] });
+  assert.equal(sidebarRest(at(130), 76, undefined, true).to, SIDEBAR_PX);
+  assert.deepEqual(sidebarRest(at(90), 76, 300, true).commands, [["layout.resize", { id: "sidebar", px: 76 }]]);
+  assert.deepEqual(sidebarRest(at(320), 268, 300, true), { to: 320, open: true, commands: [] });
+  assert.deepEqual(sidebarRest(at(140, true), 268, 300, true), { to: 140, open: false, commands: [] });
+  assert.deepEqual(sidebarRest({ id: "root" }, null, 300, true), { to: null, open: false, commands: [] });
+  // off macOS the rail is 44, but never under the layout's least (76 here): a nudge from there stays a nudge
+  const least = (/** @type {number} */ px) => ({ id: "root", children: [{ id: "sidebar", size: { px }, min: 76 }] });
+  assert.deepEqual(sidebarRest(least(90), 76, 300, false).commands, [["layout.resize", { id: "sidebar", px: 76 }]]);
+  assert.equal(sidebarRest(least(110), 76, 300, false).to, 300);
+});
+
+test("the left sidebar is open or a rail, never hidden: shown again at once; its footer while open", () => {
+  /** @param {number} px @param {{ hidden?: boolean, footer?: boolean }} [how] */
+  const at = (px, { hidden = false, footer = true } = {}) => ({ id: "root", children: [
+    { id: "sidebar", size: { px }, hidden, children: [{ id: "sidebar-footer", hidden: !footer }] }] });
+  assert.deepEqual(sidebarFollow(at(76)), [["layout.hide", { id: "sidebar-footer" }]]);
+  assert.deepEqual(sidebarFollow(at(76, { footer: false })), []);
+  assert.deepEqual(sidebarFollow(at(268, { footer: false })), [["layout.show", { id: "sidebar-footer" }]]);
+  assert.deepEqual(sidebarFollow(at(268)), []);
+  assert.deepEqual(sidebarFollow(at(268, { hidden: true })), [["layout.show", { id: "sidebar" }]]);
+  assert.deepEqual(sidebarFollow({ id: "root" }), []);
+  // the toggle: open, folded to its rail; a rail, open the width it had; hidden (the app's own key), shown open
+  assert.deepEqual(sidebarToggle(at(268), true, 300), [["layout.resize", { id: "sidebar", px: 76 }]]);
+  assert.deepEqual(sidebarToggle(at(76), true, 300), [["layout.resize", { id: "sidebar", px: 300 }]]);
+  assert.deepEqual(sidebarToggle(at(76), false, undefined), [["layout.resize", { id: "sidebar", px: SIDEBAR_PX }]]);
+  assert.deepEqual(sidebarToggle(at(268, { hidden: true }), true, 300), [["layout.show", { id: "sidebar" }]]);
+  assert.deepEqual(sidebarToggle(at(76, { hidden: true }), true, 300), [["layout.show", { id: "sidebar" }],
+    ["layout.resize", { id: "sidebar", px: 300 }]]);
+  assert.deepEqual(sidebarToggle({ id: "root" }, true, 300), []);
+});
+
+test("a float beside a rail is gone once its side opens or hides: never the panel and its float at once", () => {
+  const side = (px, hidden = false) => ({ id: "root", children: [{ id: "sidebar", size: { px }, hidden }] });
+  assert.equal(floatStale("spaces", side(76)), false);
+  assert.equal(floatStale("spaces", side(268)), true);
+  assert.equal(floatStale("spaces", side(76, true)), true);
+  const right = (px, hidden = false) => dock({ [PANEL]: { hidden, size: { px } } });
+  for (const view of ["files", "changes", "chats"]) {
+    assert.equal(floatStale(view, right(RAIL)), false);
+    assert.equal(floatStale(view, right(PANEL_PX)), true);
+    assert.equal(floatStale(view, right(RAIL, true)), true);
+  }
+  // a side's float as its shared value names it, else none
+  assert.deepEqual(floating({ panel: "changes", overlay: "o7" }), { panel: "changes", overlay: "o7" });
+  assert.equal(floating({ panel: "changes" }), null);
+  assert.equal(floating("o7"), null);
+  assert.equal(floating(null), null);
+});
+
+test("a press outside a float closes it, never one in a menu it opened nor on its side's own controls", () => {
+  const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
+  Object.assign(find(root, PANEL), { size: { px: RAIL } });
+  Object.assign(find(root, "sidebar"), { size: { px: RAIL } });
+  const end = toggleRoom(root, 26) + 3 * 26 + 2 * 4;      // the tab bar's ✦, More and «, from the window's edge
+  const at = (/** @type {number} */ x, /** @type {number} */ y) => ({ x, y });
+  // a view's float: the centre, a tab, the title row close it; the rail's column and the bar's end are its own
+  assert.equal(pressCloses("changes", at(500, 400), root, 1280, end, false), true);
+  assert.equal(pressCloses("changes", at(300, 60), root, 1280, end, false), true);       // a tab
+  assert.equal(pressCloses("changes", at(1250, 20), root, 1280, end, false), true);      // the title row
+  assert.equal(pressCloses("changes", at(1230, 300), root, 1280, end, false), false);    // a rail icon
+  assert.equal(pressCloses("changes", at(1170, 60), root, 1280, end, false), false);     // ✦
+  assert.equal(pressCloses("changes", at(1230, 60), root, 1280, end, false), false);     // «
+  assert.equal(pressCloses("changes", at(40, 300), root, 1280, end, false), true);       // the left rail
+  // Spaces' float: the left rail and its head (its toggle) are its own; the right rail is not
+  assert.equal(pressCloses("spaces", at(40, 300), root, 1280, end, false), false);
+  assert.equal(pressCloses("spaces", at(40, 60), root, 1280, end, false), false);
+  assert.equal(pressCloses("spaces", at(1230, 300), root, 1280, end, false), true);
+  assert.equal(pressCloses("spaces", at(40, 20), root, 1280, end, false), true);
+  // while a menu or a window of the mod is up, a press anywhere is the float's own (a choice in its menu)
+  assert.equal(pressCloses("changes", at(500, 400), root, 1280, end, true), false);
+  const source = (/** @type {string} */ name) => readFileSync(new URL(`../mods/herdr-fold/${name}`, import.meta.url),
+    "utf8");
+  const sidebar = source("sidebar.js"), menus = source("menus.js"), main = source("main.js");
+  assert.match(sidebar, /\.on_mouse_down_out\(\(e\) => \{\s+if \(pressCloses\(panel, e\.position, layout\(\)/);
+  assert.match(sidebar, /menusOpen\(\)\.length > 0 \|\| settingsOpen\(\)/);
+  // a menu marked up as it opens, forgotten however it closes (its choice, Esc, a press beside); none after a start
+  assert.match(menus, /setShared\(MENUS, \[\.\.\.menusOpen\(\), openOverlay\(/);
+  assert.match(main.slice(main.indexOf("  async close() {")), /if \(this\.popup\) menuGone\(this\.popup\.overlay\);/);
+  assert.match(main, /forgetFloats\(\);\s+forgetMenus\(\);/);
+});
+
+test("a float always opens beside its rail, the one floating before closed first: no window kept by its key", () => {
+  const source = (/** @type {string} */ name) => readFileSync(new URL(`../mods/herdr-fold/${name}`, import.meta.url),
+    "utf8");
+  const body = (/** @type {string} */ text, /** @type {string} */ name) => text.slice(text.indexOf(name),
+    text.indexOf("\n}\n", text.indexOf(name)));
+  const rail = body(source("panel.js"), "export function openRail("), dock = body(source("sidebar.js"),
+    "function openFloat(");
+  for (const [open, mark] of [[rail, "RAIL_FLOAT"], [dock, "DOCK_FLOAT"]]) {
+    assert.doesNotMatch(open, /key:/);
+    assert.match(open, new RegExp(`shutFloat\\(${mark}\\);`));
+    assert.ok(open.indexOf("shutFloat(") < open.indexOf("openOverlay("));
+  }
+  assert.doesNotMatch(rail, /bounds \?/);                  // a key's float beside the rail too
+});
+
+test("both rails as one: on the side's level, their first icons level, each toggle over its rail, one pair of tips",
+  () => {
+    const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
+    const rail = find(root, RAIL_BLOCK);
+    assert.deepEqual([find(root, "sidebar").background, rail.background, rail.radius], ["chrome", "chrome", 10]);
+    assert.equal(rail.border, undefined);                  // its icons start where the left's do: no edge over them
+    assert.equal(find(root, "sidebar-trigger"), null);    // the left's toggle is in its head, over its rail
+    assert.deepEqual(find(root, "top").children.map((/** @type {any} */ c) => c.id), ["tabs"]);
+    const source = (/** @type {string} */ name) => readFileSync(new URL(`../mods/herdr-fold/${name}`, import.meta.url),
+      "utf8");
+    const sidebar = source("sidebar.js"), panel = source("panel.js");
+    // the first icon: the left one under its head, the right one inside the work body's pad, both at one height
+    const left = Number(/v_flex\(\)\.flex_1\(\)\.pt\((\d+)\)\.gap\(12\)\.items_center\(\)/.exec(sidebar)?.[1]);
+    const right = Number(/id\("panel-rail"\)\.size_full\(\)\.items_center\(\)\.pt\((\d+)\)/.exec(panel)?.[1]);
+    assert.equal(find(root, "title").size.px + find(root, "sidebar-head").size.px + left,
+      find(root, "title").size.px + find(root, "top").size.px + find(root, "work-body").padding + right);
+    // the toggles: the left's in its head, centred over its rail when folded, as the right's « over its own
+    const head = sidebar.slice(sidebar.indexOf("export function sidebarHead"), sidebar.indexOf("\n}\n",
+      sidebar.indexOf("export function sidebarHead")));
+    assert.match(head, /\.when\(!open, \(e\) => e\.justify_center\(\)\)/);
+    assert.match(head, /open \? "Collapse to icons" : "Expand panels"/);
+    assert.match(panel, /open \? "Collapse to icons"\s+: "Expand panels"/);
+    assert.doesNotMatch(sidebar, /Hide sidebar|Show sidebar|sidebarTrigger/);
+  });
+
+test("Cmd+Option+B folds and opens the right dock, Cmd+B's twin for the left", () => {
+  const keys = JSON.parse(readFileSync(new URL("../keys.json", import.meta.url), "utf8"));
+  assert.equal(keys["layout:herdr-fold"]["cmd-alt-b"], "herdr-fold.panels");
+  const main = readFileSync(new URL("../mods/herdr-fold/main.js", import.meta.url), "utf8");
+  assert.match(main, /else if \(asked === "panels"\) foldDock\(\);/);
+});
+
+test("with Chats open, a press on a rail icon, » or « closes it and does its own action at once; More keeps it",
+  () => {
+    // » with the list in the dock's view place: the view back, then the fold; « opens; a rail never has the list
+    const tree = (/** @type {number} */ px, /** @type {string} */ active) => dock({ [PANEL]: { size: { px } },
+      [DOCK]: { active, hidden: px < 160 }, [TERMINALS]: { hidden: px < 160 }, [RAIL_BLOCK]: { hidden: px >= 160 } });
+    const folded = foldCommands(tree(368, CHATS_BLOCK), false, "changes", 368);
+    assert.deepEqual(folded[0], ["layout.select", { stack: DOCK, child: "changes" }]);
+    assert.deepEqual(folded.slice(1), railToggle(tree(368, CHATS_BLOCK), 368));
+    assert.deepEqual(foldCommands(tree(368, "files"), false, "files", 368), railToggle(tree(368, "files"), 368));
+    assert.deepEqual(foldCommands(tree(RAIL, "files"), false, "files", 400), railToggle(tree(RAIL, "files"), 400));
+    const source = (/** @type {string} */ name) => readFileSync(new URL(`../mods/herdr-fold/${name}`, import.meta.url),
+      "utf8");
+    const panel = source("panel.js"), tabs = source("tabs.js"), sidebar = source("sidebar.js");
+    assert.match(panel, /export const foldDock = \(\) => runPanel\(foldCommands\(layout\(\)/);
+    // More: the float or the list closed, its menu opened; while Chats shows, kept, More listing Show archived first;
+    // the rail's Terminal: the float closed, the terminal toggled
+    assert.match(tabs, new RegExp(String.raw`if \(!listed\) closeChats\(\);\s*`
+      + String.raw`openMore\(this\.menus, this\.more, listed \? archivedChoice\(\) : null\);`));
+    assert.match(panel.slice(panel.indexOf("export function closeChats")),
+      /shutFloat\(RAIL_FLOAT\);\s+if \(chatsShown\(\)\) toggleChats\(\);/);
+    assert.match(panel.slice(panel.indexOf("export function terminalPress")),
+      /shutFloat\(RAIL_FLOAT\);\s+toggleBottom\(\);/);
+    // the folded sidebar's own buttons close Spaces' float as they act
+    assert.match(sidebar, /`dock-\$\{id\}`, glyph, name,\s*\(\) => \(shutFloat\(DOCK_FLOAT\), act\(\)\)/);
+  });
+
+test("Esc in a float goes to its view first (a field, a name, a list), the keys back to the float: the next closes it",
+  () => {
+    const source = (/** @type {string} */ name) => readFileSync(new URL(`../mods/herdr-fold/${name}`, import.meta.url),
+      "utf8");
+    const sidebar = source("sidebar.js"), agent = source("agent.js"), chats = source("chats.js");
+    const float = sidebar.slice(sidebar.indexOf("export function floatPanel("));
+    // the body: an Esc its view let go on (Search's query, the commit message, a name dropped) hands the keys back
+    assert.match(float, /\.on_key_down\(\(e, cx\) => \{\s+if \(e\.key !== "escape" \|\| !focus\) return;\s+/);
+    assert.match(float, /!focus\) return;\s+cx\.stop_propagation\(\);\s+focus\.focus\(\);/);
+    // the Agent view's list, its ways to add, its form: shut by Esc, which goes on to the float
+    assert.match(agent, /if \(e\.key === "escape"\) return void this\.list\(false, cx\);/);
+    assert.match(agent, /if \(e\.key === "escape"\) return void this\.showWays\(false, cx\);/);
+    assert.match(agent, /if \(e\.key === "escape"\) return void this\.dropForm\(cx\);/);
+    // Chats: a name or a question dropped, the filter's words cleared, else the list (the float) closed
+    const from = chats.indexOf("  escape(e, cx) {"), escape = chats.slice(from, chats.indexOf("\n  }\n", from));
+    assert.match(escape, /this\.naming = this\.asking = null;\s+this\.focus\(\);/);
+    assert.match(escape, /if \(this\.typed\) \{\s+this\.find\.set_value\(""\);/);
+  });
+
+test("a float's height dragged is kept for its panel, Spaces' too; it opens beside its rail at that height", () => {
+  assert.equal(floatMin("spaces"), 36 + 30 + 6 + 12);       // its head, a row and the list's foot, the grip
+  assert.equal(fitFloatPx("spaces", { spaces: 300 }, 200, 400), 300);
+  assert.equal(fitFloatPx("spaces", { spaces: 900 }, 200, 400), 400);
+  assert.equal(fitFloatPx("spaces", {}, 200, 400), 200);    // as tall as its rows until dragged
+  assert.equal(fitFloatPx("spaces", null, 20, 400), floatMin("spaces"));
+  const source = (/** @type {string} */ name) => readFileSync(new URL(`../mods/herdr-fold/${name}`, import.meta.url),
+    "utf8");
+  const sidebar = source("sidebar.js"), main = source("main.js");
+  const open = sidebar.slice(sidebar.indexOf("function openFloat("), sidebar.indexOf("\n}\n",
+    sidebar.indexOf("function openFloat(")));
+  assert.match(open, /props: \{ part: "float", panel: "spaces", fit, most \}/);
+  assert.doesNotMatch(open.slice(open.indexOf("openOverlay(")), /height/);    // as tall as its content: its grip
+  assert.match(main, /this\.floatSize = new FloatSize\(panel, \{ fit: props\(\)\.fit, most: props\(\)\.most \}\);/);
+  assert.match(main, /sizedFloat\(t, this\.floatSize, "Spaces", float\.overlay, spacesBody\(t\)/);
+});
+
+test("Cmd+B in herdr-fold's layout folds and opens the left dock, as its toggle; never the app's hide", () => {
+  const keys = JSON.parse(readFileSync(new URL("../keys.json", import.meta.url), "utf8"));
+  assert.equal(keys["layout:herdr-fold"]["cmd-b"], "herdr-fold.sidebar");
+  const main = readFileSync(new URL("../mods/herdr-fold/main.js", import.meta.url), "utf8");
+  assert.match(main, /else if \(asked === "sidebar"\) toggleSidebar\(\);/);
+});
+
+test("a float stands beside its rail on the centre card's edges, under the tab bar: the bar's end stays in reach",
+  () => {
+    const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
+    Object.assign(find(root, PANEL), { size: { px: RAIL } });
+    Object.assign(find(root, "sidebar"), { size: { px: RAIL } });
+    // a view: FLOAT_GAP left of the rail, whichever icon was pressed; Spaces: as far right of the sidebar's divider
+    assert.equal(FLOAT_GAP, 8);
+    assert.equal(floatX("changes", root, 1280, PANEL_PX), 1280 - 8 - RAIL - 8 - PANEL_PX);
+    assert.equal(floatX("files", root, 1280, PANEL_PX), floatX("changes", root, 1280, PANEL_PX));
+    assert.equal(floatX("spaces", root, 1280, 300), RAIL + 1 + 8);
+    assert.equal(floatX("changes", root, 300, PANEL_PX), FLOAT_GAP);          // a narrow window: inside it
+    // both at the centre card's top, under the title row and the tab bar (their ✦, More and » uncovered)
+    assert.equal(floatTop(root), 36 + 42 + 8);
+    const panel = readFileSync(new URL("../mods/herdr-fold/panel.js", import.meta.url), "utf8");
+    const at = panel.indexOf("export function openRail"), open = panel.slice(at, panel.indexOf("\n}\n", at));
+    assert.ok(open.includes("at: { x: floatX(panel, root, window.viewport_size().width, PANEL_PX), "
+      + "y: floatTop(root) }"));
+    const sidebar = readFileSync(new URL("../mods/herdr-fold/sidebar.js", import.meta.url), "utf8");
+    assert.match(sidebar, /at: \{ x: floatX\("spaces", root, room\.width, FLOAT\), y \}/);
+  });
+
+test("Spaces floating beside the folded sidebar is as tall as its rows, no scroll, inside the window", () => {
+  // its head 36, a row 28 and 2 after it, the list's foot 8 less the last gap
+  assert.equal(floatHeight(1), 36 + 28 + 8);
+  assert.equal(floatHeight(5), 36 + 5 * 28 + 4 * 2 + 8);
+  assert.equal(floatHeight(40), TALL);
+  assert.equal(floatHeight(5, 150), 150);                  // the window's room under its top: then it scrolls
+  assert.equal(floatHeight(5, 20), floatHeight(1));        // a row at least
+  const sidebar = readFileSync(new URL("../mods/herdr-fold/sidebar.js", import.meta.url), "utf8");
+  assert.match(sidebar, /\.px\(8\)\.pb\(8\)\.gap\(2\)/);
+  assert.match(sidebar, /h_flex\(\)\.id\(`float-space-\$\{space\.id\}`\)\.h\(28\)/);
+});
+
+test("a rail's icon floats its panel, lit while it floats; the lit icon again, Esc or its × closes it, both sides",
+  () => {
+    const source = (/** @type {string} */ name) => readFileSync(new URL(`../mods/herdr-fold/${name}`,
+      import.meta.url), "utf8");
+    const panel = source("panel.js"), sidebar = source("sidebar.js"), main = source("main.js");
+    const tabs = source("tabs.js");
+    const body = (/** @type {string} */ text, /** @type {string} */ name) => text.slice(text.indexOf(name),
+      text.indexOf("\n}\n", text.indexOf(name)));
+    // the right rail: the icon of the view floating lit, as Terminal is while it shows; a press on it closes it
+    const rail = body(panel, "export function rail(");
+    assert.match(rail, /lit = panel === "terminal" \? !off && bottom : panel === floating/);
+    assert.match(body(panel, "export function railPress("),
+      /if \(open\?\.panel === panel\) return void shutFloat\(RAIL_FLOAT\)/);
+    assert.match(body(panel, "export function openRail("), /setShared\(RAIL_FLOAT, \{ panel, overlay: openOverlay\(/);
+    assert.match(panel, /export const liveRail = [^]*?floatingView\(\)/);
+    // ✦ lit while Chats floats; pressed again it closes it (a chat's clock only ever shows it)
+    assert.match(tabs, /listed: chatsShown\(\) \|\| floatingView\(\) === "chats"/);
+    assert.match(body(panel, "export function askChats("),
+      /if \(!to\.space && floatingView\(\) === "chats"\) return void shutFloat/);
+    // the left rail: Spaces lit while it floats, a press on it closes it
+    assert.match(body(sidebar, "function dockButton("), /lit \? shutFloat\(DOCK_FLOAT\) : openFloat\(/);
+    assert.match(body(sidebar, "function openFloat("),
+      /setShared\(DOCK_FLOAT, \{ panel: "spaces", overlay: openOverlay\(/);
+    // Esc: a float takes the keys as it opens (Chats its filter), Esc closes it once its view has none to drop
+    const float = body(sidebar, "export function floatPanel(");
+    assert.match(float, /\.when\(Boolean\(focus\), \(e\) => e\.track_focus\(focus\)\)/);
+    assert.match(float, /if \(e\.key !== "escape"\) return;\s+cx\.stop_propagation\(\);\s+closeOverlay\(overlay\);/);
+    assert.match(main, /this\.floatFocus = cx\.focus_handle\(\);/);
+    assert.match(main, /cx\.timer\.after\(0, \(\) => this\.floatFocus\.focus\(\)\)/);
+    assert.ok(source("files.js").includes('if (e.key === "escape" && (this.naming || this.asking)) this.drop(cx);'));
+    assert.match(main, /if \(e\.key === "escape"\) this\.cancel\(cx\);/);
+    // gone however it closes (×, Esc, its icon, a layout switch): its mark forgotten; a start forgets a last run's
+    assert.match(body(main, "  async close() {"), /if \(this\.float\) forgetFloat\(this\.float\.overlay\);/);
+    assert.match(main, /forgetSettings\(\);\s+forgetFloats\(\);/);
+    // its side opened or hidden: closed (floatStale), Spaces too
+    assert.ok(main.includes("if (float && floatStale(float.panel, layout())) cx.timer.after(0, () => "
+      + "closeOverlay(float.overlay));"));
+  });
+
+test("the tab bar, which always shows, follows both sides: their blocks at once, their widths once let go", () => {
+  const main = readFileSync(new URL("../mods/herdr-fold/main.js", import.meta.url), "utf8");
+  const at = main.indexOf("  followDock(cx) {"), follow = main.slice(at, main.indexOf("\n  }\n", at));
+  assert.match(follow, /\.\.\.sidebarFollow\(root\)/);
+  assert.match(follow, /restFollow\("dock", panelPx\(root\), restDock, cx\);/);
+  assert.match(follow, /restFollow\("side", sidebarPx\(root\), restSide, cx\);/);
+  const sidebar = readFileSync(new URL("../mods/herdr-fold/sidebar.js", import.meta.url), "utf8");
+  assert.doesNotMatch(sidebar, /trackFold|followFold/);    // not from Spaces' block, which a hidden sidebar draws not
 });
 
 /** Layout ROOT's nodes by id, each once. @param {any} root @returns {Map<string, any>} */
@@ -1157,7 +1678,7 @@ test("the layout's right dock: one stack of the views and the Chats list under t
     const nodes = layoutNodes(JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8")));
     const ids = (/** @type {string} */ id) => nodes.get(id).children.map((/** @type {any} */ c) => c.id);
     assert.deepEqual(ids(PANEL), [DOCK, TERMINALS, RAIL_BLOCK]);
-    assert.equal(nodes.get(PANEL).resizable, false);                               // the dock's row never drags
+    assert.equal(nodes.get(PANEL).resizable, undefined);     // the views and the terminal drag apart, as the TUI's
     assert.deepEqual(nodes.get(DOCK).header, { content: { mod: "herdr-fold", props: { part: "dock-head" } },
       height: TABS_H });                                                           // the tabs: the stack's own
     assert.deepEqual([nodes.get(DOCK).type, nodes.get(DOCK).active], ["stack", "files"]);
@@ -1309,8 +1830,12 @@ test("each space's chats in the Spaces order, the front tab's first, then the ne
       talk("x", "/elsewhere", 500), talk("d", "/repo/api", 200)];
     const front = new Set(["t9"]);
     assert.deepEqual(shown(chatRows(items, ["shop", "api", "notes"], PLACE, { here: "shop", front })),
-      ["shop 2 true", "b", "a", "api 1 false", "notes 0 false", "elsewhere 1 false"]);
+      ["shop 2 true", "b", "a", "api 1 false", "elsewhere 1 false"]);       // notes, with none, left out
   });
+
+test("a space with no chat shown is left out: none at all while the list is still read, never a false 0", () => {
+  assert.deepEqual(chatRows([], ["shop", "api"], PLACE, { here: "shop" }), []);
+});
 
 test("with no space open every chat is still listed, by its project's folder, the newest project first", () => {
   // the owner's app: no space open, ~/.claude/projects full of chats
@@ -1322,16 +1847,11 @@ test("with no space open every chat is still listed, by its project's folder, th
 test("typing narrows every space and opens them; an archived one only while typed for or shown", () => {
   const items = [talk("a", "/repo/shop", 300), talk("d", "/repo/api", 200)], archived = new Set(["claude:a"]);
   const rows = (more) => shown(chatRows(items, ["shop", "api"], PLACE, { here: "shop", archived, ...more }));
-  assert.deepEqual(rows({}), ["shop 0 true", "api 1 false"]);
+  assert.deepEqual(rows({}), ["api 1 false"]);                             // shop's one archived: shop left out
   assert.deepEqual(rows({ typed: "talk" }), ["shop 1 true", "a", "api 1 true", "d"]);
   assert.deepEqual(rows({ typed: "API" }), ["api 1 true", "d"]);
   assert.deepEqual(rows({ typed: "archived" }), ["shop 1 true", "a"]);
   assert.deepEqual(rows({ showArchived: true }), ["shop 1 true", "a", "api 1 false"]);
-});
-
-test("a space's row has its most urgent agent's state, as the Spaces list marks it", () => {
-  const rows = chatRows([], ["shop", "api"], PLACE, { states: { shop: "working" } });
-  assert.deepEqual(rows.map((r) => r.state), ["working", null]);
 });
 
 test("a space opened or closed by hand stays so, the one here open unless closed", () => {
@@ -1505,10 +2025,23 @@ test("a space whose folder is no repository is looked up with its active pane's 
   assert.equal(placeKey(s, [ps[0], ps[2]], { [plain]: null }), plain);    // no pane focused in its shown tab
 });
 
-test("a space without a color gets the one fewest use, as every app mod gives it; the home folder's none", () => {
-  const list = [{ id: "a", name: "x" }, { id: "b", name: "y" }, { id: "c", name: "~" }];
+test("a space without a color gets the one fewest use, as every app mod gives it; home's and a root's none", () => {
+  const list = [{ id: "a", name: "x" }, { id: "b", name: "y" }, { id: "c", name: "~" }, { id: "d", name: "/" },
+    { id: "e", name: "C:\\" }];
   assert.deepEqual(spaceColors(list, { a: "ansi6", gone: "ansi3" }), { a: "ansi6", b: "ansi3" });
   assert.equal(spaceColors(list.slice(0, 1), { a: "ansi6" }), null);    // nothing to write
+});
+
+test("a root's space is named by a word, as the TUI names it: root, a drive's letter; home for ~", () => {
+  // the app names one as its path, as herdr does; a name given by hand shows as it is
+  assert.deepEqual(["/", "C:\\", "d:\\", "~", "lab", "/srv", "C:", undefined].map(spaceLabel),
+    ["root", "C:", "d:", "home", "lab", "/srv", "C:", ""]);
+});
+
+test("home's and a root's avatar is a glyph tile in home's color, whatever color is kept for it", () => {
+  const colors = { a: "ansi3", c: "ansi4", d: "ansi5" };
+  assert.deepEqual([{ id: "a", name: "lab" }, { id: "b", name: "x" }, { id: "c", name: "/" }, { id: "d", name: "C:\\" },
+    { id: "e", name: "~" }].map((s) => spaceColor(s, colors)), ["ansi3", "ansi6", "ansi6", "ansi6", "ansi6"]);
 });
 
 test("an avatar's fill: the app's strong color for a theme color's name, a picked one as it is", () => {
@@ -1723,10 +2256,10 @@ test("the group the clock asked for is open, and scrolled to: from the list's en
   const items = [talk("a", "/repo/shop", 300), talk("d", "/repo/api", 200), talk("e", "/repo/api", 100)];
   const opened = new Set([chatsAsked({ at: 1, space: "api" }).space]);
   const rows = chatRows(items, ["shop", "api", "notes"], PLACE, { here: "shop", opened });
-  assert.deepEqual(shown(rows), ["shop 1 true", "a", "api 2 true", "d", "e", "notes 0 false"]);
+  assert.deepEqual(shown(rows), ["shop 1 true", "a", "api 2 true", "d", "e"]);
   // the list draws a group as its head, then its chats' block: two children each
-  assert.deepEqual(groupPlace(rows, "api"), { head: 2, last: 5 });
-  assert.deepEqual(groupPlace(rows, "shop"), { head: 0, last: 5 });
+  assert.deepEqual(groupPlace(rows, "api"), { head: 2, last: 3 });
+  assert.deepEqual(groupPlace(rows, "shop"), { head: 0, last: 3 });
   assert.equal(groupPlace(rows, "harbor"), null);
 });
 

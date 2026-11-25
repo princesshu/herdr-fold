@@ -154,10 +154,16 @@ class Shape(unittest.TestCase):
         with open(os.path.join(MOD, "main.js"), encoding="utf-8") as f:
             taken = set(re.findall(r'asked === "([\w-]+)"', f.read()))           # what nextCommand() gave
         with open(os.path.join(APP, "keys.json"), encoding="utf-8") as f:
-            actions = [a for section in json.load(f).values() for a in section.values()]
+            actions = [a for section in json.load(f).values() for a in section.values() if a.startswith("herdr-fold.")]
         self.assertTrue(actions)
         stray = [a for a in actions if a != "mod.open:herdr-fold" and a.removeprefix("herdr-fold.") not in taken]
         self.assertEqual(stray, [])
+
+    def test_shift_enter_in_a_terminal_types_a_new_line(self):
+        """In a terminal, in every layout, Shift+Enter sends ESC CR (Option+Enter), which Claude Code takes as a new
+        line, as Ghostty's own encoding gives it in the TUI; the app's own send action, no mod between."""
+        with open(os.path.join(APP, "keys.json"), encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["terminal"], {"shift-enter": "send:\x1b\r"})
 
     def test_the_icons_are_the_ones_the_mod_draws(self):
         """icons/ holds each icon the mod's views name (icon("name"), or its name passed on to it) and no other; the
@@ -180,8 +186,8 @@ class Shape(unittest.TestCase):
                                                                            re.M).group(1)))
 
     def test_the_left_sidebar_is_on_the_sides_level_and_chats_in_the_dock(self):
-        """The left sidebar is the mockups' side level (chrome: its head and foot, Herdr's workspace-chrome, paint it
-        too), the window round it canvas; the Spaces list paints the same, Chats shows in the dock, no popover."""
+        """The left sidebar is the mockups' side level (chrome: its head and foot, herdr-fold's, paint it too), the
+        window round it canvas; the Spaces list paints the same, Chats shows in the dock, no popover."""
         nodes, _rail = self.nodes()
         with open(os.path.join(APP, "layouts", "herdr-fold.json"), encoding="utf-8") as f:
             root = json.load(f)

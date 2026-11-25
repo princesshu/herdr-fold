@@ -232,20 +232,27 @@ class PackageSettings(unittest.TestCase):
         self.assertRegex(self.herdr, r"\[ui\.sidebar\.agents\]\nrow_gap = 1\nrows = \[\n" + name + state + r"\]\n")
         self.assertNotIn("$nav", self.herdr)
 
-    def test_a_spaces_branch_is_followed_by_the_repository_inside_it_the_wait_and_a_gone_folder(self):
-        # herdr's own Space rows; after its branch and git status Workspaces' $repo in herdr's own style (a folder
-        # holding a repository: its branch and git status), AI Sessions' $waiting in the theme's yellow, then
-        # Workspaces' $folder in its red (it reports "deleted")
+    def test_a_spaces_wait_is_beside_its_name_and_a_branch_always_under_the_name_it_belongs_to(self):
+        # herdr's own Space rows, AI Sessions' $waiting beside the name in the theme's yellow; a folder holding a
+        # repository: Spaces' $repo (its name) in the text color where herdr's branch would be, $repo_branch faint
+        # under it; Spaces' $folder in red (it reports "deleted"). herdr drops a row with nothing in it
         for theme in apply.load_themes():
             h = theme["colors"]["herdr"]
             body = "\n".join(apply.herdr_block(theme))
             rows = body.split("[ui.sidebar.spaces]\n", 1)[-1].split("\n]", 1)[0]
-            self.assertEqual(rows.split("\n"), ["rows = [", '  ["state_icon", "workspace"],',
-                                                 f'  ["branch", "git_status", "$repo", {{ token = "$waiting", fg = '
-                                                 f'"{h["yellow"]}" }}, {{ token = "$folder", fg = "{h["red"]}" }}],'],
-                             theme["id"])
+            branch = re.search(r'token = "\$repo_branch", fg = "(#[0-9a-f]{6})"', rows)
+            self.assertIsNotNone(branch, theme["id"])
+            self.assertEqual(rows.split("\n"), [
+                "rows = [", f'  ["state_icon", "workspace", {{ token = "$waiting", fg = "{h["yellow"]}" }}],',
+                f'  ["branch", "git_status", {{ token = "$repo", fg = "{h["text"]}" }}, {{ token = "$folder", fg = '
+                f'"{h["red"]}" }}],', f'  [{{ token = "$repo_branch", fg = "{branch.group(1)}" }}],'], theme["id"])
             self.assertGreaterEqual(apply.contrast(h["yellow"], h["sidebar_bg"]), 4.5, theme["id"])
-        self.assertIn('\n  ["branch", "git_status", "$repo", { token = "$waiting", fg = "#', self.herdr)
+            # the branch grey, legible on the active row, still fainter than the name on the others
+            grey = branch.group(1)
+            self.assertGreaterEqual(apply.contrast(grey, h["active_row_bg"]), apply.ON_ACTIVE_ROW, theme["id"])
+            self.assertLess(apply.contrast(grey, h["sidebar_bg"]), apply.contrast(h["text"], h["sidebar_bg"]),
+                            theme["id"])
+        self.assertIn('\n  ["state_icon", "workspace", { token = "$waiting", fg = "#', self.herdr)
 
     def test_a_sessions_agent_shows_on_the_active_row_and_stays_fainter_than_its_name(self):
         # the active row is mixed from the accent: herdr's own faint gray all but vanished on it
@@ -273,20 +280,39 @@ class PackageSettings(unittest.TestCase):
             self.assertGreaterEqual(apply.contrast(faint, ground), min(1.6, apply.contrast(h["overlay0"], ground)),
                                     theme["id"])
 
-    def test_the_prompt_fits_the_narrow_terminal(self):
-        # the folder from the repository's root alone on the first line, the branch and the git status before the ❯:
-        # a line of the whole path, the branch and the status broke in the right-hand column's terminal
+    def test_the_prompt_fits_the_narrow_terminal_and_never_names_the_repository(self):
+        # the branch and the git status before the ❯; a folder line above only where it tells something: in a
+        # repository the path inside it (the space names the repository), none at its top; outside one the path
         with open(os.path.join(PACKAGE, "config", "starship.toml"), encoding="utf-8") as f:
             starship = f.read()
-        layout = starship.split('format = """\n', 1)[1].split('"""', 1)[0]
-        self.assertEqual(layout.split("\n"), ["$directory", "$git_branch$git_status$character"])
+        self.assertIn('\nformat = "$directory$git_branch$git_status$character"\n', starship)
+        self.assertIn('\nformat = "[$path]($style)[$read_only]($read_only_style)\\n"\n', starship)
+        self.assertIn('\nrepo_root_format = "([$path]($style)[$read_only]($read_only_style)\\n)"\n', starship)
+        self.assertIn("\nrepo_root_style = ", starship)                 # starship takes repo_root_format with it only
         self.assertIn("\ntruncate_to_repo = true\n", starship)
+
+    def test_the_prompts_colors_follow_the_theme(self):
+        # the folder's styles (its repository's too, which starship needs for the path inside it) and the ❯ in the
+        # accent, the branch and the status as the theme has them; nothing else of the file changed
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp)
+        path = os.path.join(tmp, "starship.toml")
+        shutil.copy(os.path.join(PACKAGE, "config", "starship.toml"), path)
+        apply.set_starship(path, {"path": "#111111", "branch": "#222222", "status": "#333333"})
+        with open(path, encoding="utf-8") as f:
+            made = f.read()
+        for key in ("style", "repo_root_style", "before_repo_root_style"):
+            self.assertIn(f'\n{key} = "bold #111111"\n', made)
+        self.assertIn('\nstyle = "#222222"\n', made)
+        self.assertIn('success_symbol = "[❯](bold #111111)"', made)
+        self.assertIn('error_symbol = "[❯](bold #333333)"', made)
+        self.assertNotIn("#cba6f7", made)
 
     def test_the_pickers_sample_prompt_is_the_one_the_terminal_shows(self):
         # the folder from the repository's root alone, then the branch, the status and the ❯, as starship draws them
         import picker
         rows = [re.sub(r"\x1b\[[0-9;]*m", "", row).rstrip() for row in picker.sample(apply.load_themes()[0], 56)]
-        self.assertEqual(rows[:2], [" repo", " main [!] ❯ claude"])
+        self.assertEqual(rows[:2], [" /src", " main [!] ❯ claude"])
 
     def test_the_pickers_close_button_leaves_the_theme_as_it_is(self):
         # every popup's close button: a click on it goes as Esc does, nothing applied
@@ -311,7 +337,15 @@ class PackageSettings(unittest.TestCase):
         with open(os.path.join(SRC, "themes", "preview.html"), encoding="utf-8") as f:
             sketch = f.read().split("function mock(", 1)[1].split("\n}\n", 1)[0]
         self.assertNotIn("~", sketch)
-        self.assertIn('<span class="n">1</span>home', sketch)
+        self.assertIn('<span class="name">home</span>', sketch)
+
+    def test_the_previews_sketch_numbers_no_space_and_no_tab(self):
+        # as the TUI today: the Spaces list and the tab bar name a space alone, and the row of views is the dock's
+        with open(os.path.join(SRC, "themes", "preview.html"), encoding="utf-8") as f:
+            sketch = f.read().split("function mock(", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn('<div class="tabs"><span class="on">lumen-api</span><span class="plus">+</span></div>', sketch)
+        self.assertNotRegex(sketch, r'class="(?:n|on|name)">\d')
+        self.assertIn("Object.entries(PREVIEW.views)", sketch)
 
     def test_ghostty_takes_its_app_icon_from_the_file_the_theme_writes(self):
         # a file of its own beside the config, outside the theme block: the icon's path is this Mac's, never the repo's
@@ -395,6 +429,15 @@ class SidebarColors(Themed):
             if not (apply.ARCHIVED <= archived < muted and guide <= archived):
                 problems.append(f"{theme['id']}: {archived:.2f} (guide {guide:.2f}, muted {muted:.2f})")
         self.assertEqual(problems, [])
+
+    def test_faint_text_on_a_chosen_or_hovered_row_reads_there_and_stays_fainter_than_the_text(self):
+        low = []
+        for theme in apply.load_themes():
+            colors = apply.sidebar_colors(theme)
+            low += [f"{theme['id']}: on {bg}" for bg in ("selection", "hover")
+                    if contrast(colors["muted_row"], colors[bg]) < apply.ON_ACTIVE_ROW
+                    or contrast(colors["muted_row"], colors[bg]) >= contrast(colors["text"], colors[bg])]
+        self.assertEqual(low, [])
 
     def test_every_theme_is_readable_in_the_sidebar(self):
         pairs = (("button_text", "button"), ("badge_text", "badge"), ("text", "selection"), ("text", "hover"),

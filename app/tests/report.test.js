@@ -3,8 +3,8 @@
 // tip and month line, the projects' bars, the summary's and the tables' cells, the budget's fields, the index's looks.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { amountTyped, axisLabels, budgetRows, columns, conversationCells, GAP, indexed, markedRow, modelCells, money,
-  monthLine, PERIOD, projectBars, reportArgs, summaryCells, ticks, tipFor, tokensShort, whole }
+import { amountTyped, axisLabels, budgetRows, chatCells, columns, GAP, indexed, markedRow, modelCells, money,
+  monthLine, PERIOD, projectBars, reportArgs, summaryCells, ticks, tipFor, tokens, whole }
   from "../mods/herdr-fold/report.js";
 
 const OPUS = "#3987e5", SONNET = "#d95926", HAIKU = "#199e70", CODEX = "#c98500";
@@ -27,8 +27,19 @@ test("money and tokens are written as core writes them", () => {
   assert.deepEqual([whole(46.2), whole(57.5), whole(1250)], ["$46", "$58", "$1,250"]);
   // a figure herdr-fold computes wears one tilde, as core's (a budget, typed in, none)
   assert.deepEqual([money(130.9, true), whole(46.2, true)], ["~$130.90", "~$46"]);
-  assert.deepEqual([999, 1000, 9949, 68_000, 999_499, 38_200_000, 2_100_000_000].map(tokensShort),
-    ["999", "1.0k", "9.9k", "68k", "999k", "38.2M", "2.1B"]);
+});
+
+test("a token count follows core's number rule (words.tokens), its vectors and its ties to even", () => {
+  // test_core_words' vectors: whole under 1,000; one decimal under 100k; whole to 999k; one decimal from 1M
+  for (const [count, said] of /** @type {[number, string][]} */ ([[0, "0"], [30, "30"], [999, "999"],
+    [1000, "1.0k"], [5949, "5.9k"], [21_400, "21.4k"], [99_949, "99.9k"], [99_950, "100k"], [120_000, "120k"],
+    [999_499, "999k"], [999_500, "1.0M"], [60_000, "60.0k"], [1_200_000, "1.2M"], [38_200_000, "38.2M"],
+    [2_100_000_000, "2.1B"]])) assert.equal(tokens(count), said, String(count));
+  // an exact half rounds to even, as Python's format does (JavaScript's toFixed rounds it up)
+  for (const [count, said] of /** @type {[number, string][]} */ ([[1250, "1.2k"], [1750, "1.8k"], [10_250, "10.2k"],
+    [120_500, "120k"], [121_500, "122k"], [1_250_000, "1.2M"], [2_250_000_000, "2.2B"], [1050, "1.1k"]])) {
+    assert.equal(tokens(count), said, String(count));
+  }
 });
 
 test("an axis has clean ticks from 0 past its largest value, four steps at most", () => {
@@ -127,49 +138,42 @@ test("the projects' bars are as long as their share of the largest, the value at
   assert.deepEqual(projectBars([{ name: "lumen-api", cost: 84.2, tokens: 1 }, { name: "harbor-web", cost: 42.1,
     tokens: 1 }, { name: "tidepool", cost: null, tokens: 14_200 }]), [
     { name: "lumen-api", share: 1, text: "$84.20" }, { name: "harbor-web", share: 0.5, text: "$42.10" },
-    { name: "tidepool", share: 0, text: "14k tokens" }]);
+    { name: "tidepool", share: 0, text: "14.2k tokens" }]);
   assert.deepEqual(projectBars([]), []);
 });
 
-test("the summary's first cell is the wide one, and a pace over its budget is told apart", () => {
+test("the summary's first cell is the wide one; each says core's words, its unit only beside a figure", () => {
   const cells = summaryCells([
-    { key: "Claude · Max plan", agent: "claude", value: 130.9, text: "$130.90", unit: "API value", over: false,
-      line: "no charge on the plan · week 16% of its limit" },
-    { key: "Codex · API key", agent: "codex", value: 45.1, text: "$45.10", unit: "spent", over: true,
-      line: "November $45.10 of $50 · on pace for $58" },
-    { key: "Tokens", value: 38_200_000, text: "38.2M", line: "81% read from cache" },
-    { key: "Commits from these conversations", value: 9, text: "9", about: false, line: "$15.50 each, API value" }]);
-  assert.deepEqual(cells.map((one) => one.grow), [1.4, 1, 1, 1]);
-  assert.deepEqual(cells[0], { key: "Claude · Max plan", text: "$130.90", unit: "API value", grow: 1.4,
-    line: "no charge on the plan · week 16% of its limit", pace: "" });
-  assert.deepEqual([cells[1].line, cells[1].pace], ["November $45.10 of $50 · ", "on pace for $58"]);
-  assert.deepEqual([cells[2].unit, cells[3].text], ["", "9"]);
+    { key: "Claude · Max plan", agent: "claude", value: 130.9, text: "~$130.90", unit: "API value",
+      line: "no charge on the plan" },
+    { key: "Codex · API key", agent: "codex", value: 46.08, text: "~$46.08", unit: "spent in 7 days", line: "" },
+    { key: "Tokens", value: 38_200_000, text: "38.2M", line: "81% read from cache" }]);
+  assert.deepEqual(cells.map((one) => one.grow), [1.4, 1, 1]);
+  assert.deepEqual(cells[0], { key: "Claude · Max plan", text: "~$130.90", unit: "API value", grow: 1.4,
+    line: "no charge on the plan" });
+  assert.deepEqual([cells[1].unit, cells[1].line], ["spent in 7 days", ""]);
+  assert.deepEqual([cells[2].unit, cells[2].text, cells[2].line], ["", "38.2M", "81% read from cache"]);
   // a model with no price: no dollars, so no word for them either
   assert.equal(summaryCells([{ key: "Codex", agent: "codex", value: null, text: "no price", unit: "API value",
     line: "" }])[0].unit, "");
 });
 
-test("a conversation's row says its cost as value or spent, its commits with their lines, or that it has none", () => {
-  const words = { none_yet: "none yet", no_price: "no price" };
+test("a chat's row says its cost as value or spent, or that it has no price; no commits beside it", () => {
+  const words = { no_price: "no price" };
   const row = { session: "s1", title: "Fix the page past the last one", space: "lumen-api", turns: 38,
     models: [{ name: "Opus 5.5", color: OPUS }, { name: "Haiku 5.5", color: HAIKU }], tokens: 9_400_000, cache: 84,
-    cost: 31.4, kind: "value", commits: 2, commits_text: "2", changed: "+134 −12", per_commit: 15.7 };
-  assert.deepEqual(conversationCells(row, words), { title: "Fix the page past the last one", space: "lumen-api",
-    models: [OPUS, HAIKU], turns: "38", tokens: "9.4M", cache: "84%", cost: "$31.40", kind: "value", commits: "2",
-    changed: "+134 −12", per: "$15.70", none: false });
-  const bare = conversationCells({ ...row, cost: null, cache: null, commits: 0, commits_text: "none yet", changed: "",
-    per_commit: null }, words);
-  assert.deepEqual([bare.cost, bare.kind, bare.cache, bare.commits, bare.per, bare.none],
-    ["no price", "", "–", "none yet", "–", true]);
-  assert.equal(conversationCells({ ...row, commits: null, commits_text: "–", changed: "", per_commit: null },
-    words).none, true);
+    cost: 31.4, kind: "value" };
+  assert.deepEqual(chatCells(row, words), { title: "Fix the page past the last one", space: "lumen-api",
+    models: [OPUS, HAIKU], turns: "38", tokens: "9.4M", cache: "84%", cost: "$31.40", kind: "value" });
+  const bare = chatCells({ ...row, cost: null, cache: null }, words);
+  assert.deepEqual([bare.cost, bare.kind, bare.cache], ["no price", "", "–"]);
 });
 
 test("a model's row says each kind of token, – for none, and no price where it has none", () => {
   const row = { name: "GPT-5 Codex", color: CODEX, agent: "Codex", input: 400_000, write: 0, read: 1_400_000,
     output: 90_000, cost: 8.6, kind: "spent", text: "$8.60" };
   assert.deepEqual(modelCells(row), { name: "GPT-5 Codex", color: CODEX, agent: "Codex", input: "400k", write: "–",
-    read: "1.4M", output: "90k", cost: "$8.60", kind: "spent", priced: true });
+    read: "1.4M", output: "90.0k", cost: "$8.60", kind: "spent", priced: true });
   assert.deepEqual(modelCells({ ...row, name: "codex-auto-review", cost: null, text: "no price" }).cost, "no price");
   assert.equal(modelCells({ ...row, cost: null, text: "no price" }).kind, "");
   assert.equal(modelCells({ ...row, cost: null, text: "no price" }).priced, false);
@@ -193,7 +197,7 @@ test("a budget has a field for each agent on an API key, and no other", () => {
   assert.deepEqual(budgetRows(null, { codex: 50 }), []);
 });
 
-test("the row asked for is found among the conversations by its session", () => {
+test("the row asked for is found among the chats by its session", () => {
   const rows = [{ session: "a" }, { session: "b" }];
   assert.deepEqual([markedRow(rows, "b"), markedRow(rows, "z"), markedRow(rows, null), markedRow(null, "a")],
     [1, -1, -1, -1]);

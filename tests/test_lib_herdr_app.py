@@ -209,16 +209,6 @@ class Install(unittest.TestCase):
         herdr_app.install(PACKAGE, self.home, self.state)
         self.assertEqual(shared(self.home), {"herdr-fold.panel-width": 420, "sidebar.width": 268})
 
-    def test_the_chats_shared_value_keeps_what_its_older_name_held(self):
-        # the archived ones shown or not, the reopened ones' terminals: "herdr-fold.conversations" before the rename
-        kept = {"showArchived": True, "resumed": {"t1": "s1"}}
-        self.write("shared.json", json.dumps({"herdr-fold.conversations": kept}))
-        herdr_app.install(PACKAGE, self.home, self.state)
-        self.assertEqual(shared(self.home), {"herdr-fold.chats": kept})
-        self.write("shared.json", json.dumps({"herdr-fold.conversations": {}, "herdr-fold.chats": kept}))
-        herdr_app.install(PACKAGE, self.home, self.state)
-        self.assertEqual(shared(self.home), {"herdr-fold.chats": kept})          # the new one wins
-
     def test_uninstall_takes_herdr_folds_shared_values_off(self):
         self.write("shared.json", json.dumps({"herdr-fold.view": "changes", "herdr-fold.waits": {},
                                               "frame.welcomed": True}))

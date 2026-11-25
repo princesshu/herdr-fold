@@ -21,25 +21,22 @@ answer.
 ## The network
 
 herdr-fold's own code asks two things of the network, each once a day at most and with the request alone (no id, no
-cookie, nothing about you, your sessions or your models): api.github.com for its latest release (at once on Check
-now), and raw.githubusercontent.com for LiteLLM's public table of model prices (`core/prices.py`, for Usage's costs:
-asked only when costs are read, kept in `~/.local/state/herdr-fold/prices.json`; without an answer the last one, else
-the table that came with herdr-fold, is used). Check for updates automatically in herdr-fold's Settings, under About
-(More's Settings…, in the sidebar and in the Herdr app's dock), or `HERDR_FOLD_NO_UPDATE_CHECK=1` turns both off:
-[A newer version](docs/installation.md#a-newer-version). Everything else goes where you ask: git to the repository's
-remote, gh to GitHub, the AI tool to its own service.
+cookie, nothing about you, your sessions or your models): api.github.com for its latest release (at once on Check now),
+and raw.githubusercontent.com for LiteLLM's public table of model prices (`core/prices.py`, for Usage's costs: asked
+only when costs are read, kept in `~/.local/state/herdr-fold/prices.json`; without an answer the last one, else the
+table that came with herdr-fold, is used). Check for updates automatically in herdr-fold's Settings, under About (More's
+Settings… in the TUI sidebar, the sidebar's Settings in the Herdr app), or `HERDR_FOLD_NO_UPDATE_CHECK=1` turns both
+off: [A newer version](docs/installation.md#a-newer-version). Everything else goes where you ask: git to the
+repository's remote, gh to GitHub, the AI tool to its own service.
 
 Usage's token counts are read from Claude's and Codex's own session files on this machine and kept by the hour in
 `~/.local/state/herdr-fold/usage-index.json`, readable by you alone: numbers, each session's id and folder, the
-models' names; no message's text, and nothing of it leaves the machine. For the report's commits, Claude's sessions
-are read once more into `commits-index.json` beside it, also yours alone: the paths of the files each conversation
-edited, when, and the ids of the commits its `git commit` printed, with each counted commit's line counts. git is
-then only read (`cat-file`, `log`), in the repositories those files and the conversation's folder are in, with nothing
-a repository's config names run. A monthly budget you set for an agent on an API key is kept in `usage.json` there,
-with the budget notices you dismissed. The CSV is made from the same numbers, with each conversation's title; a title
-that would start a formula in a spreadsheet is written after an apostrophe. The Herdr app's Export CSV writes it only
-where macOS's own save panel says, on your press, and over a file there only as that panel asks; the Budget… fields
-take an amount and nothing else, handed to herdr-fold's own code as one argument.
+models' names; no message's text, and nothing of it leaves the machine. A monthly budget you set for an agent on an
+API key is kept in `usage.json` there, with the budget notices you dismissed. The CSV is made from the same numbers,
+with each conversation's title; a title that would start a formula in a spreadsheet is written after an apostrophe.
+The Herdr app's Export CSV writes it only where macOS's own save panel says, on your press, and over a file there
+only as that panel asks; the Budget… fields take an amount and nothing else, handed to herdr-fold's own code as one
+argument.
 
 ## Remote machines
 
@@ -97,12 +94,14 @@ open only folders whose `.git` you trust. The details:
 
 ## A chat you delete
 
-herdr-fold writes none of Claude's or Codex's files, and its file operations refuse everything under `~/.claude`,
-`~/.codex` and herdr's state. One thing is the exception: Delete… in Chats, for a closed chat of the list, once you
-answer its question. Its own file is then moved to the system's Trash, never unlinked (on a Mac the Finder's Put Back
-restores it):
+herdr-fold's file operations refuse everything under `~/.claude`, `~/.codex` and herdr's state, and it writes the
+agents' files in two cases only. A form's Save in the Agent panel changes one key of a settings file, from a fixed
+list of keys, in the layer you choose, never your organization's:
+[The agent's harness](docs/harness.md#what-each-edit-writes). The other is Delete… in Chats, for a closed chat of
+the list, once you answer its question. Its own file is then moved to the system's Trash, never unlinked (on a Mac
+the Finder's Put Back restores it):
 
-- Claude's: `~/.claude/projects/<folder>/<id>.jsonl`, and the folder `<id>` beside it, where its sub-agents' files are;
+- Claude's: `~/.claude/projects/<folder>/<id>.jsonl`, and the folder `<id>` beside it, where its subagents' files are;
 - Codex's: `~/.codex/sessions/<year>/<month>/<day>/rollout-…<id>.jsonl`, whose first line names that id.
 
 The file is checked by its real place first (`core/fileops.py`, `trash_chat`): the id is one (letters, digits, `.`,

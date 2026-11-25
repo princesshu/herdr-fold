@@ -45,7 +45,8 @@ class ThemeError(Exception):
     """A config file has no theme section (the package's fresh configs provide it)."""
 # the frames of the panes out of focus against the sidebar: faint, herdr's small labels in the same color still legible
 FRAMES = 2.4
-# a session's agent in AI Sessions against the active row's background: still legible there
+# faint text on a sidebar row (a session's agent, a space's inner branch) against the active row's background:
+# still legible there
 ON_ACTIVE_ROW = 3.0
 # the sidebar's faintest text (a chat's agent, the tree lines) against the panes' background: still legible
 GUIDE = 2.2
@@ -159,21 +160,24 @@ def herdr_block(theme):
              "# and the agent below it, faint, the agent still legible on the active row; an empty row between two",
              "# sessions", "[ui.sidebar.agents]", "row_gap = 1", "rows = [",
              f'  ["state_icon", {{ token = "pane", fg = "{h["text"]}", bold = true }}],',
-             f'  ["state_text", {{ token = "agent", fg = "{agent_color(theme)}" }}],', "]"]
+             f'  ["state_text", {{ token = "agent", fg = "{faint_row(theme)}" }}],', "]"]
     body += ["",
-             "# The Spaces rows: herdr's own; after its branch and git status, those of a repository inside a folder",
-             "# that is not one, how long an agent there waits on you in the theme's yellow, and deleted in its red",
-             "# when the folder is gone (the Workspaces plugin says the first and the last, AI Sessions the wait)",
+             "# The Spaces rows: herdr's own, how long an agent there waits on you beside the name in the theme's",
+             "# yellow; a repository inside a folder that is not one, its name in the text color, its branch faint",
+             "# below it; deleted in red when the folder is gone (Spaces says these, AI Sessions the wait)",
              "[ui.sidebar.spaces]", "rows = [",
-             '  ["state_icon", "workspace"],',
-             f'  ["branch", "git_status", "$repo", {{ token = "$waiting", fg = "{h["yellow"]}" }}, '
-             f'{{ token = "$folder", fg = "{h["red"]}" }}],', "]"]
+             f'  ["state_icon", "workspace", {{ token = "$waiting", fg = "{h["yellow"]}" }}],',
+             f'  ["branch", "git_status", {{ token = "$repo", fg = "{h["text"]}" }}, '
+             f'{{ token = "$folder", fg = "{h["red"]}" }}],',
+             f'  [{{ token = "$repo_branch", fg = "{faint_row(theme)}" }}],', "]"]
     return body + [END]
 
 
 def set_starship(path, prompt):
-    """Prompt colors: the folder and ❯ in the theme's accent color, the branch muted, git status and a failed ❯ red."""
-    wanted = {"directory": {"style": f'"bold {prompt["path"]}"'},
+    """Prompt colors: the folder (its repository's styles too) and ❯ in the theme's accent color, the branch muted, git
+    status and a failed ❯ red."""
+    bold = f'"bold {prompt["path"]}"'
+    wanted = {"directory": {"style": bold, "repo_root_style": bold, "before_repo_root_style": bold},
               "git_branch": {"style": f'"{prompt["branch"]}"'},
               "git_status": {"style": f'"{prompt["status"]}"'},
               "character": {"success_symbol": f'"[❯](bold {prompt["path"]})"',
@@ -250,20 +254,22 @@ def faint(theme):
     return readable(color, h["text"], background, 3.5)
 
 
-def agent_color(theme):
-    """A session's agent in AI Sessions: the theme's faint text color, moved toward its text color until it
-    stands out from the active row's background by ON_ACTIVE_ROW — on the other rows still fainter than the name."""
+def faint_row(theme):
+    """Faint text on a sidebar row that can be the active one (a session's agent, a space's inner branch): the theme's
+    faint text color, moved toward its text color until it stands out from the active row's background by
+    ON_ACTIVE_ROW; on the other rows still fainter than the name."""
     h = theme["colors"]["herdr"]
     return readable(faint(theme), h["text"], h["active_row_bg"], ON_ACTIVE_ROW)
 
 
 def sidebar_colors(theme):
     """The sidebar plugin's color for each of its roles (theme.py there names them), from the theme's herdr palette;
-    its faint text as faint() makes it, its faintest (the guide lines) as herdr's own (quiet_frames()), legible, an
-    archived chat's a shade between the two."""
+    its faint text as faint() makes it, on a chosen or hovered row as faint_row() and readable on the hover's too, its
+    faintest (the guide lines) as herdr's own (quiet_frames()), legible, an archived chat's a shade between the two."""
     h, background = theme["colors"]["herdr"], theme["colors"]["background"]
     muted = faint(theme)
     return {"text": h["text"], "subtext": h["subtext0"], "muted": muted,
+            "muted_row": readable(faint_row(theme), h["text"], h["surface0"], ON_ACTIVE_ROW),
             "guide": readable(quiet_frames(theme), h["text"], background, GUIDE),
             "archived": readable(mix(muted, background, 0.4), muted, background, ARCHIVED),
             "accent": h["accent"], "added": h["green"], "modified": h["yellow"], "deleted": h["red"],

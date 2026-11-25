@@ -7,28 +7,30 @@ import { spaces, panes, focused, exec, hc, home, nextCommand, theme, layout, pro
   shared, setShared, readTextFile, run as command } from "herdr";
 import { COMMIT_MESSAGE, FILEOPS, GIT, SEARCH } from "./helper.js";
 import { activeTerminal, afterCommit, background, branchLabel, changeColor, changeName, commitMode, excerpt, fileIcon,
-  foldedSections, hovering, lastLine, launcher, letter, marked, MODES, PANEL_NAMES, panelRailed,
-  panelsFollow, pushOffer, pythonCommand, railFollow, rowActions, said, searchRows, searchSummary, secretQuestion,
-  shortCount, swapDraft, syncLabel, written }
+  floatStale, foldedSections, hovering, lastLine, launcher, letter, marked, MODES, PANEL_NAMES, panelPx,
+  panelsFollow, pushOffer, pythonCommand, railed, railFollow, rowActions, said, searchRows, searchSummary,
+  secretQuestion, shortCount, sidebarFollow, sidebarPx, swapDraft, syncLabel, written, noteShown }
   from "./logic.js";
-import { button, chip, codeFont, END, field, fileMark, fold, footNote, GAP, icon, iconButton, INDENT, PAD, small,
-  SPINNER, SPRING } from "./parts.js";
-import { Menus, menuFind, menuPopup } from "./menus.js";
+import { button, chip, codeFont, END, field, fileMark, fold, footNote, GAP, icon, iconButton, INDENT, noteToast, PAD,
+  small, SPINNER, SPRING } from "./parts.js";
+import { forgetMenus, menuGone, Menus, menuFind, menuPopup } from "./menus.js";
 import { askChats, bottomChoice, checkUpdates, chosenView, FloatSize, followFolder, keepBottom, liveDockTabs, liveRail,
-  openAgents, RepoLook, sizedFloat, summon, tell, toggleChats, SUMMON, tabsState } from "./panel.js";
-import { forgetSettings, openSettings, SettingsView, UPDATES, whatsNew } from "./settings.js";
+  foldDock, openAgents, RepoLook, restDock, restFollow, restorePanels, sizedFloat, summon, tell, toggleChats,
+  toggleColumn, SUMMON, tabsState } from "./panel.js";
+import { followNotes, forgetSettings, openSettings, SettingsView, UPDATES, whatsNew } from "./settings.js";
 import { AgentLook, AgentView } from "./agent.js";
 import { AgentsView } from "./agentstab.js";
-import { Chat, newAgentIn } from "./chat.js";
+import { Chat, firstChat, newAgentIn } from "./chat.js";
 import { ChatsView } from "./chats.js";
 import { FilesView } from "./files.js";
-import { dock, sidebarHead, sidebarTrigger, spacesFloat, trackFold } from "./sidebar.js";
+import { addMachine, forgetFloat, forgetFloats, liveDock, restSide, sidebarFoot, sidebarHead, spacesBody,
+  spacesButtons, toggleSidebar } from "./sidebar.js";
 import { IssuesView, fixesChip } from "./issues.js";
-import { markUnread, SpacesView } from "./spaces.js";
+import { isHome, markUnread, pickSpace, SpacesView } from "./spaces.js";
 import { liveStatus } from "./status.js";
 import { TabsView } from "./tabs.js";
-import { Palette, TitleView, togglePalette } from "./title.js";
-import { Preview, showPreview } from "./preview.js";
+import { Palette, pickTheme, TitleView, togglePalette } from "./title.js";
+import { openNamed, Preview, showPreview } from "./preview.js";
 import { guide, styleguide } from "./styleguide.js";
 import { standIn, TerminalFollower } from "./terminal.js";
 
@@ -112,13 +114,11 @@ async function git(command, root, on, rest = []) {
   return done.ok ? null : done.advice;
 }
 
-/** What the tab bar's look at the focused folder asks there (panel.js's RepoLook): its repository's root, its status,
- * its GitHub name. */
+/** What the tab bar's look at the focused folder (panel.js's RepoLook) and Changes ask there: its repository's root
+ * (its own, else the one inside it, as the Spaces row names it), its status, its GitHub name. */
 const ASK = {
-  top: async (/** @type {string} */ cwd, /** @type {string | null} */ on) => {
-    const top = await run(["git", "rev-parse", "--show-toplevel"], cwd, on);
-    return top.code === 0 ? top.stdout.trim() : null;
-  },
+  top: async (/** @type {string} */ cwd, /** @type {string | null} */ on) =>
+    (await python(GIT, ["top", cwd], cwd, on)).root,
   status: (/** @type {string} */ root, /** @type {string | null} */ on) => python(GIT, ["status", root], root, on),
   github: async (/** @type {string} */ root, /** @type {string | null} */ on) =>
     (await python(GIT, ["github", root], root, on)).name,
@@ -133,6 +133,12 @@ async function stage(root, on) {
 
 export default class HerdrFold extends View {
   init(_props, cx) {
+    const shown = props() ?? {};
+    if ("level" in shown && !shown.part) {        // a note, while An agent waits on you is off: an error or a
+      if (noteShown(shown.level)) return void (this.note = shown);  // warning drawn here, the rest closed at once
+      closeOverlay(shown.overlay);
+      return void (this.blank = true);
+    }
     if ((this.launcher = launcher(props()))) {    // mod.open: Changes shown, as Cmd+Shift+G, then gone
       summon("changes");
       return void closeOverlay(this.launcher);
@@ -149,14 +155,17 @@ export default class HerdrFold extends View {
       this.popup = { overlay, items, head, find: find ? menuFind(find, none, items, overlay) : null };
       return void cx.timer.after(0, () => this.popup.find?.input.focus());
     }
-    if (part === "settings") return void (this.settings = new SettingsView(python, cx));   // More's Settings…
+    if (part === "settings") return void (this.settings = new SettingsView(python, cx));   // the one Settings
     if (part === "tabs") {                        // the tab bar, where the app's own was: always there, so it looks
       const bar = (this.bar = new TabsView());    // for herdr-fold's newer releases and at the repository for the
       this.repo = new RepoLook(ASK);              // dock's tabs too, and hands the keys on (More's choices its own)
       this.setup = new AgentLook(python);         // the Agent tab's dot: its setup's problems, behind the views
       forgetSettings();
+      forgetFloats();
+      forgetMenus();
       cx.timer.every(REFRESH, (cx) => (this.repo.look(place(), cx), this.setup.follow(cx)));
       cx.timer.after(0, () => void checkUpdates(python));
+      followNotes().catch(() => {});              // the layout's toast as Notifications has it: an install rewrote it
       cx.spawn(async (cx) => {
         for (;;) {
           const asked = await nextCommand();
@@ -180,8 +189,8 @@ export default class HerdrFold extends View {
         for (;;) chat.menus.answer(await nextCommand(), cx);                // its mode's and commands' menus
       });
     }
-    if ((this.trigger = part === "trigger")) return;    // left of the tabs: the folded sidebar's toggle
-    if ((this.sideHead = part === "head")) return;      // the open sidebar's head: Go to space or tab, its toggle
+    if ((this.sideHead = part === "head")) return;      // the sidebar's head: its toggle (folded: over its rail)
+    if ((this.sideFoot = part === "footer")) return;    // the open sidebar's foot: Settings, Add machine
     if ((this.bottom = part === "status")) return;      // the window's status bar, where the app's own was
     if (part === "title") return void (this.titleRow = new TitleView());    // the window's own title row
     if (part === "palette") {                     // the command palette, opened onto the title row's field
@@ -191,11 +200,13 @@ export default class HerdrFold extends View {
     }
     if ((this.rail = part === "rail")) return;          // the right panel folded: its rail
     if (part === "float") {                       // a folded side's panel, floating beside its rail
-      this.float = { panel: props().panel, overlay: props().overlay, height: props().height };
+      this.float = { panel: props().panel, overlay: props().overlay };
       this.pending = props().then;                // the rail's key's command, run once its view has looked
       const { panel, overlay } = this.float;
+      this.floatFocus = cx.focus_handle();       // the keys as it opens, so Esc closes it, not the agent's terminal
+      if (panel !== "chats") cx.timer.after(0, () => this.floatFocus.focus());       // Chats: its filter takes them
+      this.floatSize = new FloatSize(panel, { fit: props().fit, most: props().most });   // as dragged, kept for it
       if (panel === "spaces") return void cx.timer.every(TICK, (cx) => cx.notify());     // its waits, a minute on
-      this.floatSize = new FloatSize(panel);      // as tall as dragged at its foot, kept for the view
       if (panel === "chats" || panel === "files") {
         const view = panel === "files" ? (this.files = new FilesView(python, cx))
           : (this.chats = new ChatsView(python, cx, { overlay }));
@@ -221,6 +232,7 @@ export default class HerdrFold extends View {
     }
     if (part === "styleguide") {                  // all of it, or its section props().section names (a picture of it)
       this.only = props()?.section ?? null;
+      this.from = Number(props()?.from) || 0;     // a tall section's picture, a screen of it: drawn from px FROM down
       return void (this.guide = guide(HerdrFold.prototype, cx));
     }
     const view = this.float?.panel ?? props()?.view;               // the layout's block of a view, or a float's
@@ -279,10 +291,18 @@ export default class HerdrFold extends View {
       if (space) newAgentIn(space).catch(() => {});
     }
     else if (asked === "chats") askChats();                         // Cmd+Shift+R, as the tab bar's Chats
+    else if (asked === "sidebar") toggleSidebar();                  // Cmd+B: the left dock folded or opened
+    else if (asked === "panels") foldDock();                        // Cmd+Option+B: the right one
     else if (asked === "agents") openAgents();                      // the palette's Agents: the space's Agents tab
     else if (asked === "usage") openAgents({ view: "usage" });      // the palette's Usage: that tab's Usage
     else if (asked === "unread") markUnread();
-    else if (asked === "settings") openSettings();                  // More's Settings…, as a command too
+    else if (asked === "settings") openSettings();                  // Cmd+, and the palette: the one Settings
+    else if (asked === "new-space") pickSpace().catch(() => {});    // Ctrl+B, Shift+N: a folder picked, a space there
+    else if (asked === "add-machine") addMachine();                 // Ctrl+B, Shift+M: the app's Add machine
+    else if (asked === "column") toggleColumn();                    // Cmd+Shift+E: the dock hidden or shown again
+    else if (asked === "restore") restorePanels();                  // Cmd+Shift+O: all that was hidden back
+    else if (asked === "open-file") openNamed(python, this.bar.menus).catch(() => {});      // Cmd+Shift+L
+    else if (asked === "theme") pickTheme(this.bar.menus);          // Cmd+K, Cmd+T: herdr-fold's themes
     else if (asked === "whats-new") {                              // the update's toast: this version's CHANGELOG
       const version = /** @type {any} */ (shared(UPDATES))?.version;
       if (version) whatsNew(python, version).catch(() => {});
@@ -318,10 +338,10 @@ export default class HerdrFold extends View {
     this.loading = true;
     cx.spawn(async (cx) => {
       try {
-        const top = await run(["git", "rev-parse", "--show-toplevel"], here.cwd, here.on);
+        const root = await ASK.top(here.cwd, here.on);
         if (key !== this.key) return;
-        if (top.code !== 0) return void (this.note = "Not a git repository");
-        const root = top.stdout.trim(), status = await python(GIT, ["status", root], root, here.on);
+        if (!root) return void (this.note = "Not a git repository");
+        const status = await python(GIT, ["status", root], root, here.on);
         const changes = this.view === "changes";                     // Issues: the count for the row, no Graph
         const { commits } = changes ? await python(GIT, ["graph", root], root, here.on) : { commits: [] };
         const github = this.root === root ? this.github : (await python(GIT, ["github", root], root, here.on)).name;
@@ -503,12 +523,14 @@ export default class HerdrFold extends View {
     this.sync(cx, "push");
   }
 
-  /** Cmd + Shift + C's commit or push given up (Esc): the message gone, the mode the kept one. */
+  /** Cmd + Shift + C's commit or push given up (Esc): the message gone, the mode the kept one; whether there was one
+   * (else Esc goes on: a float closes). */
   cancel(cx) {
-    if (!(this.once || this.offer) || this.busy) return;
+    if (!(this.once || this.offer) || this.busy) return false;
     Object.assign(this, { once: null, offer: null, message: "", note: null });
     this.input.set_value("");
     cx.notify();
+    return true;
   }
 
   /** The branch synced with its upstream (pulled, fast-forward only, then pushed), or only pulled or pushed (the
@@ -613,6 +635,8 @@ export default class HerdrFold extends View {
   async close() {
     this.palette?.closed();
     this.settings?.closed();
+    if (this.float) forgetFloat(this.float.overlay);
+    if (this.popup) menuGone(this.popup.overlay);
   }
 
   render(cx) {
@@ -622,12 +646,13 @@ export default class HerdrFold extends View {
     }
     if (this.launcher) return div();
     const t = theme();
+    if (this.note) return noteToast(t, this.note);
     if (this.blank) return standIn(t);
     if (this.dock) return liveDockTabs(t, cx);
     if (this.popup) return menuPopup(t, this.popup.overlay, this.popup.items, this.popup.head, this.popup.find);
     if (this.settings) return this.settings.render(t, codeFont());
     if (this.rail) return liveRail(t, activeTerminal(layout()));
-    if (this.guide) return styleguide(this.guide, t, this.only);
+    if (this.guide) return styleguide(this.guide, t, this.only, this.from);
     if (this.preview) {
       this.preview.watch(cx);
       return this.preview.render(t, codeFont());
@@ -635,46 +660,48 @@ export default class HerdrFold extends View {
     if (this.chat) return this.chat.render(t, codeFont());
     if (this.agents) return this.agents.render(t, cx);
     const float = this.float;
-    if (float && float.panel !== "spaces") this.offRail(float.overlay, cx);
-    if (float?.panel === "spaces") return spacesFloat(t, float.overlay, float.height);
-    if (this.chats) return float ? sizedFloat(t, this.floatSize, "Chats", float.overlay, this.chats.render(t, cx))
+    if (float && floatStale(float.panel, layout())) cx.timer.after(0, () => closeOverlay(float.overlay));
+    const own = { focus: this.floatFocus, panel: float?.panel };       // a float's keys and its side
+    if (float?.panel === "spaces") return sizedFloat(t, this.floatSize, "Spaces", float.overlay, spacesBody(t),
+      { ...own, buttons: spacesButtons(t) });
+    if (this.chats) return float ? sizedFloat(t, this.floatSize, "Chats", float.overlay, this.chats.render(t, cx), own)
       : this.chats.render(t, cx);
-    if (this.spaces) return trackFold(this.spaces, cx) ? dock(t, spaces().map((space) => space.status))
-      : this.spaces.render(t);
+    if (this.spaces) return railed(layout()) ? liveDock(t) : this.spaces.render(t);
     if (this.bar) {
       this.repo.follow(place(), cx);
       this.setup.follow(cx);
       this.followDock(cx);
+      if (!this.chatting) {                       // the space shown: its chat first, once (after this render)
+        this.chatting = true;
+        cx.timer.after(0, () => void ((this.chatting = false), firstChat(isHome)));
+      }
       return this.bar.render(t);
     }
-    if (this.files) return float ? sizedFloat(t, this.floatSize, "Files", float.overlay, this.files.render(t, cx))
+    if (this.files) return float ? sizedFloat(t, this.floatSize, "Files", float.overlay, this.files.render(t, cx), own)
       : this.files.render(t, cx);
-    if (this.agent) return float ? sizedFloat(t, this.floatSize, "Agent", float.overlay, this.agent.render(t, cx))
-      : this.agent.render(t, cx);
-    if (this.trigger) return sidebarTrigger(t);
+    if (this.agent) return float ? sizedFloat(t, this.floatSize, "Agent", float.overlay, this.agent.render(t, cx),
+      { ...own, owns: () => Boolean(this.agent.listing || this.agent.addMenu) }) : this.agent.render(t, cx);
     if (this.sideHead) return sidebarHead(t);
+    if (this.sideFoot) return sidebarFoot(t);
     if (this.bottom) return liveStatus(t);
     if (this.titleRow) return this.titleRow.render(t);
     if (this.palette) return this.palette.render(t);
     if (this.view !== "search" && JSON.stringify(place()) !== this.key) this.refresh(cx);
-    if (float) return sizedFloat(t, this.floatSize, PANEL_NAMES[this.view], float.overlay, this.panel(t));
+    if (float) return sizedFloat(t, this.floatSize, PANEL_NAMES[this.view], float.overlay, this.panel(t), own);
     this.answer(cx);
     return this.panel(t);
   }
 
-  /** A float of the right panel's rail (OVERLAY) closed once the panel opens again: its views are in it then.
-   * @param {string} overlay */
-  offRail(overlay, cx) {
-    if (!panelRailed(layout())) cx.timer.after(0, () => closeOverlay(overlay));
-  }
-
-  /** The right panel shown as its width says, a drag's too (logic.js's railFollow; folded, its terminal under the
-   * centre as kept, its height kept as dragged), its stack on the view the space shown chose while it can show it
-   * (panelsFollow): from the tab bar, which every layout of herdr-fold's draws. */
+  /** Both sides shown as their widths say (railFollow, sidebarFollow; folded, the dock's terminal under the centre as
+   * kept), each width set once a drag lets go (restFollow), the dock on the view the space chose (panelsFollow): from
+   * the tab bar, which every layout of herdr-fold's draws, a hidden sidebar too. */
   followDock(cx) {
     const root = layout();
     keepBottom(root);
-    const commands = [...railFollow(root, bottomChoice()), ...panelsFollow(root, tabsState().github, chosenView())];
+    restFollow("dock", panelPx(root), restDock, cx);
+    restFollow("side", sidebarPx(root), restSide, cx);
+    const commands = [...railFollow(root, bottomChoice()), ...panelsFollow(root, tabsState().github, chosenView()),
+      ...sidebarFollow(root)];
     if (!commands.length || this.railing) return;
     this.railing = true;
     cx.timer.after(0, () => {
@@ -934,7 +961,9 @@ export default class HerdrFold extends View {
       .child(h_flex().gap(8)
         .child(div().id("message").flex_1().min_w(0).h(32).pl(12).pr(this.linked ? 4 : 12).gap(6).flex().items_center()
           .rounded(8).border_1().border_color(t.border).cursor_text()
-          .on_key_down((e, cx) => e.key === "escape" && this.cancel(cx))
+          .on_key_down((e, cx) => {
+            if (e.key === "escape") this.cancel(cx);        // then the float beside a rail takes the keys back
+          })
           .child(writing && empty                                       // who writes in it
             ? h_flex().flex_1().min_w(0).gap(6).items_center().text_size(12).text_color(t.muted)
               .child(div().frames(SPINNER, 100)).child(writing)

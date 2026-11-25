@@ -166,7 +166,12 @@ class Screen(unittest.TestCase):
     def test_a_workspace_is_named_after_its_folder_and_the_home_folder_home(self):
         self.assertEqual(herdrlib.free_label("/home/dev/projects/app", set(), "/home/dev"), "app")
         self.assertEqual(herdrlib.free_label("/home/dev", set(), "/home/dev"), "home")   # never ~ or the user's name
-        self.assertEqual(herdrlib.free_label("/", set(), "/home/dev"), "/")
+        # a root by a word: herdr names it as its path (/, C:\)
+        self.assertEqual(herdrlib.free_label("/", set(), "/home/dev"), "root")
+        self.assertEqual(herdrlib.free_label("/", {"root"}, "/home/dev"), "root-2")     # no parent to name it by
+        self.assertEqual(herdrlib.free_label("C:\\", set()), "C:")
+        self.assertEqual(herdrlib.space_name("C:\\", None, "\\"), "C:")
+        self.assertEqual(herdrlib.space_name("C:\\projects\\app", None, "\\"), "app")
 
     def test_the_title_is_the_folder_the_tree_under_it_as_files_shows_it(self):
         lines = self.lines()

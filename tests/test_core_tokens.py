@@ -1,4 +1,4 @@
-"""Tests for core/tokens.py in a temporary HOME: every message's tokens from Claude's sessions, their sub-agents'
+"""Tests for core/tokens.py in a temporary HOME: every message's tokens from Claude's sessions, their subagents'
 files and Codex's token records, each message once, kept by the hour in an index that reads a file only where it grew;
 nothing of the agents' files written. The sessions are invented, in the shapes measured."""
 import contextlib
@@ -323,7 +323,7 @@ class Index(Home):
                          [(8, 70, 3, FOLDER)])
 
     def test_a_sub_agents_messages_are_not_its_parents_too(self):
-        # the parent's file holds the Agent call's result with the sub-agent's totals: no message, never counted
+        # the parent's file holds the Agent call's result with the subagent's totals: no message, never counted
         result = line({"type": "user", "timestamp": stamp(9), "sessionId": SESSION, "cwd": FOLDER,
                        "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_01"}]},
                        "toolUseResult": {"totalTokens": 960, "usage": usage(output=40, read=900)}})

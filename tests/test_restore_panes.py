@@ -84,6 +84,14 @@ class Restore(unittest.TestCase):
             calls = self.restore([("w1:t1", "", "zsh"), ("w1:t2", "", "zsh")], space="~", startup=startup)
             self.assertEqual(self.renames(calls), [("workspace", "rename", "w1", "home")], startup)
 
+    def test_a_roots_space_is_called_by_a_word(self):
+        # herdr names it as its path; on Windows only herdr's start renames it (no pane's focus runs there)
+        for space, word in (("/", "root"), ("C:\\", "C:"), ("d:\\", "d:")):
+            calls = self.restore([("w1:t1", "", "zsh")], space=space, startup=True)
+            self.assertEqual(self.renames(calls), [("workspace", "rename", "w1", word)], space)
+        for space in ("lab", "root", "C:", "/srv"):                     # a name given, or herdr-fold's already
+            self.assertEqual(self.renames(self.restore([("w1:t1", "", "zsh")], space=space)), [], space)
+
     def test_a_workspaces_name_shows_without_its_escape_codes(self):
         # a workspace named elsewhere (a connected machine's herdr) may hold codes that set the title or the clipboard
         self.restore([("w1:t1", "sidebar", "zsh")], space="app\x1b]2;owned\x07")

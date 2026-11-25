@@ -157,8 +157,8 @@ class Keys(unittest.TestCase):
         self.assertEqual(sorted(k for k in herdr_keys() if not re.search(r"(?<![\w+])" + re.escape(k) + r"(?!\w)",
                                                                          reference)), [])
 
-    def test_cmd_arrows_step_the_workspaces_and_the_panes(self):
-        # herdr's own, two keys each: previous / next workspace, previous / next pane of the tab; both wrap around.
+    def test_cmd_arrows_step_the_spaces_and_the_panes(self):
+        # herdr's own, two keys each: previous / next space, previous / next pane of the tab; both wrap around.
         # Not Ctrl+Tab: a Tab still held once Ctrl is up runs the shell's completion
         bound = dict(KEYBIND.findall(package_text("config/ghostty/config")))
         self.assertEqual([sent(bound[chord]) for chord in ("super+up", "super+down", "super+left", "super+right")],
@@ -377,7 +377,7 @@ class Pictures(unittest.TestCase):
 
     def test_the_readmes_list_shows_the_sidebar(self):
         what_you_get = package_text("README.md").split("## What you get", 1)[1].split("\n## ", 1)[0]
-        self.assertIn("(assets/screenshots/sidebar.webp)", what_you_get)
+        self.assertIn("(assets/screenshots/tui-sidebar.webp)", what_you_get)
 
     def test_the_readme_opens_with_the_logo_and_says_it_is_the_sheep(self):
         # under the title: above it, GitHub's rule below the title would run through the logo

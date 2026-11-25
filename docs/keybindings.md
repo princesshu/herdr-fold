@@ -3,19 +3,19 @@
 Ghostty turns the Cmd keys below into herdr commands. herdr's own keys start with Ctrl + B; Ctrl + B, then ? lists them
 all.
 
-## Workspaces and sessions
+## Spaces and sessions
 
 | Key | What it does |
 |---|---|
-| Cmd + 1…9 | jump to workspace 1…9 |
-| Cmd + ↓ / Cmd + ↑ | next / previous workspace, wrapping around |
+| Cmd + 1…9 | jump to space 1…9 |
+| Cmd + ↓ / Cmd + ↑ | next / previous space, wrapping around |
 | Cmd + → / Cmd + ← | next / previous pane of the tab (the agent, the sidebar, the terminal), wrapping around; in typing, Ctrl + A / Ctrl + E (or Fn + ← / Fn + →) go to the start or end of the line |
 | Ctrl + B, then w | make the Spaces list active: W / S or ↑ / ↓ move the highlight, Enter switches, Esc cancels, 1–9 jumps |
-| Ctrl + B, then Shift + N | new workspace, with the folder picker (the same as the **new** button under Spaces) |
-| Cmd + D / Cmd + E | next / previous session of the current workspace, even while typing; wraps around |
-| Cmd + Shift + U | mark the focused agent unread: its workspace says `waiting` again, from now, until you come back to it after leaving it; again on a marked one takes the mark off |
+| Ctrl + B, then Shift + N | new space, with the folder picker (the same as the **new** button under Spaces) |
+| Cmd + D / Cmd + E | next / previous session of the current space, even while typing; wraps around |
+| Cmd + Shift + U | mark the focused agent unread: its space says `waiting` again, from now, until you come back to it after leaving it; again on a marked one takes the mark off |
 | Cmd + B | show / hide herdr's sidebar (Spaces and Sessions) |
-| Ctrl + B, then Shift + M | add a remote machine |
+| Ctrl + B, then Shift + M | add machine… |
 
 ## Panes and tabs
 
@@ -23,20 +23,21 @@ all.
 |---|---|
 | Cmd + Shift + E | show / hide the right column (sidebar and terminal); a sidebar or terminal closed by hand comes back |
 | Cmd + Shift + O | restore panels: every pane closed by hand in the tab comes back (sidebar, terminal), the right column shown |
-| Cmd + Shift + G | the sidebar's Changes view |
-| Cmd + Shift + I | the sidebar's Issues view, for a repository on GitHub |
+| Cmd + Option + B | fold the sidebar to its rail of icons in every tab, or open it again, as its » and « do |
+| Cmd + Shift + G | the sidebar's Changes view, the sidebar opened in every tab while it is a rail |
+| Cmd + Shift + I | the sidebar's Issues view, for a repository on GitHub, opened as Changes is |
 | Cmd + A | in the sidebar's field you are in (the commit message, a search): select its whole text, for Backspace, typing or a paste; in other panes it does nothing |
 | Cmd + Shift + C | commit and push, with a message written by Claude or Codex: Enter commits and pushes, `e` edits, `r` writes a new one, Esc cancels |
 | Cmd + Shift + L | open a file the focused pane's output names (`src/app.py:42`, a traceback's line), at that line, in the sidebar's preview tab: the newest first, type to narrow the list |
-| Cmd + T / Cmd + R | next / previous tab of the workspace, wrapping around; keep Cmd held and tap again to step on |
-| Ctrl + B, then 1…9 | tab 1…9 of the workspace |
-| Cmd + W | close the active tab, never the main tab (a workspace's first); a tab with a chat asks first |
+| Cmd + T / Cmd + R | next / previous tab of the space, wrapping around; keep Cmd held and tap again to step on |
+| Ctrl + B, then 1…9 | tab 1…9 of the space |
+| Cmd + W | close the active tab, never the main tab (a space's first); a tab with a chat asks first |
 
 ## Chats
 
 | Key | What it does |
 |---|---|
-| Cmd + Shift + R | find a chat: the sidebar opens its ✦'s list in this tab (on its rail, beside it; a sidebar closed by hand comes back, a tab without one goes to the workspace's first), its filter empty and the keys going to it; Enter goes to a running one or reopens a closed one in a new tab; Esc closes it |
+| Cmd + Shift + R | find a chat: the sidebar opens its ✦'s list in this tab (on its rail, the sidebar opened in every tab; a sidebar closed by hand comes back, a tab without one goes to the space's first), its filter empty and the keys going to it; Enter goes to a running one or reopens a closed one in a new tab; Esc closes it |
 | Space / Shift + ↑ ↓ | in the sidebar's Chats, with nothing typed: mark closed chats, to archive them together with a right click on one of them; Esc unmarks them |
 | Cmd + F | search the Claude chat: Enter accepts, `n` / `N` next / previous match, Esc goes back to typing |
 
@@ -60,6 +61,43 @@ Cmd + click does not open links: herdr handles the mouse and does not see Cmd.
 
 Cmd + K starts a key sequence, so Ghostty's own clear screen is not available.
 
+## The Herdr app
+
+In herdr-fold's layout the app takes the TUI's keys. The same in both:
+
+| Key | In both clients |
+|---|---|
+| Cmd + 1…9 | space 1…9 |
+| Cmd + ↓ / Cmd + ↑ | next / previous space |
+| Cmd + T / Cmd + R | next / previous tab |
+| Cmd + D / Cmd + E | next / previous agent (the TUI: session of the space) |
+| Cmd + B / Cmd + Option + B | the left sidebar / the right column folded or opened |
+| Cmd + Shift + G / Cmd + Shift + I | Changes / Issues |
+| Cmd + Shift + E / Cmd + Shift + O | the right column shown or hidden / restore panels |
+| Cmd + Shift + C / Cmd + Shift + L | commit and push / open a file the output names |
+| Cmd + Shift + R / Cmd + Shift + U | find a chat / mark the agent unread |
+| Cmd + W | close the tab |
+| Ctrl + B, then 1…9 | tab 1…9 of the space |
+| Ctrl + B, then w | the Spaces list (in the app, Go to space or tab) |
+| Ctrl + B, then Shift + N / Shift + M | a new space in a folder / add machine… |
+| Cmd + K, then Cmd + T | pick a color theme |
+| Shift + Enter | in a terminal, a new line in Claude Code and in a shell's command line |
+
+The app's own, in that layout:
+
+| Key | In the app |
+|---|---|
+| Cmd + N | starts an agent, as + after the last tab: a new chat, or with Open agents in: Terminal the agent's CLI |
+| Cmd + Shift + F | shows Search, its field taking the keys |
+| Cmd + , | opens Settings |
+| Cmd + Shift + P | opens the command palette onto the title row's field; again, it closes |
+| Cmd + P | Go to space or tab, the app's picker |
+| Cmd + Option + arrows | step the tab's panes |
+
+One differs: Cmd + → / ← step the tab's panes in the TUI; in the app they are a terminal's line start and end.
+Shift + Enter is sent as Option + Enter (ESC CR) by Ghostty's config and by the app's keys, in every layout, whatever
+the agent asked of the terminal. How a shared key does its work in the app: [The Herdr app](app.md#keys).
+
 ## Without Ghostty
 
 In another terminal, the same commands are on herdr's keys:
@@ -74,6 +112,7 @@ In another terminal, the same commands are on herdr's keys:
 | Cmd + B | Ctrl + B, then b |
 | Cmd + Shift + E | Ctrl + B, then f |
 | Cmd + Shift + O | Ctrl + B, then Shift + O |
+| Cmd + Option + B | Ctrl + B, then Shift + B |
 | Cmd + Shift + G | Ctrl + B, then u |
 | Cmd + Shift + I | Ctrl + B, then Shift + I |
 | Cmd + A | Ctrl + B, then Shift + A |

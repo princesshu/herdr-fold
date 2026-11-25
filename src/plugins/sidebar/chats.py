@@ -20,9 +20,6 @@ from jsonl import claude_project_dir, newest_first, obj, open_regular, parse  # 
 
 INDEX = "chat-index.json"             # what was read of each file, and where it stopped
 SETTINGS = "chats.json"               # the list's settings, the archived chats among them
-# an older version's names for them: each moved to its new one on first use, where that is not there yet
-FORMER = {INDEX: "conversation-index.json", SETTINGS: "conversations.json"}
-KEPT = ("archived", "show_archived", "resumed", "told_closed")     # SETTINGS' keys: an older version's go on a write
 INDEX_VERSION = 3                     # another version's index (its shape, its types) is not read: the files are
 # how Claude names a chat a program ran through the Agent SDK (its "entrypoint"): a hook's review of every change, a
 # script's question, never the user's own chat. claude -p's (sdk-cli), the editors' and the desktop app's are listed
@@ -341,24 +338,10 @@ def codex_names():
 
 # --- the list
 
-def path_of(state_dir, name):
-    """NAME's file in STATE_DIR, its FORMER one moved there first where only that is: under NAME's lock, as every tab's
-    sidebar and the app's helper may come at once."""
-    path, former = os.path.join(state_dir, name), os.path.join(state_dir, FORMER[name])
-    if os.path.exists(former) and not os.path.exists(path):
-        try:
-            with statefile.locked(path):
-                if os.path.exists(former) and not os.path.exists(path):
-                    os.replace(former, path)
-        except OSError:
-            pass                                # as none for now: the next use moves it
-    return path
-
-
 def load_index(state_dir):
     """What was read of each file, {path: entry}; nothing of another version's index."""
     try:
-        with open(path_of(state_dir, INDEX), encoding="utf-8") as f:
+        with open(os.path.join(state_dir, INDEX), encoding="utf-8") as f:
             index = obj(json.load(f))
     except (OSError, ValueError, RecursionError):
         return {}
@@ -370,7 +353,7 @@ def load_index(state_dir):
 def save_index(state_dir, index):
     """Written whole, its owner's only (statefile.py): another pane reading it meanwhile sees the old one or the new."""
     try:
-        statefile.write(path_of(state_dir, INDEX), {"version": INDEX_VERSION, "files": index})
+        statefile.write(os.path.join(state_dir, INDEX), {"version": INDEX_VERSION, "files": index})
     except OSError:
         pass                                    # read again next time
 
@@ -433,21 +416,20 @@ def local(state_dir, agents=(), resumed=None):
 
 def setting(state_dir):
     """The list's settings, {} when there are none or they cannot be read."""
-    return statefile.read(path_of(state_dir, SETTINGS))
+    return statefile.read(os.path.join(state_dir, SETTINGS))
 
 
 def change(state_dir, how):
-    """SETTINGS changed by HOW (given what it holds then, its answer kept, KEPT's keys only) under statefile.update:
-    every tab's sidebar and the app's helper write it. Nothing when it cannot be written."""
+    """SETTINGS changed by HOW (given what it holds then, its answer kept) under statefile.update: every tab's sidebar
+    and the app's helper write it. Nothing when it cannot be written."""
     try:
-        statefile.update(path_of(state_dir, SETTINGS),
-                         lambda kept: {key: value for key, value in how(kept).items() if key in KEPT})
+        statefile.update(os.path.join(state_dir, SETTINGS), how)
     except OSError:
         pass
 
 
 def keep(state_dir, **values):
-    """VALUES kept in SETTINGS, the rest of KEPT staying."""
+    """VALUES kept in SETTINGS, the rest staying."""
     change(state_dir, lambda kept: {**kept, **values})
 
 

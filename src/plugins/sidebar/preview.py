@@ -53,8 +53,8 @@ class Herdr:
 def file_spec(root, path, line, which=shutil.which):
     """An image or a PDF as a picture; else bat with LINE marked (one row per line, so the pager's line N is the
     file's), or the file itself: a pipe or a device too, which bat would wait on and the pager does not read."""
-    if media.kind_of(path) in ("image", "pdf"):          # a pager from before pictures shows the file: binary
-        return {"title": os.path.relpath(path, root), "line": None, "file": path, "pipeline": [], "picture": path}
+    if media.kind_of(path) in ("image", "pdf"):
+        return {"title": os.path.relpath(path, root), "line": None, "file": None, "pipeline": [], "picture": path}
     bat = which("bat") if not (os.path.exists(path) and not os.path.isfile(path)) else None
     marked = ["--highlight-line", str(line)] if line else []
     pipeline = [[bat, "--color=always", "--paging=never", "--wrap=never", "--style=numbers,changes", *marked, path]]
@@ -96,7 +96,7 @@ def commit_spec(root, commit, which=shutil.which):
 
 
 # a tree row's role as its colors: the terminal's own, so they follow its theme (pager.py lets colors alone through)
-ROLES = {"bold": "1", "dim": "90", "bad": "31", "warn": "33", "accent": "1;35"}
+ROLES = {"bold": "1", "dim": "90", "ok": "32", "bad": "31", "warn": "33", "accent": "1;35"}
 GRAPH_VIEWS = (("w", "wiring", False), ("c", "run", True))    # a graph's views: its key, core's name, tree()'s RUN
 
 
@@ -107,12 +107,12 @@ def painted(rows):
 
 
 def graph_spec(graph, rows, view="w"):
-    """Core's GRAPH as a tree in the preview tab: its views (Wiring, and This conversation where one was read) each its
-    key, core's word and its lines, ROWS(run) giving a view's rows; the pager's w and c switch them. A pager from
-    before the views reads the file it names, which is none."""
+    """Core's GRAPH as a tree in the preview tab, titled graph: Claude in lumen-api: its views (Wiring, and This chat
+    where one was read) each its key, core's word and its lines, ROWS(run) giving a view's rows; the pager's w and c
+    switch them. A pager from before the views reads the file it names, which is none."""
     views = [{"key": key, "name": graph["words"]["views"][name], "lines": painted(rows(run))}
              for key, name, run in GRAPH_VIEWS if not run or graph["run"]]
-    return {"title": f"{graph['name']} in {os.path.basename(graph['folder'].rstrip(os.sep))}", "line": None,
+    return {"title": f"graph: {graph['name']} in {os.path.basename(graph['folder'].rstrip(os.sep))}", "line": None,
             "file": os.devnull, "pipeline": [], "views": views, "view": view if view in [v["key"] for v in views]
             else "w"}
 

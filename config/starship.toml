@@ -1,14 +1,16 @@
-# starship — two-line prompt: the folder (from the repository's root) above, the git branch and status before the ❯
-# below, so it fits the narrow terminal of the right-hand column. The colors (style, symbol) come from the chosen
-# theme: ~/.config/herdr-fold/themes/apply.py rewrites them (Cmd+K, Cmd+T).
-format = """
-$directory
-$git_branch$git_status$character"""
+# starship: the git branch and status before the ❯, for the narrow terminal of the right-hand column; a folder line
+# above only where it tells something: in a repository the path inside it (its name the space shows), outside one the
+# path. The colors come from the chosen theme: ~/.config/herdr-fold/themes/apply.py rewrites them (Cmd+K, Cmd+T).
+format = "$directory$git_branch$git_status$character"
 
 [directory]
 style = "bold #cba6f7"
+repo_root_style = "bold #cba6f7"
+before_repo_root_style = "bold #cba6f7"
 truncate_to_repo = true
 truncation_length = 4
+format = "[$path]($style)[$read_only]($read_only_style)\n"
+repo_root_format = "([$path]($style)[$read_only]($read_only_style)\n)"
 
 [git_branch]
 format = "[$branch]($style) "

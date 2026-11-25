@@ -26,9 +26,12 @@ def main():
         panes.bring(herdr, tab, gone, PLUGIN_STATE, sidebar_command)
         return
     agents, ids = agent_pane_ids(tab_panes), {p["pane_id"] for p in tab_panes}
+    docked = {p["pane_id"] for p in tab_panes if p.get("label") in ("sidebar", "terminal")}
     shown = [p for p in lay["panes"] if p["pane_id"] in ids]
-    agent = next((p for p in shown if p["pane_id"] in agents), None) \
-        or max(shown, key=lambda p: p["rect"]["width"] * p["rect"]["height"])
+    # no agent (a shell's tab): its own biggest pane, never the sidebar or the terminal, however wide the column
+    own = [p for p in shown if p["pane_id"] not in docked] or shown
+    agent = next((p for p in shown if p["pane_id"] in agents), None) or max(
+        own, key=lambda p: p["rect"]["width"] * p["rect"]["height"])
     herdr("pane", "zoom", agent["pane_id"], "--toggle")
 
 

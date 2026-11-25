@@ -12,4 +12,3 @@ PANELS = {
 }
 GROUPS = (("project", ("files", "search")), ("work", ("changes", "issues")), ("agent", ("agent",)),
           ("chats", ("chats",)))
-FORMER = {"conversations": "chats"}       # an older version's ids of a panel, as saved state may still name it

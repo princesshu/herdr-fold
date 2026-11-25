@@ -3,15 +3,15 @@
 // the app's menu, the wheel), + and >_ after them; at its end, over the dock, Chats, More and » (« on the rail).
 import { div, image, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { knownAgents, layout, openOverlay, panes, shared, spaces, terminals, run as command } from "herdr";
-import { ADAPTERS, AGENTS_OPEN, agentsOpen, newAgent, RECENT_AGENTS } from "./agents.js";
-import { chatWaits, newAgentIn } from "./chat.js";
-import { waiting } from "./chats.js";
+import { knownAgents, layout, openOverlay, panes, spaces, terminals, run as command } from "herdr";
+import { ADAPTERS } from "./agents.js";
+import { chatWaits, newAgentIn, nextAgent } from "./chat.js";
+import { archivedChoice, waiting } from "./chats.js";
 import { agentsTab } from "./graph.js";
 import { ICONS } from "./icons.js";
 import { CHAT_TAB, hovering, tabRows, toggleRoom } from "./logic.js";
 import { Menus } from "./menus.js";
-import { askChats, chatsShown, dockOpen, foldDock, openMore, panelToggle } from "./panel.js";
+import { askChats, chatsShown, closeChats, dockOpen, floatingView, foldDock, openMore, panelToggle } from "./panel.js";
 import { BUTTON, GAP, icon, iconButton } from "./parts.js";
 
 const START = 10;                  // px before the first tab, as the app's own bar has it
@@ -59,7 +59,7 @@ export class TabsView {
       knownAgents().then((list) => void (this.names = Object.fromEntries(list.map((a) => [a.key, a.name]))))
         .catch(() => {});
     }
-    const { agent, as } = newAgent(shared(RECENT_AGENTS), agentsOpen(shared(AGENTS_OPEN)), space?.machine ?? null);
+    const { agent, as } = nextAgent(space?.machine ?? null);
     const name = this.names[agent] ?? ADAPTERS[agent]?.name ?? agent;
     return { tip: as === "chat" ? "New chat" : `New ${name}`,
       act: () => void (space && newAgentIn(space).catch(() => {})) };
@@ -74,7 +74,7 @@ export class TabsView {
       ? { ...row, icon: ICONS["share-2"], tint: true } : row));
     return this.draw(t, rows, space?.id ?? null,
       { start: START, end: toggleRoom(layout(), BUTTON) }, this.plus(space), { waiting: waiting(),
-        listed: chatsShown(), open: dockOpen(), menu: this.menuUp }, this.endActs());
+        listed: chatsShown() || floatingView() === "chats", open: dockOpen(), menu: this.menuUp }, this.endActs());
   }
 
   /** What the bar's end does here: Chats' list, More's menu under it (its tip quiet meanwhile), » / «. */
@@ -85,12 +85,17 @@ export class TabsView {
       cx.notify();
     };
     return { chats: askChats, press: (/** @type {any} */ e) => (this.more = e.bounds), fold: foldDock,
-      more: (/** @type {any} */ cx) => (openMore(this.menus, this.more), quiet(true, cx)),
+      more: (/** @type {any} */ cx) => {
+        const listed = chatsShown() || floatingView() === "chats";        // kept, More lists Show archived for it
+        if (!listed) closeChats();
+        openMore(this.menus, this.more, listed ? archivedChoice() : null);
+        quiet(true, cx);
+      },
       away: (/** @type {any} */ cx) => quiet(false, cx) };
   }
 
-  /** ROWS (tabRows') of SPACE, in ROOM, PLUS +'s: + a new agent (a chat by default), >_ a new terminal (the app's own
-   * list, its agents too), no menu between; at the end Chats, More and » / « (BAR, ACTS). @param {Tab[]} rows
+  /** ROWS (tabRows') of SPACE, in ROOM, PLUS +'s: + a new agent (a chat by default), >_ a new terminal (a shell: every
+   * agent starts as + starts it), no menu between; at the end Chats, More and » / « (BAR, ACTS). @param {Tab[]} rows
    * @param {string | null} space @param {Room} room @param {Plus} plus @param {End} bar @param {EndActs} acts */
   draw(t, rows, space, { start, end }, plus, bar, acts) {
     return h_flex().size_full().min_w(0).pl(start).pr(end).gap(GAP).items_center().bg(t.canvas)
@@ -103,8 +108,7 @@ export class TabsView {
       .child(h_flex().id("tab-scroll").flex_shrink(1).min_w(0).h_full().items_center().gap(GAP)
         .overflow_x_scroll().children(rows.map((r, i) => this.tab(t, r, i, rows, space))))
       .child(iconButton(t, "tab-new", "plus", plus.tip, () => plus.act(), { size: 15 }))
-      .child(iconButton(t, "tab-terminal", "terminal", "New terminal", () => openOverlay({ mod: "new-menu",
-        kind: "popup", width: 250, height: 512 }), { size: 15 }))
+      .child(iconButton(t, "tab-terminal", "terminal", "New terminal", () => command("tab.new", {}), { size: 15 }))
       .child(div().flex_1())
       .child(barEnd(t, bar, acts));
   }

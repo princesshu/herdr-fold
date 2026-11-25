@@ -1,33 +1,41 @@
 // @ts-check
 // The Agent panel's own rules, pure: which agent it shows, which of a section's rows, what a filter finds, each
-// tone's color. The words, their order and the properties are core's (agent_setup.py's layers()), the TUI's too.
+// tone's color. The words, their order and the properties are core's (agent_layers.py's layers()), the TUI's too.
 import { contrast, mixColor, readableOn } from "./agents.js";
+import { money, whole } from "./report.js";
 
 export const AGENT_CHOSEN = "herdr-fold.agent-chosen";   // shared: each space's agent, picked in the panel's head
 export const AGENT_OPEN = "herdr-fold.agent-open";       // shared: {space: {section: open}}, a fold kept per space
-export const AGENT_ASK = "herdr-fold.agent-ask";         // shared: {space, section, row, at}: openAgentPanel()'s ask
+export const AGENT_ASK = "herdr-fold.agent-ask";         // shared: {space, section, row, look, at}: openAgentPanel()'s
 export const AGENT_PROBLEMS = "herdr-fold.agent-problems";   // shared: {space: {tone, said}}, the tab's and rail's dot
 // the actions core offers that this client does
-export const WORKS = ["open", "retry", "connect", "turn-off", "turn-on", "sign-out", "graph"];
-export const CLAUDES = ["retry", "turn-off", "turn-on"];    // Claude's own commands: never on another agent's row
+export const WORKS = ["open", "retry", "connect", "sign-out", "graph", "usage"];
+export const CLAUDES = ["retry"];                       // Claude's own commands: never on another agent's row
+const TURNS = ["turn-off", "turn-on"];                  // core's actions the connector's form stands for: its switch
 export const WAITS = ["reopen", "cancel"];              // what a row signing in offers instead (core's connecting())
 // a sign-in's terminal (no pane): its server's name, whose it is, when it started (ms), as its labels
 export const MCP_LOGIN = "herdr-fold.mcp-login", MCP_AGENT = "herdr-fold.mcp-agent", MCP_AT = "herdr-fold.mcp-at";
 export const SIGNING_MS = 600000;                       // ms a sign-in waits for its browser at most
 export const ASK_MS = 10000;      // ms an ask waits for its panel (a view's copy starts once it first shows)
 export const SERVER = "connector:";                     // a server's row id: this, then its name, as core's
+const CONFLICT = "conflict:";                           // a conflict's row id starts so, as core's
+const USAGE = "usage:";                                 // a Usage row's id: this, then its agent's key
+export const MODEL = "model", RULE = "rule", HOOKS = "hooks";    // the forms no row has: the head's, +'s, Hooks' head's
+const OWN = ["Global", "Project", "Local", "Managed"];  // core's layers: a subagent from one is no plugin's
+const UNAPPROVED = "not approved";                      // core's state of a project's server nobody answered for yet
+export const DEFAULT = "Default";                       // core's tag of what no file sets
 export const READ = ["claude", "codex"];                // the agents core reads a setup of (agent_setup.py's setup())
 export const NAMES = /** @type {Record<string, string>} */ ({ claude: "Claude", codex: "Codex" });    // as core's
-export const FOLDED = ["agents"];                       // folded till opened, as center-chat.html's Agent panel
+export const FOLDED = ["subagents"];                    // folded till opened, as center-chat.html's Agent panel
 export const FIRST = 5;           // rows a section shows before "N more": its problems and used ones always
 export const TAG = 12;            // characters of a tag at most (a plugin's name may be long), as the TUI's cells
 export const NARROW = 300;        // px: a panel under it drops its tags; the states and the costs stay
-// px: a section's head, a row, a conflict's two lines, "N more"; what a section's rows take sprung open (bodyHeight)
-export const HEAD_H = 28, ROW_H = 26, WARN_H = 40, MORE_H = 24;
-// px: a Usage row (an open one's bar on its lower edge), a line of words under one (when it resets, a reading's age)
-export const USAGE_ROW = 28, USAGE_LINE = 16;
+// px: a section's head, a row, a conflict's two lines, "N more", a group's head (Hooks); what a section's rows take
+// sprung open (bodyHeight)
+export const HEAD_H = 28, ROW_H = 26, WARN_H = 40, MORE_H = 24, GROUP_H = 22;
+export const USAGE_LINE = 20;     // px: a line under a Usage row (a yellow or red window's reset, a pace too high)
 const RANK = /** @type {Record<string, number>} */ ({ ok: 1, warn: 2, bad: 3 });   // how near its end a level is
-export const LABEL = 44;          // px: the properties' labels' column, center-chat.html's .ikv
+export const LABEL = 64;          // px: the properties' labels' column ("Imported by"), connectors.html's .ikv.w
 // under the home folder, what each agent's setup is read from: a change there is a new read
 export const WATCHED = /** @type {Record<string, string>} */ ({ claude: ".claude", codex: ".codex" });
 // in the space's folder, what a setup is read from: these folders, and files so named at any depth
@@ -36,45 +44,76 @@ const TAG_CHAR = 6, TAG_PAD = 12;     // px: a tag's character at 11 at most, an
 
 /** A row's action, as core offers it: open PATH, or Claude's command on SERVER. @typedef {{ id: string, label: string,
  * path: string | null, server: string | null, primary: boolean }} Action */
-/** A row's properties: its lines [label, value, a third or null], a text, an error; WORDS while it signs in.
- * @typedef {{ title: string, state: { text: string, tone: string } | null, lines: [string, string, string | null][],
- * text: string | null, error: string | null, actions: Action[], words?: string }} Properties */
-/** A row as core words it. @typedef {{ id: string, icon: string, name: string, note: string | null, dim: boolean,
- * tag: { text: string, tone: string } | null, state: { text: string, tone: string } | null, cost: string | null,
- * used: boolean, agents: string[], warn: boolean, brand?: string | null, properties?: Properties }} Row */
+/** A state or a summary's part in core's words and tone. @typedef {{ text: string, tone: string }} Said */
+/** A row's properties: lines [label, value, third], a text, an error (its files the TIP); WORDS while signing in.
+ * @typedef {{ title: string, state: Said | null, lines: [string, string, string | null][], text: string | null,
+ * error: string | null, tip?: string | null, actions: Action[], words?: string }} Properties */
+/** A row, MARK bad, warn or ok. @typedef {{ id: string, icon: string | null, name: string, note: string | null,
+ * dim: boolean, tag: string | null, mark: string | null, state: Said | null, cost: string | null, agents: string[],
+ * brand?: string | null, names?: string[], tokens?: number | null, properties?: Properties }} Row */
+/** A group of a section's rows under their own head (Permissions' Hooks; STATE: off here). @typedef {{ id: string,
+ * title: string, count: number, rows: Row[], state?: Said | null }} Group */
+/** What a form asks of core (harness.py's plan): its action, then what its controls chose.
+ * @typedef {{ action: string } & Record<string, any>} Ask */
+/** A choice of a form's control (OFF: why it is grey), and a sandbox's host.
+ * @typedef {{ id: string, label: string, off: string | null }} Choice */
+/** @typedef {{ host: string, layer: string, rule: string | null }} Host */
+/** A form's control as core words it: a choice, a text (a sandbox's hosts its ITEMS), a switch (TURN: both ways).
+ * @typedef {{ id: string, label: string, kind: string, value: any, choices?: Choice[], hint?: string | null,
+ * items?: Host[], turn?: { on: string, off: string } }} Field */
+/** What a plan's save changes, by file, with its words and the edits a save passes on unread. @typedef {{
+ * changes: { path: string, lines: [string, string][] }[], when: string | null, warns: string[], edits: any[],
+ * done: string | null, undo: string, say: string[] }} Change */
+/** A layer a form offers, its file as the form names it.
+ * @typedef {{ id: string, label: string, path: string, chosen: boolean }} Layer */
+/** harness.py's plan: the form and its buttons' words, and what saving it changes. @typedef {{ fields: Field[],
+ * saved: string, layers: Layer[], ask: string | null, submit: string | null, cancel: string, remove: string | null,
+ * error: string | null, more: { label: string, path: string } | null } & Change} Plan */
 /** A section. @typedef {{ id: string, title: string, count: number | null, cost: string | null,
- * summary: { text: string, tone: string }[], rows: Row[] }} Section */
+ * swatch: string | null, summary: { text: string, tone: string }[], rows: Row[], groups: Group[] }} Section */
+/** A section as shown: its rows, how many wait under "N more", its groups each so. @typedef {{ rows: Row[],
+ * more: number, groups: (Group & { more: number })[] }} Shown */
 
 /** Whether ROW is a problem: failed, to sign in, a conflict. @param {Row} row */
-export const problem = (row) => row.warn || ["bad", "warn"].includes(row.state?.tone ?? "");
+export const problem = (row) => row.mark === "bad" || row.mark === "warn";
+
+/** Whether ROW is a conflict, its sentence under its name. @param {Row} row */
+export const conflicted = (row) => row.id.startsWith(CONFLICT);
 
 /** Whether ROW holds every word of QUERY, case aside: in its name, note, state or tag. @param {Row} row
  * @param {string} query */
 export function matches(row, query) {
-  const said = [row.name, row.note, row.state?.text, row.tag?.text].filter(Boolean).join("\n").toLowerCase();
+  const said = [row.name, row.note, row.state?.text, row.tag].filter(Boolean).join("\n").toLowerCase();
   return query.toLowerCase().split(/\s+/).filter(Boolean).every((word) => said.includes(word));
 }
 
-/** SECTION's rows shown and how many wait under "N more": its first FIRST, its problems, used ones and the CHOSEN one,
- * all once MORE; never "1 more"; with a QUERY, every row it finds. @param {Section} section
- * @param {{ query?: string, more?: boolean, chosen?: string | null }} [how] @returns {{ rows: Row[], more: number }} */
-export function shown(section, { query = "", more = false, chosen = null } = {}) {
-  const rows = section.rows;
+/** ROWS shown and how many wait under "N more": the first FIRST, the marked ones and the CHOSEN one, all once OPEN;
+ * never "1 more"; with a QUERY, every row it finds. @param {Row[]} rows @param {string} query @param {boolean} open
+ * @param {string | null} chosen */
+function some(rows, query, open, chosen) {
   if (query.trim()) return { rows: rows.filter((row) => matches(row, query)), more: 0 };
-  if (more || rows.length <= FIRST) return { rows, more: 0 };
-  const kept = rows.filter((row, n) => n < FIRST || problem(row) || row.used || row.id === chosen);
+  if (open || rows.length <= FIRST) return { rows, more: 0 };
+  const kept = rows.filter((row, n) => n < FIRST || row.mark || row.id === chosen);
   return rows.length - kept.length > 1 ? { rows: kept, more: rows.length - kept.length } : { rows, more: 0 };
 }
 
-/** What ROWS and "N more" (MORE of them) take under a section's head, px; none: the line saying so.
- * @param {Row[]} rows @param {number} more */
-export const bodyHeight = (rows, more) => (rows.length ? rows.reduce((px, row) => px + (row.warn && row.note ? WARN_H
-  : ROW_H), 0) : ROW_H) + (more ? MORE_H : 0);
+/** SECTION as shown (some()'s, the ids in MORE opened past their "N more"), each group so under its rows; with a
+ * QUERY a group it finds nothing in left out. @param {Section} section
+ * @param {{ query?: string, more?: Set<string>, chosen?: string | null }} [how] @returns {Shown} */
+export function shown(section, { query = "", more = new Set(), chosen = null } = {}) {
+  const groups = (section.groups ?? []).map((group) => ({ ...group, ...some(group.rows, query, more.has(group.id),
+    chosen) })).filter((group) => !query.trim() || group.rows.length);
+  return { ...some(section.rows, query, more.has(section.id), chosen), groups };
+}
 
-/** Whether SECTION's summary shows beside its count: the permissions' behaviors always, the sub-agents' names only
- * while it is folded (OPEN, the rows name them). @param {Section} section @param {boolean} open */
-export const summarized = (section, open) => section.summary.length > 0
-  && (!open || section.summary.some((one) => one.tone !== "ok"));
+/** What a section as SHOWN takes under its head, px: its rows (a conflict's two lines), "N more", each group's head,
+ * rows and "N more"; none: the line saying so. @param {Shown} shown */
+export function bodyHeight({ rows, more, groups }) {
+  const high = (/** @type {Row[]} */ some, /** @type {number} */ left) => some.reduce((px, row) => px
+    + (conflicted(row) ? WARN_H : ROW_H), 0) + (left ? MORE_H : 0);
+  return (rows.length || groups.length ? high(rows, more) : ROW_H) + groups.reduce((px, group) => px + GROUP_H
+    + high(group.rows, group.more), 0);
+}
 
 /** Whether SECTION is open in SPACE: as KEPT ({space: {section: open}}) has it, else all but FOLDED.
  * @param {any} kept @param {string | null} space @param {string} section */
@@ -95,10 +134,12 @@ export function keepOpen(kept, space, section, open, live) {
 /** A tag's WORD as its column holds it: TAG characters at most. @param {string} word */
 export const tagWord = (word) => ([...word].length > TAG ? `${[...word].slice(0, TAG - 1).join("")}…` : word);
 
-/** The tags' column of SECTION, px: as wide as the widest tag of its rows, shown or under "N more", so its states stand
- * in one column before it and nothing moves as "N more" opens; 0 with no tag. @param {Section} section */
+/** The tags' column of SECTION, px: as wide as the widest tag of its rows and its groups', shown or under "N more",
+ * so its states stand in one column before it and nothing moves as "N more" opens; 0 with no tag.
+ * @param {Section} section */
 export function tagRoom(section) {
-  const widest = Math.max(0, ...section.rows.map((row) => (row.tag ? [...tagWord(row.tag.text)].length : 0)));
+  const rows = [...section.rows, ...(section.groups ?? []).flatMap((group) => group.rows)];
+  const widest = Math.max(0, ...rows.map((row) => (row.tag ? [...tagWord(row.tag)].length : 0)));
   return widest ? widest * TAG_CHAR + TAG_PAD : 0;
 }
 
@@ -113,10 +154,15 @@ export function touches(paths, root, folder) {
   });
 }
 
-/** A state's or a problem's TONE as theme T's color: failed and deny red, sign in and ask yellow, allow green,
- * connecting the accent, off dim, any other muted. @param {Record<string, string>} t @param {string} tone */
+/** A state's or a problem's TONE as theme T's color: failed and deny red, sign in and ask yellow, allow and used
+ * green, connecting the accent, off dim, any other muted. @param {Record<string, string>} t @param {string} tone */
 export const toneColor = (t, tone) => ({ bad: t.ansi1, deny: t.ansi1, warn: t.ansi3, ask: t.ansi3, allow: t.ansi2,
   busy: t.accent, off: t.dim })[tone] ?? t.muted;
+
+/** The color of a PART of what loads (the Agent panel's bar and swatches, the Context panel's bar): rules the accent,
+ * skills teal, connectors blue, the rest muted, as connectors.html's and center-chat.html's.
+ * @param {Record<string, string>} t @param {string} part */
+export const partColor = (t, part) => ({ rules: t.accent, skills: t.ansi6, connectors: t.ansi4 })[part] ?? t.muted;
 
 const TINTS = /** @type {Record<string, number>} */ ({ bad: 0.12, warn: 0.1 });    // a problem chip's fill, of its tone
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -157,7 +203,7 @@ export const chosenFill = (t) => ([t.accent, t.surface].every((hex) => HEX.test(
 /** The worst problem's tone in core's LAYERS, for the tab's and the rail's dot: "bad" over "warn", else null.
  * @param {any} layers @returns {"bad" | "warn" | null} */
 export function problemTone(layers) {
-  const tones = new Set((layers?.health?.problems ?? []).map((/** @type {any} */ one) => one.tone));
+  const tones = new Set((layers?.head?.problems ?? []).map((/** @type {any} */ one) => one.tone));
   return tones.has("bad") ? "bad" : tones.has("warn") ? "warn" : null;
 }
 
@@ -167,15 +213,16 @@ export function problemTone(layers) {
 export function keepProblems(kept, space, layers, live) {
   const was = kept && typeof kept === "object" && !Array.isArray(kept) ? kept : {}, tone = problemTone(layers);
   const next = Object.fromEntries(Object.entries(was).filter(([id]) => live.has(id) && id !== space));
-  if (tone) next[space] = { tone, said: layers.health.problems.map((/** @type {any} */ one) => one.text).join(", ") };
+  if (tone) next[space] = { tone, said: layers.head.problems.map((/** @type {any} */ one) => one.text).join(", ") };
   return JSON.stringify(next) === JSON.stringify(kept) ? kept : next;
 }
 
-/** The row ID among SECTIONS with its section, or null. @param {Section[]} sections @param {string | null} id
- * @returns {{ section: Section, row: Row } | null} */
+/** The row ID among SECTIONS (their groups' too) with its section, or null. @param {Section[]} sections
+ * @param {string | null} id @returns {{ section: Section, row: Row } | null} */
 export function chosenRow(sections, id) {
   for (const section of id ? sections : []) {
-    const row = section.rows.find((one) => one.id === id);
+    const row = [...section.rows, ...(section.groups ?? []).flatMap((group) => group.rows)].find((one) => one.id
+      === id);
     if (row) return { section, row };
   }
   return null;
@@ -185,6 +232,98 @@ export function chosenRow(sections, id) {
  * Claude's rows alone (AGENT: whose panel). @param {Row} row @param {string} [agent] @returns {Action[]} */
 export const doable = (row, agent = "claude") => (row.properties?.actions ?? []).filter((one) =>
   [...WORKS, ...WAITS].includes(one.id) && (agent === "claude" || !CLAUDES.includes(one.id)));
+
+/** What the form of ROW (by its ID, as core makes it; MODEL, RULE and HOOKS have none) asks core for as it opens, or
+ * null; NAME: the built-in subagent picked. Codex has its model, approval and sandbox alone. @param {string} agent
+ * @param {string | null} id @param {Row | null} row @param {any} head @param {string | null} [name] */
+export function formAsk(agent, id, row, head, name = null) {
+  if (id === MODEL) return { action: "model", ...(head?.runs ? { runs: head.runs } : {}) };
+  if (id === "sandbox" || id === (agent === "claude" ? "mode" : "approval")) return { action: id };
+  if (agent !== "claude" || !id) return null;
+  if (id === RULE || id === HOOKS) return { action: id };
+  const [kind, second, ...more] = id.split(":"), rest = more.join(":");
+  if (kind === "permission") return { action: "rule", was: { rule: rest, behavior: second, layer: row?.tag } };
+  if (kind === "conflict") return { action: "conflict", behavior: second, rule: rest };
+  if (kind === "skill" && row) return { action: "skill", name: row.name };
+  if (kind === "subagent" && row?.names) return name && row.names.includes(name) ? { action: "subagent", name } : null;
+  if (kind === "subagent" && row) return OWN.includes(second) ? { action: "subagent", name: row.name } : null;
+  if (kind !== "connector" || !row || !(approves(row) || turnedOff(row) !== null)) return null;
+  return { action: "connector", name: id.slice(SERVER.length), ...(typeof head?.starts === "number"
+    ? { starts: head.starts } : {}), ...(typeof row.tokens === "number" ? { tokens: row.tokens } : {}) };
+}
+
+/** Whether core's ROW is turned off in this folder (it offers Turn on), or on (Turn off); null: neither is offered.
+ * @param {Row | null} row */
+const turnedOff = (row) => {
+  const turn = (row?.properties?.actions ?? []).find((one) => TURNS.includes(one.id));
+  return turn ? turn.id === "turn-on" : null;
+};
+
+/** Whether ROW is a project's server waiting for an answer: approved or kept off, asked both ways.
+ * @param {Row | null} row */
+export const approves = (row) => row?.state?.text === UNAPPROVED;
+
+/** ASK with OVER chosen in a control: a value set, an emptied or taken-back one left out (it stays as the files have
+ * it). @param {Ask} ask @param {Record<string, any>} over @returns {Ask} */
+export const asking = (ask, over) => /** @type {Ask} */ (Object.fromEntries(Object.entries({ ...ask, ...over })
+  .filter(([, value]) => value !== "" && value !== undefined)));
+
+/** Whether a form offers its layers: once a control was TOUCHED (less till then); a rule's always, its layer being
+ * one of its fields. @param {Ask} ask @param {boolean} touched */
+export const layersShown = (ask, touched) => touched || ask.action === "rule";
+
+/** What a switch FIELD shows: what was asked once TOUCHED; till then the files' word, and off where core's ROW says
+ * so (Claude's own state turned its server off: no file tells). @param {Field} field @param {Row | null} row
+ * @param {boolean} touched */
+export const switchShown = (field, row, touched) => Boolean(field.value) && (touched || turnedOff(row) !== true);
+
+/** Whether PLAN is Claude's own command alone (a server its own state turned off): told to its chat, no file changed.
+ * @param {Plan} plan */
+export const sayOnly = (plan) => plan.say.length > 0 && !plan.edits.length;
+
+/** Whether a form's row is none of the layers': the head's, the +'s, Hooks' head's. @param {string | null} id */
+export const rowless = (id) => id === MODEL || id === RULE || id === HOOKS;
+
+/** Whether a sandbox's host (core's item) is taken out here: a file's own; one from an allow rule goes with its rule,
+ * the organization's never. @param {Host} item */
+export const removable = (item) => !item.rule && item.layer !== "Managed";
+
+/** After PLAN (ASK's, of a form opened with BASE) was saved: the form to open anew and the row to choose (null: the
+ * one chosen); a rule's own new row; null after a removal or a conflict solved: their row is gone. @param {Ask} base
+ * @param {Ask} ask @param {Plan} plan @returns {{ chosen: string | null, ask: Ask } | null} */
+export function afterSave(base, ask, plan) {
+  if (ask.remove === true || ask.action === "conflict") return null;
+  if (ask.action !== "rule") return { chosen: null, ask: base };
+  const value = (/** @type {string} */ id) => plan.fields.find((field) => field.id === id)?.value;
+  const was = { rule: value("rule"), behavior: value("behavior"), layer: plan.layers.find((one) => one.chosen)?.id };
+  return { chosen: `permission:${was.behavior}:${was.rule}`, ask: { action: "rule", was } };
+}
+
+/** A change's line as it is drawn: its sign (a true minus), then core's text. @param {[string, string]} line */
+export const changeLine = ([sign, text]) => `${sign === "-" ? "−" : sign} ${text}`;
+
+/** The foot's words after PLAN was saved: core's own (a removal's), else the change's first line, as CODE.
+ * @param {Plan} plan */
+export function footWords(plan) {
+  const first = plan.changes[0]?.lines[0];
+  return plan.done ? { text: plan.done, code: false } : { text: first ? changeLine(first) : "", code: true };
+}
+
+/** Core's WORDS as a sentence, as the mockup ends its notes and warnings: a period where they end with no mark.
+ * @param {string} words */
+export const sentence = (words) => (/[.?!…]$/.test(words) ? words : `${words}.`);
+
+/** A layer's file as a form names it (PATH: under ~, in FOLDER, or whole) by its whole path, to open.
+ * @param {string} path @param {string} folder @param {string} home */
+export const filePath = (path, folder, home) => (path.startsWith("~/") ? `${home}${path.slice(1)}`
+  : path.startsWith("/") ? path : `${folder}/${path}`);
+
+/** HEAD's line in two: its model and effort (the model form's way in; "" with neither known), then the rest.
+ * @param {{ model?: string | null, effort?: string | null, line: string }} head @returns {[string, string]} */
+export function headParts(head) {
+  const first = [head.model, head.effort].filter(Boolean).join(" · ");
+  return first && head.line.startsWith(first) ? [first, head.line.slice(first.length)] : ["", head.line];
+}
 
 /** `hc run`'s arguments for ARGV (the agent's own login, core's) in a terminal with no pane, in FOLDER: labelled with
  * its server's NAME, its AGENT and when it started (AT, ms). @param {string[]} argv
@@ -208,7 +347,7 @@ export const overdue = (terminals, now) => terminals.filter((one) => one.state =
  * properties what to do meanwhile and the two things to press. @param {Row} row @param {any} connect @returns {Row} */
 export function signingRow(row, connect) {
   const server = serverOf(row);
-  return { ...row, state: connect.state, dim: false, properties: { title: row.properties?.title ?? row.name,
+  return { ...row, state: connect.state, mark: null, dim: false, properties: { title: row.properties?.title ?? row.name,
     state: connect.state, lines: [], text: null, error: null, words: connect.words,
     actions: connect.actions.map((/** @type {any} */ one, /** @type {number} */ n) => ({ ...one, path: null, server,
       primary: !n })) } };
@@ -247,9 +386,6 @@ export const checkedOver = (servers, checked) => (Array.isArray(servers) ? serve
   const said = checked?.[one?.name];
   return said && STATES.includes(said.state) && said.base === one.state ? { ...one, state: said.state } : one;
 });
-
-/** ROW's tone: a conflict's yellow, else its state's. @param {Row} row */
-export const toneOf = (row) => (row.warn ? "warn" : row.state?.tone ?? "");
 
 const OPENED = /^https?:\/\/\S+$/;       // a line that is an address alone
 
@@ -296,24 +432,17 @@ export function tile(name) {
  * it is). @param {Row} row */
 export function propertyLines(row) {
   const lines = row.properties?.lines ?? [], titled = [row.properties?.title, row.properties?.state?.text];
-  return row.warn ? lines : lines.filter(([, value]) => !titled.includes(value));
+  return conflicted(row) ? lines : lines.filter(([, value]) => !titled.includes(value));
 }
 
 /** The server a connector's ROW stands for (what Claude checks again), or null. @param {Row} row */
 export const serverOf = (row) => (row.id.startsWith(SERVER) ? row.id.slice(SERVER.length) : null);
 
-/** ASK (openAgentPanel()'s: {space, section, row, at}) where this panel answers it: SPACE's, newer than the LAST one
- * answered, no older than ASK_MS at NOW; else null. @param {any} ask @param {string | null} space
+/** ASK (openAgentPanel()'s: {space, section, row, look, at}) where this panel answers it: SPACE's, newer than the
+ * LAST one answered, no older than ASK_MS at NOW; else null. @param {any} ask @param {string | null} space
  * @param {number | null} last @param {number} now */
 export const asked = (ask, space, last, now) => (ask && typeof ask === "object" && ask.space === space
   && typeof ask.at === "number" && ask.at !== last && now - ask.at <= ASK_MS && now >= ask.at ? ask : null);
-
-/** The health bar's parts, each with its share of what loads at start (BAR, core's): none of 0 tokens.
- * @param {{ part: string, tokens: number }[]} bar */
-export function barParts(bar) {
-  const all = bar.reduce((sum, one) => sum + one.tokens, 0);
-  return bar.filter((one) => one.tokens > 0).map((one) => ({ ...one, share: one.tokens / all }));
-}
 
 /** The agent in TAB, of those core reads: a chat tab's (TERMINALS, the app's; its conversation's id its SESSION), else
  * one in a pane (PANES); null. LABELS: the chat's labels' names. @param {string | null | undefined} tab
@@ -355,13 +484,15 @@ export function keepAgent(kept, space, agent, live) {
 
 /** Where an agent stands with no setup to show (core's standing()). @typedef {{ kind: string, title: string,
  * words: string, command: string | null, foot: string | null, actions: { id: string, label: string }[] }} Standing */
+/** An agent's row in the list, in core's words (agent_state.py's listed()). @typedef {{ group: string, dim: boolean,
+ * word: string | null, tone: string | null }} Told */
 /** An agent as core tells it (agent_state.py agents); "empty" null: its setup shows. @typedef {{ key: string,
  * name: string, installed: boolean, signed_in: boolean | null, plan: string | null, login: string[], install: string,
- * page: string, empty: Standing | null }} Machine */
+ * page: string, empty: Standing | null, listed: Told }} Machine */
 /** A row of the agents' list. @typedef {{ key: string, name: string, icon: string | null, tint: boolean,
- * plan: string | null, check: boolean, signIn: boolean }} Listed */
+ * group: string, dim: boolean, word: string | null, warn: boolean, check: boolean }} Listed */
 
-const PLAN = /^[A-Za-z][A-Za-z ]{0,23}$/;   // a plan's word: letters alone, so never an e-mail or an id
+const PLAN = /^[A-Za-z][A-Za-z ]{0,23}$/;   // a word beside a name: letters alone, so never an e-mail or an id
 
 /** AGENTS' (core's) record of KEY, null while none is told. @param {unknown} agents @param {string} key
  * @returns {Machine | null} */
@@ -371,20 +502,17 @@ export const agentOf = (agents, key) => (Array.isArray(agents) ? agents : []).fi
 const mark = (program) => ({ icon: typeof program?.icon === "string" ? program.icon : null,
   tint: Boolean(program?.tint) });
 
-/** "Agents on this Mac": AGENTS (core's) installed, in its order, each with the app's icon (KNOWN, by key), its plan's
- * word, a check on the CURRENT one, sign in where core says it is not. @param {unknown} agents
- * @param {Record<string, any>} known @param {string} current @returns {Listed[]} */
-export const agentList = (agents, known, current) => (Array.isArray(agents) ? agents : [])
-  .filter((a) => typeof a?.key === "string" && a.installed === true)
-  .map((a) => ({ key: a.key, name: String(a.name ?? a.key), ...mark(known?.[a.key]),
-    plan: typeof a.plan === "string" && PLAN.test(a.plan) ? a.plan : null, check: a.key === current,
-    signIn: a.signed_in === false }));
-
-/** "Add an agent…": AGENTS (core's) not installed, in its order, each with the app's icon. @param {unknown} agents
- * @param {Record<string, any>} known */
-export const addList = (agents, known) => (Array.isArray(agents) ? agents : [])
-  .filter((a) => typeof a?.key === "string" && a.installed === false)
-  .map((a) => ({ key: a.key, name: String(a.name ?? a.key), ...mark(known?.[a.key]) }));
+/** The agents' list in core's words (each of AGENTS' "listed"): the installed in its order, its plan's word or sign
+ * in (WARN) beside it, then the others dim, each under its GROUP; the app's icon (KNOWN, by key), a check on CURRENT.
+ * @param {unknown} agents @param {Record<string, any>} known @param {string} current @returns {Listed[]} */
+export function agentList(agents, known, current) {
+  const rows = (Array.isArray(agents) ? agents : [])
+    .filter((a) => typeof a?.key === "string" && typeof a.listed?.group === "string")
+    .map((a) => ({ key: a.key, name: String(a.name ?? a.key), ...mark(known?.[a.key]), group: a.listed.group,
+      dim: a.listed.dim === true, word: typeof a.listed.word === "string" && PLAN.test(a.listed.word)
+        ? a.listed.word : null, warn: a.listed.tone === "warn", check: a.key === current }));
+  return [...rows.filter((row) => !row.dim), ...rows.filter((row) => row.dim)];
+}
 
 /** tab.new's arguments for AGENT's own sign-in in a terminal tab of SPACE, in FOLDER: its login's words as one argv;
  * null where they are not words. @param {{ name: string, login: unknown }} agent
@@ -395,123 +523,91 @@ export function signInTab(agent, { space, folder = null }) {
   return { name: `Sign in to ${agent.name}`, ...(space ? { space } : {}), ...(folder ? { folder } : {}), argv };
 }
 
-/** A window of an agent's limits, as core words it. @typedef {{ label: string, used: number, text: string,
- * level: string }} Meter */
-/** An open block's bar and when its window resets. @typedef {{ bar: { used: number, level: string } | null,
- * resets: { at: number, words: string } | null }} First */
-/** A row of Usage (usage.py's section()): an agent with its limits, the tighter window too. @typedef {First & {
- * key: string, name: string, plan: string | null, current: boolean, five: Meter | null, week: Meter | null,
- * tight?: Meter | null, age: string | null, said: string }} Usage */
+/** When a window resets: seconds since 1970, core's words. @typedef {{ at: number, words: string }} Resets */
+/** A window of a plan's limits, as core words it: "–" with USED null (something ran since its reset, no reading
+ * since). @typedef {{ label: string, used: number | null, text: string, level: string | null,
+ * resets: Resets | null }} Meter */
+/** An API-key agent's month (core's report's): spent OF its budget in its LEVEL, USED its share, PACE only while
+ * past or heading past it. @typedef {{ figure: string, of: string, level: string | null, used: number | null,
+ * pace: { text: string, narrow: string } | null, budget: number | null }} Month */
+/** A Usage row with no reading: core's words in its place, and why. @typedef {{ text: string, why: string }} Untold */
+/** A row of Usage: a plan's (section(): windows, the tighter, RESET while yellow or red, age) or an API key's (MONTH).
+ * @typedef {{ key: string, name: string, plan: string | null, current: boolean, five: Meter | null, week: Meter |
+ * null, tight: Meter | null, reset: Resets | null, age: string | null, month: Month | null, untold?: Untold }} Usage */
 
-/** Whether agent KEY's block in Usage is open: as TURNED here till core tells it, else as core keeps it (OPEN, its
- * section's), else the CURRENT agent's alone. @param {string} key @param {Record<string, boolean> | null | undefined}
- * open @param {Record<string, boolean>} turned @param {string | null} current */
-export const usageOpen = (key, open, turned, current) => (key in turned ? turned[key]
-  : open?.[key] ?? key === current);
-
-/** Whether ROW has a line of words under it: when its window resets, or its reading's age. @param {Usage} row */
-export const usageLine = (row) => Boolean(row.resets || row.age);
-
-/** What Usage's ROWS take under its head, px: a row each, an open one (OPEN: by key) its line of words and its cost
- * LINES too; none: the line saying so. @param {Usage[]} rows @param {(key: string) => boolean} open
- * @param {Record<string, CostLine[]>} [lines] */
-export const usageHeight = (rows, open, lines = {}) => (rows.length ? rows.reduce((px, row) => px + USAGE_ROW
-  + (open(row.key) ? (usageLine(row) ? USAGE_LINE : 0) + costHeight(lines[row.key]) : 0), 0) : ROW_H);
-
-export const COST_LINE = 20, COST_BAR = 8;       // px: a cost's figure line, as a property's; its budget bar's room
-const WEEK = "This week";                        // the 7-day report's figure, usage.html's
-/** A line under an agent's row in Usage. @typedef {{ kind: "figure", label: string, figure: string, unit: string,
- * over: boolean } | { kind: "bar", share: number, over: boolean } | { kind: "words", text: string, pace: string,
- * over: boolean }} CostLine */
-
-/** Each agent's cost lines from core's 7-day REPORT (report.py), in its words: on an API key its month's spending,
- * its budget's bar and the pace (marked once over); else this week's figure in core's word for it (API value on a
- * plan). An agent with no price to tell has none. @param {any} report @returns {Record<string, CostLine[]>} */
-export function costLines(report) {
-  /** @type {Record<string, CostLine[]>} */
-  const found = {};
-  for (const cell of Array.isArray(report?.summary) ? report.summary : []) {
-    const month = (report.months ?? []).find((/** @type {any} */ one) => one.agent === cell.agent);
-    if (typeof cell.agent !== "string" || (!month && typeof cell.value !== "number")) continue;
-    if (!month) {
-      found[cell.agent] = [{ kind: "figure", label: WEEK, figure: String(cell.text), unit: String(cell.unit ?? ""),
-        over: false }];
-      continue;
-    }
-    const over = Boolean(month.over), words = month.words ?? {};
-    found[cell.agent] = [{ kind: "figure", label: String(month.label), figure: String(words.spent), unit: "", over },
-      ...(month.budget ? [/** @type {CostLine} */ ({ kind: "bar", share: Math.min(1, month.today / month.budget),
-        over })] : []),
-      { kind: "words", text: words.of ? `${words.of} · ` : "", pace: String(words.pace), over }];
-  }
-  return found;
+/** Usage's rows: SECTION's (core's), then each agent on an API key with a month in REPORT (core's report, in the
+ * place of a row with no reading), named as AGENTS tell it; the CURRENT agent's first. @param {any} section
+ * @param {any} report @param {unknown} agents @param {string | null} current @returns {Usage[]} */
+export function usageRows(section, report, agents, current) {
+  const plans = Array.isArray(section?.rows) ? section.rows : [], told = Array.isArray(agents) ? agents : [];
+  const months = (Array.isArray(report?.months) ? report.months : []).filter((/** @type {any} */ one) =>
+    !plans.some((/** @type {any} */ row) => row.key === one.agent && !row.untold))
+    .map((/** @type {any} */ one) => {
+    const known = told.find((agent) => agent?.key === one.agent);
+    return { key: String(one.agent), name: String(known?.name ?? one.name), plan: known?.plan ?? null,
+      current: one.agent === current, five: null, week: null, tight: null, reset: null, age: null,
+      month: { figure: String(one.words?.spent ?? ""), of: String(one.words?.of ?? ""), level: one.level ?? null,
+        used: one.budget ? one.today / one.budget * 100 : null, pace: one.pace_line ?? null,
+        budget: one.budget ?? null } };
+  });
+  const rows = [...plans.filter((/** @type {any} */ row) => !months.some((/** @type {any} */ one) =>
+    one.key === row.key)).map((/** @type {any} */ row) => ({ ...row, month: null })), ...months];
+  return [...rows.filter((row) => row.current), ...rows.filter((row) => !row.current)];
 }
 
-/** A folded agent's figure from its cost. @typedef {{ figure: string, after: string, level: string | null,
- * used: number | null }} Glance */
+/** Whether ROW has a line under it: a yellow or red window's reset, or its month's pace past its budget.
+ * @param {Usage} row */
+export const usageLine = (row) => Boolean(row.reset || row.month?.pace);
 
-/** Each agent's figure for its folded row from core's 7-day REPORT, in its words: on an API key its month's spent,
- * "of" its budget and its level (yellow once over), the share used; else what it cost, its word after it.
- * @param {any} report @returns {Record<string, Glance>} */
-export function costGlance(report) {
-  /** @type {Record<string, Glance>} */
-  const found = {};
-  for (const cell of Array.isArray(report?.summary) ? report.summary : []) {
-    const month = (report.months ?? []).find((/** @type {any} */ one) => one.agent === cell.agent);
-    if (typeof cell.agent !== "string" || (!month && typeof cell.value !== "number")) continue;
-    found[cell.agent] = month ? { figure: String(month.words?.spent ?? ""), after: String(month.words?.of ?? ""),
-      level: month.level ?? null, used: month.budget ? month.today / month.budget * 100 : null }
-      : { figure: String(cell.text), after: String(cell.unit ?? ""), level: null, used: null };
-  }
-  return found;
-}
+/** What Usage's ROWS take under its head, px: a row each, a line under one that has it; none: the line saying so.
+ * @param {Usage[]} rows */
+export const usageHeight = (rows) => (rows.length ? rows.reduce((px, row) => px + ROW_H
+  + (usageLine(row) ? USAGE_LINE : 0), 0) : ROW_H);
 
-/** ROW's one figure for Usage's head folded: a plan's tighter window, else its cost's (GLANCE); null for none.
- * @param {Usage} row @param {Glance | undefined} glance
- * @returns {{ label: string, figure: string, level: string | null, after: string } | null} */
-export function tightest(row, glance) {
+/** ROW's one figure, for Usage's head folded: a plan's tighter window, else its month of its budget; null for none.
+ * @param {Usage} row @returns {{ label: string, figure: string, level: string | null, after: string } | null} */
+export function usageFigure(row) {
   if (row.tight) return { label: row.tight.label, figure: row.tight.text, level: row.tight.level, after: "" };
-  return glance ? { label: "", figure: glance.figure, level: glance.level, after: glance.after } : null;
+  return row.month ? { label: "", figure: row.month.figure, level: row.month.level, after: row.month.of } : null;
 }
 
 /** How near its end ROW stands, to compare: its tighter window's or its month's level, then the share used.
- * @param {Usage} row @param {Glance | undefined} glance @returns {[number, number]} */
-const standing = (row, glance) => (row.tight ? [RANK[row.tight.level] ?? 0, row.tight.used]
-  : [RANK[glance?.level ?? ""] ?? 0, glance?.used ?? 0]);
+ * @param {Usage} row @returns {[number, number]} */
+const standing = (row) => (row.tight ? [RANK[row.tight.level ?? ""] ?? 0, row.tight.used ?? 0]
+  : [RANK[row.month?.level ?? ""] ?? 0, row.month?.used ?? 0]);
 
-/** The row whose figure Usage's head shows folded: the CURRENT agent's, or another's that is yellow or red and stands
- * worse (GLANCES: costGlance()'s); null with neither. @param {Usage[]} rows @param {Record<string, Glance>} glances
- * @param {string | null} current */
-export function headline(rows, glances, current) {
-  const mine = rows.find((row) => row.key === current && tightest(row, glances[row.key])) ?? null;
-  const worse = (/** @type {[number, number]} */ a, /** @type {[number, number]} */ b) => a[0] - b[0] || a[1] - b[1];
+/** The row whose figure Usage's head shows folded: the current agent's, or another's that is yellow or red and stands
+ * worse; null with neither. @param {Usage[]} rows */
+export function headline(rows) {
+  const mine = rows.find((row) => row.current && usageFigure(row)) ?? null;
+  const worse = (/** @type {Usage} */ a, /** @type {Usage} */ b) => standing(a)[0] - standing(b)[0]
+    || standing(a)[1] - standing(b)[1];
   let worst = null;
   for (const row of rows) {
-    const at = standing(row, glances[row.key]);
-    if (row !== mine && at[0] >= RANK.warn && (!worst || worse(at, standing(worst, glances[worst.key])) > 0)) {
-      worst = row;
-    }
+    if (row !== mine && standing(row)[0] >= RANK.warn && (!worst || worse(row, worst) > 0)) worst = row;
   }
-  return worst && (!mine || worse(standing(worst, glances[worst.key]), standing(mine, glances[mine.key])) > 0)
-    ? worst : mine;
+  return worst && (!mine || worse(worst, mine) > 0) ? worst : mine;
 }
 
-/** What an agent's cost LINES take under its row, px. @param {CostLine[] | undefined} lines */
-export const costHeight = (lines) => (lines ?? []).reduce((px, line) => px + (line.kind === "figure" ? COST_LINE
-  : line.kind === "bar" ? COST_BAR : USAGE_LINE), 0);
-
-/** Usage's ROWS with a row for each agent that has cost LINES and no limits (an API key), named as AGENTS tell it:
- * after the meters', the CURRENT one first. @param {Usage[] | null | undefined} rows @param {unknown} agents
- * @param {Record<string, CostLine[]>} lines @param {string | null} [current] @returns {Usage[]} */
-export function usageRows(rows, agents, lines, current = null) {
-  const all = rows ?? [], told = Array.isArray(agents) ? agents : [];
-  const made = READ.filter((key) => lines[key] && !all.some((row) => row.key === key)).map((key) => {
-    const known = told.find((one) => one?.key === key);
-    return { key, name: String(known?.name ?? NAMES[key] ?? key), plan: typeof known?.plan === "string" ? known.plan
-      : null, current: key === current, five: null, week: null, tight: null, bar: null, resets: null, age: null,
-    said: "" };
-  });
-  return [...made.filter((row) => row.current), ...all, ...made.filter((row) => !row.current)];
+/** ROW chosen (id usage:KEY): the plan, each reset in SAID's words, the age, an API key's budget, why its limits are
+ * not told; Open Usage. A line's label is the words' first ("5h resets 14:46": 5h, resets 14:46). @param {Usage} row
+ * @param {(resets: { at: number, words: string }) => string} said @returns {Row} */
+export function usageRow(row, said) {
+  const parted = (/** @type {string} */ words) => {
+    const [label, ...rest] = words.split(" ");
+    return /** @type {[string, string, null]} */ ([label, rest.join(" "), null]);
+  };
+  const budget = row.month?.budget, resets = [row.five?.resets, row.week?.resets].filter((one) => one != null);
+  const lines = [...(row.plan ? [/** @type {[string, string, null]} */ (["Plan", row.plan, null])] : []),
+    ...resets.map((one) => parted(said(/** @type {{ at: number, words: string }} */ (one)))),
+    ...(row.month ? [/** @type {[string, string, null]} */ (["Budget", !budget ? "none" : Number.isInteger(budget)
+      ? whole(budget) : money(budget), null])] : []),
+    ...(row.age ? [parted(row.age)] : [])];
+  return { id: `${USAGE}${row.key}`, icon: null, name: row.name, note: null, dim: false, tag: null, mark: null,
+    state: null, cost: null, agents: [row.key], properties: { title: row.name, state: null, lines,
+      text: row.untold?.why ?? null,
+      error: null, tip: null, actions: [{ id: "usage", label: "Open Usage", path: null, server: null,
+        primary: true }] } };
 }
 
 /** RESETS' words (core's, "5 hour resets at {time}") with this Mac's TIME and DAY in them; "" for none.

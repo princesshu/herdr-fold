@@ -1,102 +1,108 @@
-"""The sidebar's Agent view: what an agent starts with in the folder, in core's words (agent_setup.py's layers(),
-usage.py's section(), report.py's costs), in cells as the mockups' TUI panes: the head and its agents' list, Usage,
-the sections, the chosen row's properties, a connector's form; and the graph as a tree (graph.py's). It only asks."""
+"""The sidebar's Agent view: what an agent starts with in the folder, in core's words (layers(), section(), report's
+months), in cells as the mockups' TUI panes: the head, its line and start-up rule, Usage, the sections, the chosen row's
+properties and its form (agent_form.py), a connector's form; and the graph as a tree (graph.py's). It only asks."""
 import time
 
-import report as told
+import usage
 import widgets
+from agent_form import REMOVE_KEY, Form
+from agent_layers import NOT_APPROVED, SAID_AS
+from agent_state import HERE
 from connectors import BRANDS
 from icons import glyphs
-from prices import money
 from screen import INSET, SPINNER, Style, after, truncate, width
 from vt import Key, Mouse
-from widgets import MENU_WIDEST, Action, Menu, Popup, TextInput, wrap
+from widgets import MENU_WIDEST, Action, Keyed, Menu, Popup, TextInput, wrap
 
-FOLDED = ("rules", "permissions", "skills", "agents")    # folded till opened: Connectors, the problems' home, open
+FOLDED = ("subagents", "rules", "skills", "permissions")     # folded till opened: Connectors, the problems' home, open
 FIRST = 5                     # rows a section shows before "N more": its problems and used ones always
 TAG = 12                      # cells a tag takes at most (a plugin's name may be long)
 NAME_LEAST = 8                # cells a section's names keep at least: below that its tags go, its states stay
+UNDER = 2                     # cells what lies under a row (its properties, a reset, a conflict) stands in from it
 TEXT_ROWS, ERROR_ROWS = 3, 2  # rows of a chosen row's text (a rule's first lines) and of its error
-# the actions core offers, and a sign-in's own (core's connecting()); Claude's own commands on Claude's rows alone
-WORKS = ("open", "retry", "connect", "turn-off", "turn-on", "sign-out", "reopen", "cancel")
-CLAUDES = ("retry", "turn-off", "turn-on")
-OWN_WORDS = {"turn-off": "Turn off here", "turn-on": "Turn on here"}     # the TUI's, as connectors.html's TUI pane
-# Claude's /mcp command is typed into the tab's Claude: with none there, the button says what it waits for
-NEEDS = {"turn-off": "Start Claude in this tab to turn it off here", "turn-on": "Start Claude in this tab to turn it "
-         "on here"}
+# the actions core offers, and a sign-in's own (core's connecting()); Claude's own command on Claude's rows alone.
+# A connector's Turn off and Turn on are its form's switch
+WORKS = ("open", "retry", "connect", "sign-out", "reopen", "cancel", "graph")
+CLAUDES = ("retry",)
 ASKS = {"retry": "retry_server", "connect": "connect_server", "sign-out": "sign_out_server",
         "reopen": "reopen_sign_in", "cancel": "cancel_sign_in"}          # what an action asks the family for
-WAYS = {"claude-ai": "Add from claude.ai", "url": "Add by URL"}          # More's lines, as connectors.html's ⋯ menu
-REFRESH = "Refresh"
-ADD_KEY = "a"                 # the form from the keys (More's "Add by URL")
+ADD_KEY, USAGE_KEY, GRAPH_KEY = "a", "U", "g"            # the form, the Usage view and the graph from the keys
+UNDO_KEY = "u"                # the foot line's Undo, while it shows
+WAITS = SAID_AS[NOT_APPROVED][0]     # a project server's state before it is approved: its form is core's two words
+EDITED = ("claude", "codex")  # the agents whose harness core changes (harness.py)
+RULES = "permissions"         # the section a rule is added in: `a` on it, its head's +
+PLUS = "+"
+OWN_FILE = ("mode", "approval", "sandbox", "permission:", "conflict:")     # rows whose form names their file
+PLUGIN = "Plugin"             # where a plugin's subagent is from (core's origin()): it turns off with its plugin
+# More's lines while this view shows (connectors.html's ⋯ menu), a key at the right of those it has
+OPEN_USAGE, SHOW_GRAPH, REFRESH = Keyed("Open Usage", USAGE_KEY), Keyed("Show graph", GRAPH_KEY), "Refresh"
+WAYS = {"claude-ai": "Add from claude.ai…", "url": Keyed("Add by URL…", ADD_KEY)}
+USAGE_BUTTON = {"id": "usage", "label": "Open Usage"}   # a Usage row's one action
 CONNECTORS = "connectors"     # the section a connector is added in
 BRAND = 2                     # cells a connector's brand takes before its name: its glyph or letter, and a space
-# a state's tone as a mark (a connector's, a conflict's) and as the color of its word; a tag's tone as its color
-MARKS = {"bad": ("✕", "deleted"), "warn": ("●", "modified"), "ok": ("●", "added"), "busy": ("◐", "accent"),
-         "off": ("○", "muted")}
-USED = MARKS["ok"]            # what the open conversation used (a skill, a sub-agent, a connector): the app's green dot
-STATE_ROLE = {"bad": "deleted", "warn": "modified", "ok": "subtext", "busy": "accent", "off": "muted",
-              "allow": "added", "ask": "modified", "deny": "deleted"}
-TAG_ROLE = {"personal": "accent", "project": "done", "plugin": "conflict", "account": "account", "muted": "muted"}
+MARKS = {"bad": ("✕", "deleted"), "warn": ("●", "modified"), "ok": ("●", "added")}     # the one mark column
+STATE_ROLE = {"bad": "deleted", "warn": "modified", "ok": "muted", "busy": "accent", "off": "muted",
+              "muted": "muted", "allow": "added", "ask": "modified", "deny": "deleted"}
+PART_ROLE = {"rules": "accent", "skills": "done", "connectors": "account"}     # the start-up rule's parts, swatches
+RULE, SWATCH = "━", "■"
 USAGE = "usage"               # Usage's id among the sections folded and opened: the first one, core's own rows
-FOLDS = ("▸", "▾")            # an agent's block in Usage folded and open, as usage-agents.html's TUI pane
-BAR = 7                       # cells of a limit's bar, as usage.html's TUI pane
-LEVEL_ROLE = {"ok": "added", "warn": "modified", "bad": "deleted"}      # a percent's level, the status line's colors
+BAR = 5                       # cells of a limit's bar, as usage-agents.html's TUI pane
+LEVEL_ROLE = {"ok": "added", "warn": "modified", "bad": "deleted"}      # a level, the status line's colors
 RANK = {"ok": 1, "warn": 2, "bad": 3}  # how near its end a level stands: another agent's yellow or red one is told
-PERIODS = ("7d", "30d", "month")       # what Usage's head steps through: core's periods but today
-PERIOD_KEY = "p"              # the next period from the keys
-OPEN_USAGE = "Open Usage"     # the Usage head's own line in its right-click menu, as the Herdr app's
-PER_DAY = "per day"
-SPARK = " ▁▂▃▄▅▆▇█"           # a day's cost in eighths of the costliest day's
-PROJECTS = 5                  # projects Usage lists, the costliest first: all of them are the Usage view's
-PROJECT, COST = 16, 10        # cells a project's name keeps before its commits go, and a cost's column (~$1,234.56)
-READING = "Reading the conversations…"
-SHOW_GRAPH, GRAPH_KEY = "Show graph", "g"     # the head's own line in its right-click menu, and its key
+OPENS = "↗"                   # the Usage head's way to the Usage view
+MONTH = "month"               # the report's period the API-key agents' months are read with (any period has them)
 ROOT = "agent"                # the agent's own node in core's graph (graph.py's AGENT)
 BRANCHES = (("in", lambda node: node["column"] == "in"), ("uses", lambda node: node["column"] == "uses"),
-            ("sub-agents", lambda node: node["parent"] == ROOT))        # the tree's branches, agent-chat-design's
+            ("subagents", lambda node: node["parent"] == ROOT))        # the tree's branches, agent-graph.html's
+GATE_ROLE = {"allow": "ok", "ask": "warn", "deny": "bad"}              # a gate's verb in its tone's color, else dim
 TITLE, TAGGED = 28, 18        # cells a node's name and its tag keep in the tree's columns
-TREE = 80                     # cells the path that ran is wrapped at: a preview tab's lines are not
+TREE = 80                     # cells a tree's line is kept to: the path wraps, an edge's gates go under
 LOADING = "Loading setup…"
 LOADING_AGENTS = "Loading agents…"
 SERVER = "connector:"         # a server's row id: this, then its name (what Claude checks again)
+OWN_AGENT = "subagent:"       # a subagent's row id: this, then its source and name; Claude's own folded in BUILT_IN
+BUILT_IN = "subagent:built-in"
+CONFLICT = "conflict:"        # a conflict's row id: its sentence under it, in yellow
+HOOK = "hook:"                # a hook's row id, under Permissions' Hooks group
 HEAD = ("head", None)         # the head's item: Enter opens the agents' list
-AGENTS, ADD = "Agents on this Mac", "Add an agent"       # the lists' heads, as connectors.html's
-ADD_LINE = "Add an agent…"
-NONE_TO_ADD = "Every agent herdr-fold knows is installed"
+MODEL = ("model", None)       # the head's line: the model and the effort a chat starts with, its form under it
 OFFER_WORDS = {"page": "Open its page ↗"}                # the TUI's, as the plan's; else core's
 
 
 def agent_choices(agents, current):
-    """The agents' list's lines: AGENTS (core's, each with its standing) installed, in its order, a check on the
-    CURRENT one, at the right its plan's word, or sign in where it must; then Add an agent…. None told: none."""
-    found = [{"kind": "agent", "key": one["key"], "name": one["name"], "check": one["key"] == current,
-              "right": "sign in" if one["signed_in"] is False else one["plan"] or "",
-              "role": "modified" if one["signed_in"] is False else "muted"}
-             for one in agents or () if one["installed"]]
-    return found + [{"kind": "add", "name": ADD_LINE, "right": "", "role": "muted"}] if agents else []
-
-
-def add_choices(agents):
-    """Add an agent…'s lines: AGENTS not installed, in core's order."""
-    return [{"kind": "install", "key": one["key"], "name": one["name"], "right": "", "role": "muted"}
-            for one in agents or () if not one["installed"]]
+    """The agents' list's lines in core's words (each of AGENTS' "listed"): the installed in its order, at the right
+    its plan's word, or sign in where it must; then the others under their own head; a check on the CURRENT one."""
+    found = [{"kind": "install" if one["listed"]["dim"] else "agent", "key": one["key"], "name": one["name"],
+              "check": one["key"] == current, "group": one["listed"]["group"], "right": one["listed"]["word"] or "",
+              "role": "modified" if one["listed"]["tone"] == "warn" else "muted"} for one in agents or ()]
+    return sorted(found, key=lambda one: one["kind"] == "install")
 
 
 class AgentMenu(Menu):
-    """The agents' list as connectors.html's TUI pane: its TITLE dim, then a choice a row: a ✓ (CHECK, the glyph) on
-    the one in use, its name, a word at the right in its color; with no choice, NOTE in their place."""
+    """The agents' list as agent-picker.html's TUI pane: each group's head dim (a rule over the second), then a choice
+    a row: a ✓ (CHECK, the glyph) on the one shown, its name (dim: not installed), a word at the right in its color;
+    with no choice, NOTE under core's first head."""
 
-    def __init__(self, title, choices, check, note=""):
+    def __init__(self, choices, check, note=""):
         super().__init__(choices)
-        self.title, self.check, self.note = title, check, note
+        self.check, self.note = check, note
+
+    def lines(self):
+        """What it draws under its frame, in order: (None, a head's words), (None, None) a rule, (N, choice N)."""
+        found, group = [], None
+        for n, one in enumerate(self.choices):
+            if one["group"] != group:
+                found += [(None, None)] * bool(found) + [(None, one["group"])]
+                group = one["group"]
+            found.append((n, one))
+        return found or [(None, HERE), (None, self.note)]
 
     def width(self):
         rows = [2 + width(one["name"]) + (2 + width(one["right"]) if one["right"] else 0) for one in self.choices]
-        return max(MENU_WIDEST, max(rows + [width(self.title), width(self.note)]) + 4)
+        return max(MENU_WIDEST, max(rows + [width(words) for n, words in self.lines() if n is None and words]) + 4)
 
     def height(self):
-        return max(1, len(self.choices)) + 3
+        return len(self.lines()) + 2
 
     def handle(self, key):
         if not self.choices:
@@ -106,11 +112,12 @@ class AgentMenu(Menu):
     def draw(self, canvas, y, x, cells):
         frame, inner = Style(fg="accent", bg="panel"), cells - 2
         canvas.put(y, x, "┌" + "─" * inner + "┐", frame)
-        lines = [(None, self.title)] + ([(n, one) for n, one in enumerate(self.choices)] or [(None, self.note)])
+        lines = self.lines()
         for row, (n, one) in enumerate(lines, 1):
             canvas.put(y + row, x, "│" + " " * inner + "│", frame)
             if n is None:
-                canvas.put(y + row, x + 2, truncate(one, inner - 2), Style(fg="muted", bg="panel"))
+                said = one or "─" * (inner - 2)    # a group's head, or the rule over the second one
+                canvas.put(y + row, x + 2, truncate(said, inner - 2), Style(fg="muted", bg="panel"))
                 continue
             lit = n == self.index
             bg = "button" if lit else "hover" if n == self.hover else "panel"
@@ -119,8 +126,10 @@ class AgentMenu(Menu):
             if one.get("check"):
                 canvas.put(y + row, x + 2, self.check, words if lit else Style(fg="accent", bg=bg))
             right = truncate(one["right"], max(0, inner - 6))
+            if one["role"] == "muted" and inner - 6 - width(right) < width(one["name"]):
+                right = ""                    # no room for both: a plan's word goes before the name is cut
             room = inner - 5 - (width(right) + 1 if right else 0)
-            name = Style(fg="muted", bg=bg) if one["kind"] == "add" and not lit else words
+            name = Style(fg="muted", bg=bg) if one["kind"] == "install" and not lit else words
             canvas.put(y + row, x + 4, truncate(one["name"], max(1, room)), name)
             if right:
                 canvas.put(y + row, x + cells - 2 - width(right), right,
@@ -130,153 +139,109 @@ class AgentMenu(Menu):
         return self.height()
 
 
+def grey(bg):
+    """The faint text's role on a row lit by BG (the selection's or the hover's): muted_row, readable there."""
+    return "muted_row" if bg else "muted"
+
+
 def bar(used):
     """A limit's bar, BAR cells filled by USED percent: never empty with some used, full only with all of it."""
     filled = BAR if used >= 100 else min(BAR - 1, max(1 if used > 0 else 0, round(used * BAR / 100)))
     return "▰" * filled + "▱" * (BAR - filled)
 
 
-def period_said(period, now=None):
-    """PERIOD's words on Usage's head and the Usage view's chip: core's 7 days and 30 days, the month as Nov."""
-    return told.PERIODS[period][1] or told.MONTHS[time.localtime(now).tm_mon - 1][:3]
-
-
-def commits_said(one):
-    """ONE's commits (a project's, a conversation's: core's counted()) in words: 5 commits, about 2 commits, 1 commit,
-    none yet, – where they are not known."""
-    count = one.get("commits")
-    return f"{one['commits_text']} commit{'s' * (count != 1)}" if count else one["commits_text"]
-
-
-def days_said(daily):
-    """The days DAILY (the report's) spans: Nov 3 – 9, Oct 28 – Nov 3, Nov 9 for one."""
-    first, last = daily[0]["label"], daily[-1]["label"]
-    if first == last:
-        return first
-    return f"{first} – {last.split()[-1] if first.split()[0] == last.split()[0] else last}"
-
-
-def day_color(day):
-    """The color of the model DAY cost the most in, None for a day with no cost."""
-    return max(day["models"], key=lambda one: one["cost"])["color"] if day["models"] else None
-
-
-def spark(daily, cells):
-    """DAILY's last CELLS days as [(eighth block, its color)]: each day's cost by the costliest day's, a day with any
-    cost never empty, in the color of the model it cost the most in."""
-    days = daily[-max(1, cells):]
-    top = max([day["total"] for day in days] + [0])
-    return [(SPARK[max(1, round(8 * day["total"] / top))] if day["total"] > 0 else SPARK[0], day_color(day))
-            for day in days]
-
-
-def agent_costs(report):
-    """What each agent cost in REPORT, as Usage's lines say it: {agent: {"figure", "unit", "of", "level", "used",
-    "month"}}: on a plan the period's API value; on an API key core's words for its month's spent, its budget, its
-    level and share, and the month's line (its share, its pace, whether over). One with no price to tell: none."""
-    found = {}
-    for cell in report["summary"]:
-        agent = cell.get("agent")
-        month = next((one for one in report["months"] if one["agent"] == agent), None)
-        if agent is None or not month and cell["value"] is None:
-            continue
-        if not month:
-            found[agent] = {"figure": cell["text"], "unit": cell["unit"], "of": "", "level": None, "used": None,
-                            "month": None}
-            continue
-        words, used = month["words"], 100 * month["today"] / month["budget"] if month["budget"] else None
-        found[agent] = {"figure": words["spent"], "unit": words["of"] or "spent", "of": words["of"],
-                        "level": month["level"], "used": used,
-                        "month": {"label": month["label"][:3], "used": used, "pace": words["pace"],
-                                  "over": month["over"]}}
+def usage_rows(rows, report, agents, current):
+    """Usage's ROWS (core's section()) with each agent on an API key a row of its month instead (REPORT's months, its
+    plan's word as AGENTS tell it): the CURRENT agent's first, the others after the plans."""
+    months = {one["agent"]: one for one in (report or {}).get("months") or ()}
+    plans = {one["key"]: one.get("plan") for one in agents or ()}
+    found = [row for row in rows if row["key"] not in months]
+    for key, month in months.items():
+        found.insert(0 if key == current else len(found), {"key": key, "name": month["name"], "plan": plans.get(key),
+                                                           "month": month})
     return found
 
 
-def cost_rows(rows, report, agents, current=None):
-    """Usage's ROWS (core's section()) each with what its agent cost (agent_costs()), and a row for each agent that
-    cost something and has no limits (one on an API key), named as AGENTS tell it: after them, or the CURRENT first."""
-    costs = agent_costs(report)
-    found = [{**row, "cost": costs.get(row["key"])} for row in rows]
-    known = {one["key"]: one for one in agents or ()}
-    for key in (key for key in costs if not any(row["key"] == key for row in rows)):
-        one = known.get(key, {})
-        made = {"key": key, "name": one.get("name") or key.capitalize(), "plan": one.get("plan"), "five": None,
-                "week": None, "tight": None, "resets": None, "age": None, "current": key == current,
-                "cost": costs[key]}
-        found.insert(0 if key == current else len(found), made)
-    return found
-
-
-def figures(row, short=False):
-    """ROW's figures at its folded line's end, [(words, role)]: on a plan both windows ("5h 72%  wk 16%"; SHORT: the
-    tighter alone), on an API key its month's spent of its budget (SHORT: the spent), else what it cost; [] for none.
-    A figure wears its level's color, the only sign."""
+def figures(row, bars=True, short=False):
+    """ROW's figures at its line's end, [(words, role)]: a plan's windows, each its bar (with BARS) and percent in its
+    level's color ("5h ▰▰▰▱▱ 64%  wk ▰▱▱▱▱ 16%"; SHORT: the tighter alone); an API key's month spent in its level's
+    color, of its budget (SHORT: the spent alone). [] for none."""
+    month = row.get("month")
+    if month:
+        words = month["words"]
+        return [(words["spent"], LEVEL_ROLE.get(month["level"], "text"))] + (
+            [(f" {words['of']}", "muted")] if words["of"] and not short else [])
     found = []
-    windows = [row["tight"]] if short and row.get("tight") else [one for one in (row["five"], row["week"]) if one]
-    for one in windows:
-        found += [("  ", "muted")] * bool(found)
-        found += [(f"{one['label']} ", "muted"), (one["text"], LEVEL_ROLE[one["level"]])]
-    cost = row.get("cost")
-    if found or not cost:
-        return found
-    word = "" if short else cost["of"] if cost["month"] else cost["unit"]
-    return [(cost["figure"], LEVEL_ROLE.get(cost["level"], "text"))] + ([(f" {word}", "muted")] if word else [])
-
-
-def tightest(row):
-    """ROW's one figure for Usage's head folded: a plan's tighter window, an API key's month of its budget."""
-    return figures(row, short=True) if row.get("tight") else figures(row)
+    for one in [row["tight"]] if short and row["tight"] else [one for one in (row["five"], row["week"]) if one]:
+        role = LEVEL_ROLE.get(one["level"], "muted")
+        found += [("  ", "muted")] * bool(found) + [(f"{one['label']} ", "muted")]
+        found += [(bar(one["used"] or 0) + " ", role)] * bars + [(one["text"], role)]
+    return found
 
 
 def standing(row):
-    """How near its end ROW stands, to compare: its tighter window's or its month's level, then the share used."""
-    if row.get("tight"):
-        return RANK[row["tight"]["level"]], row["tight"]["used"]
-    cost = row.get("cost") or {}
-    return RANK.get(cost.get("level"), 0), cost.get("used") or 0
+    """How near its end ROW stands, to compare: its month's or its tighter window's level, then the share used."""
+    month, tight = row.get("month"), row.get("tight")
+    if month:
+        return RANK.get(month["level"], 0), 100 * month["today"] / month["budget"] if month["budget"] else 0
+    return (RANK[tight["level"]], tight["used"]) if tight else (0, 0)
 
 
 def headline(rows, current):
     """The row whose figure Usage's head shows folded: the CURRENT agent's, or another's that is yellow or red and
     stands worse; None with neither."""
-    mine = next((row for row in rows if row["key"] == current and tightest(row)), None)
+    mine = next((row for row in rows if row["key"] == current and figures(row)), None)
     worst = max((row for row in rows if row is not mine and standing(row)[0] >= RANK["warn"]), key=standing,
                 default=None)
     return worst if worst and (mine is None or standing(worst) > standing(mine)) else mine
 
 
+def usage_lines(row, twelve):
+    """A Usage row's properties: each window's reset and the reading's age, label and value from core's words
+    ("5h", "resets 14:46"; "Read", "3 min ago"), hours as TWELVE says."""
+    said = [usage.reset_said(one["resets"], twelve) for one in (row.get("five"), row.get("week")) if one]
+    return [words.split(" ", 1) + [None] for words in said + [row.get("age") or ""] if words]
+
+
 def gates_said(edge):
-    """EDGE's gates in brackets, as the tree says them: [ask · pytest allowed, deny git push]; "" with none."""
-    return f"[{', '.join(one['text'] for one in edge['gates'])}]" if edge and edge["gates"] else ""
+    """EDGE's gates in brackets as a tree's parts, each verb in its tone's color: [ask, allow pytest, hook]."""
+    found = []
+    for one in (edge or {}).get("gates") or ():
+        found += [(", " if found else "[", "dim"), (one["text"], GATE_ROLE.get(one["tone"], "dim"))]
+    return found + [("]", "dim")] if found else []
 
 
 def tree_rows(graph, run=False, twelve=False, cells=TREE):
-    """Core's GRAPH (graph.py's) as a tree's rows, each [(words, role)], role None, "bold", "dim", "bad", "warn" or
-    "accent": the agent with its line and chips, then what goes in, what it uses (each edge's gates in brackets) and
-    its sub-agents; RUN: what the conversation ran instead (ran_rows()). TWELVE: hours with AM and PM."""
+    """Core's GRAPH as a tree's rows, each [(words, role)]: the agent with its line and chips, what goes in, what it
+    uses (each edge's gates in brackets, under it where there is no room) and its subagents, in columns; RUN: what the
+    chat ran instead (ran_rows()). TWELVE: hours with AM and PM."""
     if run:
         return ran_rows(graph, twelve, cells)
     agent = next(node for node in graph["nodes"] if node["id"] == ROOT)
     edges = {(one["from"], one["to"]): one for one in graph["edges"]}
     rows = [[(agent["title"], "bold")] + [(f"  {agent['sub']}", "dim")] * bool(agent["sub"])
-            + [(f"  [{chip}]", None) for chip in agent["chips"]]]
-    branches = [(name, [node for node in graph["nodes"] if mine(node)]) for name, mine in BRANCHES]
-    branches = [(name, nodes) for name, nodes in branches if nodes]
-    for n, (name, nodes) in enumerate(branches):
-        last = n == len(branches) - 1
-        rows.append([("└ " if last else "├ ", "dim"), (name, "dim")])
-        title = min(TITLE, max(width(node["title"]) for node in nodes))
-        tagged = min(TAGGED, max(width((node["tag"] or {}).get("text", "")) for node in nodes))
-        for at, node in enumerate(nodes):
-            tone = "dim" if node["dim"] else {"bad": "bad", "warn": "warn"}.get(node["state"])
-            tag = truncate((node["tag"] or {}).get("text", ""), tagged)
-            gate = gates_said(edges.get((ROOT, node["id"])) or edges.get((node["id"], ROOT)))
-            name_ = truncate(node["title"], title)
-            row = [(("  " if last else "│ ") + ("└ " if at == len(nodes) - 1 else "├ "), "dim"),
-                   (name_ + " " * (title - width(name_) + 2), "dim" if node["dim"] else None)]
+            + [(f"  [{chip}]", "dim") for chip in agent["chips"]]]
+    branches = [(name, nodes) for name, nodes in ((name, [node for node in graph["nodes"] if mine(node)])
+                                                  for name, mine in BRANCHES) if nodes]
+    shown = [node for _, nodes in branches for node in nodes]
+    title = min(TITLE, max(width(node["title"]) for node in shown)) if shown else 0
+    tagged = min(TAGGED, max(width(node["tag"] or "") for node in shown)) if shown else 0
+    lead = 2 + title + 2 + (tagged + 2 if tagged else 0)        # where a node's words start
+    for name, nodes in branches:
+        rows.append([(name, "dim")])
+        for node in nodes:
+            tone = "dim" if node["dim"] else {"bad": "bad", "warn": "warn"}.get(node["state"], "dim")
+            name_, tag = truncate(node["title"], title), truncate(node["tag"] or "", tagged)
+            row = [(f"  {name_}" + " " * (title - width(name_) + 2), "dim" if node["dim"] else None)]
             row += [(tag + " " * (tagged - width(tag) + 2), "dim")] if tagged else []
-            row += [(node["sub"] or "", tone or "dim")] + [(f"  {gate}", None)] * bool(gate)
-            rows.append(row)
+            row += [(node["sub"], tone)] if node["sub"] else []
+            gate = gates_said(edges.get((ROOT, node["id"])) or edges.get((node["id"], ROOT)))
+            if gate and node["sub"] and lead + width(node["sub"]) + 1 + sum(width(words) for words, _ in gate) > cells:
+                rows.append(row)
+                row = [(" " * lead, None)]
+            elif gate and node["sub"]:
+                row.append((" ", None))
+            rows.append(row + gate)
     return rows
 
 
@@ -290,8 +255,9 @@ def clock_said(seconds, twelve):
 
 
 def ran_rows(graph, twelve, cells):
-    """What the conversation ran (tree_rows()'s rows): the agent, the numbered path in order of first use, wrapped at
-    CELLS; each agent that ran with its properties as aligned label and value rows; each tool's calls in a column."""
+    """What the chat ran (tree_rows()'s rows): the agent, the numbered path in order of first use, wrapped at CELLS;
+    each agent that ran with its properties as aligned label and value rows, its model said on its own line alone;
+    each tool's calls in a column."""
     nodes = {node["id"]: node for node in graph["nodes"]}
     agent = nodes[ROOT]
     rows = [[(agent["title"], "bold")] + [(f"  {(agent['run'] or {}).get('sub') or ''}".rstrip(), "dim")]]
@@ -313,7 +279,8 @@ def ran_rows(graph, twelve, cells):
         if not shown:
             continue
         said = clock_said(node["run"]["started"], twelve)
-        lines = [["Cost", shown["state"]["text"], None]] * bool(shown.get("state")) + shown["lines"]
+        lines = [["Cost", shown["state"]["text"], None]] * bool(shown.get("state")) + [
+            line for line in shown["lines"] if line[0] != "Model"]
         label = max([width(one[0]) for one in lines] or [0])
         rows += [[], [(node["title"], "bold")] + [(f"  {node['run']['sub']}", "dim")] * (node is not agent
                                                                                     and bool(node["run"]["sub"]))]
@@ -337,13 +304,30 @@ def tree(graph, run=False, twelve=False, cells=TREE):
 
 def problem(row):
     """Whether ROW is a problem: failed, to sign in, a conflict."""
-    return row["warn"] or (row["state"] or {}).get("tone") in ("bad", "warn")
+    return row["mark"] in ("bad", "warn")
 
 
-def doable(row, agent="claude"):
-    """ROW's actions this client can do, Claude's own commands only for AGENT Claude."""
+def stated(row):
+    """What ROW says in the states' column: its state, but a hook's "hook" (the Hooks group's head says it); a
+    subagent of one's own its model and tools, muted (both clients' drawings put them there). None for neither."""
+    if row["id"].startswith(HOOK):
+        return None
+    if row["state"]:
+        return row["state"]
+    own = row["id"].startswith(OWN_AGENT) and row["id"] != BUILT_IN
+    return {"text": row["note"], "tone": "muted"} if own and row["note"] else None
+
+
+def parts_of(section):
+    """SECTION's own rows and its groups' (Permissions' Hooks), each a part with an id and its rows."""
+    return [section] + section["groups"]
+
+
+def doable(row, agent="claude", filed=False):
+    """ROW's actions this client can do, Claude's own commands only for AGENT Claude; FILED: its form names its file,
+    which opens there."""
     return [one for one in row["properties"]["actions"] if one["id"] in WORKS
-            and (agent == "claude" or one["id"] not in CLAUDES)]
+            and (agent == "claude" or one["id"] not in CLAUDES) and not (filed and one["id"] == "open")]
 
 
 def server_of(key):
@@ -365,20 +349,15 @@ def signing_row(row, connect):
     properties what to do meanwhile and the two things to press."""
     server = row["id"][len(SERVER):]
     actions = [{**one, "path": None, "server": server, "primary": not n} for n, one in enumerate(connect["actions"])]
-    return {**row, "state": connect["state"], "dim": False, "properties": {
-        **row["properties"], "state": connect["state"], "lines": [], "text": None, "error": None,
+    return {**row, "state": connect["state"], "mark": None, "dim": False, "properties": {
+        **row["properties"], "state": connect["state"], "lines": [], "text": None, "error": None, "tip": None,
         "words": connect["words"], "actions": actions}}
-
-
-def label(action):
-    """ACTION's words on its button and in the menu: the TUI's own where it has them, else core's."""
-    return OWN_WORDS.get(action["id"], action["label"])
 
 
 def said(row):
     """ROW's property lines as they lie under it: a line saying only what the row shows (its name, state or tag: where
     a rule or a plugin's skill is from) left out, and a third column naming its tag again."""
-    tag, lines = (row["tag"] or {}).get("text"), row["properties"]["lines"]
+    tag, lines = row["tag"], row["properties"]["lines"]
     if not tag:                                     # a conflict: both rules, each with where it is
         return lines
     shown = {row["name"], tag, (row["state"] or {}).get("text")}
@@ -389,27 +368,27 @@ class Layers:
     def __init__(self, icons=True, folded=FOLDED):
         self.icons = icons
         self.folded = set(folded)             # the sections folded, kept in settings.json
-        self.more = set()                     # the sections opened past their "N more"
+        self.more = set()                     # the sections and groups opened past their "N more"
         self.answer = None                    # the family's last read: None until the first one
         self.chosen = None                    # the chosen item's key: ("section", id), ("row", id), ("more", id)
         self.top, self.follow = 0, True       # the first line shown under the head; whether it follows the chosen
         self.checking, self.frame = set(), SPINNER[0]     # the servers Claude checks again, their marks' spin
         self.hover = self.menu = self.canvas = None
         self.cut = {}                         # a row cut short in the last draw: its words whole, for its tip
-        self.adding = None                    # an agent picked under Add an agent…: how it is installed, shown
+        self.looking = None                   # a not-installed agent picked in the list: how it is installed, shown
         self.head_y = 0                       # the head's row as last drawn: its list opens under it
         self.signing = set()                  # the servers their agent signs in to now (the family's)
         self.form = None                      # "Add by URL": {"name", "url": fields, "scope", "at": the keys', "error"}
         self.wanted = None                    # a row to choose once it is read: a server added a moment ago
-        self.period = PERIODS[0]              # the period Usage's costs are of
-        self.costs = None                     # core's report for it (the family's read): None until the first one
-        self.reading = False                  # whether conversations are still being read for it
-        self.opened = {}                      # Usage's blocks turned here, {agent: open}, till core's answer tells it
+        self.costs = None                     # core's report for the API-key agents' months (the family's read)
+        self.edit = None                      # the chosen item's form (agent_form.py's), or a rule's being added
+        self.saving = None                    # the foot's words for the save asked of the family
+        self.foot = None                      # the last save: {"words", "label", "undo": core's edits back, "of"}
 
     @property
     def editing(self):
-        """Whether the keys are a field's (the form's): the dock's own (1-6, q) wait."""
-        return bool(self.form)
+        """Whether the keys are a form's: the dock's own (1-6, q) wait."""
+        return bool(self.form) or bool(self.edit and self.edit.entered)
 
     # --- what it shows
 
@@ -417,25 +396,118 @@ class Layers:
         """ANSWER (the family's read: core's layers() with the agent and folder, or "missing"), the chosen item kept
         where it still is, else the one in its place."""
         keys = [key for key, _ in self.items()]
-        place = keys.index(self.chosen) if self.chosen in keys else 1         # a new view: under its head
+        place = keys.index(self.chosen) if self.chosen in keys else None
         self.answer = answer
-        told = ((answer or {}).get("usage") or {}).get("open") or {}
-        self.opened = {agent: on for agent, on in self.opened.items() if told.get(agent) != on}
-        if self.adding and (self.agent_of(self.adding) or {}).get("installed", True):
-            self.adding = None                # installed meanwhile, or no longer told
+        if self.foot and self.foot["of"] != (answer.get("agent"), answer.get("folder")):
+            self.foot = None                  # another agent's or folder's: its Undo is not this one's
+        if self.looking and (self.agent_of(self.looking) or {}).get("installed", True):
+            self.looking = None                # installed meanwhile, or no longer told
         if not self.adds():                   # another agent's, or no setup: nothing to add to
             self.form = None
         keys = [key for key, _ in self.items()]
         if self.wanted in keys:
             self.chosen, self.wanted, self.follow = self.wanted, None, True
-        if self.chosen not in keys:
-            self.chosen = keys[min(place, len(keys) - 1)] if keys else None
+        if self.chosen not in keys:               # the one in its place; a new view: the first under its head
+            under = next((key for key in keys if key not in (HEAD, MODEL)), HEAD)
+            self.chosen = (under if place is None else keys[min(place, len(keys) - 1)]) if keys else None
+        self.reopen()
 
     def agent(self):
         return (self.answer or {}).get("agent")
 
     def doable(self, row):
-        return doable(row, self.agent())
+        form = self.edit if self.edit and self.edit.key == ("row", row["id"]) else None
+        return doable(row, self.agent(), row["id"].startswith(OWN_FILE) and bool(form and not form.locked()))
+
+    # --- the chosen item's form (core's plan, which the family asks for)
+
+    def request(self, key):
+        """Core's request for the form the item KEY opens (the interface's table: the head's line, a row, the Hooks
+        group), or None for an item with none."""
+        if not key or self.standing() or self.agent() not in EDITED:
+            return None
+        kind, name = key
+        head = self.answer["head"]
+        if key == MODEL:
+            return {"action": "model", **({"runs": head["runs"]} if head.get("runs") else {})} if head.get(
+                "line") else None
+        if kind == "group":
+            return {"action": name}
+        row = next((row for section in self.sections() for part in parts_of(section) for row in part["rows"]
+                    if kind == "row" and row["id"] == name), None)
+        if not row:
+            return None
+        part, _, rest = name.partition(":")
+        if part in ("permission", "conflict"):
+            behavior, _, rule = rest.partition(":")
+            return {"action": "conflict", "behavior": behavior, "rule": rule} if part == "conflict" else {
+                "action": "rule", "was": {"rule": rule, "behavior": behavior, "layer": row["tag"]}}
+        if part == "connector":
+            sizes = {"starts": head.get("starts"), "tokens": row["tokens"]}
+            return {"action": part, "name": rest, **{key: size for key, size in sizes.items() if size is not None}}
+        if name == BUILT_IN:
+            return {"action": "subagent", "name": row["names"][0]} if row.get("names") else None
+        if part == "subagent" and any(line[2] == PLUGIN for line in row["properties"]["lines"][:1]):
+            return None
+        return {"action": part, **({"name": row["name"]} if rest else {})} if part in (
+            "mode", "approval", "sandbox", "skill", "subagent") else None
+
+    def reopen(self):
+        """The chosen item's form as it opens, core's plan for it awaited (the one shown stays till then); one the
+        keys are in stays while its item is the chosen one."""
+        form, asked = self.edit, self.request(self.chosen)
+        if form and form.entered and form.key == self.chosen:
+            return
+        row = self.chosen_row() or {}
+        parts = (row.get("state") or {}).get("text") == WAITS
+        if form and asked and (form.key, form.base, form.parts) == (self.chosen, asked, parts):
+            form.waits = True
+        else:
+            self.edit = Form(self.chosen, asked, row.get("names") or (), (row.get("name"), row.get("note")),
+                             parts) if asked else None
+
+    def asks(self):
+        """The request the form waits for core's plan of (the family plans it before a draw), or None."""
+        return self.edit.asked if self.edit and self.edit.waits else None
+
+    def planned(self, asked, plan):
+        if self.edit:
+            self.edit.planned(asked, plan)
+
+    def open_rule(self):
+        """The form a rule is added with, under Permissions' head, the section open and in view."""
+        key = ("section", RULES)
+        self.folded.discard(RULES)
+        self.chosen, self.follow, self.menu, self.form = key, True, None, None
+        self.edit = Form(key, {"action": "rule"})
+        self.edit.entered = True
+
+    def edited(self, action):
+        """What the form asked for, on its way to the family: a save keeps the foot's words; Claude's own command
+        with no Claude in the tab says what it waits for (core's words); a rule's form left is gone."""
+        form = self.edit
+        if action and action.name == "save_harness":
+            self.saving = {"words": form.saved(), "label": form.plan["undo"]}
+        if action and action.name == "turn_server" and not self.claude():
+            action = Action("say", (self.answer["connect"]["needs"]["turn-on"],))
+        if not form.entered and form.key[0] == "section":
+            self.edit = None
+        return action
+
+    def saved(self, said, undone=False):
+        """Core's answer to a save (apply()'s). Made: the form as it opens again, the foot line with its Undo (none
+        after an Undo). Refused: core's words in the form."""
+        kept, self.saving, form = self.saving, None, self.edit
+        if not said["applied"]:
+            if form and not undone:
+                form.error = said["error"]
+            return
+        self.foot = {**kept, "undo": said["undo"], "of": (self.agent(), self.answer.get("folder"))} \
+            if kept and not undone else None
+        if form and form.key[0] == "section":
+            self.edit = None
+        elif form:
+            form.leave()
 
     def claude(self):
         """Whether a Claude runs in this tab: where its /mcp command is typed."""
@@ -455,12 +527,12 @@ class Layers:
         return next((one for one in (self.answer or {}).get("agents") or () if one["key"] == key), None)
 
     def shown_agent(self):
-        """The agent on the head: the one looked at under Add an agent…, else the answer's."""
-        return self.agent_of(self.adding or (self.answer or {}).get("agent"))
+        """The agent on the head: the not-installed one looked at, else the answer's."""
+        return self.agent_of(self.looking or (self.answer or {}).get("agent"))
 
     def standing(self):
         """What stands in the setup's place (core's standing()): the looked-at agent's, else the answer's; None."""
-        return (self.agent_of(self.adding) or {}).get("empty") if self.adding else (self.answer or {}).get("empty")
+        return (self.agent_of(self.looking) or {}).get("empty") if self.looking else (self.answer or {}).get("empty")
 
     def sections(self):
         """Core's sections, a connector whose agent signs in now saying so in core's words."""
@@ -473,125 +545,114 @@ class Layers:
 
     def problems(self):
         """The head's problems in words ("1 failed"), the worst first."""
-        return [one["text"] for one in ((self.answer or {}).get("health") or {}).get("problems") or []]
+        return [one["text"] for one in ((self.answer or {}).get("head") or {}).get("problems") or []]
 
     def tone(self):
         """The worst problem's tone, for the row's and the rail's dot: "bad" over "warn", else None."""
-        tones = {one["tone"] for one in ((self.answer or {}).get("health") or {}).get("problems") or []}
+        tones = {one["tone"] for one in ((self.answer or {}).get("head") or {}).get("problems") or []}
         return "bad" if "bad" in tones else "warn" if "warn" in tones else None
 
-    def shown(self, section):
-        """SECTION's rows shown and how many wait under "N more": its first FIRST, its problems and used ones too;
-        every one where "1 more" would take the line the one row it hides needs."""
-        rows = section["rows"]
-        if section["id"] in self.more or len(rows) <= FIRST:
+    def shown(self, part):
+        """PART's rows shown (a section's or a group's) and how many wait under "N more": its first FIRST, its
+        problems and used ones too; every one where "1 more" would take the line the one row it hides needs."""
+        rows = part["rows"]
+        if part["id"] in self.more or len(rows) <= FIRST:
             return rows, 0
-        kept = [row for n, row in enumerate(rows) if n < FIRST or problem(row) or row["used"]]
+        kept = [row for n, row in enumerate(rows) if n < FIRST or row["mark"]]
         return (kept, len(rows) - len(kept)) if len(rows) - len(kept) > 1 else (rows, 0)
 
     def usage(self):
-        """Usage as core words it (usage.py's section()) and its rows, an agent each (an API key's from the report,
-        the agent in use first); (None, []) where the answer tells none."""
+        """Usage as core words it (usage.py's section()) and its rows, an agent each (an API key's its month, from
+        the report), the agent in use first; (None, []) where the answer tells none."""
         found = (self.answer or {}).get("usage")
         if not found:
             return None, []
-        rows = found["rows"]
-        if self.costs:
-            rows = cost_rows(rows, self.costs, self.answer.get("agents"), self.agent())
-        return found, rows
-
-    def opens(self, agent):
-        """Whether AGENT's block in Usage is open: as turned here till core tells it, else as core keeps it for both
-        clients (the agent in use's alone by default)."""
-        if agent in self.opened:
-            return self.opened[agent]
-        return (((self.answer or {}).get("usage") or {}).get("open") or {}).get(agent, agent == self.agent())
+        return found, usage_rows(found["rows"], self.costs, self.answer.get("agents"), self.agent())
 
     def items(self):
-        """The items the keys walk, in order: [(key, (section, row or None))]: the head, Usage's head (its rows have
-        nothing to do), then the sections' or, with no setup to show, what can be done instead."""
+        """The items the keys walk, in order: [(key, (section, row or None))]: the head, Usage's head and its agents,
+        then the sections' or, with no setup to show, what can be done instead."""
         if self.answer is None:
             return []
         found, standing = [(HEAD, (None, None))], self.standing()
         if standing:
             return found + [(("offer", one["id"]), (None, None)) for one in standing["actions"]]
-        usage, rows = self.usage()
-        if usage:
+        found += [(MODEL, (None, None))] if self.request(MODEL) else []
+        usage_, rows = self.usage()
+        if usage_:
             found.append((("section", USAGE), (None, None)))
             found += [(("usage", row["key"]), (None, None)) for row in rows] if USAGE not in self.folded else []
         for section in self.sections():
             found.append((("section", section["id"]), (section, None)))
             if section["id"] in self.folded:
                 continue
-            rows, more = self.shown(section)
-            found += [(("row", row["id"]), (section, row)) for row in rows]
-            found += [(("more", section["id"]), (section, None))] if more else []
+            for part in parts_of(section):
+                rows, more = self.shown(part)
+                found += [(("group", part["id"]), (section, None))] if part is not section else []
+                found += [(("row", row["id"]), (section, row)) for row in rows]
+                found += [(("more", part["id"]), (section, None))] if more else []
         return found
 
     def chosen_row(self):
         return next((row for key, (_, row) in self.items() if key == self.chosen and key[0] == "row"), None)
 
+    def chosen_usage(self):
+        return next((row for row in self.usage()[1] if self.chosen == ("usage", row["key"])), None)
+
+    def actions(self):
+        """The chosen item's buttons: a row's actions this client does, a Usage row's Open Usage."""
+        if self.chosen_usage():
+            return [USAGE_BUTTON]
+        row = self.chosen_row()
+        return self.doable(row) if row else []
+
     # --- the lines it draws
 
     def lines(self, cells):
         """Every line under the head, in order: [(kind, its item's key or None, what it draws)]."""
-        x = self.columns()
-        found, column = [], self.column([row for one in self.sections() for row in one["rows"]], cells, x["name"])
-        usage, rows = self.usage()
-        if usage:
-            found.append(("section", ("section", USAGE), {"id": USAGE, "title": usage["title"], "count": None,
-                                                          "rows": rows}))
-        if usage and USAGE not in self.folded:
+        column = self.column([row for one in self.sections() for part in parts_of(one) for row in part["rows"]],
+                             cells, self.columns()["name"])
+        error = self.answer.get("error")
+        found = self.form_lines(MODEL, cells) + ([("error", None, (error["text"], error["tip"]))] if error else [])
+        usage_, rows = self.usage()
+        if usage_:
+            found.append(("section", ("section", USAGE), {"id": USAGE, "title": usage_["title"], "count": None,
+                                                          "rows": rows, "groups": []}))
+        if usage_ and USAGE not in self.folded:
             for row in rows:
-                found.append(("agent", ("usage", row["key"]), row))
-                if self.opens(row["key"]):
-                    found += [("meters", None, row)] if row["five"] or row["week"] or "cost" not in row else []
-                    found += [("month", None, row)] if (row.get("cost") or {}).get("month") else []
-            found += [] if rows else [("none", None, usage["none"])]
-            found += self.cost_lines(cells)
+                key = ("usage", row["key"])
+                found.append(("usage", key, row))
+                pace = (row.get("month") or {}).get("pace_line")
+                found += [("pace", key, (pace, row["month"]["level"]))] if pace else []
+                if key == self.chosen:
+                    found += [(kind, key, what) for kind, what in self.usage_properties(
+                        row, cells - INSET - self.under_x(key))]
+                elif row.get("reset"):
+                    found.append(("words", key, usage.reset_said(row["reset"], self.answer.get("twelve"))))
+            found += [] if rows else [("none", None, usage_["none"])]
         for section in self.sections():
             key = ("section", section["id"])
             found.append(("section", key, section))
             if self.form and section["id"] == CONNECTORS:
                 found += [("form", key, part) for part in self.form_parts()]
+            found += self.form_lines(key, cells)
             if section["id"] in self.folded:
                 continue
-            rows, more = self.shown(section)
-            if not rows:
-                found.append(("none", None, f"No {section['title'].lower()}"))
-            for row in rows:
-                key = ("row", row["id"])
-                found.append(("row", key, (row, column)))
-                if row["warn"] and row["note"]:
-                    found.append(("warning", key, row["note"]))
-                if key == self.chosen:
-                    found += [(kind, key, what) for kind, what in self.properties(
-                        row, cells - INSET - self.name_x(key))]
-            if more:
-                found.append(("more", ("more", section["id"]), f"{more} more"))
+            for part in parts_of(section):
+                rows, more = self.shown(part)
+                if part is not section:
+                    found += [("group", ("group", part["id"]), part)] + self.form_lines(("group", part["id"]), cells)
+                for row in rows:
+                    key = ("row", row["id"])
+                    found.append(("row", key, (row, column)))
+                    if row["id"].startswith(CONFLICT) and row["note"]:
+                        found.append(("warning", key, row["note"]))
+                    if key == self.chosen:
+                        found += [(kind, key, what) for kind, what in self.properties(
+                            row, cells - INSET - self.under_x(key))]
+                if more:
+                    found.append(("more", ("more", part["id"]), f"{more} more"))
         return found
-
-    def cost_lines(self, cells):
-        """Usage's lines under its agents in CELLS, from the report: its days as one row of blocks, its projects (the
-        first PROJECTS; their commits where every name keeps its place), the cache's share and the prices' day, or,
-        while conversations are still read, that; with nothing used, core's words for it."""
-        report = self.costs
-        if not report:
-            return []
-        if report["none"]:
-            return [("none", None, READING if self.reading else report["none"])]
-        found = []
-        if any(day["total"] for day in report["daily"]):
-            found += [("gap", None, None), ("none", None, PER_DAY), ("spark", None, report["daily"])]
-        projects = report["projects"][:PROJECTS]
-        said = max([width(commits_said(one)) for one in projects] or [0])
-        named = max([min(PROJECT, width(one["name"])) for one in projects] or [0])
-        if cells - INSET - self.columns()["name"] - said - 2 - COST - 2 < named:
-            said = 0
-        found += [("gap", None, None)] + [("project", None, (one, said)) for one in projects] if projects else []
-        cache = next((cell["line"] for cell in report["summary"] if cell["key"] == "Tokens"), "")
-        foot = [cache] * bool(cache) + [f"prices {report['prices_as_of'].split(',')[0]}"]
-        return found + [("gap", None, None), ("none", None, READING if self.reading else " · ".join(foot))]
 
     def columns(self):
         """The columns a line starts at: a section's chevron, its title (a row's mark under it), a row's name."""
@@ -599,8 +660,19 @@ class Layers:
         return {"chevron": INSET, "title": title, "name": title + 2}
 
     def name_x(self, key):
-        """Where the item KEY's name and what lies under it start: a connector's past its brand."""
+        """Where the item KEY's name starts: a connector's past its brand."""
         return self.columns()["name"] + (BRAND if server_of(key) is not None else 0)
+
+    def under_x(self, key):
+        """Where what lies under the item KEY starts: UNDER cells in from its name (the head's line: from the side);
+        a rule's form at the names' column."""
+        return INSET + UNDER if key == MODEL else self.name_x(key) + (0 if key[0] == "section" else UNDER)
+
+    def form_lines(self, key, cells):
+        """The form's lines where it lies under the item KEY, which is not a row (a row's are among its properties)."""
+        if not self.edit or self.edit.key != key or key != self.chosen:
+            return []
+        return [("edit", key, line) for line in self.edit.lines(cells - INSET - self.under_x(key), self.claude())]
 
     @staticmethod
     def column(rows, cells, name):
@@ -608,7 +680,7 @@ class Layers:
         each, so nothing moves as one opens: (state end, tag cells); no tags where names from column NAME would keep
         fewer than NAME_LEAST cells."""
         edge = cells - INSET
-        tags = max([min(TAG, width(row["tag"]["text"])) for row in rows if row["tag"]] or [0])
+        tags = max([min(TAG, width(row["tag"])) for row in rows if row["tag"]] or [0])
         states = max([width(row["state"]["text"]) for row in rows if row["state"]] or [0])
         if tags and edge - tags - 2 - states - 2 - name < NAME_LEAST:
             tags = 0
@@ -616,38 +688,66 @@ class Layers:
 
     def properties(self, row, room):
         """ROW's properties as lines ROOM cells wide: label and value in aligned columns (a third at the right), none
-        the row says already (said()), its error, its text, its buttons."""
+        the row says already (said()), its error (the files it names its tip), its text, its form as it opens, its
+        buttons; with the keys in its form, the form alone."""
+        form = self.edit if self.edit and self.edit.key == ("row", row["id"]) else None
+        edit = [("edit", line) for line in form.lines(room, self.claude())] if form else []
+        if form and form.entered:
+            return edit
         props, lines = row["properties"], said(row)
         widest = max([width(line[0]) for line in lines] or [0])
         found = [("property", (line, widest)) for line in lines]
         found += [("words", props["words"])] if props.get("words") else []
-        for kind, text, most in (("error", props["error"], ERROR_ROWS), ("text", props["text"], TEXT_ROWS)):
-            if text:
-                found += [(kind, text[start:end].rstrip()) for start, end in wrap(text, max(1, room))[:most]]
-        return found + ([("buttons", self.doable(row))] if self.doable(row) else [])
+        if props["error"]:
+            found += [("error", (props["error"][start:end].rstrip(), props["tip"]))
+                      for start, end in wrap(props["error"], max(1, room))[:ERROR_ROWS]]
+        if props["text"]:
+            found += [("text", props["text"][start:end].rstrip())
+                      for start, end in wrap(props["text"], max(1, room))[:TEXT_ROWS]]
+        return found + edit + ([("buttons", self.doable(row))] if self.doable(row) else [])
+
+    def usage_properties(self, row, room):
+        """A Usage row's properties: its windows' resets and its reading's age (usage_lines()), or why its limits are
+        not told (core's words, ROOM cells wide), then Open Usage."""
+        lines, why = usage_lines(row, self.answer.get("twelve")), (row.get("untold") or {}).get("why") or ""
+        widest = max([width(line[0]) for line in lines] or [0])
+        return [("property", (line, widest)) for line in lines] + [
+            ("text", why[start:end].rstrip()) for start, end in wrap(why, max(1, room)) if why] + [
+            ("buttons", [USAGE_BUTTON])]
 
     # --- drawing
 
     def draw(self, canvas, top, height, roomy):
-        """The head on row TOP, a blank row, then the lines from self.top in HEIGHT - 2 rows, the chosen item's lines
-        in view while it follows the keys; its menu over them."""
+        """The head from row TOP (its rows head()'s), then the lines from self.top in the rows left, the chosen item's
+        lines in view while it follows the keys; its menu over them."""
         self.canvas, self.cut, cells = canvas, {}, canvas.width
         if self.answer is None:
             canvas.put(top, INSET, truncate(LOADING, cells - 2 * INSET), Style(fg="muted"))
             return
         self.head_y = top
-        self.head(canvas, top)
+        taken = self.head(canvas, top)
         standing = self.standing()
         if standing:
-            self.says(canvas, top + 2, top + height, standing)
+            self.says(canvas, top + taken, top + height, standing)
         else:
-            lines, rows = self.lines(cells), max(1, height - 2)
+            lines, rows = self.lines(cells), max(1, height - taken - bool(self.foot))
             self.scroll(lines, rows)
             for n, (kind, key, what) in enumerate(lines[self.top:self.top + rows]):
-                self.line(canvas, top + 2 + n, kind, key, what)
+                self.line(canvas, top + taken + n, kind, key, what)
+            if self.foot and height > taken + 1:
+                self.foot_line(canvas, top + height - 1)
         if self.menu:
             popup = self.menu
             popup.menu.draw(canvas, *popup.menu.at(popup.y, popup.x, cells, top, top + height, INSET))
+
+    def foot_line(self, canvas, y):
+        """The last save in core's words, dim, and its Undo after its key at the right."""
+        end, label = canvas.width - INSET, self.foot["label"]
+        x = end - width(label) - 2
+        canvas.put(y, INSET, truncate(self.foot["words"], max(1, x - INSET - 2)), Style(fg="muted"))
+        canvas.put(y, x, UNDO_KEY, Style(fg="muted"))
+        canvas.put(y, x + 2, label, Style(fg="text" if self.hover == ("undo", None) else "subtext"))
+        canvas.region(y, x, end, ("undo", None))
 
     def scroll(self, lines, rows):
         """self.top: the chosen item's lines in view after a key moved it (its first line kept), else where the wheel
@@ -663,11 +763,13 @@ class Layers:
         self.top = max(0, min(self.top, len(lines) - rows))
 
     def head(self, canvas, y):
-        """The agent's name bold, "in <folder>" dim and ⌄ (a press or Enter opens the agents' list under it), its
-        problems at the right in their colors, each choosing its row on a click."""
-        cells, head, agent = canvas.width, self.answer["head"], self.agent_of(self.adding)
+        """The agent's name bold, "in <folder>" dim and ⌄ (Enter or a press opens the agents' list), its problems at the
+        right in their colors, a click choosing its row; where a setup shows, core's line dim and the start-up rule
+        (rule()), else a blank row. The rows it takes."""
+        cells, head, agent = canvas.width, self.answer["head"], self.agent_of(self.looking)
         name = agent["name"] if agent else head["name"]
-        problems = [] if self.standing() else ((self.answer.get("health") or {}).get("problems")) or []
+        standing = self.standing()
+        problems = [] if standing else head.get("problems") or []
         bg = "selection" if self.chosen == HEAD else "hover" if self.hover == HEAD else None
         if bg:
             canvas.band(y, bg)
@@ -685,9 +787,32 @@ class Layers:
         at = canvas.put(y, INSET, truncate(name, end - INSET), Style(fg="text", bg=bg, bold=True))
         more = glyphs(self.icons)["more"]
         if end - at > 2:
-            at = canvas.put(y, at + 1, truncate(head["where"], end - at - 1), Style(fg="muted", bg=bg))
+            at = canvas.put(y, at + 1, truncate(head["where"], end - at - 1), Style(fg=grey(bg), bg=bg))
         if end - at > 1 + width(more):
-            canvas.put(y, at + 1, more, Style(fg="muted", bg=bg))
+            canvas.put(y, at + 1, more, Style(fg=grey(bg), bg=bg))
+        if standing or "bar" not in self.answer:
+            return 2
+        line = 1 if head["line"] else 0
+        if line:
+            bg = "selection" if self.chosen == MODEL else "hover" if self.hover == MODEL else None
+            if bg:
+                canvas.band(y + 1, bg)
+            if self.request(MODEL):
+                canvas.region(y + 1, 0, cells, ("layer", MODEL))
+            canvas.put(y + 1, INSET, truncate(head["line"], cells - 2 * INSET), Style(fg=grey(bg), bg=bg))
+        self.rule(canvas, y + 1 + line, cells - 2 * INSET)
+        return 2 + line
+
+    def rule(self, canvas, y, cells):
+        """What loads at start (core's bar) as a rule CELLS wide: each part's share of it in its color, a part with
+        any share a cell at least; nothing where nothing loads."""
+        parts = [one for one in self.answer["bar"] if one["share"]]
+        sizes = [max(1, round(one["share"] * cells)) for one in parts]
+        if sizes:
+            sizes[sizes.index(max(sizes))] += cells - sum(sizes)
+        x = INSET
+        for size, one in zip(sizes, parts):
+            x = canvas.put(y, x, RULE * size, Style(fg=PART_ROLE[one["part"]]))
 
     def says(self, canvas, y, bottom, standing):
         """What stands in the setup's place from row Y on (core's standing()): its title bold, its words, its install
@@ -724,190 +849,134 @@ class Layers:
 
     def line(self, canvas, y, kind, key, what):
         cells, x = canvas.width, self.columns()
-        lit = kind in ("section", "row", "more", "agent")
+        lit = kind in ("section", "row", "more", "usage", "group")
         bg = ("selection" if key == self.chosen else "hover" if key == self.hover else None) if lit else None
         if bg:
             canvas.band(y, bg)
         if lit:
             canvas.region(y, 0, cells, ("layer", key))
         if kind == "section":
-            mark = widgets.TURNS.mark(self.icons, ("agent", what["id"]), what["id"] not in self.folded)
-            canvas.put(y, x["chevron"], mark, Style(fg="muted", bg=bg))
-            count = "" if what["count"] is None else str(what["count"])
-            canvas.put(y, cells - INSET - width(count), count, Style(fg="subtext", bg=bg))
-            if what["id"] == USAGE and USAGE in self.folded:    # folded: one figure in the period's place
-                count = self.headline(canvas, y, what["rows"], cells - INSET - x["title"] - 7, bg)
-            elif what["id"] == USAGE:             # its period in the count's place: a press steps it
-                count = truncate(period_said(self.period), max(0, cells - INSET - x["title"] - 7))
-                canvas.put(y, cells - INSET - width(count), count, Style(fg="muted", bg=bg))
-                canvas.region(y, cells - INSET - width(count), cells - INSET, ("period", None))
-            canvas.put(y, x["title"], truncate(what["title"], cells - INSET - width(count) - 1 - x["title"]),
-                       Style(fg="text", bg=bg, bold=True))
+            self.section(canvas, y, what, bg)
         elif kind == "row":
             self.row(canvas, y, key, *what, bg)
-        elif kind in ("more", "none"):
-            canvas.put(y, x["name"], truncate(what, cells - INSET - x["name"]), Style(fg="muted", bg=bg))
-        elif kind in ("warning", "error", "text", "words"):
-            role = {"warning": "modified", "error": "deleted", "text": "muted", "words": "subtext"}[kind]
-            canvas.put(y, self.name_x(key), truncate(what, cells - INSET - self.name_x(key)), Style(fg=role))
+        elif kind == "usage":
+            self.usage_line(canvas, y, what, bg)
+        elif kind in ("more", "none", "group"):
+            words = f"{what['title']} {what['count']}" if kind == "group" else what
+            canvas.put(y, x["name"], truncate(words, cells - INSET - x["name"]), Style(fg=grey(bg), bg=bg))
+            if kind == "group" and what.get("state"):       # every hook off here
+                self.right(canvas, y, cells - INSET, [(what["state"]["text"], "muted")], bg)
+        elif kind == "edit":
+            self.edit.draw(canvas, y, self.under_x(key), what, self.hover)
+        elif kind == "error":
+            at = INSET if key is None else self.under_x(key)
+            words = truncate(what[0], cells - INSET - at)
+            canvas.put(y, at, words, Style(fg="deleted"))
+            if what[1]:                                 # the files it named: its tip
+                canvas.region(y, at, at + width(words), ("tip", what[1]))
+        elif kind == "pace":
+            (pace, level), at = what, self.under_x(key)
+            words = pace["text"] if width(pace["text"]) <= cells - INSET - at else pace["narrow"]
+            canvas.put(y, at, truncate(words, cells - INSET - at), Style(fg=LEVEL_ROLE.get(level, "muted")))
+        elif kind in ("warning", "text", "words"):
+            role = {"warning": "modified", "text": "muted", "words": "muted"}[kind]
+            canvas.put(y, self.under_x(key), truncate(what, cells - INSET - self.under_x(key)), Style(fg=role))
         elif kind == "form":
             self.form_line(canvas, y, what)
-        elif kind == "agent":
-            self.agent_line(canvas, y, what, bg)
-        elif kind == "meters":
-            self.meters(canvas, y, what)
-        elif kind == "month":
-            self.month(canvas, y, what["cost"]["month"])
-        elif kind == "spark":
-            self.spark(canvas, y, what)
-        elif kind == "project":
-            self.project(canvas, y, *what)
         elif kind == "property":
-            self.property(canvas, y, *what, self.name_x(key))
+            self.property(canvas, y, *what, self.under_x(key))
         elif kind == "buttons":
-            self.buttons(canvas, y, what, self.name_x(key))
+            self.buttons(canvas, y, what, self.under_x(key))
+
+    def section(self, canvas, y, what, bg):
+        """A section's head: its chevron dim (none on an empty one), its title bold and count; at the right Usage's ↗
+        (folded, the figure that matters first: headline()'s), Permissions' summary in its tones' colors, else the
+        start-up rule's swatch before what it loads always."""
+        cells, x, faint = canvas.width, self.columns(), grey(bg)
+        if what["id"] == USAGE or what["rows"] or what["groups"]:       # Usage's line says when it has none
+            mark = widgets.TURNS.mark(self.icons, ("agent", what["id"]), what["id"] not in self.folded)
+            canvas.put(y, x["chevron"], mark, Style(fg=faint, bg=bg))
+        at = canvas.put(y, x["title"], truncate(what["title"], cells - INSET - x["title"]), Style(fg="text", bg=bg,
+                                                                                                    bold=True))
+        if what["count"] is not None and at + 1 + width(str(what["count"])) <= cells - INSET:
+            at = canvas.put(y, at + 1, str(what["count"]), Style(fg=faint, bg=bg))
+        end, room = cells - INSET, cells - INSET - at - 2
+        if what["id"] == USAGE:
+            row = headline(what["rows"], self.agent()) if USAGE in self.folded else None
+            parts = [(f"{row['name']} ", "muted")] + figures(row, bars=False, short=True) if row else []
+            parts = parts + [("  ", "muted"), (OPENS, "muted")] if parts else [(OPENS, "muted")]
+            if sum(width(words) for words, _ in parts) > room:
+                parts = [(OPENS, "muted")]
+        elif what["summary"]:
+            parts = [part for n, one in enumerate(what["summary"])
+                     for part in [("  ", "muted")] * bool(n) + [(one["text"], STATE_ROLE[one["tone"]])]]
+        else:
+            parts = [(SWATCH, PART_ROLE[what["swatch"]]), (f" {what['cost']}", "muted")] if what["cost"] else []
+        if what["id"] == RULES and self.agent() == "claude":       # a rule added from its head
+            end -= width(PLUS) + 2
+            room -= width(PLUS) + 2
+            canvas.put(y, end + 2, PLUS, Style(fg="text" if self.hover == ("add", None) else faint, bg=bg))
+            canvas.region(y, end + 1, cells, ("add", None))
+        if sum(width(words) for words, _ in parts) <= room:
+            self.right(canvas, y, end, parts, bg)
+            if what["id"] == USAGE:
+                canvas.region(y, end - width(OPENS), end, ("opens", None))
 
     def row(self, canvas, y, key, row, column, bg):
-        """A row: its mark under its section's title (a connector's state, a conflict's, else USED's dot), its name
-        (dim where it does not run here; a connector's after its brand) and note, its state and its tag in the view's
+        """A row: its mark under its section's title (one being checked or signing in spins there), its name (dim
+        where it does not run here; a connector's after its brand) and note, what it states and its tag in the view's
         columns."""
-        cells, x = canvas.width, self.columns()
+        cells, x, faint = canvas.width, self.columns(), grey(bg)
         state_end, tags = column
-        tone = "warn" if row["warn"] else (row["state"] or {}).get("tone")
-        if row["id"].startswith(SERVER) and row["id"][len(SERVER):] in self.checking:
-            canvas.put(y, x["title"], self.frame, Style(fg="accent", bg=bg))       # Claude checking it again
-        elif (row["icon"] == "plug" or row["warn"]) and tone in MARKS:
-            glyph, role = MARKS[tone]
+        state = stated(row)
+        if server_of(key) in self.checking or (state or {}).get("tone") == "busy":
+            canvas.put(y, x["title"], self.frame, Style(fg="accent", bg=bg))
+        elif row["mark"] in MARKS:
+            glyph, role = MARKS[row["mark"]]
             canvas.put(y, x["title"], glyph, Style(fg=role, bg=bg))
-        elif row["used"]:                               # the open conversation used it: the app's dot
-            canvas.put(y, x["title"], USED[0], Style(fg=USED[1], bg=bg))
         if tags and row["tag"]:
-            words = truncate(row["tag"]["text"], tags)
-            canvas.put(y, cells - INSET - width(words), words, Style(fg=TAG_ROLE.get(row["tag"]["tone"], "muted"),
-                                                                     bg=bg))
+            words = truncate(row["tag"], tags)
+            canvas.put(y, cells - INSET - width(words), words, Style(fg=faint, bg=bg))
         name_x = self.name_x(key)
         if row["icon"] == "plug":                       # its brand between its mark and its name
             glyph, role = brand_cell(row, self.icons)
             canvas.put(y, x["name"], glyph, Style(fg=role, bg=bg))
         room = state_end - name_x                       # a tag's column keeps its two cells of air before it
-        if row["state"]:
-            words = truncate(row["state"]["text"], max(1, room - 3))
-            canvas.put(y, state_end - width(words), words, Style(fg=STATE_ROLE.get(row["state"]["tone"], "muted"),
-                                                                 bg=bg))
+        noted = state is not None and state is not row["state"]                   # its note in its state's column
+        note = "" if noted or row["id"].startswith(CONFLICT) else row["note"] or ""    # or under it, or after its name
+        least = 5 if noted else 1                       # a note there gives way to the name: what it is, first
+        roomy = room - width(row["name"]) - 2 if noted else room - 3
+        if state and roomy >= least:
+            words = truncate(state["text"], roomy)
+            role = STATE_ROLE.get(state["tone"], "muted")
+            canvas.put(y, state_end - width(words), words, Style(fg=faint if role == "muted" else role, bg=bg))
             room -= width(words) + 2
-        note = "" if row["warn"] else row["note"] or ""
         whole = row["name"] + (f" {note}" if note else "")
         if width(whole) > room:
             self.cut[key] = whole
-        at = canvas.put(y, name_x, truncate(row["name"], max(1, room)), Style(fg="muted" if row["dim"] else "text",
+        at = canvas.put(y, name_x, truncate(row["name"], max(1, room)), Style(fg=faint if row["dim"] else "text",
                                                                               bg=bg))
         if note and room - (at - name_x) > 2:
-            canvas.put(y, at + 1, truncate(note, room - (at - name_x) - 1), Style(fg="muted", bg=bg))
+            canvas.put(y, at + 1, truncate(note, room - (at - name_x) - 1), Style(fg=faint, bg=bg))
 
-    def agent_line(self, canvas, y, row, bg=None):
-        """An agent of Usage: its block's chevron, its name bold, its plan's word dim; open, at the right what it cost
-        where the report tells it, else, dim, its reading's age and its reset (both where they fit two cells off);
-        folded, its figures (figures()), the tighter alone where both do not fit."""
-        x, end = self.columns(), canvas.width - INSET
-        opened = self.opens(row["key"])
-        canvas.put(y, x["title"], FOLDS[opened], Style(fg="muted", bg=bg))
-        at = canvas.put(y, x["name"], truncate(row["name"], max(1, end - x["name"])), Style(fg="text", bold=True,
-                                                                                            bg=bg))
+    def usage_line(self, canvas, y, row, bg):
+        """An agent of Usage: its name bold, its plan's word dim, at the right its figures (figures()): the bars go
+        first where all do not fit, then the looser window, an API key's budget; with no reading, core's words."""
+        x, end = self.columns()["name"], canvas.width - INSET
+        at = canvas.put(y, x, truncate(row["name"], max(1, end - x)), Style(fg="text", bold=True, bg=bg))
         if row["plan"] and end - at > 1 + width(row["plan"]):
-            at = canvas.put(y, at + 1, row["plan"], Style(fg="muted", bg=bg))
-        if not opened:
-            parts = next((one for one in (figures(row), figures(row, short=True))
-                          if one and sum(width(words) for words, _ in one) <= end - at - 2), [])
-            self.right(canvas, y, end, parts, bg)
-            return
-        cost = row.get("cost")
-        if cost:                              # what it cost: its figure, and the figure's word where both fit
-            for figure, unit in ((cost["figure"], cost["unit"]), (cost["figure"], "")):
-                if width(figure) + (1 + width(unit) if unit else 0) <= end - at - 2:
-                    canvas.put(y, end - width(unit), unit, Style(fg="muted", bg=bg))
-                    canvas.put(y, end - width(unit) - (1 if unit else 0) - width(figure), figure, Style(fg="text",
-                                                                                                        bg=bg))
-                    break
-            return
-        self.when(canvas, y, row, at, bg)
-
-    def headline(self, canvas, y, rows, room, bg):
-        """Usage's head folded: at its right the figure of headline()'s agent after its name, dim, where ROOM cells
-        take it (else the figure alone); the words drawn ("" for none)."""
-        row = headline(rows, self.agent())
-        if not row:
-            return ""
-        for parts in ([(f"{row['name']} ", "muted")] + tightest(row), tightest(row)):
-            words = "".join(words for words, _ in parts)
-            if width(words) <= room:
-                self.right(canvas, y, canvas.width - INSET, parts, bg)
-                return words
-        return ""
+            at = canvas.put(y, at + 1, row["plan"], Style(fg=grey(bg), bg=bg))
+        untold = [(row["untold"]["text"], "muted")] if row.get("untold") else []
+        parts = next((one for one in (figures(row), figures(row, bars=False), figures(row, bars=False, short=True))
+                      if sum(width(words) for words, _ in one) <= end - at - 2), []) or untold
+        self.right(canvas, y, end, parts, bg)
 
     @staticmethod
     def right(canvas, y, end, parts, bg=None):
-        """PARTS ([(words, role)]) drawn in their roles, ending at column END."""
+        """PARTS ([(words, role)]) drawn in their roles, ending at column END; muted ones readable on a lit row."""
         x = end - sum(width(words) for words, _ in parts)
         for words, role in parts:
-            x = canvas.put(y, x, words, Style(fg=role, bg=bg))
-
-    @staticmethod
-    def when(canvas, y, row, at, bg=None):
-        """ROW's reading's age and its window's reset at the line's right, dim, two cells past column AT at least."""
-        end = canvas.width - INSET
-        said = [words for words in (row["age"], (row["resets"] or {}).get("said")) if words]
-        for words in ("  ".join(said), *said[:1]):
-            if words and width(words) <= end - at - 2:
-                canvas.put(y, end - width(words), words, Style(fg="muted", bg=bg))
-                break
-
-    def meters(self, canvas, y, row):
-        """An agent's limits under its name: "5h" and "wk" dim, each with its bar and percent in its level's color,
-        each in its own column (one past its reset leaves its place empty); a narrow pane drops the bars. Where its
-        name's line says what it cost, its age and reset stand after them."""
-        x, end = self.columns()["name"], canvas.width - INSET
-        bars = end - x >= 2 * (3 + BAR + 4) + 2
-        if row.get("cost"):
-            self.when(canvas, y, row, x + 2 * (3 + BAR + 4 if bars else 7) + 2)
-        for one in (row["five"], row["week"]):
-            if one:
-                role = Style(fg=LEVEL_ROLE.get(one["level"], "muted"))
-                at = canvas.put(y, x, one["label"], Style(fg="muted"))
-                if bars:
-                    at = canvas.put(y, at + 1, bar(one["used"]), role)
-                canvas.put(y, at, one["text"].rjust(4 if bars else 5), role)
-            x += (3 + BAR + 4 if bars else 7) + 2
-
-    def month(self, canvas, y, month):
-        """An API-key agent's month under its name: its name dim, its spent as a bar of its budget (with one, where
-        the bars fit), the pace it is on; bar and pace yellow once over."""
-        x, end = self.columns()["name"], canvas.width - INSET
-        role = Style(fg="modified") if month["over"] else None
-        at = canvas.put(y, x, month["label"], Style(fg="muted"))
-        if month["used"] is not None and end - x >= 2 * (3 + BAR + 4) + 2:
-            at = canvas.put(y, at + 1, bar(month["used"]), role or Style(fg="added"))
-        canvas.put(y, at + 2, truncate(month["pace"], max(0, end - at - 2)), role or Style(fg="muted"))
-
-    def spark(self, canvas, y, daily):
-        """The report's days as one row of blocks, each in its costliest model's color, then the days they span."""
-        x, end = self.columns()["name"], canvas.width - INSET
-        shown = daily
-        while len(shown) > 1 and len(shown) > end - x - 2 - width(days_said(shown)):   # the days named are the ones
-            shown = shown[1:]                                                           # drawn: the last that fit
-        said = days_said(shown)
-        for block, color in spark(shown, len(shown)):
-            x = canvas.put(y, x, block, Style(fg=color))
-        canvas.put(y, x + 2, said, Style(fg="muted"))
-
-    def project(self, canvas, y, one, said):
-        """A project: its name, its cost, and its conversations' commits dim in a column SAID cells wide (0: none)."""
-        x, end = self.columns()["name"], canvas.width - INSET
-        cost = "no price" if one["cost"] is None else money(one["cost"], True)
-        if said:
-            canvas.put(y, end - said, commits_said(one), Style(fg="muted"))
-            end -= said + 2
-        canvas.put(y, end - width(cost), cost, Style(fg="text" if one["cost"] is not None else "muted"))
-        canvas.put(y, x, truncate(one["name"], max(1, end - width(cost) - 2 - x)), Style(fg="text"))
+            x = canvas.put(y, x, words, Style(fg=grey(bg) if role == "muted" else role, bg=bg))
 
     def property(self, canvas, y, line, widest, x):
         """A property from column X: its label dim, its value from the labels' column (WIDEST cells and two) on, a
@@ -922,31 +991,39 @@ class Layers:
         canvas.put(y, x + widest + 2, truncate(value, max(1, end - x - widest - 2)), Style(fg="text"))
 
     def buttons(self, canvas, y, actions, x):
-        """The chosen row's buttons from column X as blocks, a cell of air round each label, two cells apart: Connect
-        lit as the accent's button, one that waits for a Claude dim; lit under the mouse."""
+        """The chosen item's buttons from column X as blocks, a cell of air round each label, two cells apart: Connect
+        lit as the accent's button; lit under the mouse."""
         end = canvas.width - INSET
         for n, one in enumerate(actions):
-            words = truncate(label(one), max(1, end - x - 2))
+            words = truncate(one["label"], max(1, end - x - 2))
             if x + width(words) + 2 > end:
                 break
-            pointed, waits = self.hover == ("action", n), one["id"] in NEEDS and not self.claude()
+            pointed = self.hover == ("action", n)
             bg = "button" if one["id"] == "connect" else "hover" if pointed else "input"
             canvas.chip(y, x, width(words) + 2, bg)
             canvas.put(y, x + 1, words, Style(fg="button_text", bg=bg, bold=True) if bg == "button" else Style(
-                fg="muted" if waits else "text" if pointed else "subtext", bg=bg))
+                fg="text" if pointed else "subtext", bg=bg))
             canvas.region(y, x, x + width(words) + 2, ("action", n))
             x += width(words) + 4
 
-    # --- a connector added: More's lines, the form under Connectors' head
+    # --- More's lines, the form a connector is added with under Connectors' head
 
     def menu_lines(self):
-        """What More lists first while this view shows (connectors.html's ⋯ menu): the ways to add a connector, and a
-        read of the setup; none where no setup shows."""
+        """What More lists first while this view shows (connectors.html's ⋯ menu): the Usage view and the graph, the
+        ways to add a connector, a read of the setup; none where no setup shows."""
         add = self.adds()
-        return [WAYS[way["id"]] for way in add["menu"] if way["id"] in WAYS] + [REFRESH] if add else []
+        if not add:
+            return []
+        ways = [WAYS[way["id"]] for way in add["menu"] if way["id"] in WAYS]
+        return [OPEN_USAGE] * bool(self.usage()[0]) + [SHOW_GRAPH] * self.graphs() + ways + [REFRESH]
 
     def menu_pick(self, choice):
-        """More's line CHOICE done: claude.ai's page in the browser, the form opened, the setup read again."""
+        """More's line CHOICE done: the Usage view, the graph, claude.ai's page in the browser, the form opened, the
+        setup read again."""
+        if choice == OPEN_USAGE:
+            return Action("open_usage", ())
+        if choice == SHOW_GRAPH:
+            return Action("show_graph", ())
         if choice == REFRESH:
             return Action("refresh_agent", ())
         way = next((way for way in (self.adds() or {}).get("menu", ()) if WAYS.get(way["id"]) == choice), None)
@@ -962,7 +1039,7 @@ class Layers:
         self.form = {"name": TextInput(), "url": TextInput(), "scope": scopes[0]["id"] if scopes else None,
                      "at": "name", "error": None}
         self.folded.discard(CONNECTORS)
-        self.chosen, self.follow, self.menu = ("section", CONNECTORS), True, None
+        self.chosen, self.follow, self.menu, self.edit = ("section", CONNECTORS), True, None, None
 
     def form_stops(self):
         """What the form's keys step through, in order."""
@@ -1052,10 +1129,10 @@ class Layers:
         return None
 
     def tip(self, target):
-        """A row cut short: its name and note whole."""
+        """A row cut short: its name and note whole; an error: the files it named."""
         if isinstance(target, tuple) and target[0] == "layer":
             return self.cut.get(target[1])
-        return None
+        return target[1] if isinstance(target, tuple) and target[0] == "tip" else None
 
     # --- keys and the mouse
 
@@ -1071,35 +1148,45 @@ class Layers:
             return self.pick(choice) if choice not in (None, "cancel") else None
         if self.form:
             return self.form_key(event)
+        if self.edit and self.edit.entered:
+            return self.edited(self.edit.handle(event))
         keys = [key for key, _ in self.items()]
         if not keys:
             return None
         at = keys.index(self.chosen) if self.chosen in keys else 0
-        name = event.name
+        name, kind = event.name, (self.chosen or (None,))[0]
+        typed = event.char if name == "char" and not (event.ctrl or event.alt) else None
         if name in ("up", "down", "pageup", "pagedown", "home", "end"):
             step = {"up": -1, "down": 1, "pageup": -10, "pagedown": 10, "home": -len(keys), "end": len(keys)}[name]
             self.choose(keys[max(0, min(len(keys) - 1, at + step))])
-        elif name in ("right", "left") and self.chosen and self.chosen[0] == "usage":
-            if self.opens(self.chosen[1]) == (name == "left"):      # → opens a folded one, ← folds an open one
-                return self.turn(self.chosen[1])
-            if name == "left":
-                self.choose(("section", USAGE))
-        elif name == "right" and self.chosen and self.chosen[0] == "section":
+        elif name == "right" and kind == "section":
             if self.chosen[1] in self.folded:
                 return self.fold(self.chosen[1])
             if at + 1 < len(keys) and keys[at + 1][0] != "section":
                 self.choose(keys[at + 1])
-        elif name == "left" and self.chosen and self.chosen[0] in ("section", "row", "more"):
-            if self.chosen[0] == "section":
-                return None if self.chosen[1] in self.folded else self.fold(self.chosen[1])
+        elif name == "left" and kind == "section":
+            return None if self.chosen[1] in self.folded else self.fold(self.chosen[1])
+        elif name == "left" and kind in ("row", "more", "usage", "group"):
             self.choose(next(key for key in reversed(keys[:at]) if key[0] == "section"))
+        elif name == "right" and self.edit:
+            self.edit.enter()
         elif name == "enter":
             return self.activate()
-        elif name == "char" and event.char == ADD_KEY and not (event.ctrl or event.alt) and self.adds():
+        elif typed == ADD_KEY and self.agent() == "claude" and (dict(self.items())[self.chosen][0] or {}).get(
+                "id") == RULES:
+            self.open_rule()
+        elif typed == ADD_KEY and self.adds():
             self.open_form()
-        elif name == "char" and event.char == PERIOD_KEY and not (event.ctrl or event.alt) and self.usage()[0]:
-            return self.step_period()
-        elif name == "char" and event.char == GRAPH_KEY and not (event.ctrl or event.alt) and self.graphs():
+        elif typed == REMOVE_KEY and self.edit and (self.edit.plan or {}).get("remove"):
+            self.edit.entered = True
+            self.edit.remove()
+        elif typed == UNDO_KEY and self.foot:
+            return Action("undo_harness", (self.foot["undo"],))
+        elif name == "esc":
+            self.foot = None
+        elif typed == USAGE_KEY and self.usage()[0]:
+            return Action("open_usage", ())
+        elif typed == GRAPH_KEY and self.graphs():
             return Action("show_graph", ())
         return None
 
@@ -1107,22 +1194,16 @@ class Layers:
         """Whether the agent shown has a graph to show: one whose setup is read."""
         return bool(self.answer) and not self.standing() and bool(self.answer.get("sections"))
 
-    def step_period(self):
-        """Usage's next period (PERIODS', round): its head says it at once, its costs are asked for."""
-        self.period = PERIODS[(PERIODS.index(self.period) + 1) % len(PERIODS)]
-        return Action("usage_period", (self.period,))
-
     def choose(self, key):
         self.chosen, self.follow, self.menu = key, True, None
-
-    def turn(self, agent):
-        """AGENT's block in Usage opened or folded, at once; core keeps it for both clients (the family asks)."""
-        self.opened[agent] = not self.opens(agent)
-        self.follow = True
-        return Action("usage_open", (agent, self.opened[agent]))
+        self.reopen()
 
     def fold(self, section):
-        """SECTION folded or opened, its chevron turning; the sections folded kept (settings.json)."""
+        """SECTION folded or opened, its chevron turning; the sections folded kept (settings.json). An empty one has
+        nothing to fold."""
+        found = next((one for one in self.sections() if one["id"] == section), None)
+        if found is not None and not (found["rows"] or found["groups"]):
+            return None
         widgets.TURNS.turn(("agent", section))
         self.folded ^= {section}
         self.more.discard(section)
@@ -1130,62 +1211,55 @@ class Layers:
         return Action("remember_agent_folded", (sorted(self.folded),))
 
     def activate(self):
-        """Enter: a section folded or opened (Usage's: its view), an agent's block in it; "N more" opened in place, its
-        first new row chosen; a row's first action this client can do."""
+        """Enter: a section folded or opened (Usage's too); "N more" opened in place, its first new row chosen; the
+        chosen item's first action this client can do, else the keys into its form."""
         kind, name = self.chosen or (None, None)
         if kind == "head":
             return self.open_list()
         if kind == "offer":
             return self.offer(name)
-        if kind == "section" and name == USAGE:         # its home: the Usage view
-            return Action("open_usage", (self.period,))
         if kind == "section":
             return self.fold(name)
-        if kind == "usage":
-            return self.turn(name)
         if kind == "more":
-            section = next(s for s in self.sections() if s["id"] == name)
-            before = {row["id"] for row in self.shown(section)[0]}
+            part = next(part for section in self.sections() for part in parts_of(section) if part["id"] == name)
+            before = {row["id"] for row in self.shown(part)[0]}
             self.more.add(name)
-            self.choose(("row", next(row["id"] for row in section["rows"] if row["id"] not in before)))
+            self.choose(("row", next(row["id"] for row in part["rows"] if row["id"] not in before)))
             return None
-        row = self.chosen_row()
-        return self.act(self.doable(row)[0]) if row and self.doable(row) else None
+        does = self.actions()
+        if not does and self.edit:
+            self.edit.enter()
+        return self.act(does[0]) if does else None
 
     def act(self, one):
-        """What action ONE asks the family for: a file opened, the agent's own command on its server; Claude's /mcp
-        with no Claude in the tab: what it waits for, said."""
+        """What action ONE asks the family for: a file opened, the Usage view, the graph, the agent's own command on
+        its server."""
         kind = one["id"]
         if kind == "open":
             return Action("open_setup", (one["path"],))
-        if kind in NEEDS:
-            return Action("turn_server", (one["server"], kind == "turn-on")) if self.claude() \
-                else Action("say", (NEEDS[kind],))
+        if kind == "usage":
+            return Action("open_usage", ())
+        if kind == "graph":
+            return Action("show_graph", ())
         return Action(ASKS[kind], (one["server"],))
 
     def pick(self, words):
         popup, self.menu = self.menu, None
         if isinstance(popup.menu, AgentMenu):
             return self.picked(words)
-        if popup.on == USAGE:
-            return Action("open_usage", (self.period,))
-        if popup.on == SHOW_GRAPH:
-            return Action("show_graph", ())
-        return next((self.act(one) for one in self.doable(popup.on) if label(one) == words), None)
+        return next((self.act(one) for one in self.actions() if one["label"] == words), None)
 
-    def open_list(self, add=False):
-        """The agents' list under the head: the installed ones and Add an agent…, or (ADD) the ones to add."""
-        agents, check = (self.answer or {}).get("agents"), glyphs(self.icons)["check"]
-        menu = AgentMenu(ADD, add_choices(agents), check, NONE_TO_ADD) if add else AgentMenu(
-            AGENTS, agent_choices(agents, None if self.adding else self.answer.get("agent")), check, LOADING_AGENTS)
+    def open_list(self):
+        """The agents' list under the head (agent_choices()): a check on the one shown, the looked-at one first."""
+        choices = agent_choices((self.answer or {}).get("agents"), self.looking or self.answer.get("agent"))
+        menu = AgentMenu(choices, glyphs(self.icons)["check"], LOADING_AGENTS)
+        menu.index = next((n for n, one in enumerate(choices) if one["check"]), 0)
         self.menu = Popup(menu, "agents", self.head_y + 1, INSET)
 
     def picked(self, choice):
-        """CHOICE made in the agents' list: an agent, the whole view its own (the app keeps it); Add an agent…, its
-        list; an agent to add, how it is installed in the setup's place."""
-        if choice["kind"] == "add":
-            return self.open_list(add=True)
-        self.adding = choice["key"] if choice["kind"] == "install" else None
+        """CHOICE made in the agents' list: an agent, the whole view its own (the app keeps it); one not installed,
+        looked at alone: how it is installed in the setup's place."""
+        self.looking = choice["key"] if choice["kind"] == "install" else None
         if choice["kind"] == "agent":
             return Action("choose_agent", (choice["key"],))
         self.choose(next((key for key, _ in self.items() if key[0] == "offer"), HEAD))
@@ -1206,7 +1280,8 @@ class Layers:
         target = self.canvas.hit(event.x, event.y) if self.canvas else None
         if event.kind == "move":
             self.hover = target[1] if isinstance(target, tuple) and target[0] == "layer" else \
-                target if isinstance(target, tuple) and target[0] in ("action", "form") else None
+                target if isinstance(target, tuple) and target[0] in ("action", "form", "edit", "add", "undo") \
+                else None
             if self.menu:
                 self.menu.menu.point(target)
         elif event.kind in ("wheel_up", "wheel_down"):
@@ -1233,34 +1308,32 @@ class Layers:
             self.choose(("row", key))
             return self.fold(section) if section in self.folded else None
         if kind == "action":
-            row = self.chosen_row()
-            return self.act(self.doable(row)[key]) if row and key < len(self.doable(row)) else None
-        if kind == "period":
-            self.choose(("section", USAGE))
-            return self.step_period()
+            does = self.actions()
+            return self.act(does[key]) if key < len(does) else None
+        if kind == "opens":
+            return Action("open_usage", ())
+        if kind == "edit":
+            return self.edited(self.edit.press(key)) if self.edit else None
+        if kind == "add":
+            return self.open_rule()
+        if kind == "undo":
+            return Action("undo_harness", (self.foot["undo"],)) if self.foot else None
+        if kind != "layer":
+            return None
         self.choose(key)
-        if key == HEAD and event.button == 2:           # the head's own menu: its graph
-            self.menu = Popup(Menu([SHOW_GRAPH]), SHOW_GRAPH, event.y, event.x) if self.graphs() else None
+        if event.button == 2 and key[0] in ("row", "usage"):     # what can be done on it, there
+            does = self.actions()
+            self.menu = Popup(Menu([one["label"] for one in does]), None, event.y, event.x) if does else None
             return None
-        if key == ("section", USAGE):                   # a press folds it as the others; its view from the menu
-            self.menu = Popup(Menu([OPEN_USAGE]), USAGE, event.y, event.x) if event.button == 2 else None
-            return self.fold(USAGE) if event.button == 0 else None
-        if event.button == 2 and key[0] == "row":
-            row, does = self.chosen_row(), self.doable(self.chosen_row())
-            self.menu = Popup(Menu([label(one) for one in does]), row, event.y, event.x) if does else None
-            return None
-        return self.activate() if event.button == 0 and key[0] in ("section", "more", "head", "offer", "usage") \
-            else None
+        return self.activate() if event.button == 0 and key[0] in ("section", "more", "head", "offer") else None
 
     # --- what a new version needs
 
     def kept(self):
-        return {"chosen": list(self.chosen) if self.chosen else None, "more": sorted(self.more),
-                "period": self.period}
+        return {"chosen": list(self.chosen) if self.chosen else None, "more": sorted(self.more)}
 
     def take(self, kept):
         chosen = kept.get("chosen")
         if isinstance(chosen, list) and len(chosen) == 2 and all(isinstance(part, str) for part in chosen):
             self.chosen = tuple(chosen)
         self.more.update(name for name in kept.get("more") or () if isinstance(name, str))
-        self.period = kept["period"] if kept.get("period") in PERIODS else self.period

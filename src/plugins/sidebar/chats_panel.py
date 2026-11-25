@@ -1,5 +1,5 @@
-"""The Chats list's work in the dock (chat_list.py draws it, the ✦ opens it over the sidebar): read
-again every second while open, a running chat focused, a closed one reopened in a new tab of its workspace, one
+"""The Chats list's work in the dock (chat_list.py draws it, the ✦ opens it over the sidebar): read again every second
+while open with the chosen chat's plan, a running chat focused, a closed one reopened in a new tab of its workspace, one
 archived, renamed, copied or, once asked, moved to the Trash; done through its host, the sidebar (jobs, herdr, note)."""
 import base64
 import os
@@ -9,6 +9,7 @@ from dataclasses import replace
 
 import chats
 import panes
+import plan
 import preview
 import richtext
 from chat_list import ChatList
@@ -49,6 +50,7 @@ class Chats(Family):
         self.read_at = None                   # when the list was last read
         self.here = os.environ.get("HERDR_WORKSPACE_ID")
         self.folders = {}                     # a folder a workspace's pane is in → that workspace
+        self.plans = {}                       # the chosen chat's list as last read (plan.read's), by "<agent>:<id>"
         self.clipboard = system_clipboard(sys.platform)
 
     def tick(self, now):
@@ -59,6 +61,9 @@ class Chats(Family):
         self.read_at = now
         if "read" not in self.host.running:
             self.host.job("read", self.read, self.got)
+        chosen = self.view.chosen()
+        if chosen and self.host.showing("chats") and "plan" not in self.host.running:
+            self.host.job("plan", lambda: self.read_plan(chosen), self.got_plan)
         archived = chats.setting(self.host.state_dir).get("show_archived") is True
         if archived == self.view.show_archived:
             return False
@@ -67,8 +72,8 @@ class Chats(Family):
         return True
 
     def read(self):
-        """On the job's thread: the chats, the workspaces in the Spaces list's order with their states, each
-        folder's workspace, the archived ones and the agents' panes in each workspace's active tab."""
+        """On the job's thread: the chats, the workspaces in the Spaces list's order, each folder's workspace, the
+        archived ones and the agents' panes in each workspace's active tab."""
         state, call = self.host.state_dir, self.host.herdr.call
         reopened = panes.resumed(state)
         try:
@@ -93,15 +98,23 @@ class Chats(Family):
         return {"found": chats.local(state, agents, reopened), "names": names, "folders": folders,
                 "order": [names[s["workspace_id"]] for s in spaces],
                 "front": {agent.get("pane_id") for agent in agents if agent.get("tab_id") in active},
-                "states": {names[s["workspace_id"]]: s.get("agent_status") for s in spaces},
                 "archived": chats.archived(state)}
 
     def got(self, seen):
         names, self.folders = seen["names"], seen["folders"]
         view = self.view
-        view.archived, view.front, view.states, view.icons = (seen["archived"], seen["front"], seen["states"],
-                                                              self.host.settings["icons"])
+        view.archived, view.front, view.icons = seen["archived"], seen["front"], self.host.settings["icons"]
         view.set(seen["found"], seen["order"], lambda folder: names.get(self.folders.get(folder)), names.get(self.here))
+
+    def read_plan(self, item):
+        """On the job's thread: ITEM's task list, its file read on from where the last read of it stopped."""
+        key, paths = self.view.archive_key(item), chats.own_files(item.agent, item.id)
+        return key, plan.read(item.agent, paths[0] if paths else None, self.plans.get(key))
+
+    def got_plan(self, found):
+        key, got = found
+        self.plans = {key: got}                 # the chosen chat's alone is kept
+        self.view.plan = (key, plan.shown(got["state"]))
 
     def waiting(self):
         """How many chats wait for an answer (herdr's blocked: a question, a permission): the count beside the
@@ -158,9 +171,29 @@ class Chats(Family):
             self.host.term.write("\x1b]52;c;" + base64.b64encode(text.encode("utf-8")).decode("ascii") + "\x07")
         self.host.note = "Chat copied"
 
+    def do_plan(self, item):
+        self.host.job("plan-open", lambda: self.plan_file(item), self.show_plan)
+
+    def plan_file(self, item):
+        """On the job's thread: ITEM's approved plan kept as a file in the plugin's state, and the chat's name."""
+        if not SESSION.fullmatch(item.id):     # from a file's content: never a path's part with a slash in it
+            raise RuntimeError("not a chat's id")
+        paths = chats.own_files(item.agent, item.id)
+        path = plan.document(paths[0], os.path.join(self.host.state_dir, "plans", item.id)) if paths else None
+        if not path:
+            raise RuntimeError("its plan is gone")
+        return path, item.title
+
+    def show_plan(self, found):
+        """The plan in the preview tab, named after its chat."""
+        path, title = found
+        folder = os.path.dirname(path)
+        self.host.open_preview({**preview.file_spec(folder, path, None), "title": f"plan · {preview.label(title)}"},
+                               folder)
+
     def do_archive(self, *items):
         self.file(items, True)
-        self.host.note = "Archived" if len(items) == 1 else f"{len(items)} archived"
+        self.host.note = f'Archived "{items[0].title}"' if len(items) == 1 else f"Archived {len(items)} chats"
 
     def do_unarchive(self, *items):
         self.file(items, False)
@@ -240,7 +273,7 @@ class Chats(Family):
             raise RuntimeError("not a chat's id")
         workspace = self.folders.get(item.folder)
         if not workspace:                       # its workspace closed since the list was read
-            raise RuntimeError("its workspace is gone")
+            raise RuntimeError("its space is gone")
         call, state = self.host.herdr.call, self.host.state_dir
         made = call("tab", "create", "--workspace", workspace, "--cwd", item.folder, "--label", tab_name(item.title),
                     "--no-focus")

@@ -1,13 +1,13 @@
 // @ts-check
-// The chat's timeline without the window: core/chat.py's steps as the rows it draws (a call and its result in one) and
-// each row's time in this Mac's zone, written as its Language & Region settings write a time.
+// The chat's timeline without the window: core/chat.py's steps as the rows it draws (a call and its result in one),
+// each row's time in this Mac's zone as its Language & Region settings write a time, and the plan strip's rows.
 
 /** A row: a step, a call with its outcome (ok null while it runs), a thought with its label.
  * @typedef {{ kind: string, at?: string | null, ok?: boolean | null, open?: boolean, label?: string,
  *   [key: string]: any }} Moment */
 
 const OPEN = new Set(["Edit", "MultiEdit", "Write"]);      // a change's call: its diff open from the start
-const CALLS = new Set(["tool", "skill", "agent", "todo"]); // the steps a result answers, by the call's id
+const CALLS = new Set(["tool", "skill", "agent"]);         // the steps a result answers, by the call's id
 const DAY = 86400000;
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
   "November", "December"];
@@ -20,7 +20,7 @@ let forms = INTERNATIONAL;
 // the timeline's from center-chat.html: a call's line 24 high with an 8 px dot on its middle, steps 16 apart
 export const RHYTHM = {
   line: 24,      // a step's first line: a call's head, a thought, a status line (13 px words)
-  text: 20,      // a line of Claude's words (13 px markdown), a todo's, its time at the first one's end
+  text: 20,      // a line of Claude's words (13 px markdown), its time at the first one's end
   dot: 8,
   step: 16,      // the step gap: step to step, the person's message to the next step, the last step to a card
   stepPad: 8,    // a step's own padding over and under it: half the step gap
@@ -90,8 +90,9 @@ function thought(ms) {
   return seconds < 60 ? `Thought for ${seconds}s` : `Thought for ${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
-/** STEPS (core/chat.py's, in order) as the timeline's rows: a call with its result, a result with no call left out.
- * @param {any[]} steps @returns {Moment[]} */
+/** STEPS (core/chat.py's, in order) as the timeline's rows: a call with its result (an approved plan's steps with
+ * it), a result with no call left out, tasks added one after another one row. @param {any[]} steps
+ * @returns {Moment[]} */
 export function timeline(steps) {
   /** @type {Moment[]} */
   const rows = [];
@@ -100,7 +101,12 @@ export function timeline(steps) {
   for (const step of steps) {
     if (step.kind === "result") {
       const call = calls.get(step.id);
-      if (call) Object.assign(call, { ok: step.ok, output: step.output, change: step.change });
+      if (call) Object.assign(call, { ok: step.ok, output: step.output, change: step.change, plan: step.plan });
+      continue;
+    }
+    const last = rows[rows.length - 1];
+    if (step.kind === "tasks" && last?.kind === "tasks") {
+      last.added += step.added;
       continue;
     }
     /** @type {Moment} */
@@ -110,6 +116,27 @@ export function timeline(steps) {
     rows.push(row);
   }
   return rows;
+}
+
+/** What an approved plan's row says after its name, COUNT the steps of its own numbered list. @param {number} count */
+export const planWords = (count) => (count > 0 ? `approved · ${count} step${count === 1 ? "" : "s"}` : "approved");
+
+/** PLAN (core/plan.py's list, null for none) as the strip over the prompt: folded (not OPEN) its head alone, the step
+ * at work (else the next) and how many are done; open the done steps in one row (DONE: each listed under it), the
+ * rest in order. @param {any} plan @param {boolean} open @param {boolean} done */
+export function planStrip(plan, open, done) {
+  const steps = Array.isArray(plan?.steps) ? plan.steps : [];
+  if (!steps.length) return null;
+  if (!open) {
+    const step = steps.find((one) => one.state === "now") ?? steps.find((one) => one.state === "next");
+    return { head: step ? { state: step.state, text: step.text, count: plan.count }
+      : { state: "done", text: plan.count, count: "" }, rows: [] };
+  }
+  const row = (/** @type {any} */ step) => ({ kind: step.state, text: step.text, after: step.after ?? null });
+  const finished = steps.filter((step) => step.state === "done");
+  return { head: { state: null, text: "Plan", count: "" }, rows: [
+    ...(finished.length ? [{ kind: "fold", text: plan.done, after: null }] : []),
+    ...(done ? finished.map(row) : []), ...steps.filter((step) => step.state !== "done").map(row)] };
 }
 
 const MCP = "mcp__";                 // what a server's tool's name starts with, then the server's key, "__", the tool

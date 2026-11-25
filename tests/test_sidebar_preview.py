@@ -366,7 +366,7 @@ class Tabs(unittest.TestCase):
 
 
 GRAPH = {"name": "Claude", "folder": "/work/lumen-api", "run": True,
-         "words": {"views": {"wiring": "Wiring", "run": "This conversation"}}}
+         "words": {"views": {"wiring": "Wiring", "run": "This chat"}}}
 
 
 def tree_rows(run):
@@ -374,8 +374,9 @@ def tree_rows(run):
     if run:
         return [[("Claude", "bold")], [("1", "accent"), (" api-routes", None), (" → ", "dim"), ("2", "accent"),
                                        (" Bash", None)]]
-    return [[("Claude", "bold"), ("  Opus 5.5", "dim")], [("└ ", "dim"), ("uses", "dim")],
-            [("  └ ", "dim"), ("sentry  ", None), ("failed", "bad"), ("  [ask]", None)]] + [[("  line", None)]] * 40
+    return [[("Claude", "bold"), ("  Opus 5.5", "dim")], [("uses", "dim")],
+            [("  sentry  ", None), ("failed", "bad"), (" ", None), ("[", "dim"), ("allow", "ok"), ("]", "dim")]] + [
+        [("  line", None)]] * 40
 
 
 class Graph(unittest.TestCase):
@@ -387,17 +388,17 @@ class Graph(unittest.TestCase):
     def test_the_spec_names_the_agent_and_folder_and_holds_each_views_lines_in_the_terminals_colors(self):
         spec = self.spec()
         self.assertEqual((spec["title"], spec["view"], spec["pipeline"], spec["line"]),
-                         ("Claude in lumen-api", "w", [], None))
+                         ("graph: Claude in lumen-api", "w", [], None))
         self.assertEqual([(view["key"], view["name"]) for view in spec["views"]],
-                         [("w", "Wiring"), ("c", "This conversation")])
+                         [("w", "Wiring"), ("c", "This chat")])
         self.assertEqual(spec["views"][0]["lines"][:3], [
-            "\x1b[1mClaude\x1b[0m\x1b[90m  Opus 5.5\x1b[0m", "\x1b[90m└ \x1b[0m\x1b[90muses\x1b[0m",
-            "\x1b[90m  └ \x1b[0msentry  \x1b[31mfailed\x1b[0m  [ask]"])
+            "\x1b[1mClaude\x1b[0m\x1b[90m  Opus 5.5\x1b[0m", "\x1b[90muses\x1b[0m",
+            "  sentry  \x1b[31mfailed\x1b[0m \x1b[90m[\x1b[0m\x1b[32mallow\x1b[0m\x1b[90m]\x1b[0m"])
         self.assertEqual(spec["views"][1]["lines"][1],
                          "\x1b[1;35m1\x1b[0m api-routes\x1b[90m → \x1b[0m\x1b[1;35m2\x1b[0m Bash")
         json.dumps(spec)                                                        # it goes through a file
 
-    def test_with_no_conversation_read_it_is_wiring_alone(self):
+    def test_with_no_chat_read_it_is_wiring_alone(self):
         spec = preview.graph_spec({**GRAPH, "run": False}, tree_rows, view="c")
         self.assertEqual(([view["key"] for view in spec["views"]], spec["view"]), (["w"], "w"))
         shown = pager.viewer(spec)
@@ -410,15 +411,15 @@ class Graph(unittest.TestCase):
         term = FakeTerminal(60, 10)
         shown.draw(term)
         self.assertEqual(pager.plain(shown.rows(60, 9)[0]), "Claude  Opus 5.5")
-        self.assertEqual(pager.plain(shown.lead), " w Wiring  c This conversation ")
+        self.assertEqual(pager.plain(shown.lead), " w Wiring  c This chat ")
         self.assertIn(pager.CHOSEN + " Wiring ", shown.lead)                    # the one shown, on the accent
         shown.handle(Key("char", "j"))
         self.assertTrue(shown.handle(Key("char", "c")))
         self.assertEqual((shown.top, pager.plain(shown.rows(60, 9)[1])), (0, "1 api-routes → 2 Bash"))
         shown.draw(term)
-        self.assertIn(pager.CHOSEN + " This conversation ", shown.lead)
+        self.assertIn(pager.CHOSEN + " This chat ", shown.lead)
         shown.handle(Key("char", "w"))
-        self.assertEqual(pager.plain(shown.rows(60, 9)[1]), "└ uses")
+        self.assertEqual(pager.plain(shown.rows(60, 9)[1]), "uses")
         self.assertFalse(shown.handle(Key("char", "q")))                        # its other keys the pager's own
 
     def test_a_press_on_a_views_name_and_the_right_clicks_menu_show_it(self):
@@ -427,7 +428,7 @@ class Graph(unittest.TestCase):
         at = pager.plain(shown.lead).index("This")
         self.assertTrue(shown.handle(Mouse("press", at, 9, 0)))
         self.assertEqual(shown.view["key"], "c")
-        self.assertEqual(shown.choices(), [("Wiring", False), ("This conversation", True), (pager.CLOSE, None)])
+        self.assertEqual(shown.choices(), [("Wiring", False), ("This chat", True), (pager.CLOSE, None)])
         self.assertTrue(shown.choose("Wiring"))
         self.assertEqual(shown.view["key"], "w")
         self.assertFalse(shown.choose(pager.CLOSE))
@@ -635,12 +636,6 @@ class Pictures(unittest.TestCase):
         self.assertIn("\x1b_Ga=T,f=100,", term.out)
         self.assertTrue(all(len(chunk) <= 4096 for chunk in re.findall(r";([A-Za-z0-9+/=]*)\x1b\\", term.out)))
         self.assertIn("shot.png", term.out)
-
-    def test_a_pager_that_draws_no_pictures_shows_the_file_as_binary(self):
-        """A preview tab opened before an update keeps its older pager: the picture's spec is a file to it."""
-        spec = preview.file_spec(self.tmp, png(os.path.join(self.tmp, "shot.png"), 40, 30), None)
-        self.assertEqual(pager.load({key: value for key, value in spec.items() if key != "picture"}),
-                         pager.load({"file": spec["picture"]}))
 
     def test_over_ssh_a_picture_offers_no_browser(self):
         set_env(self, SSH_CONNECTION="the client and this machine")

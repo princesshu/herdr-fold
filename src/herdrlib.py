@@ -72,21 +72,34 @@ def add_column(pane_id, cwd, h=herdr, machine=None):
 
 
 # A workspace's name for its folder, and its main tab's (the workspace's first tab is named as the workspace)
-HOME_SPACE = "home"
+HOME_SPACE, ROOT_SPACE = "home", "root"
+# a root (/, C:\): its drive's letter and colon, if any
+ROOT = re.compile(r"([A-Za-z]:)?[\\/]")
 
 
 def space_name(path, home=None, sep="/"):
     """The name of a workspace on folder PATH: its last part; HOME_SPACE for the home folder HOME (never ~ or the user's
-    name); a root (/, C:\\) as it is."""
+    name); ROOT_SPACE for /, a drive's letter for its root (C: for C:\\)."""
     if home and path.rstrip(sep) == home.rstrip(sep):
         return HOME_SPACE
+    root = ROOT.fullmatch(path)
+    if root:
+        return root.group(1) or ROOT_SPACE
     return path.rstrip(sep).split(sep)[-1] or path
 
 
 def space_labels(path, home=None):
     """The names a workspace on folder PATH may get, in order: its own, then with its parent folder's, then numbered."""
-    base = space_name(path, home)
-    return [base, f"{os.path.basename(os.path.dirname(path))}-{base}"] + [f"{base}-{n}" for n in range(2, 100)]
+    base, parent = space_name(path, home), os.path.basename(os.path.dirname(path))
+    return [base] + ([f"{parent}-{base}"] if parent else []) + [f"{base}-{n}" for n in range(2, 100)]
+
+
+def own_name(label):
+    """herdr-fold's name for a workspace herdr named after the home folder or a root (~, or the path: /, C:\\): home,
+    root, the drive's letter; None for any other LABEL."""
+    if label == "~":
+        return HOME_SPACE
+    return space_name(label) if ROOT.fullmatch(label or "") else None
 
 
 def free_label(path, taken, home=None):

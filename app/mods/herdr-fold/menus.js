@@ -3,20 +3,36 @@
 // (herdr-fold.menu-TOKEN-N); and the panels' list form, the chat bar's panels' and the command palette's.
 import { div, image, svg } from "gpui-kit";
 import { h_flex, InputState, v_flex } from "gpui-base";
-import { closeOverlay, openOverlay, run as command } from "herdr";
-import { menuHeight, menuPlace } from "./logic.js";
+import { closeOverlay, openOverlay, setShared, shared, run as command } from "herdr";
+import { keyMenuBounds, menuHeight, menuPlace } from "./logic.js";
 import { toneInk } from "./layers.js";
 import { checked, field, icon, listName, scopeTag } from "./parts.js";
 import { RHYTHM as R } from "./timeline.js";
 
 const MENU = 180;                  // a menu's width: its longest choice, Commit & Sync, with its check
 const ROW = 28;
+const MENUS = "herdr-fold.menus-open";     // shared: the mod's menus up now, by their popups' ids (a float keeps them)
+
+/** The mod's menus up now (their popups' ids). @returns {string[]} */
+export const menusOpen = () => {
+  const open = shared(MENUS);
+  return Array.isArray(open) ? open : [];
+};
+
+/** Menu OVERLAY gone, however it went (a choice, Esc, a press beside). @param {string} overlay */
+export function menuGone(overlay) {
+  if (menusOpen().includes(overlay)) setShared(MENUS, menusOpen().filter((id) => id !== overlay));
+}
+
+/** The menus a last run left marked are gone (the tab bar's copy says so once, as it starts). */
+export const forgetMenus = () => void (menusOpen().length && setShared(MENUS, []));
 
 /** @typedef {{ label: string, act?: (cx: any) => void, url?: string, on?: boolean, color?: string, off?: boolean,
- *   icon?: { path: string, tint: boolean, dim?: boolean }, note?: string, tone?: string, tip?: string }} Item */
+ *   dim?: boolean, icon?: { path: string, tint: boolean, dim?: boolean }, note?: string, tone?: string,
+ *   tip?: string }} Item */
 // a choice (null among them: a rule): its ACT (run where the menu opened) or URL, a check when ON can be set, its
-// COLOR, OFF shown not chosen (its TIP saying why, the mouse resting on it); an ICON (picture or tinted glyph, DIM:
-// muted) before it, a NOTE (in its TONE's color)
+// COLOR, OFF shown not chosen (its TIP saying why, the mouse resting on it), DIM muted and still chosen; an ICON
+// (picture or tinted glyph, DIM: muted) before it, a NOTE (in its TONE's color)
 /** A menu's own filter: its field, what is typed in it, what it says when nothing matches. @typedef {{ input: any,
  * typed: string, none: string }} Find */
 
@@ -37,11 +53,18 @@ export class Menus {
     const token = (this.token = Math.random().toString(36).slice(2, 10));
     this.acts = items.map((item) => item?.act ?? (() => {}));
     const rows = items.map((item, n) => item && { label: item.label, url: item.url, on: item.on, color: item.color,
-      off: item.off, icon: item.icon, note: item.note, tone: item.tone, tip: item.tip,
+      off: item.off, dim: item.dim, icon: item.icon, note: item.note, tone: item.tone, tip: item.tip,
       command: `menu-${token}-${n}` });
     const height = menuHeight(items, head, Boolean(find));
-    openOverlay({ mod: "herdr-fold", kind: "popup", props: { part: "menu", items: rows, head, find, none }, width,
-      height, ...(bounds ? { at: menuPlace(bounds, height, window.viewport_size(), width) } : {}) });
+    setShared(MENUS, [...menusOpen(), openOverlay({ mod: "herdr-fold", kind: "popup", props: { part: "menu",
+      items: rows, head, find, none }, width, height,
+    ...(bounds ? { at: menuPlace(bounds, height, window.viewport_size(), width) } : {}) })]);
+  }
+
+  /** ITEMS a key opens (Cmd+Shift+L's files, Cmd+K Cmd+T's themes) where the palette stands, at the window's top.
+   * @param {(Item | null)[]} items @param {How} [how] */
+  atTop(items, how = {}) {
+    this.open(items, keyMenuBounds(window.viewport_size(), how.width ?? MENU), undefined, how);
   }
 
   /** Whether ASKED (nextCommand's) is a choice of this copy's open menu; it runs then. @param {string} asked */
@@ -91,11 +114,12 @@ export function menuPopup(t, overlay, items, head, find = null) {
       .when(!item.off, (e) => e.cursor_pointer().hover((s) => s.bg(t.hover))
         .on_click((_e, cx) => choose(item, overlay, cx)))
       .when(checks, (e) => e.child(checked(t, Boolean(item.on))))
-      .when(Boolean(item.icon), (e) => e.child(item.icon?.tint
+      .when(Boolean(item.icon), (e) => e.child((item.icon?.tint
         ? svg(item.icon.path).size(14).flex_none().text_color(item.off ? t.dim : item.icon.dim ? t.muted
           : t.foreground)
-        : image(String(item.icon?.path)).size(14).flex_none()))
-      .child(div().truncate().when(Boolean(item.color), (e) => e.text_color(item.color)).child(item.label))
+        : image(String(item.icon?.path)).size(14).flex_none()).when(Boolean(item.dim), (e) => e.opacity(0.6))))
+      .child(div().truncate().when(Boolean(item.color), (e) => e.text_color(item.color))
+        .when(Boolean(item.dim), (e) => e.text_color(t.muted)).child(item.label))
       .when(Boolean(item.note), (e) => e.child(div().flex_1()).child(div().flex_none().text_size(11)
         .text_color(item.tone ? toneInk(t, item.tone, t.popover ?? t.raised) : t.dim).child(item.note ?? "")))));
 }
@@ -152,12 +176,12 @@ export function panelRow(t, lister, n, usable, on = false) {
 }
 
 /** A list row's words on one LINE (center-chat.html's .nm, .ds, .src): its MARK (16, muted; null: none), its NAME,
- * its LINE dim after it, cut where long, its source's TAG at the end. @param {import("./icons.js").IconName | null}
+ * its LINE muted after it, cut where long, its source's TAG at the end. @param {import("./icons.js").IconName | null}
  * mark @param {string} name @param {string} line @param {string | null} tag */
 export function listWords(t, mark, name, line, tag) {
   return [...(mark ? [icon(mark, LINE).text_color(t.muted)] : []), h_flex().flex_1().min_w(0).gap(R.gap)
     .items_center().line_height(`${LINE}px`).child(div().flex_none().child(name))
-    .when(Boolean(line), (e) => e.child(div().min_w(0).truncate().text_size(12).text_color(t.dim).child(line))),
+    .when(Boolean(line), (e) => e.child(div().min_w(0).truncate().text_size(12).text_color(t.muted).child(line))),
   ...(tag ? [scopeTag(t, tag)] : [])];
 }
 
@@ -165,10 +189,10 @@ export function listWords(t, mark, name, line, tag) {
  * @param {string} name */
 export const groupHead = (t, name) => div().flex_none().px(R.inset).pt(R.gap).pb(R.pad).child(listName(t, name));
 
-/** What a list's part says in its rows' place or after them (center-chat.html's .pmore): 12, dim (an ERROR in ansi1),
+/** What a list's part says in its rows' place or after them (center-chat.html's .pmore): 12, muted (an ERROR in ansi1),
  * under the rows' names (FROM the list's edge). @param {string} text @param {boolean} [error] @param {number} [from] */
 export const listNote = (t, text, error = false, from = NAME_IN) => div().flex_none().pl(from).pr(R.inset).pt(2)
-  .pb(R.pad).text_size(12).text_color(error ? t.ansi1 : t.dim).child(text);
+  .pb(R.pad).text_size(12).text_color(error ? t.ansi1 : t.muted).child(text);
 
 /** A panel's list (ID), ITEMS, its rows at PLACES in it (kept in LISTER for its keys): MOST high at most, scrolled past
  * it, the keys' row kept in view (listStep's). @param {Lister} lister @param {string} id @param {any[]} items

@@ -4,17 +4,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { budgetNotice, costBlock } from "../mods/herdr-fold/agents.js";
-import { ADAPTERS, agentChoices, agentsOpen, barFolds, cardFor, claudeArgv, claudeSettings, contrast, contextColor,
-  contextLine, contextParts, DRAWABLE, effortAt, effortLabel, exportName, kilo, limitNotice, menuSkills, modelName,
+import { ADAPTERS, agentChoices, agentsOpen, barFolds, cardFor, claudeArgv, claudeSettings, contextColor,
+  contextLine, contextParts, DRAWABLE, effortAt, effortLabel, exportName, limitNotice, menuSkills, modelName,
   modelOf, modelRows, modeOf, modeRows, nearEffort, newAgent, nextScope, opensAs, panelStep, promptText,
-  rememberAgent, reopensAs, replyFor, ringArc, ruleWhere, screenChoices, screenMode, shellQuote, skillCommand, skillOf,
-  slashMenu, slashQuery, slashRank, SLIDER, switchCommand, switchRefused, hueGap, oklch, READ, TAG_PART, tagColors,
-  tagRole, terminalTab, usedSkills, atTyped, mentionMenu, mentionPick, mentionQuery, mentions, uploadPaths,
-  withFiles }
+  rememberAgent, reopensAs, replyFor, ringArc, screenChoices, screenMode, shellQuote, skillCommand, skillOf,
+  shellsOnly, slashMenu, slashQuery, slashRank, SLIDER, switchCommand, switchRefused, terminalSpace, terminalTab,
+  usedSkills,
+  atTyped, mentionMenu, mentionPick, mentionQuery, mentions, uploadPaths, withFiles }
   from "../mods/herdr-fold/agents.js";
 import { CHAT_HOOK } from "../mods/herdr-fold/helper.js";
 
@@ -137,9 +137,10 @@ test("the context ring's arc runs from the top clockwise to its share; none at n
     "whole", "whole"]);
 });
 
-test("the context in use in words: its share, and how much of the window that is when known", () => {
-  assert.equal(contextLine({ context: 34, window: 200000 }), "68k of 200k · 34%");
-  assert.equal(contextLine({ context: 12, window: 1000000 }), "120k of 1M · 12%");
+test("the context in use in words by the number rule: its share, and how much of the window when known", () => {
+  assert.equal(contextLine({ context: 34, window: 200000 }), "68.0k of 200k · 34%");
+  assert.equal(contextLine({ context: 12, window: 1000000 }), "120k of 1M · 12%");    // a window's size as core's head
+  assert.equal(contextLine({ context: 1, window: 1000000 }), "10.0k of 1M · 1%");
   assert.equal(contextLine({ context: 34, window: null }), "34%");
 });
 
@@ -343,13 +344,14 @@ test("a narrow bar leaves the context's words out first, then the chip's level; 
     assert.equal(barFolds(0, 0, [null, null]), 0);
   });
 
-test("the context's parts: the rules read at the start, the skills' list, the rest; none past what is in use", () => {
+test("the context's parts: the rules read at the start, the skills' list, the connectors, the rest", () => {
   const setup = { rules: [{ tokens: 2400, paths: [] }, { tokens: 1800, paths: [] }, { tokens: 700, paths: ["src/**"] }],
-    skills: [{ tokens: 150 }, { tokens: 50 }] };
+    skills: [{ tokens: 150 }, { tokens: 50 }], servers: [{ tokens: 6800 }, { tokens: null }] };
   assert.deepEqual(contextParts({ context: 34, window: 200000 }, setup), [
     { key: "rules", label: "Rules", tokens: 4200, share: 0.021 },        // a rule read for its paths: not known in use
     { key: "skills", label: "Skills", tokens: 200, share: 0.001 },
-    { key: "rest", label: "Conversation & tools", tokens: 63600, share: 0.318 }]);
+    { key: "connectors", label: "Connectors", tokens: 6800, share: 0.034 },
+    { key: "rest", label: "Chat & tools", tokens: 56800, share: 0.284 }]);
   // estimates past what is in use take only what there is; a part with nothing is left out
   const parts = (/** @type {number} */ context, /** @type {any} */ given) => contextParts({ context, window: 200000 },
     given).map((p) => [p.key, p.tokens]);
@@ -362,31 +364,13 @@ test("the context's parts: the rules read at the start, the skills' list, the re
   }
 });
 
-test("the legend's numbers: thousands rounded, under one to a tenth, millions to one place", () => {
-  assert.deepEqual([4200, 63600, 999, 300, 12, 1200000].map(kilo), ["4k", "64k", "1k", "0.3k", "0.1k", "1.2M"]);
-});
-
-test("a rule's place: the chat's folder by its name, inside it from it, the user's own from ~, else whole", () => {
-  const where = (/** @type {string} */ path, /** @type {string[]} */ paths = []) => ruleWhere({ path, paths },
-    "/home/dev/work/lumen-api", "/home/dev");
-  assert.equal(where("/home/dev/.claude/CLAUDE.md"), "~/.claude");
-  assert.equal(where("/home/dev/work/lumen-api/CLAUDE.md"), "lumen-api");
-  assert.equal(where("/home/dev/work/lumen-api/.claude/rules/api.md", ["src/lumen/**", "tests/**"]),
-    ".claude/rules · src/lumen/**, tests/**");
-  assert.equal(where("/home/dev/work/CLAUDE.md"), "~/work");                 // a folder above it
-  assert.equal(where("/home/dev/CLAUDE.md"), "~");
-  assert.equal(where("/srv/CLAUDE.md"), "/srv");
-  assert.equal(ruleWhere({ path: "/home/dev/work/lumen-api/CLAUDE.md" }, "/home/dev/work/lumen-api/", "/home/dev/"),
-    "lumen-api");                                                            // a folder written with its slash
-});
-
 test("a skill called is the setup's: its name and source, a plugin's by plugin:skill; one not listed as called", () => {
   const skills = [{ name: "api-routes", source: "Project", scope: "Project", path: "/w/api-routes/SKILL.md" },
-    { name: "review", source: "Personal", scope: "Personal", path: "/h/review/SKILL.md" },
-    { name: "review", source: "code-review", scope: "Personal", path: "/h/plugins/review/SKILL.md" }];
+    { name: "review", source: "Global", scope: "Global", path: "/h/review/SKILL.md" },
+    { name: "review", source: "code-review", scope: "Global", path: "/h/plugins/review/SKILL.md" }];
   assert.deepEqual(skillOf(claude, "api-routes", skills), { name: "api-routes", source: "Project",
     path: "/w/api-routes/SKILL.md", known: true });
-  assert.equal(skillOf(claude, "review", skills).source, "Personal");          // the user's own, not the plugin's
+  assert.equal(skillOf(claude, "review", skills).source, "Global");          // the user's own, not the plugin's
   assert.deepEqual(skillOf(claude, "code-review:review", skills), { name: "review", source: "code-review",
     path: "/h/plugins/review/SKILL.md", known: true });
   // not in the setup (not read yet, or gone): a plugin's still says its plugin; another, nothing
@@ -406,33 +390,11 @@ test("the skills a chat used: each once, the latest call first, with when it was
   assert.deepEqual(usedSkills(claude, [], []), []);
 });
 
-test("a skill is typed as Claude takes it: /name, a plugin's /plugin:name; its tag's tone by its source", () => {
+test("a skill is typed as Claude takes it: /name, a plugin's /plugin:name", () => {
   assert.equal(skillCommand(claude, { name: "api-routes", source: "Project", scope: "Project" }), "/api-routes");
-  assert.equal(skillCommand(claude, { name: "review", source: "code-review", scope: "Personal" }),
+  assert.equal(skillCommand(claude, { name: "review", source: "code-review", scope: "Global" }),
     "/code-review:review");
   assert.equal(skillCommand({ ...claude, skill: null }, { name: "x", source: "Project", scope: "Project" }), null);
-  assert.deepEqual(["Personal", "Project", "Local", "Managed", "claude.ai", "code-review"].map(tagRole),
-    ["personal", "project", "local", "local", "account", "plugin"]);
-});
-
-test("in every app theme the five scope tags part, each read on the window's level where a tag stands", () => {
-  const themes = new URL("../themes/", import.meta.url);
-  const names = readdirSync(themes).filter((name) => name.endsWith(".json"));
-  assert.equal(names.length, 13);
-  for (const name of names) {
-    // the colors as theme() gives them: the panels' by name, the palette as ansi0..15
-    const file = JSON.parse(readFileSync(new URL(name, themes), "utf8"));
-    const t = { ...Object.fromEntries(file.ansi.map((/** @type {string} */ hex, /** @type {number} */ n) =>
-      [`ansi${n}`, hex])), background: file.background, ...file.colors };
-    const tags = tagColors(t), hued = [tags.personal, tags.project, tags.plugin, tags.account];
-    assert.ok(hueGap(oklch(tags.personal).hue, oklch(t.accent).hue) < 5, `${name}: Personal in the accent's hue`);
-    for (const [role, hex] of Object.entries(tags)) {
-      assert.ok(contrast(hex, t.canvas) >= READ, `${name}: ${role} ${hex} on ${t.canvas}`);
-    }
-    hued.forEach((one, n) => hued.slice(n + 1).forEach((other) => assert.ok(
-      hueGap(oklch(one).hue, oklch(other).hue) >= TAG_PART, `${name}: ${one} and ${other} too alike`)));
-    assert.ok(hued.every((hex) => oklch(hex).chroma > oklch(tags.local).chroma), `${name}: Local the grayest`);
-  }
 });
 
 test("Claude's setup is read, its chats compacted by its own command, its skills named as it calls them", () => {
@@ -532,7 +494,7 @@ test("an agent started goes first among the recent ones, once, eight at most", (
   assert.deepEqual(rememberAgent(many, "z"), ["z", ...many.slice(0, 7)]);
 });
 
-test("every way in opens an agent as More's setting says: a chat where one draws it, else a terminal", () => {
+test("every way in opens an agent as Open agents in says: a chat where one draws it, else a terminal", () => {
   assert.deepEqual([agentsOpen(undefined), agentsOpen("terminal"), agentsOpen("menu")], ["chat", "terminal", "chat"]);
   assert.equal(opensAs("claude", "chat"), "chat");
   assert.equal(opensAs("claude", "terminal"), "terminal");
@@ -553,11 +515,26 @@ test("every way in opens an agent as More's setting says: a chat where one draws
   assert.equal(reopensAs({ agent: "claude", id: "../a1b2" }, "chat"), "terminal");
 });
 
+test("a space that holds shells alone, as the app makes one, is the one a chat opens first in", () => {
+  const space = { id: "s1", tabs: [{ id: "t1" }, { id: "t2" }] };
+  const shell = { pane: "p1", tab: "t1", terminal: "c1", program: { name: "zsh", agent: false } };
+  assert.equal(shellsOnly(space, [shell, { ...shell, pane: "p2", tab: "t2", terminal: "c2" }]), true);
+  assert.equal(shellsOnly(space, [shell, { pane: "p3", tab: "t2", terminal: null, mod: "herdr-fold" }]), false);
+  assert.equal(shellsOnly(space, [{ ...shell, program: { name: "Claude", agent: true } }]), false);
+  assert.equal(shellsOnly(space, [shell, { ...shell, tab: "elsewhere", terminal: null }]), true);   // its own panes
+  assert.equal(shellsOnly({ id: "s2", tabs: [] }, []), false);                                       // nothing yet
+});
+
 test("an agent in a terminal tab: as the app starts it, in the space's folder, the prompt its first message", () => {
   const codex = agentChoices(KNOWN, DRAWABLE, [])[2];
   assert.deepEqual(terminalTab(codex, { space: "s1", folder: "/work/lumen-api", prompt: "Fix #42" }),
     { name: "Codex", space: "s1", folder: "/work/lumen-api", argv: ["codex", "--no-daemon"], task: "Fix #42" });
   assert.deepEqual(terminalTab(codex, { space: "s1" }), { name: "Codex", space: "s1", argv: ["codex", "--no-daemon"] });
+  // a new space with Open agents in: Terminal: the agent its first tab, on the space's machine, in its folder
+  assert.deepEqual(terminalSpace(codex, { machine: "", folder: "/work/lumen-api" }),
+    { machine: "", folder: "/work/lumen-api", tab: "Codex", argv: ["codex", "--no-daemon"] });
+  assert.deepEqual(terminalSpace(codex, { machine: "lab" }), { machine: "lab", tab: "Codex",
+    argv: ["codex", "--no-daemon"] });
 });
 
 test("the / menu follows what is typed after a \"/\" at the prompt's start, till a space or a new line", () => {
@@ -600,20 +577,20 @@ test("before anything is typed, the menu's parts in their order, a few of each, 
 
 test("the / menu's skills: those the chat used first, the latest first, then the rest as listed", () => {
   const skills = [{ name: "api-routes", source: "Project", scope: "Project" },
-    { name: "frontend-design", source: "Personal", scope: "Personal" },
-    { name: "review", source: "code-review", scope: "Personal" }];
+    { name: "frontend-design", source: "Global", scope: "Global" },
+    { name: "review", source: "code-review", scope: "Global" }];
   const rows = [{ kind: "skill", name: "api-routes", at: "t1" },
     { kind: "skill", name: "code-review:review", at: "t2" }, { kind: "skill", name: "gone", at: "t3" }];
   assert.deepEqual(menuSkills(claude, rows, skills).map((s) => s.name), ["review", "api-routes", "frontend-design"]);
   assert.deepEqual(menuSkills(claude, [], skills), skills);
 });
 
-test("a conversation is exported under its title at first, with nothing in it macOS takes for a folder", () => {
+test("a chat is exported under its title at first, with nothing in it macOS takes for a folder", () => {
   assert.equal(exportName("# Fix the page past the last one\n\n**You**\n"), "Fix the page past the last one.md");
   assert.equal(exportName("# a/b: c\\d\n"), "a-b- c-d.md");
   assert.equal(exportName("# " + "x".repeat(100)), `${"x".repeat(80)}.md`);
-  assert.equal(exportName("#  \n"), "Conversation.md");
-  assert.equal(exportName(""), "Conversation.md");
+  assert.equal(exportName("#  \n"), "Chat.md");
+  assert.equal(exportName(""), "Chat.md");
 });
 
 test("the files macOS's chooser answered: a path a line, absolute ones alone, each once, no control code", () => {
@@ -695,20 +672,20 @@ test("the budget's notice is core's, the first not closed here; an answer of ano
   }
 });
 
-test("the Context panel's cost block: the whole, a row a model, the sub-agents' beside theirs, each with a ~", () => {
+test("the Context panel's cost block: the whole, a row a model, the subagents' beside theirs, each with a ~", () => {
   const model = (/** @type {string} */ name, /** @type {string} */ color) => ({ id: name, name, color });
   const costs = { session: "abc", kind: "API value", text: "~$4.12", tokens: "1.2M",
     line: "1.2M tokens · 82% from cache",
     agent: { cost: 3.7, text: "~$3.70", model: model("Opus 5.5", "#3987e5") },
     subs: { Explore: { cost: 0.42, text: "~$0.42", model: model("Haiku 5.5", "#199e70") } } };
-  assert.deepEqual(costBlock(costs), { session: "abc", label: "This conversation", figure: "~$4.12",
+  assert.deepEqual(costBlock(costs), { session: "abc", label: "This chat", figure: "~$4.12",
     unit: "API value", rows: [{ name: "Opus 5.5", color: "#3987e5", figure: "~$3.70" },
-      { name: "Haiku 5.5 · 1 sub-agent", color: "#199e70", figure: "~$0.42" }], line: "1.2M tokens · 82% from cache" });
+      { name: "Haiku 5.5 · 1 subagent", color: "#199e70", figure: "~$0.42" }], line: "1.2M tokens · 82% from cache" });
   const two = costBlock({ ...costs, subs: { ...costs.subs, Plan: { cost: 0.08, text: "~$0.08",
     model: model("Haiku 5.5", "#199e70") }, review: { cost: null, text: "no price",
     model: model("codex-auto-review", "#8b8b8b") } } });
-  assert.deepEqual(two?.rows.slice(1), [{ name: "Haiku 5.5 · 2 sub-agents", color: "#199e70", figure: "~$0.50" },
-    { name: "codex-auto-review · 1 sub-agent", color: "#8b8b8b", figure: "no price" }]);
+  assert.deepEqual(two?.rows.slice(1), [{ name: "Haiku 5.5 · 2 subagents", color: "#199e70", figure: "~$0.50" },
+    { name: "codex-auto-review · 1 subagent", color: "#8b8b8b", figure: "no price" }]);
   assert.equal(costBlock({ ...costs, kind: "spent" })?.unit, "spent");
   assert.equal(costBlock({ ...costs, text: "no price" })?.unit, "");          // tokens alone: no dollars' word
   assert.equal(costBlock(null), null);

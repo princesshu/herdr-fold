@@ -198,7 +198,7 @@ class Ops:
 def chat_parts(kind, session, path, home):
     """KIND's chats' folder under HOME, and what of chat SESSION may go: its file PATH by its real place, a regular
     one (.claude/projects/<folder>/<id>.jsonl, .codex/sessions/<y>/<m>/<d>/rollout-…<id>.jsonl), and beside Claude's
-    its sub-agents' folder <id>. Refused: another name or depth, a link in its place or leading out, a folder."""
+    its subagents' folder <id>. Refused: another name or depth, a link in its place or leading out, a folder."""
     wrong = Refused(f"not a chat's file: {path}")
     if not CHAT_ID.fullmatch(session):
         raise Refused(f"not a chat's id: {session!r}")
@@ -222,7 +222,7 @@ def chat_parts(kind, session, path, home):
 
 
 def trash_chat(kind, session, path, home=None, system=sys.platform, recycle=None):
-    """Chat SESSION's file PATH (KIND: claude or codex) to the system's Trash, Claude's sub-agents' folder with it:
+    """Chat SESSION's file PATH (KIND: claude or codex) to the system's Trash, Claude's subagents' folder with it:
     the one exception to PROTECTED, for chat_parts() alone. Where it went; Refused when it is not such a file."""
     home = home or os.path.expanduser("~")
     base, parts = chat_parts(kind, session, path, home)
@@ -232,7 +232,7 @@ def trash_chat(kind, session, path, home=None, system=sys.platform, recycle=None
         try:
             ops.send(part)
         except OSError as err:
-            raise Refused(f"the chat went to the Trash, its sub-agents' folder stayed: {err}") from err
+            raise Refused(f"the chat went to the Trash, its subagents' folder stayed: {err}") from err
     return where
 
 

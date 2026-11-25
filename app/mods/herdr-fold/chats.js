@@ -8,11 +8,11 @@ import { agents, closeOverlay, home, knownAgents, layout, openOverlay, panes, se
 import { AGENTS_OPEN, agentsOpen, reopensAs } from "./agents.js";
 import { chatWaits, openChat, usedAgent } from "./chat.js";
 import { CHATS } from "./helper.js";
+import { NAMES } from "./layers.js";
 import { archiveKey, CHAT_TAB, chatAgents, chatChoices, chatRows, chatsAsked, coreAgents, deleteOff, folderSpaces,
   groupPlace, resumeArgv, said, stillLeaving, stillResumed, tabLabel, waitingChats, withoutLeaving } from "./logic.js";
 import { Menus } from "./menus.js";
-import { BUTTON, field, fold, footNote, GAP, iconButton, keepNote, PAD, small, SPRING, STATE_MARK,
-  stateMark } from "./parts.js";
+import { field, fold, footNote, GAP, keepNote, PAD, small, SPRING, stateMark } from "./parts.js";
 
 // the archived ones shown or not, the reopened ones' terminals, and those reopened whose agent is not there yet
 const KEPT = "herdr-fold.chats";
@@ -24,7 +24,16 @@ const ACTIONS = { Open: "open", "Copy chat": "copy", Rename: "rename", Archive: 
   Unarchive: "unarchive", "Delete…": "delete" };
 const STATES = { working: "Working", blocked: "Blocked", done: "Done", idle: "Idle" };   // a mark's, in words
 const SPACE_ROW = 26, CHAT_ROW = 24;          // px: a space's row, a chat's
-const UNDER = PAD / 2 + STATE_MARK + 6;     // a chat's row in, its mark under its space's name (pad, mark, gap)
+const CHEVRON = 14;                           // px: a space's chevron, leftmost (Lucide's)
+const UNDER = PAD / 2 + CHEVRON + 6;          // a chat's row in, its mark under its space's name (pad, chevron, gap)
+const AGENT = 44, AGE = 48;                   // px: a chat's two columns at its end, its agent's name and its age
+
+/** Whether the archived ones are shown, as the list's right click or More left it. */
+const showsArchived = () => shared(KEPT)?.showArchived === true;
+
+/** More's Show archived while Chats shows: its ✓ while the archived ones are, a press shows or hides them. */
+export const archivedChoice = () => ({ label: "Show archived", on: showsArchived(),
+  act: () => setShared(KEPT, { ...shared(KEPT), showArchived: !showsArchived() }) });
 
 /** @typedef {import("./logic.js").Chat & { ago: string }} Listed */
 
@@ -187,22 +196,15 @@ export class ChatsView {
     });
   }
 
-  /** The rows shown: every space of this Mac with its chats, as the TUI's column lists them. */
+  /** The rows shown: every space of this Mac with chats, as the TUI's column lists them. */
   rows() {
     const all = spaces(), here = all.find((s) => s.active)?.name ?? null;
     const actives = new Set(all.map((s) => s.tabs.find((tab) => tab.active)?.id));
     const front = new Set([...agents().filter((a) => actives.has(a.tab)).map((a) => a.address),
       ...terminals().filter((c) => actives.has(c.labels?.[CHAT_TAB])).map((c) => c.address)]);
-    const chatsIn = chatWaits().spaces;            // a chat waiting there: its space blocked, the most urgent
     return chatRows(withoutLeaving(this.items, this.leaving), all.filter((s) => s.machine === null).map((s) => s.name),
-      folderSpaces(all, panes()), { typed: this.typed, archived: this.archived, showArchived: this.showsArchived(),
-        opened: this.opened, closed: this.closed, here, front,
-        states: Object.fromEntries(all.map((s) => [s.name, chatsIn[s.id] ? "blocked" : s.status])) });
-  }
-
-  /** Whether the archived ones are shown, as the list's right click left it. */
-  showsArchived() {
-    return shared(KEPT)?.showArchived === true;
+      folderSpaces(all, panes()), { typed: this.typed, archived: this.archived, showArchived: showsArchived(),
+        opened: this.opened, closed: this.closed, here, front });
   }
 
   /** ITEM shown (showChat()), the list closed then; why it could not be, under the list. @param {Listed} item */
@@ -242,7 +244,8 @@ export class ChatsView {
       else if (action === "copy") this.copy(item, cx);
       else if (action === "rename") this.rename(item, cx);
       else if (action === "delete") Object.assign(this, { asking: archiveKey(item), naming: null });
-      else this.ask([action, archiveKey(item)], cx, () => (action === "archive" ? "Archived" : "Unarchived"));
+      else this.ask([action, archiveKey(item)], cx, () => `${action === "archive" ? "Archived" : "Unarchived"} "${
+        item.title.replace(/\p{Cc}/gu, "?")}"`);
     }
     cx.notify();
   }
@@ -322,6 +325,12 @@ export class ChatsView {
     cx.stop_propagation();
     if (this.naming || this.asking) {
       this.naming = this.asking = null;
+      this.focus();                               // the keys back in the filter, whose next Esc closes the list
+      return void cx.notify();
+    }
+    if (this.typed) {
+      this.find.set_value("");                    // the filter's words first
+      this.typed = "";
       return void cx.notify();
     }
     this.close();
@@ -338,7 +347,7 @@ export class ChatsView {
     return this.list(t, this.rows());
   }
 
-  /** Group NAME (a chat's clock asked for its folder's conversations) opened and scrolled to: from the list's end
+  /** Group NAME (a chat's clock asked for its folder's chats) opened and scrolled to: from the list's end
    * back to its head, so it stands first in view (groupPlace's). @param {string} name */
   reveal(name, cx) {
     this.opened.add(name);
@@ -366,8 +375,8 @@ export class ChatsView {
   /** The list: the filter (beside the rail, the window's head has its ×), ROWS (what there is to say instead in the
    * first one's place: loading, the list's failure, none), then what was done under them, moving none. */
   list(t, rows) {
-    const empty = !this.loaded ? this.failed ?? "Loading chats…" : rows.length ? null
-      : this.typed ? "No chat matches" : "No chats";
+    const empty = !this.loaded ? (this.failed ? `Couldn't read the chats: ${this.failed}` : "Loading chats…")
+      : rows.length ? null : this.typed ? "No chat matches" : "No chats";
     return v_flex().size_full().min_h(0).text_color(t.foreground).text_size(13)
       .on_key_down((e, cx) => this.escape(e, cx))
       .child(h_flex().flex_none().p(PAD).pb(6).gap(4).items_center()
@@ -376,7 +385,7 @@ export class ChatsView {
         .when(Boolean(this.scroll), (e) => e.track_scroll(this.scroll))
         .on_mouse_down("right", () => this.menus.open(this.choices(null)))
         .when(Boolean(empty), (e) => e.child(h_flex().min_h(SPACE_ROW).py(2).px(PAD / 2).items_center().text_size(12)
-          .text_color(this.failed && !this.loaded ? t.ansi1 : t.dim).child(empty ?? "")))
+          .text_color(this.failed && !this.loaded ? t.ansi1 : t.muted).child(empty ?? "")))
         .children(rows.filter((row) => row.kind === "group").flatMap((row) => [this.group(t, row),
           this.members(t, row)])))
       .when(Boolean(this.note), (e) => e.child(footNote(t, this.note)));
@@ -389,8 +398,8 @@ export class ChatsView {
       .children(row.items.map((item) => this.row(t, item)));
   }
 
-  /** A space as the TUI's column has it: its most urgent agent's state mark (none: a faint dot), its name (the one
-   * shown bold), how many it holds and its chevron; a click folds or opens it. */
+  /** A space as the TUI's column has it: its chevron leftmost, its name (the one shown bold), how many it holds; a
+   * click folds or opens it. */
   group(t, row) {
     const here = row.here;
     return h_flex().id(`space-${row.name}`).h(SPACE_ROW).flex_none().px(PAD / 2).gap(6).items_center().rounded(6)
@@ -401,20 +410,20 @@ export class ChatsView {
         other.delete(row.name);
         cx.notify();
       })
-      .child(stateMark(t, row.state))
+      .child(fold(`space-${row.name}-fold`, row.open, CHEVRON, t.dim))
       .child(div().flex_1().min_w(0).truncate().text_color(here ? t.foreground : t.muted)
         .when(here, (e) => e.font_bold()).child(row.name))
-      .child(div().flex_none().text_size(11).text_color(t.dim).child(String(row.items.length)))
-      .child(fold(`space-${row.name}-fold`, row.open, 12, t.accent));
+      .child(div().flex_none().text_size(11).text_color(t.muted).child(String(row.items.length)));
   }
 
-  /** A chat: its state's mark (a closed one's faint dot), its agent's icon, its name (a closed one's fainter)
-   * and how long ago; a click shows it, a right click opens its menu; Delete… asked about in its place, as Files asks
-   * Move to Trash, its name staying. @param {Listed} item */
+  /** A chat: its state's mark, its agent's icon, its name; at its end its agent (with no icon) and its age, two
+   * right-aligned columns; a click shows it, a right click its menu; Delete… asked in its place, as Files asks.
+   * @param {Listed} item */
   row(t, item) {
     const key = archiveKey(item), archived = this.archived.has(key), asking = this.asking === key;
     const title = item.title.replace(/\p{Cc}/gu, "?");    // a title's escape codes shown, never run
-    const look = archived ? t.dim : item.state ? t.foreground : t.muted, agent = this.agentIcon(item, 13);
+    const look = archived ? t.muted : item.state ? t.foreground : t.muted, agent = this.agentIcon(item, 13);
+    const named = NAMES[item.agent] ?? `${item.agent.slice(0, 1).toUpperCase()}${item.agent.slice(1)}`;
     return h_flex().id(`chat-${key}`).h(CHAT_ROW).flex_none().pl(UNDER).pr(PAD / 2).gap(6).items_center().rounded(6)
       .cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => (asking ? null : this.open(item, cx)))
       .tooltip(`${title} · ${STATES[item.state] ?? "Closed"}`)              // its whole name, its mark in words
@@ -433,14 +442,16 @@ export class ChatsView {
           .child(small(t, `chat-${key}-keep`, "Cancel", "Keep it", true, (cx) => this.unask(cx)))
           .child(small(t, `chat-${key}-trash`, "Move", `Move “${title}” to the Trash`, true,
             (cx) => this.delete(item, cx)))))
-      .when(!asking, (e) => e.child(div().flex_none().text_size(11).text_color(t.dim)
-        .child(archived ? "archived" : agent ? item.ago : `${item.agent} · ${item.ago}`)));
+      .when(!asking && !agent, (e) => e.child(div().w(AGENT).flex_none().text_right().truncate().text_size(11)
+        .text_color(t.muted).child(named)))
+      .when(!asking, (e) => e.child(div().w(AGE).flex_none().text_right().truncate().text_size(11)
+        .text_color(t.muted).child(archived ? "archived" : item.ago)));
   }
 
   /** The right click's menu: on ITEM what can be done with it (a running one's Delete… off, its tip saying why), on
    * the list (null) the archived shown or hidden. @param {Listed | null} item @returns {import("./menus.js").Item[]} */
   choices(item) {
-    const choices = chatChoices(item, this.archived, this.showsArchived());
+    const choices = chatChoices(item, this.archived, showsArchived());
     const off = item ? deleteOff(item) : null;
     if (!choices.length) return [{ label: "Nothing archived", off: true }];
     return choices.map((choice) => (choice === "Delete…" && off ? { label: choice, off: true, tip: off }

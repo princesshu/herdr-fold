@@ -242,12 +242,12 @@ export const urgent = (states) => URGENCY.find((state) => states.includes(state)
 /** ITEM's key among the archived, as the TUI's column keeps it. @param {Chat} item */
 export const archiveKey = (item) => `${item.agent}:${item.id}`;
 
-/** The rows: each space of ORDER, its STATES' state, with its ITEMS (PLACE: {folder: space}) that match TYPED, FRONT's
- * panes first, then the newest; archived ones only typed or shown; HERE open unless CLOSED, others OPENED or typed.
- * @param {Chat[]} items @param {string[]} order @param {Record<string, string>} place @param {any} how */
+/** Each space of ORDER with its ITEMS (PLACE: {folder: space}) matching TYPED, FRONT's first, then the newest; none
+ * shown: left out; archived ones typed or shown; HERE open unless CLOSED, others OPENED or typed. @param {Chat[]} items
+ * @param {string[]} order @param {Record<string, string>} place @param {any} how */
 export function chatRows(items, order, place, how) {
   const { typed = "", archived = new Set(), showArchived = false, opened = new Set(), closed = new Set(), here = null,
-    front = new Set(), states = {} } = how;
+    front = new Set() } = how;
   const word = typed.toLowerCase();
   const matches = (item) => !word || [item.title, place[item.folder] ?? "", item.folder,
     archived.has(archiveKey(item)) ? "archived" : ""].some((part) => part.toLowerCase().includes(word));
@@ -265,9 +265,8 @@ export function chatRows(items, order, place, how) {
     const found = items.filter((item) => place[item.folder] === name && matches(item)
       && (!archived.has(archiveKey(item)) || Boolean(word) || showArchived))
       .sort((a, b) => Number(front.has(b.pane)) - Number(front.has(a.pane)) || b.time - a.time);
-    if (word && !found.length) return [];
-    const group = { kind: "group", name, items: found, open: open(name), here: name === here,
-      state: states[name] ?? null };
+    if (!found.length) return [];
+    const group = { kind: "group", name, items: found, open: open(name), here: name === here };
     const under = group.open ? found.map((item, n) => ({ kind: "item", item, last: n === found.length - 1 })) : [];
     return [group, ...under];
   });
@@ -399,10 +398,94 @@ export const sidebarPx = (root) => find(root, "sidebar")?.size?.px ?? null;
 /** Whether layout ROOT's sidebar is folded to a rail. @param {any} root */
 export const railed = (root) => (sidebarPx(root) ?? Infinity) < RAIL_BELOW;
 
-/** The width layout ROOT's sidebar takes when its toggle is pressed, as the app's own toggle has it: folded, as wide
- * as the traffic lights on macOS (MACOS), RAIL; opened, KEPT, the width it had, else 268.
+export const SIDEBAR_PX = 268;               // px: the left sidebar open, unless it kept another width
+
+/** The left sidebar's rail, as the app's own toggle folds it: as wide as the traffic lights on macOS (MACOS), RAIL,
+ * else 44. @param {boolean} macos */
+export const sidebarRail = (macos) => (macos ? RAIL : 44);
+
+/** The width layout ROOT's sidebar takes when its toggle is pressed, as the app's own toggle has it: folded, its rail
+ * (MACOS's); opened, KEPT, the width it had, else SIDEBAR_PX.
  * @param {any} root @param {boolean} macos @param {number | undefined} kept */
-export const foldedWidth = (root, macos, kept) => (railed(root) ? kept ?? 268 : macos ? RAIL : 44);
+export const foldedWidth = (root, macos, kept) => (railed(root) ? kept ?? SIDEBAR_PX : sidebarRail(macos));
+
+// a side's width once a drag lets go of it, as the TUI's: SETTLE ms unchanged is let go, not on the way; a rail
+// widened more than UNFOLD px (the TUI's 3 cells) opens as its toggle does
+export const UNFOLD = 24, SETTLE = 300;
+
+/** Where a side dragged PX wide comes to rest (null: as it is), having rested FROM px wide last (null: not seen yet):
+ * a rail widened past UNFOLD at KEPT, its toggle's width, however far; else under RAIL_BELOW at its RAIL.
+ * @param {number | null} px @param {number | null} from @param {number} rail @param {number} kept */
+export function restWidth(px, from, rail, kept) {
+  if (px === null) return null;
+  const to = from !== null && from < RAIL_BELOW && px - rail > UNFOLD ? kept : px < RAIL_BELOW ? rail : px;
+  return to === px ? null : to;
+}
+
+/** A side's width PX unchanged for SETTLE ms, as its follower SEEN ({ from, pending }) had it: its own last setting
+ * (PENDING) held, rested there; else REST(from) sets where it comes to rest, which counts once it holds (a pause in a
+ * drag, the drag going on, never moves FROM). @param {any} seen @param {number | null} px @param {any} rest */
+export function restAt(seen, px, rest) {
+  if (px !== null && px === seen.pending) return void Object.assign(seen, { from: px, pending: null });
+  const to = rest(seen.from);
+  Object.assign(seen, to === px ? { from: px, pending: null } : { pending: to });
+}
+
+/** Where ROOT's left sidebar comes to rest once let go (restWidth: FROM px last, KEPT its open width, its rail MACOS's
+ * but never under the layout's least): its width, whether open, the command putting it there; hidden, as it is.
+ * @param {any} root @param {number | null} from @param {number | undefined} kept @param {boolean} macos */
+export function sidebarRest(root, from, kept, macos) {
+  const side = find(root, "sidebar"), px = sidebarPx(root), rail = Math.max(sidebarRail(macos), side?.min ?? 0);
+  const to = side && !side.hidden ? restWidth(px, from, rail, kept ?? SIDEBAR_PX) : null, at = to ?? px;
+  return { to: at, open: at !== null && at >= RAIL_BELOW,
+    commands: /** @type {[string, any][]} */ (to === null ? [] : [["layout.resize", { id: "sidebar", px: to }]]) };
+}
+
+export const SIDE_FOOT = "sidebar-footer";         // the sidebar's footer under Spaces, while the sidebar is open
+
+/** The commands that show layout ROOT's left side as its width says: open or a rail, never hidden (anything that hid
+ * it, shown again at once: its toggle is in it), its footer while it is open. @param {any} root
+ * @returns {[string, any][]} */
+export function sidebarFollow(root) {
+  const side = find(root, "sidebar"), foot = find(root, SIDE_FOOT);
+  if (!side) return [];
+  if (side.hidden) return [["layout.show", { id: "sidebar" }]];
+  const open = !railed(root);
+  return foot && Boolean(foot.hidden) === open ? [[open ? "layout.show" : "layout.hide", { id: SIDE_FOOT }]] : [];
+}
+
+/** The commands of the sidebar's toggle (in its head; Cmd+B) in layout ROOT: open, folded to its rail
+ * (MACOS's); a rail, opened KEPT wide (else SIDEBAR_PX); hidden by the app's own key, shown open.
+ * @param {any} root @param {boolean} macos @param {number | undefined} kept @returns {[string, any][]} */
+export function sidebarToggle(root, macos, kept) {
+  const side = find(root, "sidebar");
+  if (!side) return [];
+  const resize = (/** @type {number} */ px) => /** @type {[string, any]} */ (["layout.resize", { id: "sidebar", px }]);
+  if (side.hidden) return [["layout.show", { id: "sidebar" }], ...(railed(root) ? [resize(kept ?? SIDEBAR_PX)] : [])];
+  return [resize(foldedWidth(root, macos, kept))];
+}
+
+/** Whether a press AT ({ x, y }, the window's) outside a float of PANEL closes it, in layout ROOT a window WIDTH wide,
+ * the tab bar's end END px from its edge: never while a menu or window of the mod is UP (a press there is the float's
+ * own), nor on its side's own controls (its rail, the toggle over it; ✦, More, «), which open and close floats. */
+export function pressCloses(panel, { x, y }, root, width, end, up) {
+  const title = find(root, "title")?.size?.px ?? 0, bar = title + (find(root, "top")?.size?.px ?? 0);
+  if (up) return false;
+  if (y < title) return true;
+  if (panel === "spaces") return x > (sidebarPx(root) ?? RAIL) + (find(root, "workspace")?.divider?.width ?? 0);
+  if (y < bar) return x < width - end;
+  return x < width - (find(root, "work-body")?.padding ?? 0) - (panelPx(root) ?? RAIL);
+}
+
+/** Whether a float of PANEL beside its rail has outlived it in layout ROOT: Spaces once the sidebar opens or hides, a
+ * view (Chats too) once the dock does; its side shows it then. @param {string} panel @param {any} root */
+export const floatStale = (panel, root) => (panel === "spaces" ? !railed(root) || Boolean(find(root, "sidebar")?.hidden)
+  : !panelRailed(root) || !panelShown(root));
+
+/** A side's float as its shared value KEPT names it ({ panel, overlay } while one shows), else null. @param {any} kept
+ * @returns {{ panel: string, overlay: string } | null} */
+export const floating = (kept) => (kept && typeof kept === "object" && typeof kept.panel === "string"
+  && typeof kept.overlay === "string" ? { panel: kept.panel, overlay: kept.overlay } : null);
 
 /** SPACE's tabs as the tab bar draws them, as the app's own: one nobody named takes the space's name on the first (the
  * TUI's main tab), else its program's (an agent's, a chat tab's: CHATS), else Terminal; an agent's icon (TINT: in the
@@ -440,6 +523,11 @@ export function menuPlace(button, high, room, wide, left = false) {
   return { x, y: over >= MENU_EDGE ? over : Math.max(MENU_EDGE, room.height - MENU_EDGE - high) };
 }
 
+/** A list a key opens (Cmd+Shift+L's files, Cmd+K Cmd+T's themes), WIDE px: under a button ROOM's top centre, so
+ * menuPlace sets it where the palette stands (palettePlace). @param {{ width: number }} room @param {number} wide */
+export const keyMenuBounds = (room, wide) => ({ x: Math.round((room.width - wide) / 2), y: 0, width: wide,
+  height: MENU_EDGE - MENU_OFF });
+
 const MENU_ROW = 28, MENU_RULE = 9, MENU_GAP = 2, MENU_PAD = 4;      // px: a menu's row, its rule, between, round
 const MENU_FIND = 32;              // px: a menu's filter on top, a field (parts.js's)
 
@@ -448,10 +536,15 @@ const MENU_FIND = 32;              // px: a menu's filter on top, a field (parts
 export const menuHeight = (items, head, find = false) => items.reduce((h, item) => h + (item ? MENU_ROW : MENU_RULE)
   + MENU_GAP, (head ? MENU_ROW + MENU_GAP : 0) + (find ? MENU_FIND + MENU_GAP : 0)) + 2 * MENU_PAD;
 
-// herdr-fold's Settings (settings.html): More's Settings… opens it, one window of one size, its sections at its left
-export const SETTINGS = { wide: 600, high: 316, head: 44, side: 160, pad: 24 };
+// the one Settings (settings.html): the sidebar's Settings and ⌘, open it, one window of one size, its sections at its
+// left (a row ROW high), the Herdr app's under its title APART below them
+export const SETTINGS = { wide: 600, high: 380, head: 44, side: 160, pad: 24, row: 28, apart: 10 };
 /** Its sections in order, each [id, name]. @type {[string, string][]} */
-export const SECTIONS = [["general", "General"], ["about", "About"]];
+export const SECTIONS = [["general", "General"], ["notifications", "Notifications"], ["about", "About"]];
+/** The app's own sections under Application, each [id, name]: each opens the app's Settings there (app.settings); its
+ * Alerts is Notifications' last row. @type {[string, string][]} */
+export const APP_SECTIONS = [["look", "Look"], ["machines", "Machines"], ["updates", "Updates"],
+  ["privacy", "Privacy"]];
 
 /** The section shown for the one KEPT (the one last looked at; General at first). @param {unknown} kept */
 export const settingsSection = (kept) => (SECTIONS.some(([id]) => id === kept) ? String(kept) : SECTIONS[0][0]);
@@ -463,9 +556,34 @@ export function sectionStep(section, step) {
   return SECTIONS[Math.max(0, Math.min(SECTIONS.length - 1, at + step))][0];
 }
 
-/** What Tab steps through in SECTION: General's one choice, About's links and buttons (ABOUT: aboutState's).
- * @param {string} section @param {ReturnType<typeof aboutState>} about */
-export const settingsTargets = (section, about) => (section === "about" ? aboutTargets(about) : ["opens"]);
+/** What Tab steps through in SECTION: General's one choice, Notifications' and its Herdr app alerts, About's links and
+ * buttons (ABOUT: aboutState's). @param {string} section @param {ReturnType<typeof aboutState>} about */
+export const settingsTargets = (section, about) => (section === "about" ? aboutTargets(about)
+  : section === "notifications" ? ["notes", "alerts"] : ["opens"]);
+
+/** herdr-fold's layout file's TEXT with its root's toast as An agent waits on you (ON) says: off, MOD's (its part
+ * closes each note at once); on, none (the app's own); null when so already, or another mod's.
+ * @param {string} text @param {boolean} on @param {string} mod */
+export function layoutToast(text, on, mod) {
+  const root = JSON.parse(text);
+  if (on ? root.toast !== mod : root.toast !== undefined) return null;
+  if (on) delete root.toast;
+  else root.toast = mod;
+  return `${JSON.stringify(root, null, 2)}\n`;
+}
+
+/** Whether a note of LEVEL (notify()'s: info, success, warning, error) shows while An agent waits on you is off:
+ * an error or a warning always does. @param {unknown} level */
+export const noteShown = (level) => level === "error" || level === "warning";
+
+/** The app's settings.json TEXT (null: none yet) with its sounds as An agent waits on you (ON) says, and the person's
+ * own value KEPT to give back: off, none, theirs kept; on, theirs again (none kept: on).
+ * @param {string | null} text @param {boolean} on @param {boolean | null} kept */
+export function soundsFor(text, on, kept) {
+  const settings = text ? JSON.parse(text) : {}, now = settings.sounds?.enabled !== false;
+  const sounds = { ...(settings.sounds ?? {}), enabled: on ? kept !== false : false };
+  return { text: `${JSON.stringify({ ...settings, sounds }, null, 2)}\n`, kept: on ? null : now };
+}
 
 // its About section, in the TUI's words
 
@@ -655,7 +773,6 @@ export const PALETTE_NAMED = [
   ["window.minimize", {}, "Window", "Minimize window", ""],
   ["window.maximize", {}, "Window", "Maximize window", "restore"],
   ["window.close", {}, "Window", "Close window", "quit"],
-  ["app.settings", {}, "App", "Settings", "preferences options config look font theme sound"],
   ["app.help", {}, "App", "Keys", "keybindings shortcuts help"],
   ["app.welcome", {}, "App", "Welcome", "intro start onboarding"],
   ["app.whats_new", {}, "App", "What's new", "release changes news update"],
@@ -674,20 +791,38 @@ export const PALETTE_NAMED = [
 // words]. Not the palette itself, Commit (it needs the message typed in Changes) or the update's toast's What's new
 /** @type {[string, string, string][]} */
 export const PALETTE_OWNED = [
-  ["herdr-fold.settings", "Settings…", "herdr-fold preferences options agents accounts about update"],
+  ["herdr-fold.settings", "Settings…", "herdr-fold preferences options config agents about update look font theme "
+    + "sound machines alerts privacy"],
   ["herdr-fold.files", "Files", "view dock panel explorer tree folder show"],
   ["herdr-fold.search", "Search", "view dock panel find grep show"],
   ["herdr-fold.changes", "Changes", "view dock panel git diff show"],
   ["herdr-fold.issues", "Issues", "view dock panel github pull requests show"],
   ["herdr-fold.agent", "Agent", "view dock panel setup rules permissions skills connectors mcp show"],
-  ["herdr-fold.agents", "Agents", "tab graph wiring rules skills sub-agents tools connectors gates show"],
+  ["herdr-fold.agents", "Agents", "tab graph wiring rules skills subagents tools connectors gates show"],
   ["herdr-fold.usage", "Usage", "tab agents cost tokens spent value budget models conversations report show"],
   ["herdr-fold.chats", "Chats", "view dock panel conversations sessions history show"],
+  ["herdr-fold.sidebar", "Collapse or expand sidebar", "left dock rail icons spaces toggle fold show hide"],
+  ["herdr-fold.panels", "Collapse or expand panels", "right dock rail icons views toggle fold show hide"],
+  ["herdr-fold.column", "Show or hide the dock", "right column panel views terminal toggle"],
+  ["herdr-fold.restore", "Restore panels", "views dock terminal hidden back show"],
   ["herdr-fold.new-agent", "New chat", "agent start"],
+  ["herdr-fold.new-space", "New space in a folder…", "workspace folder picker open"],
+  ["herdr-fold.add-machine", "Add machine…", "remote ssh server"],
+  ["herdr-fold.open-file", "Open file from output…", "path line traceback terminal preview"],
+  ["herdr-fold.theme", "Color theme…", "colors look picker"],
   ["herdr-fold.styleguide", "Styleguide", "parts components design"],
   ["herdr-fold.unread", "Mark agent unread", "waiting"],
   ["herdr-fold.commit-push", "Commit and push", "git changes"],
   ["herdr-fold.write", "Write commit message", "git changes"]];
+/** Cmd+K Cmd+T's list: herdr-fold's THEMES (themes()') by the TUI's NAMES (THEME_NAMES) in its order, the one in use
+ * (CURRENT; the layout's own herdr-fold too) checked by its colors. @param {{ name: string, colors: Record<string,
+ * string> }[]} themes @param {Record<string, string>} names @param {string} current */
+export function themeChoices(themes, names, current) {
+  const colors = JSON.stringify(themes.find((theme) => theme.name === current)?.colors ?? null);
+  const known = new Map(themes.map((theme) => [theme.name, JSON.stringify(theme.colors)]));
+  return Object.entries(names).filter(([name]) => known.has(name))
+    .map(([name, label]) => ({ name, label, on: known.get(name) === colors }));
+}
 // what acts on something pointed at (an id, a terminal), or is the palette itself: not for a list
 const PALETTE_HIDDEN = new Set(["space.move", "tab.move", "space.select", "tab.select", "pane.focus", "terminal.keep",
   "terminal.park", "terminal.kill", "terminal.show", "agent.focus", "layout.set", "layout.toggle", "layout.show",
@@ -773,9 +908,14 @@ export const PANEL_PX = 368;                 // px: the right panel open, unless
 
 export const TALL = 440;          // Spaces floating beside the folded sidebar, at most
 
-/** Spaces floating beside the folded sidebar, as tall as its head and its SHOWN rows (a count), up to TALL.
- * @param {number} shown */
-export const floatHeight = (shown) => Math.min(TALL, 36 + 29 * shown + 8);
+const FLOAT_ROW = 30, FLOAT_FOOT = 6;        // px: Spaces' float's row and the gap after it; its foot less that gap
+
+/** Spaces floating beside the folded sidebar, as tall as its head and its SHOWN rows (a count), up to TALL and the
+ * ROOM the window has under its top, a row at least (it scrolls then). @param {number} shown @param {number} [room] */
+export const floatHeight = (shown, room = Infinity) => {
+  const rows = (/** @type {number} */ n) => FLOAT_HEAD + FLOAT_ROW * n + FLOAT_FOOT;
+  return Math.min(TALL, rows(shown), Math.max(rows(1), room));
+};
 
 /** The ✦'s count, as the TUI's: the chats waiting on you, this Mac's (LOCAL spaces') Claude and Codex blocked and
  * the chat tabs waiting (CHATS: their agents), each agent once (a chat's terminal shown in a pane is among AGENTS).
@@ -795,8 +935,8 @@ export function issuesParts({ asked, listing, shown, filtered, state }) {
 }
 
 // a view floating beside the folded rail (a window as tall as its content): as tall as dragged by the grip at its
-// foot, its head and 3 rows at least (each view's head and rows below), the window less FLOAT_MARGIN at most
-export const FLOAT_GRIP = 12, FLOAT_HEAD = 36, FLOAT_MARGIN = 56, FLOAT_FALLBACK = 560;
+// foot, its head and 3 rows at least (each view's head and rows below), the rail's height at most; FLOAT_GAP from it
+export const FLOAT_GRIP = 12, FLOAT_HEAD = 36, FLOAT_FALLBACK = 560, FLOAT_GAP = 8;
 const FLOAT_PARTS = {           // px: each view's own head, then 3 of its rows
   files: [38, 3 * 26],                          // the toolbar (PAD + an icon button)
   chats: [50, 26 + 2 * 24],                     // the filter (PAD, a field, 6), a space and two chats
@@ -804,6 +944,7 @@ const FLOAT_PARTS = {           // px: each view's own head, then 3 of its rows
   issues: [84, 3 * 48],                         // the field's row and Open and Closed
   changes: [58 + 97, 3 * 26 + 12],              // the repository and the composer; the list's rows and its pads
   agent: [44 + 37, 4 + 28 + 2 * 26],            // the head and the health line; a section's head and two rows
+  spaces: [0, FLOAT_ROW + FLOAT_FOOT],          // a space's row and the list's foot
 };
 
 /** The least a float of VIEW may be: its head, the view's own head, 3 rows, the grip. @param {string} view */
@@ -812,11 +953,23 @@ export function floatMin(view) {
   return FLOAT_HEAD + head + rows + FLOAT_GRIP;
 }
 
-/** The most: the window's height (the rail's RAIL_PX, the title row's, the tab bar's, the status bar's and the work
- * body's pads in layout ROOT) less the float's margins. @param {number} railPx @param {any} root */
-export const floatMax = (railPx, root) => railPx + (find(root, "title")?.size?.px ?? 0)
-  + (find(root, "top")?.size?.px ?? 0) + (find(root, "status")?.size?.px ?? 0)
-  + 2 * (find(root, "work-body")?.padding ?? 0) - FLOAT_MARGIN;
+/** The most: the rail's height (RAIL_PX), from the centre card's top (floatTop) to its foot, so the float stays in the
+ * window and off the tab bar. @param {number} railPx @param {any} _root */
+export const floatMax = (railPx, _root) => railPx;
+
+/** Where a float beside a rail starts in layout ROOT: at the centre card's top, under the title row and the tab bar,
+ * so their buttons (✦, More, ») stay in reach. @param {any} root */
+export const floatTop = (root) => (find(root, "title")?.size?.px ?? 0) + (find(root, "top")?.size?.px ?? 0)
+  + (find(root, "work-body")?.padding ?? 0);
+
+/** Where a float of PANEL, WIDE px wide, starts across a window WIDTH px wide (layout ROOT): Spaces FLOAT_GAP right of
+ * the sidebar's rail and divider, a view FLOAT_GAP left of the dock's rail, whichever icon was pressed: on the centre
+ * card's edges. @param {string} panel @param {any} root @param {number} width @param {number} wide */
+export function floatX(panel, root, width, wide) {
+  if (panel === "spaces") return (sidebarPx(root) ?? RAIL) + (find(root, "workspace")?.divider?.width ?? 0) + FLOAT_GAP;
+  const rail = (find(root, "work-body")?.padding ?? 0) + (panelPx(root) ?? RAIL);      // the rail, from the edge
+  return Math.max(FLOAT_GAP, width - rail - FLOAT_GAP - wide);
+}
 
 /** A height clamped to MIN..MAX (MAX never under MIN). @param {number} px @param {number} min @param {number} max */
 const clampPx = (px, min, max) => Math.min(Math.max(px, min), Math.max(min, max));
@@ -826,6 +979,14 @@ const clampPx = (px, min, max) => Math.min(Math.max(px, min), Math.max(min, max)
 export function railFloatPx(view, kept, railPx, root) {
   const max = railPx ? floatMax(railPx, root) : FLOAT_FALLBACK, want = kept?.[view];
   return clampPx(typeof want === "number" ? want : max, floatMin(view), max);
+}
+
+/** VIEW's float's height where it fits FIT px (its rows, Spaces'): as KEPT for it ({view: px}), else FIT, its least
+ * to MOST (the window's room under it). @param {string} view @param {any} kept @param {number} fit
+ * @param {number} most */
+export function fitFloatPx(view, kept, fit, most) {
+  const want = kept?.[view];
+  return clampPx(typeof want === "number" ? want : fit, floatMin(view), most);
 }
 
 /** KEPT with VIEW's float PX high, only heights kept. @param {any} kept @param {string} view @param {number} px */
@@ -957,9 +1118,19 @@ export function placeKey(s, ps, places) {
 // A machine's home folder is always a row in Spaces, first among its machine's: a space there, or with none (the app
 // ends a space with its last tab) a stand-in saying nothing is open, a click opening a terminal there.
 export const HOME_NAME = "~";
-/** A space's NAME as shown: the app's "~" reads home, as the TUI's workspace is named; its avatar keeps the ~.
- * @param {string | null | undefined} name */
-export const spaceLabel = (name) => (name === HOME_NAME ? "home" : name ?? "");
+// the app names a root's space by its path, as herdr does: / or a drive's (C:\), its letter and colon kept
+const ROOT_PATH = /^([A-Za-z]:)?[\\/]$/;
+/** A space's NAME as shown, as the TUI names its workspace: the app's "~" reads home, a root's root, a drive's its
+ * letter (C:); its avatar keeps the path's first character. @param {string | null | undefined} name */
+export function spaceLabel(name) {
+  const root = name?.match(ROOT_PATH);
+  return name === HOME_NAME ? "home" : root ? root[1] ?? "root" : name ?? "";
+}
+/** Whether NAME is the app's for a machine's own place, its home or a root, not a project. @param {string} name */
+const ownPlace = (name) => name === HOME_NAME || ROOT_PATH.test(name);
+/** Space S's avatar color, COLORS the kept ones: home's for a machine's own place, else its own.
+ * @param {{ id: string, name: string }} s @param {Record<string, string>} colors */
+export const spaceColor = (s, colors) => (ownPlace(s.name) ? "ansi6" : colors[s.id] ?? "ansi6");
 /** The stand-in's id for MACHINE's home (null: this computer). @param {string | null} machine */
 export const homeId = (machine) => `home:${machine ?? ""}`;
 const folderOnly = (/** @type {string} */ path) => path.replace(/[\\/]+$/, "");
@@ -1023,14 +1194,14 @@ export const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi
 const PALETTE = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1"];
 
 /** The spaces' colors as every app mod keeps them (shared "space.colors"): KEPT's for the spaces of LIST still there,
- * one without given the color fewest use, in LIST's order, the home folder's ("~") none; null when nothing changed.
+ * one without given the color fewest use, in LIST's order, home's and a root's none; null when nothing changed.
  * @param {{ id: string, name: string }[]} list @param {Record<string, string>} kept */
 export function spaceColors(list, kept) {
   const ids = new Set(list.map((s) => s.id));
   const colors = Object.fromEntries(Object.entries(kept).filter(([id]) => ids.has(id)));
   let changed = Object.keys(colors).length !== Object.keys(kept).length;
   for (const { id, name } of list) {
-    if (colors[id] || name === "~") continue;
+    if (colors[id] || ownPlace(name)) continue;
     const uses = (c) => Object.values(colors).filter((v) => v === c).length;
     colors[id] = PALETTE.reduce((best, c) => (uses(c) < uses(best) ? c : best));
     changed = true;
@@ -1211,9 +1382,9 @@ export const panelRailed = (root) => (panelPx(root) ?? Infinity) < RAIL_BELOW;
 
 /** @typedef {{ shown: boolean, px: number }} Bottom the terminal under the centre: shown or not, its height */
 
-/** The commands that make ROOT's right panel show what its width says, a drag's too: its rail's block, at RAIL px, and
- * the tab's terminal under the centre as BOTTOM says (none in the tab, or no centre: hidden), or its card and the
- * terminal's at its foot; nothing while it is hidden. @param {any} root @param {Bottom} [bottom] @returns {any[]} */
+/** The commands that make ROOT's right panel show what its width says, a drag's too (its width once let go: dockRest):
+ * its rail's block and the tab's terminal under the centre as BOTTOM says (none in the tab, or no centre: hidden), or
+ * its card and the terminal's at its foot; nothing while hidden. @param {any} root @param {Bottom} [bottom] */
 export function railFollow(root, { shown, px } = { shown: true, px: BOTTOM_PX }) {
   const panel = find(root, PANEL);
   if (!panel || panel.hidden) return [];
@@ -1227,9 +1398,16 @@ export function railFollow(root, { shown, px } = { shown: true, px: BOTTOM_PX })
     [RAIL_BLOCK, railed]];
   return [...set, ...blocks.filter(([id, on]) => find(root, id) && (!find(root, id).hidden !== on
     || (moved.changed && id === TERMINALS)))         // moved: said again, over what the app kept of it
-    .map(([id, on]) => /** @type {[string, any]} */ ([on ? "layout.show" : "layout.hide", { id }])),
-  ...(railed && panel.size?.px !== RAIL ? [/** @type {[string, any]} */ (["layout.resize", { id: PANEL, px: RAIL }])]
-    : [])];
+    .map(([id, on]) => /** @type {[string, any]} */ ([on ? "layout.show" : "layout.hide", { id }]))];
+}
+
+/** Where ROOT's dock comes to rest once let go (restWidth: FROM px last, KEPT «'s width): its width, whether open, the
+ * commands that put it there, its blocks and terminal following (BOTTOM); hidden, as it is. @param {any} root
+ * @param {number | null} from @param {number | undefined} kept @param {Bottom} [bottom] */
+export function dockRest(root, from, kept, bottom = undefined) {
+  const px = panelPx(root), to = panelShown(root) ? restWidth(px, from, RAIL, kept ?? PANEL_PX) : null, at = to ?? px;
+  return { to: at, open: at !== null && at >= RAIL_BELOW,
+    commands: to === null ? [] : panelAt(root, to, [["layout.resize", { id: PANEL, px: to }]], bottom) };
 }
 
 // the tab's terminal while the dock is its rail: under the tab, in the centre's column (CENTER), as VS Code's panel,
@@ -1291,6 +1469,37 @@ function railOpen(root, kept) {
   const panel = find(root, PANEL), px = panelRailed(root) ? kept ?? PANEL_PX : panel.size?.px ?? PANEL_PX;
   return panelAt(root, px, [...(panel.hidden ? [/** @type {[string, any]} */ (["layout.show", { id: PANEL }])] : []),
     ["layout.resize", { id: PANEL, px }]]);
+}
+
+/** Cmd+Shift+E in layout ROOT, as the TUI's right column: the dock (open or its rail, the terminal at its foot) hidden
+ * entirely, or shown again as it was, its blocks following (BOTTOM). @param {any} root @param {Bottom} [bottom]
+ * @returns {[string, any][]} */
+export function columnToggle(root, bottom = undefined) {
+  const panel = find(root, PANEL);
+  if (!panel) return [];
+  if (!panel.hidden) return [["layout.hide", { id: PANEL }]];
+  const after = JSON.parse(JSON.stringify(root));
+  find(after, PANEL).hidden = false;
+  return [["layout.show", { id: PANEL }], ...railFollow(after, bottom)];
+}
+
+/** Cmd+Shift+O in layout ROOT, as the TUI's Restore panels: every view More hid shown again (Issues on GITHUB only),
+ * the dock if hidden, its blocks following BOTTOM (on its rail, the terminal under the tab). @param {any} root
+ * @param {boolean} github @param {Bottom} bottom @returns {[string, any][]} */
+export function restoreCommands(root, github, bottom) {
+  const after = JSON.parse(JSON.stringify(root));
+  const ids = [...VIEWS_APP.filter((view) => available(view, github) && find(after, view)?.hidden),
+    ...(find(after, PANEL)?.hidden ? [PANEL] : [])];
+  for (const id of ids) find(after, id).hidden = false;
+  return [...ids.map((id) => /** @type {[string, any]} */ (["layout.show", { id }])), ...railFollow(after, bottom)];
+}
+
+/** » / « and Cmd+Option+B in layout ROOT: railToggle's (KEPT, BOTTOM), the Chats list in the open dock closed first,
+ * the view CHOSEN back (GITHUB's): a fold never only closes it. @param {any} root @param {boolean} github
+ * @param {string | null} chosen @param {number | undefined} kept @param {Bottom} [bottom] @returns {[string, any][]} */
+export function foldCommands(root, github, chosen, kept, bottom = undefined) {
+  const open = panelShown(root) && !panelRailed(root) && find(root, DOCK)?.active === CHATS_BLOCK;
+  return [...(open ? chatsToggle(root, github, chosen) : []), ...railToggle(root, kept, bottom)];
 }
 
 /** The commands of the tab bar's » / «: an open right panel folded to its rail (its terminal under the centre as

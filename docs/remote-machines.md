@@ -12,9 +12,8 @@ It prepares each machine for the parts installed on the Mac, the TUI, the Herdr 
    settings in place (with the Herdr app alone, only the status line's);
 2. with the TUI: connects the machine to herdr, which installs herdr there (a single file, no admin rights);
 3. with the TUI: installs the herdr integrations for Claude and Codex, names a herdr-sidebar of the machine's own, and
-   links the sidebar, AI Sessions and Workspaces (an earlier install's Tab Layout taken off); the sidebar comes with
-   the settings, in the Mac's theme colors (a theme picked later reaches a machine with its next update), and runs
-   with the machine's Python;
+   links the sidebar, AI Sessions and Spaces; the sidebar comes with the settings, in the Mac's theme colors (a theme
+   picked later reaches a machine with its next update), and runs with the machine's Python;
 4. with the Herdr app ([The Herdr app](app.md)): adds the machine to the app, whose core (herdr-core) copies itself
    there, a single file as herdr's; a machine the app has already is left as it is.
 
@@ -76,7 +75,7 @@ through a Host with `ProxyJump` in `~/.ssh/config`.
 |---|---|
 | Linux | x86_64 or ARM. The prompt applies only inside herdr panes. |
 | macOS | System Settings → General → Sharing → turn on **Remote Login**. For repos in the Documents folder, in the same place: ⓘ → **Allow full disk access for remote users**. |
-| Windows | x86_64, Windows 10 1803 or newer (for its tar). Needs OpenSSH Server (Settings → System → Optional features → OpenSSH Server, then start the sshd service), with cmd or PowerShell as its shell; no file transfer (scp, SFTP): the package goes in plain commands. For an admin user the key goes in `C:\ProgramData\ssh\administrators_authorized_keys`. The installer installs Python with winget, or, if that fails over SSH, with the python.org installer for the current user. The right column is the sidebar and a terminal here too (`sidebar.ps1`); Claude's status line is the same Python script as elsewhere, started through PowerShell. The prompt works only where PowerShell profiles are allowed. New workspaces come from the command line, see [Using it](usage.md#workspaces). |
+| Windows | x86_64, Windows 10 1803 or newer (for its tar). Needs OpenSSH Server (Settings → System → Optional features → OpenSSH Server, then start the sshd service), with cmd or PowerShell as its shell; no file transfer (scp, SFTP): the package goes in plain commands. For an admin user the key goes in `C:\ProgramData\ssh\administrators_authorized_keys`. The installer installs Python with winget, or, if that fails over SSH, with the python.org installer for the current user. The right column is the sidebar and a terminal here too (`sidebar.ps1`); Claude's status line is the same Python script as elsewhere, started through PowerShell. The prompt works only where PowerShell profiles are allowed. New spaces come from the command line, see [Using it](usage.md#spaces). |
 
 ## Commands
 

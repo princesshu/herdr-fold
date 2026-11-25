@@ -1,23 +1,32 @@
-"""The Chats list the ✦ opens over the sidebar: herdr's workspaces in its Spaces list's order and typography, each a
-group of its chats (the active tab's first, then the newest; none outside every workspace), under a filter; closed ones
-marked to archive together, one deleted once asked. The view only asks: what it does comes back as an Action."""
+"""The Chats list the ✦ opens over the sidebar: herdr's workspaces with chats in its Spaces list's order, each a group
+of its chats (the active tab's first, then the newest; none outside every workspace) under a filter, the chosen one's
+plan under it; closed ones marked to archive together, one deleted once asked. What it does comes back as an Action."""
 import time
 from dataclasses import dataclass
 
 import widgets
+from agent_setup import KNOWN
 from github import since
 from screen import PAD, PLAIN, Canvas, Style, truncate, width
 from vt import Key, Mouse
-from widgets import Action, Confirm, ListView, Menu, Popup, TextInput
+from widgets import Action, Confirm, ListView, Menu, Popup, TextInput, wrap
 
 # herdr's states, as its Spaces list and AI Sessions mark and color them (unknown: its overlay0, the sidebar's
 # "ignored"); a closed chat, which herdr has no state for, "·" in the faint guide color
 STATE_ROLE = {"blocked": "deleted", "done": "done", "working": "modified", "idle": "added", "unknown": "ignored"}
 STATE_MARK = {"blocked": "●", "done": "●", "working": "●", "idle": "○", "unknown": "·"}
+SHOW, HIDE = "Show archived", "Hide archived"           # the archived ones in sight or not: More's line, the list's
 MENU = ("Open", "Copy chat", "Rename")
 DELETE = "Delete…"            # a closed chat's, asked first: its file to the system's Trash
 ASKED = 40                    # characters of a chat's name in that question
 BOX, MARKED = "□", "■"        # a closed chat's box, and a marked one's
+TITLE = 5                     # where a chat's name starts, its mark two cells before it
+TITLE_LEAST = 16              # cells a chat's name keeps at least: in fewer the agent's column goes
+# the chosen chat's plan under its row (core/plan.py's list): a step's mark and its color, by its state
+STEP_MARK = {"done": ("✓", "done"), "now": ("◐", "accent"), "next": ("○", "muted")}
+OPEN_PLAN = "Open the plan"   # at the plan's head: the approved plan in the preview tab
+NOTE_ROWS = 2                 # rows of a plan's note (Codex's) at most
+AFTER_LEAST = 8               # cells of what a step waits for at least: in fewer it is left out
 
 
 def printable(text):
@@ -42,7 +51,7 @@ class ChatList:
     def __init__(self, now=time.time):
         self.now = now
         self.items, self.spaces, self.place, self.here = None, [], None, None      # items None: not read yet
-        self.field = TextInput(placeholder="Filter")
+        self.field = TextInput(placeholder="Filter chats")
         self.opened, self.closed = set(), set()                     # groups opened or closed by hand
         self.archived = set()                                       # "<agent>:<id>" of the chats off the list
         self.show_archived = False                                  # those in sight too (the app sets it)
@@ -51,8 +60,9 @@ class ChatList:
         self.confirm = self.doomed = None                           # Delete…'s question, and the chat it asks about
         self.gone = set()                                           # "<agent>:<id>" of those on their way to the Trash
         self.front = set()                  # the panes of each workspace's active tab, whose chats lead
-        self.states = {}                    # each workspace's state, as herdr's Spaces list has it (the app sets it)
         self.icons = True                   # the sidebar's icons (its settings), or plain marks (the app sets it)
+        self.plan = None                    # ("<agent>:<id>", its list: core/plan.py's shown), as the app read it
+        self.done_open = None               # "<agent>:<id>" of the chat whose done steps are listed, each on a line
         self.list = ListView()
         self.hover = self.canvas = self.menu = None
         self.top = self.height = 0
@@ -136,15 +146,15 @@ class ChatList:
                 for name, found in groups.items()}
 
     def rows(self):
-        """("group", name, its chats, open) and ("item", chat, last in its group) rows, in the order
-        shown: every workspace, one that has nothing typed matches left out."""
+        """("group", name, its chats, open) and ("item", chat) rows, in the order shown: every workspace with a chat
+        in sight."""
         rows = []
         for name, found in self.members().items():
-            if self.typed and not found:
+            if not found:
                 continue
             rows.append(("group", name, found, self.is_open(name)))
             if self.is_open(name):
-                rows += [("item", item, n == len(found) - 1) for n, item in enumerate(found)]
+                rows += [("item", item) for item in found]
         return rows
 
     def rebuild(self):
@@ -172,6 +182,77 @@ class ChatList:
             self.closed.discard(name)
         self.rebuild()
 
+    # --- the chosen chat's plan
+
+    def chosen(self):
+        """The chat chosen; None on a group, or with no row."""
+        row = self.list.selected()
+        return row[1] if row and row[0] == "item" else None
+
+    def planned(self):
+        """The chosen chat's list; None while it has none, or the one read is another's."""
+        item = self.chosen()
+        return self.plan[1] if item and self.plan and self.plan[0] == self.archive_key(item) else None
+
+    def plan_lines(self, cells):
+        """The plan's lines under the chosen chat's row, CELLS wide: its head (a finished one's all it says), its note,
+        the done steps in one row (listed under it once opened), then the step at work and those to do."""
+        plan, room = self.planned(), max(1, cells - TITLE - 3)
+        if not plan:
+            return []
+        if plan["finished"]:
+            return [{"kind": "head", "text": plan["count"]}]
+        note = plan["note"] or ""
+        lines = [{"kind": "head", "text": ""}]
+        lines += [{"kind": "note", "text": note[start:end].strip()}
+                  for start, end in wrap(note, room + 2)[:NOTE_ROWS] if note]
+        done = [step for step in plan["steps"] if step["state"] == "done"]
+        listed = self.done_open == self.plan[0]
+        lines += [{"kind": "fold", "text": plan["done"], "open": listed}] if done else []
+        lines += [{"kind": "listed", "text": step["text"]} for step in done] if listed else []
+        return lines + [{"kind": step["state"], "text": step["text"], "after": step["after"]}
+                        for step in plan["steps"] if step["state"] != "done"]
+
+    def list_done(self, on):
+        """The chosen chat's done steps listed under their row (ON) or back in it; whether that changed anything."""
+        plan = self.planned()
+        if not plan or plan["finished"] or not plan["done"] or (self.done_open == self.plan[0]) == on:
+            return False
+        widgets.TURNS.turn(("plan", self.plan[0]))
+        self.done_open = self.plan[0] if on else None
+        return True
+
+    def draw_plan(self, canvas, y, line):
+        """A line of the plan, under its chat's name: the head with the approved plan's link at its end, a step's mark
+        and words, what it waits for at the right where there is room."""
+        cells, kind, words = canvas.width, line["kind"], line["text"]
+        room = max(1, cells - TITLE - 3)
+        canvas.region(y, 0, cells, "plan")
+        if kind == "head":
+            canvas.put(y, TITLE, "Plan", Style(fg="muted"))
+            canvas.put(y, TITLE + 6, truncate(words, max(1, room - 4)), Style(fg="done"))
+            start = cells - 1 - width(OPEN_PLAN)
+            if self.planned()["plan"] is not None and start >= TITLE + 6 + width(words) + 2:
+                canvas.put(y, start, OPEN_PLAN, Style(fg="subtext", underline=True))
+                canvas.region(y, start, cells - 1, "plan:open")
+        elif kind in ("note", "listed"):
+            canvas.put(y, TITLE if kind == "note" else TITLE + 2, truncate(words, room + (2 if kind == "note" else 0)),
+                       Style(fg="muted"))
+        elif kind == "fold":
+            canvas.region(y, 0, cells, "plan:done")
+            canvas.put(y, TITLE, STEP_MARK["done"][0], Style(fg=STEP_MARK["done"][1]))
+            canvas.put(y, TITLE + 2, truncate(words, room), Style(fg="muted"))
+            canvas.put(y, TITLE + 3 + width(truncate(words, room)),
+                       widgets.TURNS.mark(self.icons, ("plan", self.plan[0]), line["open"]), Style(fg="muted"))
+        else:
+            mark, role = STEP_MARK[kind]
+            after, most = line["after"] or "", room - TITLE_LEAST - 2
+            after = truncate(after, min(most, cells // 3)) if after and most >= AFTER_LEAST else ""
+            canvas.put(y, TITLE, mark, Style(fg=role))
+            canvas.put(y, TITLE + 2, truncate(words, room - (width(after) + 2 if after else 0)),
+                       Style(fg="text" if kind == "now" else "subtext"))
+            canvas.put(y, cells - 1 - width(after), after, Style(fg="muted"))
+
     # --- drawing
 
     def draw(self, canvas, top, height, roomy):
@@ -191,21 +272,23 @@ class ChatList:
             canvas.put(y, 1, truncate(line, cells - 2), Style(fg="muted"))
             y += 2
         rows = max(1, top + height - y)
-        if self.list.height != rows:
-            self.list.resize(rows)
+        plan = self.plan_lines(cells)[:rows - 1]                    # under the chosen row, which stays in sight
+        if self.list.height != rows - len(plan):
+            self.list.resize(rows - len(plan))
+        widths = self.columns()
         for row in range(self.list.height):
             index = self.list.at(row)
             if index is None:
                 break
-            self.draw_row(canvas, y + row, index)
+            self.draw_row(canvas, y, index, widths)
+            y += 1
+            for line in plan if index == self.list.index else ():
+                self.draw_plan(canvas, y, line)
+                y += 1
         if self.menu:
             self.draw_menu(canvas)
         if self.confirm:
             self.draw_confirm(canvas)
-
-    def space_mark(self, name):
-        """Workspace NAME's mark and its color, as herdr's Spaces list draws them."""
-        return mark(self.states.get(name) or "unknown")
 
     def line(self):
         if self.items is None:
@@ -214,51 +297,59 @@ class ChatList:
             return None
         return "No chat matches" if self.typed else "No chats"
 
-    def draw_row(self, canvas, y, index):
-        """A workspace as herdr's Spaces list has it: its mark, its name (the current one's bold), and at the right
-        edge how many it holds and its fold chevron; a chat on herdr's tree lines: its mark, its name (a closed
-        one's faint), the agent (fainter still) and how long ago."""
+    def columns(self):
+        """The cells of the chats' two columns at the right, the agent's and the age's (or "archived"), as wide as
+        their widest in sight."""
+        items = [row[1] for row in self.list.items if row[0] == "item"]
+        return (max([width(KNOWN[item.agent]["name"]) for item in items] or [0]),
+                max([width(self.age(item)) for item in items] or [0]))
+
+    def age(self, item):
+        """How long ago ITEM was written to, or that it is archived."""
+        return "archived" if self.archive_key(item) in self.archived else since(item.time, self.now())
+
+    def draw_row(self, canvas, y, index, widths):
+        """A workspace: its fold chevron dim, its name (the current one's bold), how many chats it holds at the right
+        edge; a chat under its name: its mark, its name (a closed one's faint), the agent and how long ago in two
+        right-aligned muted columns (WIDTHS, columns()'s), the agent's gone where the pane is narrow."""
         row, cells = self.list.items[index], canvas.width
         bg = "selection" if index == self.list.index else ("hover" if index == self.hover else None)
+        faint = "muted_row" if bg else "muted"
         if bg:
             canvas.band(y, bg)
         canvas.region(y, 0, cells, ("row", index))
         if row[0] == "group":
             _, name, found, opened = row
             count = str(len(found))
-            canvas.put(y, cells - 2, widgets.TURNS.mark(self.icons, ("space", name), opened), Style(fg="accent", bg=bg))
-            canvas.put(y, cells - 3 - width(count), count, Style(fg="muted", bg=bg))
-            shown, role = self.space_mark(name)
-            canvas.put(y, 1, shown, Style(fg=role, bg=bg))
+            canvas.put(y, 1, widgets.TURNS.mark(self.icons, ("space", name), opened), Style(fg=faint, bg=bg))
+            canvas.put(y, cells - 1 - width(count), count, Style(fg=faint, bg=bg))
             here = name == self.here
-            canvas.put(y, 3, truncate(printable(name), max(1, cells - 7 - width(count))),
+            canvas.put(y, 3, truncate(printable(name), max(1, cells - 6 - width(count))),
                        Style(fg="text" if here else "subtext", bg=bg, bold=here))
             return
-        _, item, last = row
-        ago = since(item.time, self.now())
+        item = row[1]
+        agent, age = widths
         archived = self.archive_key(item) in self.archived
-        faint = "muted" if bg else "guide"            # herdr's own secondary color; on a lit row, still legible
-        label = ("archived", "archived") if archived else (item.agent, faint)
-        right = [("· ", faint), label, (" · ", faint), (ago, "muted")]
-        if width("".join(part for part, _ in right)) > cells // 3:   # narrow: how long ago, or that it is archived
-            right = right[:2] if archived else right[3:]
-        start = x = cells - 1 - sum(width(part) for part, _ in right)
-        for part, role in right:
-            x = canvas.put(y, x, part, Style(fg=role, bg=bg))
-        canvas.put(y, 1, "  └─ " if last else "  ├─ ", Style(fg="guide", bg=bg))        # inside the margin
-        if self.markable(row):                                  # its box, in the tree lines' indent
+        start = cells - 1 - age
+        canvas.put(y, cells - 1 - width(self.age(item)), self.age(item), Style(fg="archived" if archived else faint,
+                                                                              bg=bg))
+        if start - agent - 2 - TITLE - 2 >= TITLE_LEAST:        # room for the agent's column too
+            start -= agent + 2
+            name = KNOWN[item.agent]["name"]
+            canvas.put(y, start + agent - width(name), name, Style(fg=faint, bg=bg))
+        if self.markable(row):                                  # its box, under the groups' chevrons
             canvas.region(y, 0, 3, ("mark", index))
             if self.marked or index == self.hover:
                 on = self.archive_key(item) in self.marked
-                canvas.put(y, 1, MARKED if on else BOX, Style(fg="accent" if on else "muted", bg=bg))
+                canvas.put(y, 1, MARKED if on else BOX, Style(fg="accent" if on else faint, bg=bg))
         shown, role = mark(item.state)
-        canvas.put(y, 6, shown, Style(fg=role, bg=bg))
+        canvas.put(y, TITLE - 2, shown, Style(fg=faint if bg and role == "guide" else role, bg=bg))
         if self.naming and self.key(("item", self.naming.item)) == self.key(row):
-            self.naming.field.draw(canvas, y, 8, max(1, cells - 9), 1, Style(bg="input"), focused=True)
+            self.naming.field.draw(canvas, y, TITLE, max(1, cells - TITLE - 1), 1, Style(bg="input"), focused=True)
             return
-        title = truncate(printable(item.title), max(1, start - 9))
-        look = "archived" if archived else "subtext" if item.state else "muted"     # set aside: a shade further back
-        canvas.put(y, 8, title, Style(fg=look, bg=bg))
+        title = truncate(printable(item.title), max(1, start - TITLE - 2))
+        look = "archived" if archived else "subtext" if item.state else faint      # set aside: a shade further back
+        canvas.put(y, TITLE, title, Style(fg=look, bg=bg))
 
     def draw_menu(self, canvas):
         popup = self.menu
@@ -320,7 +411,10 @@ class ChatList:
         elif name in ("home", "end"):
             self.list.move(len(self.list.items) * (1 if name == "end" else -1))
         elif name == "left" and row:
-            self.close(row)
+            if not self.list_done(False):
+                self.close(row)
+        elif name == "right" and row and row[0] == "item":
+            self.list_done(True)
         elif name == "right" and row and row[0] == "group":
             if row[3]:
                 self.list.move(1)
@@ -382,12 +476,19 @@ class ChatList:
         self.naming = None
         return Action("rename", (item, name)) if name and name != item.title else None
 
+    def menu_lines(self):
+        """What More lists first while the list is open: Show or Hide archived while any is, else nothing."""
+        return [HIDE if self.show_archived else SHOW] if self.archived else []
+
+    def menu_pick(self, choice):
+        """More's line CHOICE: the archived ones in sight or out of it (the app keeps it, for every tab)."""
+        return Action("show_archived", (choice == SHOW,))
+
     def choices(self, item):
         """The right click's menu for ITEM: Archive for a closed one, Unarchive for an archived one, Delete… for either
-        (a running one has neither); for None (anywhere else in the list) Show or Hide archived while any is, else
-        nothing."""
+        (a running one has neither); for None (anywhere else in the list) More's lines."""
         if item is None:
-            return (("Hide archived" if self.show_archived else "Show archived"),) if self.archived else ()
+            return tuple(self.menu_lines())
         bulk = self.bulk() if self.archive_key(item) in self.marked else {}
         if bulk:
             return tuple(bulk) + ("Unmark all",)
@@ -418,8 +519,8 @@ class ChatList:
             self.naming = Naming(item, TextInput())
             self.naming.field.insert(item.title)
             return None
-        if choice in ("Show archived", "Hide archived"):
-            return Action("show_archived", (choice == "Show archived",))
+        if choice in (SHOW, HIDE):
+            return self.menu_pick(choice)
         actions = {"Open": "open", "Copy chat": "copy", "Archive": "archive", "Unarchive": "unarchive"}
         if actions[choice] in ("archive", "unarchive"):
             self.marked.discard(self.archive_key(item))
@@ -453,6 +554,11 @@ class ChatList:
                 if str(target).startswith("menu:"):
                     self.menu = menu
                     return self.pick(menu.menu.choices[int(target[5:])])
+                return None
+            if target in ("plan:done", "plan:open") and event.button == 0:
+                if target == "plan:open":
+                    return Action("plan", (self.chosen(),))
+                self.list_done(self.done_open != self.plan[0])
                 return None
             if target == "blank" and event.button == 2:
                 self.open_menu(None, event)

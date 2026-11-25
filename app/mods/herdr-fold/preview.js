@@ -4,8 +4,8 @@
 import { div, image } from "gpui-kit";
 import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, TextView, v_resizable, v_virtual_list,
   VirtualListScrollHandle } from "gpui-base";
-import { home, panes, readTextFile, setShared, shared, spaces, window, run as command } from "herdr";
-import { GIT, GITHUB, MEDIA } from "./helper.js";
+import { hc, home, panes, readTextFile, setShared, shared, spaces, window, run as command } from "herdr";
+import { GIT, GITHUB, MEDIA, NAMED_FILES, OUTPUT_LINES } from "./helper.js";
 import { browsable, changeSides, commitRows, diffRows, mediaKind, opener, previewName, previewTab, priorityColor,
   said, safeMarkdown, stacks } from "./logic.js";
 import { Menus } from "./menus.js";
@@ -19,6 +19,7 @@ const MARGIN = 32;                        // px each side of a PDF's page: its a
 const INSET = 24;                         // px of the board round a picture
 const FIT = 250;                          // ms the board's size stays before an SVG or a page is drawn for it
 const TICK = 200;                         // ms between two looks at the PDF's pages in view
+const NAMED = 360;                        // px: Cmd+Shift+L's list of files, a path and its line
 /** @type {[string, string][]} an SVG's or a page's views: its code, both side by side, its picture */
 const VIEWS = [["code", "Code"], ["split", "Split"], ["picture", "Picture"]];
 
@@ -34,6 +35,22 @@ export function showPreview(what) {
   if (!tab) return void command("tab.new", { name, mod: "herdr-fold", props: { part: "preview", space: space.id } });
   command("tab.rename", { id: tab.id, name });
   command("tab.select", { id: tab.id });
+}
+
+/** Cmd+Shift+L, as the TUI's: the files the focused terminal's recent rows name that are there (core/named_files.py
+ * on its machine; CORE: main.js's python), the newest first, in a list at the window's top that typing narrows; one
+ * picked in the preview tab at its line. @param {import("./menus.js").Menus} menus the tab bar's, hearing the pick */
+export async function openNamed(core, menus) {
+  const pane = panes().find((p) => p.focused && p.terminal);
+  if (!pane?.terminal || !pane.cwd) return;
+  const on = spaces().find((s) => s.active)?.machine ?? null;
+  const read = await hc(["read", pane.terminal, "--lines", String(OUTPUT_LINES)]);
+  const { files } = await core(NAMED_FILES, [pane.cwd, read.stdout ?? ""], pane.cwd, on);
+  const items = files.map((/** @type {{ path: string, line: number | null, name: string }} */ file) => ({
+    label: file.name, act: () => showPreview({ kind: "file", root: file.path.slice(0, file.path.lastIndexOf("/")),
+      path: file.path.slice(file.path.lastIndexOf("/") + 1), on, ...(file.line ? { line: file.line } : {}) }) }));
+  menus.atTop(items.length ? items : [{ label: "No file named in the output", off: true }],
+    { width: NAMED, ...(items.length ? { find: "Filter files" } : {}) });
 }
 
 /** PICTURE ({ png, size }: core/media.py's) on the canvas, as a design tool's artboard: sized to the room, never

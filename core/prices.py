@@ -1,6 +1,6 @@
 """What tokens cost, for Usage: each kind at its model's price in LiteLLM's model cost map, asked of
 raw.githubusercontent.com (the request alone: no id, no cookie) once a day while the daily look is on (update.py's
-switch), else the last kept or the bundled table; a model's name and color. Usage (in JSON): prices.py table."""
+switch), else the last kept or the bundled table; a model's color, a dollar figure. Usage (in JSON): prices.py table."""
 import json
 import math
 import os
@@ -12,12 +12,12 @@ import urllib.request
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 import price_table  # noqa: E402
 import statefile  # noqa: E402
+from words import DATED, MAKERS, family  # noqa: E402
 
 PRICES_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
 KEPT = "prices.json"            # the table as last fetched, and when it was asked for
 DAY = 86400
 LARGEST = 8 << 20               # bytes of an answer read (the map is some 4 MB): more is not it
-MAKERS = ("anthropic", "openai")                # the rows kept: a model as its maker sells it, no reseller's
 # a price's kinds, dollars a token (search: a web search), and LiteLLM's name for each
 KINDS = ("input", "output", "write_5m", "write_1h", "read", "reasoning", "search")
 FIELDS = {"input": "input_cost_per_token", "output": "output_cost_per_token",
@@ -25,7 +25,6 @@ FIELDS = {"input": "input_cost_per_token", "output": "output_cost_per_token",
           "read": "cache_read_input_token_cost", "reasoning": "output_cost_per_reasoning_token"}
 SEARCH = ("search_context_cost_per_query", "search_context_size_medium")
 STEP = re.compile(r"input_cost_per_token_above_(\d+)k_tokens")         # a long prompt's own prices, by its step
-DATED = re.compile(r"-(\d{8}|\d{4}-\d\d-\d\d)$")                        # a model id's date
 DAY_SAID = re.compile(r"\d{4}-\d\d-\d\d")
 # The models' colors, a family one: the mockups' four (the dataviz palette's first dark steps), another family the
 # next slot in order of first use, past the last one REST. Never a limit's state colors. On a card: model_color().
@@ -84,7 +83,8 @@ def whole(price):
 
 
 def table(answer):
-    """LiteLLM's map ANSWER as {model id: price}: the MAKERS' own rows that have a token price."""
+    """LiteLLM's map ANSWER as {model id: price}: the MAKERS' own rows (a model as its maker sells it, no reseller's)
+    that have a token price."""
     found = {id: price(row) for id, row in obj(answer).items() if obj(row).get("litellm_provider") in MAKERS}
     return {id: one for id, one in found.items() if one}
 
@@ -170,44 +170,7 @@ def money(dollars, about=False):
     return f"{ABOUT if about else ''}${dollars:,.2f}"
 
 
-def short(count):
-    """COUNT tokens in a few characters: 999, 1.0k, 68k, 38.2M, 2.1B."""
-    if count < 1000:
-        return str(count)
-    if count < 9950:
-        return f"{count / 1e3:.1f}k"
-    if count < 999_500:
-        return f"{count / 1e3:.0f}k"
-    return f"{count / 1e6:.1f}M" if count < 999_950_000 else f"{count / 1e9:.1f}B"
-
-
-# --- a model's name and color
-
-def parts(model):
-    """MODEL's id in its parts, without its maker and its date: claude-opus-5-5-20261101 as claude, opus, 5, 5."""
-    id = DATED.sub("", model.rsplit("/", 1)[-1].strip().lower()) if isinstance(model, str) else ""
-    return [part for part in id.split("-") if part]
-
-
-def model_name(model):
-    """MODEL as people say it: Opus 5.5, Haiku 4.5, GPT-5 Codex; another's id in words."""
-    found = parts(model)
-    if found[:1] == ["claude"]:
-        digits = [part for part in found[1:] if part.isdigit()]
-        return " ".join([part.capitalize() for part in found[1:] if not part.isdigit()]
-                        + ([".".join(digits)] if digits else []))
-    if found[:1] == ["gpt"] and len(found) > 1:
-        return " ".join([f"GPT-{found[1]}"] + [part.capitalize() for part in found[2:]])
-    return " ".join(part if any(ch.isdigit() for ch in part) else part.capitalize() for part in found)
-
-
-def family(model):
-    """The family MODEL's color goes by: opus, sonnet, haiku, codex (every model of OpenAI's), else its first word."""
-    found = [part for part in parts(model) if part != "claude" and not part.replace(".", "").isdigit()]
-    if re.match(r"gpt$|codex$|o\d", "".join(parts(model)[:1])):
-        return "codex"
-    return next((part for part in found if part in SLOTS), found[0] if found else "")
-
+# --- a model's color
 
 def luminance(color):
     """COLOR's (#rrggbb) relative luminance, as WCAG counts it: 0 black, 1 white."""

@@ -3,11 +3,13 @@
 // field; a press opens herdr-fold's command palette onto it, as Nyitva draws it (docs/styleguide.md).
 import { div } from "gpui-kit";
 import { h_flex, Input, InputState, ScrollHandle, v_flex } from "gpui-base";
-import { closeOverlay, commands, keys, layout, layouts, openOverlay, settings, setShared, shared, spaces,
+import { closeOverlay, commands, keys, layout, layouts, openOverlay, settings, setShared, shared, spaces, themes,
   window as appWindow, run as command } from "herdr";
-import { ADAPTERS, AGENTS_OPEN, agentsOpen, newAgent, panelStep, RECENT_AGENTS, slashMenu } from "./agents.js";
-import { entryKey, fieldWidth, hovering, keyNames, paletteEntries, paletteKey, palettePlace, titleSide, spaceLabel }
-  from "./logic.js";
+import { ADAPTERS, panelStep, slashMenu } from "./agents.js";
+import { newSpace, nextAgent } from "./chat.js";
+import { THEME_NAMES } from "./helper.js";
+import { entryKey, fieldWidth, hovering, keyNames, paletteEntries, paletteKey, palettePlace, titleSide, spaceLabel,
+  themeChoices } from "./logic.js";
 import { groupHead, keepInView, LINE, LISTED, listNote, listWords, panelList, panelRow, panelSurface }
   from "./menus.js";
 import { tabsState } from "./panel.js";
@@ -26,6 +28,7 @@ export const PALETTE_WIDE = 600;
 const PALETTE_HEAD = 1 + R.pad + FIELD_HIGH + R.pad + 1;      // px: its edge, its field 4 inside, the hairline
 const PALETTE_FOOT = 2 * R.pad + 1;                          // px: the list's room over and under it, its edge
 const SHADE = 24;                  // px: the popup's room round the palette for its shadow, a press there beside it
+const THEMES = 240;                // px: Cmd+K Cmd+T's list of themes, the longest name with its check
 const OPEN = "herdr-fold.palette-open";   // shared: the palette's popup while it is open, the field handed over
 /** @type {{ width: number, height: number } | null} the window's room, as the title row last saw it */
 let room = null;
@@ -33,6 +36,15 @@ let room = null;
 /** @typedef {{ mac: boolean, name: string | null, key: string | null, field: number, buttons: { maximized: boolean }
  * | null, open?: boolean }} Title ⌘ or the search (MAC), the space's NAME, the palette's KEY, the FIELD's width (0: its
  * mark alone), the window's own BUTTONS where the app draws none, the palette OPEN (the field handed over to it) */
+
+/** Cmd+K, Cmd+T, as the TUI's theme picker: herdr-fold's themes by its names at the window's top, the one in use
+ * checked; one picked is the app's theme from then on (app.theme). @param {import("./menus.js").Menus} menus the tab
+ * bar's, hearing the pick */
+export function pickTheme(menus) {
+  const current = String(settings().theme ?? layout()?.theme ?? "");
+  menus.atTop(themeChoices(themes(), THEME_NAMES, current).map(({ name, label, on }) => ({ label, on,
+    act: () => command("app.theme", { name }) })), { width: THEMES });
+}
 
 export class TitleView {
   constructor() {
@@ -105,8 +117,7 @@ export class Palette {
    * repository is on GitHub (the dock's tabs', panel.js's TABS), the new agent as + names it in the space shown. */
   render(t) {
     const mac = appWindow()?.platform === "macos";
-    const { agent, as } = newAgent(shared(RECENT_AGENTS), agentsOpen(shared(AGENTS_OPEN)),
-      spaces().find((s) => s.active)?.machine ?? null);
+    const { agent, as } = nextAgent(spaces().find((s) => s.active)?.machine ?? null);
     const own = { github: tabsState().github,
       plus: as === "chat" ? "New chat" : `New ${ADAPTERS[agent]?.name ?? agent}` };
     return this.draw(t, paletteEntries(commands(), layouts(), mac, own), keys(), shared("layout"), mac);
@@ -129,7 +140,7 @@ export class Palette {
         places.push(drawn.length);
         drawn.push(panelRow(t, this, n, true).cursor_pointer().on_click(() => this.run(entry))
           .children(listWords(t, null, title, "", null))
-          .when(typed, (e) => e.child(scopeTag(t, group, t.muted)))             // found: its group, as a tag
+          .when(typed, (e) => e.child(scopeTag(t, group)))             // found: its group, as a tag
           .when(Boolean(key), (e) => e.child(h_flex().flex_none().gap(GAP)          // the keys' row's in its words'
             .children(keyNames(String(key), mac).flat().map((cap) => keyCap(t, cap, LINE)        // color: >= 4.5
               .text_color(this.cursor === n ? t.foreground : t.muted))))));
@@ -161,14 +172,16 @@ export class Palette {
   }
 
   /** ENTRY run once the palette is closed: Duplicate mod asks for the mod's name, Duplicate layout copies the one
-   * shown, a rename asks for its name (the app's). @param {import("./logic.js").PaletteEntry | undefined} entry */
+   * shown, a rename asks for its name (the app's), New space starts its agent as Spaces' + does.
+   * @param {import("./logic.js").PaletteEntry | undefined} entry */
   run(entry) {
     if (!entry) return;
     this.close();
     if (entry.name === "mod.clone") {
       openOverlay({ mod: "prompt", kind: "dialog", width: 380, props: { title: "Duplicate mod",
         hint: "Mod to copy; creates <name>-copy", command: { name: "mod.clone", args: {} } } });
-    } else command(entry.name, entry.name === "layout.clone" ? { name: shared("layout") ?? "main" } : entry.args);
+    } else if (entry.name === "space.new") newSpace().catch(() => {});
+    else command(entry.name, entry.name === "layout.clone" ? { name: shared("layout") ?? "main" } : entry.args);
   }
 
   /** The palette closed (none in the styleguide). */

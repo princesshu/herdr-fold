@@ -13,13 +13,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import column  # noqa: E402
 import panels  # noqa: E402
 import statefile  # noqa: E402
-from chats import KEPT, change, keep, setting, state_folder          # noqa: E402
+from chats import change, keep, setting, state_folder          # noqa: E402
 from preview import Herdr, quote_powershell  # noqa: E402
 
 SETTLE = 2.0                  # seconds a pane the plugin closes itself on the way takes to be back
 SIDEBAR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sidebar.py")
 NEW_TAB = 1.5                 # seconds a new tab is left to whatever made it: a builder names its pane or runs in it
-# Workspaces' name for the "new" button's workspace while its folder is chosen: the picker builds the chosen folder's
+# Spaces' name for the "new" button's workspace while its folder is chosen: the picker builds the chosen folder's
 # workspace and closes this one
 PLACEHOLDER = "new"
 AGENTS = ("claude", "codex")  # the agents herdr-fold starts (`herdr agent start NAME`), each beside a right column
@@ -122,7 +122,7 @@ def build(call, pane, cwd, state_dir, sidebar_run=None, scope=""):
     sidebar's pane id. SIDEBAR_RUN: its command (else this plugin's)."""
     run = sidebar_run or sidebar_command()
     if column.railed(state_dir) and not scope:                  # the sidebar then sets the rail's width to the cell
-        side = panels.show_rail(call, pane, cwd, run, column.SPLIT[1])
+        side = panels.show_rail(call, pane, cwd, run, column.SPLIT[1], low(state_dir))
     else:
         side = panels.show_column(call, pane, cwd, run, column.split_share(state_dir, pane))
     tab = (call("pane", "get", side).get("pane") or {}).get("tab_id")
@@ -150,7 +150,7 @@ def bring(call, tab, kinds, state_dir, sidebar_run=None, scope=""):
             call, term, cwd, run)
         brought.add("sidebar")
     if "terminal" in wanted and side and "terminal" not in brought and not term:
-        panels.show_terminal(call, others[0] if rail else side, cwd)
+        panels.show_terminal(call, others[0] if rail else side, cwd, low(state_dir) if rail else 0.5)
         brought.add("terminal")
     panels.note(state_dir, {tab: brought}, scope)
     return brought
@@ -249,6 +249,13 @@ def kept_terminal(state_dir, found=None):
     return {"raised": kept.get("raised") is True, "share": share}
 
 
+def low(state_dir):
+    """The terminal's share of the rows under the agent on the rail, as in every tab: as kept while raised, else its
+    least (COLLAPSED)."""
+    kept = kept_terminal(state_dir)
+    return kept["share"] if kept["raised"] else COLLAPSED
+
+
 def keep_terminal(state_dir, **changes):
     """CHANGES to kept_terminal() kept in column.json; what it keeps now."""
     column.change(state_dir, lambda found: {**found, "terminal": {**kept_terminal(state_dir, found), **changes}})
@@ -297,7 +304,7 @@ def tell(call, state_dir, workspace, wait=time.sleep):
 
 
 def picking(call, workspace):
-    """Whether WORKSPACE is the "new" button's with Workspaces' folder picker open: named PLACEHOLDER, one tab, one
+    """Whether WORKSPACE is the "new" button's with Spaces' folder picker open: named PLACEHOLDER, one tab, one
     pane."""
     info = next((w for w in call("workspace", "list").get("workspaces") or [] if w.get("workspace_id") == workspace),
                 None)
@@ -306,7 +313,7 @@ def picking(call, workspace):
 
 def new_tab(call, event, state_dir, wait=time.sleep):
     """herdr's tab.created (EVENT): a new tab still one unnamed pane running only a shell after NEW_TAB s (no builder's
-    or preview tab) gets the right column, on every system, but for the "new" button's workspace while Workspaces'
+    or preview tab) gets the right column, on every system, but for the "new" button's workspace while Spaces'
     picker is open in it. The sidebar's pane id, or None."""
     tab = ((event.get("data") or {}).get("tab") or {}).get("tab_id")
     if not tab:
@@ -346,41 +353,12 @@ def when_steady(call, starting, look, act):
         time.sleep(POLL)
 
 
-def old_column(call, pane):
-    """Whether PANE, named "conversations", is an older install's column: Python's (sidebar.py --conversations), the
-    shell it left, or not started yet; never an agent's pane named so by hand."""
-    state = state_of(call, pane)
-    return state in (None, "shell") or all(name.startswith("python") for name in state.split(","))
-
-
-def gone(call, workspaces, state_dir, local, say):
-    """An install from before: each tab's Chats column closed, its list in the sidebar now; on this machine
-    (LOCAL: herdr's socket is this one's) the right column, which took its room, as wide as remembered again, and
-    what the column kept (its width, its fold) gone from chats.json."""
-    if local and set(setting(state_dir)) - set(KEPT):
-        keep(state_dir)
-    for ws, label in workspaces:
-        found = asked(call, "pane", "list", "--workspace", ws).get("panes") or []
-        old = {p["pane_id"]: p["tab_id"] for p in found if p.get("label") == "conversations" and old_column(call, p)}
-        for pane in old:
-            asked(call, "pane", "close", pane)
-        if not old:
-            continue
-        say("ok", "column_gone", label)
-        for pane in found if local else ():
-            tab = column.read(pane["pane_id"]) if pane.get("label") == "sidebar" and pane["tab_id"] in old.values() \
-                else None
-            if tab and tab.cells:                                   # before a sidebar takes it as chosen
-                column.arrange(tab, right=column.width(state_dir, tab))
-
-
 def restore_all(call, state_dir, sidebar_run=None, scope="", starting=False, say=lambda *told: None):
     """Every tab's right column back at herdr's start (STARTING), or for restore_panes.py (SCOPE: a connected machine,
     through its CALL): what a tab never lost by hand, a lone started agent's, herdr's first shell's, an empty sidebar.
     SAY(mark, what, workspace, *details) tells each move; SIDEBAR_RUN as in bring()."""
     run = sidebar_run or (lambda cwd: sidebar_command())
     workspaces = [(w["workspace_id"], w.get("label") or "") for w in call("workspace", "list").get("workspaces") or []]
-    gone(call, workspaces, state_dir, not scope, say)
     columned = set()
 
     def look():

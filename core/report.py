@@ -1,6 +1,6 @@
 """What the agents used, for Usage's report in both clients, from tokens.py's index at prices.py's prices: as API
-value on a plan (never "spent"), as spent with an API key, by day, model, project and conversation; a month against
-its budget (herdr-fold's own BUDGET file), its pace, the chat's notice, the CSV. Usage (in JSON): main()'s."""
+value on a plan (never "spent"), as spent with an API key, by day, model, project and chat; a month against its budget
+(herdr-fold's own BUDGET file), its pace, the chat's notice, the CSV. Usage (in JSON): main()'s."""
 import io
 import json
 import os
@@ -10,12 +10,12 @@ import time
 from csv import writer
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
-import commits  # noqa: E402
 import prices  # noqa: E402
 import statefile  # noqa: E402
 import tokens  # noqa: E402
 import usage  # noqa: E402
-from prices import money, short  # noqa: E402
+import words  # noqa: E402
+from prices import money  # noqa: E402
 
 PERIODS = {"today": (1, "Today"), "7d": (7, "7 days"), "30d": (30, "30 days"), "month": (0, None)}
 MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
@@ -24,16 +24,15 @@ BUDGET = usage.SETTINGS         # each API-key agent's monthly budget in dollars
 LARGEST = 1_000_000             # dollars a month a budget may be: more is a slip of the hand
 API_KEY = "API key"             # the agents' list's word for an agent on an API key: its cost is spent
 NEAR = 0.8                      # the share of a budget spent from which a chat says so
-TITLE = 80                      # characters of a conversation's title kept
-MOST = 200                      # conversations listed, the most first
+TITLE = 80                      # characters of a chat's title kept
+MOST = 200                      # chats listed, the costliest first
 NOTICE = re.compile(r"(claude|codex):\d{4}-(0[1-9]|1[0-2])")           # a notice's key: its agent and month
 AMOUNT = re.compile(r"\$?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?")              # a budget as typed: 50, $50, 1,250.50
 CHATS = ("herdr", "plugins", "herdr-fold.sidebar", "chat-index.json")  # the chat list's index in the state home
 NAMES = ("herdr", "plugins", "herdr-fold.sessions-view", "names.json")  # the names given by hand
-HEAD = ("day", "agent", "model", "conversation", "space", "input", "cache_write_5m", "cache_write_1h", "cache_read",
+HEAD = ("day", "agent", "model", "chat", "space", "input", "cache_write_5m", "cache_write_1h", "cache_read",
         "output", "reasoning", "searches", "cost", "kind")
-COLUMNS = {"conversations": ["Conversation", "Space", "Models", "Turns", "Tokens", "Cache", "Cost", "Commits",
-                             "Per commit"],
+COLUMNS = {"chats": ["Chat", "Space", "Models", "Turns", "Tokens", "Cache", "Cost"],
            "models": ["Model", "Agent", "Input", "Cache write", "Cache read", "Output", "Cost"]}
 
 
@@ -236,14 +235,15 @@ def read(state, until, table, told, theme):
         if row["hour"] not in days:
             days[row["hour"]] = day(row["hour"])[0]
         row.update(cost=prices.cost(row, prices.price_of(row["model"], table["models"])), day=days[row["hour"]],
-                   name=prices.model_name(row["model"]) or row["model"], color=colors[row["model"]],
+                   name=words.model_name(row["model"]) or row["model"], color=colors[row["model"]],
                    kind="spent" if told.get(row["agent"], ("", None))[1] == API_KEY else "value")
     return rows
 
 
 def month_of(agent, rows, told, budgets, now):
     """AGENT's calendar month at NOW from its ROWS, against its budget: what was spent by each day's end, today's
-    sum, the pace it is on, its words (a line, and its parts for both clients) and its level (yellow once over)."""
+    sum, the pace it is on, its words (a line, and its parts for both clients), its level (red once spent, yellow on
+    pace past it) and, only then, the pace's line ("text", with the month in full, and its "narrow" form)."""
     since, until = midnight(now, first=True), midnight(now, months=1, first=True)
     starts = [start for start in days_of(since, until)]
     by_day = grouped([row for row in rows if row["cost"] is not None], lambda row: row["day"])
@@ -253,14 +253,16 @@ def month_of(agent, rows, told, budgets, now):
         spent.append([n + 1, sum_])
     limit, on = budgets.get(agent), pace(sum_, len(spent), len(starts))
     top, over = most_first(grouped(rows, lambda row: row["model"])), bool(limit) and max(on, sum_) > limit
-    words = {"spent": money(sum_, True), "of": f"of {amount(limit)}" if limit else "",
-             "pace": f"on pace for {whole(on, True)}"}
+    said = {"spent": money(sum_, True), "of": f"of {amount(limit)}" if limit else "",
+            "pace": f"on pace for {whole(on, True)}"}
+    end = time.localtime(until - 43200)
     return {"agent": agent, "name": told[agent][0], "key": said_as(agent, told), "id": day(since)[0][:7],
             "label": MONTHS[time.localtime(since).tm_mon - 1], "budget": limit, "days": len(starts),
             "day": len(spent), "spent": spent, "today": sum_, "pace": on, "over": over,
-            "line": f"{words['spent']} {words['of']} · {words['pace']}" if limit
-            else f"{words['spent']} · {words['pace']}",
-            "words": words, "level": ("warn" if over else "ok") if limit else None,
+            "line": f"{said['spent']} {said['of']} · {said['pace']}" if limit else f"{said['spent']} · {said['pace']}",
+            "words": said, "level": ("bad" if sum_ >= limit else "warn" if over else "ok") if limit else None,
+            "pace_line": {"text": f"{said['pace']} by {MONTHS[end.tm_mon - 1]} {end.tm_mday}",
+                          "narrow": f"{said['pace']} by {day(until - 43200)[1]}"} if over else None,
             "end": day(until - 43200)[1], "from": since, "to": until, "color": top[0][1][0]["color"] if top else None}
 
 
@@ -271,22 +273,22 @@ def months_of(rows, told, budgets, now):
     return [month_of(agent, mine[agent], told, budgets, now) for agent in usage.AGENTS if agent in mine]
 
 
-def cells(rows, told, months, week):
-    """The summary row's cells for ROWS: each agent's cost with its plan's or its month's line, then the tokens."""
-    found = []
+def cells(rows, told, span):
+    """The summary row's cells for ROWS in SPAN (bounds()'s): each agent's cost, as API value on a plan ("no charge on
+    the plan" under it), as spent in the period with an API key; then the tokens and how much came from the cache."""
+    found, period = [], "today" if span["id"] == "today" else "in " + (
+        span["label"] if span["id"] == "month" else span["label"].lower())
     for agent, mine in grouped(sorted(rows, key=lambda row: usage.AGENTS.index(row["agent"])),
                                lambda row: row["agent"]).items():
-        sums, month = summed(mine), next((one for one in months if one["agent"] == agent), None)
-        line = f"{month['label']} {month['line']}" if month else ""
-        if told[agent][1] and not month:
-            line = "no charge on the plan" + (f" · week {week[agent]}% of its limit" if agent in week else "")
+        sums, spent = summed(mine), mine[0]["kind"] == "spent"
         found.append({"key": said_as(agent, told), "agent": agent, "value": sums["cost"],
                       "text": "no price" if sums["cost"] is None else money(sums["cost"], True),
-                      "unit": "spent" if mine[0]["kind"] == "spent" else "API value", "line": line,
-                      "over": bool(month and month["over"])})
+                      "unit": f"spent {period}" if spent else "API value",
+                      "line": "" if spent or not told[agent][1] else "no charge on the plan"})
     sums = summed(rows)
-    return found + [{"key": "Tokens", "value": sums["tokens"], "text": short(sums["tokens"]),
-                     "line": f"{sums['cache']}% read from cache" if sums["cache"] is not None else ""}]
+    prompt = sums["tokens"] - sums["output"]
+    return found + [{"key": "Tokens", "value": sums["tokens"], "text": words.tokens(sums["tokens"]),
+                     "line": f"{words.percent(sums['read'] / prompt)} read from cache" if prompt else ""}]
 
 
 def daily(rows, span):
@@ -308,24 +310,9 @@ def daily(rows, span):
         {key: top[key] for key in ("day", "label", "total")} if top["total"] else None
 
 
-def counted(found):
-    """FOUND (several conversations' commits, None for the ones not known) as a figure: the commits, each once, and
-    its words: 2, about 2 (some only followed an edit), none yet, – (not known)."""
-    known = {one["sha"]: one for mine in found if mine is not None for one in mine}
-    if all(mine is None for mine in found):
-        return {"commits": None, "about": False, "commits_text": "–"}
-    about = any(one["how"] == "after" for one in known.values())
-    return {"commits": len(known), "about": about,
-            "commits_text": f"{'about ' if about else ''}{len(known)}" if known else "none yet"}
-
-
-def conversation(key, rows, sums, named, made):
-    """One conversation's row: its title, space, models (the costliest first), turns (its own agent's answers),
-    tokens, the percent read from the cache, its cost and what a turn cost; its commits (MADE), their lines and
-    what one cost."""
-    kinds = [sum(one["how"] == how for one in made or ()) for how in ("made", "after")]
-    added, removed = (sum(one[key] for one in made) for key in ("added", "removed")) if made is not None \
-        else (None, None)
+def chat(key, rows, sums, named):
+    """One chat's row: its title, space, models (the costliest first), turns (its own agent's answers), tokens, the
+    percent read from the cache, its cost and what a turn cost."""
     own = sum(row["messages"] for row in rows if not row["sub"]) or sums["messages"]
     subs = sorted({row["sub"] for row in rows if row["sub"]})
     models = [{"name": name, "color": mine[0]["color"]}
@@ -338,10 +325,8 @@ def conversation(key, rows, sums, named, made):
             "space": text(os.path.basename(rows[0]["folder"].rstrip(os.sep))), "models": models, "turns": own,
             "tokens": sums["tokens"], "cache": sums["cache"], "cost": sums["cost"], "kind": rows[0]["kind"],
             "unpriced": sums["unpriced"], "per_turn": per_turn,
-            "tip": " · ".join(tip + ([f"{sums['cache']}% read from cache"] if sums["cache"] is not None else [])),
-            **counted([made]), "added": added, "removed": removed, "changed": f"+{added} −{removed}" if made else "",
-            "per_commit": sums["cost"] / len(made) if made and sums["cost"] is not None else None,
-            "commits_tip": f"{kinds[0]} made in the conversation · {kinds[1]} after its edits" if kinds[1] else ""}
+            "tip": " · ".join(tip + ([f"{words.percent(sums['read'] / (sums['tokens'] - sums['output']))} read from "
+                                      "cache"] if sums["cache"] is not None else []))}
 
 
 def model(key, rows, sums, told):
@@ -353,8 +338,8 @@ def model(key, rows, sums, told):
 
 
 def label_of(row, told):
-    """ROW's agent as the Models table names it: Claude's sub-agents apart."""
-    return told[row["agent"]][0] + (" · sub-agents" if row["agent"] == "claude" and row["sub"] else "")
+    """ROW's agent as the Models table names it: Claude's subagents apart."""
+    return told[row["agent"]][0] + (" · subagents" if row["agent"] == "claude" and row["sub"] else "")
 
 
 def gathered(state, period, agent, folder, now, agents, table, theme):
@@ -372,53 +357,37 @@ def gathered(state, period, agent, folder, now, agents, table, theme):
 
 def report(state, home, period, agent=None, folder=None, now=None, agents=None, table=None, theme=None, chats=None):
     """Usage's report for PERIOD (PERIODS') at NOW, AGENT's and FOLDER's alone where given: the summary row, each day
-    by model, each API-key agent's month, the projects, conversations, models, and both clients' words. AGENTS: the
-    agents' list (its plans); THEME: (card, text) to lift the colors on. ValueError for another period or agent."""
+    by model, each API-key agent's month, the projects, chats, models, and both clients' words. AGENTS: the agents'
+    list (its plans); THEME: (card, text) to lift the colors on. ValueError for another period or agent."""
     now, span, told, table, rows, inside = gathered(state, period, agent, folder, now, agents, table, theme)
     months = months_of(rows, told, budget(state), now)
-    week = {one["agent"]: one["week"]["used"] for one in usage.limits(home, now) if one["week"]}
     days, legend, top = daily(inside, span)
-    named, by_talk = titles(home, chats), grouped(inside, lambda row: (row["agent"], row["session"]))
-    index = commits.load(state)
-    lines = dict(index["lines"])
-    known = commits.found(commits.sessions(index), {session: mine[0]["folder"] for (
-        one, session), mine in by_talk.items() if one == "claude"}, span["from"], span["to"], lines)
-    if len(lines) > len(index["lines"]):
-        commits.keep_lines(state, lines)
-    made = {key: known.get(key[1]) if key[0] == "claude" else None for key in by_talk}
-    talks = [conversation(key, mine, sums, named, made[key]) for key, mine, sums in most_first(by_talk)]
-    whole_, cost = counted(list(made.values())), summed(inside)["cost"]
+    named, by_chat = titles(home, chats), grouped(inside, lambda row: (row["agent"], row["session"]))
+    found = [chat(key, mine, sums, named) for key, mine, sums in most_first(by_chat)]
     as_of = time.strptime(table["as_of"], "%Y-%m-%d")
     as_of = f"{MONTHS[as_of.tm_mon - 1][:3]} {as_of.tm_mday}, {as_of.tm_year}"
-    said = span["label"] if period == "month" else span["label"].lower()
     month, kinds = MONTHS[time.localtime(now).tm_mon - 1], {row["kind"] for row in inside}
-    both = "value and spent together" if len(kinds) > 1 else "spent" if kinds == {"spent"} else "API value"
     return {
         "period": span, "prices_as_of": as_of,
         "filters": {"periods": [{"id": id, "label": label or month} for id, (_, label) in PERIODS.items()],
                     "agents": [{"id": None, "label": "All agents"}]
                     + [{"id": one, "label": told[one][0]} for one in usage.AGENTS], "spaces": "All spaces"},
-        "summary": cells(inside, told, months, week) + [{
-            "key": "Commits from these conversations", "value": whole_["commits"], "text": whole_["commits_text"],
-            "about": whole_["about"], "line": f"{money(cost / whole_['commits'], True)} each, "
-            f"{'spent' if kinds == {'spent'} else 'API value'}" if whole_["commits"] and cost is not None else ""}],
+        "summary": cells(inside, told, span),
         "none": None if inside else "Nothing used in this period",
         "daily": days, "legend": legend, "top": top, "month": months[0] if months else None, "months": months,
         "projects": [{"folder": key, "name": text(os.path.basename(key.rstrip(os.sep))) or key, "cost": sums["cost"],
-                      "tokens": sums["tokens"], **counted([made[row["agent"], row["session"]] for row in mine])}
-                     for key, mine, sums in most_first(grouped(inside, lambda row: row["folder"]))],
-        "conversations": talks[:MOST], "more": max(0, len(talks) - MOST),
+                      "tokens": sums["tokens"]}
+                     for key, _, sums in most_first(grouped(inside, lambda row: row["folder"]))],
+        "chats": found[:MOST], "more": max(0, len(found) - MOST),
         "models": [model(key, mine, sums, told) for key, mine, sums in most_first(grouped(
             inside, lambda row: (row["name"], label_of(row, told))))],
         "columns": COLUMNS, "csv_name": f"herdr-fold usage {day(span['from'])[0]} to {day(span['to'] - 43200)[0]}.csv",
         "words": {"daily": "Per day, by model", "month": f"{month}, against its budget", "projects": "By project",
-                  "projects_note": f"{both} · {said}", "conversations": "Conversations",
-                  "conversations_note": f"the most first · {said}", "models": "Models",
-                  "models_note": "each message at its own model's prices", "budget": "Budget…",
-                  "export": "Export CSV", "none_yet": "none yet", "no_price": "no price",
-                  "foot": f"Costs are estimates from the conversations' token counts at list prices (LiteLLM's "
-                          f"model cost map, as of {as_of}), not the provider's invoice · a model with no price shows "
-                          "its tokens alone"}}
+                  "projects_note": "API value and spend combined" if len(kinds) > 1 else "spent" if kinds == {"spent"}
+                  else "API value", "chats": "Chats", "chats_note": "by cost", "models": "Models",
+                  "budget": "Budget…", "export": "Export CSV", "no_price": "no price",
+                  "foot": f"{prices.ABOUT} estimated from token counts at Anthropic's and OpenAI's list prices "
+                          f"({as_of}); on a plan, what the same use would cost on the API"}}
 
 
 def notices(state, now=None, agents=None, table=None):

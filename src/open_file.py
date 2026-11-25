@@ -1,8 +1,6 @@
 """Open a file the focused pane's output names (Cmd+Shift+L, in a herdr popup): the files its recent lines name that are
 there, the newest first, each with the line it gives; Open shows the file at that line in the sidebar's preview tab."""
-import collections
 import os
-import re
 import subprocess
 import sys
 import time
@@ -11,6 +9,7 @@ sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from herdrlib import HERDR, PLUGIN_STATE  # noqa: E402
 import panes  # noqa: E402  the sidebar's, on the path herdrlib gives
+from named_files import LINES, folders, named, shown  # noqa: E402  the files' rules (core/named_files.py)
 import panels  # noqa: E402
 import preview  # noqa: E402
 import statefile  # noqa: E402
@@ -24,56 +23,6 @@ HOME = os.path.expanduser("~")
 BOLD = "\x1b[1m"
 FIRST_ROW = 3              # the list's first row on screen, under the title and the filter
 DOUBLE = 0.4               # seconds within which a second click on a row opens it
-LINES = 400                # the pane's recent rows read
-# a path's run of characters, then where in the file if it says: :12 (and :5 or -20 after it), #L12, (12,5)
-RUN = re.compile(r"([\w.@+~/-]+)(?::(\d+)(?:[:-]\d+)?|#L(\d+)|\((\d+),\d+\))?")
-TRACEBACK = re.compile(r'File "([^"\n]+)", line (\d+)')
-
-Found = collections.namedtuple("Found", "path line")
-
-
-def folders(cwd):
-    """Where a relative path is looked for: CWD, then its repository's top folder (agents name paths from there)."""
-    up = cwd
-    while not os.path.exists(os.path.join(up, ".git")) and os.path.dirname(up) != up:
-        up = os.path.dirname(up)
-    return [cwd] + ([up] if up != cwd and os.path.exists(os.path.join(up, ".git")) else [])
-
-
-def where(name, places):
-    """NAME as a file that is there: as it is, without a sentence's closing dot, or without a diff side's a/ or b/;
-    a relative one in the first of PLACES that has it."""
-    name = os.path.expanduser(name)
-    for one in (name, name.rstrip("."), name[2:] if name[:2] in ("a/", "b/") else ""):
-        for folder in ([""] if os.path.isabs(one) else places) if one else ():
-            path = os.path.normpath(os.path.join(folder, one))
-            if os.path.isfile(path):
-                return path
-    return None
-
-
-def named(text, places):
-    """The files TEXT names that are there (a relative one in PLACES), each with the line it gives, the last named
-    first, each once; one named without a line too is listed only with it."""
-    mentions = [(m.start(), m.group(1), int(m.group(2))) for m in TRACEBACK.finditer(text)]
-    for m in RUN.finditer(text):
-        name = m.group(1)
-        if "/" in name or "." in name.strip("."):
-            mentions.append((m.start(), name, next((int(n) for n in m.groups()[1:] if n), None)))
-    paths, found = {}, []
-    for _, name, at in sorted(mentions, reverse=True):
-        path = paths[name] if name in paths else paths.setdefault(name, where(name, places))
-        if path and Found(path, at) not in found:
-            found.append(Found(path, at))
-    lined = {one.path for one in found if one.line}
-    return [one for one in found if one.line or one.path not in lined]
-
-
-def shown(found, root):
-    """FOUND as its row says it: from ROOT when in it, else from the home folder as ~; then :line."""
-    inside = found.path.startswith(root.rstrip(os.sep) + os.sep)
-    name = os.path.relpath(found.path, root) if inside else found.path.replace(HOME, "~", 1)
-    return name + (f":{found.line}" if found.line else "")
 
 
 class Picker:

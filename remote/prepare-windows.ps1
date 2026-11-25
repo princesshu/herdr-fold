@@ -165,25 +165,13 @@ function Set-Block($path, $block) {
     }
 }
 
-# An earlier version's dated folders of copies go; the machine's own Claude status line it saved first moves to
-# prepared-original unless that has one (all stay while it cannot be moved)
+# the machine's own Claude status line, saved here before herdr-fold's went in
 $OwnLine = Join-Path $Original 'claude-statusLine.json'
-$Dated = @(Get-ChildItem -LiteralPath $State -Directory -Force -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -match '^prepared-\d+-\d+$' } | Sort-Object Name)
-$First = @($Dated | ForEach-Object { Join-Path $_.FullName 'claude-statusLine.json' } |
-    Where-Object { Test-Path -PathType Leaf $_ })[0]
-try {
-    if ($First -and -not (Test-Path $OwnLine)) {
-        New-Item -ItemType Directory -Force -ErrorAction Stop -Path $Original | Out-Null
-        Move-Item -ErrorAction Stop $First $OwnLine
-    }
-    $Dated | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-} catch { }
 
 if ($Remove) {
     Line section (T 'prepare.win.removing')
-    # Claude's status line first (its script is about to go): the machine's own, saved in prepared-original (or still
-    # where an earlier version saved it), comes back, or herdr-fold's just goes
+    # Claude's status line first (its script is about to go): the machine's own, saved in prepared-original, comes
+    # back, or herdr-fold's just goes
     $settings = [IO.Path]::Combine($env:USERPROFILE, '.claude', 'settings.json')
     if (Test-Path $settings) {
         $data = $null
@@ -191,10 +179,9 @@ if ($Remove) {
         if (-not ($data -is [System.Management.Automation.PSCustomObject])) {
             Line warn (T 'prepare.win.settings_unreadable' $settings)
         } elseif (Test-HerdrFoldStatusLine $data.statusLine) {
-            $saved = if (Test-Path $OwnLine) { $OwnLine } else { $First }
-            if ($saved) {
-                $data.statusLine = Get-Content -Raw -Encoding UTF8 $saved | ConvertFrom-Json
-                Remove-Item -Force $saved
+            if (Test-Path $OwnLine) {
+                $data.statusLine = Get-Content -Raw -Encoding UTF8 $OwnLine | ConvertFrom-Json
+                Remove-Item -Force $OwnLine
             } else { $data.PSObject.Properties.Remove('statusLine') }
             [IO.File]::WriteAllText($settings, ($data | ConvertTo-Json -Depth 20),
                 (New-Object Text.UTF8Encoding $false))
@@ -223,11 +210,10 @@ if ($Remove) {
     }
     Remove-Item -Force -ErrorAction SilentlyContinue $SumsFile
     if (-not $Blocked) { foreach ($p in $Profiles) { Set-Block $p '' } }
-    # herdr-fold's plugins (an earlier prepare's Tab Layout too), and the empty folders herdr keeps of them (the
-    # chat names stay)
+    # herdr-fold's plugins, and the empty folders herdr keeps of them (the chat names stay)
     $h = (Get-Command herdr -ErrorAction SilentlyContinue).Source
     if (-not $h) { $h = "$env:LOCALAPPDATA\Programs\Herdr\bin\herdr.exe" }
-    $plugins = 'herdr-fold.sidebar', 'herdr-fold.sessions-view', 'herdr-fold.workspaces', 'herdr-fold.tab-layout'
+    $plugins = 'herdr-fold.sidebar', 'herdr-fold.sessions-view', 'herdr-fold.spaces'
     if (Test-Path $h) {
         foreach ($id in $plugins) { & $h plugin unlink $id *> $null }
     }
@@ -237,13 +223,11 @@ if ($Remove) {
     Remove-Item -Recurse -Force (Join-Path $fold '__pycache__'),
         (Join-Path $fold 'statusline.json') -ErrorAction SilentlyContinue
     Remove-EmptyDirs $fold
-    # the sidebar's own settings, its folder only when nothing else is in it (the rest of herdr's state is herdr's);
-    # the chats' two files under their older names too, where a version that moved them never ran
+    # the sidebar's own settings, its folder only when nothing else is in it (the rest of herdr's state is herdr's)
     $sidebarState = Join-Path $env:USERPROFILE '.local\state\herdr\plugins\herdr-fold.sidebar'
     Remove-Item -Force -ErrorAction SilentlyContinue -Path (Join-Path $sidebarState 'settings.json'),
         (Join-Path $sidebarState 'colors.json'), (Join-Path $sidebarState 'column.json'),
         (Join-Path $sidebarState 'chats.json'), (Join-Path $sidebarState 'chat-index.json'),
-        (Join-Path $sidebarState 'conversations.json'), (Join-Path $sidebarState 'conversation-index.json'),
         (Join-Path $sidebarState 'panels.json'), (Join-Path $sidebarState 'dock.json'),
         (Join-Path $sidebarState 'resume-*.json'), (Join-Path $sidebarState 'seed-*.json'),
         (Join-Path $sidebarState 'preview-*.json'), (Join-Path $sidebarState 'issues-*.json'),

@@ -1,22 +1,22 @@
 # AI Sessions
 
-A herdr plugin that narrows herdr's Agents panel to AI sessions: only the current workspace's Claude and Codex
+A herdr plugin that narrows herdr's Agents panel to AI sessions: only the current space's Claude and Codex
 agents that have a chat, each under its name.
 
-![herdr-fold's window: at the bottom left, in herdr's sidebar under the workspaces, AI Sessions with the
-workspace's one chat, its name and its state](../../../assets/screenshots/hero.webp)
+![herdr-fold's window: at the bottom left, in herdr's sidebar under the spaces, AI Sessions with the
+space's one chat, its name and its state, done](../../../assets/screenshots/tui-hero.webp)
 
 - A session shows once its chat holds a message, the agent is working, or the chat has a title.
 - Its name is the pane name. Rename it from herdr's right-click menu (**Rename pane**), or with **Rename** in
   herdr-fold's sidebar, in its Chats; until then it follows the chat's title. **Clear pane name** brings
   the title back.
-- A chat that has its tab to itself names the tab too, cut to 24 characters; a workspace's main tab keeps the
-  workspace's name. A new title goes on the tab only while the tab shows the chat's name or herdr's number for
+- A chat that has its tab to itself names the tab too, cut to 24 characters; a space's main tab keeps the
+  space's name. A new title goes on the tab only while the tab shows the chat's name or herdr's number for
   it, so a tab you renamed yourself keeps your name until you rename the chat.
 - The list updates when an agent appears or changes state, and when a pane or tab gets the focus. Its action
   **AI Sessions: reapply** sets it again by hand.
-- A workspace where an agent waits on you, blocked or done and not seen yet, gets its `waiting` token: `waiting 12m`,
-  the longest wait there. herdr-fold's theme shows it in the Spaces list beside the branch (`$waiting`); in your own
+- A space where an agent waits on you, blocked or done and not seen yet, gets its `waiting` token: `waiting 12m`,
+  the longest wait there. herdr-fold's theme shows it in the Spaces list beside the name (`$waiting`); in your own
   settings, put `"$waiting"` in a row of `[ui.sidebar.spaces]`. While an agent waits, one run of the plugin stays to
   count the minutes, looking again every 20 seconds, and ends once none waits.
 - Its action **AI Sessions: mark unread** (herdr-fold's Cmd + Shift + U) marks the focused agent unread: it waits on
@@ -25,7 +25,7 @@ workspace's one chat, its name and its state](../../../assets/screenshots/hero.w
 ## What it reads and writes
 
 - herdr, through its socket (`~/.config/herdr/herdr.sock`, or `HERDR_SOCKET_PATH`): it reads the agents, panes and
-  tabs, gives the panes and the chats' own tabs their names, and the workspaces their `waiting` token.
+  tabs, gives the panes and the chats' own tabs their names, and the spaces their `waiting` token.
 - Claude's transcripts (`~/.claude/projects/*/<session>.jsonl`) and Codex's sessions (`~/.codex/sessions/`,
   `~/.codex/session_index.jsonl`): read only, to see whether a session has a chat and what its title is.
 - `names.json` in its herdr state folder (`~/.local/state/herdr/plugins/herdr-fold.sessions-view/`, or

@@ -134,7 +134,7 @@ class Files(unittest.TestCase):
 
 
 class ChatFiles(Files):
-    """The one thing of an AI tool's the Trash takes: a chat's own file (Claude's with its sub-agents' folder beside
+    """The one thing of an AI tool's the Trash takes: a chat's own file (Claude's with its subagents' folder beside
     it, Codex's rollout), by the Chats list's Delete…; anything else under their folders stays refused."""
 
     def setUp(self):

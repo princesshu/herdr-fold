@@ -1,12 +1,11 @@
-"""Tests for core/costs.py in a temporary HOME: one conversation's cost by its agent and its sub-agents, each with its
-model, turns, tokens, share and inspector lines, and Claude's own count beside it. The sessions and prices are
-invented (usage.html's lumen-api); nothing here reaches the network."""
+"""Tests for core/costs.py in a temporary HOME: one chat's cost by its agent and its subagents, each with its model,
+turns, tokens, share and inspector lines. The sessions and prices are invented (usage.html's lumen-api); nothing here
+reaches the network."""
 import contextlib
 import io
 import json
 import os
 import sys
-from unittest import mock
 
 from support import PACKAGE, set_env
 
@@ -18,7 +17,7 @@ import tokens  # noqa: E402
 
 OPUS, HAIKU, GPT, REVIEW = "claude-opus-5-5", "claude-haiku-5-5", "gpt-6-astra", "codex-auto-review"
 PLAN = [{"key": "claude", "name": "Claude", "plan": "Max"}, {"key": "codex", "name": "Codex", "plan": "API key"}]
-# invented prices, dollars a token, that make usage.html's figures: Opus's conversation $3.70, Haiku's sub-agent $0.42
+# invented prices, dollars a token, that make usage.html's figures: Opus's conversation $3.70, Haiku's subagent $0.42
 TABLE = {"as_of": "2026-11-09", "source": "kept", "models": {
     OPUS: prices.price({"input_cost_per_token": 1e-5, "output_cost_per_token": 1.6e-5,
                         "cache_creation_input_token_cost": 1e-5,
@@ -27,15 +26,8 @@ TABLE = {"as_of": "2026-11-09", "source": "kept", "models": {
     GPT: prices.price({"input_cost_per_token": 1e-5, "output_cost_per_token": 0})}}
 
 
-def counted(total, usage=None):
-    """Claude's own count of a conversation, as it writes one: a cost-state line."""
-    return made.line({"type": "cost-state", "sessionId": made.SESSION, "totalCostUSD": total, "totalDuration": 9,
-                      "modelUsage": usage or {OPUS: {"inputTokens": 30_000, "costUSD": total}},
-                      "hasUnknownModelCost": False, "totalLinesAdded": 0, "totalLinesRemoved": 0})
-
-
 class Conversation(made.Home):
-    """usage.html's conversation: Opus's 38 turns of a million tokens, and an Explore sub-agent on Haiku."""
+    """usage.html's conversation: Opus's 38 turns of a million tokens, and an Explore subagent on Haiku."""
 
     def setUp(self):
         super().setUp()
@@ -61,40 +53,24 @@ class Conversation(made.Home):
         self.assertEqual(agent["title"], "~$3.70 API value")
         self.assertAlmostEqual(sub["cost"], 0.42)
         self.assertEqual((sub["text"], sub["sub"], round(sub["share"], 2), sub["model"]["color"]),
-                         ("~$0.42", "Haiku 5.5 · sub-agent · 210k tokens", 0.1, "#199e70"))
+                         ("~$0.42", "Haiku 5.5 · 210k tokens", 0.1, "#199e70"))
         self.assertEqual(list(found["subs"]), ["Explore"])
 
     def test_the_agents_lines_are_label_value_and_a_short_note(self):
+        # the number rule, the cache's writes as one, each agent's share beside a subagent
         self.assertEqual(self.costs()["agent"]["lines"], [
-            ["Model", "Opus 5.5", None], ["Input", "0.03M", None],
-            ["Cache write", "0.12M", "1 hour 0.09M · 5 min 0.03M"], ["Cache read", "0.79M", "84% of its input"],
-            ["Output", "0.06M", None], ["Share", "90% of this conversation", None]])
+            ["Model", "Opus 5.5", None], ["Input", "30.0k", None], ["Cache write", "120k", None],
+            ["Cache read", "790k", "84% of its input"], ["Output", "60.0k", None], ["Share", "90% of this chat", None]])
         self.assertEqual(self.costs()["subs"]["Explore"]["lines"], [
-            ["Model", "Haiku 5.5", None], ["Input", "0.21M", None], ["Cache write", "0", None],
-            ["Cache read", "0", None], ["Output", "0", None], ["Share", "10% of this conversation", None]])
+            ["Model", "Haiku 5.5", None], ["Input", "210k", None], ["Cache write", "0", None],
+            ["Cache read", "0", None], ["Output", "0", None], ["Share", "10% of this chat", None]])
 
-    def test_claudes_own_count_is_the_conversations_whole_the_same_or_by_how_much_it_differs(self):
-        for total, said in ((4.12, "the same, sub-agents included"), (4.19, "~$0.07 more, sub-agents included"),
-                            (4.0, "~$0.12 less, sub-agents included")):
-            self.session(self.turns + counted(1.0) + made.asked() + counted(total))
-            self.assertEqual(self.costs()["agent"]["lines"][-1], ["Claude's count", f"~${total:.2f}", said])
-
-    def test_with_no_sub_agent_claudes_count_is_set_beside_the_agents_own(self):
-        other = self.session(made.said("msg_70", session=made.OTHER, input=370_000) + counted(3.70), made.OTHER)
+    def test_with_no_sub_agent_no_share(self):
+        other = self.session(made.said("msg_70", session=made.OTHER, input=370_000), made.OTHER)
         found = self.costs(path=other)
-        self.assertEqual(found["agent"]["lines"][-1], ["Claude's count", "~$3.70", "the same"])
+        self.assertEqual([line[0] for line in found["agent"]["lines"]],
+                         ["Model", "Input", "Cache write", "Cache read", "Output"])
         self.assertEqual((found["subs"], round(found["agent"]["share"], 2)), ({}, 1.0))
-
-    def test_the_newest_count_is_found_from_the_files_end_whatever_is_read_at_a_time(self):
-        self.session(self.turns + counted(1.0) + counted(4.12) + made.asked("x" * 300) + made.asked())
-        for back in (16, 64, 100, 300, 1000):
-            with mock.patch.object(costs, "BACK", back):
-                self.assertEqual(costs.counted(self.path), 4.12, back)
-
-    def test_a_count_that_is_not_a_number_and_a_damaged_line_are_left_out(self):
-        for line in (counted("4.12"), counted(True), counted(-1), '{"type":"cost-state","totalCostUSD":4.1\n'):
-            self.session(self.turns + line)
-            self.assertEqual(self.costs()["agent"]["lines"][-1][0], "Share")
 
     def test_an_api_keys_cost_is_spent_and_an_untold_agent_is_never_spent(self):
         key = [{"key": "claude", "name": "Claude", "plan": "API key"}]
@@ -108,7 +84,7 @@ class Conversation(made.Home):
         found = self.costs()
         self.assertEqual((found["text"], found["agent"]["cost"], found["agent"]["text"], found["agent"]["title"]),
                          ("no price", None, "no price", "no price"))
-        self.assertEqual(found["agent"]["sub"], "Nova 9 · 1 turn · 68k tokens")
+        self.assertEqual(found["agent"]["sub"], "Nova 9 · 1 turn · 68.4k tokens")
         self.assertNotIn("$", json.dumps(found))
 
     def test_two_models_name_the_one_that_took_the_most_and_list_both(self):
@@ -130,7 +106,7 @@ class Conversation(made.Home):
         self.assertEqual((found["session"], found["kind"], found["text"]), (made.THREAD, "spent", "~$8.60"))
         self.assertEqual(found["agent"]["sub"], "GPT-6 Astra · 2 turns · 900k tokens")
         self.assertEqual([line[0] for line in found["agent"]["lines"]],
-                         ["Model", "Input", "Cache write", "Cache read", "Output", "Share"])     # no count of Claude's
+                         ["Model", "Input", "Cache write", "Cache read", "Output"])         # one agent: no share
 
     def test_a_conversation_with_no_messages_yet_has_no_costs(self):
         empty = self.session(made.asked(), session=made.OTHER)

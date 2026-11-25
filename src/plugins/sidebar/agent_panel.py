@@ -1,20 +1,19 @@
-"""The Agent view's work in the dock (layers.py draws it): the folder's agent, its setup, the agents here, their limits
-and costs read on a job's thread through core's readers (agent_setup.py, agent_state.py, usage.py, report.py) while
-shown; a file opened, a server checked, a sign-in or a command of a connector's run, the Usage view and the graph."""
+"""The Agent view's work in the dock (layers.py draws it): the folder's agent, its setup, the agents, their limits and
+API-key months read on a job's thread through core's readers while shown; a file opened, a server checked, a sign-in
+or a connector's command run, a form's change planned and saved by core (harness.py), the Usage view and the graph."""
 import base64
-import glob
 import os
-import re
 import subprocess
 import sys
 import time
 
+import agent_layers
 import agent_setup
 import agent_state
 import connectors
 import costs
 import graph
-import jsonl
+import harness
 import media
 import panes
 import preview
@@ -23,13 +22,14 @@ import tokens
 import usage
 from family import Family
 from fileops import system_clipboard
-from layers import NEEDS, SERVER, Layers, tree_rows
+from harness_edit import place
+from layers import MONTH, SERVER, Layers, tree_rows
 from screen import SPIN, SPINNER
-from usage_view import PERIOD_ENV, figures
+from usage_view import figures
 
 POLL = 30.0                   # seconds between two reads while shown, as the Herdr app's panel reads
 AWAY = 300.0                  # the same behind another view: the row's dot alone needs it
-COSTS = 60.0                  # seconds between two reads of what the agents cost, while shown
+COSTS = 60.0                  # seconds between two reads of the API-key agents' months, while shown
 PLUGIN = "herdr-fold.sidebar"
 SIGNING = 5.0                 # seconds between two looks at the agents while one signs in in its tab
 SIGNING_FOR = 600.0           # seconds a sign-in is waited for at most
@@ -38,7 +38,6 @@ READ_ROWS = "200"             # rows of a sign-in's pane its address is looked f
 NOT_PRINTED = "Its address is not printed yet"
 TYPED = "Typed into Claude: Enter sends it"
 GRAPHING, NO_GRAPH = "Reading the graph…", "No graph to show here"
-SESSION = re.compile(r"[0-9A-Za-z][0-9A-Za-z._-]*")     # a session's id, as herdr tells it: never a path
 
 
 def tab_agent(call, pane):
@@ -63,29 +62,6 @@ def last_line(code, out, err):
     """What a command that failed said last, for one line."""
     lines = [line for line in ((err or "").strip() or (out or "").strip()).splitlines() if line.strip()]
     return agent_setup.clean(lines[-1]) if lines else f"exit {code}"
-
-
-def session_file(folder, session, home):
-    """Claude's file of the conversation SESSION in FOLDER, else the folder's newest one; None where it has none."""
-    place = jsonl.claude_project_dir(folder, home)
-    named = os.path.join(place, f"{session}.jsonl") if isinstance(session, str) and SESSION.fullmatch(session) \
-        else None
-    if named and os.path.isfile(named):
-        return named
-    newest = jsonl.newest_first(glob.glob(os.path.join(place, "*.jsonl")))
-    return newest[0] if newest else None
-
-
-def limits(agents, agent, home):
-    """Usage as core words it (usage.py's section()) for AGENT shown, AGENTS telling the names and plans, its blocks as
-    the user left them in either client; a reset said in this machine's time, its hours as the status line's."""
-    now = int(time.time())
-    found = usage.section(usage.limits(home, now), agents, agent, now, usage.kept_open(statefile.folder()))
-    twelve = usage.twelve_hours(home)
-    for row in found["rows"]:
-        if row["resets"]:
-            row["resets"]["said"] = usage.reset_said(row["resets"], twelve)
-    return found
 
 
 class Agent(Family):
@@ -116,7 +92,7 @@ class Agent(Family):
             self.look()
         if now >= self.next_costs():
             self.ask_costs()
-        if self.view.checking and now >= self.spun + SPIN:
+        if (self.view.checking or self.view.signing) and now >= self.spun + SPIN:
             self.spun = now
             self.view.frame = SPINNER[int(now / SPIN) % len(SPINNER)]
             return True
@@ -134,16 +110,31 @@ class Agent(Family):
         return self.read_at + (POLL if self.host.showing("agent") else AWAY)
 
     def next_costs(self):
-        """When the agents' costs are read next: once Usage is on screen (the view shown, its setup read), then every
-        COSTS seconds; never behind another view (the Usage view reads its own)."""
+        """When the API-key agents' months are read next: once Usage is on screen (the view shown, its setup read),
+        then every COSTS seconds; never behind another view (the Usage view reads its own)."""
         if not self.host.showing("agent") or not (self.view.answer or {}).get("usage"):
             return float("inf")
         return 0.0 if self.costs_at is None else self.costs_at + COSTS
 
     def deadlines(self):
         costs = self.next_costs()
-        return [self.next_read()] + ([self.spun + SPIN] if self.view.checking else []) + (
+        return [self.next_read()] + ([self.spun + SPIN] if self.view.checking or self.view.signing else []) + (
             [self.looked + WATCH] if self.connecting else []) + ([costs] if costs != float("inf") else [])
+
+    def drawing(self):
+        """The form's request planned by core on a job's thread before the view draws: the last one asked last."""
+        asked = self.view.asks()
+        if asked is None or "harness" in self.host.running:
+            return
+        agent, root, home = self.view.agent(), self.host.root, os.path.expanduser("~")
+
+        def work():
+            try:
+                return harness.plan(agent, root, home, asked)
+            except (ValueError, OSError):     # no form for it
+                return None
+
+        self.host.job("harness", work, lambda plan: self.view.planned(asked, plan))
 
     def came(self, panel):
         self.read_at = self.host.clock()
@@ -165,11 +156,11 @@ class Agent(Family):
         self.host.job("agent", lambda: self.read(pane, checked, chosen, fresh), self.got)
 
     def read(self, pane, checked, chosen=None, fresh=False):
-        """On the job's thread: the agents on this machine, each with where it stands; the folder's agent (CHOSEN in
-        the head's list, else the tab's by herdr's lists, else the one started last) and its setup as core's layers()
-        words it, a server Claude checked since as Claude said; or what stands in its place (standing())."""
+        """On the job's thread: the agents here, each with where it stands; the folder's agent (CHOSEN, else the tab's,
+        else the one started last) and its setup in core's layers() words, a server Claude checked as Claude said, Usage
+        (section()'s) and whether hours have AM and PM; or what stands in its place (standing())."""
         root, home, found = self.host.root, os.path.expanduser("~"), None
-        agents = [{**one, "empty": agent_state.standing(one)} for one in agent_state.machine_agents(home, fresh=fresh)]
+        agents = agent_state.told(home, fresh)
         told = {one["key"]: one for one in agents}
         if pane:
             try:
@@ -192,7 +183,7 @@ class Agent(Family):
         if agent not in agent_setup.READ:     # no setup of it is read: its head alone
             return said
         if agent == "claude":
-            setup = agent_setup.claude_setup(root, home, session_file(cwd or root, session, home))
+            setup = agent_setup.claude_setup(root, home, agent_setup.conversation(cwd or root, session, home))
         else:
             setup = agent_setup.codex_setup(root, home)
         if setup is None:                     # Codex gone since the agents were told
@@ -202,8 +193,9 @@ class Agent(Family):
             base, answered = checked.get(one["name"], (None, None))
             if answered and one["state"] == base:
                 one.update(state=answered["state"], error=answered["error"])
-        return {**said, "states": states, "usage": limits(agents, agent, home),
-                **agent_setup.layers(setup, agent, root, home)}
+        now = int(time.time())
+        return {**said, "states": states, "usage": usage.section(usage.limits(home, now), agents, agent, now),
+                "twelve": usage.twelve_hours(home), **agent_layers.layers(setup, agent, root, home)}
 
     def got(self, answer):
         if answer is not None:
@@ -223,45 +215,34 @@ class Agent(Family):
             self.ask()
 
     def ask_costs(self):
-        """What the agents cost read on a job's thread (figures()), for the view's period; once more when asked while
-        that runs (the period stepped), and at once while conversations are left to read (usage_view's figures())."""
+        """The API-key agents' months read on a job's thread (usage_view's figures()); once more when asked while that
+        runs, and at once while chats are left to read."""
         self.costs_at = self.host.clock()
         if "costs" in self.host.running:
             self.host.again.add("costs")
             return
-        colors = self.host.renderer.theme.colors          # button_text is the pane's own ground (the theme setter's)
-        period, agents = self.view.period, (self.view.answer or {}).get("agents")
-        theme, home = (colors.get("button_text"), colors.get("text")), os.path.expanduser("~")
-        self.host.job("costs", lambda: figures(period, agents, theme, home), lambda found: self.cost(period, found))
+        agents, home = (self.view.answer or {}).get("agents"), os.path.expanduser("~")
+        self.host.job("costs", lambda: figures(MONTH, agents, (None, None), home), self.cost)
 
-    def cost(self, period, found):
+    def cost(self, found):
         again = "costs" in self.host.again
         self.host.again.discard("costs")
-        if found and period == self.view.period:
-            self.view.costs, self.view.reading = found["report"], bool(found["left"])
+        if found:
+            self.view.costs = found["report"]
         if again or found and found["left"]:
             self.ask_costs()
 
-    def do_usage_period(self, period):
-        """Usage's period stepped on its head: its costs read for it."""
-        self.ask_costs()
-
-    def do_usage_open(self, agent, on):
-        """AGENT's block in Usage opened (ON) or folded: kept by core on a job's thread, the Herdr app's too."""
-        self.host.job("usage-open", lambda: usage.keep_open(statefile.folder(), agent, on))
-
-    def do_open_usage(self, period):
-        """The Usage view (usage_view.py, the plugin's pane `usage`) opened over the tab on PERIOD; not on Windows,
-        where the plugin has no pane of its own (Settings neither)."""
+    def do_open_usage(self):
+        """The Usage view (usage_view.py, the plugin's pane `usage`) opened over the tab; not on Windows, where the
+        plugin has no pane of its own (Settings neither)."""
         if os.name == "nt":
             return
         self.host.job("usage-view", lambda: self.host.herdr.call(
-            "plugin", "pane", "open", "--plugin", PLUGIN, "--entrypoint", "usage", "--env", f"{PERIOD_ENV}={period}",
-            "--focus"))
+            "plugin", "pane", "open", "--plugin", PLUGIN, "--entrypoint", "usage", "--focus"))
 
     def do_show_graph(self):
-        """The shown agent's graph (graph.py's) read on a job's thread with the tab's conversation, else the folder's
-        newest, and what that cost (costs.py's, after one look of the token index); then its tree in the preview tab."""
+        """The shown agent's graph (graph.py's) read on a job's thread with the tab's chat, else the folder's newest,
+        and what that cost (costs.py's, after one look of the token index); then its tree in the preview tab."""
         if "graph" in self.host.running:
             return
         agent, root, home = self.view.agent(), self.host.root, os.path.expanduser("~")
@@ -277,7 +258,8 @@ class Agent(Family):
                 except RuntimeError:
                     pass
             _, cwd, session = found if found and found[0] == agent else (None, None, None)
-            talk = session_file(cwd or root, session, home) if agent == "claude" else graph.rollout(root, home)
+            talk = agent_setup.conversation(cwd or root, session, home) if agent == "claude" \
+                else agent_setup.rollout(root, home)
             cost = None
             if talk:
                 state = statefile.folder()
@@ -424,19 +406,47 @@ class Agent(Family):
 
         self.host.job(f"reopen-{name}", work, then)
 
-    def do_turn_server(self, name, on):
-        """Claude's own `/mcp enable|disable NAME` typed into the tab's Claude, not sent (the TUI's way), and the keys
-        there; with no Claude in the tab, what it waits for."""
+    # --- a form's change (harness.py plans it, harness_edit.py writes the agent's own settings file)
+
+    def do_save_harness(self, edits, undone=False):
+        """Core's EDITS made, as the plan gave them (UNDONE: a save's own, back); the view told, the setup read
+        again. A refused Undo says why in core's words."""
         try:
-            words = connectors.toggle(name, on)
+            said = harness.apply(self.view.agent(), self.host.root, os.path.expanduser("~"), edits)
+        except ValueError:                    # not edits core makes
+            return
+        self.view.saved(said, undone)
+        if said["applied"]:
+            self.do_refresh_agent()
+        elif undone:
+            self.host.error = said["error"]
+
+    def do_undo_harness(self, edits):
+        self.do_save_harness(edits, undone=True)
+
+    def do_open_layer(self, layer):
+        """LAYER's settings file (the one a form saves in) in the preview tab, once there is one."""
+        path = place(self.view.agent(), layer, self.host.root, os.path.expanduser("~"))
+        if os.path.isfile(path):
+            self.do_open_setup(path)
+
+    def do_turn_server(self, name):
+        """Claude's own `/mcp enable NAME` for a server its own state turns off (herdr-fold never writes that)."""
+        try:
+            words = connectors.toggle(name, True)
         except ValueError:
             return
+        self.do_type_command(words, self.view.answer["connect"]["needs"]["turn-on"])
+
+    def do_type_command(self, words, waits=None):
+        """WORDS (Claude's own command) typed into the tab's Claude, not sent (the TUI's way), and the keys there;
+        with no Claude in the tab, WAITS: what it waits for in core's words."""
         me, herdr = os.environ.get("HERDR_PANE_ID"), self.host.herdr
 
         def work():
             target = tab_claude(herdr.call, me) if me else None
             if not target:
-                return NEEDS["turn-on" if on else "turn-off"]
+                return waits
             herdr.call("pane", "send-text", target, words)
             herdr.call("agent", "focus", target)
             return TYPED
@@ -444,7 +454,7 @@ class Agent(Family):
         def then(said):
             self.host.note = said
 
-        self.host.job(f"turn-{name}", work, then)
+        self.host.job("type-command", work, then)
 
     def command(self, kind, argv, then):
         """ARGV (an agent's own command, one argv) run in the folder on a job's thread; THEN gets None where it worked,

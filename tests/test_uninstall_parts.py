@@ -19,7 +19,7 @@ class UninstallParts(PartsInstall, unittest.TestCase):
         self.with_app()
         with open(self.env["STUB_PLUGINS"], "w") as f:                 # what herdr has: herdr-fold's, once linked
             json.dump({"result": {"plugins": [{"plugin_id": f"herdr-fold.{name}"}
-                                              for name in ("sidebar", "sessions-view", "workspaces")]}}, f)
+                                              for name in ("sidebar", "sessions-view", "spaces")]}}, f)
 
     def there(self, rel):
         return os.path.exists(self.path(rel))
@@ -37,7 +37,7 @@ class UninstallParts(PartsInstall, unittest.TestCase):
         self.assertFalse(self.there(".config/ghostty/config"))
         self.assertNotIn("herdr-fold", self.read(".zshrc") if self.there(".zshrc") else "")
         self.assertIn("herdr plugin unlink herdr-fold.sidebar", self.herdr_calls())
-        self.assertIn("herdr plugin unlink herdr-fold.workspaces", self.herdr_calls())
+        self.assertIn("herdr plugin unlink herdr-fold.spaces", self.herdr_calls())
         self.assertTrue(self.there(".config/herdr-fold/statusline.py"))
         self.assertTrue(self.in_app("mods/herdr-fold/main.js"))
         self.assertEqual(self.parts(), ["app"])
@@ -101,18 +101,14 @@ class UninstallParts(PartsInstall, unittest.TestCase):
 
     def test_chats_archived_in_the_app_stay(self):
         """The Chats' state (archived ones, the index) is the TUI's and the app's alike: it goes with the last
-        part only, under its older name too (an install that never ran this version); the chat names stay even
-        then."""
+        part only; the chat names stay even then."""
         self.with_parts("both")
         kept = {"archived": ["claude:abc"]}
-        for name in ("chats.json", "conversations.json"):
-            self.write(os.path.join(self.SIDEBAR, name), json.dumps(kept))
+        self.write(os.path.join(self.SIDEBAR, "chats.json"), json.dumps(kept))
         self.with_parts("tui", "uninstall.sh")
-        for name in ("chats.json", "conversations.json"):
-            self.assertEqual(json.loads(self.read(os.path.join(self.SIDEBAR, name))), kept)
+        self.assertEqual(json.loads(self.read(os.path.join(self.SIDEBAR, "chats.json"))), kept)
         self.with_parts("app", "uninstall.sh")
-        for name in ("chats.json", "conversations.json"):
-            self.assertFalse(self.there(os.path.join(self.SIDEBAR, name)))
+        self.assertFalse(self.there(os.path.join(self.SIDEBAR, "chats.json")))
 
     def test_the_linked_issues_stay_with_the_app(self):
         """The sidebar's settings hold the issue a repository's next commit fixes, which the app links too: they go

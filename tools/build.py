@@ -1,6 +1,7 @@
-"""Writes the copies of core/, the shared data layer: into the TUI sidebar (src/plugins/sidebar/), Workspaces (git.py)
-and the Herdr app mod (helper.js, the source it runs with Python's -c on the space's machine; icons.js, the icons); and
-the app layout's theme, from the TUI's. Edit those, then run this: tests/test_tools_build.py fails on an old copy."""
+"""Writes the copies of core/, the shared data layer: into the TUI sidebar (src/plugins/sidebar/), Spaces (git.py), the
+status line (usage.py), the Herdr app mod (helper.js, the source it runs with Python's -c on the space's machine;
+icons.js, the icons); and the app's themes, from the TUI's. Edit those, run this: tests/test_tools_build.py checks."""
+import ast
 import importlib.util
 import io
 import json
@@ -12,11 +13,16 @@ import tokenize
 sys.dont_write_bytecode = True    # core's modules it loads leave no bytecode behind
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SIDEBAR = os.path.join("src", "plugins", "sidebar")
-# Workspaces' copies: core/git.py, its Spaces row's repository inside a folder (the app's list's too), and its imports
-WORKSPACES, WORKSPACES_CORE = os.path.join("src", "plugins", "workspaces"), ["git.py"]
+# Spaces' copies: core/git.py, its Spaces row's repository inside a folder (the app's list's too), and its imports
+SPACES, SPACES_CORE = os.path.join("src", "plugins", "spaces"), ["git.py"]
+# the status line's (src/statusline.py, both clients'): the limits every chat told, and their imports
+STATUSLINE, STATUSLINE_CORE = "src", ["usage.py"]
+# the installer's (src/herdr_config.py): herdr's config.toml read by line, which the sidebar's Settings changes too
+CONFIG, CONFIG_CORE = "src", ["herdr_toml.py"]
 WIDTH = 110                   # a string literal's cells on a line of helper.js
 # the Herdr app mod's helper.js: the name it imports each module's source by, and the module
-HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"AGENT_SETUP": "agent_setup.py",
+HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"AGENT_LAYERS": "agent_layers_cli.py",
+                                                                    "AGENT_SETUP": "agent_setup.py",
                                                                     "AGENT_STATE": "agent_state.py",
                                                                     "CHAT": "chat.py",
                                                                     "CHAT_HOOK": "chat_hook.py",
@@ -24,16 +30,18 @@ HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"AGENT_SETUP
                                                                     "CONNECTORS": "connectors.py",
                                                                     "COSTS": "costs.py",
                                                                     "CHATS": "chats.py",
-                                                                    "COMMITS": "commits.py",
                                                                     "FILEOPS": "fileops.py", "GIT": "git.py",
-                                                                    "GITHUB": "github.py", "GRAPH": "graph.py",
-                                                                    "JOB": "job.py",
-                                                                    "MEDIA": "media.py", "PRICES": "prices.py",
+                                                                    "GITHUB": "github.py", "GRAPH": "graph_cli.py",
+                                                                    "HARNESS": "harness.py", "JOB": "job.py",
+                                                                    "MEDIA": "media.py",
+                                                                    "NAMED_FILES": "named_files.py",
+                                                                    "PRICES": "prices.py",
                                                                     "REPORT": "report.py",
                                                                     "SEARCH": "search.py", "TOKENS": "tokens.py",
                                                                     "TREE": "tree.py", "UPDATE": "update.py",
                                                                     "USAGE": "usage.py"}}
-MOD_ONLY = {"chat.py", "chat_hook.py", "job.py"}  # only the mod runs these (its chat, its jobs)
+# only the mod runs these: its chat, its jobs, the commands of what the sidebar imports itself
+MOD_ONLY = {"agent_layers_cli.py", "chat.py", "chat_hook.py", "graph_cli.py", "job.py"}
 ICONS = os.path.join("app", "mods", "herdr-fold", "icons.js")       # the mod's icons, by name, and the file types'
 SVGS = "mods/herdr-fold/icons"     # as the app loads them: lucide/ the views', catppuccin/ a file's, logos/ a brand's
 THEMES = os.path.join("app", "themes")      # the TUI's themes in the Herdr app: herdr-fold-ID.json for each, and
@@ -95,12 +103,25 @@ def imports(name):
 
 
 def slim(source):
-    """SOURCE without the lines Python never runs: the blank ones and those of a comment alone (a string's own lines
-    stay, and a comment after code)."""
-    rows = {token.start[0] for token in tokenize.generate_tokens(io.StringIO(source).readline)
-            if token.type == tokenize.COMMENT and token.line.lstrip().startswith("#")
-            or token.type == tokenize.NL and not token.line.strip()}
-    return "\n".join(line for n, line in enumerate(source.split("\n"), 1) if n not in rows).rstrip("\n")
+    """SOURCE without what Python never runs: the blank lines, those of a comment alone, a comment after code and the
+    docstrings, a body that was one alone left a pass (a string's own lines stay)."""
+    rows, rewritten = set(), {}
+    for token in tokenize.generate_tokens(io.StringIO(source).readline):
+        if token.type == tokenize.COMMENT and token.line.lstrip().startswith("#") \
+                or token.type == tokenize.NL and not token.line.strip():
+            rows.add(token.start[0])
+        elif token.type == tokenize.COMMENT:
+            rewritten[token.start[0]] = token.line[:token.start[1]].rstrip()
+    for node in ast.walk(ast.parse(source)):
+        body = getattr(node, "body", None)
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and body \
+                and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
+                and isinstance(body[0].value.value, str):
+            rows.update(range(body[0].lineno, body[0].end_lineno + 1))
+            if len(body) == 1:
+                rewritten[body[0].lineno] = " " * body[0].col_offset + "pass"
+    return "\n".join(rewritten.get(n, line) for n, line in enumerate(source.split("\n"), 1)
+                     if n not in rows or n in rewritten).rstrip("\n")
 
 
 def runnable(name):
@@ -126,8 +147,8 @@ def note(name):
 def js_note():
     """helper.js's opening comment: where it comes from, and what it is for."""
     return ["// @ts-check",
-            "// Generated from core/ by tools/build.py, each export a module's source (MEDIA_*: media.py's",
-            "// tables): change them there, then run it again. Each runs with Python's -c on the space's machine."]
+            "// Generated from core/ by tools/build.py: each export a module's source, run with Python's -c on the",
+            "// space's machine (MEDIA_*, OUTPUT_LINES, THEME_NAMES: core's tables, the TUI's). Change them there."]
 
 
 def literal(text):
@@ -258,16 +279,22 @@ def outputs():
     """{path from the package's root: its content}."""
     made = {os.path.join(SIDEBAR, name): f"# {note(name)}\n" + core(name)
             for name in sorted(os.listdir(os.path.join(ROOT, "core"))) if name.endswith(".py") and name not in MOD_ONLY}
-    made.update({os.path.join(WORKSPACES, name): f"# {note(name)}\n" + core(name)
-                 for name in with_imports(WORKSPACES_CORE)})
+    made.update({os.path.join(folder, name): f"# {note(name)}\n" + core(name)
+                 for folder, names in ((SPACES, SPACES_CORE), (STATUSLINE, STATUSLINE_CORE),
+                                       (CONFIG, CONFIG_CORE))
+                 for name in with_imports(names)})
+    themes, own = tui_themes()
     for path, sources in HELPERS.items():
         lines = js_note()
         lines += [f"export const {const} = {literal(runnable(name))};" for const, name in sources.items()]
         lines.append(f"export const MEDIA_KINDS = {json.dumps(module('media').KINDS, indent=2)};")
         lines.append(f"export const MEDIA_WEB = {json.dumps(module('media').WEB, indent=2)};")
+        lines.append(f"export const OUTPUT_LINES = {module('named_files').LINES};")
+        # the app's herdr-fold themes by the TUI's names, in its order (Cmd+Shift+T's list)
+        names = {f"herdr-fold-{theme['id']}": theme["name"] for theme in themes}
+        lines.append(f"export const THEME_NAMES = {json.dumps(names, indent=2)};")
         made[path] = "\n".join(lines) + "\n"
     made[ICONS] = icons_js()
-    themes, own = tui_themes()
     made.update({os.path.join(THEMES, f"herdr-fold-{theme['id']}.json"): app_theme(theme) for theme in themes})
     made[THEME] = app_theme(own)
     return made

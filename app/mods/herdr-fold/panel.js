@@ -6,17 +6,19 @@ import { h_flex, v_flex } from "gpui-base";
 import { home, layout, notify, openOverlay, panes, setShared, shared, spaces, watchFolder, run as command }
   from "herdr";
 import { UPDATE } from "./helper.js";
-import { BOTTOM_PX, bottomPx, bottomShown, bottomToggle, chatsToggle, chosenFor, dragPx, FLOAT_GRIP,
-  floatMax, floatMin, keepFloat, railFloatPx, hideCommands, keepChosen, panelChoices, PANEL_NAMES, PANEL_PX, panelPx,
-  panelRailed, panelShown, pickCommands, railToggle, repoTold, shownPanels, shownView, TAB_COUNT, TAB_GAP, TAB_H,
-  tabFit, TAB_IN, TABS_PAD, TABS_SIDE, CHATS_BLOCK, DOCK, find, updateNotice } from "./logic.js";
+import { BOTTOM_PX, bottomPx, bottomShown, bottomToggle, chatsToggle, chosenFor, columnToggle, dockRest, dragPx,
+  fitFloatPx,
+  FLOAT_GRIP, floatMax, floatMin, foldCommands, floating, floatTop, floatX, keepFloat, railFloatPx, hideCommands,
+  keepChosen, panelChoices, PANEL_NAMES, PANEL_PX, panelPx, panelRailed, panelShown, pickCommands, repoTold, restAt,
+  SETTLE, shownPanels, shownView, TAB_COUNT, TAB_GAP, TAB_H, tabFit, TAB_IN, TABS_PAD, TABS_SIDE, CHATS_BLOCK, DOCK,
+  find, restoreCommands, updateNotice } from "./logic.js";
 import { badge, icon, iconButton, iconTab } from "./parts.js";
 import { agentHere, agentMark, problemsHere, programs } from "./agent.js";
 import { AGENTS_ASK, AGENTS_TAB, agentsTab, askAgents } from "./graph.js";
 import { AGENT_ASK, AGENT_CHOSEN, keepAgent, toneColor } from "./layers.js";
 import { OPENED } from "./chats.js";
 import { openSettings, UPDATES } from "./settings.js";
-import { floatPanel } from "./sidebar.js";
+import { floatPanel, RAIL_FLOAT, shutFloat } from "./sidebar.js";
 
 export const TABS = "herdr-fold.tabs";        // what the row and the rail show of the repository: { github, changed }
 export const SUMMON = "herdr-fold.summon";    // a key's ask for a view: { view, command, at }, the tab bar's
@@ -32,6 +34,9 @@ const RAILED = [["files", "files", "Files"], ["search", "search", "Search"], ["c
   ["issues", "circle-dot", "Issues"], ["agent", "bot", "Agent"], ["terminal", "square-terminal", "Terminal"]];
 /** @type {Map<string, number>} each tab's width as last drawn (its words, Changes' count), which tabFit fits by */
 const TAB_PX = new Map();
+/** @type {Record<string, { px: number | null, from: number | null, pending: number | null }>} each side's width as
+ * the tab bar last saw it, the width it last came to rest at (null: none yet), the one it was last set to (restAt) */
+const RESTS = { dock: { px: null, from: null, pending: null }, side: { px: null, from: null, pending: null } };
 
 /** The space shown's id, or null. */
 const spaceShown = () => spaces().find((s) => s.active)?.id ?? null;
@@ -63,10 +68,11 @@ export function toggleChats({ space = null } = {}) {
 }
 
 /** The tab bar's Chats, Cmd+Shift+R or a chat's clock (TO: its group): the list in the dock's view place and back
- * (toggleChats); the dock a rail, the list floating beside it, as a rail's view floats.
- * @param {{ space?: string | null }} [to] */
+ * (toggleChats); the dock a rail, the list floating beside it, as a rail's view floats, and closed again (a clock only
+ * shows it). @param {{ space?: string | null }} [to] */
 export function askChats(to = {}) {
   if (dockOpen()) return toggleChats(to);
+  if (!to.space && floatingView() === "chats") return void shutFloat(RAIL_FLOAT);     // ✦ lit: closes it, as a rail's
   if (to.space) setShared(OPENED, { at: Date.now(), space: to.space });
   openRail("chats", null);
 }
@@ -129,13 +135,15 @@ export function liveDockTabs(t, cx) {
   { pick: (/** @type {string} */ panel) => pickPanel(panel) });
 }
 
-/** More's menu in MENUS under its button (BOUNDS): the views with their ✓, then herdr-fold's Settings… (the window's
- * one way in from here). @param {import("./menus.js").Menus} menus @param {any} bounds */
-export function openMore(menus, bounds) {
+/** More's menu in MENUS under its button (BOUNDS): CHATS' own choice first while Chats shows (Show archived), the
+ * views with their ✓, then About herdr-fold (Settings at About; Settings itself is the sidebar's and Cmd+,'s).
+ * @param {import("./menus.js").Menus} menus @param {any} bounds @param {import("./menus.js").Item | null} [chats] */
+export function openMore(menus, bounds, chats = null) {
   const root = layout(), { github } = tabsState();
   const panels = panelChoices(root, github).map(({ panel, label, on, off }) => ({ label, on, off,
     act: () => runPanel(hideCommands(layout(), panel, on, tabsState().github, chosenView())) }));
-  menus.open([...panels, null, { label: "Settings…", act: () => openSettings() }], bounds);
+  menus.open([...(chats ? [chats, null] : []), ...panels, null,
+    { label: "About herdr-fold", act: () => openSettings("about") }], bounds);
 }
 
 /** What the row and the rail show (TABS): whether the repository is on GitHub, its changed files' count. */
@@ -257,11 +265,55 @@ export function toggleBottom() {
   for (const [name, args] of commands) command(name, args);
 }
 
+/** Cmd+Shift+E, as the TUI's: the dock hidden entirely, or shown again as it was. */
+export const toggleColumn = () => runPanel(columnToggle(layout(), bottomChoice()));
+
+/** Cmd+Shift+O, as the TUI's Restore panels: the views More hid, the dock and the terminal under the tab back. */
+export function restorePanels() {
+  setShared(BOTTOM_SHOWN, true);
+  runPanel(restoreCommands(layout(), tabsState().github, bottomChoice()));
+}
+
 /** Whether the dock is open: neither its rail nor hidden. */
 export const dockOpen = () => panelShown(layout()) && !panelRailed(layout());
 
-/** » and «: the open dock folded to its rail, a rail (or a panel an earlier version's × hid) opened again. */
-export const foldDock = () => runPanel(railToggle(layout(), keptWidth(), bottomChoice()));
+/** », « and Cmd+Option+B: the open dock folded to its rail (the Chats list in it closed first), a rail (or a panel an
+ * earlier version's × hid) opened again. */
+export const foldDock = () => runPanel(foldCommands(layout(), tabsState().github, chosenView(), keptWidth(),
+  bottomChoice()));
+
+/** A press on ✦'s neighbours (More): the Chats list or a float beside the rail closed, as it goes on to its own. */
+export function closeChats() {
+  shutFloat(RAIL_FLOAT);
+  if (chatsShown()) toggleChats();
+}
+
+/** The rail's Terminal pressed: a float beside the rail closed, the terminal under the centre shown or hidden. */
+export function terminalPress() {
+  shutFloat(RAIL_FLOAT);
+  toggleBottom();
+}
+
+/** From the tab bar's render: SIDE's width PX (a drag's, its toggle's) looked at again once unchanged for SETTLE ms,
+ * let go then, not on the way: REST puts it where it comes to rest, given where it rested last (restAt).
+ * @param {string} side @param {number | null} px @param {(from: number | null) => number | null} rest */
+export function restFollow(side, px, rest, cx) {
+  const seen = RESTS[side];
+  if (px === seen.px) return;
+  seen.px = px;
+  cx.timer.after(SETTLE, () => {
+    if (seen.px === px) restAt(seen, px, rest);
+  });
+}
+
+/** The dock let go of after a drag, rested FROM px wide last: a rail widened past UNFOLD opened as « opens it, else
+ * narrower than a rail starts its rail; open, its width kept for «. @param {number | null} from */
+export function restDock(from) {
+  const { to, open, commands } = dockRest(layout(), from, keptWidth(), bottomChoice());
+  for (const [name, args] of commands) command(name, args);
+  if (open && !commands.length && to !== shared(KEPT)) setShared(KEPT, to);
+  return to;
+}
 
 /** The tab bar's end, the row of the left sidebar's own toggle: » while the dock is OPEN, else «, ACT (foldDock); in
  * the same place in every state. @param {boolean} open @param {() => void} act */
@@ -282,34 +334,34 @@ export function summon(view, asked = view) {
 }
 
 /** The Agent panel shown in the dock, beside the rail while it is one: AGENT's (kept for the space, as a pick in its
- * list), SECTION opened, ROW chosen, its agents' LIST open (the panel answers the ask once, agent.js).
- * @param {{ section?: string | null, row?: string | null, agent?: string | null, list?: boolean }} [what] */
-export function openAgentPanel({ section = null, row = null, agent = null, list = false } = {}) {
+ * list), SECTION opened, ROW chosen, LOOK only looked at (how it installs), as a dim one picked there (agent.js).
+ * @param {{ section?: string | null, row?: string | null, agent?: string | null, look?: string | null }} [what] */
+export function openAgentPanel({ section = null, row = null, agent = null, look = null } = {}) {
   const space = spaceShown();
   if (agent && space) {
     setShared(AGENT_CHOSEN, keepAgent(shared(AGENT_CHOSEN), space, agent, new Set(spaces().map((s) => s.id))));
   }
-  setShared(AGENT_ASK, { space, section, row, list, at: Date.now() });
+  setShared(AGENT_ASK, { space, section, row, look, at: Date.now() });
   summon("agent");
 }
 
-/** The dock folded to its rail: the SHOWN views (else all, Issues on GITHUB only; Changes' count CHANGED), each a
- * square named under it, a press floating one; Agent's dot while its setup has PROBLEMS; the tab's TERMINAL (none: off)
- * shown or hidden under the centre, LIT while shown. @param {any} tabs @param {string | null} terminal */
+/** The dock folded to its rail: the SHOWN views (else all, Issues on GITHUB only; Changes' count CHANGED), a square
+ * named under each, a press floating one, lit while FLOATING (pressed again: closed); Agent's dot while PROBLEMS; the
+ * TERMINAL (none: off) lit while under the centre (BOTTOM). @param {any} tabs @param {string | null} terminal */
 export function rail(t, { github, changed }, terminal, shown = /** @type {any} */ (null), bottom = false,
-  problems = null) {
+  problems = null, floating = null) {
   const on = (/** @type {string} */ panel) => panel === "terminal" || (shown ? shown.includes(panel)
     : panel !== "issues" || github);
   const counts = /** @type {Record<string, number>} */ ({ changes: changed });
   return v_flex().id("panel-rail").size_full().items_center().pt(8).gap(12)
     .children(RAILED.filter(([panel]) => on(panel)).map(([panel, name, word]) => {
-      const off = panel === "terminal" && !terminal, lit = panel === "terminal" && !off && bottom;
+      const off = panel === "terminal" && !terminal, lit = panel === "terminal" ? !off && bottom : panel === floating;
       const dot = panel === "agent" && problems ? toneColor(t, problems.tone) : null;
       const label = dot ? `${word}: ${problems?.said}` : word;
       return v_flex().id(`rail-${panel}`).flex_none().items_center().gap(4)
         .when(!off, (e) => e.on_mouse_down("left", (e, cx) => {
           cx.stop_propagation();
-          panel === "terminal" ? toggleBottom() : openRail(panel, e.bounds);
+          panel === "terminal" ? terminalPress() : railPress(panel, e.bounds);
         }))
         .child(iconTab(t, `rail-${panel}-tab`, icon(name, 15).when(lit, (e) => e.text_color(t.accent)),
           { count: counts[panel] ?? 0, active: lit, dot, tip: off ? "No terminal in this tab" : label,
@@ -318,29 +370,45 @@ export function rail(t, { github, changed }, terminal, shown = /** @type {any} *
     }));
 }
 
-/** The rail as the layout shows it now: the panels shown, the tab's TERMINAL and whether it shows under the centre.
- * @param {string | null} terminal */
+/** The rail as the layout shows it now: the panels shown, the tab's TERMINAL and whether it shows under the centre,
+ * the view floating beside it. @param {string | null} terminal */
 export const liveRail = (t, terminal) => rail(t, tabsState(), terminal, shownPanels(layout(), tabsState().github),
-  bottomShown(layout()), problemsHere())
-  .on_size_change((size) => {                 // the window's height, for a float's tallest (floatMax)
+  bottomShown(layout()), problemsHere(), floatingView())
+  .on_size_change((size) => {                 // the rail's height, a float's tallest (floatMax)
     if (Math.round(size.height) !== shared(RAIL_PX)) setShared(RAIL_PX, Math.round(size.height));
   });
 
-/** View PANEL (Chats too) floating left of the rail's button (BOUNDS; for a key, where the app puts it), THEN its
- * command run first; one at a time, as the left rail's floats. @param {string} panel @param {any} bounds
- * @param {string} [then] */
-export function openRail(panel, bounds, then) {
-  openOverlay({ kind: "window", key: "herdr-fold.rail", width: PANEL_PX,       // as tall as its content: FloatSize's
-    ...(bounds ? { at: { x: Math.max(8, bounds.x - PANEL_PX - 8), y: 48 } } : {}),
-    mod: "herdr-fold", props: { part: "float", panel, then } });
+/** The view floating beside the rail now (Chats too), or null. */
+export const floatingView = () => floating(shared(RAIL_FLOAT))?.panel ?? null;
+
+/** A rail's view pressed (BOUNDS: its button): floating beside the rail, or closed while it is the one floating, as
+ * Adobe's lit icon closes its panel. @param {string} panel @param {any} bounds */
+export function railPress(panel, bounds) {
+  const open = floating(shared(RAIL_FLOAT));
+  if (open?.panel === panel) return void shutFloat(RAIL_FLOAT);
+  openRail(panel, bounds);
+}
+
+/** View PANEL (Chats too) floating beside the rail every time, under the tab bar, pressed there or by a key, THEN its
+ * command run first; one at a time, the one before closed first, as the left rail's; marked, so its icon is lit.
+ * @param {string} panel @param {any} _bounds its button's, pressed @param {string} [then] */
+export function openRail(panel, _bounds, then) {
+  const root = layout();
+  shutFloat(RAIL_FLOAT);
+  setShared(RAIL_FLOAT, { panel, overlay: openOverlay({ kind: "window", width: PANEL_PX,       // as tall as its content
+    at: { x: floatX(panel, root, window.viewport_size().width, PANEL_PX), y: floatTop(root) },
+    mod: "herdr-fold", props: { part: "float", panel, then } }) });
 }
 
 /** A view's float's height (VIEW's): as kept, dragged by its foot's grip (shrinking and growing as the pointer goes,
  * the window following its content), a double click there its tallest or back to the height dragged last. */
 export class FloatSize {
-  /** @param {string} view */
-  constructor(view) {
+  /** VIEW's; FIT (its rows, Spaces') its height until dragged, MOST its tallest (the window's room under it), else
+   * the rail's. @param {string} view @param {{ fit?: number | null, most?: number | null }} [how] */
+  constructor(view, { fit = null, most = null } = {}) {
     this.view = view;
+    this.fit = fit;
+    this.most = most;
     /** @type {number | null} its height now; null: as kept */
     this.px = null;
     /** @type {{ y: number, px: number } | null} a drag under way: where it started */
@@ -348,17 +416,23 @@ export class FloatSize {
     this.over = false;                          // the pointer on the grip
   }
 
-  /** Its bounds now: the view's least, the window's height less the margins. */
+  /** Its bounds now: the view's least, MOST or the rail's height (from under the tab bar to the card's foot). */
   get bounds() {
     const rail = /** @type {number | null} */ (shared(RAIL_PX) ?? null), min = floatMin(this.view);
+    if (this.most !== null) return { min, max: Math.max(min, this.most) };
     return { min, max: Math.max(min, rail ? floatMax(rail, layout()) : railFloatPx(this.view, {}, null, layout())) };
+  }
+
+  /** Its height until dragged now: as kept for the view, else as it fits (FIT) or the rail's tallest. */
+  kept() {
+    return this.fit !== null ? fitFloatPx(this.view, shared(FLOAT_KEPT), this.fit, this.bounds.max)
+      : railFloatPx(this.view, shared(FLOAT_KEPT), /** @type {any} */ (shared(RAIL_PX)), layout());
   }
 
   /** Its height now, inside its bounds (the window resized meanwhile). */
   height() {
     const { min, max } = this.bounds;
-    const px = this.px ?? railFloatPx(this.view, shared(FLOAT_KEPT), /** @type {any} */ (shared(RAIL_PX)), layout());
-    return Math.min(Math.max(px, min), max);
+    return Math.min(Math.max(this.px ?? this.kept(), min), max);
   }
 
   /** The grip pressed at E: a drag starts. */
@@ -386,8 +460,7 @@ export class FloatSize {
   /** A double click on the grip: the tallest, or from there back to the height dragged last. */
   toggle(cx) {
     const { max } = this.bounds;
-    this.px = this.height() < max ? max : railFloatPx(this.view, shared(FLOAT_KEPT), /** @type {any} */
-      (shared(RAIL_PX)), layout());
+    this.px = this.height() < max ? max : this.kept();
     cx.notify();
   }
 }
@@ -403,14 +476,15 @@ export const floatGrip = (t, size) => div().id("float-grip").w_full().h(FLOAT_GR
   })
   .child(div().w(24).h(4).rounded_full().bg(size.drag ? t.accent : size.over ? t.muted : t.border));
 
-/** View NAME floating beside the rail (OVERLAY), BODY under its head, as tall as SIZE says, its grip at its foot; the
- * pointer followed while it drags, a band under it meanwhile so it stays on the float. @param {FloatSize} size
- * @param {string} name @param {string} overlay @param {any} body */
-export function sizedFloat(t, size, name, overlay, body) {
+/** View NAME floating beside a rail (OVERLAY), BODY under its head (BUTTONS), as tall as SIZE says, its grip at its
+ * foot, FOCUS, PANEL and OWNS as floatPanel's; the pointer followed while it drags, a band under it meanwhile so it
+ * stays on the float. @param {FloatSize} size @param {string} name @param {string} overlay @param {any} [how] */
+export function sizedFloat(t, size, name, overlay, body,
+  { focus = null, panel = null, buttons = [], owns = null } = {}) {
   return v_flex().id("float-sized").w_full()
     .on_mouse_move((e, cx) => size.move(e, cx)).on_mouse_up("left", (_e, cx) => size.end(cx))
     .on_hover((over, cx) => void (!over && size.end(cx)))
-    .child(floatPanel(t, name, overlay, size.height(), [], body, floatGrip(t, size)))
+    .child(floatPanel(t, name, overlay, size.height(), buttons, body, { foot: floatGrip(t, size), focus, panel, owns }))
     .when(Boolean(size.drag), (e) => e.child(div().h(DRAG_SLACK).flex_none()));
 }
 

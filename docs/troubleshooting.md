@@ -20,6 +20,6 @@
 | Claude is not full screen, or Cmd + F does not search | the tab's shell started before the install: open a new tab, or `exec zsh`, then `claude --continue` |
 | Text selected from a reply pastes as plain text | reopen Ghostty (Cmd + Q, then open it): herdr gets its own `pbcopy` only that way. From a remote machine, plain text is expected |
 | The terminal colors did not change with the theme | Cmd + Shift + , in Ghostty; the prompt changes in new panes |
-| Cmd + D / Cmd + E do not switch sessions | they step through the current workspace's sessions only. Otherwise herdr or Ghostty runs the old settings: Ctrl + B, then Shift + R in herdr; Cmd + Shift + , in Ghostty |
+| Cmd + D / Cmd + E do not switch sessions | they step through the current space's sessions only. Otherwise herdr or Ghostty runs the old settings: Ctrl + B, then Shift + R in herdr; Cmd + Shift + , in Ghostty |
 | Push or Sync does not work | the repo has no remote: see [A repo without a remote](usage.md#commit-and-push) |
 | Something in the sidebar | see [The sidebar](sidebar.md) |

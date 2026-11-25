@@ -61,8 +61,8 @@ brew_lines() {
   done < "$DOT/Brewfile"
 }
 
-# The parts installed here (src/parts.py, from the records), a line each; the TUI when the records name none: a
-# package set up before the parts were chosen, or nothing yet
+# The parts installed here (src/parts.py, from the records), a line each; the TUI when the records name none (nothing
+# installed yet)
 installed_parts() {
   local found; found=$(python3 "$DOT/src/parts.py")
   printf '%s\n' "${found:-tui}"

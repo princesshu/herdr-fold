@@ -233,10 +233,13 @@ class AgentState(unittest.TestCase):
         self.assertNotIn("sk-proj", json.dumps(codex))
         self.assertEqual(self.calls(log), [{"program": "codex", "cwd": self.calls(log)[0]["cwd"],
                                             "argv": ["login", "status"]}])
-        # the newest chat that names a plan tells it: a count that names none (a sub-agent's, one with no limits)
+        # the newest chat that names a plan tells it: a count that names none (a subagent's, one with no limits)
         # passed over; an id with no word, none
         for lines, plan in (([self.token_count(None), self.token_count("plus", limits=False)], "Plus"),
-                            ([self.token_count("lumen-galaxy")], None), ([self.token_count("team")], "Team")):
+                            ([self.token_count("lumen-galaxy")], None), ([self.token_count("team")], "Team"),
+                            # a newer id by its family's word: a self-serve Business seat, Pro's lighter tier
+                            ([self.token_count("self_serve_business_prolite")], "Business"),
+                            ([self.token_count("prolite")], "Pro")):
             with self.subTest(lines):
                 self.rollout("13", *lines, age=len(lines))
                 self.assertEqual(agent_state.machine_agents(self.home, fresh=True)[1]["plan"], plan)
@@ -304,6 +307,19 @@ class AgentState(unittest.TestCase):
         agents = json.loads(out.getvalue())
         self.assertEqual([(a["key"], (a["empty"] or {}).get("kind")) for a in agents],
                          [("claude", "sign-in"), ("codex", "install"), ("gemini", "install")])
+        self.assertEqual([a["listed"]["group"] for a in agents], ["Agents on this Mac"] + ["Not installed"] * 2)
+
+    def test_an_agents_row_in_the_heads_list(self):
+        agent = {"key": "codex", "name": "Codex", "installed": True, "signed_in": True, "plan": "Plus"}
+        here = {"group": "Agents on this Mac", "dim": False}
+        self.assertEqual(agent_state.listed(agent), {**here, "word": "Plus", "tone": None})
+        # signed out: sign in, never a plan beside it; not told (Gemini CLI's): no word at all
+        self.assertEqual(agent_state.listed({**agent, "signed_in": False}), {**here, "word": "sign in", "tone": "warn"})
+        self.assertEqual(agent_state.listed({**agent, "signed_in": None, "plan": None}),
+                         {**here, "word": None, "tone": None})
+        # not installed: its own group, dim, whatever it last told
+        self.assertEqual(agent_state.listed({**agent, "installed": False, "signed_in": False}),
+                         {"group": "Not installed", "dim": True, "word": None, "tone": None})
 
     def test_an_answer_is_kept_a_minute(self):
         log = self.programs({"claude": {"auth status --json": [json.dumps(SIGNED_IN), "", 0]},

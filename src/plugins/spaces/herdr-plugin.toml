@@ -1,0 +1,88 @@
+id = "herdr-fold.spaces"
+name = "Spaces"
+version = "0.4.0"
+min_herdr_version = "0.9.5"
+description = """\
+  Keeps herdr's spaces, the rows of the Spaces list: a new one asks for its folder, home is always there and the \
+  first row, one named after its folder follows its new name, a root's is named by a word (root, C:), one whose \
+  folder holds a repository shows that one's name and branch, one whose folder is gone says deleted, one closed \
+  with its last tab is made again in its place, a tab holding a chat asks before it closes, and herdr-fold's \
+  agents start again after a restart. Part of herdr-fold: install it with herdr-fold's installer. Created by \
+  princesshu"""
+platforms = ["macos", "linux", "windows"]
+
+# New tab (including a new space's first tab): for the "new" button's space it opens the folder picker, any other
+# tab it leaves alone (see spaces.py); not on Windows, where the picker's key handling does not work
+[[events]]
+on = "tab.created"
+platforms = ["macos", "linux"]
+command = ["/usr/bin/python3", "spaces.py"]
+
+# A pane's focus: a space named after its folder takes the folder's new name, one whose folder holds a repository
+# shows its name and branch (Windows does not let a folder in use be renamed)
+[[events]]
+on = "pane.focused"
+platforms = ["macos", "linux"]
+command = ["/usr/bin/python3", "spaces.py"]
+
+# A space's close (herdr ends one with its last tab): the home folder's is made again when none is left, so home
+# stays a row in Spaces (a pane's focus looks too, as herdr's start has no close)
+[[events]]
+on = "workspace.closed"
+platforms = ["macos", "linux"]
+command = ["/usr/bin/python3", "spaces.py"]
+
+# A tab's close: with the close of its space it says herdr ended the space with its last tab (closed on purpose it
+# sends the space's close alone), and that space is made again in its place
+[[events]]
+on = "tab.closed"
+platforms = ["macos", "linux"]
+command = ["/usr/bin/python3", "spaces.py"]
+
+# The list of spaces changed (one made, moved by hand or by a command): the home folder's is moved first when it
+# is not, so home is the first row in Spaces (a pane's focus looks too, as herdr's start restores the list as it was)
+[[events]]
+on = "workspace.created"
+platforms = ["macos", "linux"]
+command = ["/usr/bin/python3", "spaces.py"]
+
+[[events]]
+on = "workspace.moved"
+platforms = ["macos", "linux"]
+command = ["/usr/bin/python3", "spaces.py"]
+
+[[events]]
+on = "workspace.reordered"
+platforms = ["macos", "linux"]
+command = ["/usr/bin/python3", "spaces.py"]
+
+# The folder picker (new_workspace.py): spaces.py opens it in the "new" button's space, the sidebar's Files on a
+# folder (New Space)
+[[panes]]
+id = "new-workspace"
+platforms = ["macos", "linux"]
+title = "New space"
+placement = "popup"
+width = "70%"
+height = "70%"
+command = ["/bin/sh", "-c", "exec /usr/bin/python3 \"$HOME/.config/herdr-fold/new_workspace.py\""]
+
+# Close-tab confirmation (close_tab.py --confirm): close_tab.py (Cmd+W) opens it if the tab has a chat.
+[[panes]]
+id = "close-confirm"
+platforms = ["macos", "linux"]
+title = "Close tab"
+placement = "popup"
+width = "60%"
+height = 11
+command = ["/bin/sh", "-c", "exec /usr/bin/python3 \"$HOME/.config/herdr-fold/close_tab.py\" --confirm"]
+
+# herdr's start (after the session is restored): herdr-fold's started agents only have an empty shell, restore_panes.py
+# --startup starts them again (it leaves chats resumed by herdr alone, the right columns to the sidebar)
+[[startup]]
+platforms = ["macos", "linux"]
+command = ["/bin/sh", "-c", "exec /usr/bin/python3 \"$HOME/.config/herdr-fold/restore_panes.py\" --startup"]
+
+[[startup]]
+platforms = ["windows"]
+command = ["python", "..\\..\\restore_panes.py", "--startup"]

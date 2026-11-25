@@ -1,6 +1,6 @@
 """Tests for lib/'s shell helpers: status lines (a mark column, color only on a terminal without NO_COLOR, summarize,
-HERDR_FOLD_VERBOSE=1), the questions (in a pty; ask() in the language's letters) and the SSH Host * block.
-"""
+HERDR_FOLD_VERBOSE=1), the questions (in a pty; ask() in the language's letters), the SSH Host * block and Spaces'
+state under its earlier ids."""
 import hashlib
 import os
 import re
@@ -240,6 +240,35 @@ class RemoveMarked(unittest.TestCase):
         self.assertEqual(self.remove(), "KEPT")
         self.assertTrue(os.path.islink(self.dir))
         self.assertTrue(os.path.isfile(os.path.join(target, ".mark")))
+
+
+class PluginFolders(unittest.TestCase):
+    """The empty folders herdr keeps of herdr-fold's plugins after an unlink (lib/files.sh's drop_plugin_folders):
+    Spaces' records go with its folder; a Windows machine's remove takes off the same plugins."""
+
+    def setUp(self):
+        self.home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.home)
+        self.states = os.path.join(self.home, ".local", "state", "herdr", "plugins")
+        stubs(os.path.join(self.home, "bin"), {"herdr": "#!/bin/sh\n[ \"$*\" = \"plugin list --json\" ] && "
+                                               "echo '{\"result\": {\"plugins\": []}}'\n"})
+
+    def run_lib(self, script):
+        return sh(script, HOME=self.home, PATH=os.path.join(self.home, "bin") + ":/usr/bin:/bin")
+
+    def test_spaces_records_go_with_its_folder(self):
+        os.makedirs(os.path.join(self.states, "herdr-fold.spaces"))
+        for name in ("spaces.json", "focus.json", "closed.json", "home.lock", ".focus.json.x1.tmp"):
+            with open(os.path.join(self.states, "herdr-fold.spaces", name), "w") as f:
+                f.write("{}\n")
+        self.run_lib("drop_plugin_folders herdr-fold.spaces")
+        self.assertEqual(os.listdir(self.states), [])
+
+    def test_a_windows_machines_remove_takes_off_every_plugin(self):
+        with open(os.path.join(PACKAGE, "remote", "prepare-windows.ps1"), encoding="utf-8") as f:
+            script = f.read()
+        listed = re.search(r"\$plugins = ((?:'[^']+',?\s*)+)", script).group(1)
+        self.assertEqual(re.findall(r"'([^']+)'", listed), self.run_lib('echo "$FOLD_PLUGIN_IDS"').split()[1:])
 
 
 class Sums(unittest.TestCase):

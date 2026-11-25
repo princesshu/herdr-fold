@@ -1,42 +1,51 @@
 # Using it
 
 Every key is in [Keys](keybindings.md); the sidebar's views, one by one, in
-[its README](../src/plugins/sidebar/README.md).
+[its README](../src/plugins/sidebar/README.md); the agent's setup, its limits, costs and graph in
+[The agent's harness](harness.md).
 
-## Workspaces
+## Spaces
 
-One workspace per repo:
+A space is a row of the Spaces list in herdr's sidebar; herdr's own commands and settings call it a workspace
+(`herdr workspace list`, `switch_workspace`). One space per repo:
 
 1. Click **new** under Spaces in herdr's sidebar (or Ctrl + B, then Shift + N). The folder picker shows the folder
    holding most of your git repositories as a tree, as the sidebar's Files view does: the folder on top, open.
 2. Type to filter; ↑ ↓ or the wheel move, a click chooses. → opens a folder (or steps into an open one), ← closes it
-   (or steps to its parent), and ← on the top row goes up a folder; a click on a folder's ▸ opens or closes it. Tab, or
-   a click on Claude or Codex at the top right, switches between them; it starts on the agent herdr-fold started last.
-3. Enter, **Open** or a double click opens the workspace, or jumps to the one the folder already has. Esc or
-   **Cancel** goes back to the workspace you came from.
+   (or steps to its parent), and ← on the top row goes up a folder; a click on a folder's chevron opens or closes it.
+   Tab, or a click on Claude or Codex at the top right, switches between them; it starts on the agent herdr-fold
+   started last.
+3. Enter, **Open** or a double click opens the space, or jumps to the one the folder already has. Esc or
+   **Cancel** goes back to the space you came from.
 
-![The folder picker over the new workspace: Documents as a tree, driftwood chosen, Claude or Codex at its top
-right, Cancel and Open at the bottom](../assets/screenshots/new-workspace.webp)
+![The New space folder picker over the new space: Documents as a tree with its four repositories, lumen-api already
+open, Claude or Codex at its top right, Cancel and Open at the bottom](../assets/screenshots/tui-new-space.webp)
 
-The workspace's main tab is named after the folder (the home folder's is `home`): the agent on the left, and on the
-right the sidebar above a terminal: its views are buttons in a row at its top, each icon over its name (its icons
-alone in a narrow sidebar), one view shown at a time, the ✦ at the row's left opening the chats over it, More at its
-end the sidebar's menu. Drag the right column's edge to resize it in every tab; the » in the sidebar's top right corner
-folds it to a rail of icons in every tab, the terminal moving under the agent, a press on an icon opens that view
-beside the rail, and « there brings the sidebar back. In a new folder the agent
-first asks whether you trust it: answer in the
-pane. A pane you close stays closed in its tab, after a restart too, until Cmd + Shift + O (Restore panels) or the
-sidebar's More menu brings it back; a new tab always comes with every pane.
+The space's main tab is named after the folder (the home folder's is `home`, the root's `root`, a Windows drive's
+its letter, `C:`): the agent on the left, and on the right the sidebar above a terminal. The sidebar's views are
+buttons in a row at its top, each icon over its name (its icons alone in a narrow sidebar), one view shown at a
+time; Chats (✦) opens the chats over it, and More at the row's end is the sidebar's menu.
 
-A folder in the sidebar's Files view opens a workspace too: right-click it → **New Workspace**, and the folder picker
+Drag the right column's edge to resize it in every tab: the agent keeps 30 % of the tab at least, a window resized
+keeps the width, and narrower than its icons the column folds to a rail. The » at the row's end, or Cmd + Option + B,
+folds it to that rail of icons in every tab, the terminal moving under the agent; a press on an icon opens the
+sidebar again on that view, as « there does.
+
+In a new folder the agent first asks whether you trust it: answer in the pane. A pane you close stays closed in its
+tab, after a restart too, until Cmd + Shift + O (Restore panels) or the sidebar's More menu brings it back; a new
+tab always comes with every pane.
+
+A folder in the sidebar's Files view opens a space too: right-click it → **New space**, and the folder picker
 opens on it, with the Claude / Codex toggle.
 
-Rename or move the folder, and the workspace and its main tab take the folder's new name at the next pane you focus
+Rename or move the folder, and the space and its main tab take the folder's new name at the next pane you focus
 (a folder renamed earlier too, known by the Claude chats kept under its old name), and the sidebar opens on it
-again, where it was. A name you gave the workspace yourself stays. A workspace whose folder is deleted says
-**deleted** beside its branch, in the theme's red.
+again, where it was. A name you gave the space yourself stays. A space herdr named itself after the home folder or
+a root, by its path (`~`, `/`, `C:\`), takes herdr-fold's name at the next pane you focus (on a Windows machine, when
+herdr starts): `home`, `root`, or the drive, `C:`. A space whose folder is deleted says **deleted** beside its branch,
+in the theme's red.
 
-Cmd + ↓ / Cmd + ↑ step through the workspaces, Cmd + → / Cmd + ← through the panes, Cmd + T / Cmd + R through the tabs.
+Cmd + ↓ / Cmd + ↑ step through the spaces, Cmd + → / Cmd + ← through the panes, Cmd + T / Cmd + R through the tabs.
 
 From the command line (the only way on a Windows machine):
 
@@ -50,30 +59,39 @@ Add `--agent codex` for Codex.
 
 ## Sessions
 
-herdr's sidebar lists the current workspace's chats under Sessions, each with its state: working, blocked (it
+herdr's sidebar lists the current space's chats under Sessions, each with its state: working, blocked (it
 needs you: an approval, an answer or a choice), done (finished since you last looked) or idle (ready for your next
 prompt). Cmd + D and Cmd + E step through them.
 
-A workspace whose folder is no repository but holds one, as a folder of notes around a project's repository, shows
-that repository's branch in the Spaces list, with ↑ the commits to push and ↓ to pull against its remote branch (any
-git host); where it holds several, the one its active pane is in.
+In the Spaces list a branch always stands under the name it belongs to, in gray, and a space with no branch is one
+line: a space in a repository shows that one's branch and git status under its name. A space whose folder is no
+repository but holds one, as a folder of notes around a project's repository, shows that repository's name under its
+own (left out where it is the same), and its branch under that, with ↑ the commits to push and ↓ to pull against its
+remote branch (any git host); where it holds several, the one its active pane is in:
 
-The Spaces list says how long an agent has waited on you, blocked or done, beside its workspace's branch: `waiting 12m`
+```
+· home
+  harbor-web
+  main ↑2
+```
+
+The Spaces list says how long an agent has waited on you, blocked or done, beside its space's name: `waiting 12m`
 in the theme's yellow, the longest wait when several agents wait there. It counts on while you work elsewhere and goes
 once you answer, or look at the finished one. To come back to one you have seen, mark it unread: Cmd + Shift + U on its
-pane, and its workspace says `waiting` again, from now, until you return to it after leaving it (Cmd + Shift + U again
+pane, and its space says `waiting` again, from now, until you return to it after leaving it (Cmd + Shift + U again
 takes the mark off). The Herdr app's herdr-fold layout does the same: [Spaces](app.md#spaces).
 
-An agent in another tab that starts waiting on you says so once, in herdr's own toast at the bottom right: `claude needs
-attention` (blocked) or `claude finished` (done), with its workspace and tab; never for the tab in front. herdr's sounds
-stay off (`[ui.sound]` in `~/.config/herdr/config.toml`: `enabled = true` there plays them). The sidebar's Chats button
-has a dot while a chat there asks you something.
+An agent in another tab that starts waiting on you says so once, in herdr's own toast at the bottom right:
+`claude needs attention` (blocked) or `claude finished` (done), with its space and tab; never for the tab in front (off
+and on in the sidebar's Settings, Notifications). herdr's sounds stay off (`[ui.sound]` in
+`~/.config/herdr/config.toml`: `enabled = true` there plays them). The sidebar's Chats button has a dot while a chat
+there asks you something.
 
-![The Spaces list: harbor-web's agent blocked and waiting 12 minutes, tidepool's done and waiting 3 minutes, beside
-their branch](../assets/screenshots/waiting.webp)
+![The Spaces list: lumen-api's Claude done and waiting 6 minutes, tidepool's blocked and waiting 32 minutes, beside
+their name](../assets/screenshots/tui-waiting.webp)
 
 A chat goes by one name: in AI Sessions, on its pane's border, in the sidebar's Chats, and on its
-tab when it has the tab to itself (a reopened one's); the workspace's main tab keeps the workspace's name. To rename it:
+tab when it has the tab to itself (a reopened one's); the space's main tab keeps the space's name. To rename it:
 
 - right-click its pane → **Rename pane** (**Clear pane name** brings back the chat's own title);
 - or right-click it in the sidebar's Chats → **Rename**, a closed one too;
@@ -84,19 +102,30 @@ A tab you renamed yourself keeps your name until you rename the chat.
 
 ## Chats
 
-Every chat of the workspaces under Spaces, running or closed, in the list the sidebar's ✦ opens over it:
+Every chat of the spaces under Spaces, running or closed, in the list the sidebar's ✦ opens over it:
 
 1. Cmd + Shift + R, from anywhere, or a click on the ✦: the list opens in the tab's sidebar (one closed by hand comes
-   back), its filter empty, the keys going to it; its lit button, Esc or a click outside closes it.
-2. Type: the chats of every workspace narrow at once.
-3. Enter goes to a running chat, or reopens a closed one in a new tab of its workspace.
+   back), its filter empty, the keys going to it; its lit button, Esc or a click outside closes it (on another of the
+   dock's buttons, that button's own happens too; More opens over it).
+2. Type in `Filter chats`: the chats of every space narrow at once.
+3. Enter goes to a running chat, or reopens a closed one in a new tab of its space.
 
-![The Chats column open beside Claude: each workspace's chats, a running one's mark in its state's
-color, the closed ones faint](../assets/screenshots/chats.webp)
+Each space with a chat is a group, its chevron first; under it each chat with its state's mark, its name, and at the
+right its agent and how long ago, in two columns (the agent's goes in a narrow pane).
+
+The chosen chat's task list stands under its row, as its agent keeps it (Claude's tasks, Codex's plan): Plan, with
+`Open the plan` at its right once a plan mode's plan was approved (in the preview tab); Codex's note, two rows at most;
+the done steps in one row, `✓ 3 done` (→ or a click lists them under it, ← folds them again); then the step at work
+(◐) and the ones to do (○), what one waits for at the right where there is room. A finished list is one line,
+`Plan All 4 done`, until the next message. The other rows have none, and the agent's own pane keeps its own list.
+
+![Chats open in the sidebar beside Claude: each space's chats, lumen-api's open with Claude's two and Codex's
+four, a running one's mark in its state's color, the closed ones faint](../assets/screenshots/tui-chats.webp)
 
 A right click on a chat offers Open, Copy chat (all of it, formatted for Notes, Mail or Docs), Rename
-and, for a closed one, Archive: it leaves the list and its file stays as it was, so `claude --resume` or `codex resume`
-still finds it; a right click beside the chats offers Show archived while any is.
+and, for a closed one, Archive: it leaves the list (`Archived "Login redirect fix"` at the sidebar's foot) and its file
+stays as it was, so `claude --resume` or `codex resume` still finds it; while any is archived, More (⋯) and a right
+click beside the chats offer Show archived.
 
 Archive is the everyday way to tidy the list. Delete…, under it in a closed chat's menu (an archived one's too), is the
 rarer one: it asks first, by the chat's name, then moves the chat's file to the system's Trash (on a Mac the Finder's
@@ -104,7 +133,7 @@ Put Back brings it back) and drops its archive mark and the name you gave it. Wi
 (fn + ⌫ on a Mac's own keyboard) asks the same for the chosen chat. A running chat has no Delete…: close it first.
 
 A chat is one row however long it runs: Claude Code compacts and resumes it in its own file, under its id, so its
-name and its archive hold. Not listed: the agents' own helpers (sub-agents, Codex's reviewer) and what a program ran
+name and its archive hold. Not listed: the agents' own helpers (subagents, Codex's reviewer) and what a program ran
 through Claude's Agent SDK (a hook's review of each change, a script's question), which name themselves after the
 chat they work for; `claude -p`'s runs are. A project folder linked to another's (`~/.claude/projects`) lists its
 chats once. Copy chat leaves out what a compacted chat holds twice: the summary Claude wrote in your place, and the
@@ -118,7 +147,7 @@ For a repository on GitHub:
    else a priority label, then a severity label, then a word alone such as `urgent` (the ones it reads:
    [the sidebar's README](../src/plugins/sidebar/README.md)).
 2. `t` hands the chosen one to the agent: a prompt typed into its pane, for you to send with Enter. With no Claude or
-   Codex in the tab, the one herdr-fold started last starts in a new tab of the workspace, named after the issue, the
+   Codex in the tab, the one herdr-fold started last starts in a new tab of the space, named after the issue, the
    sidebar beside it as in every tab, and gets the prompt there. The prompt holds the issue's number, not its words:
    anyone can write an issue, so the agent reads it with gh and is told to take it as a description of the problem, not
    as instructions. The Changes view shows `Fixes #42` from then on.
@@ -126,7 +155,7 @@ For a repository on GitHub:
    C adds it too); meanwhile the field says who writes it. Once the commit is pushed, GitHub closes the issue.
 
 ![An issue from the sidebar goes to Claude, which fixes it, and the message it writes closes the
-issue](../assets/screenshots/issue-to-agent.webp)
+issue](../assets/screenshots/tui-issue-to-agent.webp)
 
 ## Commit and push
 
@@ -155,7 +184,7 @@ Cmd + Shift + C commits and pushes the repo of the focused pane, in one step:
 It works for repos on this Mac; on a remote machine, use the sidebar's Changes view. In the Herdr app, Cmd + Shift + C
 does it in the Changes view, on any machine: [Keys](app.md#keys).
 
-**A repo without a remote:** the sidebar and Cmd + Shift + C have nowhere to push. In the workspace's terminal:
+**A repo without a remote:** the sidebar and Cmd + Shift + C have nowhere to push. In the space's terminal:
 
 ```bash
 git remote -v                                                            # empty: no remote yet
@@ -170,15 +199,15 @@ The first push, from either, sets the upstream (`push -u`).
 Cmd + W closes the active tab, never the main tab. A tab with a chat asks first (Enter or **Close** closes,
 Esc or **Cancel** keeps it); the chat stays in the sidebar's Chats, where Cmd + Shift + R finds it.
 
-herdr's own close of a tab (its tab's ×, its menu, its key) ends a workspace with its last tab, after asking
-"Close workspace?"; `herdr tab close` does without asking. The workspace stays a row in Spaces all the same: it is
+herdr's own close of a tab (its tab's ×, its menu, its key) ends a space with its last tab, after asking
+"Close workspace?"; `herdr tab close` does without asking. The space stays a row in Spaces all the same: it is
 made again at once in its place, with its name, its folder and a new shell (what ran in the old one has ended), and
-in front again when it was. A workspace you close itself (its row's menu in Spaces, herdr's close-workspace key,
+in front again when it was. A space you close itself (its row's menu in Spaces, herdr's close-workspace key,
 `herdr workspace close`) stays closed, and so does one whose folder is gone or whose last pane you moved elsewhere.
 
-The home folder's workspace, `home`, is always the first row in Spaces: closed either way, it is made again at once
+The home folder's space, `home`, is always the first row in Spaces: closed either way, it is made again at once
 with a new shell, behind the one in front unless its last tab was closed while it was in front; moved below another
-workspace, it goes back to the top. On a connected machine with herdr-fold's plugins, its workspaces stay the same
+space, it goes back to the top. On a connected machine with herdr-fold's plugins, its spaces stay the same
 way. The Herdr app's herdr-fold layout keeps only home: [Spaces](app.md#spaces).
 
 ## Copying and searching
@@ -200,9 +229,6 @@ there, `o` opening it in the browser), and the tab's sidebar opens Files on it. 
 reply, a test run's failure, a compiler's errors. A remote machine's pane lists nothing: its files are on that
 machine, and the list shows only files that are on the Mac.
 
-![An agent's reply naming the files it changed and the lines that matter, and over it the list of those files, the
-newest first, each with its line, Cancel and Open at the bottom](../assets/screenshots/open-file.webp)
-
 ## The status line
 
 Next to the model name, the status line can show the effort, the context used with the context window size, and the
@@ -218,8 +244,8 @@ Once chosen (it is the one item that starts off), Claude's line also ends with t
 count of it at list prices (`cost.total_cost_usd`): `~$4.12`, the tilde herdr-fold puts before every dollar figure
 it does not read off an invoice. On a plan it is what the session would cost at API prices and nothing you pay; with
 an API key, about what was spent. It is the first thing a narrower pane drops, and it is not shown before anything is
-counted. Codex's line is Codex's own and has no such item; what Codex cost is
-in the sidebar's Usage.
+counted. Codex's line is Codex's own and has no such item; what Codex cost is in
+[the Usage view](harness.md#the-usage-view).
 
 Claude's line is drawn by `~/.config/herdr-fold/statusline.py`; Codex's is its own `[tui] status_line` setting in
 `~/.codex/config.toml`, where your own items are kept. The choice carries over to the remote machines.
@@ -230,9 +256,9 @@ Language & Region, Windows' short time, else the locale's). The line asks once a
 
 On every answer Claude's line, and a chat's in the Herdr app, keeps the 5-hour and weekly limits it was told, with
 their reset times and when, in `~/.local/state/herdr-fold/limits/claude.json`, readable by you alone: nothing else of
-the session, its folder or its model. herdr-fold's Usage reads it, else Claude's own cached limits in `~/.claude.json`
-and Codex's in its newest chat, the newest of them, a limit past its reset left out; it writes neither agent's files.
-Without a subscription's limits (an API key) nothing is kept.
+the session, its folder or its model. It writes neither agent's files, and without a subscription's limits (an API
+key) nothing is kept. Every status line and the Agent panel's Usage show the same reading, whichever chat answered
+last: how it is put together is in [Usage](harness.md#usage).
 
 Your own status line: Space on the group's title (Claude Code or Codex) turns herdr-fold's off. Claude gets back the
 status line it had before, or none; Codex keeps your own items, or shows its default line. No install or update puts
@@ -254,9 +280,9 @@ Claude that was already running switches on its next start.
 ## Quitting and restarting
 
 Cmd + Q quits Ghostty after a question: herdr and the agents keep running, and reopening Ghostty picks up where you left
-off. After the Mac restarts (or `herdr server stop`), the local agents stop, but every workspace comes back when herdr
+off. After the Mac restarts (or `herdr server stop`), the local agents stop, but every space comes back when herdr
 starts, and Claude and Codex continue the same chats. A few seconds after herdr starts, the sidebar plugin
-brings back each tab's sidebar and terminal (a pane closed by hand stays closed), and Workspaces starts the still-empty
+brings back each tab's sidebar and terminal (a pane closed by hand stays closed), and Spaces starts the still-empty
 agent panes again. By hand:
 
 ```bash

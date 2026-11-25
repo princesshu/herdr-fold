@@ -7,10 +7,30 @@ const PREVIEW = {
   "L.L."
  ],
  "views": {
-  "files": "",
-  "search": "",
-  "git": "",
-  "issues": ""
+  "files": {
+   "name": "Files",
+   "glyph": ""
+  },
+  "search": {
+   "name": "Search",
+   "glyph": ""
+  },
+  "changes": {
+   "name": "Changes",
+   "glyph": ""
+  },
+  "issues": {
+   "name": "Issues",
+   "glyph": ""
+  },
+  "agent": {
+   "name": "Agent",
+   "glyph": ""
+  },
+  "chats": {
+   "name": "Chats",
+   "glyph": ""
+  }
  },
  "logo": [
   "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024' width='1024' height='1024'>",
@@ -172,6 +192,7 @@ const PREVIEW = {
     "text": "#cdd6f4",
     "subtext": "#a6adc8",
     "muted": "#7f849c",
+    "muted_row": "#8f94ae",
     "guide": "#4f5164",
     "archived": "#5c5f72",
     "accent": "#cba6f7",
@@ -191,6 +212,7 @@ const PREVIEW = {
     "button_text": "#181825",
     "panel": "#1e1e2e"
    },
+   "frame": "#4f5164",
    "loading": [
     "#cdd6f4",
     "#7f849c",
@@ -211,6 +233,7 @@ const PREVIEW = {
     "text": "#cccccc",
     "subtext": "#9d9d9d",
     "muted": "#9d9d9d",
+    "muted_row": "#9d9d9d",
     "guide": "#50555c",
     "archived": "#686868",
     "accent": "#0078d4",
@@ -230,6 +253,7 @@ const PREVIEW = {
     "button_text": "#181818",
     "panel": "#181818"
    },
+   "frame": "#50555c",
    "loading": [
     "#cccccc",
     "#0078d4",
@@ -250,6 +274,7 @@ const PREVIEW = {
     "text": "#ffffff",
     "subtext": "#a0a0a0",
     "muted": "#7e7e7e",
+    "muted_row": "#989898",
     "guide": "#515151",
     "archived": "#5b5b5b",
     "accent": "#ffc799",
@@ -269,6 +294,7 @@ const PREVIEW = {
     "button_text": "#101010",
     "panel": "#1a1a1a"
    },
+   "frame": "#515151",
    "loading": [
     "#ffffff",
     "#7e7e7e",
@@ -289,6 +315,7 @@ const PREVIEW = {
     "text": "#e6edf3",
     "subtext": "#b1bac4",
     "muted": "#7a7f85",
+    "muted_row": "#858a90",
     "guide": "#565c64",
     "archived": "#575c62",
     "accent": "#58a6ff",
@@ -308,6 +335,7 @@ const PREVIEW = {
     "button_text": "#0d1117",
     "panel": "#0d1117"
    },
+   "frame": "#464c54",
    "loading": [
     "#e6edf3",
     "#7a7f85",
@@ -328,6 +356,7 @@ const PREVIEW = {
     "text": "#c0caf5",
     "subtext": "#a9b1d6",
     "muted": "#697196",
+    "muted_row": "#838cb2",
     "guide": "#4d557a",
     "archived": "#5c6384",
     "accent": "#7aa2f7",
@@ -347,6 +376,7 @@ const PREVIEW = {
     "button_text": "#1a1b26",
     "panel": "#1a1b26"
    },
+   "frame": "#4d557a",
    "loading": [
     "#c0caf5",
     "#697196",
@@ -367,6 +397,7 @@ const PREVIEW = {
     "text": "#dcd7ba",
     "subtext": "#c8c3aa",
     "muted": "#87867d",
+    "muted_row": "#908e83",
     "guide": "#595856",
     "archived": "#6a6965",
     "accent": "#7e9cd8",
@@ -386,6 +417,7 @@ const PREVIEW = {
     "button_text": "#1f1f28",
     "panel": "#1f1f28"
    },
+   "frame": "#595856",
    "loading": [
     "#dcd7ba",
     "#87867d",
@@ -406,6 +438,7 @@ const PREVIEW = {
     "text": "#e0def4",
     "subtext": "#c8c5dc",
     "muted": "#908caa",
+    "muted_row": "#908caa",
     "guide": "#545169",
     "archived": "#656279",
     "accent": "#c4a7e7",
@@ -425,6 +458,7 @@ const PREVIEW = {
     "button_text": "#191724",
     "panel": "#191724"
    },
+   "frame": "#545169",
    "loading": [
     "#e0def4",
     "#908caa",
@@ -445,6 +479,7 @@ const PREVIEW = {
     "text": "#abb2bf",
     "subtext": "#969ca8",
     "muted": "#737a87",
+    "muted_row": "#8f96a3",
     "guide": "#565d69",
     "archived": "#666c78",
     "accent": "#61afef",
@@ -464,6 +499,7 @@ const PREVIEW = {
     "button_text": "#21252b",
     "panel": "#282c34"
    },
+   "frame": "#565d69",
    "loading": [
     "#abb2bf",
     "#737a87",
@@ -484,6 +520,7 @@ const PREVIEW = {
     "text": "#f8f8f2",
     "subtext": "#d2d2dc",
     "muted": "#828cb4",
+    "muted_row": "#9aa2c0",
     "guide": "#546088",
     "archived": "#697191",
     "accent": "#bd93f9",
@@ -503,6 +540,7 @@ const PREVIEW = {
     "button_text": "#282a36",
     "panel": "#282a36"
    },
+   "frame": "#546088",
    "loading": [
     "#f8f8f2",
     "#828cb4",
@@ -523,6 +561,7 @@ const PREVIEW = {
     "text": "#ebdbb2",
     "subtext": "#d5c4a1",
     "muted": "#a89984",
+    "muted_row": "#a89984",
     "guide": "#685f56",
     "archived": "#756c5f",
     "accent": "#d79921",
@@ -542,6 +581,7 @@ const PREVIEW = {
     "button_text": "#282828",
     "panel": "#282828"
    },
+   "frame": "#685f56",
    "loading": [
     "#ebdbb2",
     "#a89984",
@@ -562,6 +602,7 @@ const PREVIEW = {
     "text": "#eceff4",
     "subtext": "#d8dee9",
     "muted": "#8d95a4",
+    "muted_row": "#aab0bc",
     "guide": "#6c7586",
     "archived": "#727a88",
     "accent": "#88c0d0",
@@ -581,6 +622,7 @@ const PREVIEW = {
     "button_text": "#2e3440",
     "panel": "#2e3440"
    },
+   "frame": "#4c566a",
    "loading": [
     "#eceff4",
     "#8d95a4",
@@ -601,6 +643,7 @@ const PREVIEW = {
     "text": "#93a1a1",
     "subtext": "#839496",
     "muted": "#6a7f86",
+    "muted_row": "#879799",
     "guide": "#4b646c",
     "archived": "#597179",
     "accent": "#268bd2",
@@ -620,6 +663,7 @@ const PREVIEW = {
     "button_text": "#002b36",
     "panel": "#002b36"
    },
+   "frame": "#4b646c",
    "loading": [
     "#93a1a1",
     "#6a7f86",

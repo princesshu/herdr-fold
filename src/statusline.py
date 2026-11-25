@@ -2,20 +2,19 @@
 library alone for macOS, Linux and Windows. Claude Code passes the session's JSON on stdin and the pane's width in
 COLUMNS; the items are statusline.json's (statusline_setup.py), a narrow pane drops them step by step (STEPS)."""
 import json
-import math
 import os
 import plistlib
 import re
 import subprocess
 import sys
-import tempfile
 import time
+
+sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
+import usage  # noqa: E402  (core/usage.py's copy beside it: the limits as every chat told them)
 
 CHOICE = os.path.join(os.path.expanduser("~"), ".config", "herdr-fold", "statusline.json")
 # how this machine's user has hours written, kept a DAY (asked): a Mac's own setting is a process to ask at worst
 TIME = os.path.join(os.path.expanduser("~"), ".local", "state", "herdr-fold", "time.json")
-# the limits as last told, for herdr-fold's Usage: core/usage.py's reading, the same shape as its keep() writes
-LIMITS = os.path.join(os.path.expanduser("~"), ".local", "state", "herdr-fold", "limits", "claude.json")
 DAY = 86400
 HOURS = ("ObjC.import('Foundation'); "
          "$.NSDateFormatter.dateFormatFromTemplateOptionsLocale('j', 0, $.NSLocale.currentLocale).js")
@@ -179,16 +178,18 @@ def room():
     return columns - INDENT if columns > 0 else None
 
 
-def statusline(data, show, now, width=None):
-    """The line; with WIDTH, the first of its shorter forms that fits in it (the shortest if none does)."""
+def statusline(data, show, now, width=None, limits=None):
+    """The line; with WIDTH, the first of its shorter forms that fits in it (the shortest if none does); LIMITS the
+    freshest any chat told (usage.keep()), else the chat's own."""
+    limits = limits or usage.told(data)
     for step in range(STEPS + 1):
-        line = draw(data, show, now, step)
+        line = draw(data, show, now, step, limits)
         if width is None or len(COLOR.sub("", line)) <= width:
             break
     return line
 
 
-def draw(data, show, now, step):
+def draw(data, show, now, step, limits):
     line = ""
     model = field(data, "model", "display_name")
     if model not in (None, ""):
@@ -205,51 +206,20 @@ def draw(data, show, now, step):
         size = tokens(field(data, "context_window", "context_window_size")) if step < NO_SIZE else ""
         line += f" {SEP} {GRAY}{label['context']}{RESET} {YELLOW}{used}%{RESET}"
         line += f"{GRAY}{size}{RESET}" if size else ""
-    used = percent(field(data, "rate_limits", "five_hour", "used_percentage"))
-    if show["five_hour"] and used is not None:
-        reset = field(data, "rate_limits", "five_hour", "resets_at")
+    five, week = limits["five_hour"], limits["week"]
+    if show["five_hour"] and five:
+        used, reset = five["used"], five["resets"]
         extra = until(reset, now, step >= SHORT_TIMES) if step < NO_RESET else ""
         line += f" {SEP} {GRAY}{label['five_hour']}{RESET} {level(used)}{used}%{RESET}{GRAY}{extra}{RESET}"
-    used = percent(field(data, "rate_limits", "seven_day", "used_percentage"))
-    if show["weekly"] and used is not None:
-        reset = field(data, "rate_limits", "seven_day", "resets_at")
+    if show["weekly"] and week:
+        used, reset = week["used"], week["resets"]
         extra = "" if reset is None or step >= NO_WEEKLY_RESET else weekday(reset, now, step >= SHORT_TIMES)
         line += f" {SEP} {GRAY}{label['weekly']}{RESET} {level(used)}{used}%{RESET}{GRAY}{extra}{RESET}"
     spent = field(data, "cost", "total_cost_usd")       # Claude's own count of the session
-    if show["cost"] and number(spent) and spent >= 0.005 and step < NO_COST:
+    if show["cost"] and usage.number(spent) and spent >= 0.005 and step < NO_COST:
         # Claude's count at list prices, an estimate on a plan (its API value) and with an API key: ~, as herdr-fold's
         line += f" {SEP} {GRAY}~${spent:,.2f}{RESET}" if line else f"{GRAY}~${spent:,.2f}{RESET}"
     return line
-
-
-def number(value):
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
-
-
-def keep(data, now):
-    """The 5-hour and weekly use in DATA, with their resets and NOW, kept in LIMITS (its owner's only; nothing of the
-    session, folder or model); none before the first answer, nor without a subscription's limits (an API key)."""
-    kept = {}
-    for key, name in (("five_hour", "five_hour"), ("week", "seven_day")):
-        used, resets = (field(data, "rate_limits", name, part) for part in ("used_percentage", "resets_at"))
-        kept[key] = {"used": percent(used), "resets": int(resets) if number(resets) else None} if number(used) else None
-    if not any(kept.values()):
-        return
-    folder = os.path.dirname(LIMITS)
-    os.makedirs(folder, mode=0o700, exist_ok=True)
-    if os.name != "nt":
-        os.chmod(folder, 0o700)
-    fd, temporary = tempfile.mkstemp(dir=folder, prefix=".claude.json.", suffix=".tmp")      # made 0600
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump({**kept, "at": now}, f)
-        os.replace(temporary, LIMITS)
-    except BaseException:
-        try:
-            os.unlink(temporary)
-        except OSError:
-            pass
-        raise
 
 
 def main():
@@ -258,13 +228,13 @@ def main():
     except ValueError:
         data = None
     now = int(time.time())
-    # bytes, not text: a Windows console's code page would not take every model name
-    sys.stdout.buffer.write(statusline(data, shown(), now, room()).encode("utf-8"))
-    sys.stdout.buffer.flush()
     try:
-        keep(data, now)
+        limits = usage.keep("claude", usage.told(data), now)
     except OSError:
-        pass                    # the line is drawn all the same
+        limits = None           # the line is drawn all the same, with the chat's own
+    # bytes, not text: a Windows console's code page would not take every model name
+    sys.stdout.buffer.write(statusline(data, shown(), now, room(), limits).encode("utf-8"))
+    sys.stdout.buffer.flush()
 
 
 if __name__ == "__main__":

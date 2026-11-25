@@ -33,10 +33,10 @@ GRAY, RESET = "\x1b[38;2;147;153;178m", "\x1b[0m"
 SEP = f" {GRAY}|{RESET} "
 
 
-def run(data, choice=None, columns=None, twelve=True, kept=None, blocked=False):
+def run(data, choice=None, columns=None, twelve=True, kept=None, blocked=False, before=None):
     """What the status line prints for Claude's JSON DATA, with CHOICE as statusline.json, COLUMNS as the pane's width
-    and the machine's hours TWELVE or 24 (time.json's) — in UTC, with no jq or anything else on the PATH. KEPT gets
-    the limits it kept (None for none); BLOCKED puts a file where their folder goes."""
+    and the machine's hours TWELVE or 24 (time.json's), in UTC, with no jq or anything else on the PATH. KEPT gets
+    the limits it kept (None for none); BLOCKED puts a file where their folder goes; BEFORE: another chat's kept."""
     with tempfile.TemporaryDirectory() as home:
         if choice is not None:
             os.makedirs(os.path.join(home, ".config", "herdr-fold"))
@@ -49,6 +49,10 @@ def run(data, choice=None, columns=None, twelve=True, kept=None, blocked=False):
         if blocked:
             with open(os.path.join(state, "limits"), "w"):
                 pass
+        if before is not None:
+            os.makedirs(os.path.join(state, "limits"))
+            with open(os.path.join(state, "limits", "claude.json"), "w") as f:
+                json.dump(before, f)
         env = {"HOME": home, "PATH": "", "TZ": "UTC", **({"COLUMNS": columns} if columns else {})}
         done = subprocess.run([sys.executable, SCRIPT], input=data.encode("utf-8"), capture_output=True, timeout=20,
                               env=env)
@@ -179,6 +183,13 @@ class Statusline(unittest.TestCase):
         self.assertEqual(run(FULL, kept=kept), run(FULL, blocked=True))
         self.assertIsInstance(kept[0].pop("at"), int)
         self.assertEqual(kept, [{"five_hour": {"used": 64, "resets": 1000}, "week": {"used": 91, "resets": MONDAY}}])
+
+    def test_another_chats_fresher_limits_are_drawn(self):
+        # an idle chat's line, drawn again: the 5-hour use another chat was told since, not its own older 64%
+        line = run(FULL, before={"five_hour": {"used": 70, "resets": 1000}, "week": {"used": 91, "resets": MONDAY},
+                                 "at": 1})
+        self.assertIn("70%", line)
+        self.assertNotIn("64%", line)
 
     def test_nothing_is_kept_before_the_first_answer(self):
         kept = []

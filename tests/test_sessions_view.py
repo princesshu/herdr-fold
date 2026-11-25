@@ -271,7 +271,7 @@ class SyncNames(unittest.TestCase):
 
 class Waits(unittest.TestCase):
     """How long an agent waits on you (blocked, or done and not seen yet), as its workspace's $waiting token: the
-    theme's Space rows show it beside the branch."""
+    theme's Space rows show it beside the name."""
 
     def setUp(self):
         self.state = tempfile.mkdtemp()

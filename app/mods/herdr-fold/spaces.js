@@ -3,13 +3,13 @@
 // space's branch, dragged into order, the app's menu on a right click; and how long agents wait, as the TUI's.
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { agents, focused, hc, home, machines, openOverlay, panes, setShared, shared, spaces, watchFolder, window,
-  run as command } from "herdr";
-import { chatWaits } from "./chat.js";
+import { agents, focused, hc, home, machines, openOverlay, panes, pickFolder, setShared, shared, spaces, watchFolder,
+  window, run as command } from "herdr";
+import { chatWaits, newSpace } from "./chat.js";
 import { GIT } from "./helper.js";
 import { atHome, avatarFill, folderKey, headed, HOME_NAME, homeFirst, homeId, homesEmpty, homesSeen, LIST, listBody,
-  nested, nextWaits, placeKey, placeLabel, spaceColors, spaceLabel, spaceWaits, toggleUnread, hovering, waited,
-  withHomes }
+  nested, nextWaits, placeKey, placeLabel, spaceColor, spaceColors, spaceLabel, spaceWaits, toggleUnread, hovering,
+  waited, withHomes }
   from "./logic.js";
 import { icon, iconButton, listHead } from "./parts.js";
 
@@ -32,6 +32,10 @@ function homeTest(list, ps) {
   return (s) => atHome(s, ps, homes);
 }
 
+/** Whether SPACE is at its machine's home now (the homes the list shows): no chat first there (chat.js's firstChat).
+ * @param {any} space */
+export const isHome = (space) => homeTest(spaces(), panes())(space);
+
 /** The machines whose home has no space, of those a terminal can start on now: this computer, and each whose layout
  * is ready. @param {any[]} list @param {(s: any) => boolean} isHome */
 function emptyHomes(list, isHome) {
@@ -53,6 +57,13 @@ export function openHome(machine) {
   if (now - (opening[id] ?? 0) < OPENING) return;
   opening[id] = now;
   command("space.new", machine ? { machine } : { machine: "", folder: home() });
+}
+
+/** Ctrl+B, Shift+N, as the TUI's: a folder picked on this Mac, a new space there, its agent started as
+ * Spaces' + starts one (newSpace's). */
+export async function pickSpace() {
+  const folder = await pickFolder({ prompt: "New space" });
+  if (folder) await newSpace({ machine: "", folder });
 }
 
 /** The waits as the agents are now, written only when they changed; kept while the sidebar is folded too. */
@@ -339,7 +350,7 @@ export class SpacesView {
     const rows = this.ordered(), colors = spaceColorsKept(), since = waitsBySpace(), now = Date.now();
     const mending = /** @type {Record<string, any>} */ (shared(MENDING) ?? {});
     const folded = new Set(/** @type {any[]} */ (shared(FOLDED) ?? []));
-    const row = ({ w, g, tree, home }) => ({ id: w.id, name: w.name, active: w.active, color: colors[w.id] ?? "ansi6",
+    const row = ({ w, g, tree, home }) => ({ id: w.id, name: w.name, active: w.active, color: spaceColor(w, colors),
       tree, label: g ? placeLabel(g, tree, w.name) : "", ahead: g?.ahead ?? 0, behind: g?.behind ?? 0,
       wait: since[w.id] ? waited(now - since[w.id]) : null, home });
     const empty = new Set(emptyHomes(spaces(), homeTest(spaces(), panes())));
@@ -373,7 +384,8 @@ export class SpacesView {
   draw(t, groups) {
     const heads = headed(groups);
     return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)               // the left sidebar's level
-      .child(listHead(t, "Spaces", iconButton(t, "space-new", "plus", "New space", () => command("space.new", {}))))
+      .child(listHead(t, "Spaces", iconButton(t, "space-new", "plus", "New space",
+        () => void newSpace().catch(() => {}))))
       .child(v_flex().id("spaces-list").flex_1().min_h(0).px(8).pb(LIST.foot).overflow_y_scrollbar()
         .on_mouse_up("left", (_e, cx) => {
           this.pressed = null;
@@ -417,7 +429,7 @@ export class SpacesView {
         .hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip("New space there")
         .on_click((_e, cx) => {
           cx.stop_propagation();
-          command("space.new", { machine: m ?? "" });
+          newSpace({ machine: m ?? "" }).catch(() => {});
         }).child(icon("plus", 12))))
       .child(div().size(6).rounded_full().flex_none().bg(g.connected ? t.ansi2 : t.dim))
       .child(icon(g.folded ? "chevron-right" : "chevron-down", 11).flex_none());
@@ -487,7 +499,7 @@ export class SpacesView {
   emptyRow(t, g) {
     return h_flex().id(`machine-new-${g.machine ?? "local"}`).h(LIST.tree).flex_none().px(8).gap(6).items_center()
       .rounded(6).text_size(12).text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground))
-      .on_click(() => command("space.new", { machine: g.machine ?? "" }))
+      .on_click(() => void newSpace({ machine: g.machine ?? "" }).catch(() => {}))
       .child(icon("plus", 12)).child("New space there");
   }
 }

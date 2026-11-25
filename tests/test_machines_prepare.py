@@ -177,7 +177,6 @@ class Prepared(Prepare):
                      os.path.join(sidebar, "preview-w1.json"), os.path.join(sidebar, "issues-0123456789abcdef.json"),
                      os.path.join(sidebar, "column.json"), os.path.join(sidebar, "chats.json"),
                      os.path.join(sidebar, "chat-index.json"), os.path.join(sidebar, "panels.json"),
-                     os.path.join(sidebar, "conversations.json"), os.path.join(sidebar, "conversation-index.json"),
                      os.path.join(sidebar, "dock.json"), os.path.join(sidebar, "settings.json.lock"),
                      os.path.join(sidebar, "dock.json.lock"), herdrs):
             os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -188,9 +187,8 @@ class Prepared(Prepare):
         self.assertTrue(os.path.isfile(herdrs), out)                     # herdr's own state is never touched
 
     def test_removing_the_machine_leaves_no_empty_plugin_folders(self):
-        # herdr-fold's plugins there: the sidebar, AI Sessions, Workspaces, and the retired Tab Layout of an earlier
-        # prepare that machines.sh did not get to take off
-        ids = ("herdr-fold.sidebar", "herdr-fold.sessions-view", "herdr-fold.workspaces", "herdr-fold.tab-layout")
+        # herdr-fold's plugins there: the sidebar, AI Sessions, Spaces
+        ids = ("herdr-fold.sidebar", "herdr-fold.sessions-view", "herdr-fold.spaces")
         self.prepare()
         self.plugins_listed(*ids)
         config = os.path.join(self.profile, ".config", "herdr", "plugins", "config")
@@ -199,9 +197,10 @@ class Prepared(Prepare):
             os.path.join(state, plugin_id) for plugin_id in ids[1:]]
         for folder in folders:
             os.makedirs(folder)
-        if self.kind == "unix":                     # the workspaces they follow: never made on Windows
+        if self.kind == "unix":                     # the spaces they follow: never made on Windows
             for plugin_id in ids[2:]:
-                for name, text in (("spaces.json", '{"w1": {"label": "app"}}\n'), ("focus.json", '{"now": "w1"}\n')):
+                for name, text in (("spaces.json", '{"w1": {"label": "app"}}\n'), ("focus.json", '{"now": "w1"}\n'),
+                                   ("closed.json", '{"folders": {}}\n'), ("home.lock", "")):
                     with open(os.path.join(state, plugin_id, name), "w") as f:
                         f.write(text)
         # AI Sessions' waits and locks (no chat names: they would stay)
@@ -282,12 +281,11 @@ class Prepared(Prepare):
         self.prepare()
         path = os.path.join(self.package, "remote", "files.txt")
         with open(path, encoding="utf-8") as f:
-            rows = [row for row in f if "plugins/workspaces/" not in row]
+            rows = [row for row in f if "plugins/spaces/" not in row]
         with open(path, "w", encoding="utf-8") as f:
             f.writelines(rows)
         out = self.prepare()
-        self.assertFalse(os.path.exists(os.path.join(self.profile, ".config", "herdr-fold", "plugins", "workspaces")),
-                         out)
+        self.assertFalse(os.path.exists(os.path.join(self.profile, ".config", "herdr-fold", "plugins", "spaces")), out)
         self.assertTrue(os.path.isdir(os.path.join(self.profile, ".config", "herdr-fold", "plugins", "sessions-view")))
 
     def test_ai_chats_are_never_removed(self):
@@ -356,18 +354,6 @@ class Prepared(Prepare):
         self.assertEqual(self.dated(), [], out)
         self.assertEqual(glob.glob(self.state("prepared-changed-*")), [], out)
 
-    def test_an_earlier_versions_dated_copies_go(self):
-        for stamp in ("20260101-000000", "20260501-000000"):
-            os.makedirs(self.state(f"prepared-{stamp}", ".config", "herdr-fold"))
-            self.append(self.state(f"prepared-{stamp}", HERDRLIB), "# an earlier version\n")
-        mine = self.state("prepared-changed-20260101-000000", HERDRLIB)
-        os.makedirs(os.path.dirname(mine))
-        self.append(mine, "# mine\n")
-        out = self.prepare()
-        self.assertEqual(self.dated(), [], out)
-        with open(mine, encoding="utf-8") as f:
-            self.assertEqual(f.read(), "# mine\n", out)
-
     def test_a_file_you_changed_since_it_was_prepared_is_never_pruned(self):
         # one the next prepare replaces and one it drops, each changed on the machine: kept once, and said
         self.prepare()
@@ -417,34 +403,6 @@ class Prepared(Prepare):
         self.assertEqual(len(glob.glob(self.state("prepared-original", "claude-statusLine-*.json"))), 1, out)
         out = self.remove()
         self.assertEqual(self.settings()["statusLine"], THEIRS, out)
-
-    def as_an_earlier_version_kept_it(self):
-        """The machine's own Claude status line where an earlier version saved it, in a dated folder, and a later one
-        of theirs in a later folder."""
-        saved = glob.glob(self.state("*", "claude-statusLine.json"))
-        self.assertEqual(len(saved), 1, saved)
-        os.remove(saved[0])
-        for stamp, status_line in (("20260101-000000", THEIRS), ("20260601-000000", LATER)):
-            os.makedirs(self.state(f"prepared-{stamp}"))
-            with open(self.state(f"prepared-{stamp}", "claude-statusLine.json"), "w") as f:
-                json.dump(status_line, f)
-
-    def test_an_earlier_versions_saved_status_line_moves_to_the_originals(self):
-        self.prepare()
-        self.as_an_earlier_version_kept_it()
-        out = self.prepare()
-        self.assertEqual(self.dated(), [], out)
-        with open(self.state("prepared-original", "claude-statusLine.json"), encoding="utf-8-sig") as f:
-            self.assertEqual(json.load(f), THEIRS, out)
-        out = self.remove()
-        self.assertEqual(self.settings()["statusLine"], THEIRS, out)
-
-    def test_removing_a_machine_an_earlier_version_prepared_gives_its_status_line_back(self):
-        self.prepare()
-        self.as_an_earlier_version_kept_it()
-        out = self.remove()
-        self.assertEqual(self.settings()["statusLine"], THEIRS, out)
-        self.assertFalse(os.path.exists(self.state()), out)                 # its dated folders gone too
 
 
 class UnixPrepare(Prepared, unittest.TestCase):
@@ -510,18 +468,6 @@ class UnixPrepare(Prepared, unittest.TestCase):
             with open(os.path.join(self.profile, rel)) as f:
                 self.assertEqual(f.read(), text, rel)
         self.assertFalse([call for call in self.herdr_calls() if "unlink" in call or "uninstall" in call])
-
-    def test_the_retired_tab_layouts_workspaces_become_workspaces(self):
-        # an earlier prepare's Tab Layout followed them; once herdr has it no more, its folder goes
-        state = os.path.join(self.profile, ".local", "state", "herdr", "plugins")
-        os.makedirs(os.path.join(state, "herdr-fold.tab-layout"))
-        with open(os.path.join(state, "herdr-fold.tab-layout", "spaces.json"), "w") as f:
-            f.write('{"w1": {"label": "app"}}\n')
-        self.plugins_listed("herdr-fold.sessions-view")
-        out = self.prepare()
-        with open(os.path.join(state, "herdr-fold.workspaces", "spaces.json")) as f:
-            self.assertEqual(f.read(), '{"w1": {"label": "app"}}\n', out)
-        self.assertFalse(os.path.exists(os.path.join(state, "herdr-fold.tab-layout")), out)
 
     def test_removing_the_machine_gives_its_shell_settings_back(self):
         with open(os.path.join(self.profile, ".bashrc"), "w") as f:

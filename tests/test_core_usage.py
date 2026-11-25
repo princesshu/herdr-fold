@@ -1,6 +1,6 @@
 """Tests for core/usage.py in a temporary HOME: the agents' limits from herdr-fold's own readings, Claude's cache and
-Codex's newest chat, the newest per agent, a limit past its reset left out, an agent with none left out; nothing of the
-agents' files written; both status lines keep the same shape."""
+Codex's newest chat, the newest per agent, a limit past its reset 0% or not known, an agent with none left out; nothing
+of the agents' files written; both status lines keep the same shape."""
 import contextlib
 import io
 import json
@@ -150,23 +150,71 @@ class Sources(Home):
         self.assertEqual([one["agent"] for one in self.limits()], ["codex", "claude"])
 
 
-class Current(Home):
-    def test_a_window_past_its_reset_is_none(self):
-        usage.keep("claude", windows((90, NOW - 1), (35, WEEK)), NOW - 4 * HOUR)
-        self.assertEqual(self.limits()[0]["five_hour"], None)
-        self.assertEqual(self.limits()[0]["week"], {"used": 35, "resets": WEEK})
-        usage.keep("claude", windows((90, FIVE), (35, WEEK)), NOW - HOUR)
-        self.assertIsNone(self.limits(now=FIVE)[0]["five_hour"])            # at its reset it is past
+class Freshest(Home):
+    """Each chat keeps the limits its last answer told; the one kept is the freshest any told, so an idle chat's older
+    reading never takes it back, in the status lines, the app's notice or Usage."""
 
-    def test_an_agent_whose_windows_all_passed_is_left_out(self):
+    def test_an_older_reading_of_the_same_window_never_lowers_it(self):
+        usage.keep("claude", windows((47, FIVE), (12, WEEK)), NOW - 60)
+        self.assertEqual(usage.keep("claude", windows((40, FIVE), (10, WEEK)), NOW), windows((47, FIVE), (12, WEEK)))
+        self.assertEqual(self.limits()[0]["five_hour"]["used"], 47)
+
+    def test_two_windows_open_at_once_are_never_mixed(self):
+        # one chat told the weekly window, another a second weekly limit that resets later: each keeps its own
+        other = WEEK + 18 * HOUR
+        usage.keep("claude", windows(week=(100, other)), NOW - 60)
+        self.assertEqual(usage.keep("claude", windows(week=(95, WEEK)), NOW)["week"], {"used": 95, "resets": WEEK})
+        usage.keep("claude", windows(week=(95, WEEK)), NOW - 60)
+        self.assertEqual(usage.keep("claude", windows(week=(100, other)), NOW)["week"], {"used": 100, "resets": other})
+
+    def test_a_window_past_its_reset_gives_way_to_the_newer_one_kept(self):
+        later = FIVE + 5 * HOUR
+        usage.keep("claude", windows((5, later)), FIVE + 60)
+        self.assertEqual(usage.keep("claude", windows((90, FIVE)), FIVE + 120)["five_hour"],
+                         {"used": 5, "resets": later})
+
+    def test_claudes_own_reading_names_the_accounts_windows(self):
+        # Claude's /usage said 89% for the week an hour ago; a chat's status JSON tells another weekly limit at 100%
+        self.claude(five=(10, "2026-11-13T14:46:00Z"), week=(89, "2026-11-16T17:00:00Z"), fetched=NOW - HOUR)
+        self.assertEqual(usage.keep("claude", windows(week=(100, WEEK + 18 * HOUR)), NOW)["week"],
+                         {"used": 89, "resets": WEEK})
+        # a chat told that week since: its use stands, and the 5-hour Claude's own until a chat tells it
+        self.assertEqual(usage.keep("claude", windows(week=(95, WEEK)), NOW), windows((10, FIVE), (95, WEEK)))
+        self.assertEqual(usage.keep("claude", windows((51, FIVE), (94, WEEK)), NOW), windows((51, FIVE), (95, WEEK)))
+
+    def test_a_reading_with_no_reset_is_its_own(self):
+        usage.keep("claude", windows((90, FIVE)), NOW - 60)
+        self.assertEqual(usage.keep("claude", windows((20, None)), NOW)["five_hour"], {"used": 20, "resets": None})
+
+    def test_claudes_status_json_tells_its_windows(self):
+        data = {"rate_limits": {"five_hour": {"used_percentage": 12.4, "resets_at": FIVE},
+                                "seven_day": {"used_percentage": 40.6, "resets_at": WEEK}}}
+        self.assertEqual(usage.told(data), windows((12, FIVE), (41, WEEK)))
+        self.assertEqual(usage.told(None), windows())
+
+
+class Current(Home):
+    def test_a_window_past_its_reset_is_0_with_nothing_run_since_else_not_known(self):
+        usage.keep("claude", windows((90, NOW - HOUR), (35, WEEK)), NOW - 4 * HOUR)
+        self.assertEqual(self.limits()[0]["five_hour"], {"used": 0, "resets": None})
+        self.assertEqual(self.limits()[0]["week"], {"used": 35, "resets": WEEK})
+        # a chat written since the reset, and no reading after it: what it used since is not known
+        self.write(".claude/projects/-work-lumen-api/a0.jsonl", "{}\n", NOW - 10)
+        self.assertEqual(self.limits()[0]["five_hour"], {"used": None, "resets": None})
+        usage.keep("claude", windows((90, FIVE), (35, WEEK)), NOW - HOUR)
+        self.assertEqual(self.limits(now=FIVE)[0]["five_hour"], {"used": 0, "resets": None})     # at its reset: past
+
+    def test_an_agents_windows_all_past_stay_its_row(self):
         usage.keep("claude", windows((90, NOW - 1), (35, NOW - 1)), NOW - DAY)
         self.codex("h8", [token_count(NOW - 8 * DAY, primary=(80.0, 10080, NOW - DAY))], NOW - 8 * DAY)
-        self.assertEqual(self.limits(), [])
+        self.assertEqual([(one["agent"], one["five_hour"], one["week"]) for one in self.limits()], [
+            ("claude", {"used": 0, "resets": None}, {"used": 0, "resets": None}),
+            ("codex", None, {"used": 0, "resets": None})])
 
     def test_a_window_with_no_reset_lasts_its_length_from_the_reading(self):
         usage.keep("claude", windows((25, None), (5, None)), NOW - 4 * HOUR)
         self.assertEqual(self.limits()[0]["five_hour"], {"used": 25, "resets": None})
-        self.assertEqual(self.limits(now=NOW + 2 * HOUR)[0]["five_hour"], None)
+        self.assertEqual(self.limits(now=NOW + 2 * HOUR)[0]["five_hour"], {"used": 0, "resets": None})
         self.assertEqual(self.limits(now=NOW + 2 * HOUR)[0]["week"], {"used": 5, "resets": None})
 
 
@@ -271,12 +319,18 @@ class Section(unittest.TestCase):
 
     def test_a_row_an_agent_its_name_plan_and_both_percents_with_their_levels(self):
         found = usage.section([self.reading("claude", (72, FIVE), (16, WEEK))], self.AGENTS, "claude", NOW)
-        self.assertEqual((found["id"], found["title"], found["none"]), ("usage", "Usage", "Not known yet"))
-        row, = found["rows"]
-        self.assertEqual((row["key"], row["name"], row["plan"], row["current"]), ("claude", "Claude", "Max", True))
-        self.assertEqual(row["five"], {"label": "5h", "used": 72, "text": "72%", "level": "warn"})
-        self.assertEqual(row["week"], {"label": "wk", "used": 16, "text": "16%", "level": "ok"})
-        self.assertEqual(row["said"], "5 hour 72%, week 16%")
+        self.assertEqual(found, {"id": "usage", "title": "Usage", "none": "Not known yet", "rows": [{
+            "key": "claude", "name": "Claude", "plan": "Max", "current": True, "age": "Read 1 min ago",
+            "five": {"label": "5h", "used": 72, "text": "72%", "level": "warn",
+                     "resets": {"at": FIVE, "words": "5h resets {time}"}},
+            "week": {"label": "wk", "used": 16, "text": "16%", "level": "ok",
+                     "resets": {"at": WEEK, "words": "Week resets {day} {time}"}},       # days away: its day
+            "tight": {"label": "5h", "used": 72, "text": "72%", "level": "warn",
+                      "resets": {"at": FIVE, "words": "5h resets {time}"}},
+            # the reset under the row only while its window is yellow or red
+            "reset": {"at": FIVE, "words": "5h resets {time}"}, "untold": None}]})
+        row, = self.rows([self.reading("claude", (32, FIVE), (16, WEEK))])
+        self.assertIsNone(row["reset"])
 
     def test_a_percents_level_is_the_status_lines(self):
         self.assertEqual([usage.level(used) for used in (0, 49, 50, 79, 80, 100)],
@@ -292,56 +346,36 @@ class Section(unittest.TestCase):
         self.assertEqual([(row["key"], row["current"]) for row in self.rows(limits, current="gemini")],
                          [("codex", False), ("claude", False)])
 
-    def test_every_row_its_first_windows_bar_and_reset_for_its_block_opened(self):
-        first, second = self.rows([self.reading("claude", (72, FIVE), (16, WEEK)),
-                                   self.reading("codex", (8, FIVE + HOUR), (3, WEEK))])
-        self.assertEqual(first["bar"], {"used": 72, "level": "warn"})
-        self.assertEqual(first["resets"], {"at": FIVE, "words": "5 hour resets at {time}"})
-        self.assertEqual(second["bar"], {"used": 8, "level": "ok"})
-        self.assertEqual(second["resets"], {"at": FIVE + HOUR, "words": "5 hour resets at {time}"})
-
     def test_its_tightest_window_is_the_one_used_most_the_five_hours_on_a_tie(self):
         rows = [self.rows([self.reading("claude", five, week)])[0]["tight"]
                 for five, week in (((72, FIVE), (16, WEEK)), ((12, FIVE), (85, WEEK)), ((40, FIVE), (40, WEEK)),
-                                   (None, (16, WEEK)))]
+                                   (None, (16, WEEK)), ((None, None), (16, WEEK)))]
         self.assertEqual([(one["label"], one["text"], one["level"]) for one in rows],
-                         [("5h", "72%", "warn"), ("wk", "85%", "bad"), ("5h", "40%", "ok"), ("wk", "16%", "ok")])
+                         [("5h", "72%", "warn"), ("wk", "85%", "bad"), ("5h", "40%", "ok"), ("wk", "16%", "ok"),
+                          ("wk", "16%", "ok")])
 
-    def test_the_agent_in_use_is_open_the_others_folded_till_one_is_turned(self):
-        limits = [self.reading("claude", (72, FIVE), (16, WEEK)), self.reading("codex", (8, FIVE), (3, WEEK))]
-        self.assertEqual(usage.section(limits, self.AGENTS, "claude", NOW)["open"], {"claude": True, "codex": False})
-        self.assertEqual(usage.section(limits, self.AGENTS, "codex", NOW)["open"], {"claude": False, "codex": True})
-        # what the user opened or folded stays, whichever agent is in use; the others as before
-        self.assertEqual(usage.section(limits, self.AGENTS, "codex", NOW, {"claude": True})["open"],
-                         {"claude": True, "codex": True})
-        self.assertEqual(usage.section(limits, self.AGENTS, "claude", NOW, {"claude": False})["open"],
-                         {"claude": False, "codex": False})
-        # an agent on an API key has no row here but a block of its own in the clients: it is told too
-        self.assertEqual(usage.section([], self.AGENTS, "codex", NOW)["open"], {"claude": False, "codex": True})
-
-    def test_a_window_past_its_reset_leaves_the_other_alone_the_bar_and_the_reset_its(self):
-        row, = self.rows([self.reading("claude", None, (16, WEEK))])
-        self.assertIsNone(row["five"])
-        self.assertEqual(row["bar"], {"used": 16, "level": "ok"})
-        self.assertEqual(row["resets"], {"at": WEEK, "words": "Week resets {day} at {time}"})    # days away: its day
-        self.assertEqual(row["said"], "Week 16%")
+    def test_a_window_just_reset_says_0_or_not_known(self):
+        row, = self.rows([self.reading("claude", (0, None), (41, WEEK)), ])
+        self.assertEqual(row["five"], {"label": "5h", "used": 0, "text": "0%", "level": "ok", "resets": None})
+        row, = self.rows([self.reading("codex", (None, None), (41, WEEK))], "codex")
+        self.assertEqual(row["five"], {"label": "5h", "used": None, "text": "–", "level": None, "resets": None})
+        row, = self.rows([self.reading("claude", (None, None), (None, None))])
+        self.assertEqual((row["tight"], row["reset"]), (None, None))
         row, = self.rows([self.reading("claude", (91, FIVE), None)])
-        self.assertEqual((row["week"], row["said"]), (None, "5 hour 91%"))
+        self.assertEqual((row["week"], row["reset"]["words"]), (None, "5h resets {time}"))
 
     def test_a_reset_within_twelve_hours_names_its_time_alone_one_not_told_nothing(self):
-        row, = self.rows([self.reading("claude", None, (16, NOW + 11 * HOUR))])
-        self.assertEqual(row["resets"]["words"], "Week resets at {time}")
+        row, = self.rows([self.reading("claude", None, (86, NOW + 11 * HOUR))])
+        self.assertEqual(row["reset"]["words"], "Week resets {time}")
         row, = self.rows([self.reading("claude", (72, None), (16, WEEK))])
-        self.assertEqual((row["bar"], row["resets"]), ({"used": 72, "level": "warn"}, None))
+        self.assertEqual((row["five"]["resets"], row["reset"]), (None, None))
 
-    def test_a_reading_older_than_ten_minutes_says_its_age_whoever_read_it(self):
+    def test_the_readings_age_whoever_read_it(self):
         for source in ("claude", "status", "codex"):
             ages = {seconds: self.rows([self.reading("claude", (72, FIVE), at=NOW - seconds, source=source)])[0]["age"]
-                    for seconds in (20, 600, 43 * 60, 3 * HOUR + 59 * 60, 3 * DAY)}
-            self.assertEqual(ages, {20: None, 600: None, 43 * 60: "as of 43 min ago",
-                                    3 * HOUR + 59 * 60: "as of 3 h ago", 3 * DAY: "as of 3 d ago"})
-        row, = self.rows([self.reading("claude", (72, FIVE), (16, WEEK), at=NOW - 43 * 60, source="codex")])
-        self.assertEqual(row["said"], "5 hour 72%, week 16%, as of 43 min ago")
+                    for seconds in (20, 3 * 60, 3 * HOUR + 59 * 60, 3 * DAY)}
+            self.assertEqual(ages, {20: "Read just now", 3 * 60: "Read 3 min ago", 3 * HOUR + 59 * 60: "Read 3 h ago",
+                                    3 * DAY: "Read 3 d ago"})
 
     def test_a_plan_is_its_word_alone_never_an_e_mail_or_an_id(self):
         for plan, shown in (("Max", "Max"), ("API key", "API key"), ("ada@lumen.example", None), ("max_20x", None),
@@ -355,8 +389,23 @@ class Section(unittest.TestCase):
             found = usage.section([self.reading("codex", (8, FIVE))], agents, "claude", NOW)
             self.assertEqual([(row["name"], row["plan"]) for row in found["rows"]], [("Codex", None)], agents)
 
-    def test_no_limits_no_rows(self):
-        self.assertEqual(usage.section([], self.AGENTS, "claude", NOW)["rows"], [])
+    def test_no_limits_and_no_agent_told_no_rows(self):
+        self.assertEqual(usage.section([], [], "claude", NOW)["rows"], [])
+
+    def test_the_current_agent_with_no_reading_says_so_in_its_rows_place(self):
+        rows = self.rows([self.reading("claude", (72, FIVE))], "codex")
+        self.assertEqual([(row["key"], row["current"], (row["untold"] or {}).get("text")) for row in rows],
+                         [("codex", True, "limits not told"), ("claude", False, None)])
+        self.assertEqual((rows[0]["name"], rows[0]["plan"], rows[0]["five"], rows[0]["week"], rows[0]["tight"],
+                          rows[0]["reset"], rows[0]["age"]), ("Codex", "Plus", None, None, None, None, None))
+        self.assertEqual(rows[0]["untold"]["why"], "Codex tells its limits in a chat's token counts: none of its "
+                                                   "newest chats holds one yet.")
+        self.assertIn("status line", self.rows([], "claude")[0]["untold"]["why"])
+        # another agent's missing reading is no row; an API key has no window to tell; one not told is not named
+        self.assertEqual([row["key"] for row in self.rows([self.reading("claude", (72, FIVE))], "claude")], ["claude"])
+        on_key = [{"key": "codex", "name": "Codex", "plan": usage.API_KEY}]
+        self.assertEqual(self.rows([], "codex", on_key), [])
+        self.assertEqual(self.rows([], "aider"), [])
 
 
 class Clock(Home):
@@ -369,12 +418,12 @@ class Clock(Home):
         time.tzset()
 
     def test_a_reset_is_said_in_local_time_twelve_hours_or_24(self):
-        five = {"at": FIVE, "words": "5 hour resets at {time}"}
-        self.assertEqual(usage.reset_said(five, True), "5 hour resets at 9:46 AM")
-        self.assertEqual(usage.reset_said(five, False), "5 hour resets at 09:46")
-        week = {"at": WEEK, "words": "Week resets {day} at {time}"}
-        self.assertEqual(usage.reset_said(week, True), "Week resets Mon at 12:00 PM")
-        self.assertEqual(usage.reset_said(week, False), "Week resets Mon at 12:00")
+        five = {"at": FIVE, "words": "5h resets {time}"}
+        self.assertEqual(usage.reset_said(five, True), "5h resets 9:46 AM")
+        self.assertEqual(usage.reset_said(five, False), "5h resets 09:46")
+        week = {"at": WEEK, "words": "Week resets {day} {time}"}
+        self.assertEqual(usage.reset_said(week, True), "Week resets Mon 12:00 PM")
+        self.assertEqual(usage.reset_said(week, False), "Week resets Mon 12:00")
         self.assertEqual(usage.reset_said(None, True), "")
 
     def test_hours_are_written_as_the_status_line_found_them_else_24(self):
@@ -408,46 +457,10 @@ class SectionCommand(Home):
         self.assertEqual((code, json.loads(out)["rows"][0]["plan"]), (0, None))
         self.assertEqual(self.run_main("section")[0], 2)
 
-    def test_the_command_keeps_a_block_opened_or_folded_and_the_section_tells_it(self):
-        self.assertEqual(self.run_main("open", "codex", "on"), (0, '{"codex": true}\n'))
-        self.assertEqual(json.loads(self.run_main("section", "claude")[1])["open"], {"claude": True, "codex": True})
-        self.assertEqual(self.run_main("open", "claude", "off"), (0, '{"codex": true, "claude": false}\n'))
-        self.assertEqual(json.loads(self.run_main("section", "claude")[1])["open"], {"claude": False, "codex": True})
-        for args in (("open", "gemini", "on"), ("open", "codex", "yes"), ("open", "codex")):
-            self.assertEqual(self.run_main(*args)[0], 2, args)
-
-
-class Opened(Home):
-    """Each agent's block opened or folded by the user, kept once for both clients in herdr-fold's own usage.json."""
-
-    def setUp(self):
-        super().setUp()
-        self.state = os.path.join(self.home, ".local", "state", "herdr-fold")
-        self.path = os.path.join(self.state, "usage.json")
-
-    def test_a_block_turned_is_kept_beside_the_budgets_its_owners_only(self):
-        self.assertEqual(usage.kept_open(self.state), {})
-        os.makedirs(self.state)
-        with open(self.path, "w", encoding="utf-8") as f:
-            json.dump({"budgets": {"codex": 50}, "dismissed": ["codex:2026-11"]}, f)
-        self.assertEqual(usage.keep_open(self.state, "codex", True), {"codex": True})
-        self.assertEqual(usage.keep_open(self.state, "claude", False), {"codex": True, "claude": False})
-        self.assertEqual(usage.kept_open(self.state), {"codex": True, "claude": False})
-        with open(self.path, encoding="utf-8") as f:
-            self.assertEqual(json.load(f), {"budgets": {"codex": 50}, "dismissed": ["codex:2026-11"],
-                                            "open": {"codex": True, "claude": False}})
-        self.assertEqual(stat.S_IMODE(os.stat(self.path).st_mode), 0o600)
-        self.assertEqual(sorted(os.listdir(os.path.join(self.home, ".local", "state"))), ["herdr-fold"])
-
-    def test_what_is_no_agent_or_no_choice_is_refused_or_not_read(self):
-        for agent, on in (("gemini", True), ("../codex", True), ("codex", "on"), ("codex", 1)):
-            with self.subTest(agent=agent, on=on), self.assertRaises(ValueError):
-                usage.keep_open(self.state, agent, on)
-        os.makedirs(self.state)
-        for body in ('{"open": {"codex": "yes", "gemini": true, "claude": false}}', '{"open": [1]}', "{"):
-            with open(self.path, "w", encoding="utf-8") as f:
-                f.write(body)
-            self.assertEqual(usage.kept_open(self.state), {"claude": False} if "claude" in body else {}, body)
+    def test_the_folds_command_is_gone(self):
+        # one row per agent, no block of its own to fold (the owner, 2026-11-20)
+        self.assertEqual(self.run_main("open", "codex", "on")[0], 2)
+        self.assertFalse(hasattr(usage, "keep_open") or hasattr(usage, "kept_open"))
 
 
 class Writers(unittest.TestCase):

@@ -24,7 +24,7 @@ GENERIC_TITLES = {"", "claude code", "claude", "codex", "openai codex"}
 SHELL_TITLE = re.compile(r"(?i)[\\/][^\\/]*(\.exe|sh)$")
 TAB_NAME = 24          # characters of a chat's name on its tab: herdr's tab row fits several
 WAITING = ("blocked", "done")   # waiting on you: a question, or an answer not seen yet (seen, done turns idle)
-WAIT_TOKEN = "waiting"          # the theme's Space rows show it beside the branch ($waiting)
+WAIT_TOKEN = "waiting"          # the theme's Space rows show it beside the name ($waiting)
 TICK = 20              # seconds between two looks while an agent waits: a label is late by this much at most
 
 

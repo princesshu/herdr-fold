@@ -353,7 +353,7 @@ class Explorer:
         if node is None or node.path is None:
             choices = MENU[:2]
         else:
-            choices = (("New Workspace",) if node.is_dir and self.opens_workspace else ()) + MENU
+            choices = (("New space",) if node.is_dir and self.opens_workspace else ()) + MENU
         if self.preview and os.path.exists(self.preview):
             choices = ("Close Preview",) + choices
         if node is not None and node.path is not None and not node.is_dir and media.kind_of(node.path) \
@@ -378,7 +378,7 @@ class Explorer:
             return Action("open_browser", (node.path,))
         elif choice == "Close Preview":
             return Action("close_preview")
-        elif choice == "New Workspace":
+        elif choice == "New space":
             return Action("new_workspace", (node.path,))
         elif choice == "Move to Trash":
             self.ask_trash(node)

@@ -21,6 +21,8 @@ src/open_file.py       | .config/herdr-fold/open_file.py | tui
 src/projects.py        | .config/herdr-fold/projects.py | tui
 src/statusline_setup.py | .config/herdr-fold/statusline_setup.py | both
 src/statusline.py      | .config/herdr-fold/statusline.py | both
+src/usage.py           | .config/herdr-fold/usage.py | both
+src/statefile.py       | .config/herdr-fold/statefile.py | both
 src/claude_trust.py    | .config/herdr-fold/claude_trust.py | tui
 src/i18n.py            | .config/herdr-fold/i18n.py | both
 src/parts.py           | .config/herdr-fold/parts.py | both
@@ -38,11 +40,11 @@ src/remote.sh      | .config/herdr-fold/remote.sh | tui
 src/plugins/sessions-view/herdr-plugin.toml | .config/herdr-fold/plugins/sessions-view/herdr-plugin.toml | tui
 src/plugins/sessions-view/sessions.py       | .config/herdr-fold/plugins/sessions-view/sessions.py | tui
 src/plugins/sessions-view/LICENSE           | .config/herdr-fold/plugins/sessions-view/LICENSE | tui
-src/plugins/workspaces/herdr-plugin.toml    | .config/herdr-fold/plugins/workspaces/herdr-plugin.toml | tui
-src/plugins/workspaces/workspaces.py        | .config/herdr-fold/plugins/workspaces/workspaces.py | tui
-src/plugins/workspaces/git.py               | .config/herdr-fold/plugins/workspaces/git.py | tui
-src/plugins/workspaces/locate.py            | .config/herdr-fold/plugins/workspaces/locate.py | tui
-src/plugins/workspaces/LICENSE              | .config/herdr-fold/plugins/workspaces/LICENSE | tui
+src/plugins/spaces/herdr-plugin.toml        | .config/herdr-fold/plugins/spaces/herdr-plugin.toml | tui
+src/plugins/spaces/spaces.py                | .config/herdr-fold/plugins/spaces/spaces.py | tui
+src/plugins/spaces/git.py                   | .config/herdr-fold/plugins/spaces/git.py | tui
+src/plugins/spaces/locate.py                | .config/herdr-fold/plugins/spaces/locate.py | tui
+src/plugins/spaces/LICENSE                  | .config/herdr-fold/plugins/spaces/LICENSE | tui
 src/plugins/sidebar/herdr-plugin.toml       | .config/herdr-fold/plugins/sidebar/herdr-plugin.toml | tui
 src/plugins/sidebar/LICENSE                 | .config/herdr-fold/plugins/sidebar/LICENSE | tui
 src/plugins/sidebar/*.py                    | .config/herdr-fold/plugins/sidebar/ | tui

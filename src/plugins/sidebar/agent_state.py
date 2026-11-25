@@ -22,8 +22,10 @@ CHECKED = (("Connected · tools fetch failed", setup.FAILED), ("Connected", setu
 SAID = re.compile(r"  (Status|Issue|URL): (.*)")    # its own lines, never a header's or a variable's (indented more)
 # each agent's plans by the id it tells, in the panel's words: another id shows no plan, never itself
 PLANS = {"claude": {"max": "Max", "pro": "Pro", "team": "Team", "enterprise": "Enterprise"},
-         "codex": {"plus": "Plus", "pro": "Pro", "team": "Team", "business": "Business", "enterprise": "Enterprise",
-                   "edu": "Edu"}}
+         "codex": {"free": "Free", "go": "Go", "plus": "Plus", "pro": "Pro", "prolite": "Pro", "team": "Team",
+                   "business": "Business", "enterprise": "Enterprise", "edu": "Edu"}}
+# a Codex id the table lacks by the widest family one of its parts names ("self_serve_business_prolite": Business)
+FAMILIES = ("enterprise", "business", "team", "edu", "pro", "plus", "go", "free")
 API_KEY = "API key"             # the plan's word for an agent on an API key
 API_KEYS = ("api_key", "api_key_helper")    # `claude auth status`'s authMethod for an API key, its own or a helper's
 # how `codex login status` starts for one on an API key (on stderr; Codex 0.169)
@@ -39,6 +41,8 @@ HOW = {"claude": {"program": "claude", "login": ["claude", "auth", "login"],
                  "page": "https://developers.openai.com/codex/cli"},
        "gemini": {"program": "gemini", "login": ["gemini"], "install": "npm install -g @google/gemini-cli",
                   "page": "https://github.com/google-gemini/gemini-cli"}}
+# the head's list in both clients' words: its two groups' heads (beside one signed out: agent_setup.py's sign in)
+HERE, ABSENT = "Agents on this Mac", "Not installed"
 SIGNS_IN = ("It signs in its own way: Sign in opens it in a terminal tab, and you finish there, or in the browser if "
             "it asks.")
 INSTALLS = "It installs its own way: run its command in a terminal, then choose it in the list."
@@ -74,7 +78,8 @@ def codex_plan(home):
             payload = obj(parse(raw).get("payload")) if b'"plan_type"' in raw else {}
             plan = obj(payload.get("rate_limits")).get("plan_type") if payload.get("type") == "token_count" else None
             if isinstance(plan, str):
-                return PLANS["codex"].get(plan)
+                parts = re.split(r"[_-]", plan)
+                return PLANS["codex"].get(plan) or next((PLANS["codex"][one] for one in FAMILIES if one in parts), None)
     return None
 
 
@@ -107,6 +112,23 @@ def machine_agents(home, which=None, fresh=False):
                       "plan": state[1], "login": list(how["login"]), "install": how["install"],
                       "page": how["page"]})
     return found
+
+
+def listed(agent):
+    """AGENT's (machine_agents()'s) row in the head's list, in both clients' words: its group (the installed first, the
+    others dim under theirs) and the word at its right: sign in where it says it is signed out, else its plan's where
+    it tells one."""
+    if not agent["installed"]:
+        return {"group": ABSENT, "dim": True, "word": None, "tone": None}
+    out = agent["signed_in"] is False
+    return {"group": HERE, "dim": False, "word": setup.SIGN_IN if out else agent["plan"],
+            "tone": "warn" if out else None}
+
+
+def told(home, fresh=False):
+    """machine_agents(), each with its row in the list (listed()) and what stands in its setup's place (standing(),
+    "empty"), as both clients take them."""
+    return [{**one, "listed": listed(one), "empty": standing(one)} for one in machine_agents(home, fresh=fresh)]
 
 
 def standing(agent):
@@ -156,10 +178,10 @@ def check(folder, name):
 
 
 def main(argv):
-    """The Herdr app mod runs this on the space's machine, answering in JSON: agents (machine_agents()'s, each with its
-    standing() as "empty"), check claude FOLDER NAME (check()'s)."""
+    """The Herdr app mod runs this on the space's machine, answering in JSON: agents (told()'s), check claude FOLDER
+    NAME (check()'s)."""
     if argv[1:] == ["agents"]:
-        print(json.dumps([{**one, "empty": standing(one)} for one in machine_agents(os.path.expanduser("~"))]))
+        print(json.dumps(told(os.path.expanduser("~"))))
         return 0
     if argv[1:3] == ["check", "claude"] and len(argv) == 5:
         try:

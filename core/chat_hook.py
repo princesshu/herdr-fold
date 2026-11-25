@@ -101,23 +101,18 @@ def percent(value):
 
 def write_status(data):
     """The status line's numbers from DATA, Claude's status JSON, kept in the chat's status file for the app's bar (no
-    folder, no prompt, nothing else of it), its limits for Usage too (usage.keep), and the short line Claude shows."""
+    folder, no prompt, nothing else of it), its limits the freshest any chat told (usage.keep), and Claude's line."""
     model = text(field(data, "model", "display_name")) or text(field(data, "model", "id")) or "Claude"
     context = percent(field(data, "context_window", "used_percentage"))
     window = field(data, "context_window", "context_window_size")
-
-    def limit(name):
-        resets = field(data, "rate_limits", name, "resets_at")
-        return {"used": percent(field(data, "rate_limits", name, "used_percentage")),
-                "resets": resets if isinstance(resets, (int, float)) and not isinstance(resets, bool) else None}
-    limits, at = {"five_hour": limit("five_hour"), "week": limit("seven_day")}, int(time.time())
+    limits, at = usage.told(data), int(time.time())
+    try:
+        limits = usage.keep("claude", limits, at) or limits
+    except OSError:
+        pass                    # the bar and the line go on with the chat's own
     statefile.write(chat.status_path(text(data.get("session_id"))), {
         "context": context, "window": window if isinstance(window, int) else None, "model": model,
         "effort": text(field(data, "effort", "level")), "limits": limits, "at": at})
-    try:
-        usage.keep("claude", limits, at)
-    except OSError:
-        pass                    # the bar and the line go on without it
     return model if context is None else f"{model} · ctx {context}%"
 
 

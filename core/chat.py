@@ -8,6 +8,7 @@ import re
 import sys
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
+import plan  # noqa: E402
 import statefile  # noqa: E402
 from chats import NOT_A_PROMPT, obj, open_regular, parse, session_files, text, texts_of          # noqa: E402
 
@@ -19,14 +20,14 @@ SUMMARY = 200                   # characters of a plain step's line
 MAIN = {"Read": "file_path", "Edit": "file_path", "MultiEdit": "file_path", "Write": "file_path",
         "NotebookEdit": "notebook_path", "Bash": "command", "Grep": "pattern", "Glob": "pattern", "WebFetch": "url",
         "WebSearch": "query"}
-AGENT = ("Agent", "Task")       # a sub-agent's call (Task: its name before Claude Code 2.1)
+AGENT = ("Agent", "Task")       # a subagent's call (Task: its name before Claude Code 2.1)
 MARK = re.compile(r"^\s*(?:[-*]|\d+[.)])\s*")      # a plan's list mark, before its words
 HUNK = re.compile(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 NEEDS = b'"needsAuthMcpServers"'   # in a line of Claude's that lists the servers to sign in to
 NAMED = 80                      # characters of a server's name a step keeps
 UUID = re.compile(rb'"uuid":"([^"\\]{1,64})"')      # a line's id in its bytes, as Claude writes it
 EDGE = 80                       # bytes of a block read again with the next: an id cut by the block's end is whole there
-SEEN = "seen.json"              # in a chat's folder: the ids of the lines read so far, and where that read stopped
+SEEN = "seen.json"              # in a chat's folder: the ids of the lines read so far, the task list, where it stopped
 SESSION = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")   # as Claude and the app make one
 
 
@@ -68,19 +69,14 @@ def first_words(name, args):
 
 
 def call(block, cwd=None):
-    """A tool call's step, a file named from CWD (Claude's folder) when it is in it; a skill, a sub-agent and a todo
-    list are steps of their own kinds."""
+    """A tool call's step, a file named from CWD (Claude's folder) when it is in it; a skill and a subagent are steps
+    of their own kinds."""
     name, args, call_id = text(block.get("name")) or "", obj(block.get("input")), text(block.get("id"))
     if name == "Skill":
         return {"kind": "skill", "id": call_id, "name": text(args.get("skill"))}
     if name in AGENT:
         return {"kind": "agent", "id": call_id, "name": text(args.get("subagent_type")),
                 "task": text(args.get("description"))}
-    if name == "TodoWrite":
-        todos = args.get("todos") if isinstance(args.get("todos"), list) else []
-        return {"kind": "todo", "id": call_id, "items": [{"text": text(todo.get("content")) or "",
-                                                          "done": todo.get("status") == "completed"}
-                                                         for todo in map(obj, todos)]}
     key = MAIN.get(name, "")
     main = text(args.get(key)) or first_words(name, args)
     root = os.path.join(cwd, "") if cwd else None
@@ -90,11 +86,13 @@ def call(block, cwd=None):
             "input": {key: cut(value, INPUT) for key, value in args.items() if isinstance(value, str)}}
 
 
-def outcome(block, entry):
-    """A tool result's step: what came back, and what a file tool changed."""
-    return {"kind": "result", "id": text(block.get("tool_use_id")), "ok": block.get("is_error") is not True,
+def outcome(block, entry, told):
+    """A tool result's step: what came back, what a file tool changed, and the steps of the plan it approved (TOLD:
+    plan.py's, by the call)."""
+    call_id = text(block.get("tool_use_id"))
+    return {"kind": "result", "id": call_id, "ok": block.get("is_error") is not True,
             "output": cut("\n".join(texts_of(block.get("content"))), OUTPUT),
-            "change": change(entry.get("toolUseResult"))}
+            "change": change(entry.get("toolUseResult")), **({"plan": told[call_id]} if call_id in told else {})}
 
 
 def other(block):
@@ -105,7 +103,7 @@ def other(block):
 
 
 def needing(entry):
-    """The servers ENTRY (a deferred tools line of the conversation's own) says are to sign in to, their names as text
+    """The servers ENTRY (a deferred tools line of the chat's own) says are to sign in to, their names as text
     (no control character); None where it lists none."""
     delta = obj(entry.get("attachment")) if entry.get("type") == "attachment" and not entry.get("isSidechain") else {}
     names = delta.get("needsAuthMcpServers")
@@ -143,14 +141,13 @@ def ids_before(path, offset):
     return {one.decode("utf-8", "replace") for one in found}
 
 
-def ids_kept(kept, offset):
-    """The ids the read that stopped at byte OFFSET left in KEPT (a chat's SEEN); None when the file holds another
-    read's, or none."""
+def kept_at(kept, offset):
+    """What the read that stopped at byte OFFSET left in KEPT (a chat's SEEN): its lines' ids and the chat's list (each
+    None when not kept); neither when the file holds another read's, or none."""
     was = read(kept) or {}
-    ids = was.get("ids")
-    if was.get("offset") != offset or not isinstance(ids, list):
-        return None
-    return {one for one in ids if isinstance(one, str)}
+    ids, tasks = (was.get("ids"), was.get("plan")) if was.get("offset") == offset else (None, None)
+    return ({one for one in ids if isinstance(one, str)} if isinstance(ids, list) else None,
+            tasks if isinstance(tasks, dict) and tasks.keys() == plan.new().keys() else None)
 
 
 def needed_before(path, offset):
@@ -174,18 +171,19 @@ def needed_before(path, offset):
 
 def said(entry, seen):
     """ENTRY's steps, each with its time; what it names of the model, the effort and the permission mode goes into
-    SEEN, as do the servers it lists to sign in to: one new on that list is a sign-in's step (the first list is the
-    conversation's start: none). Claude's helpers, meta lines, a compaction's summary and a line again() have none."""
+    SEEN, as do its tasks (plan.py: a task added and a step done are steps, the list is not) and the servers it lists
+    to sign in to: one new there is a sign-in's step. A helper's, a meta or a summary's line and one again(): none."""
     if again(entry, seen["ids"]) or entry.get("isSidechain") or entry.get("isMeta") or entry.get("isCompactSummary"):
         return []
     kind, message = entry.get("type"), obj(entry.get("message"))
     content, found = message.get("content"), []
     seen["mode"] = text(entry.get("permissionMode")) or seen["mode"]
+    told = plan.claude(seen["plan"], entry)
     if kind == "user":
         words = [part.strip() for part in texts_of(content)
                  if part.strip() and not part.lstrip().startswith(NOT_A_PROMPT)]
         found = [{"kind": "user", "text": "\n\n".join(words)}] if words else []
-        found += [outcome(block, entry) for block in map(obj, content if isinstance(content, list) else [])
+        found += [outcome(block, entry, told) for block in map(obj, content if isinstance(content, list) else [])
                   if block.get("type") == "tool_result"]
     elif kind == "assistant" and isinstance(content, list):
         model = text(message.get("model"))
@@ -198,6 +196,8 @@ def said(entry, seen):
                 found += [{"kind": "text", "text": block["text"]}] if (text(block.get("text")) or "").strip() else []
             elif block.get("type") in ("thinking", "redacted_thinking"):
                 found.append({"kind": "thought", "ms": ms if isinstance(ms, int) else None})
+            elif block.get("type") == "tool_use" and block.get("name") in plan.TASKS:
+                found += [told[block["id"]]] if text(block.get("id")) in told else []
             else:
                 found.append(call(block, text(entry.get("cwd"))) if block.get("type") == "tool_use" else other(block))
     elif kind == "attachment" and needing(entry) is not None:
@@ -223,11 +223,11 @@ def whole_lines(path, offset):
 
 
 def steps(path, offset=0, kept=None):
-    """The steps of the chat in PATH from byte OFFSET, where the read stopped, and the newest model, effort and
-    permission mode its lines name (None when they name none). No file (None) or one not there yet has no steps. A
-    sign-in's step is told against the list before OFFSET, looked up only when these lines hold a list."""
-    # a line the file held before OFFSET is no step again: the ids before it are those the last read left in KEPT (a
-    # file of the chat's own, written anew by a read that found lines), else, or with no KEPT, the file's own
+    """The steps of the chat in PATH from byte OFFSET, where the read stopped, the newest model, effort and permission
+    mode its lines name (None when they name none) and its task list as it stands there (plan.py's, None for none).
+    No file (None) or one not there yet has no steps. A sign-in's step is told against the list before OFFSET."""
+    # a line the file held before OFFSET is no step again: the ids before it and the list there are those the last
+    # read left in KEPT (a file of the chat's own, written anew by a read that found lines), else the file's own
     seen = dict.fromkeys(("requested", "model", "effort", "mode"))
     try:
         data, offset = whole_lines(path, offset) if path else (b"", offset)
@@ -235,16 +235,18 @@ def steps(path, offset=0, kept=None):
         data = b""
     start = offset - len(data)
     seen["needs"] = needed_before(path, start) if NEEDS in data else None
-    known = ids_kept(kept, start) if data and kept and start else None
+    known, tasks = kept_at(kept, start) if kept and start else (None, None)
     seen["ids"] = known if known is not None else ids_before(path, start) if data else set()
+    seen["plan"] = tasks or plan.read("claude", path, end=start)["state"]
     found = [step for raw in data.splitlines() for step in said(parse(raw.decode("utf-8", "replace")), seen)]
     if data and kept:
         try:
-            statefile.write(kept, {"offset": offset, "ids": sorted(seen["ids"])}, separators=(",", ":"))
+            statefile.write(kept, {"offset": offset, "ids": sorted(seen["ids"]), "plan": seen["plan"]},
+                            separators=(",", ":"))
         except OSError:
             pass                                # not kept: the next read finds the ids in the file
     return {"offset": offset, "steps": found, "model": seen["requested"] or seen["model"], "effort": seen["effort"],
-            "mode": seen["mode"]}
+            "mode": seen["mode"], "plan": plan.shown(seen["plan"])}
 
 
 # --- what Claude waits on, the app's answer, the status line's numbers
@@ -263,7 +265,7 @@ def session_file(session):
 
 def chat_dir(session):
     """The folder of the chat with SESSION: what Claude waits on (request.json), the app's answer (answer.json), the
-    status line's numbers (status.json)."""
+    status line's numbers (status.json), the plan approved last (plan.md)."""
     return os.path.join(statefile.folder(), "chat", checked(session))
 
 
@@ -332,9 +334,9 @@ def status(session):
 
 
 def main(argv):
-    """herdr-fold's Herdr app mod runs this on the space's machine, answering in JSON: steps SESSION OFFSET (the
-    chat's steps from OFFSET and where the read stopped, what Claude waits on and the status line's numbers:
-    one read a poll, its lines' ids kept for the next) and answer SESSION REPLY ({"ok": whether it went to Claude})."""
+    """herdr-fold's Herdr app mod runs this on the space's machine, answering in JSON: steps SESSION OFFSET (the chat's
+    steps from OFFSET, what Claude waits on, the status line's numbers: one read a poll, its lines' ids kept for the
+    next), answer SESSION REPLY ({"ok": whether it went to Claude}), plan SESSION (its approved plan's file or null)."""
     command, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
     try:
         if command == "steps" and len(args) == 2 and int(args[1]) >= 0:
@@ -343,6 +345,12 @@ def main(argv):
             kept = os.path.join(chat_dir(args[0]), SEEN)
             found = {**steps(session_file(args[0]), int(args[1]), kept), "status": status(args[0]),
                      "pending": {**asked, "change": change} if change else asked}
+        elif command == "plan" and len(args) == 1:
+            path = session_file(args[0])
+            try:
+                found = {"path": plan.document(path, chat_dir(args[0])) if path else None}
+            except OSError:
+                found = {"path": None}
         elif command == "answer" and len(args) == 2:
             reply = json.loads(args[1])
             try:
@@ -352,7 +360,7 @@ def main(argv):
         else:
             raise ValueError("unknown command")
     except (ValueError, RecursionError):
-        print("usage: chat.py steps SESSION OFFSET | answer SESSION REPLY", file=sys.stderr)
+        print("usage: chat.py steps SESSION OFFSET | answer SESSION REPLY | plan SESSION", file=sys.stderr)
         return 2
     print(json.dumps(found))
     return 0

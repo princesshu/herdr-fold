@@ -16,12 +16,12 @@ from tree import Tree
 
 
 def picker_there(herdr):
-    """Whether herdr's plugin list has herdr-fold's Workspaces plugin, with the folder picker of herdr's new button."""
+    """Whether herdr's plugin list has herdr-fold's Spaces plugin, with the folder picker of herdr's new button."""
     try:
         plugins = herdr.call("plugin", "list", "--json").get("plugins") or []
     except RuntimeError:
         return False
-    return any(plugin.get("plugin_id") == "herdr-fold.workspaces" for plugin in plugins)
+    return any(plugin.get("plugin_id") == "herdr-fold.spaces" for plugin in plugins)
 
 
 class Files(Family):
@@ -144,7 +144,7 @@ class Files(Family):
 
     def do_new_workspace(self, folder):
         self.host.job("workspace", lambda: self.host.herdr.call(
-            "plugin", "pane", "open", "--plugin", "herdr-fold.workspaces", "--entrypoint", "new-workspace", "--focus",
+            "plugin", "pane", "open", "--plugin", "herdr-fold.spaces", "--entrypoint", "new-workspace", "--focus",
             "--env", f"HERDR_NEW_WORKSPACE_FOLDER={folder}"))
 
     def do_close_preview(self):

@@ -1,5 +1,5 @@
 // @ts-check
-// The main area's Agents tab, one a space (usage.html's): Graph (Wiring, or This conversation with its costs) and
+// The main area's Agents tab, one a space (usage.html's): Graph (Wiring, or This chat with its costs) and
 // Usage (usageview.js). Core words the nodes and edges (graph.py, costs.py); the graph's rules are graph.js's.
 import { div, PathBuilder } from "gpui-kit";
 import { h_flex, v_flex, Popover } from "gpui-base";
@@ -8,24 +8,25 @@ import { agentMark, programs, watchSetup } from "./agent.js";
 import { mixColor, panelStep, RECENT_AGENTS } from "./agents.js";
 import { AGENT, AGENTS_ASK, agentsAsked, agentsTab, badgeAt, boxes, DISC, dragTo, dropLayout, EDGE, edgePath, extent,
   faded, gateAt, gatesRoom, GRAPH_LAYOUT, HEADS, keepLayout, layout, layoutKey, legendOf, nodeFor, nodeLines,
-  measured, nodeShown, placed, portOf, propertiesOf, running, seen, shareWidth, shownInAgent, sizeOf, stepNode, tagInk,
-  unzoomed, VIEWS, wireColor, wireLook } from "./graph.js";
+  measured, nodeShown, placed, portOf, propertiesOf, running, seen, shareWidth, shownInAgent, sizeOf, stepNode,
+  unzoomed, viewWords, VIEWS, wireColor, wireLook } from "./graph.js";
 import { AGENT_STATE, COSTS, GRAPH } from "./helper.js";
 import { AGENT_CHOSEN, agentList, errorColors, graphAgent, keepAgent, NAMES, READ, tagWord, toneInk, usageAgents }
   from "./layers.js";
 import { said } from "./logic.js";
 import { listNote, panelRow, panelSurface } from "./menus.js";
 import { openAgentPanel } from "./panel.js";
-import { actButton, brandMark, BUTTON, codeFont, icon, PAD, propertyLine, segmented, swatch } from "./parts.js";
+import { actButton, brandMark, BUTTON, codeFont, icon, PAD, propertyLine, scopeTag, segmented, swatch }
+  from "./parts.js";
 import { showPreview } from "./preview.js";
 import { UsageView } from "./usageview.js";
 
 const POLL = 30000;                // ms between two reads while it shows, as the Agent panel's
 const SLOW = 10;                   // a read no sooner than this many times what the last took (a long session's)
 const GRID = 20;                   // px between two of the canvas's dots, agent-graph.html's
-const QUICK = 5000;                // ms between two reads of This conversation while something runs in it
+const QUICK = 5000;                // ms between two reads of This chat while something runs in it
 const DASH = [5, 5];               // px: an on-demand, waiting or failed edge's dashes
-const RUN_INSPECTOR = 340, RUN_LABEL = 82;         // px: This conversation's properties (usage.html's .ginsp, .kv)
+const RUN_INSPECTOR = 340, RUN_LABEL = 82;         // px: This chat's properties (usage.html's .ginsp, .kv)
 const PARTS = /** @type {[string, string][]} */ ([["graph", "Graph"], ["usage", "Usage"]]);    // the tab's two views
 const RING = 2;                    // px: the chosen node's ring round it
 const MOST = 300;                  // px: a node's width at most, its words cut past it
@@ -35,11 +36,9 @@ const LISTED = 240;                // px: a folded node's names at most, scrolle
 const LIST = 300;                  // px: the head's agents' list, the Agent panel's
 const AGENT_TINT = 0.06, AGENT_EDGE = "99";        // the agent's node: the accent's 6% of a node, its edge at 60%
 const STATE_EDGE = /** @type {Record<string, [string, string]>} */ ({ bad: ["ansi1", "99"], warn: ["ansi3", "80"] });
-/** A node's icon by core's name for it. @type {Record<string, import("./icons.js").IconName>} */
-const ICON = { file: "file", skill: "sparkle", bot: "bot", terminal: "terminal", wrench: "wrench" };
-/** A tag's color role by core's tone for it. @type {Record<string, import("./agents.js").TagRole>} */
-const TAG_ROLE = { personal: "personal", project: "project", plugin: "plugin", account: "account", muted: "local" };
-const GATE_TONE = /** @type {Record<string, string>} */ ({ hook: "busy" });    // a hook's gate in the accent
+/** A node's icon by core's name for it, the In column's types told apart (a skill Lucide's scroll-text).
+ * @type {Record<string, import("./icons.js").IconName>} */
+const ICON = { file: "file", skill: "scroll-text", hook: "zap", bot: "bot", terminal: "terminal", wrench: "wrench" };
 
 /** @typedef {import("./graph.js").Node} Node */
 /** @typedef {import("./graph.js").Box} Box */
@@ -56,24 +55,29 @@ const zoom = () => Number(settings().zoom ?? 1);
 /** PATH (a PathBuilder's) painted over the whole canvas in COLOR. @param {any} path @param {string} color */
 const painted = (path, color) => window.paint_path(path.build(), color).absolute().top_0().left_0().size_full();
 
+// AgentsView instances drawn: each one's measured elements an id of its own, as the app keeps an element's last size
+// by its id and tells a second canvas of the same size none (the styleguide's specimens, made without the
+// constructor, drew empty); taken on its first canvas
+let views = 0;
+
 export class AgentsView {
   /** SPACE's Agents tab; CORE runs core/'s code (main.js's python), TEXT the same for what it prints (a CSV).
    * @param {string | null} space @param {Runner<any>} core @param {Runner<string>} text */
   constructor(space, core, cx, text) {
     this.space = space;
     this.core = core;
-    /** @type {"graph" | "usage"} the view shown, and the graph's own (Wiring, This conversation) */
+    /** @type {"graph" | "usage"} the view shown, and the graph's own (Wiring, This chat) */
     this.view = "graph";
     this.mode = VIEWS[0];
     this.usage = new UsageView(core, text);
     /** @type {{ surface: string, foreground: string } | null} the theme's card and text, as last drawn */
     this.theme = null;
-    /** @type {string | null} what was asked for last: the agent, the folder and the conversation, as JSON */
+    /** @type {string | null} what was asked for last: the agent, the folder and the chat, as JSON */
     this.key = null;
     this.agent = READ[0];
     /** @type {string | null} */
     this.folder = null;
-    /** @type {string | null} the conversation Show graph came from; null: the folder's newest */
+    /** @type {string | null} the chat Show graph came from; null: the folder's newest */
     this.session = null;
     /** @type {any} core's graph; null: not read yet, or the agent is not installed (missing) */
     this.found = null;
@@ -129,7 +133,7 @@ export class AgentsView {
     return Date.now() - this.readAt > Math.max(POLL, SLOW * this.took);
   }
 
-  /** From render: AGENT in SPACE read once it is another agent, folder or conversation than the last, or the last
+  /** From render: AGENT in SPACE read once it is another agent, folder or chat than the last, or the last
    * read is old. @param {any} space @param {string} agent */
   follow(space, agent, cx) {
     const folder = space.machine ? null : space.folder || null;
@@ -142,7 +146,7 @@ export class AgentsView {
     } else if (this.due()) this.read(cx);
   }
 
-  /** What the conversation SESSION cost, for This conversation (costs.py, which reads on in the token index first;
+  /** What the chat SESSION cost, for This chat (costs.py, which reads on in the token index first;
    * the agents' plans tell value from spent, the theme's card and text carry the models' colors); null where it
    * cannot be told now. @param {string} agent @param {string} session @param {string} folder */
   async cost(agent, session, folder) {
@@ -156,7 +160,7 @@ export class AgentsView {
   }
 
   /** The graph read (one read at a time, once more after it when asked meanwhile): drawn anew where it changed, kept
-   * where a read fails. This conversation: its costs asked first (by the conversation the last read told, so its
+   * where a read fails. This chat: its costs asked first (by the chat the last read told, so its
    * first read is made twice) and handed to core's graph. */
   read(cx) {
     if (!this.folder || !READ.includes(this.agent)) return;
@@ -238,7 +242,7 @@ export class AgentsView {
     cx.notify();
   }
 
-  /** The graph's view picked: Wiring, or This conversation (read again with its costs). @param {string} mode */
+  /** The graph's view picked: Wiring, or This chat (read again with its costs). @param {string} mode */
   see(mode, cx) {
     if (mode === this.mode || !VIEWS.includes(mode)) return;
     Object.assign(this, { mode, chosen: null, drag: null });
@@ -252,7 +256,7 @@ export class AgentsView {
     cx.notify();
   }
 
-  /** Open in Usage: the Usage view with the conversation SESSION's row marked. @param {string | null} session */
+  /** Open in Usage: the Usage view with the chat SESSION's row marked. @param {string | null} session */
   showUsage(session, cx) {
     this.usage.ask(session);
     this.show("usage", cx);
@@ -335,7 +339,7 @@ export class AgentsView {
         : "No folder"));
     }
     const ask = agentsAsked(shared(AGENTS_ASK), space.id, this.answered, Date.now());
-    if (ask?.view === "usage") {                  // Open Usage, Usage ›: the Usage view, a conversation's row marked
+    if (ask?.view === "usage") {                  // Open Usage, Usage: the Usage view, a chat's row marked
       this.answered = ask.at;
       this.view = "usage";
       this.usage.ask(typeof ask.session === "string" ? ask.session : null);
@@ -361,7 +365,7 @@ export class AgentsView {
 
   /** WORDS in the graph's place, as every view says what it has instead. @param {string} words
    * @param {string} [color] */
-  say(t, words, color = t.dim) {
+  say(t, words, color = t.muted) {
     return div().flex_none().p(PAD).text_size(12).text_color(color).child(words);
   }
 
@@ -373,8 +377,8 @@ export class AgentsView {
         true)));
     }
     const found = this.found, name = found?.name ?? NAMES[look.agent] ?? look.programs[look.agent]?.name ?? look.agent;
-    const views = found?.run && found.words?.views?.run ? segmented(t, "agents-view", VIEWS.map((view) => [view,
-      String(found.words.views[view])]), this.mode, (mode, cx) => this.see(mode, cx)) : null;
+    const views = found?.run && found.words?.views?.run ? segmented(t, "agents-view", viewWords(found), this.mode,
+      (mode, cx) => this.see(mode, cx)) : null;
     const frame = this.frame(t).child(this.head(t, this.scope(t, `${name} in ${(this.folder ?? "").split("/")
       .pop()}`, look), views));
     if (found) return frame.child(this.canvas(t, seen(found, found.run ? this.mode : VIEWS[0]), look));
@@ -393,7 +397,7 @@ export class AgentsView {
       .child(h_flex().flex_none().when(!column, (e) => e.pr(PAD / 2)).gap(16).children(PARTS.map(([view,
         word]) => div()
         .id(`agents-part-${view}`).h(BUTTON).flex().items_center().border_b_2()
-        .border_color(view === this.view ? t.accent : clear).text_color(view === this.view ? t.foreground : t.dim)
+        .border_color(view === this.view ? t.accent : clear).text_color(view === this.view ? t.foreground : t.muted)
         .when(view !== this.view && !this.still, (e) => e.cursor_pointer()
           .hover((/** @type {any} */ s) => s.text_color(t.foreground))
           .on_click((/** @type {any} */ _e, /** @type {any} */ cx) => this.show(view, cx)))
@@ -416,24 +420,26 @@ export class AgentsView {
       .trigger(chip).when(open && !this.still, (/** @type {any} */ e) => e.content(this.listed(t, look).mt(4)));
   }
 
-  /** The head's list, the Agent panel's form (connectors.html's .agm): the installed agents core reads, each with its
-   * icon, its name and its plan's word, ✓ on the one shown. A press or Enter picks; ↑ ↓ step. @param {Look} look */
+  /** The head's list, the Agent panel's form (agent-picker.html's .agm) under core's head: the installed agents core
+   * reads, each with its icon, its name and its plan's word, ✓ on the one shown. A press or Enter picks; ↑ ↓ step.
+   * @param {Look} look */
   listed(t, look) {
-    const rows = agentList(this.agents, look.programs, look.agent).filter((row) => READ.includes(row.key));
+    const rows = agentList(this.agents, look.programs, look.agent).filter((row) => !row.dim
+      && READ.includes(row.key));
     const none = this.agentsError ? listNote(t, `Couldn't list the agents: ${this.agentsError}`, true, PAD)
       : !this.agents ? listNote(t, "Loading agents…", false, PAD) : null;
     return panelSurface(t, "agents-list-surface", LIST).p(4).gap(2).track_focus(this.listFocus)
       .on_key_down((/** @type {any} */ e, /** @type {any} */ cx) => this.listKey(e, cx, rows))
-      .child(div().flex_none().px(PAD).pt(6).pb(4).text_size(12).line_height("16px").font_semibold()
-        .text_color(t.muted).child("Agents on this Mac"))
+      .when(rows.length > 0, (e) => e.child(div().flex_none().px(PAD).pt(6).pb(4).text_size(12).line_height("16px")
+        .font_semibold().text_color(t.muted).child(rows[0].group)))
       .when(Boolean(none), (e) => e.child(none))
       .children(rows.map((row, n) => panelRow(t, this, n, true, row.check).id(`agents-pick-${row.key}`)
         .line_height("16px").cursor_pointer()
         .on_click((/** @type {any} */ _e, /** @type {any} */ cx) => this.pick(row.key, cx))
         .child(agentMark(look.programs[row.key], 16) ?? icon("bot", 16).text_color(t.muted))
         .child(div().flex_none().child(row.name))
-        .when(Boolean(row.plan), (e) => e.child(div().min_w(0).truncate().text_size(12).text_color(t.dim)
-          .child(row.plan ?? "")))
+        .when(Boolean(row.word) && !row.warn, (e) => e.child(div().min_w(0).truncate().text_size(12)
+          .text_color(t.muted).child(row.word ?? "")))
         .child(div().flex_1())
         .when(row.check, (e) => e.child(icon("check", 14).text_color(t.accent)))));
   }
@@ -443,8 +449,9 @@ export class AgentsView {
    * foot. A node drags, a double click beside them lays them out again. @param {any} graph @param {Look} look */
   canvas(t, graph, look) {
     /** @type {Node[]} */
-    const nodes = graph.nodes, size = this.size, apart = gatesRoom(graph.edges);
-    const at = placed(this.still ? null : shared(GRAPH_LAYOUT), this.kept(), nodes, size, this.sizes, apart);
+    this.uid ??= views++;
+    const nodes = graph.nodes, size = this.size, apart = gatesRoom(graph.edges), near = gatesRoom(graph.edges, true);
+    const at = placed(this.still ? null : shared(GRAPH_LAYOUT), this.kept(), nodes, size, this.sizes, apart, near);
     if (this.drag?.to) at[this.drag.id] = this.drag.to;
     const all = boxes(nodes, at, this.sizes), room = extent(all, size);
     const chosen = nodes.find((one) => one.id === this.chosen) ?? null, top = this.drag?.id ?? this.chosen;
@@ -454,7 +461,7 @@ export class AgentsView {
       .when(!this.still, (e) => e.on_mouse_down("left", (/** @type {any} */ e, /** @type {any} */ cx) =>
         this.pressed(e, cx)))
       .child(this.dots(t, room)).children(wires)
-      .children(this.heads(t, graph.words.columns, boxes(nodes, layout(nodes, size, this.sizes, apart),
+      .children(this.heads(t, graph.words.columns, boxes(nodes, layout(nodes, size, this.sizes, apart, near),
         this.sizes), room))
       .children([...nodes.filter((one) => one.id !== top), ...nodes.filter((one) => one.id === top)]
         .map((one) => this.node(t, one, all[one.id], look, view)))
@@ -468,7 +475,7 @@ export class AgentsView {
         .on_mouse_move((/** @type {any} */ e, /** @type {any} */ cx) => this.moved(e, cx))
         .on_mouse_up("left", (/** @type {any} */ _e, /** @type {any} */ cx) => this.drop(true, cx))
         .on_hover((/** @type {boolean} */ over, /** @type {any} */ cx) => void (!over && this.drop(false, cx))))
-      .child(div().id("agents-canvas").size_full().overflow_scroll()
+      .child(div().id(`agents-canvas-${this.uid}`).size_full().overflow_scrollbar()
         .on_size_change((/** @type {{ width: number, height: number }} */ now, /** @type {any} */ cx) => {
           const width = unzoomed(now.width, zoom()), height = unzoomed(now.height, zoom());
           if (width === size.width && height === size.height) return;
@@ -497,7 +504,7 @@ export class AgentsView {
   }
 
   /** EDGES between the boxes ALL in VIEW: a path a look (wireLook()), a node's edges leaving it in their targets'
-   * order; each edge's gates on it, pills centred 55% along (in This conversation on the edges that ran alone).
+   * order; each edge's gates on it, pills centred 55% along (in This chat on the edges that ran alone).
    * @param {import("./graph.js").Edge[]} edges @param {Record<string, Box>} all @param {string} view */
   wires(t, edges, all, view) {
     /** @type {Map<string, import("./graph.js").Edge[]>} */
@@ -528,36 +535,36 @@ export class AgentsView {
     return { wires: order.map((key) => painted(paths[key].path, paths[key].color)), gates };
   }
 
-  /** An edge's GATES at AT (agent-graph.html's .gate): pills on the window's level with a hairline, each in its
-   * tone (ask yellow, allow green, deny red, a hook the accent), 4 apart, centred on the edge.
+  /** An edge's GATES at AT (agent-graph.html's .gate): pills on the window's level with a hairline, verb and object
+   * in its tone (ask yellow, allow green, deny red, a hook muted), 4 apart, centred on the edge.
    * @param {import("./graph.js").Point} at @param {{ text: string, tone: string }[]} gates */
   gate(t, at, gates) {
     return div().absolute().left(at.x - GATES / 2).top(at.y - 9).w(GATES).flex().justify_center()
       .child(h_flex().flex_none().gap(4).children(gates.map((one) => div().h(18).flex_none().px(6).flex()
         .items_center().rounded(4).border_1().border_color(t.border).bg(t.canvas).text_size(11).line_height("16px")
-        .whitespace_nowrap().text_color(toneInk(t, GATE_TONE[one.tone] ?? one.tone, t.canvas)).child(one.text))));
+        .whitespace_nowrap().text_color(toneInk(t, one.tone, t.canvas)).child(one.text))));
   }
 
-  /** The columns' names (.gcols), 11 dim, HEADS down: In from the left edge, Agents over the agent, Uses to the right
+  /** The columns' names (.gcols), 11 muted, HEADS down: In from the left edge, Agents over the agent, Uses to the right
    * edge. @param {Record<string, string>} words @param {Record<string, import("./graph.js").Box>} laid
    * @param {{ width: number }} room */
   heads(t, words, laid, room) {
     const agent = laid[AGENT], wide = 120;
     const head = (/** @type {string} */ word) => div().absolute().top(HEADS).text_size(11).line_height("16px")
-      .text_color(t.dim).child(word);
+      .text_color(t.muted).child(word);
     return [head(words.in).left(EDGE),
       head(words.agents).left((agent ? agent.x + agent.w / 2 : room.width / 2) - wide / 2).w(wide).text_center(),
       head(words.uses).left(room.width - EDGE - wide).w(wide).text_right()];
   }
 
-  /** The legend at the canvas's top right (.legend): each kind of edge's sample and its word, 11 dim, on the nodes'
-   * level at 90%; "ran here", in the accent, in This conversation alone. @param {[string, string][]} legend */
+  /** The legend at the canvas's top right (.legend): each kind of edge's sample and its word, 11 muted, on the nodes'
+   * level at 90%; "ran here", in the accent, in This chat alone. @param {[string, string][]} legend */
   legend(t, legend) {
     const sample = (/** @type {string} */ style) => (style === "ran" ? div().w(22).h(2).bg(t.accent)
       : style === "always" ? div().w(22).h(2).bg(wireColor(t, style))
         : h_flex().gap(4).children([0, 1, 2].map(() => div().w(5).h(2).bg(wireColor(t, style)))));
     return h_flex().absolute().top(PAD).right(PAD).h(BUTTON).px(PAD).gap(PAD).items_center().rounded(8).border_1()
-      .border_color(t.border).bg(`${t.chrome}e6`).text_size(11).text_color(t.dim)
+      .border_color(t.border).bg(`${t.chrome}e6`).text_size(11).text_color(t.muted)
       .children(legend.map(([style, word]) => h_flex().gap(6).items_center().child(sample(style)).child(word)));
   }
 
@@ -569,8 +576,8 @@ export class AgentsView {
         : icon(ICON[node.icon ?? ""] ?? "file").text_color(t.muted);
   }
 
-  /** NODE at BOX in VIEW (agent-graph.html's .node, usage.html's .gnode; docs/styleguide.md, The Agents tab): in
-   * This conversation its cost or calls, its model's square, its share's bar. A press chooses it, a drag moves it.
+  /** NODE at BOX in VIEW (agent-graph.html's .node): its tag a raised chip or This chat's state in its tone; in This
+   * chat its cost or calls, model's square, share's bar. A press chooses it, a drag moves it.
    * @param {Node} node @param {Box} box @param {Look} look @param {string} view */
   node(t, node, box, look, view) {
     const agent = node.kind === "agent", chosen = node.id === this.chosen, [color, alpha] = STATE_EDGE[node.state
@@ -578,8 +585,8 @@ export class AgentsView {
     const shown = nodeShown(node, view);
     const ground = agent ? mixColor(t.chrome, t.accent, AGENT_TINT) : t.chrome, code = codeFont();
     const edge = color ? `${t[color]}${alpha}` : agent ? `${t.accent}${AGENT_EDGE}` : wireColor(t, "always");
-    const card = v_flex().id(`agents-node-${node.id}`).min_w(sizeOf(node).w).max_w(MOST).py(8).px(PAD).rounded(10)
-      .border_1().border_color(edge).bg(ground).shadow_md()
+    const card = v_flex().id(`agents-node-${this.uid}-${node.id}`).min_w(sizeOf(node).w).max_w(MOST).py(8).px(PAD)
+      .rounded(10).border_1().border_color(edge).bg(ground).shadow_md()
       .on_size_change((/** @type {{ width: number, height: number }} */ size, /** @type {any} */ cx) => {
         const { w, h } = measured(size, zoom()), was = this.sizes[node.id];
         if (was?.w === w && was?.h === h) return;
@@ -589,14 +596,14 @@ export class AgentsView {
       .child(h_flex().h(18).gap(6).items_center().child(this.mark(t, node, look))
         .child(div().min_w(0).truncate().text_size(12).font_semibold().child(node.title))
         .when(Boolean(shown.tag ?? shown.cost ?? shown.calls), (e) => e.child(div().flex_1().min_w(6)))
-        .when(Boolean(shown.tag), (e) => e.child(div().flex_none().text_size(11).text_color(shown.tag?.tone === "warn"
-          ? toneInk(t, "warn", ground) : tagInk(t, TAG_ROLE[shown.tag?.tone ?? ""] ?? "local", ground))
-          .child(agent ? shown.tag?.text ?? "" : tagWord(shown.tag?.text ?? ""))))
+        .when(typeof shown.tag === "string", (e) => e.child(scopeTag(t, tagWord(String(shown.tag)))))
+        .when(Boolean(shown.tag) && typeof shown.tag === "object", (e) => e.child(div().flex_none().text_size(11)
+          .text_color(toneInk(t, shown.tag?.tone ?? "", ground)).child(shown.tag?.text ?? "")))
         .when(Boolean(shown.cost), (e) => e.child(div().flex_none().text_size(12).child(shown.cost ?? "")))
         .when(Boolean(shown.calls), (e) => e.child(div().flex_none().text_size(11).text_color(t.muted)
           .child(shown.calls ?? ""))))
       .when(Boolean(shown.sub), (e) => e.child(h_flex().h(16).mt(2).gap(6).items_center().text_size(11)
-        .line_height("16px").text_color(node.state ? toneInk(t, node.state, ground) : agent ? t.muted : t.dim)
+        .line_height("16px").text_color(node.state ? toneInk(t, node.state, ground) : t.muted)
         .when(Boolean(shown.color), (e) => e.child(swatch(shown.color ?? "")))
         .child(div().min_w(0).truncate().child(shown.sub ?? ""))))
       .when(shown.share !== null, (e) => e.child(div().h(4).mt(6).rounded_full().overflow_hidden().bg(t.raised)
@@ -624,9 +631,9 @@ export class AgentsView {
     const error = errorColors(t, ground), state = props?.state ?? null;
     const told = (/** @type {[string, string, string | null]} */ [name, value, note], /** @type {number} */ n) =>
       h_flex().id(`agents-ran-${n}`).h(20).flex_none().gap(8).items_center()
-        .child(div().w(RUN_LABEL).flex_none().text_color(t.dim).child(name))
+        .child(div().w(RUN_LABEL).flex_none().text_color(t.muted).child(name))
         .child(div().flex_none().max_w_full().truncate().child(value))
-        .when(Boolean(note), (e) => e.child(div().min_w(0).truncate().text_color(t.dim).child(note ?? "")));
+        .when(Boolean(note), (e) => e.child(div().min_w(0).truncate().text_color(t.muted).child(note ?? "")));
     return v_flex().id("agents-inspector").absolute().left(PAD).bottom(PAD).w(ran ? RUN_INSPECTOR : INSPECTOR)
       .p(PAD).gap(6).rounded(10)
       .border_1().border_color(t.border).bg(ground).shadow_lg().text_size(12)
@@ -643,10 +650,11 @@ export class AgentsView {
       .when(lines.length > 0, (e) => e.child(v_flex().id("agents-inspector-lines").flex_none().max_h(LISTED)
         .overflow_y_scroll().children(lines.map((line, n) => (list ? h_flex().h(20).flex_none().gap(8).items_center()
           .child(div().flex_1().min_w(0).truncate().child(line[0]))
-          .child(div().flex_none().text_color(t.dim).child(line[1]))
+          .child(div().flex_none().text_color(t.muted).child(line[1]))
           : ran ? told(line, n) : propertyLine(t, `agents-property-${n}`, line, LABEL, code))))))
-      .when(Boolean(props?.error), (e) => e.child(div().flex_none().px(8).py(6).rounded(6).bg(error.fill)
-        .font_family(code).text_size(11).text_color(error.ink).child(props?.error ?? "")))
+      .when(Boolean(props?.error), (e) => e.child(div().id("agents-inspector-error").flex_none().px(8).py(6)
+        .rounded(6).bg(error.fill).font_family(code).text_size(11).text_color(error.ink)
+        .when(Boolean(props?.tip), (e) => e.tooltip(props?.tip ?? "")).child(props?.error ?? "")))
       .when(!first || Boolean(panel), (e) => e.child(h_flex().flex_none().pt(2).gap(6).flex_wrap()
         .children(opens.map((/** @type {any} */ one, /** @type {number} */ n) => actButton(t, `agents-open-${n}`,
           one.label, n ? "plain" : "raised", true, () => this.open(String(one.path)))))

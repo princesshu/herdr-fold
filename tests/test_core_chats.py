@@ -300,27 +300,6 @@ class Kept(Chats):
                 lambda: chats.archive(self.state, {"claude:s1"}))
         self.assertEqual(chats.setting(self.state), {"resumed": {"w1:p9": "s2"}, "archived": ["claude:s1"]})
 
-    def test_an_older_versions_files_carry_over_under_their_new_names(self):
-        # conversations.json and conversation-index.json: the archived ones and what was read stay
-        os.makedirs(self.state)
-        for name, kept in (("conversations.json", {"archived": ["claude:s1"]}),
-                           ("conversation-index.json", {"version": chats.INDEX_VERSION, "files": {}})):
-            with open(os.path.join(self.state, name), "w") as f:
-                json.dump(kept, f)
-        self.assertEqual(chats.archived(self.state), {"claude:s1"})
-        self.assertEqual(chats.load_index(self.state), {})
-        self.assertEqual(sorted(name for name in os.listdir(self.state) if not name.endswith(".lock")),
-                         ["chat-index.json", "chats.json"])
-        with open(os.path.join(self.state, chats.SETTINGS)) as f:
-            self.assertEqual(json.load(f), {"archived": ["claude:s1"]})
-
-    def test_a_new_file_wins_over_an_older_versions_left_beside_it(self):
-        os.makedirs(self.state)
-        for name, archived in (("conversations.json", ["claude:old"]), ("chats.json", ["claude:new"])):
-            with open(os.path.join(self.state, name), "w") as f:
-                json.dump({"archived": archived}, f)
-        self.assertEqual(chats.archived(self.state), {"claude:new"})
-
 
 class Deleting(Chats):
     """Delete…: a closed chat's own file to the system's Trash (a stand-in here: a folder outside the temporary HOME),
@@ -469,14 +448,6 @@ class CommandLine(Chats):
         self.assertEqual(self.cli("archive", "claude:s1", "codex:c2"), (0, {"ok": True}))
         self.cli("unarchive", "claude:s1")
         self.assertEqual(chats.archived(self.state), {"codex:c2"})
-
-    def test_what_an_older_version_kept_goes_on_the_next_write(self):
-        # the Chats column's width and fold (before it was a panel of the sidebar) are left behind nowhere
-        os.makedirs(self.state)
-        with open(os.path.join(self.state, chats.SETTINGS), "w") as f:
-            json.dump({"ratio": 0.65, "collapsed": True, "show_archived": True}, f)
-        chats.archive(self.state, {"claude:s1"})
-        self.assertEqual(chats.setting(self.state), {"show_archived": True, "archived": ["claude:s1"]})
 
     def test_a_rename_is_kept_with_herdrs_names(self):
         self.claude("s1", prompt("Fix the login"))

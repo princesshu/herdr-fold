@@ -21,10 +21,10 @@ SVG = "http://www.w3.org/2000/svg"
 UI = ("arrow-up", "arrow-up-from-line", "at-sign", "audio-lines", "book-marked", "bot", "check", "chevron-down",
       "chevron-right", "chevron-up", "chevrons-down-up", "chevrons-left", "chevrons-right", "circle-dot", "clock",
       "code", "columns-2", "command", "copy", "download", "ellipsis", "external-link", "eye", "eye-off", "file",
-      "file-plus", "files", "folder-plus", "git-branch", "hand", "layers", "leaf", "link", "loader-circle", "minus",
-      "monitor", "notebook", "panel-left", "plug", "plus", "refresh-cw", "rows-2", "search", "server", "settings",
-      "share-2", "shield", "sparkle", "sparkles", "square", "square-slash", "square-terminal", "terminal", "undo-2",
-      "wrench", "x", "zap")
+      "file-plus", "files", "folder-plus", "git-branch", "hand", "layers", "leaf", "link", "list-checks",
+      "loader-circle", "minus", "monitor", "notebook", "panel-left", "plug", "plus", "refresh-cw", "rows-2",
+      "scroll-text", "search", "server", "settings", "share-2", "sparkle", "sparkles", "square", "square-slash",
+      "square-terminal", "terminal", "undo-2", "wrench", "x", "zap")
 
 
 def core(name):

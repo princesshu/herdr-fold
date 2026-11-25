@@ -16,6 +16,7 @@ import tempfile
 import threading
 import time
 import zlib
+from unittest import mock
 
 PACKAGE = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 SRC = os.path.join(PACKAGE, "src")
@@ -736,3 +737,147 @@ class AppScreen:
 def psd_in_preview(path, *_):
     """media.opener() as a Mac's for a PSD, the browser for the rest, on any machine the tests run on."""
     return "Preview" if path.endswith(".psd") else "Browser"
+
+
+class AgentHome:
+    """A temporary home, folder and managed folder for the tests of what an agent starts with (core/agent_setup.py and
+    its readers): the files a test puts there, a session's lines, stand-in agents; nothing of the machine's own."""
+
+    def setUp(self):
+        import agent_setup                      # core/'s, on the path of the tests that use this
+        top = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, top)
+        self.home = os.path.join(top, "home")
+        self.folder = os.path.join(top, "work", "lumen-api")
+        self.managed = os.path.join(top, "managed")     # the organization's folder, never this machine's own
+        os.makedirs(self.folder)
+        self.bin = os.path.join(self.home, "bin")       # the stand-in programs: the only ones a test finds
+        for patch in (mock.patch.object(agent_setup, "MANAGED_DIR", self.managed),
+                      mock.patch.object(agent_setup, "find", lambda name: shutil.which(name, path=self.bin))):
+            patch.start()
+            self.addCleanup(patch.stop)
+        set_env(self, CODEX_HOME=None, ANTHROPIC_MODEL=None, CLAUDE_CODE_EFFORT_LEVEL=None)
+
+    def put(self, path, text):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        return path
+
+    def settings(self, scope, **values):
+        """A settings file of SCOPE (managed, user, project, local) holding VALUES; its path."""
+        path = {"managed": os.path.join(self.managed, "managed-settings.json"),
+                "user": os.path.join(self.home, ".claude", "settings.json"),
+                "project": os.path.join(self.folder, ".claude", "settings.json"),
+                "local": os.path.join(self.folder, ".claude", "settings.local.json")}[scope]
+        return self.put(path, json.dumps(values))
+
+    def files(self):
+        """Every file under the home, the folder and the managed folder, with its text: what a test checks nothing
+        wrote."""
+        found = {}
+        for base in (self.home, self.folder, self.managed):
+            for here, _, names in os.walk(base):
+                for name in names:
+                    with open(os.path.join(here, name), encoding="utf-8") as f:
+                        found[os.path.join(here, name)] = f.read()
+        return found
+
+    def agent_file(self, base, file, **meta):
+        """An agent's file in BASE: META as its front matter (a list as `- item` lines), then its prompt."""
+        lines = ["---"]
+        for key, value in meta.items():
+            lines += [f"{key}:"] + [f"  - {one}" for one in value] if isinstance(value, list) else [f"{key}: {value}"]
+        return self.put(os.path.join(base, file), "\n".join(lines + ["---", "You review lumen-api's changes."]))
+
+    def install(self, *names):
+        """The plugins NAMES installed for the user from the market, enabled; each installed copy's folder."""
+        roots = {name: os.path.join(self.home, ".claude", "plugins", "cache", "market", name, "1.0") for name in names}
+        self.put(os.path.join(self.home, ".claude", "plugins", "installed_plugins.json"), json.dumps(
+            {"version": 2, "plugins": {f"{name}@market": [{"scope": "user", "installPath": root}]
+                                       for name, root in roots.items()}}))
+        return roots
+
+    def listing(self, added=(), built_in=(), removed=(), initial=False):
+        """A session's agent_listing_delta line, as Claude writes one: each added type with its line."""
+        lines = [f"- {name}: {words}" for name, words in added]
+        return json.dumps({"type": "attachment", "attachment": {
+            "type": "agent_listing_delta", "addedTypes": [name for name, _ in added], "addedLines": lines,
+            "builtInTypes": list(built_in), "builtInPluginTypes": [], "removedTypes": list(removed),
+            "isInitial": initial, "showConcurrencyNote": False}})
+
+    def claude_json(self, **values):
+        """Claude's own ~/.claude.json in the stand-in home, holding VALUES; its path."""
+        return self.put(os.path.join(self.home, ".claude.json"), json.dumps(values))
+
+    def project_file(self, **found):
+        """The folder's .mcp.json, its servers FOUND; its path."""
+        return self.put(os.path.join(self.folder, ".mcp.json"), json.dumps({"mcpServers": found}))
+
+    def line(self, **fields):
+        """A session line as Claude writes one: FIELDS with the keys every line carries."""
+        return json.dumps({"parentUuid": None, "isSidechain": False, "userType": "external", "cwd": self.folder,
+                           "sessionId": "5e551011", "version": "2.1.325", "gitBranch": "main",
+                           "timestamp": "2026-11-12T09:00:00.000Z", "uuid": "0b1d", **fields})
+
+    def delta(self, added=(), removed=(), failed=None, sign_in=None, pending=None):
+        """A deferred_tools_delta line, as measured: one line per tool added (its name), the servers' lists only where
+        given (a compacted conversation's first one names none)."""
+        attachment = {"type": "deferred_tools_delta", "addedNames": list(added), "addedLines": list(added),
+                      "removedNames": list(removed), "readdedNames": [], "surfacedNames": [], "wireHiddenNames": []}
+        if failed is not None:
+            attachment["failedMcpServers"] = [{"name": name, "error": error} for name, error in failed]
+        if sign_in is not None:
+            attachment["needsAuthMcpServers"] = list(sign_in)
+        if pending is not None:
+            attachment["pendingMcpServers"] = list(pending)
+        return self.line(type="attachment", attachment=attachment)
+
+    def instructions(self, added=None, removed=()):
+        """An mcp_instructions_delta line: each server's block of instructions ADDED ({name: block})."""
+        added = added or {}
+        return self.line(type="attachment", attachment={"type": "mcp_instructions_delta", "addedNames": list(added),
+                                                        "addedBlocks": list(added.values()),
+                                                        "removedNames": list(removed)})
+
+    def session(self, name, *lines, folder=None, age=0):
+        """A session file of the chats started in FOLDER (else the folder), LINES its lines, changed AGE seconds ago;
+        its path."""
+        projects = os.path.join(self.home, ".claude", "projects")
+        path = self.put(os.path.join(projects, re.sub(r"[^A-Za-z0-9-]", "-", folder or self.folder), f"{name}.jsonl"),
+                        "\n".join(lines) + "\n")
+        os.utime(path, (time.time() - age, time.time() - age))
+        return path
+
+    def call(self, name, key, when="2026-11-12T09:00:00.000Z", **given):
+        """An assistant line holding one tool call: the tool NAME, its id's end KEY, made WHEN, its input GIVEN."""
+        return self.line(type="assistant", timestamp=when, requestId=f"req_{key}", message={
+            "id": f"msg_{key}", "type": "message", "role": "assistant", "model": "claude-opus-5-5",
+            "content": [{"type": "tool_use", "id": f"toolu_{key}", "name": name, "input": given}],
+            "stop_reason": "tool_use", "usage": {"input_tokens": 3, "output_tokens": 40}})
+
+    def programs(self, answers):
+        """Stand-in agents in the test's bin, one for each of ANSWERS ({program: {its arguments: [out, error, exit code]
+        or [out, error, exit code, seconds it waits first]}}), read at each call; each call's program, folder and
+        arguments go to the log, whose path it returns."""
+        log, self.answers = os.path.join(self.home, "agent-calls"), os.path.join(self.home, "agent-answers.json")
+        self.answer(answers)
+        script = "\n".join([
+            "#!/usr/bin/python3 -B", "import json, os, sys, time",
+            "name = os.path.basename(sys.argv[0])",
+            "with open(os.environ['AGENT_STAND_IN_LOG'], 'a') as f:",
+            "    f.write(json.dumps({'program': name, 'cwd': os.getcwd(), 'argv': sys.argv[1:]}) + '\\n')",
+            "with open(os.environ['AGENT_STAND_IN_ANSWERS']) as f:",
+            "    out, error, code, *wait = json.load(f).get(name, {}).get(' '.join(sys.argv[1:]), ['', 'unknown', 2])",
+            "time.sleep(wait[0] if wait else 0)",
+            "sys.stdout.write(out)", "sys.stderr.write(error)", "sys.exit(code)", ""])
+        stubs(self.bin, dict.fromkeys(answers, script))
+        set_env(self, HOME=self.home, AGENT_STAND_IN_LOG=log, AGENT_STAND_IN_ANSWERS=self.answers)
+        return log
+
+    def answer(self, answers):
+        """What the stand-in agents answer from now on (programs()'s ANSWERS)."""
+        self.put(self.answers, json.dumps(answers))
+
+    def codex_home(self, *parts):
+        return os.path.join(self.home, ".codex", *parts)

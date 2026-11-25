@@ -290,9 +290,19 @@ class OnTheRail(unittest.TestCase):
         return {"type": "split", "direction": direction, "ratio": ratio, "first": first, "second": second}
 
     def test_the_terminal_comes_back_under_the_agent(self):
+        # as every other tab's on the rail: at its least rows, or as tall as it was raised (column.json)
         fake = self.herdr(self.split("right", 0.9, self.pane("w1:p1", "claude"), self.pane("w1:p2", "sidebar")))
         self.assertEqual(panes.bring(fake.cli, "w1:t1", {"terminal"}, self.state), {"terminal"})
-        self.assertEqual(labels(fake.tabs["w1:t1"][0]), ("right", 0.9, ("down", 0.5, "claude", "terminal"), "sidebar"))
+        self.assertEqual(labels(fake.tabs["w1:t1"][0]), ("right", 0.9, ("down", 0.9, "claude", "terminal"), "sidebar"))
+        panes.keep_terminal(self.state, raised=True, share=0.4)
+        fake.tabs["w1:t1"][0]["first"] = self.pane("w1:p1", "claude")
+        panes.bring(fake.cli, "w1:t1", {"terminal"}, self.state)
+        self.assertEqual(labels(fake.tabs["w1:t1"][0])[2], ("down", 0.6, "claude", "terminal"))
+
+    def test_a_new_tab_on_the_rail_gets_its_terminal_as_every_other_tabs(self):
+        fake = self.herdr(self.pane("w1:p1", "claude"))
+        panes.build(fake.cli, "w1:p1", None, self.state)
+        self.assertEqual(labels(fake.tabs["w1:t1"][0]), ("right", 0.9, ("down", 0.9, "claude", "terminal"), "sidebar"))
 
     def test_the_sidebar_comes_back_in_the_rails_column_beside_the_agent_and_its_terminal(self):
         fake = self.herdr(self.split("down", 0.6, self.pane("w1:p1", "claude"), self.pane("w1:p3", "terminal")))
@@ -306,7 +316,7 @@ class OnTheRail(unittest.TestCase):
     def test_a_tab_with_neither_gets_the_rails_column_at_once(self):
         fake = self.herdr(self.pane("w1:p1", "claude"))
         self.assertEqual(panes.bring(fake.cli, "w1:t1", set(panels.KINDS), self.state), set(panels.KINDS))
-        self.assertEqual(labels(fake.tabs["w1:t1"][0]), ("right", 0.9, ("down", 0.5, "claude", "terminal"), "sidebar"))
+        self.assertEqual(labels(fake.tabs["w1:t1"][0]), ("right", 0.9, ("down", 0.9, "claude", "terminal"), "sidebar"))
         self.assertEqual(fake.moves, [])
 
 
@@ -387,7 +397,7 @@ class Shells(unittest.TestCase):
 
 class NewTab(unittest.TestCase):
     """herdr's tab.created: a new tab gets the right column on every platform, but for the new button's workspace
-    while Workspaces' folder picker is open (herdr-fold.workspaces' tests cover the picker)."""
+    while Spaces' folder picker is open (herdr-fold.spaces' tests cover the picker)."""
 
     def setUp(self):
         self.columns, self.waited, self.label = [], [], "app"
@@ -426,7 +436,7 @@ class NewTab(unittest.TestCase):
         self.assertEqual(self.columns, [])
 
     def test_the_new_buttons_workspace_is_left_to_the_folder_picker(self):
-        # Workspaces names it new and builds the chosen folder's workspace, then closes this one
+        # Spaces names it new and builds the chosen folder's workspace, then closes this one
         self.label = "new"
         self.new_tab()
         self.assertEqual(self.columns, [])
@@ -526,49 +536,10 @@ class RestoreAll(unittest.TestCase):
         self.assertEqual(self.changes(calls), [])
 
     def test_an_agents_pane_is_left_to_its_agent(self):
-        # herdr-fold's Workspaces starts it again (restore_panes.py); the dock never types into it
+        # herdr-fold's Spaces starts it again (restore_panes.py); the dock never types into it
         calls = self.restore([("w1:t1", "claude", "zsh"), ("w1:t1", "sidebar", "Python"),
                               ("w1:t1", "terminal", "zsh")], agents={"w1:p1": "app-claude"})
         self.assertEqual(self.changes(calls), [])
-
-    def test_an_older_installs_chat_column_goes_its_room_back_to_the_agent(self):
-        # before it was a panel of the sidebar, the Chats column stood between the agent and the right
-        # column: closed, its room goes to the right column, as wide as chosen on this machine (none yet: every name)
-        tmp = tempfile.mkdtemp(dir="/tmp")                  # a short path: a socket's name has room for 104 bytes
-        self.addCleanup(shutil.rmtree, tmp)
-        set_env(self, HERDR_SOCKET_PATH=os.path.join(tmp, "h.sock"))
-        column = {"type": "split", "direction": "down", "ratio": 0.5, "first": {"type": "pane", "pane_id": "w1:p3",
-                  "label": "sidebar"}, "second": {"type": "pane", "pane_id": "w1:p4", "label": "terminal"}}
-        after = {"type": "split", "direction": "right", "ratio": 0.525, "second": column,     # as herdr leaves it
-                 "first": {"type": "pane", "pane_id": "w1:p1", "label": "claude"}}
-        fake = FakeHerdrSocket(os.path.join(tmp, "h.sock"), {"w1:t1": (after, False)})
-        self.addCleanup(fake.server.close)
-        calls = self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "conversations", "Python"),
-                              ("w1:t1", "sidebar", "Python"), ("w1:t1", "terminal", "zsh")], agents={"w1:p1": "app"})
-        self.assertEqual(self.changes(calls), [("pane", "close", "w1:p2")])
-        self.assertEqual([params for method, params in fake.calls if method == "layout.set_split_ratio"],
-                         [{"tab_id": "w1:t1", "path": [], "ratio": 0.59}])                # 82 of 200 cells
-        self.assertEqual(self.said, [("ok", "column_gone", "app")])
-
-    def test_a_pane_the_user_named_as_the_old_column_stays(self):
-        # herdr's Rename pane: an agent's pane named "conversations" is no old column; the old column's is Python's
-        calls = self.restore([("w1:t1", "conversations", "claude"), ("w1:t1", "sidebar", "Python"),
-                              ("w1:t1", "terminal", "zsh")], agents={"w1:p1": None})
-        self.assertNotIn(("pane", "close", "w1:p1"), calls)
-
-    def test_what_an_older_install_kept_for_its_column_goes(self):
-        # the column's width and fold in chats.json: gone at once, the rest kept; no file made where none was
-        chats.keep(self.state, archived=["claude:s1"])
-        with open(os.path.join(self.state, chats.SETTINGS)) as f:
-            kept = {**json.load(f), "ratio": 0.62, "collapsed": True}
-        with open(os.path.join(self.state, chats.SETTINGS), "w") as f:
-            json.dump(kept, f)
-        self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "sidebar", "Python"), ("w1:t1", "terminal", "zsh")],
-                     agents={"w1:p1": "app"})
-        self.assertEqual(chats.setting(self.state), {"archived": ["claude:s1"]})
-        os.remove(os.path.join(self.state, chats.SETTINGS))
-        self.restore([("w1:t1", "claude", "claude")], agents={"w1:p1": "app"})
-        self.assertFalse(os.path.exists(os.path.join(self.state, chats.SETTINGS)))
 
     def test_a_sidebar_running_another_program_keeps_its_tab_as_it_is(self):
         calls = self.restore([("w1:t1", "claude", "claude"), ("w1:t1", "sidebar", "herdr-sidebar"),

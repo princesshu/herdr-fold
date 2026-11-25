@@ -107,18 +107,18 @@ def show_sidebar(call, terminal, cwd, run, height=0.5):
     return side
 
 
-def show_terminal(call, above, cwd):
-    """A terminal back under ABOVE (the sidebar; on the dock's rail, the agent); its pane id."""
-    term = split(call, above, "down", 0.5, cwd)
+def show_terminal(call, above, cwd, tall=0.5):
+    """A terminal back under ABOVE (the sidebar; on the dock's rail, the agent), TALL of their rows; its pane id."""
+    term = split(call, above, "down", 1 - tall, cwd)
     call("pane", "rename", term, "terminal")
     return term
 
 
-def show_rail(call, beside, cwd, run, share):
+def show_rail(call, beside, cwd, run, share, tall=0.5):
     """The right column as the dock's rail, right of BESIDE (the agent), SHARE of the split BESIDE's, and a terminal
-    under BESIDE; the sidebar's pane id. RUN: the sidebar's command."""
+    under BESIDE, TALL of its rows; the sidebar's pane id. RUN: the sidebar's command."""
     side = split(call, beside, "right", share, cwd)
-    show_terminal(call, beside, cwd)
+    show_terminal(call, beside, cwd, tall)
     call("pane", "rename", side, "sidebar")
     call("pane", "run", side, run)
     return side

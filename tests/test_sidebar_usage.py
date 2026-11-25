@@ -1,5 +1,5 @@
 """Tests for the sidebar's Usage view (src/plugins/sidebar/usage_view.py, the pane the Agent view's Usage head opens),
-as usage.html's TUI usage pane: core's report in cells at 60 and 100 of them, its chips and keys, the budget's form;
+as usage.html's TUI usage pane: core's report in cells at 40, 60 and 100 of them, its chips and keys, the budget's form;
 core's readers stood in for, a temporary home and state, nothing of an agent's read or written."""
 import os
 import shutil
@@ -28,16 +28,19 @@ AGENTS = [{"key": "claude", "name": "Claude", "plan": "Max", "installed": True},
 
 def month(today=18.4, pace=46.0, budget=50):
     line = f"~${today:.2f}{f' of ${budget}' if budget else ''} · on pace for ~${pace:.0f}"
+    over = bool(budget) and max(pace, today) > budget
     return {"agent": "codex", "name": "Codex", "key": "Codex · API key", "id": "2026-11", "label": "November",
-            "budget": budget, "days": 30, "day": 12, "today": today, "pace": pace, "line": line,
-            "over": bool(budget) and max(pace, today) > budget, "end": "Nov 30", "color": CODEX}
+            "budget": budget, "days": 30, "day": 12, "today": today, "pace": pace, "line": line, "over": over,
+            "level": ("bad" if today >= budget else "warn" if over else "ok") if budget else None,
+            "pace_line": {"text": f"on pace for ~${pace:.0f} by November 30",
+                          "narrow": f"on pace for ~${pace:.0f} by Nov 30"} if over else None,
+            "end": "Nov 30", "color": CODEX}
 
 
-def talk(title, space, cost, commits, **more):
+def chat(title, space, cost, **more):
     return {"session": title[:4], "agent": "claude", "folder": f"/work/{space}", "title": title, "space": space,
             "models": [{"name": "Opus 5.5", "color": OPUS}], "turns": 38, "tokens": 1_240_000, "cache": 82,
-            "cost": cost, "kind": "value", "commits": commits, "about": False,
-            "commits_text": "–" if commits is None else str(commits) if commits else "none yet", **more}
+            "cost": cost, "kind": "value", **more}
 
 
 def reported(months=None, none=None, more=0):
@@ -48,44 +51,40 @@ def reported(months=None, none=None, more=0):
         for (color, name), cost in zip(NAMES.items(), costs) if cost]} for n, costs in enumerate(DAYS)]
     return {
         "period": {"id": "7d", "label": "7 days"}, "prices_as_of": "Nov 9, 2026", "none": none,
-        "filters": {"agents": [{"id": None, "label": "All agents"}, {"id": "claude", "label": "Claude"},
+        "filters": {"periods": [{"id": id, "label": label} for id, label in (
+                        ("today", "Today"), ("7d", "7 days"), ("30d", "30 days"), ("month", "November"))],
+                    "agents": [{"id": None, "label": "All agents"}, {"id": "claude", "label": "Claude"},
                                {"id": "codex", "label": "Codex"}]},
         "summary": [
             {"key": "Claude · Max plan", "agent": "claude", "value": 130.9, "text": "~$130.90", "unit": "API value",
-             "line": "no charge on the plan · week 16% of its limit", "over": False},
-            {"key": "Codex · API key", "agent": "codex", "value": 8.6, "text": "~$8.60", "unit": "spent",
-             "line": "November ~$18.40 of $50 · on pace for ~$46", "over": bool(months and months[0]["over"])},
-            {"key": "Tokens", "value": 38_200_000, "text": "38.2M", "line": "81% read from cache"},
-            {"key": "Commits from these conversations", "value": 9, "text": "9", "about": False,
-             "line": "~$15.50 each, API value"}],
+             "line": "no charge on the plan"},
+            {"key": "Codex · API key", "agent": "codex", "value": 46.08, "text": "~$46.08", "unit": "spent in 7 days",
+             "line": ""},
+            {"key": "Tokens", "value": 38_200_000, "text": "38.2M", "line": "81% read from cache"}],
         "daily": daily, "top": {"day": "2026-11-07", "label": "Nov 7", "total": 33.5},
         "legend": [{"model": name, "name": name, "color": color, "cost": 1.0, "share": share}
                    for (color, name), share in zip(NAMES.items(), (83, 11, 5, 6))],
         "months": months, "month": months[0] if months else None,
-        "projects": [{"folder": f"/work/{name}", "name": name, "cost": cost, "tokens": 1000, "commits": commits,
-                      "about": False, "commits_text": str(commits) if commits else "none yet"}
-                     for name, cost, commits in (("lumen-api", 84.2, 5), ("harbor-web", 41.1, 2),
-                                                 ("tidepool", 14.2, 0))],
-        "conversations": [talk("Fix the page past the last one", "lumen-api", 31.4, 2),
-                          talk("Login redirect fix", "harbor-web", 24.1, 1),
-                          talk("Document the error format", "lumen-api", 12.3, 0),
-                          talk("Plan the tide table", "tidepool", None, None, cache=None)],
+        "projects": [{"folder": f"/work/{name}", "name": name, "cost": cost, "tokens": 1000}
+                     for name, cost in (("lumen-api", 84.2), ("harbor-web", 41.1), ("tidepool", 14.2))],
+        "chats": [chat("Fix the page past the last one", "lumen-api", 31.4),
+                  chat("Login redirect fix", "harbor-web", 24.1),
+                  chat("Document the error format", "lumen-api", 12.3),
+                  chat("Plan the tide table", "tidepool", None, cache=None)],
         "more": more,
         "models": [{"model": "o", "name": "Opus 5.5", "color": OPUS, "agent": "Claude", "input": 1_200_000,
                     "write": 3_400_000, "read": 30_100_000, "output": 410_000, "cost": 118.2, "kind": "value",
                     "text": "$118.20"},
-                   {"model": "h", "name": "Haiku 5.5", "color": HAIKU, "agent": "Claude · sub-agents", "input": 90_000,
+                   {"model": "h", "name": "Haiku 5.5", "color": HAIKU, "agent": "Claude · subagents", "input": 90_000,
                     "write": 0, "read": 1_100_000, "output": 12_000, "cost": 4.1, "kind": "value", "text": "$4.10"},
                    {"model": "x", "name": "Tide 1", "color": "#d55181", "agent": "Codex", "input": 5000, "write": 0,
                     "read": 0, "output": 700, "cost": None, "kind": "spent", "text": "no price"}],
+        "columns": core.COLUMNS,
         "words": {"daily": "Per day, by model", "month": "November, against its budget", "projects": "By project",
-                  "projects_note": "value and spent together · 7 days", "conversations": "Conversations",
-                  "conversations_note": "the most first · 7 days", "models": "Models",
-                  "models_note": "each message at its own model's prices", "budget": "Budget…",
-                  "export": "Export CSV", "none_yet": "none yet", "no_price": "no price",
-                  "foot": "Costs are estimates from the conversations' token counts at list prices (LiteLLM's "
-                          "model cost map, as of Nov 9, 2026), not the provider's invoice · a model with no price "
-                          "shows its tokens alone"}}
+                  "projects_note": "API value and spend combined", "chats": "Chats", "chats_note": "by cost",
+                  "models": "Models", "budget": "Budget…", "export": "Export CSV", "no_price": "no price",
+                  "foot": "~ estimated from token counts at Anthropic's and OpenAI's list prices (Nov 9, 2026); on "
+                          "a plan, what the same use would cost on the API"}}
 
 
 class View(unittest.TestCase):
@@ -105,10 +104,10 @@ class View(unittest.TestCase):
             self.addCleanup(patch.stop)
         self.now = [100.0]
 
-    def open(self, cells=60, rows=60, period=None):
+    def open(self, cells=60, rows=60):
         app = usage_view.UsageView(FakeTerminal(cells, rows), mock.Mock(), os.path.join(self.tmp, "plugin"),
-                                   clock=lambda: self.now[0], period=period,
-                                   home=os.path.join(self.tmp, "home"), state=os.path.join(self.tmp, "state"))
+                                   clock=lambda: self.now[0], home=os.path.join(self.tmp, "home"),
+                                   state=os.path.join(self.tmp, "state"))
         self.settle(app)
         return app
 
@@ -145,19 +144,17 @@ class View(unittest.TestCase):
 
     def test_the_report_at_60_cells_as_the_mockups_usage_pane(self):
         rows = self.rows(self.open(60))
-        self.assertTrue(rows[0].startswith("  7 days   30 days   Nov     All agents   Claude   Codex"), rows[0])
-        self.assertEqual(rows[1:11], [
+        self.assertTrue(rows[0].startswith("  Today   7 days   30 days   November "), rows[0])
+        self.assertEqual(rows[1], "  All agents   Claude   Codex")                  # no room beside the periods
+        self.assertEqual(rows[2:9], [
             "",
-            " Claude · Max plan                 ~$130.90 API value",
-            "   no charge on the plan · week 16% of its limit",
-            " Codex · API key                   ~$8.60 spent",
-            "   November ~$18.40 of $50 · on pace for ~$46",
-            " Tokens                            38.2M",
+            " Claude · Max plan  ~$130.90 API value",
+            "   no charge on the plan",
+            " Codex · API key    ~$46.08 spent in 7 days",
+            " Tokens             38.2M",
             "   81% read from cache",
-            " Commits from these conversations  9",
-            "   ~$15.50 each, API value",
             ""])
-        self.assertEqual(rows[11:20], [
+        self.assertEqual(rows[9:18], [
             " Per day, by model                       top ~$33.50, Nov 7",
             "     ▂   ▁ ▄",
             "     ▆   ▅ ▇",
@@ -167,75 +164,77 @@ class View(unittest.TestCase):
             "   3 4 5 6 7 8 9",
             " ■ Opus 5.5 83%  ■ Sonnet 5.5 11%  ■ Haiku 5.5 5%",
             " ■ GPT-5 Codex 6%"])
-        self.assertEqual(rows[20:24], [
+        self.assertEqual(rows[18:22], [
             "",
             " November, against its budget               Codex · API key",
             " ▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱│▱  ~$18.40 of $50 · on pace for ~$46",
             "  Budget…"])
-        self.assertEqual(rows[24:29], [
+        self.assertEqual(rows[22:27], [
             "",
-            " By project               value and spent together · 7 days",
-            " lumen-api   ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰  $84.20  5 commits",
-            " harbor-web  ▰▰▰▰▰▰▰▰▰▰▰▰              $41.10  2 commits",
-            " tidepool    ▰▰▰▰                      $14.20  none yet"])
-        self.assertEqual(rows[29:35], [
+            " By project                    API value and spend combined",
+            " lumen-api   ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰  $84.20",
+            " harbor-web  ▰▰▰▰▰▰▰▰▰▰▰▰              $41.10",
+            " tidepool    ▰▰▰▰                      $14.20"])
+        self.assertEqual(rows[27:33], [
             "",
-            " Conversations                               cost   commits",
-            " Fix the page past the last one            $31.40         2",
-            " Login redirect fix                        $24.10         1",
-            " Document the error format                 $12.30  none yet",
-            " Plan the tide table                     no price         –"])
-        self.assertEqual(rows[35:45], [
+            " Chats by cost                                         Cost",
+            " Fix the page past the last one                      $31.40",
+            " Login redirect fix                                  $24.10",
+            " Document the error format                           $12.30",
+            " Plan the tide table                               no price"])
+        self.assertEqual(rows[33:42], [
             "",
-            " Models               input  write   read  output      cost",
-            " ■ Opus 5.5            1.2M   3.4M  30.1M    410k   $118.20",
-            " ■ Haiku 5.5            90k      –   1.1M     12k     $4.10",
-            " ■ Tide 1              5.0k      –      –     700  no price",
+            " Models           Cache write  Cache read  Output      Cost",
+            " ■ Opus 5.5              3.4M       30.1M    410k   $118.20",
+            " ■ Haiku 5.5                –        1.1M   12.0k     $4.10",
+            " ■ Tide 1                   –           –     700  no price",
             "",
-            " Costs are estimates from the conversations' token counts",
-            " at list prices (LiteLLM's model cost map, as of Nov 9,",
-            " 2026), not the provider's invoice · a model with no price",
-            " shows its tokens alone"])
+            " ~ estimated from token counts at Anthropic's and OpenAI's",
+            " list prices (Nov 9, 2026); on a plan, what the same use",
+            " would cost on the API"])
         self.assertTrue(all(len(row) <= 59 for row in rows[1:]), rows)          # a cell in from the right too
+        self.assertEqual([row for row in rows if "conversation" in row.lower()], [])    # the glossary's chat
 
     def test_at_100_cells_the_tables_show_every_column_names_left_figures_right(self):
         rows = self.rows(self.open(100))
-        y = self.at(self.open(100), " Conversations")[0]
+        self.assertTrue(rows[0].startswith("  Today   7 days   30 days   November     All agents   Claude   Codex"))
+        y = self.at(self.open(100), " Chats")[0]
         self.assertEqual(rows[y:y + 5], [
-            " Conversations                                 space       turns  tokens  cache      cost   commits",
-            " Fix the page past the last one                lumen-api      38    1.2M    82%    $31.40         2",
-            " Login redirect fix                            harbor-web     38    1.2M    82%    $24.10         1",
-            " Document the error format                     lumen-api      38    1.2M    82%    $12.30  none yet",
-            " Plan the tide table                           tidepool       38    1.2M      –  no price         –"])
+            " Chats by cost".ljust(57) + "Space       Turns  Tokens  Cache      Cost",
+            " Fix the page past the last one".ljust(57) + "lumen-api      38    1.2M    82%    $31.40",
+            " Login redirect fix".ljust(57) + "harbor-web     38    1.2M    82%    $24.10",
+            " Document the error format".ljust(57) + "lumen-api      38    1.2M    82%    $12.30",
+            " Plan the tide table".ljust(57) + "tidepool       38    1.2M      –  no price"])
         self.assertEqual(rows[y + 6:y + 10], [
-            " Models                                  agent                input  write   read  output      cost",
-            " ■ Opus 5.5                              Claude                1.2M   3.4M  30.1M    410k   $118.20",
-            " ■ Haiku 5.5                             Claude · sub-agents    90k      –   1.1M     12k     $4.10",
-            " ■ Tide 1                                Codex                 5.0k      –      –     700  no price"])
+            " Models                        Agent               Input  Cache write  Cache read  Output      Cost",
+            " ■ Opus 5.5                    Claude               1.2M         3.4M       30.1M    410k   $118.20",
+            " ■ Haiku 5.5                   Claude · subagents  90.0k            –        1.1M   12.0k     $4.10",
+            " ■ Tide 1                      Codex                5.0k            –           –     700  no price"])
         self.assertIn(" ■ Opus 5.5 83%  ■ Sonnet 5.5 11%  ■ Haiku 5.5 5%  ■ GPT-5 Codex 6%", rows)    # one line there
-        self.assertIn(" lumen-api   ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰  $84.20  5 commits", rows)     # no wider than at 60
-        self.assertEqual(rows[y + 11:y + 13], [" Costs are estimates from the conversations' token counts at list "
-                                               "prices (LiteLLM's model cost map,", " as of Nov 9, 2026), not the "
-                                               "provider's invoice · a model with no price shows its tokens alone"])
+        self.assertIn(" lumen-api   ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰  $84.20", rows)               # no wider than at 60
+        self.assertEqual(rows[y + 11:y + 13], [" ~ estimated from token counts at Anthropic's and OpenAI's list "
+                                               "prices (Nov 9, 2026); on a plan,", " what the same use would cost "
+                                               "on the API"])
 
-    def test_a_pane_narrower_than_the_chips_puts_the_agents_under_the_periods(self):
+    def test_a_pane_narrower_than_the_chips_says_nov_and_puts_the_agents_under_the_periods(self):
         rows = self.rows(self.open(40))
-        self.assertTrue(rows[0].startswith("  7 days   30 days   Nov"), rows[0])
-        self.assertEqual(rows[1:4], ["  All agents   Claude   Codex", "", " Claude · Max plan   ~$130.90 API value"])
+        self.assertTrue(rows[0].startswith("  Today   7 days   30 days   Nov "), rows[0])
+        self.assertEqual(rows[1:4], ["  All agents   Claude   Codex", "", " Claude · Max plan  ~$130.90 API value"])
+        self.assertEqual(rows[5], " Codex · API key    ~$46.08 spent in 7…")              # cut, never past it
         self.assertTrue(all(len(row) <= 39 for row in rows[1:]), rows)
         y = self.at(self.open(40), " By project")[0]
-        self.assertEqual(rows[y + 1], " lumen-api   ▰▰▰▰▰▰▰  $84.20  5 commits")            # the bars give way
+        self.assertEqual(rows[y + 1], " lumen-api   ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰  $84.20")       # the bars give way
 
     def test_only_the_models_wear_color_figures_lit_notes_dim(self):
         app = self.open()
         self.assertEqual([self.look(app, words) for words in (
             "Claude · Max plan", "~$130.90", "API value", "no charge", "Per day", "top ~$33.50", "3 4 5",
-            "Opus 5.5 83%", "Codex · API key  ", "By project", "▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰  $84", "5 commits",
-            "cost   commits", "no price         –", "none yet", "Costs are")],
+            "Opus 5.5 83%", "Codex · API key  ", "By project", "▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰  $84", "Cost",
+            "no price", "~ estimated")],
             [Style(fg="subtext"), Style(fg="text", bold=True), Style(fg="muted"), Style(fg="muted"),
              Style(fg="text", bold=True), Style(fg="muted"), Style(fg="muted"), Style(fg="subtext"),
              Style(fg="subtext"), Style(fg="text", bold=True), Style(fg="muted"), Style(fg="muted"),
-             Style(fg="muted"), Style(fg="muted"), Style(fg="muted"), Style(fg="muted")])
+             Style(fg="muted"), Style(fg="muted")])
         y, x = self.at(app, "■ Opus 5.5 83%")
         self.assertEqual([app.canvas.rows[y][at][1] for at in (x, x + 16, x + 34)],
                          [Style(fg=OPUS), Style(fg=SONNET), Style(fg=HAIKU)])
@@ -265,10 +264,9 @@ class View(unittest.TestCase):
         self.answer["daily"] = [{"day": f"2026-11-{n + 1:02d}", "label": f"Nov {n + 1}", "total": 1.0 + n,
                                  "models": [{"model": "o", "name": "Opus 5.5", "color": OPUS, "cost": 1.0 + n}]}
                                 for n in range(30)]
-        rows = self.rows(self.open(60))
-        y = self.at(self.open(60), "Per day")[0]
-        self.assertEqual(len(rows[y + 5]), 3 + 30)                              # no room for a cell between: none
-        self.assertEqual(len(self.rows(self.open(100))[y + 5]), 3 + 59)
+        for cells, wide in ((60, 30), (100, 59)):                              # at 60 no room for a cell between
+            app = self.open(cells)
+            self.assertEqual(len(self.rows(app)[self.at(app, "Per day")[0] + 5]), 3 + wide)
 
     def test_the_first_day_a_months_first_and_the_last_day_are_always_numbered(self):
         # 30 days over a month's end, as the finding had them: Oct 21 to Nov 19, the costliest day the last
@@ -296,7 +294,7 @@ class View(unittest.TestCase):
         app = self.open()
         y = self.at(app, "November, against")[0]
         self.assertEqual(self.rows(app)[y + 1], " ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱  │  ~$45.10 of $50 · on pace for ~$58")
-        self.assertEqual({self.look(app, words) for words in ("▰▰▰▰▰▰▰▰▰▰▰▱▱", "~$45.10 of $50", "November ~$18")},
+        self.assertEqual({self.look(app, words) for words in ("▰▰▰▰▰▰▰▰▰▰▰▱▱", "~$45.10 of $50")},
                          {Style(fg="modified")})
         self.assertEqual(usage_view.pace_bar(month()), (9, 24, 22))
         self.assertEqual(usage_view.pace_bar(month(60.0, 150.0)), (10, 8, 23))  # spent past it: the bar runs on
@@ -310,9 +308,9 @@ class View(unittest.TestCase):
 
     # --- the chips and the keys
 
-    def test_the_chosen_chips_stand_on_the_accent_tab_steps_the_periods_a_the_agents(self):
+    def test_the_chosen_chips_are_bold_on_the_hover_fill_tab_steps_the_periods_a_the_agents(self):
         app = self.open()
-        lit = Style(fg="button_text", bg="button", bold=True)
+        lit = Style(fg="text", bg="hover", bold=True)
         self.assertEqual([self.look(app, words) for words in ("7 days", "30 days", "All agents", "Claude  ")],
                          [lit, Style(fg="subtext"), lit, Style(fg="subtext")])
         self.assertEqual(self.asked, [("7d", None)])
@@ -333,22 +331,26 @@ class View(unittest.TestCase):
         self.click(app, "30 days")
         self.assertEqual(len(self.asked), 3)
 
-    def test_it_opens_on_the_period_the_agent_view_had(self):
-        self.assertEqual(self.open(period="30d").period, "30d")
-        self.assertEqual(self.open(period="yesterday").period, "7d")            # no period of its own
+    def test_it_opens_on_seven_days_as_the_app_and_a_chip_under_the_mouse_is_lit_in_the_text_color(self):
+        app = self.open()
+        self.assertEqual(app.period, "7d")
+        y, x = self.at(app, "30 days")
+        app.handle(Mouse("move", x, y, 0))
+        app.draw()
+        self.assertEqual(self.look(app, "30 days"), Style(fg="text"))
 
     def test_the_arrows_and_the_wheel_scroll_under_the_chips_never_past_the_last_line(self):
         app = self.open(rows=12)
-        self.assertEqual(self.rows(app)[2], " Claude · Max plan                 ~$130.90 API value")
+        self.assertEqual(self.rows(app)[3], " Claude · Max plan  ~$130.90 API value")
         self.press(app, "down", "down")
-        self.assertEqual(self.rows(app)[2], " Codex · API key                   ~$8.60 spent")
-        self.assertTrue(self.rows(app)[0].startswith("  7 days"))               # the chips stay
+        self.assertEqual(self.rows(app)[3], " Codex · API key    ~$46.08 spent in 7 days")
+        self.assertTrue(self.rows(app)[0].startswith("  Today"))                # the chips stay
         self.press(app, "end")
-        self.assertEqual(self.rows(app)[11], " shows its tokens alone")
+        self.assertEqual(self.rows(app)[11], " would cost on the API")
         self.press(app, "pagedown", "home")
         app.handle(Mouse("wheel_down", 5, 5))
         self.settle(app)
-        self.assertEqual(self.rows(app)[2], "   November ~$18.40 of $50 · on pace for ~$46")     # three lines on
+        self.assertEqual(self.rows(app)[3], " Tokens             38.2M")                        # three lines on
         self.press(app, "pageup")
         self.assertEqual(app.top, 0)
 
@@ -378,13 +380,14 @@ class View(unittest.TestCase):
         app = usage_view.UsageView(FakeTerminal(60, 20), mock.Mock(), os.path.join(self.tmp, "plugin"),
                                    clock=lambda: self.now[0], home=self.tmp, state=os.path.join(self.tmp, "state"))
         app.draw()
-        self.assertEqual(self.rows(app)[2][3:], "Loading usage…")
-        self.assertTrue(self.rows(app)[0].startswith("  7 days   30 days   Nov     All agents   Claude   Codex"))
+        self.assertEqual(self.rows(app)[3][3:], "Loading usage…")
+        self.assertTrue(self.rows(app)[0].startswith("  Today   7 days   30 days   November "))
+        self.assertEqual(self.rows(app)[1], "  All agents   Claude   Codex")
         self.settle(app)
-        self.assertEqual(self.rows(app)[2:4], [" Nothing used in this period", ""])
+        self.assertEqual(self.rows(app)[3:5], [" Nothing used in this period", ""])
         self.assertEqual(self.look(app, "Nothing used"), Style(fg="muted"))
 
-    def test_while_conversations_are_read_it_says_so_and_reads_on_at_once(self):
+    def test_while_chats_are_read_it_says_so_and_reads_on_at_once(self):
         self.left[0] = 4096
         self.answer = reported(none="Nothing used in this period")
         app = usage_view.UsageView(FakeTerminal(60, 20), mock.Mock(), os.path.join(self.tmp, "plugin"),
@@ -392,11 +395,11 @@ class View(unittest.TestCase):
         end_jobs()
         app.collect()
         app.draw()
-        self.assertEqual(self.rows(app)[2][3:], "Reading the conversations…")
+        self.assertEqual(self.rows(app)[3][3:], "Reading chats…")
         self.assertIn("report", app.running)                                    # the next look, not a minute later
         self.left[0], self.answer = 0, reported()
         self.settle(app)
-        self.assertEqual((len(self.asked) > 1, app.reading, self.rows(app)[2][:18]),
+        self.assertEqual((len(self.asked) > 1, app.reading, self.rows(app)[3][:18]),
                          (True, False, " Claude · Max plan"))
 
     def test_a_read_that_fails_says_so_in_red_and_the_next_one_clears_it(self):
@@ -404,12 +407,12 @@ class View(unittest.TestCase):
         failing.start()
         app = self.open()
         failing.stop()
-        self.assertEqual(self.rows(app)[2], " Couldn't read the usage: no index")
+        self.assertEqual(self.rows(app)[3], " Couldn't read the usage: no index")
         self.assertEqual(self.look(app, "Couldn't"), Style(fg="deleted"))
         self.now[0] += usage_view.POLL
         app.tick()
         self.settle(app)
-        self.assertEqual(self.rows(app)[2][:18], " Claude · Max plan")
+        self.assertEqual(self.rows(app)[3][:18], " Claude · Max plan")
 
     def test_it_reads_again_every_minute_while_open(self):
         app = self.open()
@@ -506,3 +509,4 @@ class Reading(unittest.TestCase):
         with open(os.path.join(folder, "c1.jsonl"), encoding="utf-8") as f:
             self.assertEqual(f.read(), line)
         self.assertEqual(sorted(os.listdir(folder)), ["c1.jsonl"])
+        self.assertNotIn("commits-index.json", os.listdir(state))              # no commits read for a count

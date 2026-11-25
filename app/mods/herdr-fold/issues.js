@@ -193,7 +193,7 @@ export class IssuesView {
   /** The search field, the new issue's button and the filters', as the TUI sidebar has them on one line. */
   field(t) {
     const q = this.query;
-    // as the TUI sidebar's, in the field: what is on (the priority in its color), else Filters, then ▾
+    // as the TUI sidebar's, in the field: what is on (the priority in its color), else Filters, then its chevron
     const on = [...(this.level !== null ? [[`● ${LEVELS[this.level]}`, priorityColor(t, this.level)]] : []),
       ...[["me", q.assigned], ["by me", q.authored], [q.label, q.label]].filter(([, is]) => is)
         .map(([word]) => [word, t.foreground])];

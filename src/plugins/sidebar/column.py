@@ -13,11 +13,12 @@ from dock import GROUPS
 
 FILE = "column.json"
 WIDTH = "open"              # FILE's key for the cells last dragged, frame and all
-FORMER = ("ratio", "cells", "width")   # what older versions kept for it: read no more, gone at the next write
 SIDEBAR = "sidebar"         # the right column's top pane, by its name
 RIGHT = 0.75                # the share before the right column where the tab's width cannot be read
 TOLERANCE = 0.002           # shares this close are the same width (a cell is about 0.007 of a wide window)
-LIMITS = (0.3, 0.9)         # the share before a dragged column: outside this nobody chose it (a tab too small)
+# the share before a dragged column: outside this nobody chose it (a tab too small); the agent keeps the first, so the
+# open column is never wider than the rest (most()) but where its row needs it
+LIMITS = (0.3, 0.9)
 SPLIT = (0.1, 0.9)          # the shares herdr lets a split have
 SETTLE = 0.2                # seconds a tab's widths stay put before a pane takes them as chosen
 # the right column's cells inside herdr's frame: the row's buttons a cell apart and »'s block (stack.cells())
@@ -136,8 +137,8 @@ def layout(pane):
 
 
 def chosen(state_dir):
-    """The right column's cells, its frame's too, as last dragged on this machine under this version (WIDTH); None
-    until one is dragged, so it first opens at the row's ideal width whatever an older version kept (FORMER)."""
+    """The right column's cells, its frame's too, as last dragged on this machine (WIDTH); None until one is dragged,
+    so it first opens at the row's ideal width."""
     cells = kept(state_dir).get(WIDTH)
     return cells if isinstance(cells, int) and not isinstance(cells, bool) and cells > 0 else None
 
@@ -148,15 +149,26 @@ def opened(state_dir, tab):
     return max(chosen(state_dir) or IDEAL + FRAME, least(state_dir, tab.tab) + FRAME)
 
 
+def most(cells):
+    """The open right column's most cells in a tab CELLS wide: the agent keeps LIMITS[0] of it."""
+    return int(cells * (1 - LIMITS[0]))
+
+
+def room(state_dir, tab):
+    """TAB's open right column's cells (TAB.cells known): opened()'s, within the agent's room (most()) but never
+    narrower than its sidebar's row: a narrow window opens it narrower, a wider one as chosen again."""
+    return max(least(state_dir, tab.tab) + FRAME, min(opened(state_dir, tab), most(tab.cells)))
+
+
 def split_share(state_dir, pane):
     """The share before a new right column split off PANE (a new tab's only pane: the tab's width), so it opens as
-    wide as opened() at once; where herdr cannot say how wide PANE is, RIGHT."""
+    wide as room() at once; where herdr cannot say how wide PANE is, RIGHT."""
     try:
         rects = call("pane.layout", {"pane_id": pane}).get("layout", {})["panes"]
         total = next(r["rect"]["width"] for r in rects if r["pane_id"] == pane)
     except (OSError, KeyError, TypeError, StopIteration):
         return RIGHT
-    return share(1 - max(chosen(state_dir) or IDEAL + FRAME, FEWEST + FRAME) / total)
+    return share(1 - max(FEWEST + FRAME, min(chosen(state_dir) or IDEAL + FRAME, most(total))) / total)
 
 
 def kept(state_dir):
@@ -169,13 +181,10 @@ def keep(state_dir, values):
 
 
 def change(state_dir, how):
-    """FILE changed by HOW (given what it holds then, its answer kept, an older version's width going: FORMER) under
-    statefile.update: every tab's sidebar writes it. Whether it was."""
-    def changed(found):
-        return {key: value for key, value in how(found).items() if key not in FORMER}
-
+    """FILE changed by HOW (given what it holds then, its answer kept) under statefile.update: every tab's sidebar
+    writes it. Whether it was."""
     try:
-        statefile.update(os.path.join(state_dir, FILE), changed)
+        statefile.update(os.path.join(state_dir, FILE), how)
     except OSError:
         return False
     return True
@@ -266,6 +275,13 @@ def settled(pane):
     return second
 
 
+def rested(pane, tab, seconds, wait=time.sleep):
+    """Whether PANE's tab's columns are TAB's still after SECONDS more: a drag let go there, not a pause on its way."""
+    wait(seconds)
+    later = read(pane)
+    return bool(later) and (later.cells, cells(later)) == (tab.cells, cells(tab))
+
+
 def sidebars():
     """{tab: its sidebar's pane} of every tab with one; none without herdr."""
     try:
@@ -306,14 +322,12 @@ def railed(state_dir):
     return kept(state_dir).get("rail") is True
 
 
-def width(state_dir, tab, rail=False, beside=False):
-    """TAB's right column's share (TAB.cells known): opened()'s cells; on the RAIL, RAIL cells inside the frame, or the
+def width(state_dir, tab, rail=False):
+    """TAB's right column's share (TAB.cells known): room()'s cells; on the RAIL, RAIL cells inside the frame, or the
     tenth of the tab herdr keeps at least (SPLIT) where that is more, a cell more where that would be even: each icon
-    on the rail's very middle; with a view opened BESIDE the rail, opened()'s and the rail's."""
+    on the rail's very middle."""
     if not rail:
-        return opened(state_dir, tab) / tab.cells
-    if beside:
-        return (opened(state_dir, tab) + RAIL) / tab.cells
+        return room(state_dir, tab) / tab.cells
     agent = min(tab.cells - RAIL - FRAME, int(tab.cells * SPLIT[1] + 0.5))     # herdr's round(width x ratio)
     agent -= (tab.cells - agent - FRAME + 1) % 2
     return (tab.cells - agent) / tab.cells
@@ -325,18 +339,20 @@ def frame(tab, pane, inside):
     return around if 0 <= around <= 4 else FRAME
 
 
-def drag(state_dir, pane, inside):
-    """PANE's right column (INSIDE cells inside its frame) was resized: kept at least least() wide, its cells
-    remembered and set in every other tab. How many were set."""
-    here = settled(pane)
+def drag(state_dir, pane, inside, here=None):
+    """PANE's right column (INSIDE cells inside its frame; HERE: its tab's columns, settled) was dragged: kept at least
+    least() wide and at most most(), its cells remembered and set in every other tab; as wide as chosen, or at its own
+    least for a narrower one (another tab's drag set it so), nothing new. How many were set."""
+    here = here or settled(pane)
     if not here:
         return 0
     right = cells(here)[1]
     narrowest = least(state_dir, here.tab) + frame(here, pane, inside)
-    if right < narrowest:
-        right = narrowest
+    if not narrowest <= right <= most(here.cells):
+        right = max(narrowest, min(right, most(here.cells)))
         arrange(here, right=right / here.cells)
-    if not LIMITS[0] <= 1 - right / here.cells <= LIMITS[1] or right == chosen(state_dir):
+    kept = chosen(state_dir)
+    if not LIMITS[0] <= 1 - right / here.cells <= LIMITS[1] or kept is not None and right == max(kept, narrowest):
         return 0
     return spread(state_dir, pane, right)
 

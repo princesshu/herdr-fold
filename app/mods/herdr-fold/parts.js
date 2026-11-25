@@ -3,8 +3,8 @@
 // choice of a few.
 import { div, image, PathBuilder, svg } from "gpui-kit";
 import { h_flex, HoverCard, Input } from "gpui-base";
-import { exec, layout, settings } from "herdr";
-import { ringArc, tagColors, tagRole } from "./agents.js";
+import { closeOverlay, exec, layout, settings, run as command } from "herdr";
+import { ringArc } from "./agents.js";
 import { BRANDS, ICONS } from "./icons.js";
 import { tile } from "./layers.js";
 
@@ -92,8 +92,8 @@ export const iconButton = (t, id, name, tip, act, { size = 14, color = t.muted, 
       .bg(t.popover ?? t.raised).text_size(12).text_color(t.foreground).child(tip)) : button;
 };
 
-/** A list's or a floating panel's NAME, as the app's lists: 11, medium, dim. @param {string} name */
-export const listName = (t, name) => div().text_size(11).font_medium().text_color(t.dim).child(name);
+/** A list's or a floating panel's NAME, as the app's lists: 11, medium, muted. @param {string} name */
+export const listName = (t, name) => div().text_size(11).font_medium().text_color(t.muted).child(name);
 
 /** A sidebar list's head, as Spaces has it: its NAME and its BUTTONS at the end.
  * @param {string} name @param {...any} buttons */
@@ -115,9 +115,9 @@ export function button(t, id, label, enabled, solid, onClick) {
 /** @typedef {{ text: string, error: boolean }} Note what was done (ERROR: what went wrong) */
 
 /** NOTE under a list, on the card's foot, as the TUI's last row and Files' and Changes' problems: never over the rows,
- * so none moves; PAD in, PAD / 2 over it, 11, dim (an error ansi1), wrapping. @param {Note} note */
+ * so none moves; PAD in, PAD / 2 over it, 11, muted (an error ansi1), wrapping. @param {Note} note */
 export const footNote = (t, note) => div().flex_none().px(PAD).pt(PAD / 2).pb(PAD).text_size(11)
-  .text_color(note.error ? t.ansi1 : t.dim).child(note.text);
+  .text_color(note.error ? t.ansi1 : t.muted).child(note.text);
 
 /** NOTE (or none) on HOLDER's line, a done thing's gone after NOTE_MS unless another came meanwhile, an error's kept.
  * @param {{ note: Note | null }} holder @param {Note | null} note */
@@ -227,13 +227,10 @@ export const toggle = (t, id, on, enabled, act, line = false, { wide, high, knob
   .child(div().absolute().top(inset).left(on ? wide - knob - inset : inset).size(knob).rounded_full()
     .bg(on ? t.accent_foreground ?? t.background : t.muted));
 
-/** A source's tag (.tagu, .tagp, .tagl, .tagc): its WORD, 11, 16 high, on the window's level, in its role's color
- * (tagColors: the accent, then the hues nearest the mockup's teal, peach and blue; Local muted), or in COLOR (a
- * palette's group, muted). @param {string} word @param {string} [color] */
-export function scopeTag(t, word, color = tagColors(t)[tagRole(word)]) {
-  return div().h(16).flex_none().px(6).flex().items_center().rounded(4).bg(t.canvas).text_size(11)
-    .line_height("16px").text_color(color).child(word);
-}
+/** A source's tag (connectors.html's .tagb), never in a hue: its WORD, 11, 16 high, muted on a raised chip.
+ * @param {string} word */
+export const scopeTag = (t, word) => div().h(16).flex_none().px(6).flex().items_center().rounded(4).bg(t.raised)
+  .text_size(11).line_height("16px").text_color(t.muted).child(word);
 
 export const ACTION = 26;          // px: a properties button, center-chat.html's .btn
 
@@ -251,14 +248,14 @@ export function actButton(t, id, label, look, usable, press, tip = null) {
     .child(div().min_w(0).truncate().child(label));
 }
 
-/** A properties LINE ([label, value, a third or null]), 20 high: its label dim in a column LABEL px wide, its value in
- * the CODE font 11 (null: a phrase, in the text's), the third dim at the end. @param {string} id
+/** A properties LINE ([label, value, a third or null]), 20 high: its label muted in a column LABEL px wide, its value
+ * in the CODE font 11 (null: a phrase, in the text's), the third muted at the end. @param {string} id
  * @param {[string, string, string | null]} line @param {number} label @param {string | null} code */
 export const propertyLine = (t, id, [name, value, third], label, code) => h_flex().id(id).h(20).flex_none().gap(8)
-  .items_center().tooltip(value).child(div().w(label).flex_none().text_color(t.dim).child(name))
+  .items_center().tooltip(value).child(div().w(label).flex_none().truncate().text_color(t.muted).child(name))
   .child(code ? div().flex_1().min_w(0).truncate().font_family(code).text_size(11).child(value)
     : div().flex_1().min_w(0).truncate().child(value))
-  .when(Boolean(third), (e) => e.child(div().flex_none().text_color(t.dim).child(third ?? "")));
+  .when(Boolean(third), (e) => e.child(div().flex_none().text_color(t.muted).child(third ?? "")));
 
 /** A count on a chip, as the TUI sidebar's sections show theirs. */
 export function chip(t, text) {
@@ -313,3 +310,20 @@ export function systemForms() {
     .then((done) => (done.code === 0 ? JSON.parse(done.stdout) : null)).catch(() => null);
   return forms;
 }
+
+const NOTE_DOT = { error: "blocked", warning: "working" };   // a note's level's color, as the app's toast has it
+
+/** A NOTE (a toast's props) as the app's own toast draws it, while An agent waits on you is off: its icon (else its
+ * level's dot), the title and the body's first line; a click runs its action and closes it. @param {{ title?: string,
+ * body?: string, level?: string, icon?: string, overlay?: string, action?: { name: string, args?: any } }} note */
+export const noteToast = (t, note) => h_flex().id("note").size_full().px(16).gap(12).items_center().bg(t.popover)
+  .cursor_pointer().hover((s) => s.bg(t.hover)).on_click(() => {
+    if (note.action?.name) command(note.action.name, note.action.args ?? {});
+    if (note.overlay) closeOverlay(note.overlay);
+  })
+  .child(note.icon ? image(note.icon).w(18).h(18).flex_none()
+    : div().size(8).rounded(4).flex_none().bg(t[NOTE_DOT[/** @type {"error" | "warning"} */ (note.level)] ?? "accent"]))
+  .child(div().flex_1().min_w(0).flex().flex_col()
+    .child(div().truncate().font_semibold().text_size(13).text_color(t.foreground).child(note.title ?? ""))
+    .when(Boolean(note.body), (e) => e.child(div().truncate().text_size(12).text_color(t.muted)
+      .child(String(note.body).split("\n", 1)[0]))));

@@ -1,7 +1,7 @@
 # Generated from core/usage.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
 """The agents' limits for the Agent panel's Usage, the 5-hour and the weekly one: herdr-fold's own readings, Claude's
-cached ones, Codex's newest chat's, the newest per agent; each agent's block opened or folded, kept for both clients.
-Nothing of the agents' is written. Usage (in JSON): usage.py limits | section AGENT [AGENTS] | open AGENT on|off."""
+cached ones, Codex's newest chat's, the newest per agent, a window just reset told as such. Nothing of the agents' is
+written. Usage (in JSON): usage.py limits | section AGENT [AGENTS]."""
 import calendar
 import errno
 import glob
@@ -20,15 +20,20 @@ AGENTS = ("claude", "codex")
 WINDOWS = {"five_hour": 5 * 3600, "week": 7 * 86400}    # each window's length: one with no reset time lasts as long
 CODEX_WINDOWS = {300: "five_hour", 10080: "week"}       # Codex's windows by their minutes (its primary may be either)
 LIMITS = (".local", "state", "herdr-fold", "limits")    # herdr-fold's readings in the home, <agent>.json each
-SETTINGS = "usage.json"         # in herdr-fold's state folder, both clients': the blocks opened; report.py's budgets
+SETTINGS = "usage.json"         # in herdr-fold's state folder, both clients': report.py's budgets and notices dismissed
 LARGEST = 32 << 20              # bytes of ~/.claude.json read: more is not a file Claude keeps
 TAIL = 4 << 20                  # bytes from a Codex chat's end looked through for its last reading
 NEWEST = 5                      # Codex chats looked through, the newest first, for one with a reading (a new one: none)
 NAMES = {"claude": "Claude", "codex": "Codex"}         # an agent's name where the agents' list does not tell it
-SAID = {"five_hour": ("five", "5h", "5 hour"), "week": ("week", "wk", "Week")}   # a window's key, label and name
+SAID = {"five_hour": ("five", "5h", "5h"), "week": ("week", "wk", "Week")}   # a window's key, label and name
 PLAN = re.compile(r"[A-Za-z][A-Za-z ]{0,23}")           # a plan's word: letters alone, so never an e-mail or an id
-AGED = 600                      # a reading older than this many seconds says its age, whoever read it
+API_KEY = "API key"             # agent_state.py's word for a plan on an API key: it has no window to tell
+UNTOLD = "limits not told"      # the current agent's row with no reading: said in its place, why in its properties
+WHY = {"claude": "Claude tells its limits to herdr-fold's status line and to its own cache: neither holds a reading "
+                 "yet.",
+       "codex": "Codex tells its limits in a chat's token counts: none of its newest chats holds one yet."}
 SOON = 12 * 3600                # a reset nearer than this names its time alone, a later one its day too
+SAME = 3600                     # resets this close are one window's: the next resets a window's length later at least
 STAMP = re.compile(r"(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d):(\d\d)(?:\.\d*)?(Z|[+-]\d\d:?\d\d)?$")
 
 
@@ -95,16 +100,42 @@ def kept_path(home, agent):
     return os.path.join(home, *LIMITS, f"{agent}.json")
 
 
+def told(data):
+    """The windows Claude's status-line JSON DATA tells ({"five_hour", "week"}): its rate_limits as last answered."""
+    limits = obj(obj(data).get("rate_limits"))
+    return {name: window({"used": obj(limits.get(key)).get("used_percentage"),
+                          "resets": obj(limits.get(key)).get("resets_at")})
+            for name, key in (("five_hour", "five_hour"), ("week", "seven_day"))}
+
+
+def fresher(mine, kept, now, own=None):
+    """MINE (a chat's reading of a window) against KEPT at NOW: while OWN (Claude's /usage, the account's) is open, the
+    highest use told of that window alone; else in one window the higher use, KEPT where MINE's is past its reset and
+    KEPT's not, else MINE: two open windows (a chat may tell another weekly limit), or no reset, never mixed."""
+    if own and own["resets"] is not None and own["resets"] > now:
+        return max((one for one in (own, mine, kept) if one and one["resets"] is not None
+                    and abs(one["resets"] - own["resets"]) < SAME), key=lambda one: one["used"])
+    if not mine or not kept or mine["resets"] is None or kept["resets"] is None:
+        return mine
+    if abs(mine["resets"] - kept["resets"]) < SAME:
+        return mine if mine["used"] >= kept["used"] else kept
+    return kept if mine["resets"] <= now < kept["resets"] else mine
+
+
 def keep(agent, windows, at):
-    """WINDOWS ({"five_hour", "week"}, each a window or None) read at AT kept as AGENT's newest reading, its owner's
-    only; one that tells neither (before a chat's first answer, an API key's) is not kept. Whether it was kept."""
+    """WINDOWS ({"five_hour", "week"}, each a window or None) read at AT kept as AGENT's newest reading, each the
+    fresher() of it, the one kept (another chat's may be newer) and Claude's own; its owner's only. The windows kept;
+    None for a reading that tells neither (before a chat's first answer, an API key's), which is not kept."""
     if agent not in AGENTS:
         raise ValueError(f"not an agent: {agent!r}")
     found = {name: window(obj(windows).get(name)) for name in WINDOWS}
     if not any(found.values()):
-        return False
+        return None
+    home = os.path.expanduser("~")
+    before, own = kept(home, agent) or {}, (claude_cached(home) if agent == "claude" else None) or {}
+    found = {name: fresher(found[name], before.get(name), int(at), own.get(name)) for name in WINDOWS}
     statefile.write(kept_path(os.path.expanduser("~"), agent), {**found, "at": int(at)})
-    return True
+    return found
 
 
 def kept(home, agent):
@@ -179,27 +210,42 @@ def codex_newest(home):
     return None
 
 
-def current(reading, now):
-    """READING's windows that still hold at NOW: one past its reset is None (one with no reset time, past its length
-    from the reading)."""
-    def holds(name):
+def current(reading, now, used):
+    """READING's windows at NOW: one still holding as it is; one past its reset (one with no reset time, past its
+    length from the reading) used 0 where nothing ran since it (USED: when the agent last wrote a chat), else not
+    known (None), with no reset."""
+    found = {}
+    for name in WINDOWS:
         one = reading[name]
-        return one and now < (one["resets"] if one["resets"] is not None else reading["at"] + WINDOWS[name])
-    return {name: reading[name] if holds(name) else None for name in WINDOWS}
+        ends = one and (one["resets"] if one["resets"] is not None else reading["at"] + WINDOWS[name])
+        found[name] = one if not one or now < ends else {"used": 0 if used < ends else None, "resets": None}
+    return found
+
+
+def last_used(agent, home):
+    """When AGENT last wrote one of its chats in HOME, in seconds since 1970; 0 for never."""
+    place = (".claude", "projects", "*", "*.jsonl") if agent == "claude" else \
+        (".codex", "sessions", "*", "*", "*", "rollout-*.jsonl")
+    found = 0
+    for path in glob.glob(os.path.join(home, *place)):
+        try:
+            found = max(found, os.stat(path).st_mtime)
+        except OSError:
+            continue
+    return found
 
 
 def limits(home, now):
     """Each agent's limits at NOW for the user whose home is HOME, the newest reading first: [{"agent", "five_hour",
-    "week", "at", "source": status, claude or codex}], from each agent's newest reading; one with no window left out."""
+    "week", "at", "source": status, claude or codex}], from each agent's newest reading (current()'s windows); one
+    with no window left out."""
     found = []
     for agent, own in (("claude", claude_cached), ("codex", codex_newest)):
         readings = [one for one in (kept(home, agent), own(home)) if one and any(one[name] for name in WINDOWS)]
-        if not readings:
-            continue
-        newest = max(readings, key=lambda one: one["at"])
-        windows = current(newest, now)
-        if any(windows.values()):
-            found.append({"agent": agent, **windows, "at": newest["at"], "source": newest["source"]})
+        if readings:
+            newest = max(readings, key=lambda one: one["at"])
+            found.append({"agent": agent, **current(newest, now, last_used(agent, home)), "at": newest["at"],
+                          "source": newest["source"]})
     return sorted(found, key=lambda one: one["at"], reverse=True)
 
 
@@ -209,7 +255,7 @@ def level(used):
 
 
 def ago(seconds):
-    """How long ago, for a reading's age: just now, 43 min ago, 3 h ago, 3 d ago."""
+    """How long ago, for a reading's age: just now, 3 min ago, 3 h ago, 3 d ago."""
     if seconds < 60:
         return "just now"
     if seconds < 3600:
@@ -217,30 +263,10 @@ def ago(seconds):
     return f"{seconds // 3600} h ago" if seconds < 2 * 86400 else f"{seconds // 86400} d ago"
 
 
-def kept_open(state):
-    """Each agent's block in Usage as the user last left it in either client, {agent: opened}, from STATE's SETTINGS;
-    an agent never opened nor folded is not in it."""
-    found = statefile.read(os.path.join(state, SETTINGS)).get("open")
-    return {agent: found[agent] for agent in AGENTS if isinstance(found.get(agent), bool)} if isinstance(found, dict) \
-        else {}
-
-
-def keep_open(state, agent, on):
-    """AGENT's block in Usage kept opened (ON) or folded for both clients, beside what else SETTINGS holds: the blocks
-    kept then. ValueError for another agent or what is no choice."""
-    if agent not in AGENTS or not isinstance(on, bool):
-        raise ValueError(f"not an agent's choice: {agent!r} {on!r}")
-
-    def change(was):
-        found = was.get("open") if isinstance(was.get("open"), dict) else {}
-        return {**was, "open": {**{one: found[one] for one in AGENTS if isinstance(found.get(one), bool)}, agent: on}}
-    return statefile.update(os.path.join(state, SETTINGS), change)["open"]
-
-
-def section(limits, agents, current, now, kept=None):
-    """The Agent panel's Usage in both clients' words, from LIMITS (limits()'s) at NOW: a row an agent, the CURRENT one
-    first, then the newest reading; its name and plan's word as AGENTS tell them, each window's percent and level, the
-    tightest, its first one's bar and reset ({time}, {day}: the client's); "open": each block as KEPT, else CURRENT."""
+def section(limits, agents, current, now):
+    """The Agent panel's Usage from LIMITS at NOW: a row an agent (CURRENT first; with no reading "untold", its words
+    and why, but on an API key), its name and plan as AGENTS tell, each window's percent ("0%" just reset, "–" not
+    known), level and reset ({time}, {day}: the client's), the tightest, "reset" (while yellow or red), the age."""
     told = {one["key"]: one for one in (agents if isinstance(agents, list) else []) if isinstance(obj(one).get("key"),
                                                                                                  str)}
     rows = []
@@ -249,24 +275,28 @@ def section(limits, agents, current, now, kept=None):
         plan, name = known.get("plan"), known.get("name")
         row = {"key": key, "name": name if isinstance(name, str) and name else NAMES.get(key, key),
                "plan": plan if isinstance(plan, str) and PLAN.fullmatch(plan) else None, "current": key == current,
-               "bar": None, "resets": None,
-               "age": f"as of {ago(now - reading['at'])}" if now - reading["at"] > AGED else None}
-        said = []
-        for window, (part, label, name) in SAID.items():
-            one = reading[window]
-            row[part] = one and {"label": label, "used": one["used"], "text": f"{one['used']}%",
-                                 "level": level(one["used"])}
-            if one:
-                said.append(f"{name if not said else name.lower()} {one['used']}%")
-            if one and not row["bar"]:                  # its first window: its bar, its reset
-                row["bar"] = {"used": one["used"], "level": level(one["used"])}
-                when = "at {time}" if one["resets"] is None or one["resets"] - now < SOON else "{day} at {time}"
-                row["resets"] = one["resets"] and {"at": one["resets"], "words": f"{name} resets {when}"}
-        row["tight"] = max((row[part] for part in ("five", "week") if row[part]), key=lambda one: one["used"])
-        rows.append({**row, "said": ", ".join(said + ([row["age"]] if row["age"] else []))})
-    keys, kept = list(dict.fromkeys([*AGENTS, *(row["key"] for row in rows)])), kept or {}
-    return {"id": "usage", "title": "Usage", "none": "Not known yet", "rows": rows,
-            "open": {key: kept.get(key, key == current) for key in keys}}
+               "age": f"Read {ago(now - reading['at'])}", "untold": None}
+        for window, (part, label, said) in SAID.items():
+            one, when = reading[window], "{time}"
+            if one and one["resets"] is not None and one["resets"] - now >= SOON:
+                when = "{day} {time}"
+            row[part] = one and {"label": label, "used": one["used"],
+                                 "text": "–" if one["used"] is None else f"{one['used']}%",
+                                 "level": None if one["used"] is None else level(one["used"]),
+                                 "resets": one["resets"] and {"at": one["resets"], "words": f"{said} resets {when}"}}
+        known = [row[part] for part in ("five", "week") if row[part] and row[part]["used"] is not None]
+        row["tight"] = max(known, key=lambda one: one["used"]) if known else None
+        row["reset"] = row["tight"]["resets"] if row["tight"] and row["tight"]["level"] in ("warn", "bad") else None
+        rows.append(row)
+    mine = told.get(current)
+    if mine and not any(row["current"] for row in rows) and mine.get("plan") != API_KEY:
+        plan, name = mine.get("plan"), mine.get("name") if isinstance(mine.get("name"), str) else None
+        name = name or NAMES.get(current, current)
+        rows.insert(0, {"key": current, "name": name, "current": True, "age": None, "five": None, "week": None,
+                        "plan": plan if isinstance(plan, str) and PLAN.fullmatch(plan) else None, "tight": None,
+                        "reset": None, "untold": {"text": UNTOLD, "why": WHY.get(
+                            current, f"{name} does not tell herdr-fold its limits.")}})
+    return {"id": "usage", "title": "Usage", "none": "Not known yet", "rows": rows}
 
 
 def twelve_hours(home):
@@ -276,8 +306,9 @@ def twelve_hours(home):
 
 
 def reset_said(resets, twelve):
-    """RESETS' words (section()'s) with this machine's local time in them, hours as TWELVE says ("2:46 PM", "14:46"),
-    and its day ("Mon") where they ask for it; "" for none. The TUI's: the app writes its own, as macOS has them."""
+    """RESETS' words (a window's in section()) with this machine's local time in them, hours as TWELVE says ("2:46 PM",
+    "14:46"), and its day ("Mon") where they ask for it; "" for none. The TUI's: the app writes its own, as macOS has
+    them."""
     if not resets:
         return ""
     at = time.localtime(resets["at"])
@@ -288,8 +319,8 @@ def reset_said(resets, twelve):
 
 def main(argv):
     """herdr-fold's Herdr app mod runs this, answering in JSON: limits; section AGENT [AGENTS] (the panel's Usage for
-    the agent shown; AGENTS the agents' list as JSON, its names and plans); open AGENT on|off (the blocks kept then)."""
-    home, now, state = os.path.expanduser("~"), int(time.time()), statefile.folder()
+    the agent shown; AGENTS the agents' list as JSON, its names and plans)."""
+    home, now = os.path.expanduser("~"), int(time.time())
     if argv[1:] == ["limits"]:
         print(json.dumps(limits(home, now)))
         return 0
@@ -298,12 +329,9 @@ def main(argv):
             agents = json.loads(argv[3]) if len(argv) == 4 else []
         except (ValueError, RecursionError):
             agents = []
-        print(json.dumps(section(limits(home, now), agents, argv[2], now, kept_open(state))))
+        print(json.dumps(section(limits(home, now), agents, argv[2], now)))
         return 0
-    if argv[1:2] == ["open"] and len(argv) == 4 and argv[2] in AGENTS and argv[3] in ("on", "off"):
-        print(json.dumps(keep_open(state, argv[2], argv[3] == "on")))
-        return 0
-    print("usage: usage.py limits | section AGENT [AGENTS] | open AGENT on|off", file=sys.stderr)
+    print("usage: usage.py limits | section AGENT [AGENTS]", file=sys.stderr)
     return 2
 
 

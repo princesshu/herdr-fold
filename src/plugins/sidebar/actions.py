@@ -1,6 +1,6 @@
-"""The sidebar's herdr actions: the active tab's sidebar gets a key no text field takes (KEYS), F7 (find a
-chat) the keys too; F8, for Cmd + A, only a sidebar that has the keys: its field's text.
-Usage: actions.py show-files|show-search|show-git|show-issues|find-chat|select-all"""
+"""The sidebar's herdr actions: the tab's sidebar gets a key no field takes (KEYS), F7 (a chat found) with the keys
+too, F6 the dock folded or opened; F8 (Cmd + A) only a sidebar with the keys: its field's text.
+Usage: actions.py show-files|show-search|show-git|show-issues|toggle-dock|find-chat|select-all"""
 import os
 import sys
 
@@ -14,12 +14,21 @@ from chats import state_folder          # noqa: E402
 from preview import Herdr, seed_file  # noqa: E402
 
 KEYS = {"show-files": "f9", "show-search": "f10", "show-git": "f11", "show-issues": "f12",
-        "find-chat": "f7", "select-all": "f8"}
+        "toggle-dock": "f6", "find-chat": "f7", "select-all": "f8"}
 
 
 def sidebar_of(listed, tab=None):
     """TAB's sidebar in LISTED (herdr's pane list; TAB None: the first there is), or None."""
     return next((p["pane_id"] for p in listed if p.get("label") == "sidebar" and tab in (None, p.get("tab_id"))), None)
+
+
+def show(call, tab, listed, key):
+    """KEY to TAB's sidebar (LISTED: its workspace's panes); on the rail a view's opens the dock there. The pane, or
+    None."""
+    pane = sidebar_of(listed, tab)
+    if pane:
+        call("pane", "send-keys", pane, key)
+    return pane
 
 
 def find(call, tab, listed, state_dir, focus):
@@ -53,15 +62,15 @@ def main(argv):
             if any(p.get("pane_id") == focused and p.get("label") == "sidebar" for p in listed):
                 herdr.call("pane", "send-keys", focused, KEYS[argv[1]])
             return
-        if argv[1] == "find-chat":            # herdr's command line focuses only by direction
-            if not find(herdr.call, tab, listed, state_folder(), lambda pane: column.call("pane.focus",
-                                                                                          {"pane_id": pane})):
-                sys.exit("no sidebar in this workspace")
+        def focus(pane):                      # herdr's command line focuses only by direction
+            column.call("pane.focus", {"pane_id": pane})
+
+        if argv[1] == "find-chat":
+            if not find(herdr.call, tab, listed, state_folder(), focus):
+                sys.exit("no sidebar in this space")
             return
-        pane = sidebar_of(listed, tab)
-        if pane is None:
+        if show(herdr.call, tab, listed, KEYS[argv[1]]) is None:
             sys.exit("no sidebar in this tab")
-        herdr.call("pane", "send-keys", pane, KEYS[argv[1]])
     except (RuntimeError, OSError) as err:
         sys.exit(f"herdr: {err}")
 

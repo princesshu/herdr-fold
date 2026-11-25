@@ -1,7 +1,7 @@
 # Generated from core/graph.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
-"""An agent's graph in a folder, in both clients' words: what goes in (rules, skills), the agent with its sub-agents,
-what they use (tools, connectors), each edge with its gate; and what a conversation ran, in order, with costs.py's
-figures laid in. Only read. Usage (in JSON): graph.py claude|codex FOLDER [SESSION] [--costs=JSON]."""
+"""An agent's graph in a folder in both clients' words: what goes in, the agent and its subagents, what they use, each
+edge with its gates (permissions, hooks); what a chat ran, in order, with costs.py's figures. Only read. Usage (in
+JSON): graph.py claude|codex FOLDER [SESSION] [--costs=JSON]."""
 import calendar
 import collections
 import glob
@@ -11,33 +11,31 @@ import re
 import sys
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
+import agent_layers as layers   # noqa: E402
 import agent_setup as setup     # noqa: E402
-from jsonl import newest_first, obj, open_regular, parse  # noqa: E402
+import words  # noqa: E402
+from jsonl import obj, open_regular, parse  # noqa: E402
 
-WORDS = {"columns": {"in": "In", "agents": "Agents", "uses": "Uses"},
-         "views": {"wiring": "Wiring", "run": "This conversation"},
-         "legend": [["always", "always"], ["demand", "on demand"], ["ran", "ran here"], ["failed", "failed"]]}
+WORDS = {"columns": {"in": "In", "agents": "Agents", "uses": "Uses"}, "views": {"wiring": "Wiring", "run": "This chat"},
+         "legend": [["always", "always"], ["demand", "on demand"], ["ran", "ran here"], ["failed", "failed"],
+                    ["waiting", "sign in"]]}
 AGENT = "agent"                 # the agent's own node
 USE = b'"type":"tool_use"'      # in a line of Claude's that holds a call (a result quoting one has it escaped)
-UNUSED = "connector · not used"
+UNUSED = "not used"
 FILES = ("Read", "Edit", "Write", "MultiEdit", "NotebookEdit")         # one node: the files' tools
 SHELL = ("exec", "shell", "local_shell", "exec_command", "shell_command")       # Codex's names for its shell
-STARTS = ("Agent", "Task")      # a sub-agent's call (Task: its name before Claude Code 2.1)
-NO_TYPE = "agent"               # a sub-agent whose file tells no type, as tokens.py names it
+STARTS = ("Agent", "Task")      # a subagent's call (Task: its name before Claude Code 2.1)
+NO_TYPE = "agent"               # a subagent whose file tells no type, as tokens.py names it
 # a mode in the chat's words, and what it lets through unasked: every tool, the files' tools, or none
 LETS = {"acceptEdits": ("files",), "auto": None, "bypassPermissions": None}
 MODES = {mode: (word, LETS.get(mode, ())) for mode, word in setup.MODE_WORDS.items()}
-EFFORTS = {"xhigh": "Extra high"}
-READS, EDITS = ("Read", "Grep", "Glob"), ("Edit", "Write", "MultiEdit", "NotebookEdit")
 NAME = 40                       # characters of a name or an error a node shows
 SAID = 32                       # characters of a skill's description in its line
 NAMED = 2                       # exceptions a gate names before their count
-FOLD = 4                        # the project's own skills, and sub-agents, each a node; more and others' fold
+FOLD = 4                        # the project's own skills, and subagents, each a node; more and others' fold
 LISTED = 20                     # lines a folded node's properties list
-LOOKED = 200                    # Codex's newest chats looked through for the folder's
-FIRST = 1 << 20                 # bytes of a Codex chat's first line read
 RESULT = re.compile(rb'"(?:tool_use_id|call_id)":\s*"([^"\\]+)"')
-CHAT = re.compile(r"[0-9a-f-]{36}")     # a session a herdr-fold chat may have started
+ALL = (None, "", "*")           # a hook's matcher for every tool
 STAMP = re.compile(r"(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)")
 RANK = {setup.FAILED: 2, setup.SIGN_IN: 1, setup.PENDING: 1}            # the servers that run first, then these
 STYLE = {setup.ON: "always", setup.SIGN_IN: "waiting", setup.PENDING: "waiting", setup.FAILED: "failed"}
@@ -89,8 +87,8 @@ def claude_calls(path):
 
 
 def codex_calls(path):
-    """The Codex chat PATH's tool calls in order, the ids answered, its approval policy, session and effort."""
-    calls, done, policy, session, effort = [], set(), None, None, None
+    """The Codex chat PATH's tool calls in order, the ids answered, its approval policy and session."""
+    calls, done, policy, session = [], set(), None, None
     with open_regular(path, "rb") as f:
         for n, raw in enumerate(f):
             if b'_output"' in raw and b'"call_id"' in raw:
@@ -100,29 +98,28 @@ def codex_calls(path):
                 told = obj(entry.get("payload"))
                 if entry.get("type") == "turn_context":
                     policy = told.get("approval_policy") or policy
-                    effort = told.get("effort") or effort
                 elif entry.get("type") == "session_meta":
                     session = told.get("id") if isinstance(told.get("id"), str) else None
                 elif isinstance(told.get("name"), str) and isinstance(told.get("call_id"), str):
                     calls.append({"at": entry.get("timestamp"), "name": told["name"], "id": told["call_id"],
                                   "to": reach(False, told["name"], {}), "message": told["call_id"]})
-    return calls, {one.decode("utf-8", "replace") for one in done}, policy, session, effort
+    return calls, {one.decode("utf-8", "replace") for one in done}, policy, session
 
 
 def running(calls, done, by=None, over=False):
-    """CALLS, BY's (a sub-agent's type), with "open" on those that run now: unanswered, in the last message that
+    """CALLS, BY's (a subagent's type), with "open" on those that run now: unanswered, in the last message that
     called (OVER: none can)."""
     last = calls[-1]["message"] if calls else None
     return [{**one, "by": by, "open": not over and one["id"] not in done and one["message"] == last} for one in calls]
 
 
 def read(agent, path):
-    """What the conversation in AGENT's file PATH ran: {"session", "mode", "calls": the agent's and its sub-agents' in
-    time's order, "subs": each sub-agent file's type}; None for no file."""
+    """What the conversation in AGENT's file PATH ran: {"session", "mode", "calls": the agent's and its subagents' in
+    time's order, "subs": each subagent file's type}; None for no file."""
     try:
         if agent == "codex":
-            calls, done, mode, session, effort = codex_calls(path)
-            return {"session": session, "mode": mode, "effort": effort, "calls": running(calls, done), "subs": []}
+            calls, done, mode, session = codex_calls(path)
+            return {"session": session, "mode": mode, "calls": running(calls, done), "subs": []}
         calls, done, mode = claude_calls(path)
     except (OSError, TypeError):
         return None
@@ -140,90 +137,79 @@ def read(agent, path):
     return {"session": os.path.basename(path)[:-len(".jsonl")], "mode": mode, "calls": found, "subs": subs}
 
 
-def rollout(folder, home):
-    """Codex's newest chat started in FOLDER (its own, no helper's), or None."""
-    place = os.path.join(glob.escape(setup.codex_home(home)), "sessions", "*", "*", "*", "rollout-*.jsonl")
-    for path in newest_first(glob.glob(place))[:LOOKED]:
-        try:
-            with open_regular(path, "rb") as f:
-                meta = obj(parse(f.readline(FIRST)).get("payload"))
-        except OSError:
-            continue
-        if meta.get("cwd") == folder and "subagent" not in obj(meta.get("source")):
-            return path
-    return None
-
-
 # --- gates
 
-def short(words):
-    """A rule's WORDS as a gate names them: "git push *" as git push."""
-    return re.sub(r"(:\*|\s*\*+)$", "", words).strip() or words
+def short(said):
+    """A rule's words as a gate names them: "git push *" as git push."""
+    return re.sub(r"(:\*|\s*\*+)$", "", said).strip() or said
 
 
-def gates(table, names, base, hook=False, server=None, lone=True):
-    """The gates on the edge to a tool, and the rules met as properties lines: BASE (allow, ask, deny, auto or None)
-    unless a bare rule of TABLE (permissions()'s) sets it, the other rules its exceptions (NAMED of them named), the
-    HOOK where it asks. NAMES: the tools (None: Codex's, every rule); SERVER: a connector's tool key; LONE: one tool."""
+def gates(table, names, base, hooks=(), server=None, lone=True):
+    """The gates on a tool's edge, a verb and its object each ("allow pytest +1", "hook guard.sh"), and the rules met as
+    lines: BASE unless a bare rule of TABLE sets it, the others its exceptions; HOOKS deciding (a PermissionRequest one
+    where it asks). NAMES: the tools (None: Codex's, every rule); SERVER: a connector's tool key; LONE: one tool."""
     hidden = {(one["hides"]["behavior"], one["hides"]["rule"]) for one in table["conflicts"]}
     found, lines, bare = {behavior: [] for behavior in setup.BEHAVIORS}, [], set()
     for one in table["rules"]:
-        tool, words = (None, one["rule"]) if names is None else setup.RULE.fullmatch(one["rule"]).groups()
+        tool, said = (None, one["rule"]) if names is None else setup.RULE.fullmatch(one["rule"]).groups()
         whole = f"mcp__{server}"
         if (one["behavior"], one["rule"]) in hidden or not (
                 tool in (whole, whole + "__*") or tool.startswith(whole + "__") if server
                 else names is None or tool in names):
             continue
         lines.append([one["behavior"].capitalize(), one["rule"], one["scope"]])
-        if words is None and (tool in (whole, whole + "__*") if server else lone):
+        if said is None and (tool in (whole, whole + "__*") if server else lone):
             bare.add(one["behavior"])
         else:
-            found[one["behavior"]].append(tool if words is None else short(words) if lone else f"{tool} {short(words)}")
+            found[one["behavior"]].append(tool if said is None else short(said) if lone else f"{tool} {short(said)}")
     base = next((behavior for behavior in ("deny", "ask", "allow") if behavior in bare), base)
 
-    def said(behavior):
+    def object_of(behavior):
         some = found[behavior]
         return f"{len(some)} tool{'s' * (len(some) != 1)}" if server else \
             ", ".join(some[:NAMED]) + (f" +{len(some) - NAMED}" if len(some) > NAMED else "")
-    made = []
-    if base in ("ask", None) and found["allow"]:
-        made.append({"text": ("ask · " if base else "") + f"{said('allow')} allowed", "tone": base or "allow"})
-    elif base:
-        made.append({"text": base, "tone": "allow" if base == "auto" else base})
-    made += [{"text": f"{behavior} {said(behavior)}", "tone": behavior} for behavior in ("ask", "deny")
+    made = [{"text": base, "tone": "allow" if base == "auto" else base}] if base else []
+    made += [{"text": f"{behavior} {object_of(behavior)}", "tone": behavior} for behavior in setup.BEHAVIORS
              if found[behavior] and base not in (behavior, "deny")]
     asks = base == "ask" or found["ask"] and base != "deny"
-    return made + [{"text": "hook", "tone": "hook"}] * bool(hook and asks), lines
+    return made + [{"text": "hook" if one["matcher"] in ALL else f"hook {one['name']}", "tone": "hook"}
+                   for one in hooks if asks or one["event"] != "PermissionRequest"], lines
+
+
+def deciding(hooks, names, server=None):
+    """The HOOKS (the gates among setup.hooks()'s) that decide a call of NAMES or of SERVER's tools: one for every
+    tool where it asks permission, else one whose matcher matches one of them."""
+    tools = [f"mcp__{server}__tool"] if server else names
+
+    def matches(matcher):
+        try:
+            return any(re.fullmatch(matcher, tool) for tool in tools)
+        except re.error:
+            return matcher in tools
+    return [one for one in hooks if one["kind"] == "gate" and (
+        one["event"] == "PermissionRequest" if one["matcher"] in ALL else matches(one["matcher"]))]
 
 
 # --- the graph
 
 def show(row=None):
     """Show in Agent, a node's way to the Agent panel: on ROW (the row's id there, its node's too), or the agent's."""
-    return {**setup.act("agent", "Show in Agent"), "row": row}
+    return {**layers.act("agent", "Show in Agent"), "row": row}
 
 
 def node(key, column, kind, title, sub=None, row=None, icon=None, lines=(), then=None, acts=(), **more):
     """A node: ROW the Agent panel's row it is drawn from (its tag, brand, properties), else LINES its properties'
-    (ACTS their actions); THEN what This conversation says of it: (its line, True where it ran unasked or its tag)."""
+    (ACTS their actions); THEN what This chat says of it: (its line, True where it ran unasked or its tag)."""
     row = row or {}
     return {"id": key, "column": column, "kind": kind, "title": title, "icon": icon or row.get("icon"),
             "brand": row.get("brand"), "tag": row.get("tag"), "sub": sub, "state": None, "dim": False, "chips": [],
             "parent": AGENT if kind in ("sub", "subs") else None,
-            "properties": row.get("properties") or setup.properties(title, lines=lines, actions=acts), "run": None,
+            "properties": row.get("properties") or layers.properties(title, lines=lines, actions=acts), "run": None,
             "then": then or (sub, None), **more}
 
 
 def edge(start, end, style, found=()):
     return {"from": start, "to": end, "style": style, "gates": list(found), "run": None}
-
-
-def tools_said(tools, servers):
-    """A sub-agent's TOOLS in a few words: reads, edits, runs, then the SERVERS ({tool key: its row}) it reaches."""
-    words = [word for word, names in (("reads", READS), ("edits", EDITS), ("runs", ("Bash",)))
-             if any(tool in names for tool in tools)]
-    keys = dict.fromkeys(reach(True, tool, {})[1] for tool in tools if tool.startswith("mcp__"))
-    return ", ".join(words + [servers[key]["label"] if key in servers else key for key in keys]) or "every tool"
 
 
 def called_as(one):
@@ -239,20 +225,26 @@ def epoch(stamp):
 
 
 def graph(agent, folder, home, session=None, costs=None):
-    """AGENT's graph in FOLDER (HOME: where ~ is): {"agent", "name", "folder", "session", "run": whether a conversation
-    is read, "words", "nodes", "edges", "path": the nodes that ran, in order}; None where the agent is not here.
-    SESSION: the conversation's file; COSTS: costs.py's answer for it. A node's and an edge's "run": None with none."""
+    """AGENT's graph in FOLDER: {"agent", "name", "folder", "session", "run": a chat read, "cost": its whole, "words",
+    "nodes", "edges", "path": the nodes that ran, in order}; None where the agent is not here. SESSION: the chat's
+    file; COSTS: costs.py's answer for it. A node's and an edge's "run": None with no chat."""
     claude = agent == "claude"
     own = setup.setup(agent, folder, home, session if claude else None)
     if own is None:
         return None
     ran = read(agent, session) if session else None
     costs, calls, name = obj(costs) if ran else {}, ran["calls"] if ran else [], setup.KNOWN[agent]["name"]
-    rows = {row["id"]: row for section in setup.layers(own, agent, folder, home)["sections"]
-            for row in section["rows"]}
-    for row in rows.values():                   # a node is where Show graph leads: its own leads back to its row
+    panel = layers.layers(own, agent, folder, home)
+    rows = {row["id"]: row for section in panel["sections"]
+            for row in section["rows"] + [one for group in section["groups"] for one in group["rows"]]}
+    used_by = obj(own.get("use")).get("agents", {})
+    rows.update({f"subagent:{one['source']}:{one['name']}": {
+        **layers.subagent_row(one, used_by, agent, folder, home), "id": "subagent:built-in"}
+        for one in own["agents"] if one["source"] == setup.CLAUDE})
+    for key, row in rows.items():               # a node is where Show in graph leads: its own leads back to its row
         kept = [one for one in row["properties"]["actions"] if one["id"] != "graph"]
-        row["properties"]["actions"] = kept + [{**show(row["id"]), "primary": not kept}]
+        rows[key] = {**row, "properties": {**row["properties"], "actions": kept + [
+            {**show(row["id"]), "primary": not kept}]}}
     used, nodes, edges, ids = collections.Counter(one["to"] for one in calls), [], [], {}
     used.update(("sub", kind) for kind in (ran["subs"] if ran else ()))
 
@@ -274,101 +266,104 @@ def graph(agent, folder, home, session=None, costs=None):
             else:
                 rest.append(one)
         if len(rest) > 1:
-            lines = [[one["name"], setup.tag(one)["text"], None] for one in rest[:LISTED]]
+            lines = [[one["name"], layers.tag(one), None] for one in rest[:LISTED]]
             lines += [["", f"{len(rest) - LISTED} more", None]] * (len(rest) > LISTED)
-            cost = [setup.kilo(sum(one["tokens"] for one in rest))] if kind == "skill" else []
-            add((key, None), node(key, "in" if cost else "agents", kind + "s", f"{len(rest)} more {word}",
-                                  " · ".join(["on demand"] + cost), icon="skill" if cost else "bot", lines=lines),
-                "demand", bool(cost))
+            listed = kind == "skill"            # a skill's name and description load always, its body on demand
+            sub = f"listed always · {words.tokens(sum(one['tokens'] for one in rest))}" if listed else "on demand"
+            add((key, None), node(key, "in" if listed else "agents", kind + "s", f"{len(rest)} more {word}", sub,
+                                  icon="skill" if listed else "bot", lines=lines), "demand", listed)
         for one in rest[:len(rest) == 1]:
             make(one)
 
-    # in: the rules, the skills
+    # in: the rules, the hooks that add context, the skills
     for one in own["rules"]:
         row, paths = rows["rule:" + one["path"]], one["paths"]
         then = (f"read with {', '.join(paths)} · {row['cost']}", None) if paths else (
             f"always · {row['cost']} tokens", True)
         add(("rule", row["id"]), node(row["id"], "in", "rule", row["name"], row["note"] or f"always · {row['cost']}",
                                       row, then=then), "demand" if paths else "always", True)
+    for one in own["hooks"]:
+        if one["kind"] == "context":
+            row, said = rows[layers.hook_key(one)], f"{one['name']} · adds context"
+            add(("hook", row["id"]), node(row["id"], "in", "hook", f"{one['event']} hook", said, row,
+                                          then=(said, True)), "always", True)
 
     def skill(one):
-        row, words, count = rows["skill:" + one["path"]], setup.clean(one["description"], SAID), used[
+        row, said, count = rows["skill:" + one["path"]], setup.clean(one["description"], SAID), used[
             ("skill", called_as(one))]
         add(("skill", called_as(one)), node(
-            row["id"], "in", "skill", row["name"], "skill · " + words if words else "skill", row,
-            then=(f"skill · used {times(count)} · {row['cost']}", None) if count else None), "demand", True)
+            row["id"], "in", "skill", row["name"], said, row,
+            then=(f"used {times(count)} · {row['cost']}", None) if count else None), "demand", True)
     some("skill", own["skills"], skill, "skills:more", "skills")
 
-    # agents: the agent, its sub-agents
+    # agents: the agent with the hooks that watch it, its subagents
     session_id = ran["session"] if ran else None
-    status = os.path.join(home, ".local", "state", "herdr-fold", "chat", session_id or "", "status.json")
-    hooked = claude and bool(CHAT.fullmatch(session_id or "")) and os.path.isfile(status)
-    chat = setup.read_json(status) if hooked else {}
-    mode = ran["mode"] if ran and ran["mode"] in MODES else own.get("default_mode") or "default"
-    starts = {} if claude else setup.codex_config(home)
+    mode = (ran["mode"] if ran and ran["mode"] in MODES else own["permissions"]["mode"] or "default") if claude \
+        else "default"
     policy = None if claude else (ran or {}).get("mode") or own["permissions"]["mode"]
-    effort = chat.get("effort") if claude else (ran or {}).get("effort") or starts.get("model_reasoning_effort")
-    effort = setup.clean(effort, NAME)
-    effort = effort and EFFORTS.get(effort, effort.capitalize())
     lines = [[label, value, None] for label, value in (
-        ("Model", setup.clean(chat.get("model"), NAME) or obj(obj(costs.get("agent")).get("model")).get("name")),
-        ("Effort", effort), ("Mode", MODES[mode][0] if claude else None),
-        ("Approval", setup.APPROVALS.get(str(policy)))) if value]
+        ("Model", panel["head"]["model"]), ("Effort", panel["head"]["effort"]),
+        ("Mode", MODES[mode][0] if claude else None), ("Approval", setup.APPROVALS.get(str(policy)))) if value]
+    chips = [f"{one['event']} → {one['name']}" for one in sorted(own["hooks"], key=lambda one: one["kind"] != "gate")
+             if one["kind"] == "watch" or one["kind"] == "gate" and one["matcher"] in ALL]
     add((AGENT, None), node(AGENT, "agents", "agent", name, " · ".join(line[1] for line in lines) or None, icon=agent,
-                            lines=lines + [["Hook", "PermissionRequest", "herdr-fold"]] * hooked, acts=[show()]))
-    nodes[-1].update(tag={"text": "this conversation", "tone": "muted"} if ran else None,
-                     chips=["PermissionRequest → herdr-fold"] * hooked)
+                            lines=lines + [["Hook", one["event"], one["name"]] for one in own["hooks"]
+                                           if one["kind"] != "context"], acts=[show()]))
+    nodes[-1].update(chips=chips)
     servers = {setup.tool_key(one["name"]): one for one in own["servers"]}
 
     def sub(one):
-        row = rows[f"agent:{one['source']}:{one['name']}"]
-        words = ["sub-agent"] + [(one["model"] or "").capitalize()] * (one["model"] not in (None, "inherit")) + \
-            [tools_said(one["tools"], servers)]
-        add(("sub", called_as(one)), node(row["id"], "agents", "sub", row["name"], " · ".join(words), row), "demand")
+        row = rows[f"subagent:{one['source']}:{one['name']}"]
+        add(("sub", called_as(one)), node(row["id"] if row["id"] != "subagent:built-in" else
+                                          f"subagent:{one['source']}:{one['name']}", "agents", "sub", one["name"],
+                                          row["note"], row), "demand")
         for key in dict.fromkeys(reach(True, tool, {})[1] for tool in one["tools"] if tool.startswith("mcp__")):
             if servers.get(key, {}).get("state") in STYLE:
-                edges.append(edge(row["id"], "connector:" + servers[key]["name"], STYLE[servers[key]["state"]]))
-    some("sub", own["agents"], sub, "agents:more", "sub-agents")
+                edges.append(edge(nodes[-1]["id"], "connector:" + servers[key]["name"], STYLE[servers[key]["state"]]))
+    some("sub", own["agents"], sub, "agents:more", "subagents")
 
     # uses: the built-in tools, the connectors
-    table, lets = own["permissions"], MODES[mode][1]
+    table, lets, gating = own["permissions"], MODES[mode][1], own["hooks"]
     asks = ("allow" if policy == "never" else "ask" if policy else None) if not claude else \
         "deny" if mode == "dontAsk" else "auto" if mode == "auto" else "allow" if lets is None else "ask"
+    box = own["sandbox"]
+    boxed = None if not box or not box.get("on", True) else setup.SANDBOXES[box["mode"]] if not claude else \
+        "sandboxed" + (f", {len(box['hosts'])} host{'s' * (len(box['hosts']) != 1)}" if box["hosts"] else "")
 
-    def tool(key, title=None, names=None, base=None, icon="wrench"):
+    def tool(key, title=None, names=None, base=None, icon="wrench", sub=None):
         title, names = title or setup.clean(key, NAME) or "tool", names or (key,)
-        found, lines = gates(table, names if claude else None, base, hooked, lone=len(names) == 1 or not claude) \
-            if claude or names == SHELL else ([], [])
-        lines = [["Kind", "built-in", None]] + [["Tools", ", ".join(names), None]] * (len(names) > 1 and claude) + lines
-        add(("tool", key), node("tool:" + (title if names == (key,) else key), "uses", "tool", title, "built-in",
+        found, lines = gates(table, names if claude else None, base, deciding(gating, names),
+                             lone=len(names) == 1 or not claude) if claude or names == SHELL else ([], [])
+        lines = [["Tools", ", ".join(names), None]] * (len(names) > 1 and claude) + lines
+        add(("tool", key), node("tool:" + (title if names == (key,) else key), "uses", "tool", title, sub,
                                 icon=icon, lines=lines), "always", found=found)
     if claude:
         tool("files", "Read · Edit · Write", FILES, "allow" if lets else asks, "file")
-        tool("Bash", base=asks, icon="terminal")
+        tool("Bash", base=asks, icon="terminal", sub=boxed)
     else:
-        tool("shell", "Shell", SHELL, asks, "terminal")
-    for one in sorted(own["servers"], key=lambda one: (one["state"] in setup.DIM) * 3 or RANK.get(one["state"], 0)):
-        row, state, cost = rows["connector:" + one["name"]], one["state"], one["tokens"] and setup.kilo(one["tokens"])
-        word, tone = setup.SAID_AS[state]
-        said = "needs sign-in" if state == setup.SIGN_IN else word if state in setup.DIM or state == setup.PENDING \
-            else " · ".join(["failed"] + [setup.clean(one["error"], NAME)] * bool(one["error"])) \
+        tool("shell", "Shell", SHELL, asks, "terminal", boxed)
+    for one in sorted(own["servers"], key=lambda one: (one["state"] in layers.DIM) * 3 or RANK.get(one["state"], 0)):
+        row, state, cost = rows["connector:" + one["name"]], one["state"], one["tokens"] and words.tokens(one["tokens"])
+        word, tone = layers.SAID_AS[state]
+        said = word if state in layers.DIM or state in (setup.PENDING, setup.SIGN_IN) \
+            else " · ".join(["failed"] + [setup.clean(row["properties"]["error"], NAME)] * bool(one["error"])) \
             if state == setup.FAILED else " · ".join(
-                ["MCP"] + [f"{one['tools']} tools"] * bool(one["tools"])
-                + [cost or word] * bool(cost or not one["tools"]))
-        style = None if state in setup.DIM else STYLE.get(state, "demand")
-        add(("server", setup.tool_key(one["name"])), node(
+                [f"{one['tools']} tools"] * bool(one["tools"]) + [cost or word] * bool(cost or not one["tools"]))
+        style = None if state in layers.DIM else STYLE.get(state, "demand")
+        key = setup.tool_key(one["name"])
+        add(("server", key), node(
             row["id"], "uses", "connector", row["name"], said, row, dim=not style,
             state=tone if tone in ("bad", "warn") else "warn" if state == setup.PENDING else None,
-            then=(f"connector · {cost} tokens in context" if cost else UNUSED,
+            then=(f"{cost} tokens in context" if cost else UNUSED,
                   {"text": word, "tone": tone} if tone in ("bad", "warn") else None)),
-            style, found=gates(table, (), asks, hooked, setup.tool_key(one["name"]))[0]
+            style, found=gates(table, (), asks, deciding(gating, (), key), key)[0]
             if style in ("always", "demand") and claude else ())
-    edges.sort(key=lambda one: AGENT not in (one["from"], one["to"]))       # a sub-agent's own after the agent's
+    edges.sort(key=lambda one: AGENT not in (one["from"], one["to"]))       # a subagent's own after the agent's
 
-    made = {"agent": agent, "name": name, "folder": folder, "session": session_id, "run": bool(ran), "words": WORDS,
-            "nodes": nodes, "edges": edges, "path": []}
+    made = {"agent": agent, "name": name, "folder": folder, "session": session_id, "run": bool(ran),
+            "cost": costs.get("text") if ran else None, "words": WORDS, "nodes": nodes, "edges": edges, "path": []}
     if ran:
-        run(made, ran, costs, ids, add, tool, effort)
+        run(made, ran, costs, ids, add, tool, panel["head"]["effort"])
     for one in nodes:
         del one["then"]
     return made
@@ -376,7 +371,7 @@ def graph(agent, folder, home, session=None, costs=None):
 
 def run(made, read, costs, ids, add, tool, effort):
     """MADE (graph()'s) with what READ (read()'s) laid in: each node's and edge's "run", a node for what ran unlisted,
-    the path; COSTS on the agent and its sub-agents. IDS: a node's id by what a call reaches; ADD, TOOL make one."""
+    the path; COSTS on the agent and its subagents. IDS: a node's id by what a call reaches; ADD, TOOL make one."""
     nodes, edges, name = made["nodes"], made["edges"], made["name"]
     by_id, lines, names = {}, {}, {}
 
@@ -399,13 +394,12 @@ def run(made, read, costs, ids, add, tool, effort):
         """The id of the node a call's KEY reaches, made where the setup lists none."""
         kind, word = key[0], setup.clean(key[1], NAME) or key[0]
         if key not in ids:
-            column, made, sub, icon = {"skill": ("in", "skill", "skill", "skill"), "tool": (None,) * 4,
-                                       "sub": ("agents", "sub", "sub-agent", "bot"),
-                                       "server": ("uses", "connector", "MCP", "plug")}[kind]
+            column, made, icon = {"skill": ("in", "skill", "skill"), "tool": (None,) * 3,
+                                  "sub": ("agents", "sub", "bot"), "server": ("uses", "connector", "plug")}[kind]
             if kind == "tool":
                 tool(key[1])
             else:
-                add(key, node(f"{kind}:run:{word}", column, made, word, sub, icon=icon),
+                add(key, node(f"{kind}:run:{word}", column, made, word, icon=icon),
                     None if kind == "server" else "demand", kind == "skill")
             keep()
         return ids[key]
@@ -435,15 +429,15 @@ def run(made, read, costs, ids, add, tool, effort):
         model = obj(cost.get("model"))
         if kind in ("tool", "connector") and count:
             ran["calls"] = calls_said(count)
-            ran["sub"] = "connector" if ran["sub"] == UNUSED else ran["sub"]
+            ran["sub"] = None if ran["sub"] == UNUSED else ran["sub"]
             split = [[word, str(n), None] for word, n in names[one["id"]].items()]
             if kind == "tool":
-                ran["properties"] = setup.properties(one["title"], lines=[["Calls", str(count), None]] + split * (
+                ran["properties"] = layers.properties(one["title"], lines=[["Calls", str(count), None]] + split * (
                     [line[0] for line in split] != [one["title"]]))
         elif kind == "sub" and not ran["ran"]:
-            ran["sub"] = "not run in this conversation"
+            ran["sub"] = "not run in this chat"
         elif kind == "sub":
-            ran["sub"] = cost.get("sub") or f"sub-agent · ran {times(max(count, 1))}"
+            ran["sub"] = cost.get("sub") or f"ran {times(max(count, 1))}"
             told = [["Model", model["name"], None] if line[0] == "Model" and model else line
                     for line in shown["lines"] if line[0] != "Used"]
             has = any(line[0] == "Model" for line in told)
@@ -455,31 +449,8 @@ def run(made, read, costs, ids, add, tool, effort):
             ran["sub"] = cost.get("sub") or ran["sub"]
             told = [[line[0], f"{line[1]} · {effort}", line[2]] if line[0] == "Model" and effort else line
                     for line in cost.get("lines") or []]
-            ran["properties"] = setup.properties(name, {"text": cost.get("title"), "tone": "ok"}, told, actions=[
-                {**setup.act("usage", "Open in Usage"), "session": made["session"]}, show()])
+            ran["properties"] = layers.properties(name, {"text": cost.get("title"), "tone": "ok"}, told, actions=[
+                {**layers.act("usage", "Open in Usage"), "session": made["session"]}, show()])
         if cost and ran["ran"]:
             ran.update(cost=cost.get("text"), share=cost.get("share"),
                        model={"name": model.get("name"), "color": model.get("color")} if model else None)
-
-
-def main(argv):
-    """herdr-fold's Herdr app mod runs this on the space's machine, answering in JSON: AGENT FOLDER [SESSION],
-    graph()'s (SESSION a file, for Claude an id too, else the folder's newest conversation; --costs: costs.py's)."""
-    options = dict(arg[2:].split("=", 1) for arg in argv[1:] if arg.startswith("--") and "=" in arg)
-    args, home = [arg for arg in argv[1:] if not arg.startswith("--")], os.path.expanduser("~")
-    try:
-        costs = json.loads(options["costs"]) if "costs" in options else None
-    except ValueError:
-        args = []
-    if len(args) not in (2, 3) or args[0] not in setup.READ:
-        print("usage: graph.py claude|codex FOLDER [SESSION] [--costs=JSON]", file=sys.stderr)
-        return 2
-    agent, folder, session = args[0], args[1], args[2] if len(args) == 3 else None
-    session = setup.conversation(folder, session, home) if agent == "claude" else \
-        session if session and os.path.isfile(session) else rollout(folder, home)
-    print(json.dumps(graph(agent, folder, home, session, costs)))
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv))

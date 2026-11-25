@@ -26,10 +26,6 @@ class Panels(unittest.TestCase):
                 self.assertEqual(set(panel), {"name", "glyph"})
                 self.assertLessEqual(len(panel["name"]), RAIL)
 
-    def test_an_older_versions_id_names_a_panel_of_today(self):
-        self.assertEqual(dock.FORMER, {"conversations": "chats"})
-        self.assertLessEqual(set(dock.FORMER.values()), set(dock.PANELS))
-
     def test_the_row_goes_files_search_changes_issues_agent_chats(self):
         # the TUI's row and rail in this order, More after them; the Agent view under its own robot
         self.assertEqual([panel for _group, panels in dock.GROUPS for panel in panels],

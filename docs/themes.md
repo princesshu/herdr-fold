@@ -17,15 +17,18 @@ python3 ~/.config/herdr-fold/themes/apply.py       # the list, the current one m
 python3 ~/.config/herdr-fold/themes/apply.py 2     # by number or by name, for example vscode
 ```
 
-![The twelve themes, each as a sketch of the work window in its colors, with its loading sheep and its app
-icon](../assets/screenshots/themes.webp)
+![The twelve themes, each as a sketch of the TUI's window in its colors (Spaces, Claude's pane, the sidebar on
+Changes over the terminal), with its loading sheep and its app icon](../assets/screenshots/tui-themes.webp)
 
 ## What a theme sets
 
 - Ghostty's colors;
 - herdr's colors, the Spaces and Sessions highlight too, and the Spaces list's labels: `waiting 12m` in the theme's
-  yellow, `deleted` in its red, and a repository's branch inside a folder that is not one in the labels' gray;
-- the prompt's colors;
+  yellow, `deleted` in its red, and a repository inside a folder that is not one: its name in the text color, its
+  branch under it in a gray still legible on the active row;
+- the prompt's colors. The prompt never names the repository, which the space already shows: at a repository's top
+  it is the branch, its status and the ❯ on one line; below the top, the path inside it (`/src`) stands above them;
+  outside a repository, the path;
 - the sidebar's colors (`herdr-fold.sidebar`), in its state folder; a running sidebar switches at once;
 - in the Herdr app, herdr-fold's layout: its `theme` names the theme's `themes/herdr-fold-<id>.json`, and a running
   app switches at once; the theme picker in the app's Settings overrides a layout's theme, as the app has it;

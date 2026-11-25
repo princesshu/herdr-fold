@@ -49,7 +49,7 @@ def sample(theme, width):
     c, prompt = theme["colors"], theme["prompt"]
     p, h = c["palette"], c["herdr"]
     rows = [
-        [(prompt["path"], " repo", True)],
+        [(prompt["path"], " /src", True)],
         [(prompt["branch"], " main"), (prompt["status"], " [!]"), (prompt["path"], " ❯", True),
          (c["foreground"], " claude")],
         [(p[2], " + return redirect(next)"), (p[1], "   - return redirect('/')")],

@@ -33,12 +33,15 @@ confirm-close-surface = true
 
 # Ctrl+Option+0 types a zero: the layouts that put zero there would otherwise send the chord as a command
 keybind = ctrl+alt+digit_0=text:0
+# Shift+Enter starts a new line in Claude Code and Codex in every pane (Esc, Enter: Option+Enter's), also where an
+# agent did not ask for the extended keys (one herdr restored, a remote one); the Herdr app's keys send the same
+keybind = shift+enter=text:\x1b\r
 # The app icon in the theme's colors, on a Mac: the theme setter draws it and writes where it is into this file;
 # without it, Ghostty's own icon
 config-file = ?herdr-fold-icon
 
 # Cmd keys for herdr. Option is left alone: many keyboard layouts type @ [ ] { } | \ ~ with it.
-# Cmd+1…9 → herdr workspace 1…9, on the tab last used there (Alt+digit; in herdr switch_workspace = "alt+1..9")
+# Cmd+1…9 → herdr's space 1…9, on the tab last used there (Option+digit; in herdr switch_workspace = "alt+1..9")
 keybind = super+1=esc:1
 keybind = super+2=esc:2
 keybind = super+3=esc:3
@@ -57,19 +60,19 @@ keybind = super+digit_6=esc:6
 keybind = super+digit_7=esc:7
 keybind = super+digit_8=esc:8
 keybind = super+digit_9=esc:9
-# Cmd+↑ / Cmd+↓ → the previous / next herdr workspace (herdr: Ctrl+B, ↑ / ↓); Cmd+← / Cmd+→ → the previous / next pane
+# Cmd+↑ / Cmd+↓ → the previous / next herdr space (herdr: Ctrl+B, ↑ / ↓); Cmd+← / Cmd+→ → the previous / next pane
 # of the tab (herdr: Ctrl+B, Shift+Tab / Tab); both wrap around. Start / end of the line while typing: Ctrl+A / Ctrl+E.
 keybind = super+up=text:\x02\x1b[A
 keybind = super+down=text:\x02\x1b[B
 keybind = super+left=text:\x02\x1b[Z
 keybind = super+right=text:\x02\t
-# Cmd+T / Cmd+R → the next / previous tab of the workspace (herdr: Ctrl+B, n / p), wrapping around: the thumb on Cmd,
+# Cmd+T / Cmd+R → the next / previous tab of the space (herdr: Ctrl+B, n / p), wrapping around: the thumb on Cmd,
 # the index finger between the two, R on the left for the previous tab, T on the right for the next, tapped again to
 # step on. Ghostty's own new tab on Cmd+T would open outside herdr.
 keybind = super+t=text:\x02n
 keybind = super+r=text:\x02p
-# Cmd+D / Cmd+E → the next / previous Claude/Codex session of the workspace, one-handed, even while typing (herdr's
-# Ctrl+Alt+Shift+↓ / ↑). A Cmd key, as Ghostty sends it once per press; Ctrl+Tab was doubled or taken by macOS.
+# Cmd+D / Cmd+E → the next / previous Claude/Codex session of the space, one-handed, even while typing (herdr's
+# Ctrl+Option+Shift+↓ / ↑). A Cmd key, as Ghostty sends it once per press; Ctrl+Tab was doubled or taken by macOS.
 # REMAPPABLE: change the left-hand side of the line, then press Cmd+Shift+,
 keybind = super+d=text:\x1b[1;8B
 keybind = super+e=text:\x1b[1;8A
@@ -77,6 +80,8 @@ keybind = super+e=text:\x1b[1;8A
 keybind = super+b=text:\x02b
 # Cmd+Shift+E → the right-hand column (sidebar + terminal) on/off (herdr: Ctrl+B, f)
 keybind = super+shift+e=text:\x02f
+# Cmd+Option+B → the sidebar folded to its rail of icons, or opened again, in every tab (herdr: Ctrl+B, Shift+B)
+keybind = super+alt+b=text:\x02B
 # Cmd+Shift+G → the sidebar's Changes view (herdr: Ctrl+B, u)
 keybind = super+shift+g=text:\x02u
 # Cmd+Shift+I → the sidebar's Issues view, for a repository on GitHub (herdr: Ctrl+B, Shift+I)
@@ -84,7 +89,7 @@ keybind = super+shift+i=text:\x02I
 # Cmd+A → the whole text of the sidebar's field you are in, the commit message's (herdr: Ctrl+B, Shift+A). Ghostty's
 # own select all would take the whole window, every herdr pane in it
 keybind = super+a=text:\x02A
-# Cmd+W → closes the active herdr tab (not the workspace's main tab), NOT the Ghostty window (herdr: Ctrl+B, t)
+# Cmd+W → closes the active herdr tab (not the space's main tab), NOT the Ghostty window (herdr: Ctrl+B, t)
 keybind = super+w=text:\x02t
 # Cmd+Shift+C → commit + push in one step, with an AI-written message (herdr: Ctrl+B, y)
 keybind = super+shift+c=text:\x02y
@@ -98,7 +103,7 @@ keybind = super+shift+l=text:\x02L
 keybind = super+shift+o=text:\x02O
 # Cmd+Shift+R → find a chat in the sidebar's Chats (herdr: Ctrl+B, m)
 keybind = super+shift+r=text:\x02m
-# Cmd+Shift+U → mark the focused agent unread: its workspace says it waits on you again (herdr: Ctrl+B, Shift+U)
+# Cmd+Shift+U → mark the focused agent unread: its space says it waits on you again (herdr: Ctrl+B, Shift+U)
 keybind = super+shift+u=text:\x02U
 # Cmd+K, Cmd+T → pick a color theme (herdr: Ctrl+B, i). Cmd+K thus starts a key sequence, so
 # Ghostty's default Cmd+K (clear screen) is not available.

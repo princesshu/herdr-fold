@@ -19,8 +19,8 @@ import sidebar  # noqa: E402
 import theme  # noqa: E402
 from vt import Focus, Key, Mouse  # noqa: E402
 
-WIDE, HIGH = 58, 13                       # the popup's inside: herdr-plugin.toml's size less herdr's frame
-LIST, AT = 11, 13                         # the section list's cells; the section's first column, past the rule
+WIDE, HIGH = 62, 13                       # the popup's inside: herdr-plugin.toml's size less herdr's frame
+LIST, AT = 15, 17                         # the section list's cells; the section's first column, past the rule
 NOON = time.mktime(time.localtime()[:3] + (12, 30, 0, 0, 0, -1))                 # 12:30 today, this Mac's zone
 FOUND = {"version": "0.3.0", "latest": "0.3.0", "newer": False, "on": True, "checked": NOON, "error": None,
          "updated": None, "releases": "https://github.com/princesshu/herdr-fold/releases", "how": settings.update.HOW}
@@ -61,7 +61,9 @@ class Popup(unittest.TestCase):
                                 context={"workspace_id": "w1", "tab_id": "w1:t1", "focused_pane_id": "w1:p2",
                                          "workspace_cwd": self.tmp})
         if section and app.section != section:
-            app.handle(Key("down" if section == "about" else "up"))
+            names = list(settings.SECTIONS)
+            for _ in range(abs(names.index(section) - names.index(app.section))):
+                app.handle(Key("down" if names.index(section) > names.index(app.section) else "up"))
         self.settle(app)
         return app
 
@@ -87,8 +89,8 @@ class General(Popup):
         self.assertEqual(self.rows(app), [
             " " * LIST + "│" + " " * (WIDE - LIST - 3) + CLOSE,
             line("Icons", " General"),
-            line(" Nerd Font   Plain marks", " About"),
-            line(),
+            line(" Nerd Font   Plain marks", " Notifications"),
+            line(left=" About"),
             line("Plain marks where the terminal's font has no"),
             line("Nerd Font icons; i in Files switches it too.")] + [line()] * 7)
 
@@ -119,7 +121,7 @@ class General(Popup):
         app.draw()
         self.assertEqual(self.kept(), {"agent": "codex", "icons": False})
         rows = self.rows(app)
-        self.assertEqual((rows[0][-1], rows[2]), ("×", line(" Nerd Font   Plain marks", " About")))
+        self.assertEqual((rows[0][-1], rows[2]), ("×", line(" Nerd Font   Plain marks", " Notifications")))
         self.assertEqual([app.canvas.rows[2][x][1].bg for x in (AT, AT + 11, AT + 12, AT + 24, AT + 25)],
                          [None, None, "button", "button", None])
         self.assertEqual(app.canvas.rows[2][AT + 1][1], settings.Style(fg="muted"))
@@ -164,6 +166,69 @@ class General(Popup):
             app.handle(Key("enter"))
             self.settle(app)
         self.assertEqual((switch.called, opened.called, check.call_count, app.quit), (False, False, 1, False))
+
+
+class Notifications(Popup):
+    """Notifications: herdr's own toast for an agent that waits, on or off in herdr's config.toml, then reloaded."""
+
+    def config(self, body=None):
+        path = os.path.join(self.tmp, ".config", "herdr", "config.toml")
+        if body is not None:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(body)
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+
+    def test_it_draws_between_general_and_about_as_the_mockup_on_by_default(self):
+        app = self.open(section="notifications")
+        self.assertEqual(self.rows(app), [
+            " " * LIST + "│" + " " * (WIDE - LIST - 3) + CLOSE,
+            line("An agent waits on you", " General"),
+            line(" on   off", " Notifications"),
+            line(left=" About"),
+            line("herdr's note at the bottom right,"),
+            line("once per agent")] + [line()] * 7)
+        lit, plain = app.canvas.rows[2][AT + 1][1], app.canvas.rows[2][AT + 6][1]
+        self.assertEqual((lit.bg, lit.bold, plain.fg), ("button", True, "muted"))
+        self.assertEqual(self.herdr.calls, [])                                  # nothing written or asked to look
+
+    def test_off_writes_herdrs_own_setting_and_reloads_it_and_on_puts_herdr_back(self):
+        self.config('[ui]\ncopy_on_select = false\n\n[ui.toast]\ndelivery = "herdr"\n')
+        app = self.open(section="notifications")
+        app.handle(Key("right"))
+        self.settle(app)
+        self.assertEqual(self.config(), '[ui]\ncopy_on_select = false\n\n[ui.toast]\ndelivery = "off"\n')
+        self.assertEqual(self.herdr.calls, [("server", "reload-config")])
+        self.assertEqual(app.canvas.rows[2][AT + 6][1].bg, "button")
+        self.assertFalse(self.open(section="notifications").waits)             # read from the file when it opens
+        app.handle(Mouse("press", AT + 1, 2, 0))
+        self.settle(app)
+        self.assertIn('delivery = "herdr"', self.config())
+        self.assertEqual(len(self.herdr.calls), 2)
+
+    def test_another_delivery_of_theirs_shows_on_and_stays_until_they_switch(self):
+        self.config('[ui.toast]\ndelivery = "terminal"\n')
+        app = self.open(section="notifications")
+        self.assertTrue(app.waits)
+        app.handle(Mouse("press", AT + 1, 2, 0))                                # on, as it is: nothing written
+        self.settle(app)
+        self.assertEqual((self.config(), self.herdr.calls), ('[ui.toast]\ndelivery = "terminal"\n', []))
+        app.handle(Key("tab"))
+        self.settle(app)
+        self.assertIn('delivery = "off"', self.config())
+
+    def test_a_file_it_cannot_read_for_sure_or_a_reload_that_fails_leaves_the_popup_standing(self):
+        self.config('a = """\n')
+        app = self.open(section="notifications")
+        app.handle(Key("right"))
+        self.settle(app)
+        self.assertEqual((app.waits, self.config(), self.herdr.calls), (True, 'a = """\n', []))
+        self.config('[ui.toast]\ndelivery = "herdr"\n')
+        self.herdr.call = mock.Mock(side_effect=RuntimeError("no server"))
+        app.handle(Key("right"))
+        self.settle(app)
+        self.assertEqual((app.waits, app.error), (False, None))                 # written: herdr reads it when it starts
 
 
 class Sidebars(unittest.TestCase):
@@ -266,7 +331,8 @@ class Sections(Popup):
 
     def test_up_and_down_choose_the_section(self):
         app = self.open(section=None)
-        for key, section in (("up", "general"), ("down", "about"), ("down", "about"), ("up", "general")):
+        for key, section in (("up", "general"), ("down", "notifications"), ("down", "about"), ("down", "about"),
+                             ("up", "notifications"), ("up", "general")):
             app.handle(Key(key))
             self.assertEqual(app.section, section, key)
         app.handle(Key("down"))
@@ -276,11 +342,13 @@ class Sections(Popup):
 
     def test_a_click_chooses_a_section_and_the_mouse_lights_the_other(self):
         app = self.open(section=None)
-        app.handle(Mouse("move", LIST - 1, 2, 3))
+        app.handle(Mouse("move", LIST - 1, 3, 3))
         app.draw()
-        self.assertEqual({style.bg for _ch, style in app.canvas.rows[2][:LIST]}, {"hover"})
-        app.handle(Mouse("press", LIST - 1, 2, 0))
+        self.assertEqual({style.bg for _ch, style in app.canvas.rows[3][:LIST]}, {"hover"})
+        app.handle(Mouse("press", LIST - 1, 3, 0))
         self.assertEqual(app.section, "about")
+        app.handle(Mouse("press", LIST - 1, 2, 0))
+        self.assertEqual(app.section, "notifications")
         app.handle(Mouse("press", 0, 1, 0))
         self.assertEqual(app.section, "general")
         app.handle(Mouse("press", LIST, 2, 0))                                  # the rule: no one's
@@ -309,8 +377,8 @@ class About(Popup):
         self.assertEqual(up_to_date, [
             " " * LIST + "│" + " " * (WIDE - LIST - 3) + CLOSE,
             line("herdr-fold 0.3.0", " General"),
-            line("© 2026 princesshu · MIT License", " About"),
-            line(),
+            line("© 2026 princesshu · MIT License", " Notifications"),
+            line(left=" About"),
             line("✓ Up to date · checked at 12:30"),
             line(),
             line(),
@@ -361,8 +429,9 @@ class About(Popup):
     def test_without_an_install_here_it_says_so(self):
         # a remote machine's sidebar: no version to compare, nothing to check; the license and the notices stay
         rows = self.rows(self.open({**FOUND, "version": None, "latest": None, "checked": None}))
-        self.assertEqual(rows[1:5], [line("herdr-fold", " General"), line("© 2026 princesshu · MIT License", " About"),
-                                     line(), line("Updated with the Mac that installed it")])
+        self.assertEqual(rows[1:5], [line("herdr-fold", " General"),
+                                     line("© 2026 princesshu · MIT License", " Notifications"),
+                                     line(left=" About"), line("Updated with the Mac that installed it")])
         self.assertEqual((rows[7], rows[9], rows[11]), (line(), line("Third-party notices"), line()))
         with mock.patch.object(settings.preview, "open_preview") as opened:        # the one thing Tab reaches
             app = self.open({**FOUND, "version": None, "latest": None, "checked": None})
@@ -456,10 +525,10 @@ class About(Popup):
             app.handle(Key("backtab"))                                  # from What's new back to the notices
             app.handle(Key("backtab"))
             app.handle(Key("enter"))
-        self.assertEqual(self.rows(app)[2], line("© 2027 Noa Berg · MIT License", " About"))
+        self.assertEqual(self.rows(app)[2], line("© 2027 Noa Berg · MIT License", " Notifications"))
         browser.assert_called_once_with("https://github.com/noa-berg")
         with mock.patch.object(settings, "LICENSE", os.path.join(self.tmp, "none")):
-            self.assertEqual(self.rows(self.open())[2], line("", " About"))     # no license to read: no row made up
+            self.assertEqual(self.rows(self.open())[2], line("", " Notifications"))    # no license: no row
 
     def test_tab_and_the_arrows_choose_among_the_buttons_and_the_links(self):
         # in reading order, round from the buttons at its foot: the author's name, the notices, the buttons

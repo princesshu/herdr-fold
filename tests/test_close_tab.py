@@ -49,7 +49,7 @@ class CloseTab(unittest.TestCase):
     def test_a_tab_with_a_chat_asks_first(self):
         calls = self.press("w1:t2")
         self.assertEqual(len(calls), 1)
-        self.assertEqual(calls[0][:7], ("plugin", "pane", "open", "--plugin", "herdr-fold.workspaces", "--entrypoint",
+        self.assertEqual(calls[0][:7], ("plugin", "pane", "open", "--plugin", "herdr-fold.spaces", "--entrypoint",
                                         "close-confirm"))
         self.assertIn("HERDR_CLOSE_TAB=w1:t2", calls[0])
 

@@ -63,8 +63,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}                     # the privacy test reads the repository's About with it
 
   installer:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     runs-on: macos-latest
-    timeout-minutes: 75
+    timeout-minutes: 45
     env:
       DO_NOT_TRACK: "1"
       HERDR_TELEMETRY: "0"
@@ -77,8 +81,8 @@ jobs:
         run: |
           curl -fsSL https://releases.herdr.dev/app/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: The installer's unit tests (install, uninstall, machines_prepare), beside the rest
-        run: /usr/bin/python3 lab/ci/units.py installer
+      - name: The installer's unit tests (install, uninstall, machines_prepare), a third of them
+        run: /usr/bin/python3 lab/ci/units.py installer ${{ matrix.shard }}/3
         env:
           GH_TOKEN: ${{ github.token }}                     # the privacy test reads the repository's About with it
 

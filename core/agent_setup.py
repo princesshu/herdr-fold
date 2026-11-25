@@ -1,6 +1,6 @@
-"""What Claude or Codex starts with in a folder, for a chat's Context panel, / menu and mode chip and the Agent panel:
-rules, skills, mode, permissions with their conflicts, sub-agents, MCP servers with their state, what a chat used. Only
-read, nothing of theirs written, every command theirs. A wrong setting counts as none. The agents: agent_state.py."""
+"""What Claude or Codex starts with in a folder, for a chat and the Agent panel: model, effort, rules and imports,
+skills, mode, sandbox, permissions, hooks, subagents, MCP servers, the newest chat's first turn, what a chat used. Only
+read, every command theirs; a wrong setting counts as none. The agents: agent_state.py; the panel: agent_layers.py."""
 import ast
 import glob
 import json
@@ -15,15 +15,17 @@ import unicodedata
 import urllib.parse
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
-from connectors import CLAUDE_AI as CLAUDE_PAGE, brand, logout  # noqa: E402
+import words  # noqa: E402
+from connectors import brand  # noqa: E402
 from jsonl import claude_project_dir, newest_first, obj, open_regular, parse  # noqa: E402
 from locate import dot_git, find, repo_top, tool_env  # noqa: E402
 
 CHARS_PER_TOKEN = 4             # the tokens a file costs, estimated: Claude's own count is not at hand
 LARGEST = 1 << 20               # bytes of a rules file read: more is not a rule anyone keeps
 CONFIG_LARGEST = 16 << 20       # bytes of ~/.claude.json read: it keeps every project's settings, it grows
-PERSONAL, PROJECT, LOCAL, MANAGED, BUILT_IN = "Personal", "Project", "Local", "Managed", "Built-in"
-CLAUDE = "Claude"               # the source of Claude's own sub-agents
+GLOBAL, PROJECT, LOCAL, MANAGED, BUILT_IN = "Global", "Project", "Local", "Managed", "Built-in"
+CLAUDE = "Claude"               # the source of Claude's own subagents
+HERDR_FOLD = "herdr-fold"       # the source of the hook herdr-fold's chats pass Claude with --settings
 # the modes Claude's permissions.defaultMode may name: claude 2.1.325's --permission-mode, and default (Manual's)
 MODES = ("default", "manual", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions")
 # the organization's settings, over every other: managed-settings.json, then managed-settings.d/*.json by name
@@ -34,7 +36,7 @@ BEHAVIORS = ("allow", "ask", "deny")
 HIDDEN_BY = {"allow": ("deny", "ask"), "ask": ("deny",)}
 RULE = re.compile(r"([^\s()]+)(?:\((.+)\))?", re.S)          # Tool or Tool(content), as Claude takes a rule
 PATH_TOOLS = ("Read", "Edit", "Write", "MultiEdit", "NotebookEdit")    # a rule's * stays in one folder, ** crosses
-LISTING = "agent_listing_delta"         # a session's line telling the sub-agents it added and removed
+LISTING = "agent_listing_delta"         # a session's line telling the subagents it added and removed
 LISTED = re.compile(r"(.*) \(Tools: ([^()]*)\)", re.S)       # a listing's line after its name: words, then tools
 TOOL = re.compile(r"[A-Za-z][\w:.-]*")  # a tool's name in a listing's line ("All tools except …" lists none)
 # an MCP server's transport as a row names it, by its config's type (none: a command); another type Claude refuses
@@ -49,25 +51,41 @@ LOOKED = 10                     # the newest session files looked in for one tha
 ERROR = 200                     # characters of an error a row keeps
 ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")     # a terminal's escape sequence, in a text shown as text
 LINE_NAME = re.compile(r"[^\s:]+")      # the tool a deferred tools line names, at its start
-GENERAL = "general-purpose"     # the sub-agent Claude starts for an Agent call that names none
+GENERAL = "general-purpose"     # the subagent Claude starts for an Agent call that names none
 # the session lines that tell the MCP servers' state: their tools, their instructions, a compaction starting both over
 TOLD = (b'"deferred_tools_delta"', b'"mcp_instructions_delta"', b'"compact_boundary"')
 # the agents herdr-fold knows, in its order (agent_state.py's HOW: each one's program, sign-in and install)
 KNOWN = {"claude": {"name": "Claude"}, "codex": {"name": "Codex"}, "gemini": {"name": "Gemini CLI"}}
-# Codex's approval policy in words, the graph's line's and the Agent panel's Permissions'
 # a mode in the chat's words
 MODE_WORDS = {"default": "Manual", "manual": "Manual", "acceptEdits": "Edit automatically", "plan": "Plan",
               "auto": "Auto", "dontAsk": "Don't ask", "bypassPermissions": "Bypass permissions"}
+# Codex's approval policy and sandbox in words
 APPROVALS = {"untrusted": "Ask unless trusted", "on-request": "Ask on request", "on-failure": "Ask on failure",
              "never": "Never ask"}
-# what codex_config() reads at config.toml's top level
-CODEX_WORD = re.compile(r"""^(profile|model_reasoning_effort|approval_policy)\s*=\s*["']([\w-]+)["']""", re.M)
+SANDBOXES = {"read-only": "Read only", "workspace-write": "Workspace write", "danger-full-access": "Full access"}
+# an effort in words: Claude's (effortLevel, CLAUDE_CODE_EFFORT_LEVEL) and Codex's (model_reasoning_effort)
+EFFORTS = {"minimal": "Minimal", "low": "Low", "medium": "Medium", "high": "High", "xhigh": "Extra high", "max": "Max"}
+# config.toml's lines read: a table's head, a key with a plain value (a string, true or false, a list on one line)
+TOML_TABLE = re.compile(r"\s*\[([^\[\]]+)\]\s*(?:#.*)?")
+TOML_VALUE = re.compile(r"""\s*([\w-]+)\s*=\s*("[^"\\]*"|'[^']*'|true|false|\[[^\]]*\])\s*(?:#.*)?""")
+TOML_STRING = re.compile(r""""([^"\\]*)"|'([^']*)'""")
+GATES = ("PreToolUse", "PermissionRequest")             # the hooks that decide a call, the others watch
+CONTEXT = ("SessionStart", "UserPromptSubmit")          # the hooks whose output Claude reads as context
+READ_ONLY = ("Read", "Grep", "Glob", "LS", "WebFetch", "WebSearch")     # a subagent with these alone reads only
+WEB_DOMAIN = re.compile(r"WebFetch\(domain:([^()\s]+)\)")    # an allow rule whose host Claude's sandbox reaches too
+IMPORT = re.compile(r"(?:^|\s)@([^\s`]+)")      # an @import in a rules file, outside its code
+DEPTH = 5                       # imports Claude follows from one file, one into the next
+CHAT = re.compile(r"[0-9a-f-]{36}")     # a session one of herdr-fold's chats may have started
 ASK_TIMEOUT = 10                # seconds an agent may take to tell whether it is signed in, or to list its servers
+ROLLOUTS = 200                  # Codex's newest chats looked through for the folder's
+FIRST_LINE = 1 << 20            # bytes of a Codex chat's first line read
 # Codex's rules' decisions as Claude's behaviors: it takes the most restrictive rule that matches, as Claude does
 DECISIONS = {"allow": "allow", "prompt": "ask", "forbidden": "deny"}
 CODEX_KINDS = {"stdio": "stdio", "streamable_http": "http"}      # `codex mcp list`'s transports as a row names them
 OFF = "off"                     # a Codex server turned off: in its own configuration, everywhere
 NOT_PLAIN = object()            # a rule's value Codex works out itself (a name, an expression): not read
+AGENT_OFF = re.compile(r"Agent\(([\w.:-]{1,80})\)")     # the deny rule that turns one subagent off
+EFFORT_ENV = "CLAUDE_CODE_EFFORT_LEVEL"
 
 
 def read_text(path, largest=LARGEST):
@@ -125,14 +143,22 @@ def tokens(text):
     return round(len(text) / CHARS_PER_TOKEN)
 
 
-def rule(path, scope):
-    """The rule in PATH ({path, scope, tokens, paths}: paths the globs it is read for, [] for always), or None."""
+def rule(path, scope, home, via=None, paths=None, depth=0):
+    """The rule in PATH ({path, scope, tokens, paths, via}: paths the globs it is read for, [] for always; VIA the file
+    that imports it, with its PATHS), then each file it imports (@path outside its code: from its own folder, ~/ from
+    HOME) as one more, DEPTH files deep at most; [] where PATH cannot be read."""
     text = read_text(path)
     if text is None:
-        return None
-    paths = front_matter(text).get("paths", [])
-    return {"path": path, "scope": scope, "tokens": tokens(text),
-            "paths": [paths] if isinstance(paths, str) and paths else paths if isinstance(paths, list) else []}
+        return []
+    told = front_matter(text).get("paths", [])
+    told = [told] if isinstance(told, str) and told else told if isinstance(told, list) else []
+    found = [{"path": path, "scope": scope, "tokens": tokens(text), "paths": told if paths is None else paths,
+              "via": via}]
+    code = re.sub(r"`[^`\n]*`", "", re.sub(r"```.*?(```|$)", "", text, flags=re.S))
+    for name in IMPORT.findall(code) if depth < DEPTH else ():
+        name = os.path.join(home, name[2:]) if name.startswith("~/") else os.path.join(os.path.dirname(path), name)
+        found += rule(os.path.normpath(name), scope, home, path, found[0]["paths"], depth + 1)
+    return found
 
 
 def ancestors(folder):
@@ -144,29 +170,31 @@ def ancestors(folder):
     return found[::-1]
 
 
-def rules(folder, home):
-    """The rules Claude reads in FOLDER, in its order: the user's own (Personal), each folder's from the highest down
-    (Project; AGENTS.md too, read by Codex and by whoever imports it), the folder's .claude/rules, then CLAUDE.local.md
-    (Local); each file once."""
+def rule_places(folder, home):
+    """Where Claude looks for rules in FOLDER, in its order, each with its scope: the user's own (Global), each folder's
+    from the highest down (Project; AGENTS.md too, read by Codex and by whoever imports it), the folder's .claude/rules,
+    then CLAUDE.local.md (Local)."""
     personal = os.path.join(home, ".claude")
-    places = [(os.path.join(personal, "CLAUDE.md"), PERSONAL)]
-    places += [(path, PERSONAL) for path in sorted(glob.glob(os.path.join(personal, "rules", "**", "*.md"),
+    places = [(os.path.join(personal, "CLAUDE.md"), GLOBAL)]
+    places += [(path, GLOBAL) for path in sorted(glob.glob(os.path.join(personal, "rules", "**", "*.md"),
                                                              recursive=True))]
     for here in ancestors(folder):
         places += [(os.path.join(here, "CLAUDE.md"), PROJECT), (os.path.join(here, ".claude", "CLAUDE.md"), PROJECT),
                    (os.path.join(here, "AGENTS.md"), PROJECT)]
     places += [(path, PROJECT) for path in sorted(glob.glob(os.path.join(folder, ".claude", "rules", "**", "*.md"),
                                                             recursive=True))]
-    places += [(os.path.join(here, "CLAUDE.local.md"), LOCAL) for here in ancestors(folder)]
+    return places + [(os.path.join(here, "CLAUDE.local.md"), LOCAL) for here in ancestors(folder)]
+
+
+def rules(folder, home):
+    """The rules Claude reads in FOLDER, in its order (rule_places()'s), each followed by the files it imports; each
+    file once."""
     found, seen = [], set()
-    for path, scope in places:
-        real = os.path.realpath(path)
-        if real in seen:
-            continue
-        seen.add(real)
-        item = rule(path, scope)
-        if item:
-            found.append(item)
+    for path, scope in rule_places(folder, home):
+        for one in rule(path, scope, home):
+            if os.path.realpath(one["path"]) not in seen:
+                seen.add(os.path.realpath(one["path"]))
+                found.append(one)
     return found
 
 
@@ -194,15 +222,65 @@ def read_json(path, largest=LARGEST):
 
 
 def settings(folder, home):
-    """Claude's settings files for FOLDER, each over the one before: the user's, the project's, the local ones."""
-    return (os.path.join(home, ".claude", "settings.json"), os.path.join(folder, ".claude", "settings.json"),
-            os.path.join(folder, ".claude", "settings.local.json"))
+    """Claude's settings files for FOLDER with their scopes, each over the one before: the user's, the project's, the
+    local ones, then the organization's (managed-settings.json, then its drop-in folder's by name)."""
+    return [(os.path.join(home, ".claude", "settings.json"), GLOBAL),
+            (os.path.join(folder, ".claude", "settings.json"), PROJECT),
+            (os.path.join(folder, ".claude", "settings.local.json"), LOCAL),
+            (os.path.join(MANAGED_DIR, "managed-settings.json"), MANAGED)] + \
+        [(path, MANAGED) for path in sorted(glob.glob(os.path.join(MANAGED_DIR, "managed-settings.d", "*.json")))]
 
 
-def managed_settings():
-    """The organization's settings files, as Claude reads them: managed-settings.json, then its drop-in folder's."""
-    return [os.path.join(MANAGED_DIR, "managed-settings.json")] + \
-        sorted(glob.glob(os.path.join(MANAGED_DIR, "managed-settings.d", "*.json")))
+def setting(folder, home, key, env):
+    """What Claude starts with in FOLDER for the settings KEY (its names, one in the next): ENV as the last settings
+    file's env sets it, else as this environment does, else the last settings file's KEY (the organization's over
+    every other); None for none."""
+    files = [read_json(path) for path, _ in settings(folder, home)][::-1]
+    found = [obj(one.get("env")).get(env) for one in files] + [os.environ.get(env)]
+    for one in files:
+        for name in key:
+            one = obj(one).get(name)
+        found.append(one)
+    return next((one for one in found if isinstance(one, str) and one.strip()), None)
+
+
+def effort_told(folder, home, model):
+    """The effort Claude starts MODEL with in FOLDER (setting()'s, EFFORT_ENV over the files): the one kept under
+    MODEL's own id where it takes one of its own (words.own_effort()), else the settings' one effortLevel."""
+    own = words.own_effort(model)
+    return setting(folder, home, ("modelSettings", own, "effortLevel") if own else ("effortLevel",), EFFORT_ENV)
+
+
+def turned_off(folder, home):
+    """What Claude's settings files turn off in FOLDER, the keys the Agent panel's forms write (harness.py): {"skills"
+    (skillOverrides: "off"), "agents" (a deny rule, Agent(name)), "servers" (deniedMcpServers): the names; "hooks":
+    whether a file has disableAllHooks}."""
+    found = {"skills": [], "agents": [], "servers": [], "hooks": False}
+    for path, _ in settings(folder, home):
+        table = read_json(path)
+        found["skills"] += [name for name, value in obj(table.get("skillOverrides")).items() if value == "off"]
+        found["agents"] += [one.group(1) for one in map(AGENT_OFF.fullmatch, strings(permission_table(path).get(
+            "deny"))) if one]
+        found["servers"] += strings([obj(one).get("serverName") for one in table.get("deniedMcpServers") or []
+                                     if isinstance(table.get("deniedMcpServers"), list)])
+        found["hooks"] = found["hooks"] or table.get("disableAllHooks") is True
+    return found
+
+
+def sandbox(folder, home):
+    """Claude's Bash sandbox in FOLDER: {on, hosts, scope, path} of the last settings file that turns it on or off
+    (sandbox.enabled); HOSTS the domains its commands reach unasked, each file's network.allowedDomains and
+    WebFetch(domain:…) allow rules, as Claude merges them. None where no file turns it on or off."""
+    found, hosts = None, []
+    for path, scope in settings(folder, home):
+        table = read_json(path)
+        box = obj(table.get("sandbox"))
+        found = {"on": box["enabled"], "scope": scope, "path": path} if isinstance(box.get("enabled"), bool) \
+            else found
+        hosts += strings(obj(box.get("network")).get("allowedDomains"))
+        hosts += [one.group(1) for one in map(WEB_DOMAIN.fullmatch, strings(permission_table(path).get("allow")))
+                  if one]
+    return found and {**found, "hosts": list(dict.fromkeys(hosts))}
 
 
 def permission_table(path):
@@ -213,17 +291,11 @@ def permission_table(path):
 def mode_told(folder, home):
     """The mode Claude starts in for FOLDER unasked (permissions.defaultMode) and who tells it: {mode, scope, path} of
     the last settings file that names one of Claude's modes, the organization's over every other; None where none."""
-    user, project, local = settings(folder, home)
     found = None
-    places = [(user, PERSONAL), (project, PROJECT), (local, LOCAL)] + [(path, MANAGED) for path in managed_settings()]
-    for path, scope in places:
+    for path, scope in settings(folder, home):
         mode = permission_table(path).get("defaultMode")
         found = {"mode": mode, "scope": scope, "path": path} if isinstance(mode, str) and mode in MODES else found
     return found
-
-
-def default_mode(folder, home):
-    return (mode_told(folder, home) or {}).get("mode")
 
 
 def rule_text(value):
@@ -238,10 +310,8 @@ def permissions(folder, home):
     """Claude's permission rules for FOLDER: {allow, ask, deny: how many, mode, rules: [{rule, behavior, scope, path}],
     conflicts}. Each settings file in Claude's order (the organization's, the user's, the project's, the local ones);
     a rule listed again with its behavior is counted once, where it first is."""
-    user, project, local = settings(folder, home)
-    places = [(path, MANAGED) for path in managed_settings()] + [(user, PERSONAL), (project, PROJECT), (local, LOCAL)]
     found, seen = [], set()
-    for path, scope in places:
+    for path, scope in sorted(settings(folder, home), key=lambda one: one[1] != MANAGED):
         table = permission_table(path)
         for behavior in BEHAVIORS:
             listed = table.get(behavior)
@@ -250,7 +320,8 @@ def permissions(folder, home):
                     seen.add((text, behavior))
                     found.append({"rule": text, "behavior": behavior, "scope": scope, "path": path})
     counts = {behavior: sum(one["behavior"] == behavior for one in found) for behavior in BEHAVIORS}
-    return {**counts, "mode": default_mode(folder, home), "rules": found, "conflicts": conflicts(found)}
+    mode = (mode_told(folder, home) or {}).get("mode")
+    return {**counts, "mode": mode, "rules": found, "conflicts": conflicts(found)}
 
 
 def conflicts(rules, covering=None):
@@ -299,8 +370,8 @@ def enabled_plugins(folder, home):
     """The plugins turned on for FOLDER (`name@marketplace`), the user's settings first, the project's over them,
     the local ones last."""
     turned = {}
-    for path in settings(folder, home):
-        plugins = read_json(path).get("enabledPlugins")
+    for path, scope in settings(folder, home):
+        plugins = read_json(path).get("enabledPlugins") if scope != MANAGED else None
         if isinstance(plugins, dict):
             turned.update({name: on for name, on in plugins.items() if isinstance(on, bool)})
     return [name for name, on in turned.items() if on]
@@ -317,7 +388,7 @@ def plugins(folder, home):
                   and isinstance(one.get("installPath"), str)]
         mine = [one for one in copies if one.get("projectPath") in (None, os.path.abspath(folder))]
         if mine:
-            found.append((name.split("@")[0], PERSONAL if mine[0].get("scope", "user") == "user" else PROJECT,
+            found.append((name.split("@")[0], GLOBAL if mine[0].get("scope", "user") == "user" else PROJECT,
                           mine[0]["installPath"]))
     return found
 
@@ -346,15 +417,15 @@ def skills_in(places):
 
 
 def skills(folder, home):
-    """The skills Claude can use in FOLDER: the user's own (Personal), the project's, then the enabled plugins'."""
-    return skills_in(((os.path.join(home, ".claude", "skills"), PERSONAL),
+    """The skills Claude can use in FOLDER: the user's own (Global), the project's, then the enabled plugins'."""
+    return skills_in(((os.path.join(home, ".claude", "skills"), GLOBAL),
                       (os.path.join(folder, ".claude", "skills"), PROJECT))) + plugin_skills(folder, home)
 
 
 def agent(path, scope, source):
-    """The sub-agent PATH defines ({name, description, model, tools, scope, source, path}), or None where Claude would
+    """The subagent PATH defines ({name, description, model, tools, scope, source, path}), or None where Claude would
     not load it: its front matter's name (not "-…", no ":") and description are a must. Model None: Claude's default
-    for a sub-agent; tools []: none listed, every tool its own."""
+    for a subagent; tools []: none listed, every tool its own."""
     text = read_text(path)
     meta = front_matter(text) if text is not None else {}
     name, description, model = meta.get("name"), meta.get("description"), meta.get("model")
@@ -366,7 +437,7 @@ def agent(path, scope, source):
 
 
 def tool_list(value):
-    """A sub-agent's tools as its front matter lists them: `Read, Grep`, `["Read", "Grep"]` or `- Read` lines."""
+    """A subagent's tools as its front matter lists them: `Read, Grep`, `["Read", "Grep"]` or `- Read` lines."""
     if isinstance(value, str):
         value = value.strip()
         value = (value[1:-1] if value[:1] == "[" and value[-1:] == "]" else value).split(",")
@@ -374,7 +445,7 @@ def tool_list(value):
 
 
 def built_in_agents(session):
-    """Claude's own sub-agents as the session file SESSION's listings leave them (each adds and removes; one marked
+    """Claude's own subagents as the session file SESSION's listings leave them (each adds and removes; one marked
     initial, a compacted conversation's, starts over): its words and tools from the listing's line."""
     listed = {}
     for listing in attachments(session, LISTING) if session else ():
@@ -412,23 +483,115 @@ def attachments(session, kind):
 
 
 def agents(folder, home, session=None):
-    """The sub-agents Claude can start in FOLDER: the user's own (Personal), the project's, each enabled plugin's (its
+    """The subagents Claude can start in FOLDER: the user's own (Global), the project's, each enabled plugin's (its
     name as source; Claude calls it plugin:name), then Claude's own as SESSION (a session file's path) lists them. As
     in Claude, a project's agent hides the user's of its name, either a built-in one."""
     found = []
-    for base, scope in ((os.path.join(home, ".claude", "agents"), PERSONAL),
+    for base, scope in ((os.path.join(home, ".claude", "agents"), GLOBAL),
                         (os.path.join(folder, ".claude", "agents"), PROJECT)):
         found += [agent(path, scope, scope) for path in sorted(glob.glob(os.path.join(base, "*.md")))]
     for name, scope, root in plugins(folder, home):
         found += [agent(path, scope, name) for path in sorted(glob.glob(os.path.join(root, "agents", "*.md")))]
     found = [one for one in found if one] + built_in_agents(session)
-    rank = {CLAUDE: 0, PERSONAL: 1, PROJECT: 2}         # a plugin's agent, named plugin:name, hides none of these
+    rank = {CLAUDE: 0, GLOBAL: 1, PROJECT: 2}         # a plugin's agent, named plugin:name, hides none of these
     key = lambda one: one["name"] if one["source"] in rank else f"{one['source']}:{one['name']}"     # noqa: E731
     starts = {}
     for one in found:
         if key(one) not in starts or rank.get(one["source"], 0) >= rank.get(starts[key(one)]["source"], 0):
             starts[key(one)] = one
     return [one for one in found if starts[key(one)] is one]
+
+
+# --- hooks, the newest chat
+
+def hooked(table, scope, source, path):
+    """The hooks in TABLE ({event: [{matcher, hooks: [{type, command}]}]}, from the file PATH): {event, matcher, name
+    (its command's script, else its program; a prompt's type), command, kind (gate, context or watch), scope, source,
+    path}."""
+    found = []
+    for event, groups in obj(table).items():
+        for group in groups if isinstance(event, str) and isinstance(groups, list) else []:
+            matcher = obj(group).get("matcher")
+            for one in map(obj, obj(group).get("hooks") if isinstance(obj(group).get("hooks"), list) else []):
+                command = clean(one.get("command"), None) if one.get("type", "command") == "command" else None
+                try:
+                    said = shlex.split(command or "")
+                except ValueError:
+                    said = (command or "").split()
+                name = os.path.basename(next((word for word in said if "/" in word), said[0] if said else "")) \
+                    if one.get("type", "command") == "command" else clean(one.get("type"))
+                if name:
+                    found.append({"event": event, "matcher": clean(matcher) if isinstance(matcher, str) else None,
+                                  "name": clean(name, LINE), "command": command,
+                                  "kind": "gate" if event in GATES else "context" if event in CONTEXT else "watch",
+                                  "scope": scope, "source": source, "path": path})
+    return found
+
+
+def hooks(folder, home, session=None, stopped=False):
+    """Every hook Claude runs in FOLDER: each settings file's in its order, each enabled plugin's (hooks/hooks.json, or
+    what its plugin.json names), herdr-fold's own where SESSION is one of its chats. None with disableAllHooks, but
+    for STOPPED (those it stops); the organization's alone with its allowManagedHooksOnly."""
+    files = [(path, scope, read_json(path)) for path, scope in settings(folder, home)]
+    if not stopped and any(table.get("disableAllHooks") is True for _, _, table in files):
+        return []
+    managed_only = any(table.get("allowManagedHooksOnly") is True for _, scope, table in files if scope == MANAGED)
+    found = [one for path, scope, table in files if scope == MANAGED or not managed_only
+             for one in hooked(table.get("hooks"), scope, scope, path)]
+    for name, scope, root in [] if managed_only else plugins(folder, home):
+        manifest = os.path.join(root, ".claude-plugin", "plugin.json")
+        named = read_json(manifest).get("hooks")
+        places = [os.path.join(root, "hooks", "hooks.json")] + \
+            ([os.path.normpath(os.path.join(root, named))] if isinstance(named, str) else [])
+        found += [one for path in places for one in hooked(read_json(path).get("hooks"), scope, name, path)]
+        found += hooked(obj(named).get("hooks"), scope, name, manifest)
+    if chat_status(session, home) is not None:
+        found.append({"event": "PermissionRequest", "matcher": "*", "name": HERDR_FOLD, "command": None,
+                      "kind": "gate", "scope": HERDR_FOLD, "source": HERDR_FOLD, "path": None})
+    return found
+
+
+def chat_status(session, home):
+    """What herdr-fold keeps of the status line of its chat in the session file SESSION ({model, effort, window, …}),
+    or None where SESSION is none of its chats."""
+    key = os.path.basename(session or "")[:-len(".jsonl")]
+    path = os.path.join(home, ".local", "state", HERDR_FOLD, "chat", key, "status.json")
+    return read_json(path) if CHAT.fullmatch(key) and os.path.isfile(path) else None
+
+
+def first_turn(agent, path):
+    """What AGENT's first answer in the chat file PATH started from: {"tokens": its prompt, the cache's reads and
+    writes in it, "model", "window" and "effort": the ones Codex tells}, each None where not told (no answer yet, no
+    file)."""
+    model = effort = None
+    none = {"tokens": None, "model": None, "window": None, "effort": None}
+    try:
+        with open_regular(path, "rb") as f:
+            for raw in f:
+                entry = parse(raw) if b'"usage"' in raw or b'"token_count"' in raw or b'"turn_context"' in raw else {}
+                told = obj(entry.get("payload"))
+                if agent == "codex" and entry.get("type") == "turn_context":
+                    model = told.get("model") if isinstance(told.get("model"), str) else model
+                    effort = told.get("effort") if told.get("effort") in EFFORTS else effort
+                info = obj(told.get("info")) if agent == "codex" and told.get("type") == "token_count" else {}
+                if info:
+                    window = info.get("model_context_window")
+                    return {"tokens": tokens_in(obj(info.get("last_token_usage")), ("input_tokens",)), "model": model,
+                            "window": window if type(window) is int and window > 0 else None, "effort": effort}
+                message = obj(entry.get("message"))
+                if agent == "claude" and entry.get("type") == "assistant" and entry.get("isSidechain") is not True \
+                        and isinstance(message.get("usage"), dict) and message.get("model") != "<synthetic>":
+                    return {"tokens": tokens_in(message["usage"], ("input_tokens", "cache_creation_input_tokens",
+                                                                   "cache_read_input_tokens")),
+                            "model": message.get("model") if isinstance(message.get("model"), str) else None,
+                            "window": None, "effort": None}
+    except (OSError, TypeError):
+        return none
+    return {**none, "model": model, "effort": effort}
+
+
+def tokens_in(usage, keys):
+    return sum(usage[key] for key in keys if type(usage.get(key)) is int and usage[key] > 0)
 
 
 # --- the MCP servers
@@ -594,7 +757,7 @@ def mcpjson(folder, home, entry):
     """How Claude takes the servers of FOLDER's .mcp.json: (its path, all approved, the names approved, the names
     refused), from the settings files and the project's ENTRY in ~/.claude.json (where an older Claude kept them)."""
     every, approved, refused = False, set(), set()
-    for found in [entry] + [read_json(path) for path in list(settings(folder, home)) + managed_settings()]:
+    for found in [entry] + [read_json(path) for path, _ in settings(folder, home)]:
         every = every or found.get("enableAllProjectMcpServers") is True
         approved |= set(strings(found.get("enabledMcpjsonServers")))
         refused |= set(strings(found.get("disabledMcpjsonServers")))
@@ -655,12 +818,14 @@ def defined(folder, home, config, connected=()):
     return listed(read_json(managed).get("mcpServers"), MANAGED, MANAGED, managed) or \
         listed(read_json(project).get("mcpServers"), PROJECT, PROJECT, project) + \
         listed(entry.get("mcpServers"), LOCAL, LOCAL, config_path) + \
-        listed(config.get("mcpServers"), PERSONAL, PERSONAL, config_path) + list(connected) + \
+        listed(config.get("mcpServers"), GLOBAL, GLOBAL, config_path) + list(connected) + \
         plugin_servers(folder, home)
 
 
-def server_rows(folder, home, calls):
-    """servers()'s rows, CALLS the open conversation's ({a server's tool key: calls}, use()'s)."""
+def server_rows(folder, home, calls, denied=()):
+    """Claude's MCP servers in FOLDER, in its /mcp order (the project's, the local ones, the user's, claude.ai's, the
+    plugins'; the organization's alone where it has any), their state as the newest session tells it (a connector's
+    anywhere; off here for one of DENIED), and their CALLS in the open chat ({a server's tool key: calls}, use()'s)."""
     config = read_json(os.path.join(home, ".claude.json"), CONFIG_LARGEST)
     entry = obj(obj(config.get("projects")).get(project_key(folder)))
     project, read = mcpjson(folder, home, entry), {}
@@ -668,20 +833,13 @@ def server_rows(folder, home, calls):
     anywhere = telling(glob.glob(os.path.join(home, ".claude", "projects", "*", "*.jsonl")), read)
     found = defined(folder, home, config, connectors(config, (here, anywhere)))
     keys = {tool_key(one["name"]) for one in found}
-    off = set(strings(entry.get("disabledMcpServers")))
+    off = set(strings(entry.get("disabledMcpServers"))) | set(denied)
     told_by = {False: (here, owned(here, keys)), True: (anywhere, owned(anywhere, keys))}
     for one in found:
         said, lines = told_by[one["kind"] == CLAUDE_AI]         # a connector is the account's: as told anywhere
         one.update(state(one, said, lines.get(tool_key(one["name"]), []), off, project),
                    used=calls.get(tool_key(one["name"]), 0))
     return found
-
-
-def servers(folder, home, session=None):
-    """Claude's MCP servers in FOLDER, in its /mcp order (the project's, the local ones, the user's, claude.ai's, the
-    plugins', each by name; the organization's alone where it has any), their state as the newest session tells it (a
-    connector's anywhere), and their calls in SESSION, the open conversation's file."""
-    return server_rows(folder, home, use(session)["servers"])
 
 
 def use(session):
@@ -743,13 +901,35 @@ def run(argv, cwd=None, timeout=None, read=True):
 
 
 def claude_setup(folder, home, session=None):
-    """What Claude starts with in FOLDER for the user whose home is HOME: {"rules", "skills", "default_mode" (its mode
-    or None), "permissions", "agents", "servers", "use"}; SESSION the open conversation's file, for Claude's own
-    sub-agents and what the conversation used."""
+    """What Claude starts with in FOLDER for HOME's user: model, effort, rules, skills, permissions, sandbox, hooks,
+    "stopped" (the hooks disableAllHooks stops), agents, servers, "off" (turned_off(): a skill's and a subagent's own
+    "off" too), use, "start" (the newest chat's first turn) and "unread"; SESSION the open chat's file."""
     used = use(session)
-    return {"rules": rules(folder, home), "skills": skills(folder, home), "default_mode": default_mode(folder, home),
-            "permissions": permissions(folder, home), "agents": agents(folder, home, session),
-            "servers": server_rows(folder, home, used["servers"]), "use": used}
+    newest = (newest_first(glob.glob(os.path.join(glob.escape(claude_project_dir(folder, home)), "*.jsonl"))) or
+              [None])[0]
+    status, start = chat_status(newest, home) or {}, first_turn("claude", newest)
+    start.update(window=status["window"] if type(status.get("window")) is int else None,
+                 model=start["model"] or clean(status.get("model"), LINE),
+                 effort=status.get("effort") if status.get("effort") in EFFORTS else None)
+    model, off = setting(folder, home, ("model",), "ANTHROPIC_MODEL"), turned_off(folder, home)
+    effort = effort_told(folder, home, model or start["model"])
+    files = [path for path, _ in settings(folder, home)] + [path for path, _ in rule_places(folder, home)] + \
+        [os.path.join(home, ".claude.json"), os.path.join(folder, ".mcp.json")]
+    return {"model": model, "effort": effort if effort in EFFORTS else None, "rules": rules(folder, home),
+            "skills": [{**one, "off": not plugged(one) and one["name"] in off["skills"]}
+                       for one in skills(folder, home)],
+            "permissions": permissions(folder, home), "sandbox": sandbox(folder, home),
+            "hooks": hooks(folder, home, session),
+            "stopped": hooks(folder, home, session, True) if off["hooks"] else [],
+            "agents": [{**one, "off": not plugged(one) and one["name"] in off["agents"]}
+                       for one in agents(folder, home, session)],
+            "servers": server_rows(folder, home, used["servers"], off["servers"]), "off": off,
+            "use": used, "start": start, "unread": unread(files)}
+
+
+def unread(paths):
+    """Those of PATHS that are there but cannot be read, each once."""
+    return [path for path in dict.fromkeys(paths) if os.path.lexists(path) and not os.access(path, os.R_OK)]
 
 
 # --- Codex's setup, in the rows Claude's take
@@ -759,11 +939,65 @@ def codex_home(home):
     return os.environ.get("CODEX_HOME") or os.path.join(home, ".codex")
 
 
-def codex_config(home):
-    """Codex's config.toml's top-level effort and approval policy, by their keys; none where it names a profile."""
-    said = dict(CODEX_WORD.findall(("\n" + (read_text(os.path.join(codex_home(home), "config.toml")) or ""))
-                                   .split("\n[")[0]))
-    return {} if "profile" in said else said
+def toml_values(path):
+    """A config.toml's plain values (a string, true or false, a list of strings on one line), its tables' nested by
+    their heads: {"model": …, "sandbox_workspace_write": {"network_access": …}}."""
+    found = table = {}
+    for line in (read_text(path) or "").split("\n"):
+        head, pair = TOML_TABLE.fullmatch(line), TOML_VALUE.fullmatch(line)
+        if head:
+            table = found.setdefault(head.group(1).strip(), {})
+        elif pair:
+            raw = pair.group(2)
+            table[pair.group(1)] = raw == "true" if raw in ("true", "false") else raw[1:-1] if raw[0] in "\"'" \
+                else [a or b for a, b in TOML_STRING.findall(raw)]
+    return found
+
+
+def codex_trusted(folder, home):
+    """Whether Codex trusts FOLDER, or a folder above it in its repository: trust_level "trusted" under that folder's
+    [projects."<path>"] (or '<path>') in its home's config."""
+    tables = toml_values(os.path.join(codex_home(home), "config.toml"))
+    return any(obj(tables.get(head)).get("trust_level") == "trusted" for here in project_folders(folder)
+               for head in (f"projects.{json.dumps(here, ensure_ascii=False)}", f"projects.'{here}'"))
+
+
+def codex_files(home, folder=None):
+    """Codex's config files with their scopes, each over the one before: its home's (Global; its values left out
+    where it names a profile, whose own are not read), then for a FOLDER Codex trusts each .codex/config.toml from
+    its repository's top down to it (Project): [(path, scope, toml_values()'s)]."""
+    path = os.path.join(codex_home(home), "config.toml")
+    found = [(path, GLOBAL, {} if "profile" in toml_values(path) else toml_values(path))]
+    for here in project_folders(folder) if folder and codex_trusted(folder, home) else []:
+        found.append((os.path.join(here, ".codex", "config.toml"), PROJECT,
+                      toml_values(os.path.join(here, ".codex", "config.toml"))))
+    return found
+
+
+def codex_config(home, folder=None):
+    """What Codex's config files (codex_files()'s) set together: a later file's value over an earlier one's."""
+    found = {}
+    for _, _, values in codex_files(home, folder):
+        found.update(values)
+    return found
+
+
+def codex_told(home, folder, key):
+    """Which of Codex's config files sets its top-level KEY for FOLDER, the last that does: {scope, path}, or None."""
+    return next(({"scope": scope, "path": path} for path, scope, values in codex_files(home, folder)[::-1]
+                 if key in values), None)
+
+
+def codex_sandbox(folder, home, config):
+    """Codex's sandbox as its CONFIG (codex_config()'s) sets it: {mode, writes (FOLDER's name, /tmp and its writable
+    roots, in workspace-write), network, scope, path}; None where it sets none."""
+    mode, told = config.get("sandbox_mode"), obj(config.get("sandbox_workspace_write"))
+    if mode not in SANDBOXES:
+        return None
+    writes = [os.path.basename(os.path.abspath(folder))] + ["/tmp"] * (told.get("exclude_slash_tmp") is not True) + \
+        strings(told.get("writable_roots")) if mode == "workspace-write" else []
+    return {"mode": mode, "writes": writes, "network": told.get("network_access") is True,
+            **codex_told(home, folder, "sandbox_mode")}
 
 
 READ = ("claude", "codex")      # the agents whose setup setup() reads
@@ -777,23 +1011,23 @@ def project_folders(folder):
 
 
 def codex_rules(folder, home):
-    """The rules Codex reads in FOLDER, in its order: its home's (Personal), then each folder's from the repository's
+    """The rules Codex reads in FOLDER, in its order: its home's (Global), then each folder's from the repository's
     top down to FOLDER (Project); in each, AGENTS.override.md, else AGENTS.md, the first that holds anything."""
     found = []
-    for here, scope in [(codex_home(home), PERSONAL)] + [(here, PROJECT) for here in project_folders(folder)]:
+    for here, scope in [(codex_home(home), GLOBAL)] + [(here, PROJECT) for here in project_folders(folder)]:
         for path in (os.path.join(here, "AGENTS.override.md"), os.path.join(here, "AGENTS.md")):
             text = read_text(path)
             if text and text.strip():
-                found.append({"path": path, "scope": scope, "tokens": tokens(text), "paths": []})
+                found.append({"path": path, "scope": scope, "tokens": tokens(text), "paths": [], "via": None})
                 break
     return found
 
 
 def codex_skills(folder, home):
-    """The skills Codex can use in FOLDER: its home's and the user's .agents ones (Personal; Codex's own, .system,
+    """The skills Codex can use in FOLDER: its home's and the user's .agents ones (Global; Codex's own, .system,
     left out), then each folder's .agents/skills from the repository's top down to FOLDER (Project)."""
-    return skills_in([(os.path.join(codex_home(home), "skills"), PERSONAL),
-                      (os.path.join(home, ".agents", "skills"), PERSONAL)] +
+    return skills_in([(os.path.join(codex_home(home), "skills"), GLOBAL),
+                      (os.path.join(home, ".agents", "skills"), GLOBAL)] +
                      [(os.path.join(here, ".agents", "skills"), PROJECT) for here in project_folders(folder)])
 
 
@@ -834,10 +1068,10 @@ def pattern_text(pattern):
                     for one in pattern)
 
 
-def codex_permissions(home):
+def codex_permissions(home, folder=None):
     """Codex's prefix rules ($CODEX_HOME/rules/*.rules, by name) in permissions()'s shape: the pattern's words as the
     rule, prompt as ask, forbidden as deny; a rule wider than another hides it (Codex's most restrictive wins); "mode"
-    its approval policy as codex_config() reads it, or None."""
+    its approval policy as codex_config() reads it for FOLDER, or None, "told" the file that sets it (codex_told())."""
     found, seen, patterns = [], set(), {}
     for path in sorted(glob.glob(os.path.join(codex_home(home), "rules", "*.rules"))):
         for pattern, behavior in prefix_rules(path):
@@ -845,31 +1079,31 @@ def codex_permissions(home):
             patterns[text] = pattern
             if (text, behavior) not in seen:
                 seen.add((text, behavior))
-                found.append({"rule": text, "behavior": behavior, "scope": PERSONAL, "path": path})
+                found.append({"rule": text, "behavior": behavior, "scope": GLOBAL, "path": path})
     counts = {behavior: sum(one["behavior"] == behavior for one in found) for behavior in BEHAVIORS}
-    mode = codex_config(home).get("approval_policy")
-    return {**counts, "mode": mode, "rules": found, "conflicts": conflicts(found, lambda wide, narrow: len(
+    mode = codex_config(home, folder).get("approval_policy")
+    return {**counts, "mode": mode, "told": codex_told(home, folder, "approval_policy"), "rules": found,
+            "conflicts": conflicts(found, lambda wide, narrow: len(
         patterns[wide]) <= len(patterns[narrow]) and all(set(alts) >= set(their) for alts, their in zip(
             patterns[wide], patterns[narrow])))}
 
 
 def codex_servers(binary, folder, home):
     """Codex's MCP servers as its own list gives them (`codex mcp list --json` in FOLDER: its configuration, nothing
-    checked), in its order: on, off or sign in; none where it gives none. Env, headers, a URL's query never kept."""
+    checked), in its order: on, off or sign in; None where it gives no list. Env, headers, a URL's query never kept."""
     try:
         code, out, _ = run([binary, "mcp", "list", "--json"], folder)
-    except (OSError, subprocess.TimeoutExpired):
-        return []
-    try:
-        listed = json.loads(out) if code == 0 else []
-    except (ValueError, RecursionError):
-        return []
+        listed = json.loads(out) if code == 0 else None
+    except (OSError, subprocess.TimeoutExpired, ValueError, RecursionError):
+        return None
+    if not isinstance(listed, list):
+        return None
     found, path = [], os.path.join(codex_home(home), "config.toml")
-    for entry in listed if isinstance(listed, list) else []:
+    for entry in listed:
         transport = obj(obj(entry).get("transport"))
         kind = CODEX_KINDS.get(transport.get("type")) if isinstance(transport.get("type"), str) else None
         one = kind and server(entry.get("name"), {"type": kind, **{key: transport.get(key) for key in (
-            "command", "args", "url")}}, PERSONAL, PERSONAL, path)
+            "command", "args", "url")}}, GLOBAL, GLOBAL, path)
         if one:
             one["state"] = OFF if entry.get("enabled") is False else \
                 SIGN_IN if entry.get("auth_status") == "not_logged_in" else ON
@@ -880,13 +1114,36 @@ def codex_servers(binary, folder, home):
 
 
 def codex_setup(folder, home):
-    """What Codex starts with in FOLDER for the user whose home is HOME, in the rows Claude's take: {"rules", "skills",
-    "permissions", "agents": [] (Codex names none of its own here), "servers"}; None where Codex is not here."""
+    """What Codex starts with in FOLDER for the user whose home is HOME, in the rows Claude's take: {"model", "effort",
+    "rules", "skills", "permissions", "sandbox", "hooks" (its hooks.json's), "agents": [] (it names none of its own),
+    "servers" ("unlisted": it gave no list), "use": none, "start" (its first turn), "unread"}; None: not here."""
     binary = find("codex")
     if not binary:
         return None
-    return {"rules": codex_rules(folder, home), "skills": codex_skills(folder, home),
-            "permissions": codex_permissions(home), "agents": [], "servers": codex_servers(binary, folder, home)}
+    config, own, servers = codex_config(home, folder), codex_home(home), codex_servers(binary, folder, home)
+    effort, hooks_file = config.get("model_reasoning_effort"), os.path.join(own, "hooks.json")
+    return {"model": config.get("model") if isinstance(config.get("model"), str) else None,
+            "effort": effort if effort in EFFORTS else None, "rules": codex_rules(folder, home),
+            "skills": codex_skills(folder, home), "permissions": codex_permissions(home, folder),
+            "sandbox": codex_sandbox(folder, home, config),
+            "hooks": hooked(read_json(hooks_file).get("hooks"), GLOBAL, GLOBAL, hooks_file),
+            "agents": [], "servers": servers or [], "unlisted": servers is None, "use": {},
+            "start": first_turn("codex", rollout(folder, home)),
+            "unread": unread([os.path.join(own, name) for name in ("config.toml", "hooks.json", "AGENTS.md")])}
+
+
+def rollout(folder, home):
+    """Codex's newest chat started in FOLDER (its own, no helper's), or None."""
+    place = os.path.join(glob.escape(codex_home(home)), "sessions", "*", "*", "*", "rollout-*.jsonl")
+    for path in newest_first(glob.glob(place))[:ROLLOUTS]:
+        try:
+            with open_regular(path, "rb") as f:
+                meta = obj(parse(f.readline(FIRST_LINE)).get("payload"))
+        except OSError:
+            continue
+        if meta.get("cwd") == folder and "subagent" not in obj(meta.get("source")):
+            return path
+    return None
 
 
 def setup(agent, folder, home, session=None):
@@ -915,30 +1172,10 @@ def setup(agent, folder, home, session=None):
     return own
 
 
-# --- the Agent panel's layers: the sections, rows, words and properties both clients draw
+# --- what the readers of a setup share: a file as it is named, a plugin's row, the open conversation
 
-SECTIONS = (("rules", "Rules"), ("permissions", "Permissions"), ("skills", "Skills"), ("connectors", "Connectors"),
-            ("agents", "Agents"))
-GRAPHED = ("rules", "skills", "connectors", "agents")      # the sections whose rows the graph draws as nodes
-TONES = {PERSONAL: "personal", PROJECT: "project", CLAUDE_AI: "account"}    # a tag's color: a plugin's, else muted
-# a server's state in its row's word and tone; a dim row's server does not run here
-SAID_AS = {ON: ("on", "ok"), FAILED: ("failed", "bad"), SIGN_IN: ("sign in", "warn"), PENDING: ("connecting", "busy"),
-           NOT_APPROVED: ("not approved", "off"), OFF_HERE: ("off here", "off"), OFF: ("off", "off"),
-           NOT_CHECKED: ("not checked", "off")}
-DIM = (NOT_APPROVED, OFF_HERE, OFF)
-PROBLEMS = ((FAILED, "failed", "bad"), (SIGN_IN, "sign in", "warn"))    # first in their section, a chip each
-FIRST_LINES = 3                 # lines of a rule its properties show
-LINE = 120                      # characters of a rule's line shown
-NAMED = 2                       # sub-agents a folded section names before "N more"
-SESSION_ID = re.compile(r"[0-9A-Za-z][0-9A-Za-z._-]*")      # a conversation's id, as the app tells it: never a path
-
-
-def kilo(tokens, whole=False):
-    """TOKENS as a cost reads: thousands with one decimal ("6.1k", "<0.1k"), WHOLE from ten thousand ("22k")."""
-    tenths = int(tokens / 100 + 0.5)
-    if whole and tenths >= 100:
-        return f"{int(tokens / 1000 + 0.5)}k"
-    return "0k" if not tokens else f"{tenths / 10:.1f}k" if tenths else "<0.1k"
+LINE = 120                      # characters of a line shown: a rule's, a model's name, a hook's
+SESSION_ID = re.compile(r"[0-9A-Za-z][0-9A-Za-z._-]*")      # a chat's id, as the app tells it: never a path
 
 
 def inside(path, base):
@@ -959,245 +1196,6 @@ def plugged(one):
     return one.get("source", one["scope"]) not in (one["scope"], CLAUDE, CLAUDE_AI)
 
 
-def tag(one):
-    """The tag of the reader's row ONE: a plugin's name, claude.ai, else its scope; in its tone."""
-    text = one["source"] if plugged(one) or one.get("source") == CLAUDE_AI else one["scope"]
-    return {"text": text, "tone": "plugin" if plugged(one) else TONES.get(text, "muted")}
-
-
-def origin(one, folder, home):
-    """Where ONE comes from, a properties line: a plugin by its name, claude.ai and Claude's own, else its file."""
-    if plugged(one):
-        return ["From", one["source"], "Plugin"]
-    return ["From", one["source"] if one.get("source") in (CLAUDE_AI, CLAUDE) else shown(one["path"], folder, home),
-            one["scope"]]
-
-
-def used_line(calls):
-    return [["Used", ("once" if calls == 1 else f"{calls} times") + " in this conversation", None]] if calls else []
-
-
-def act(kind, label, path=None, server=None):
-    return {"id": kind, "label": label, "path": path, "server": server, "primary": False}
-
-
-def opened(paths, folder, home):
-    """Open for each of PATHS (once each), by the file's name; by where it is where two share a name."""
-    paths = list(dict.fromkeys(paths))
-    names = [os.path.basename(path) for path in paths]
-    return [act("open", "Open " + (shown(path, folder, home) if names.count(name) > 1 else name), path)
-            for path, name in zip(paths, names)]
-
-
-def properties(title, state=None, lines=(), text=None, error=None, actions=()):
-    """A row's properties: its title and state, label and value lines (a third column at the right, or None), a text
-    and an error shown as they are, its actions, the first one primary."""
-    actions = [{**one, "primary": not n} for n, one in enumerate(actions)]
-    return {"title": title, "state": state, "lines": [list(one) for one in lines], "text": text, "error": error,
-            "actions": actions}
-
-
-def layer(key, icon, name, props, note=None, mark=None, state=None, tokens=None, used=False, agents=(), dim=False,
-          warn=False, known=None):
-    """A row of the panel: KEY its id, MARK its tag, KNOWN a connector's brand; its cost in words beside its TOKENS."""
-    return {"id": key, "icon": icon, "name": name, "note": note, "tag": mark, "state": state, "brand": known,
-            "tokens": tokens,
-            "cost": None if tokens is None else kilo(tokens), "used": used, "agents": list(agents), "dim": dim,
-            "warn": warn, "properties": props}
-
-
-def first_lines(path):
-    """The first FIRST_LINES lines of the file PATH, past its front matter and blank lines, as text, each cut."""
-    lines = (read_text(path) or "").split("\n")
-    if lines[0].strip() == "---":
-        lines = lines[next((n for n, line in enumerate(lines[1:], 1) if line.strip() == "---"), 0) + 1:]
-    return "\n".join([line for line in (clean(one, LINE) for one in lines) if line][:FIRST_LINES]) or None
-
-
-def rule_rows(setup, agent, folder, home):
-    """The rules, in the agent's order: one above FOLDER by its way there ("../CLAUDE.md"); a path-scoped one dim."""
-    rows = []
-    for one in setup["rules"]:
-        path, paths = one["path"], one["paths"]
-        name = os.path.basename(path) if one["scope"] == PERSONAL or inside(path, folder) else \
-            os.path.relpath(path, folder)
-        lines = [origin(one, folder, home)] + ([["Paths", ", ".join(paths), None]] if paths else [])
-        spoken = ", ".join(paths[:-1]) + " or " + paths[-1] if len(paths) > 1 else "".join(paths)
-        rows.append(layer("rule:" + path, "file", name, properties(name, lines=lines, text=first_lines(path),
-                                                                     actions=opened([path], folder, home)),
-                          note=f"when {spoken} is read" if paths else None, mark=tag(one), tokens=one["tokens"],
-                          agents=one.get("agents", [agent]), dim=bool(paths)))
-    return rows
-
-
-def permission_rows(setup, agent, folder, home):
-    """First what the agent starts with, where a file tells it (Claude's mode, Codex's approval policy: its words the
-    note, read and never set here); then each conflict, in place of the rule it hides (the sentence its note, both
-    rules its lines), then every other rule with its behavior."""
-    table, rows = setup["permissions"], []
-    told = {"scope": PERSONAL, "path": os.path.join(codex_home(home), "config.toml")}
-    told = (told if table["mode"] in APPROVALS else None) if agent == "codex" else mode_told(folder, home)
-    if told:
-        name, word = ("Approval", APPROVALS[table["mode"]]) if agent == "codex" else ("Mode", MODE_WORDS[told["mode"]])
-        rows.append(layer(name.lower(), "shield", name, properties(
-            name, lines=[origin(told, folder, home)], actions=opened([told["path"]], folder, home)),
-            note=word, mark=tag(told), agents=[agent]))
-    hidden = {(one["hides"]["behavior"], one["hides"]["rule"]) for one in table["conflicts"]}
-    for one in table["conflicts"]:
-        hides = one["hides"]
-        lines = [[hides["behavior"].capitalize(), hides["rule"], hides["scope"]],
-                 [one["behavior"].capitalize(), one["rule"], one["scope"]]]
-        rows.append(layer(f"conflict:{hides['behavior']}:{hides['rule']}", "shield", hides["rule"], properties(
-            hides["rule"], lines=lines, actions=opened([one["path"], hides["path"]], folder, home)), note=one["text"],
-            agents=[agent], warn=True))
-    for one in table["rules"]:
-        if (one["behavior"], one["rule"]) not in hidden:
-            state = {"text": one["behavior"], "tone": one["behavior"]}
-            rows.append(layer(f"permission:{one['behavior']}:{one['rule']}", "shield", one["rule"], properties(
-                one["rule"], state, [origin(one, folder, home)], actions=opened([one["path"]], folder, home)),
-                mark=tag(one), state=state, agents=[agent]))
-    return rows
-
-
-def skill_rows(setup, agent, folder, home):
-    """The skills, each with its description; a dot on those the open conversation used (a plugin's as plugin:name)."""
-    used, rows = obj(setup.get("use")).get("skills", {}), []
-    for one in setup["skills"]:
-        called = f"{one['source']}:{one['name']}" if plugged(one) else one["name"]
-        lines = [origin(one, folder, home)] + ([["Used", "in this conversation", None]] if called in used else [])
-        rows.append(layer("skill:" + one["path"], "skill", one["name"], properties(
-            one["name"], lines=lines, text=clean(one["description"], None),
-            actions=opened([one["path"]], folder, home)), mark=tag(one), tokens=one["tokens"], used=called in used,
-            agents=[agent]))
-    return rows
-
-
-def agent_rows(setup, agent, folder, home):
-    """The sub-agents, each with its model (its row's word) and tools, and how often the open conversation ran it."""
-    used, rows = obj(setup.get("use")).get("agents", {}), []
-    for one in setup["agents"]:
-        calls = used.get(f"{one['source']}:{one['name']}" if plugged(one) else one["name"], 0)
-        state = {"text": one["model"], "tone": "ok"} if one["model"] else None
-        lines = [origin(one, folder, home)] + ([["Model", one["model"], None]] if one["model"] else []) + \
-            ([["Tools", ", ".join(one["tools"]), None]] if one["tools"] else []) + used_line(calls)
-        rows.append(layer(f"agent:{one['source']}:{one['name']}", "bot", one["name"], properties(
-            one["name"], state, lines, clean(one["description"], None),
-            actions=opened([one["path"]] if one["path"] else [], folder, home)),
-            mark=tag(one), state=state, used=bool(calls), agents=[agent]))
-    return rows
-
-
-def server_actions(one, agent, folder, home):
-    """What a server's state allows: Claude's own commands (Retry, Turn off or on here, Sign out) on Claude's alone;
-    Connect; its file where it is edited (a project's .mcp.json, the organization's, Codex's configuration)."""
-    state, name, here = one["state"], one["name"], os.path.basename(os.path.abspath(folder))
-    files = opened([one["path"]], folder, home) if one["path"] and (agent == "codex" or one["source"] in (
-        PROJECT, MANAGED)) else []
-    off = act("turn-off", f"Turn off in {here}", server=name)
-    if state == SIGN_IN:
-        return [act("connect", "Connect", server=name)] + ([off] if agent == "claude" else files)
-    if agent == "codex" and state == ON and one.get("signed"):
-        return [act("sign-out", "Sign out", server=name)] + files
-    if agent != "claude" or state == NOT_APPROVED:
-        return files
-    if state == ON:
-        return [off] + ([act("sign-out", "Sign out", server=name)] if one["kind"] == CLAUDE_AI else files)
-    if state == OFF_HERE:
-        return [act("turn-on", f"Turn on in {here}", server=name)] + files
-    return [act("retry", "Retry", server=name)] + files       # failed, connecting, not checked
-
-
-def signs_out(one, agent):
-    """Where a Claude server with an address that is on is signed out, a properties line: Claude's own command, for
-    you to run (herdr-fold has no button for it; a claude.ai connector has its own). None for any other."""
-    if agent != "claude" or one["state"] != ON or not one["url"] or one["kind"] == CLAUDE_AI:
-        return []
-    try:
-        return [["Sign out", shlex.join(logout(agent, one["name"])), None]]
-    except ValueError:
-        return []
-
-
-def connector_rows(setup, agent, folder, home):
-    """The servers, failed ones first, then those to sign in, then in the agent's own order: their state in words
-    ("32 tools" for one on that told its tools), what each runs or its address, its error, its actions."""
-    rank, rows = {state: n for n, (state, _, _) in enumerate(PROBLEMS)}, []
-    for one in sorted(setup["servers"], key=lambda one: rank.get(one["state"], len(rank))):
-        word, tone = SAID_AS[one["state"]]
-        word = f"{one['tools']} tool{'s' * (one['tools'] != 1)}" if one["state"] == ON and one["tools"] else word
-        state = {"text": word, "tone": tone}
-        lines = [origin(one, folder, home)] + [[label, one[key], None] for label, key in (("Runs", "runs"), (
-            "URL", "url")) if one[key]] + signs_out(one, agent) + used_line(one["used"])
-        rows.append(layer("connector:" + one["name"], "plug", one["label"], properties(
-            one["label"], state, lines, error=one["error"], actions=server_actions(one, agent, folder, home)),
-            mark=tag(one), state=state, tokens=one["tokens"], used=bool(one["used"]),
-            agents=one.get("agents", [agent]), dim=one["state"] in DIM, known=one["brand"]))
-    return rows
-
-
-def connecting(agent, folder):
-    """What a sign-in and the add form say in both clients: a row's state while its agent signs in in a terminal and
-    what can be done then; why Claude's Turn off or on waits for a chat; the form's words, Claude's two ways to add
-    and its two scopes (this folder's, every folder's), Codex's one (by its address, for every folder)."""
-    here, claude = os.path.basename(os.path.abspath(folder)), agent == "claude"
-    return {"state": {"text": "signing in", "tone": "busy"}, "words": "Finish in your browser",
-            "actions": [{"id": "reopen", "label": "Open the page again"}, {"id": "cancel", "label": "Cancel"}],
-            "needs": {f"turn-{way}": f"Start a chat in {here} to turn it {way}" for way in ("off", "on")},
-            "add": {"tip": "Add a connector", "title": "Add a connector",
-                    "menu": ([{"id": "claude-ai", "label": "From claude.ai…", "url": CLAUDE_PAGE}] if claude else [])
-                    + [{"id": "url", "label": "By URL…", "url": None}],
-                    "fields": {"name": "Name", "url": "URL", "scope": "For"},
-                    "scopes": [{"id": "local", "label": here}, {"id": "user", "label": "All projects"}] if claude
-                    else [], "submit": "Add and connect", "cancel": "Cancel"}}
-
-
-def health(setup):
-    """What loads at start (the rules read always, every skill's listing, the servers' tools and instructions) and
-    the problems as chips, each leading to its first row."""
-    parts = (("rules", sum(one["tokens"] for one in setup["rules"] if not one["paths"])),
-             ("skills", sum(one["tokens"] for one in setup["skills"])),
-             ("connectors", sum(one["tokens"] or 0 for one in setup["servers"])))
-    loaded, problems = sum(tokens for _, tokens in parts), []
-    for state, word, tone in PROBLEMS:
-        found = [one["name"] for one in setup["servers"] if one["state"] == state]
-        problems += [{"text": f"{len(found)} {word}", "tone": tone, "row": "connector:" + found[0]}] if found else []
-    return {"loaded": loaded, "text": f"{kilo(loaded, whole=True)} loaded at start",
-            "bar": [{"part": part, "tokens": tokens} for part, tokens in parts], "problems": problems}
-
-
-def summary(key, setup, rows):
-    """What a section's head says beside its count: the permissions by behavior (one with none left out), the
-    sub-agents by name."""
-    if key == "permissions":
-        return [{"text": f"{setup['permissions'][one]} {one}", "tone": one} for one in BEHAVIORS
-                if setup["permissions"][one]]
-    if key == "agents":
-        names = [row["name"] for row in rows]
-        names = names if len(names) <= NAMED + 1 else names[:NAMED] + [f"{len(names) - NAMED} more"]
-        return [{"text": ", ".join(names), "tone": "ok"}]
-    return []
-
-
-def layers(setup, agent, folder, home):
-    """AGENT's SETUP (setup()'s) in FOLDER as the Agent panel draws it, in both clients' words: the head, the health,
-    the sections in order with their counts, costs and rows, each row's properties (a row the graph draws ends with
-    Show graph); a section with no rows left out but Connectors (where one is added). HOME: where ~ is."""
-    made = {"rules": rule_rows, "permissions": permission_rows, "skills": skill_rows, "connectors": connector_rows,
-            "agents": agent_rows}
-    sections = []
-    for key, title in SECTIONS:
-        rows = made[key](setup, agent, folder, home)
-        for shown in (row["properties"]["actions"] for row in rows if key in GRAPHED):
-            shown.append({**act("graph", "Show graph"), "primary": not shown})
-        costs = [row["tokens"] for row in rows if row["tokens"] is not None]
-        if rows or key == "connectors":
-            sections.append({"id": key, "title": title, "count": len(rows), "tokens": sum(costs) if costs else None,
-                             "cost": kilo(sum(costs)) if costs else None, "summary": summary(key, setup, rows),
-                             "rows": rows})
-    return {"head": {"name": KNOWN[agent]["name"], "where": f"in {os.path.basename(os.path.abspath(folder))}"},
-            "health": health(setup), "sections": sections, "connect": connecting(agent, folder)}
-
-
 def conversation(folder, session, home):
     """Claude's file of the open conversation in FOLDER: SESSION where it is a file, its file there where it is a
     conversation's id (never a path), else the folder's newest; None where the folder has none."""
@@ -1210,40 +1208,13 @@ def conversation(folder, session, home):
     return (newest_first(glob.glob(os.path.join(glob.escape(place), "*.jsonl"))) or [None])[0]
 
 
-def checked_over(servers, checked):
-    """SERVERS with Claude's own looks over them (CHECKED: {name: {"base", "state", "error"}}, agent_state.py's
-    check()'s, kept by the app): each shown while its server's state is still the one it had then (BASE)."""
-    for one in servers:
-        said = obj(obj(checked).get(one["name"]))
-        if said.get("state") in SAID_AS and said.get("base") == one["state"]:
-            one.update(state=said["state"], error=clean(said.get("error")))
-    return servers
-
-
 def main(argv):
     """The Herdr app mod runs this on the space's machine, answering in JSON: claude FOLDER [SESSION] and codex FOLDER
-    (setup()'s), layers AGENT FOLDER [SESSION] (the Agent panel's, "states" each server's own; SESSION a file or an id,
-    else the newest; Claude's may end with --checked JSON)."""
-    home, checked = os.path.expanduser("~"), {}
-    if argv[1:3] == ["layers", "claude"] and argv[-2:-1] == ["--checked"] and len(argv) in (6, 7):
-        try:
-            argv, checked = argv[:-2], json.loads(argv[-1])
-        except ValueError:
-            argv = argv[:1]                         # not JSON: the usage
+    (setup()'s). The Agent panel's layers: agent_layers.py."""
     if argv[1:2] == ["claude"] and len(argv) in (3, 4) or argv[1:2] == ["codex"] and len(argv) == 3:
-        print(json.dumps(setup(argv[1], argv[2], home, argv[3] if len(argv) == 4 else None)))
+        print(json.dumps(setup(argv[1], argv[2], os.path.expanduser("~"), argv[3] if len(argv) == 4 else None)))
         return 0
-    if argv[1:3] == ["layers", "claude"] and len(argv) in (4, 5) or argv[1:3] == ["layers", "codex"] and len(argv) == 4:
-        session = conversation(argv[3], argv[4] if len(argv) == 5 else None, home) if argv[2] == "claude" else None
-        found = setup(argv[2], argv[3], home, session)
-        states = {one["name"]: one["state"] for one in found["servers"]} if found else {}
-        if found:
-            checked_over(found["servers"], checked)
-        print(json.dumps(found and {"agent": argv[2], "folder": argv[3], "states": states,
-                                    **layers(found, argv[2], argv[3], home)}))
-        return 0
-    print("usage: agent_setup.py claude FOLDER [SESSION] | codex FOLDER | layers claude FOLDER [SESSION] "
-          "[--checked JSON] | layers codex FOLDER", file=sys.stderr)
+    print("usage: agent_setup.py claude FOLDER [SESSION] | codex FOLDER", file=sys.stderr)
     return 2
 
 

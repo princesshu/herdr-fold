@@ -2,7 +2,7 @@
 """The prices that come with herdr-fold, for when LiteLLM's model cost map cannot be had: its rows for
 Anthropic's and OpenAI's models on AS_OF (https://github.com/BerriAI/litellm, MIT: see
 THIRD_PARTY_NOTICES.md). Written by tools/prices.py: run that for a newer table, never edit this."""
-AS_OF = "2026-11-18"
+AS_OF = "2026-11-21"
 # id: dollars a token of input, output, 5-minute cache write, 1-hour cache write, cache read and
 # reasoning, dollars a web search, then {thousands of prompt tokens: the same for a prompt past them}
 MODELS = {
@@ -75,8 +75,8 @@ MODELS = {
         "272": (4e-05, 0.00015, 2.5e-05, 2.5e-05, 4e-06, 0.00015, 0)}),
     "gpt-6-luna": (1e-07, 5e-07, 1.25e-07, 1.25e-07, 1e-08, 5e-07, 0.01, {
         "272": (2e-07, 7.5e-07, 2.5e-07, 2.5e-07, 2e-08, 7.5e-07, 0.01)}),
-    "gpt-6-rosalind": (1.5e-05, 7.5e-05, 1.875e-05, 1.875e-05, 1.5e-06, 7.5e-05, 0, {
-        "272": (3e-05, 0.0001125, 3.75e-05, 3.75e-05, 3e-06, 0.0001125, 0)}),
+    "gpt-6-rosalind": (1e-05, 5e-05, 1.25e-05, 1.25e-05, 1e-06, 5e-05, 0, {
+        "272": (2e-05, 7.5e-05, 2.5e-05, 2.5e-05, 2e-06, 7.5e-05, 0)}),
     "gpt-6-sol": (2e-06, 1e-05, 2.5e-06, 2.5e-06, 2e-07, 1e-05, 0.01, {
         "272": (4e-06, 1.5e-05, 5e-06, 5e-06, 4e-07, 1.5e-05, 0.01)}),
     "gpt-6.1-sol": (2e-06, 1e-05, 2.5e-06, 2.5e-06, 1e-07, 1e-05, 0.01, {
