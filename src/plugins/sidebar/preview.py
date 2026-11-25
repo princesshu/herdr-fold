@@ -73,13 +73,19 @@ def editor(line=None, env=os.environ, which=shutil.which, mac=sys.platform == "d
     return argv + (OPTIONS.get(program, []) if mac else []) + at if argv else None
 
 
-def editable(path):
-    """Whether PATH opens in the user's editor: text (media.text_refusal()), nothing drawn here (a page or an SVG drawn
-    stays in the preview, where e edits it)."""
+def writable(path, root):
+    """Whether PATH under ROOT may be written in an editor, as the app's editor decides it (media.text()): text, and
+    not a link that leads out of ROOT (a repository's notes.txt that is your ~/.zshrc stays in the preview)."""
+    return media.text(root, path)["why"] is None
+
+
+def editable(path, root):
+    """Whether PATH opens in the user's editor: writable() under ROOT, nothing drawn here (a page or an SVG drawn stays
+    in the preview, where e edits it)."""
     kind = media.kind_of(path)
     if kind in ("image", "pdf") or kind in ("svg", "html") and media.drawable(path):
         return False
-    return media.text_refusal(path) is None
+    return writable(path, root)
 
 
 def file_spec(root, path, line, which=shutil.which):
@@ -93,7 +99,7 @@ def file_spec(root, path, line, which=shutil.which):
     pipeline = pipeline if bat else []
     spec = {"title": os.path.relpath(path, root), "line": line, "file": None if bat else path, "pipeline": pipeline}
     if media.kind_of(path) in ("svg", "html") and media.drawable(path):     # code and a picture, side by side; e edits
-        spec.update(picture=path, edit=path)
+        spec.update(picture=path, **({"edit": path} if writable(path, root) else {}))
     return {**spec, "open": path} if media.kind_of(path) in ("html", "svg") and media.browsable() else spec
 
 

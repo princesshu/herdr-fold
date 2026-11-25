@@ -950,7 +950,7 @@ class App(Loop):
         from ROOT) at LINE; a picture, a page, a binary file or one past the limit in the preview tab. Files and the
         preview see what it saved on disk."""
         root, workspace = root or self.root, os.environ.get("HERDR_WORKSPACE_ID")
-        text = bool(workspace) and preview.editable(path)
+        text = bool(workspace) and preview.editable(path, root)
         argv = text and preview.editor(line)
         if not argv:
             if text:

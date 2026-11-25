@@ -215,17 +215,39 @@ class Commands(unittest.TestCase):
             with open(os.path.join(tmp, name), "wb") as f:
                 f.write(data)
         with mock.patch.object(preview.media, "drawable", return_value=True):
-            self.assertEqual([preview.editable(os.path.join(tmp, name)) for name in ("limits.json", "README.md",
+            self.assertEqual([preview.editable(os.path.join(tmp, name), tmp) for name in ("limits.json", "README.md",
                               "logo.svg", "a.bin", "shot.png")], [True, True, False, False, False])
         with mock.patch.object(preview.media, "drawable", return_value=False):     # no WebKit: its code is text
-            self.assertTrue(preview.editable(os.path.join(tmp, "logo.svg")))
+            self.assertTrue(preview.editable(os.path.join(tmp, "logo.svg"), tmp))
+
+    def test_a_link_that_leads_out_of_the_folder_is_never_opened_for_writing(self):
+        # a repository's innocent-looking notes.txt that is a file of yours outside it: shown, never edited
+        top = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, top)
+        folder, outside = os.path.join(top, "lumen-api"), os.path.join(top, "zshrc")
+        os.makedirs(folder)
+        with open(outside, "w") as f:
+            f.write("export PATH=/opt/bin\n")
+        os.symlink(outside, os.path.join(folder, "notes.txt"))
+        os.symlink(os.path.join(folder, "inside.txt"), os.path.join(folder, "here.txt"))
+        with open(os.path.join(folder, "inside.txt"), "w") as f:
+            f.write("ok\n")
+        self.assertFalse(preview.editable(os.path.join(folder, "notes.txt"), folder))
+        self.assertTrue(preview.editable(os.path.join(folder, "here.txt"), folder))          # a link inside: fine
+        with mock.patch.object(preview.media, "drawable", return_value=True):
+            os.symlink(outside, os.path.join(folder, "page.html"))
+            self.assertNotIn("edit", preview.file_spec(folder, os.path.join(folder, "page.html"), None))
 
     def test_a_drawn_page_or_svg_is_edited_from_its_status_row(self):
         set_env(self, SSH_CONNECTION=None, SSH_CLIENT=None)
+        repo = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, repo)
+        logo = os.path.join(repo, "logo.svg")
+        with open(logo, "w") as f:
+            f.write("<svg/>\n")
         with mock.patch.object(preview.media, "drawable", return_value=True):
-            self.assertEqual(preview.file_spec("/repo", "/repo/logo.svg", None, which=tools("bat"))["edit"],
-                             "/repo/logo.svg")
-        self.assertNotIn("edit", preview.file_spec("/repo", "/repo/a.bin", None, which=tools("bat")))
+            self.assertEqual(preview.file_spec(repo, logo, None, which=tools("bat"))["edit"], logo)
+        self.assertNotIn("edit", preview.file_spec(repo, os.path.join(repo, "a.bin"), None, which=tools("bat")))
 
     def test_the_shell_ends_with_the_pager_but_not_after_an_error(self):
         self.assertTrue(preview.command("/state/p.json", windows=False).line.endswith(" && exit"))

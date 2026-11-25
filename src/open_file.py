@@ -138,7 +138,7 @@ def open_found(h, found, root, pane, state_dir=PLUGIN_STATE):
     one gets the panes of the plugin's PANE's tab has, its sidebar's Files view the file chosen, its folders open."""
     info = h.call("pane", "get", pane)["pane"]
     place = root if found.path.startswith(root.rstrip(os.sep) + os.sep) else os.path.dirname(found.path)
-    argv = preview.editable(found.path) and preview.editor(found.line)
+    argv = preview.editable(found.path, place) and preview.editor(found.line)
     if argv:
         return preview.open_editor(h, info["workspace_id"], place, found.path, argv)
     kinds = panels.present(h.call("pane", "list").get("panes") or []).get(info["tab_id"]) or set(panels.KINDS)
