@@ -28,6 +28,8 @@ export class Review {
     this.pull = null;
     /** @type {string | null} why there is nothing to show, or what went wrong last */
     this.note = null;
+    /** @type {string | null} what the last review sent was, said in the bar till the next action (Review sent) */
+    this.done = null;
     this.loading = true;
     /** @type {Pending[]} the comments added to the review, sent with it */
     this.pending = [];
@@ -69,7 +71,7 @@ export class Review {
   act(cx, label, work) {
     if (this.busy) return;
     this.busy = label;
-    this.note = null;
+    [this.note, this.done] = [null, null];
     cx.spawn(async (cx) => {
       try {
         const error = await work();
@@ -93,8 +95,9 @@ export class Review {
     this.act(cx, "Sending the review…", async () => {
       const answer = await this.core(GITHUB, ["submit", github, String(number), JSON.stringify(asked)], root, on);
       if (!answer.ok) return answer.advice;
-      this.pending = [];
+      [this.pending, this.event] = [[], "comment"];         // sent: nothing lit till a new review is written
       this.summary.set_value("");
+      this.done = { approve: "Approved", request: "Changes requested" }[asked.event] ?? "Review sent";
       return null;
     });
   }
@@ -207,20 +210,20 @@ export class Review {
       .children(file.loose.map((thread) => this.thread(t, thread)));
   }
 
-  /** ROW of PATH in CODE (the code's font): its number (a press starts a comment there), its text; added green,
-   * removed red, a hunk's head muted. */
+  /** ROW of PATH in CODE (the code's font): its number (a press starts a comment there), its text, wrapped where long;
+   * added green, removed red, a hunk's head muted. */
   line(t, code, path, row, n) {
     if (row.kind === "@") return div().h(ROW).px(INSET).flex().items_center().truncate().font_family(code)
       .text_color(t.muted).child(row.text);
     const number = String(row.kind === "-" ? row.old : row.new);
-    return h_flex().id(`${path}:${n}`).h(ROW).px(INSET).items_center().font_family(code)
+    return h_flex().id(`${path}:${n}`).min_h(ROW).px(INSET).items_start().line_height(`${ROW}px`).font_family(code)
       .when(row.kind === "+", (e) => e.bg(t.ansi2 + "1c")).when(row.kind === "-", (e) => e.bg(t.ansi1 + "1f"))
       .child(div().id(`${path}:${n}:number`).w(NUMBER).flex_none().text_color(t.dim).cursor_pointer()
         .hover((s) => s.text_color(t.foreground)).tooltip("Comment on this line")
         .on_click((_e, cx) => this.comment(path, row, cx)).child(number))
       .child(div().w(14).flex_none().text_color(row.kind === "+" ? t.ansi2 : row.kind === "-" ? t.ansi1 : t.dim)
         .child(row.kind === " " ? "" : row.kind))
-      .child(div().flex_1().min_w(0).truncate().whitespace_nowrap().child(row.text));
+      .child(div().flex_1().min_w(0).child(row.text));         // a long line wraps: a review reads it whole
   }
 
   /** What sits under ROW of PATH: its threads, the comments added on it, the one being written. */
@@ -318,7 +321,7 @@ export class Review {
         .child(Textarea.new(words).px(8).py(6).text_size(12)))
       .child(h_flex().flex_wrap().gap(8).justify_end().items_center()
         .child(small(t, `${label}-cancel`, "Cancel", "Leave it", true, cancel))
-        .child(button(t, `${label}-done`, label, !this.busy, false, done)));
+        .child(button(t, `${label}-done`, label, !this.busy && Boolean(words.value().trim()), false, done)));  // words
   }
 
   /** The review's bar: its summary, then how many comments it holds, Comment, Approve (not on one's own) or Request
@@ -329,6 +332,8 @@ export class Review {
     return v_flex().flex_none().border_t(1).border_color(t.border).bg(t.chrome)
       .when(Boolean(this.note || this.busy), (e) => e.child(div().px(PAD).pt(8).text_size(11)
         .text_color(this.busy ? t.muted : t.ansi1).child(this.busy ?? this.note ?? "")))
+      .when(Boolean(this.done && !this.busy && !this.note), (e) => e.child(h_flex().px(PAD).pt(8).gap(6).items_center()
+        .text_size(11).text_color(t.muted).child(icon("check", 12)).child(this.done ?? "")))   // sent: the bar says so
       .child(v_flex().px(PAD).py(8).gap(8).child(field(t, "review-summary", this.summary))
         .child(h_flex().flex_wrap().justify_end().gap(8).items_center()      // narrow: Submit wraps, still right
           .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.muted)

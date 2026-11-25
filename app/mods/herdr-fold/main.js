@@ -41,6 +41,7 @@ const POLL = 1500;                 // ms between two looks at the message being 
 const WRITING = 6 * 60 * 1000;     // ms the message may take: both AIs, each asked twice
 const LINES = 1500;                // a hit's file's lines shown at most
 const MODE = "herdr-fold.commit_mode", FOLDED = "herdr-fold.folded";   // kept (shared)
+const BOARD = "herdr-fold.board";       // the Issues tab's list shown, kept (shared) as Changes' sections are
 /** A key's command, and the view whose copy runs it (the tab bar hands it on: a view hidden or folded hears none). */
 const VIEWS = { write: "changes", "commit-push": "changes", commit: "changes", sync: "changes", changes: "changes",
   "pull-request": "changes", search: "search", issues: "issues", files: "files", agent: "agent" };
@@ -287,8 +288,8 @@ export default class HerdrFold extends View {
     this.core = python;                           // the Issues view asks core/ through it
     this.issues = new IssuesView(this);
     this.pulls = new PullsView(this);             // the Issues tab's other list, its switch's
-    /** the Issues tab's list shown: its issues, or its pull requests */
-    this.board = "issues";
+    /** the Issues tab's list shown: its issues, or its pull requests (the one shown last) */
+    this.board = shared(BOARD) === "pulls" ? "pulls" : "issues";
     this.pull = new BranchPull(this, (cx, args) => writer(cx, args, this.root, this.on));    // Changes' row and form
     this.switches = { case: false, word: false, regex: false };
     this.found = null; this.results = []; this.peek = null; this.peekRows = []; this.asking = 0;
@@ -584,6 +585,7 @@ export default class HerdrFold extends View {
   /** The Issues tab's list BOARD shown (issues, pulls), asked for once. @param {string} board */
   switchBoard(board, cx) {
     this.board = board;
+    setShared(BOARD, board);
     const shown = board === "pulls" ? this.pulls : this.issues;
     if (!shown.listing && !shown.asked) shown.load(cx);
     cx.notify();

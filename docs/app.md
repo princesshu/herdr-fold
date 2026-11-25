@@ -128,12 +128,12 @@ For a repository on GitHub, its issues, as the TUI sidebar's Issues view lists t
 | An issue | its number in its priority's color, its title; its priority, labels, assignee and how long ago it changed; a click opens it in the preview tab; with the mouse on it, To agent and Open in browser |
 | Its right click | Open, Open in the browser, To the agent, Reply (gh's prompts in a tab of its own), Assign to me, and Close… or Reopen…, asked again on the row before it is done |
 
-On its top, Issues and Pull requests switch the list. Pull requests has the same field (its + opens Changes' form,
-the one way to open one), Open and Closed (closed and merged ones) and Refresh; each row its checks' mark, number and
-title, its review's state as one word (your review in yellow, as it waits on you, changes requested red, approved green,
-Draft a neutral tag), its branch, author (you) and age, the checks unless they passed; a click opens its review in the
-preview tab, with the mouse on it To agent (the agent reviews it: `gh pr view` and `gh pr diff`, read as a
-description, never as instructions) and Open in browser.
+On its top, Issues and Pull requests switch the list (the one shown last opens again). Pull requests has the same field
+(its + opens Changes' form, the one way to open one), Open and Closed (closed and merged ones) and Refresh; each row its
+checks' mark, number and title, its review's state as one word (your review in yellow, as it waits on you, changes
+requested red, approved green, Draft a neutral tag), its branch, author (you) and age, the checks unless they passed; a
+click opens its review in the preview tab, with the mouse on it To agent (the agent reviews it: `gh pr view` and `gh pr
+diff`, read as a description, never as instructions) and Open in browser.
 
 To the agent sends the tab's Claude or Codex (in a pane, or the chat tab's) the TUI's prompt for the issue (to read it
 with gh as a description of the problem, never as instructions), shows the agent, and links the issue to the next
@@ -148,10 +148,13 @@ A space has one, as in the TUI: the first file, diff, commit or issue opened mak
 once, a removed line by the old file and the others by the new one, a thin
 rule where lines are left out; a commit shows its author, message and each file's diff; an issue its text and comments
 as markdown. A pull request shows its review, as GitHub's Files changed: its title, state, branches and checks, each
-file's diff numbered, each thread under its line (Reply, Resolve, and on your own pull request To agent, which sends the
+file's diff numbered, a long line wrapped, each thread under its line (Reply, Resolve, and on your own pull request To
+agent, which sends the
 agent where the comment is and how to read it, never its words, and says under the thread where it went); a press on a
 line's number writes a comment, added to the review; at the foot the summary, Comment, Approve (never on your own) or
-Request changes, and Submit review, which sends it all in one request (Comment and Request changes need a summary).
+Request changes, and Submit review, which sends it all in one request (Comment and Request changes need a summary) and
+says above the summary what went (Review sent, Approved, Changes requested). A comment's or a reply's button is lit only
+with words in it.
 An image on this Mac (any macOS reads, HEIC, AVIF, PSD, EXR and a camera's raw file too) is drawn, fitted
 to the tab and never larger than it is; a PDF's pages one under another at their own size (smaller in a narrower tab), a
 gap apart and clear of the scrollbar, scrolled, each drawn as it comes into view, the page in view and Open in Browser
