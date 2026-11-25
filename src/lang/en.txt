@@ -34,7 +34,6 @@ install.codex_missing = Codex not found
 install.ssh_key = SSH key
 install.ssh_key_missing = No SSH key — remote machines need one
 install.tailscale = Tailscale
-install.tailscale_missing = Tailscale not found
 
 # install.sh: steps 2 and 3, apps and theme
 install.step_apps = 2/8 Apps
@@ -214,7 +213,7 @@ add_machine.no_package = Adding a machine needs the herdr-fold folder, and it is
 machines.unknown_command = Unknown command: %s (help: ./machines.sh help)
 machines.ssh_failed = key-based login failed — try it by hand: ssh %s
 machines.ssh_passphrase = (for a passphrase-protected key, first: ssh-add --apple-use-keychain)
-machines.ssh_unknown_name = %s: no machine of that name on this network — check the name, and that Tailscale is on
+machines.ssh_unknown_name = %s: no machine of that name here — check the name, and that the Mac reaches its network
 machines.ssh_refused = %s answers, but no SSH server runs on it
 machines.ssh_turn_on = turn it on: on Linux, install openssh-server; on macOS, System Settings → General → Sharing → \
   Remote Login; on Windows, Settings → System → Optional features → OpenSSH Server, then start the sshd service
@@ -425,6 +424,7 @@ sync.private_clean = no private data found in the files
 sync.private_found = private data found in the files — take it out before you commit:
 sync.private_unchecked = the files are not checked for private data: tests/test_repo_privacy.py is not here
 picker.keys = Tab agent · ← → close and open
+picker.add_machine = Add machine…
 picker.setting_up = setting up %s — starting %s…
 restore.this_machine = this machine
 restore.the_agent = the agent

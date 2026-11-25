@@ -442,6 +442,11 @@ class InstallCleanup(PackageHome, unittest.TestCase):
         self.assertEqual(self.lines_of(self.install(), "install.step_done")[0],
                          "[!] " + catalog_text("install.finished_warnings", VERSION, 1))
 
+    def test_tailscale_is_never_asked_for(self):
+        # one way among many to a machine (any SSH reaches one): missing, the installer says nothing of it
+        os.remove(shutil.which("tailscale", path=self.env["PATH"]))
+        self.assertNotIn("Tailscale", "\n".join(self.lines_of(self.install(), "install.step_prerequisites")))
+
     def test_each_step_says_what_it_did_not_its_parts(self):
         # as the usual installers do: a line a step, for what changed or needs attention; the parts with
         # HERDR_FOLD_VERBOSE=1

@@ -4,6 +4,7 @@ one), and the empty one is closed."""
 import collections
 import os
 import shutil
+import subprocess
 import sys
 import time
 
@@ -17,7 +18,7 @@ from projects import repositories, start  # noqa: E402
 import widgets  # noqa: E402  the sidebar's, on the path herdrlib gives
 from icons import icon  # noqa: E402  the sidebar's, on the path herdrlib gives
 from screen import after, icons_on  # noqa: E402  the sidebar's, on the path herdrlib gives
-from tui import (CLOSE_ROOM, CLOSED, GRAY, INVERT, MARGIN, RESET, RIGHT, button_at, buttons, clicked,  # noqa: E402
+from tui import (CLOSE_ROOM, CLOSED, GAP, GRAY, INVERT, MARGIN, RESET, RIGHT, button_at, buttons, clicked,  # noqa: E402
                  close_button, mouse, printable, read_key, wait_and_exit)
 
 HOME = os.path.expanduser("~")
@@ -71,8 +72,11 @@ def toggle_start(title, width):
 
 
 def picker_buttons(width):
-    """The last row: the keys a click cannot show, then Cancel and Open (Enter's)."""
-    return buttons([t("common.cancel"), t("common.open")], width, t("picker.keys"))
+    """The last row: the keys a click cannot show (where they fit), then Add machine… (as Ctrl+B, Shift+M adds one),
+    Cancel and Open (Enter's)."""
+    labels, keys = [t("picker.add_machine"), t("common.cancel"), t("common.open")], t("picker.keys")
+    room = width - MARGIN - RIGHT - sum(len(label) + 2 + GAP for label in labels)
+    return buttons(labels, width, keys if len(keys) < room else "")
 
 
 class Picker:
@@ -159,7 +163,7 @@ class Picker:
     def click(self, event, now, width, height):
         """A mouse EVENT (tui.clicked()): a click chooses a row, the same one again within DOUBLE seconds opens it, a
         click on its mark opens or closes it, the toggle chooses the agent, a button opens or cancels, the wheel moves.
-        "open", "cancel" or None."""
+        "open", "cancel", "machine" or None."""
         button, column, at, pressed = event
         if button in (64, 65):
             self.chosen = max(self.chosen - 1, 0) if button == 64 else self.chosen + 1
@@ -176,7 +180,7 @@ class Picker:
             return None
         if at == FIRST_ROW + len(shown) + 1:
             label = button_at(column, picker_buttons(width)[1])
-            return label and ("open" if label == t("common.open") else "cancel")
+            return label and {t("common.open"): "open", t("picker.add_machine"): "machine"}.get(label, "cancel")
         if not FIRST_ROW <= at < FIRST_ROW + len(shown):
             return None
         row, self.chosen = shown[at - FIRST_ROW], self.top + at - FIRST_ROW
@@ -280,6 +284,12 @@ def main():
         if action == "open" and picker.chosen_path():
             return open_folder(picker.chosen_path(), picker.agent, placeholder)
         if action == "cancel":
+            close_placeholder(placeholder, back=True)
+            return
+        if action == "machine":                            # Ctrl+B, Shift+M's questions here, then back
+            mouse(False)
+            subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "add_machine.py")],
+                           check=False)
             close_placeholder(placeholder, back=True)
             return
 

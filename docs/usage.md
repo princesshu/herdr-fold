@@ -16,7 +16,8 @@ A space is a row of the Spaces list in herdr's sidebar; herdr's own commands and
    Tab, or a click on Claude or Codex at the top right, switches between them; it starts on the agent herdr-fold
    started last.
 3. Enter, **Open** or a double click opens the space, or jumps to the one the folder already has. Esc or
-   **Cancel** goes back to the space you came from.
+   **Cancel** goes back to the space you came from. **Add machine…**, left of them, asks Ctrl + B, then Shift + M's
+   questions instead: a space on another machine starts with the machine ([Remote machines](remote-machines.md)).
 
 ![The New space folder picker over the new space: Documents as a tree with its four repositories, lumen-api already
 open, Claude or Codex at its top right, Cancel and Open at the bottom](../assets/screenshots/tui-new-space.webp)

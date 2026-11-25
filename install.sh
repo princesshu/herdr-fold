@@ -223,7 +223,7 @@ if claude_found; then there+=("$(t install.claude)")
 else missing+=("warn|$(t install.claude_missing)"); fi
 command -v codex >/dev/null 2>&1 && there+=("$(t install.codex)") || missing+=("note|$(t install.codex_missing)")
 has_ssh_key && there+=("$(t install.ssh_key)") || missing+=("note|$(t install.ssh_key_missing)")
-[ -n "$(tailscale_bin)" ] && there+=("$(t install.tailscale)") || missing+=("note|$(t install.tailscale_missing)")
+[ -z "$(tailscale_bin)" ] || there+=("$(t install.tailscale)")      # one way among many to machines: never missed
 [ ${#there[@]} = 0 ] || have "$(joined "${there[@]}")"
 [ ${#missing[@]} = 0 ] || for said in "${missing[@]}"; do "${said%%|*}" "${said#*|}"; done
 

@@ -11,6 +11,7 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 
 ### Added
 
+- The TUI's New space picker has Add machine…, beside Cancel and Open
 - Runs, the Agents tab's third view (the TUI: the Agent view's More, `r`): Claude's background sessions and Codex's
   `codex exec` runs and cloud tasks, a row each with what it made (files, the PR it opened, its pictures) and its cost;
   Attach, Stop, Open as chat, Run again, a cloud diff's Show diff and Apply, each the agent's own command; New run
@@ -453,6 +454,7 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 
 ### Changed
 
+- The installer no longer lists Tailscale as missing: it is one way to a machine, any SSH reaches one
 - The app's model chip names the model a chat on Default runs, and its level, never the word Default, as VS Code's
   Claude does
 - Hidden files show in Files by default, in both clients and every folder; `.` (the TUI) or the toolbar's

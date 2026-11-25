@@ -139,6 +139,8 @@ class Mouse(unittest.TestCase):
         buttons = len(lines)
         self.assertEqual(self.click(lines[-1].index("Open") + 1, buttons), "open")
         self.assertEqual(self.click(lines[-1].index("Cancel") + 1, buttons), "cancel")
+        self.assertEqual(self.click(lines[-1].index("Add machine") + 1, buttons), "machine")     # left of Cancel
+        self.assertLess(lines[-1].index("Add machine"), lines[-1].index("Cancel"))
         self.click(1, 4, button=65)
         self.assertEqual(self.picker.chosen, 1)
         self.click(1, 4, button=64)
