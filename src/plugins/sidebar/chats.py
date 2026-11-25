@@ -15,16 +15,17 @@ from dataclasses import asdict, dataclass, replace
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 import fileops  # noqa: E402
 import statefile  # noqa: E402
-from github import since  # noqa: E402
 from jsonl import claude_project_dir, newest_first, obj, open_regular, parse  # noqa: E402
+from words import since  # noqa: E402
 
 INDEX = "chat-index.json"             # what was read of each file, and where it stopped
 SETTINGS = "chats.json"               # the list's settings, the archived chats among them
-INDEX_VERSION = 3                     # another version's index (its shape, its types) is not read: the files are
+INDEX_VERSION = 4                     # another version's index (its shape, its types) is not read: the files are
 # how Claude names a chat a program ran through the Agent SDK (its "entrypoint"): a hook's review of every change, a
 # script's question, never the user's own chat. claude -p's (sdk-cli), the editors' and the desktop app's are listed
 PROGRAMS = ("sdk-py", "sdk-ts")
 PROMPT = 200                          # characters of a first prompt the index keeps: more than a row can ever show
+RUNS = "runs.json"                    # in herdr-fold's state: the background sessions runs.py last listed (Runs')
 FIRST_LINE = 1 << 20                  # bytes of a Codex file's first line read for its folder (some 23 KB in use)
 TAIL = 8 << 20                        # bytes from a chat's end the formatted copy looks for a reply in
 # a text that is not the user's own prompt: the agent's system text or a command (<…>), the project's notes, a note
@@ -202,12 +203,14 @@ def read_claude(entry, raw):
 
 
 def read_codex(entry, raw):
-    """What a line of a Codex chat adds: its id, folder and whether it is a helper (the first line), then the
-    first prompt, after which nothing more is needed (its name lives in session_index.jsonl)."""
+    """What a line of a Codex chat adds: its id, folder, whether it is a helper or a run of `codex exec` (Runs', the
+    first line), then the first prompt, after which nothing more is needed (its name lives in session_index.jsonl)."""
     if "id" not in entry:
         meta = obj(parse(raw).get("payload"))
         entry.update(id=text(meta.get("id")) or "", folder=text(meta.get("cwd")) or "",
                      helper=isinstance(meta.get("source"), dict))
+        if meta.get("source") == "exec":
+            entry["run"] = True
     elif b'"role":"user"' in raw:
         payload = obj(parse(raw).get("payload"))
         if payload.get("type") == "message" and payload.get("role") == "user":
@@ -358,13 +361,15 @@ def save_index(state_dir, index):
         pass                                    # read again next time
 
 
-def chat(kind, path, entry, names, threads):
-    """The chat ENTRY describes; None for a file without a prompt of the user's, for Codex's helpers and for a
-    program's run of Claude."""
-    if not entry.get("prompt") or entry.get("helper"):
+def chat(kind, path, entry, names, threads, runs=frozenset()):
+    """The chat ENTRY describes; None for a file without a prompt of the user's, for Codex's helpers and a program's
+    run of Claude, and for what Runs lists instead: a run of `codex exec`, a background session of RUNS'."""
+    if not entry.get("prompt") or entry.get("helper") or entry.get("run"):
         return None
     if kind == "claude":
         session = os.path.basename(path)[:-len(".jsonl")]
+        if session in runs:
+            return None
         title = names.get(session) or entry.get("custom") or entry.get("ai") or entry["prompt"]
     else:
         session = entry.get("id")
@@ -395,22 +400,31 @@ def running(found, agents, resumed=None):
     return marked
 
 
-def local(state_dir, agents=(), resumed=None):
-    """This machine's chats, the newest first; AGENTS: herdr's agent list, and RESUMED, the chats
-    reopened in panes herdr knows no session of yet ({pane: id}), for the running ones."""
-    index, fresh, found = load_index(state_dir), {}, []
-    names, threads = manual_names(), codex_names()
+def indexed(state_dir):
+    """Every chat file's entry, {path: (kind, entry)}, the index brought up to date and kept."""
+    index, fresh, found = load_index(state_dir), {}, {}
     for kind, paths in (("claude", claude_files()), ("codex", codex_session_files())):
         for path in paths:
             entry = update(path, kind, index.get(path, {}))
-            if entry is None:
-                continue
-            fresh[path] = entry
-            item = chat(kind, path, entry, names, threads)
-            if item:
-                found.append(item)
+            if entry is not None:
+                fresh[path], found[path] = entry, (kind, entry)
     if fresh != index:
         save_index(state_dir, fresh)
+    return found
+
+
+def background():
+    """The sessions of Claude's background runs as runs.py last listed them (Runs lists them, not Chats)."""
+    found = statefile.read(os.path.join(statefile.folder(), RUNS)).get("sessions")
+    return frozenset(one for one in found if isinstance(one, str)) if isinstance(found, list) else frozenset()
+
+
+def local(state_dir, agents=(), resumed=None):
+    """This machine's chats, the newest first; AGENTS: herdr's agent list, and RESUMED, the chats
+    reopened in panes herdr knows no session of yet ({pane: id}), for the running ones."""
+    names, threads, runs = manual_names(), codex_names(), background()
+    found = [item for item in (chat(kind, path, entry, names, threads, runs)
+                               for path, (kind, entry) in indexed(state_dir).items()) if item]
     return running(sorted(found, key=lambda item: item.time, reverse=True), agents, resumed)
 
 

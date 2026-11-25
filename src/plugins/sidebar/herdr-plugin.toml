@@ -60,6 +60,15 @@ title = "Usage"
 placement = "overlay"
 command = ["/usr/bin/python3", "usage_view.py"]
 
+# The Runs view (runs_view.py), opened from the Agent view's More (r): the agents' background and cloud runs, what each
+# made and cost, New run, over the tab's panes (herdr's overlay), closed by its ×, Esc or a click outside it
+[[panes]]
+id = "runs"
+platforms = ["macos", "linux"]
+title = "Runs"
+placement = "overlay"
+command = ["/usr/bin/python3", "runs_view.py"]
+
 # The sidebar itself runs in a plain pane named "sidebar" (python3 sidebar.py [FOLDER]); these actions show a panel
 # in the active tab's sidebar by sending it F9, F10, F11 or F12.
 [[actions]]

@@ -102,8 +102,8 @@ class Runnable(unittest.TestCase):
         self.assertEqual(json.loads(done.stdout), {"chats": [], "archived": []})
 
     def test_what_an_imported_module_imports_is_made_first_too(self):
-        # chat.py imports plan.py, which imports chats.py, which imports fileops.py, statefile.py, github.py and
-        # jsonl.py: each made once, before what imports it
+        # chat.py imports plan.py, which imports chats.py, which imports fileops.py, statefile.py, jsonl.py and
+        # words.py (and it model_windows.py): each made once, before what imports it
         with tempfile.TemporaryDirectory() as home:
             session = "5f0c6d9e-1b2a-4c3d-8e9f-0a1b2c3d4e5f"
             done = subprocess.run(["/usr/bin/python3", "-I", "-c", build.runnable("chat.py"), "steps", session, "0"],
@@ -112,9 +112,10 @@ class Runnable(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(json.loads(done.stdout)["steps"], [])
         made = re.findall(r"^_sys\.modules\['(\w+)'\] =", build.runnable("chat.py"), re.M)
-        self.assertEqual(sorted(made), ["chats", "fileops", "github", "jsonl", "plan", "statefile"])
-        self.assertGreater(made.index("chats"), max(made.index(name) for name in ("fileops", "github", "jsonl",
-                                                                                  "statefile")))
+        self.assertEqual(sorted(made), ["chats", "fileops", "jsonl", "model_windows", "plan", "statefile", "words"])
+        self.assertGreater(made.index("chats"), max(made.index(name) for name in ("fileops", "jsonl", "statefile",
+                                                                                  "words")))
+        self.assertGreater(made.index("words"), made.index("model_windows"))
         self.assertGreater(made.index("plan"), made.index("chats"))
 
     def test_a_made_module_keeps_its_lines(self):

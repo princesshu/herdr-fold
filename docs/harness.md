@@ -288,6 +288,40 @@ Tab and the agents with `a`, and scrolls with ↑ ↓.
 The chats are read into herdr-fold's token index first (`core/tokens.py`): a first read of many sessions takes a
 while, and the view says `Reading chats…` until the figures are whole. It reads again every minute while open.
 
+## The Runs view
+
+What the agents ran in the background, away from a chat (`core/runs.py`): Claude's background sessions (`claude
+--bg`, as `claude agents --json --all` lists them), Codex's `codex exec` runs (their rollouts) and Codex's cloud tasks
+(`codex cloud list --json`). The TUI opens it over the tab's panes from More's Open Runs or `r` in the Agent view
+(macOS and Linux); in the app it is the Agents tab's Runs, opened by its head's switch, the palette's Runs or the status
+bar's `1 run working`.
+
+- A row a run, under `Running`, `Today`, `Yesterday` or `Earlier`: a spinner while it works (the waiting dot while a
+  background session needs you), a red ✕ for one that failed, no mark for one done; its name (the prompt's start), its
+  agent, its folder (the app's), when it started, what it made (`2 files`, `PR #61`, `2 images`, `no change`) and its
+  cost (`~$0.31`, from the token index as Usage counts it; `–` for a cloud task, whose list tells no tokens).
+- A PR is the one `gh pr create` printed in the run; the media are the run's written files of a picture's, a sound's or
+  a video's type, the pictures shown small in its properties.
+- The chosen run's properties under it: `Ran as` (`Background session · Claude · Opus 5.5`, `codex exec`, `Codex
+  cloud`), its folder, day and length, its prompt, what it does now or made, its cost; then its buttons, each the
+  agent's own command: `Attach` (`claude attach`, in a terminal, where a permission it waits on is answered) and `Stop`
+  (`claude stop`) while it works; `Open as chat` (a background session leaves the list with `claude rm` and is a chat
+  in Chats from then on), `Run again` and `Remove` once it ended; a cloud task's `Show diff` (`codex cloud diff`),
+  `Apply to lumen-api` (`codex cloud apply` in the space's folder) and `Open on the web`. What a press did, or the
+  agent's own words where it did not, is said under them.
+- `New run` (the TUI: `n`) asks the agent, the prompt, where (Codex: this Mac or its cloud, in one of the environments
+  its tasks ran in) and when, and starts it with `claude --bg`, `codex exec` or `codex cloud exec`. `On a schedule`
+  opens a new Claude chat with `/schedule` and your words, where Claude asks the rest; Codex schedules only in its
+  own app, so its choice is greyed.
+- The list's foot says that scheduled cloud runs are not listed: Claude keeps its routines at claude.ai (the app's
+  `Claude's routines` opens a chat with `/schedule list`, Claude's own way to list them), Codex its scheduled tasks in
+  its app. herdr-fold never schedules anything itself.
+
+The Chats list leaves out what Runs lists, so nothing is in both: a `codex exec` run always, a background session
+once Runs (or the app's status bar) has read Claude's list. A `claude -p` run stays in Chats: its transcript is told
+apart only by a field Claude Code does not document. Claude's list is kept 30 seconds; the view reads again every 30
+seconds while open, every 5 while a run works.
+
 ## The graph
 
 How the agent is wired in the folder (`core/graph.py`), for Claude and Codex alike. The app draws it on a canvas in
@@ -330,6 +364,6 @@ The graph only shows: changing a server or a rule stays the Agent panel's.
   show; its environment, its headers' values and an address's query never leave the reader.
 - It writes an agent's settings file only on a form's Save, one key of the list above.
 - Every other change is the agent's own command, run on your press: a server checked, a sign-in, a sign-out, a
-  connector added, `/mcp enable`.
+  connector added, `/mcp enable`, a run started, stopped, removed or applied.
 - It keeps no token and reads none. Its own state (the token index, the budgets, the limits it was told) is in
   `~/.local/state/herdr-fold/`.

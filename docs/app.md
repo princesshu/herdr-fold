@@ -272,6 +272,17 @@ first tab, shown, the first time it shows: once, so a chat closed stays closed a
 alone. A home space, home's stand-in (a plain terminal in the home folder) and a space on another machine get none:
 nothing starts there unasked.
 
+A home space gets the Start tab instead, once, where it holds shells alone: no agent works in the home folder (Claude
+Code asks for a project's), so Open a project stands high up in its middle, its words under it and Open project… on
+the accent (macOS's folder chooser), then Recent: the folders of the chats so far, the newest first, each once, the
+home and a folder gone left out, a press opening one as a space (its own if one has it), a new chat its first tab.
+
+An empty chat whose agent is not signed in takes no agent for granted: under New chat, Sign in to an agent, a line on
+how (each signs in its own way, herdr-fold keeps no token), then every installed agent a row by name, its icon, its
+name and Not signed in or Signed in, with Sign in (its own sign-in in a terminal tab, as the Agent panel starts it) or
+Use (as the agent chip picks it); no button on the accent, none is the default. There is no prompt till its agent is
+in, as VS Code's Claude has it; back in front once signed in, the chat reads it and its prompt is there.
+
 The model chip in a chat's bar names the model and, dimmer, its effort (Opus 5.5 High); a press opens Claude's models
 upward, as VS Code's Claude has them: each with its line (Default, the account's own, then Opus 5.5, Fable 5.2, Sonnet
 5.5 and Haiku 5.5, as Claude Code lists them; one in use that it does not list on top). On Default the chip never
@@ -433,14 +444,15 @@ mark and name at its start, and Go to space or tab and its toggle at its end, on
 The window's foot is herdr-fold's own status bar, where the app's was, as the mockups draw it: on the side's level under
 a hairline, the shown space's machine (This computer, else its name) and branch, then its agents, a dot and their words:
 those waiting on you first (`1 of 3 agents waiting for you`, the dot yellow), else those working (`2 agents working`,
-the dot in the accent), else how many (`1 agent`, `2 agents`). While Herdr has an update ready, a quiet item stands at
-its right end: a green dot and `Update ready: herdr-core 0.1.21`, a press updating herdr-core while the terminals keep
-running (a spinner and `Updating herdr-core to 0.1.21…` meanwhile), or `Update ready: Herdr 0.1.16`, a press restarting
-into it, herdr-core with it when it waits too; its tip says which. A herdr-core a package manager owns shows none (it
-updates there). With neither ready, a newer herdr-fold stands there the same way, `herdr-fold 0.4.0 is out`: a press
-updates nothing, it opens [Settings](#settings) at About, which says how. One item shows at a
-time, in that order. This is the one place herdr-fold says it: the sidebar's Settings has no dot. The app's own
-notice in the window's corner is Herdr's: a layout cannot turn it off, and its × closes it.
+the dot in the accent), else how many (`1 agent`, `2 agents`); while a run works in the background, `1 run working`
+after them, a press opening the Agents tab on [Runs](harness.md#the-runs-view). While Herdr has an update ready, a
+quiet item stands at its right end: a green dot and `Update ready: herdr-core 0.1.21`, a press updating herdr-core
+while the terminals keep running (a spinner and `Updating herdr-core to 0.1.21…` meanwhile), or `Update ready: Herdr
+0.1.16`, a press restarting into it, herdr-core with it when it waits too; its tip says which. A herdr-core a
+package manager owns shows none (it updates there). With neither ready, a newer herdr-fold stands there the same way,
+`herdr-fold 0.4.0 is out`: a press updates nothing, it opens [Settings](#settings) at About, which says how. One item
+shows at a time, in that order. This is the one place herdr-fold says it: the sidebar's Settings has no dot. The app's
+own notice in the window's corner is Herdr's: a layout cannot turn it off, and its × closes it.
 
 ## Installing it
 
@@ -507,7 +519,8 @@ that view (Search with the keys in its field), `herdr-fold.chats`, which opens C
 `herdr-fold.palette`, which opens or closes the command palette, `herdr-fold.new-space`, `herdr-fold.add-machine`,
 `herdr-fold.column`, `herdr-fold.restore`, `herdr-fold.open-file` and `herdr-fold.theme`, the six commands the TUI has
 too, `herdr-fold.agents`, which shows the space's [Agents](#agents) tab, `herdr-fold.usage`, which shows that tab's
-[Usage](harness.md#the-usage-view), and `herdr-fold.settings`, which opens Settings; they reach a herdr-fold that shows,
+[Usage](harness.md#the-usage-view), `herdr-fold.runs`, which shows its [Runs](harness.md#the-runs-view), and
+`herdr-fold.settings`, which opens Settings; they reach a herdr-fold that shows,
 and in its layout the tab bar hands a view's on to it, the view shown first. `herdr-fold.styleguide` opens the mod's
 parts, each in each of its states, in a tab, an index of them at its side: [Styleguide](styleguide.md).
 
@@ -541,11 +554,13 @@ automatically](../assets/screenshots/app-chat.webp)
 
 ## Agents
 
-A tab of the main area, one a space, under Lucide's share icon, with two views its head switches at its right end:
-Graph, how the space's agent is wired in the folder, and Usage, what the agents used and what that cost. Both are in
-[The agent's harness](harness.md#the-graph), with [the Usage view](harness.md#the-usage-view). The palette's Agents
-opens the tab on its graph and the Agent panel's `Show in graph` on a row's node; the palette's Usage, the panel's
-Open Usage and a chat's `Usage` open it on Usage; opened again, the same tab is shown.
+A tab of the main area, one a space, under Lucide's share icon, with three views its head switches at its right end:
+Graph, how the space's agent is wired in the folder, Usage, what the agents used and what that cost, and Runs, what
+they ran in the background. All are in [The agent's harness](harness.md#the-graph), with [the Usage
+view](harness.md#the-usage-view) and [the Runs view](harness.md#the-runs-view). The palette's Agents opens the tab on
+its graph and the Agent panel's `Show in graph` on a row's node; the palette's Usage, the panel's Open Usage and a
+chat's `Usage` open it on Usage; the palette's Runs and the status bar's `1 run working` on Runs; opened again, the
+same tab is shown.
 
 The two pictures are from before the redesign (the switch says `This chat` now, the gates read `allow pytest`, and
 `Budget…` stands on the month's card).

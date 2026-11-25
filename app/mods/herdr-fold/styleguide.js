@@ -23,6 +23,7 @@ import { Menus, menuPopup } from "./menus.js";
 import { Preview } from "./preview.js";
 import { Editing } from "./editor.js";
 import { UsageView } from "./usageview.js";
+import { RunsView } from "./runsview.js";
 import { money, whole } from "./report.js";
 import { SettingsView } from "./settings.js";
 import { dock, floatHead, floatPanel, sidebarFoot, sidebarHead, spacesBody, spacesButtons } from "./sidebar.js";
@@ -57,6 +58,7 @@ const HALVES = {
   "agent-editing": [["rules", [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]], ["settings"]],
   "agents-graph": [["wiring", [0, 1, 2, 6, 7, 8, 9]], ["conversation"]],
   "agents-usage": [["report", [0, 1, 2, 7, 8, 9, 10, 11]], ["budget"]],
+  "agents-runs": [["list", [0, 1, 2, 3, 8, 9, 10]], ["new-run"]],
   chats: [["list", [0, 1, 2, 3, 4]], ["states"]],
   "chat-plus": [["menu", [0, 1, 2, 3, 4, 5, 6]], ["context"]],
   "chat-panel": [["model-and-modes", [0, 1, 2, 3, 4, 5, 6]], ["commands"]],
@@ -306,6 +308,7 @@ const BARS = [["This computer, its branch, two agents", bar(null, "main", ["idle
   ["Herdr's update ready: a press restarts into it", bar(null, "main", ["idle", "idle"], { app: { ready: "0.1.16" } })],
   ["herdr-core updating: a spinner, no press", bar(null, "main", ["idle", "idle"],
     { core: { ready: "0.1.21", updating: true } })],
+  ["A run working in the background: a press shows it in Runs", { ...bar(null, "main", ["idle"]), runs: 1 }],
   ["A newer herdr-fold out: a press opens Settings at About", bar(null, "main", ["idle", "idle"], {},
     { version: "0.4.0", latest: "0.5.0", newer: true })]];
 const ISSUE = { ago: ["1d", "4h"], issue: { number: 42, title: LISTED[0].title, state: "OPEN", author: "noa-berg",
@@ -953,6 +956,13 @@ export function guide(proto, cx) {
   // the budget's fields: what core keeps, and one typed that is no amount
   const budgetInput = InputState.new({ placeholder: "none", value: "50" });
   const oddInput = InputState.new({ placeholder: "none", value: "5o" });
+  // New run's prompts: a run now, a schedule, a task for Codex's cloud
+  const [runNow, runLater, runCloud] = ["Read the routes and bring docs/api.md up to date; keep the error format "
+    + "section as it is.", "Every weekday at 07:00: bump the dependencies, run the tests, and open a pull request if "
+    + "they pass.", "Add page-size limits to /shelves and test them"].map((value) => TextareaState.new({ value }));
+  const runForm = (/** @type {Record<string, any>} */ form, /** @type {any} */ prompt) => runsViewOf(RUNS_ANSWER,
+    { form: { agent: "claude", where: "here", when: "now", env: "env_lumen", busy: false, note: null, ...form },
+      prompt });
   const found = { total: 3, files: 2, hits: HITS, error: null };
   const nothing = { total: 0, files: 0, hits: [], error: null };
   const setup = setupOf(home());                              // lumen-api's rules and skills
@@ -1243,6 +1253,30 @@ export function guide(proto, cx) {
     ["Not read yet", agentsOf(null, { view: "usage" }), 96, 540],
     ["The read failed: why, in its place", agentsOf(null, { view: "usage", usage: usageViewOf(null,
       { error: "report.py: Permission denied" }) }), 96, 540]],
+    // the Agents tab's Runs: [name, view, height, width]
+    agentsRuns: [["Runs, as runs.html's: working first, then each day; the hero image's run chosen, its pictures "
+      + "small", agentsOf(null, { view: "runs", runs: runsViewOf(RUNS_ANSWER, { chosen: "claude:9e8d7c6b" }) }), 820,
+    1000],
+    ["A background session working: what it does now, Attach and Stop", agentsOf(null, { view: "runs",
+      runs: runsViewOf(RUNS_ANSWER, { chosen: "claude:7c5dcf5d" }) }), 760, 1000],
+    ["A Codex cloud task done: its diff, not applied yet", agentsOf(null, { view: "runs",
+      runs: runsViewOf(RUNS_ANSWER, { chosen: "codex:task_e_6a1b2c3d4e5f" }) }), 760, 1000],
+    ["Open as chat pressed: what happened, under the list", agentsOf(null, { view: "runs",
+      runs: runsViewOf(RUNS_ANSWER, { note: { text: "Opened as a chat: it is in Chats now", error: false } }) }),
+    560, 1000],
+    ["New run: Claude now, on this Mac in the background", agentsOf(null, { view: "runs", runs: runForm({}, runNow) }),
+      820, 1000],
+    ["On a schedule: Claude's own /schedule, in a new chat", agentsOf(null, { view: "runs",
+      runs: runForm({ when: "schedule" }, runLater) }), 820, 1000],
+    ["Codex in its cloud, in an environment; its schedule greyed", agentsOf(null, { view: "runs",
+      runs: runForm({ agent: "codex", where: "cloud" }, runCloud) }), 860, 1000],
+    ["What the agent said when it did not start the run", agentsOf(null, { view: "runs", runs: runForm({
+      note: { text: "Claude didn't start it: Error: not logged in", error: true } }, runNow) }), 860, 1000],
+    ["Nothing run yet", agentsOf(null, { view: "runs", runs: runsViewOf({ ...RUNS_ANSWER, runs: [], working: 0 }) }),
+      220, 620],
+    ["Not read yet", agentsOf(null, { view: "runs", runs: runsViewOf(null) }), 160, 620],
+    ["The read failed: why, in its place", agentsOf(null, { view: "runs", runs: runsViewOf(null,
+      { error: "runs.py: Permission denied" }) }), 160, 620]],
     // the chosen row's properties under the layers: [name, view, height]
     agentProperties: [["sentry failed, chosen: where it is from, what it runs, its error, Retry and its file",
       agentOf(LAYERS, { chosen: SENTRY.id, folded: OTHERS }), 552],
@@ -1659,6 +1693,51 @@ function usageViewOf(report, fields = {}) {
   return view;
 }
 
+// the Agents tab's Runs: runs.html's list, as core's runs.py words it
+const runOf = (/** @type {Record<string, any>} */ more) => ({ agent: "claude", name: "Claude", kind: "background",
+  folder: LUMEN, place: "lumen-api", group: "Today", day: "Today", took: "4 min", state: "done", said: "done",
+  files: [], media: [], pr: null, cost_line: "", ran_as: "Background session · Claude · Sonnet 5.5", now: null,
+  session: "5f0c6d9e-1b2a-4c3d-8e9f-0a1b2c3d4e5f", ...more, key: `${more.agent ?? "claude"}:${more.id}`,
+  title: more.prompt.split(";")[0], prompt: more.prompt });
+const HERO = "/work/harbor-web/renders/hero-dawn-";
+const RUNS_LISTED = [
+  runOf({ id: "7c5dcf5d", prompt: "Update the API docs from the routes; keep the error format section as it is",
+    group: "Running", time: "14:02", took: "6 min", state: "running", said: "running · 6 min", made: "2 files",
+    cost: "~$0.31", cost_line: "~$0.31 API value so far", ran_as: "Background session · Claude · Opus 5.5",
+    now: "Edit docs/api.md", files: [`${LUMEN}/docs/api.md`, `${LUMEN}/docs/errors.md`] }),
+  runOf({ id: "1a2b3c4d", prompt: "Bump dependencies, run the tests and open a pull request if they pass",
+    time: "03:00", took: "12 min", made: "PR #61", cost: "~$0.84", cost_line: "~$0.84 API value",
+    pr: { number: 61, url: "https://github.com/lumenworks/lumen-api/pull/61" }, files: [`${LUMEN}/pyproject.toml`] }),
+  runOf({ id: "0199c0de-0000-7000-8000-000000000003", agent: "codex", name: "Codex", kind: "exec",
+    prompt: "Draft the release notes from the commits since v1.3", folder: "/work/harbor-web", place: "harbor-web",
+    time: "11:20", took: "2 min", state: "failed", said: "failed", made: "failed", cost: "~$0.12",
+    cost_line: "~$0.12 API value", ran_as: "codex exec · Codex · GPT-5.5" }),
+  runOf({ id: "9e8d7c6b", prompt: "Make a 16:9 hero image of a calm harbour at dawn; save it as WebP in renders/",
+    folder: "/work/harbor-web", place: "harbor-web", time: "10:05", made: "2 images", cost: "~$0.22",
+    cost_line: "~$0.22 API value", files: [`${HERO}a.webp`, `${HERO}b.webp`],
+    media: [{ path: `${HERO}a.webp`, kind: "image" }, { path: `${HERO}b.webp`, kind: "image" }] }),
+  runOf({ id: "task_e_6a1b2c3d4e5f", agent: "codex", name: "Codex", kind: "cloud", folder: "",
+    prompt: "Paginate /shelves like /books", group: "Yesterday", day: "Yesterday", time: "17:40", took: null,
+    state: "ready", said: "ready · not applied", made: "4 files", cost: "–",
+    cost_line: "Codex cloud does not tell its tokens", ran_as: "Codex cloud", env: "lumen-api", env_id: "env_lumen",
+    url: "https://codex.example/tasks/task_e_6a1b2c3d4e5f", diff: "4 files +62 −9" }),
+  runOf({ id: "5e6f7a8b", prompt: "Check the links in the docs", folder: "/work/tidepool", place: "tidepool",
+    group: "Yesterday", day: "Yesterday", time: "18:30", took: "3 min", made: "no change", cost: "~$0.05",
+    cost_line: "~$0.05 API value" })];
+const RUNS_ANSWER = { runs: RUNS_LISTED, working: 1, notes: [], envs: [{ id: "env_lumen", label: "lumen-api" }],
+  scheduled: "Scheduled cloud runs are not listed: Claude keeps its routines at claude.ai, Codex its scheduled tasks "
+    + "in its app." };
+
+/** The Agents tab's Runs over ANSWER (core's) with FIELDS over a fresh view's: nothing read, nothing pressed.
+ * @param {any} answer @param {Record<string, any>} [fields] */
+function runsViewOf(answer, fields = {}) {
+  const view = Object.assign(Object.create(RunsView.prototype), { core: null, usage: usageViewOf(null), answer,
+    error: null, busy: false, again: false, readAt: 0, fresh: false, agent: null, chosen: null, form: null,
+    prompt: null, acting: null, note: null, thumbs: {}, still: true, scroll: ScrollHandle.new() }, fields);
+  for (const name of ["follow", "read", "choose", "open", "start", "act", "pictures"]) view[name] = () => {};
+  return view;
+}
+
 /** One part of VIEW (a Usage view) alone, drawn by its method NAME (over REPORT), 12 in.
  * @param {any} view @param {string} name @param {any} [report] */
 const usagePart = (view, name, report = null) => ({ draw: (/** @type {any} */ t) => div().p(PAD)
@@ -1720,7 +1799,8 @@ function agentsOf(found, fields = {}, agent = "claude") {
     size: { width: 0, height: 0 }, sizes: {}, drag: null, chosen: null, listing: false, cursor: null, listPlaces: [],
     listScroll: null, agents: null, agentsError: null, still: true, folder: LUMEN, agent, view: "graph",
     mode: "wiring", usage: usageViewOf(null) }, fields);
-  const look = { agent, programs: Object.fromEntries(KNOWN_AGENTS.map((p) => [p.key, p])), scopes: SCOPES };
+  const look = { agent, programs: Object.fromEntries(KNOWN_AGENTS.map((p) => [p.key, p])), scopes: SCOPES,
+    space: { id: "space-lumen", folder: LUMEN } };
   return { draw: (/** @type {any} */ t) => view.draw(t, look) };
 }
 
@@ -1980,6 +2060,17 @@ function sections(g, t) {
           + "the budget a muted hairline, the line 2 px, the pace at 40%, today's point 8 ringed 2 · a project's "
           + "row 32, its bar 16 muted · a table's head 36, its columns' names 11 dim, a row 32, numbers "
           + "right-aligned · the budget 300 wide, a field h 28" }))))]),
+    ...halves("agents-runs", (keep) => [group(t, "The Agents tab: Runs", keep(g.agentsRuns.map(
+      ([name, view, h, width], i) =>
+      specimen(t, `agents-runs-${i}`, String(name), fixed(Number(h), /** @type {any} */ (view).draw(t)), {
+        width: Number(width), spec: i ? "" : "the head's three views · the bar 8 and 12 in, a hairline under: the "
+          + "agents a switch, New run the one solid button at its right end · a column's name 11 muted, a row 30, "
+          + "12 in, 8 apart: the mark 14 (a spinner in the accent, the waiting dot ansi3, a red ✕), the run, Agent "
+          + "56, Folder 90, Started 48, Made 100, Cost 56 right · a day's name 11 semibold muted, 12 over · the chosen "
+          + "row on the accent's 14% · the foot 12 muted over a hairline, Claude's routines underlined · the "
+          + "properties on the side's level under a hairline, 12 in, 4 apart: the title 13 semibold, its state 12 at "
+          + "the end · a line's label muted in 64 · a picture 112 wide, 16:9, radius 6 · buttons h 26, raised, the "
+          + "web's and Remove plain · the form the same, its one accent Start run at the right end" }))))]),
     ...halves("agent-properties", (keep) => [group(t, "The Agent panel: the chosen row's properties",
       keep(g.agentProperties.map(
       ([name, view, h], i) => specimen(t, `agent-properties-${i}`, String(name), fixed(Number(h),

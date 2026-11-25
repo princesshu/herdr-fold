@@ -1,8 +1,10 @@
 # Generated from core/words.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
-"""How both clients say a model and a figure: a model's name (Opus 5.5, GPT-5 Codex), its family and its context
-window (the price table's, model_windows.py); a token count by the one number rule, a share as a percent."""
+"""How both clients say a model, a figure and a time: a model's name (Opus 5.5, GPT-5 Codex), its family and its context
+window (the price table's, model_windows.py); a token count by the one number rule, a share as a percent; how long
+ago."""
 import re
 import sys
+import time
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 from model_windows import WINDOWS  # noqa: E402
@@ -83,3 +85,12 @@ def tokens(count):
 def percent(share):
     """SHARE (0 to 1) as a whole percent, "<1%" for some that rounds to none."""
     return "<1%" if 0 < share < 0.005 else f"{int(share * 100 + 0.5)}%"
+
+
+def since(then, now=None):
+    """How long ago THEN (seconds since 1970) was, in short: now, 45m, 5h, 2d, 3w, 7mo, 3y."""
+    seconds = max(0, (time.time() if now is None else now) - then)
+    for size, unit in ((365 * 86400, "y"), (30 * 86400, "mo"), (7 * 86400, "w"), (86400, "d"), (3600, "h"), (60, "m")):
+        if seconds >= size:
+            return f"{int(seconds // size)}{unit}"
+    return "now"

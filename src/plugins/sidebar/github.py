@@ -13,6 +13,9 @@ import tempfile
 import time
 from dataclasses import asdict, dataclass, replace
 
+sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
+from words import since  # noqa: E402
+
 STATES = {"open": "Open", "closed": "Closed"}         # GitHub's own: is:open, is:closed
 LIMIT = 100
 FIELDS = "number,title,labels,assignees,updatedAt,state,url"
@@ -265,15 +268,6 @@ def ago(stamp, now=None):
     read."""
     then = parse_time(stamp)
     return "" if then is None else since(then, now)
-
-
-def since(then, now=None):
-    """How long ago THEN (seconds since 1970) was, in short, as ago() says it."""
-    seconds = max(0, (time.time() if now is None else now) - then)
-    for size, unit in ((365 * 86400, "y"), (30 * 86400, "mo"), (7 * 86400, "w"), (86400, "d"), (3600, "h"), (60, "m")):
-        if seconds >= size:
-            return f"{int(seconds // size)}{unit}"
-    return "now"
 
 
 def listed(issue):

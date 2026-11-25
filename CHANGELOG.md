@@ -11,6 +11,15 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 
 ### Added
 
+- Runs, the Agents tab's third view (the TUI: the Agent view's More, `r`): Claude's background sessions and Codex's
+  `codex exec` runs and cloud tasks, a row each with what it made (files, the PR it opened, its pictures) and its cost;
+  Attach, Stop, Open as chat, Run again, a cloud diff's Show diff and Apply, each the agent's own command; New run
+  starts one with `claude --bg`, `codex exec` or `codex cloud exec`, and On a schedule opens Claude's `/schedule` in a
+  chat. The app's status bar says `1 run working`; Chats leaves the runs out
+- The app's home space opens a Start tab: Open project… and the projects of the chats so far, each one press from
+  a space of its own with a new chat
+- An empty chat whose agent is not signed in offers every installed agent alike, each with its Sign in or Use, its
+  prompt shown once one is in
 - Pull requests, with gh on the space's machine. Changes shows the branch's own under the repository (its checks and
   state, a press its review), or Create pull request…, whose form takes the message's place: Into, the title and body
   Claude or Codex writes from the branch's commits with `Fixes #42`, Draft by default or Ready. The Issues view

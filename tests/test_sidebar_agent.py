@@ -1456,12 +1456,14 @@ class Connectors(unittest.TestCase):
         self.assertEqual([one["id"] for one in layers.doable(row, "codex")], ["sign-out", "open"])
         self.assertEqual([one["id"] for one in layers.doable(row, "claude")], ["sign-out", "retry", "open"])
 
-    def test_the_more_menu_opens_usage_and_the_graph_adds_a_connector_two_ways_and_reads_again(self):
+    def test_the_more_menu_opens_usage_runs_and_the_graph_adds_a_connector_two_ways_and_reads_again(self):
         self.view.set(metered())
         lines = self.view.menu_lines()
-        self.assertEqual(lines, ["Open Usage", "Show graph", "Add from claude.ai…", "Add by URL…", "Refresh"])
-        self.assertEqual([getattr(line, "key", None) for line in lines], ["U", "g", None, "a", None])
+        self.assertEqual(lines, ["Open Usage", "Open Runs", "Show graph", "Add from claude.ai…", "Add by URL…",
+                                 "Refresh"])
+        self.assertEqual([getattr(line, "key", None) for line in lines], ["U", "r", "g", None, "a", None])
         self.assertEqual(self.view.menu_pick("Open Usage"), Action("open_usage", ()))
+        self.assertEqual(self.view.menu_pick("Open Runs"), Action("open_runs", ()))
         self.assertEqual(self.view.menu_pick("Show graph"), Action("show_graph", ()))
         self.assertEqual(self.view.menu_pick("Add from claude.ai…"), Action("open_url", (connectors.CLAUDE_AI,)))
         self.assertEqual(self.view.menu_pick("Refresh"), Action("refresh_agent", ()))
@@ -1469,7 +1471,7 @@ class Connectors(unittest.TestCase):
         self.assertTrue(self.view.form and self.view.editing)
         codex = layers.Layers(icons=True)
         codex.set({**lumen(), "agent": "codex", "connect": A.connecting("codex", "/work/lumen-api")})
-        self.assertEqual(codex.menu_lines(), ["Show graph", "Add by URL…", "Refresh"])  # claude.ai's: Claude's
+        self.assertEqual(codex.menu_lines(), ["Open Runs", "Show graph", "Add by URL…", "Refresh"])  # no claude.ai
         for none in (None, {**lumen(), "agents": MACHINE, "empty": MACHINE[2]["empty"]}):
             empty = layers.Layers(icons=True)
             if none:
@@ -1725,9 +1727,9 @@ class Commands(unittest.TestCase):
     def test_more_lists_the_agent_views_own_lines_first_while_it_shows(self):
         app = self.started()
         app.open_menu(0, 0)
-        self.assertEqual(app.menu[0].choices[:6], ["Open Usage", "Show graph", "Add from claude.ai…", "Add by URL…",
-                                                   "Refresh", None])
-        for _ in range(3):
+        self.assertEqual(app.menu[0].choices[:7], ["Open Usage", "Open Runs", "Show graph", "Add from claude.ai…",
+                                                   "Add by URL…", "Refresh", None])
+        for _ in range(4):
             app.handle(Key("down"))
         app.handle(Key("enter"))
         self.assertTrue(app.views["agent"].form)

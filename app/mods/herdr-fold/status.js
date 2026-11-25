@@ -1,27 +1,51 @@
 // @ts-check
-// The window's status bar, where the app's own was, as the mockups' .status: the machine, the branch, the agents, and
-// at its end the one update there is (Herdr's, herdr-core's, else a newer herdr-fold). The palette: title.js.
+// The window's status bar, where the app's own was, as the mockups' .status: the machine, the branch, the agents, the
+// runs working (runs.html's), at its end the one update there is (Herdr's, herdr-core's, else a newer herdr-fold).
 import { div } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { agents, shared, spaces, updates, run as command } from "herdr";
+import { agents, home, shared, spaces, updates, run as command } from "herdr";
+import { RUNS } from "./helper.js";
 import { agentsSaid, updateReady } from "./logic.js";
+import { openAgents } from "./panel.js";
 import { SPINNER } from "./parts.js";
+import { runsWorking } from "./runs.js";
 import { openSettings, UPDATES } from "./settings.js";
 
-/** @typedef {{ machine: string | null, branch: string | null, agents: ReturnType<typeof agentsSaid>,
- * update: ReturnType<typeof updateReady> }} Status what the bar says */
+const RUNS_EVERY = 30000;          // ms between two counts of the runs working (core keeps Claude's list as long)
+let working = 0;                   // the runs working, as core counted them last (runs.py's working)
 
-/** The bar as the shown space, the agents, Herdr's updates and herdr-fold's own check have it now. */
+/** @typedef {{ machine: string | null, branch: string | null, agents: ReturnType<typeof agentsSaid>,
+ * update: ReturnType<typeof updateReady>, runs?: number }} Status what the bar says */
+
+/** The runs working counted now and every RUNS_EVERY (CORE: main.js's python), the bar drawn anew when that changes.
+ * @param {(source: string, args: string[], root: string, on: string | null) => Promise<any>} core */
+export function watchRuns(core, cx) {
+  const count = (/** @type {any} */ cx) => cx.spawn(async (/** @type {any} */ cx) => {
+    try {
+      const n = Number((await core(RUNS, ["working"], home(), null))?.working) || 0;
+      if (n === working) return;
+      working = n;
+      cx.notify();
+    } catch {
+      // counted again next time
+    }
+  });
+  count(cx);
+  cx.timer.every(RUNS_EVERY, count);
+}
+
+/** The bar as the shown space, the agents, the runs, Herdr's updates and herdr-fold's own check have it now. */
 export function liveStatus(t) {
   const space = spaces().find((s) => s.active);
   return statusBar(t, { machine: space?.machine ?? null, branch: space?.branch ?? null,
-    agents: agentsSaid(agents().map((a) => a.status)), update: updateReady(updates(), shared(UPDATES)) });
+    agents: agentsSaid(agents().map((a) => a.status)), update: updateReady(updates(), shared(UPDATES)),
+    runs: working });
 }
 
 /** The status bar (STATUS), on the side's level (chrome) under a hairline, 16 in and its items 16 apart, 12 in the
- * captions' tone: the machine, the branch, the agents' dot and words; at its end the update item.
- * @param {Status} status */
-export function statusBar(t, { machine, branch, agents: said, update }) {
+ * captions' tone: the machine, the branch, the agents' dot and words, the runs working (a press shows them in Runs);
+ * at its end the update item. @param {Status} status */
+export function statusBar(t, { machine, branch, agents: said, update, runs = 0 }) {
   const dot = (/** @type {string} */ color) => div().size(6).flex_none().rounded_full().bg(color);
   const role = said.role === "waiting" ? t.ansi3 : said.role === "working" ? t.accent : t.dim;
   return h_flex().id("status").size_full().min_w(0).px(16).gap(16).items_center().bg(t.chrome).border_t(1)
@@ -29,6 +53,10 @@ export function statusBar(t, { machine, branch, agents: said, update }) {
     .child(div().flex_none().child(machine ?? "This computer"))
     .when(Boolean(branch), (e) => e.child(div().flex_shrink(1).min_w(0).truncate().child(String(branch))))
     .child(h_flex().flex_none().gap(6).items_center().child(dot(role)).child(said.words))
+    .when(runs > 0, (e) => e.child(h_flex().id("status-runs").h(20).flex_none().px(6).items_center().rounded(4)
+      .text_color(t.foreground).cursor_pointer().hover((/** @type {any} */ s) => s.bg(t.hover))
+      .tooltip("Show them in the Agents tab's Runs").on_click(() => openAgents({ view: "runs" }))
+      .child(runsWorking(runs))))
     .child(div().flex_1())
     .when(Boolean(update), (e) => e.child(updateItem(t, /** @type {any} */ (update), dot)));
 }

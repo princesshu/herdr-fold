@@ -240,6 +240,15 @@ class Agent(Family):
         self.host.job("usage-view", lambda: self.host.herdr.call(
             "plugin", "pane", "open", "--plugin", PLUGIN, "--entrypoint", "usage", "--focus"))
 
+    def do_open_runs(self):
+        """The Runs view (runs_view.py, the plugin's pane `runs`) opened over the tab, in its folder (a new run's); not
+        on Windows, as Usage."""
+        if os.name == "nt":
+            return
+        root = self.host.root
+        self.host.job("runs-view", lambda: self.host.herdr.call(
+            "plugin", "pane", "open", "--plugin", PLUGIN, "--entrypoint", "runs", "--cwd", root, "--focus"))
+
     def do_show_graph(self):
         """The shown agent's graph (graph.py's) read on a job's thread with the tab's chat, else the folder's newest,
         and what that cost (costs.py's, after one look of the token index); then its tree in the preview tab."""

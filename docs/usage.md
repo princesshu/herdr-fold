@@ -136,7 +136,9 @@ Put Back brings it back) and drops its archive mark and the name you gave it. Wi
 A chat is one row however long it runs: Claude Code compacts and resumes it in its own file, under its id, so its
 name and its archive hold. Not listed: the agents' own helpers (subagents, Codex's reviewer) and what a program ran
 through Claude's Agent SDK (a hook's review of each change, a script's question), which name themselves after the
-chat they work for; `claude -p`'s runs are. A project folder linked to another's (`~/.claude/projects`) lists its
+chat they work for; `claude -p`'s runs are. Nor what [the Runs view](harness.md#the-runs-view) lists: `codex exec`'s
+runs and Claude's background sessions, which come to Chats once Runs' Open as chat or Remove took them off Claude's
+list. A project folder linked to another's (`~/.claude/projects`) lists its
 chats once. Copy chat leaves out what a compacted chat holds twice: the summary Claude wrote in your place, and the
 messages it kept and wrote again.
 

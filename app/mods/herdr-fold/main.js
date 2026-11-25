@@ -21,6 +21,7 @@ import { followNotes, forgetSettings, openSettings, SettingsView, UPDATES, whats
 import { AgentLook, AgentView } from "./agent.js";
 import { AgentsView } from "./agentstab.js";
 import { Chat, firstChat, newAgentIn } from "./chat.js";
+import { StartView } from "./start.js";
 import { ChatsView } from "./chats.js";
 import { FilesView } from "./files.js";
 import { addMachine, forgetFloat, forgetFloats, liveDock, restSide, sidebarFoot, sidebarHead, spacesBody,
@@ -28,7 +29,7 @@ import { addMachine, forgetFloat, forgetFloats, liveDock, restSide, sidebarFoot,
 import { IssuesView, fixesChip } from "./issues.js";
 import { BranchPull, PullsView } from "./pulls.js";
 import { isHome, markUnread, pickSpace, SpacesView } from "./spaces.js";
-import { liveStatus } from "./status.js";
+import { liveStatus, watchRuns } from "./status.js";
 import { TabsView } from "./tabs.js";
 import { Palette, pickTheme, TitleView, togglePalette } from "./title.js";
 import { openNamed, Preview, showPreview } from "./preview.js";
@@ -226,6 +227,7 @@ export default class HerdrFold extends View {
     }
     // the Agents tab: its graph and its usage (a CSV's text read as it is)
     if (part === "agents") return void (this.agents = new AgentsView(props().space, python, cx, pythonText));
+    if (part === "start") return void (this.start = new StartView(python, cx));    // a home's first tab (start.js)
     if (part === "chat") {                        // a chat tab: an agent's chat as a timeline (chat.js)
       const chat = (this.chat = new Chat(props(), python, pythonOn));
       chat.init(cx);
@@ -235,7 +237,7 @@ export default class HerdrFold extends View {
     }
     if ((this.sideHead = part === "head")) return;      // the sidebar's head: its toggle (folded: over its rail)
     if ((this.sideFoot = part === "footer")) return;    // the open sidebar's foot: Settings, Add machine
-    if ((this.bottom = part === "status")) return;      // the window's status bar, where the app's own was
+    if ((this.bottom = part === "status")) return void watchRuns(python, cx);   // the window's status bar
     if (part === "title") return void (this.titleRow = new TitleView());    // the window's own title row
     if (part === "palette") {                     // the command palette, opened onto the title row's field
       const { overlay, wide, most, shade } = props();
@@ -343,6 +345,7 @@ export default class HerdrFold extends View {
     else if (asked === "panels") foldDock();                        // Cmd+Option+B: the right one
     else if (asked === "agents") openAgents();                      // the palette's Agents: the space's Agents tab
     else if (asked === "usage") openAgents({ view: "usage" });      // the palette's Usage: that tab's Usage
+    else if (asked === "runs") openAgents({ view: "runs" });        // the palette's Runs: that tab's Runs
     else if (asked === "unread") markUnread();
     else if (asked === "settings") openSettings();                  // Cmd+, and the palette: the one Settings
     else if (asked === "new-space") pickSpace().catch(() => {});    // Ctrl+B, Shift+N: a folder picked, a space there
@@ -712,6 +715,7 @@ export default class HerdrFold extends View {
     }
     if (this.chat) return this.chat.render(t, codeFont());
     if (this.agents) return this.agents.render(t, cx);
+    if (this.start) return this.start.render(t);
     const float = this.float;
     if (float && floatStale(float.panel, layout())) cx.timer.after(0, () => closeOverlay(float.overlay));
     const own = { focus: this.floatFocus, panel: float?.panel };       // a float's keys and its side

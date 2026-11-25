@@ -18,12 +18,13 @@ import { ADAPTERS, agentChoices, AGENTS_OPEN, agentsOpen, atTyped, barFolds, bud
 import { Answer } from "./card.js";
 import { groupHead, keepInView, listNote, listWords, Menus, panelList, panelRow, panelSurface, rule }
   from "./menus.js";
-import { checkedOver, chipColors, loginRun, overdue, partColor, plusMenu, signIns, switched, toneInk, usageAgents }
-  from "./layers.js";
+import { checkedOver, chipColors, loginRun, overdue, partColor, plusMenu, signIns, signInTab, switched, toneInk,
+  usageAgents } from "./layers.js";
 import { askChats, openAgentPanel, openAgents } from "./panel.js";
-import { brandMark, BUTTON, fileMark, fold, icon, iconButton, keyCap, ring, savePanel, SAVING, spinner, swatch,
-  systemForms, toggle } from "./parts.js";
+import { brandMark, button, BUTTON, fileMark, fold, icon, iconButton, keyCap, ring, savePanel, SAVING, spinner,
+  swatch, systemForms, toggle } from "./parts.js";
 import { showPreview } from "./preview.js";
+import { firstStart } from "./start.js";
 import { notesOn } from "./settings.js";
 import { tokens } from "./report.js";
 import { bottomLayout, callWords, CARD_HEAD, clock, connectorRow, planStrip, planWords, RHYTHM as R, setForms,
@@ -153,15 +154,17 @@ export async function newSpace(where = {}) {
 }
 
 /** The space herdr-fold's layout shows, met the first time with Open agents in a chat (nextAgent's: this Mac): an
- * empty chat its first tab, shown, where it holds shells alone and is not a home (ISHOME, spaces.js's); kept once
- * (CHAT_FIRST), so a chat closed stays closed. @param {(space: any) => boolean} isHome */
+ * empty chat its first tab, shown, where it holds shells alone; a home (ISHOME, spaces.js's) the Start tab instead
+ * (start.js's); kept once (CHAT_FIRST), so a chat closed stays closed. @param {(space: any) => boolean} isHome */
 export function firstChat(isHome) {
   const space = spaces().find((s) => s.active), kept = shared(CHAT_FIRST);
   const met = Array.isArray(kept) ? kept : [], { agent, as } = nextAgent(space?.machine ?? null);
-  if (!space || as !== "chat" || met.includes(space.id)) return;
+  if (!space || as !== "chat") return;
+  if (isHome(space)) return firstStart(space, shellsOnly(space, panes()));
+  if (met.includes(space.id)) return;
   const live = new Set(spaces().map((s) => s.id));
   setShared(CHAT_FIRST, [...met.filter((id) => live.has(id)), space.id]);
-  if (shellsOnly(space, panes()) && !isHome(space)) openChat({ space: space.id, agent, first: true });
+  if (shellsOnly(space, panes())) openChat({ space: space.id, agent, first: true });
 }
 
 export class Chat {
@@ -202,6 +205,8 @@ export class Chat {
     this.known = [];
     /** @type {any} the agents as core tells them (agent_state.py agents): which are to sign in; null: not told */
     this.machine = null;
+    /** @type {string | null} why the empty chat's Sign in could not start */
+    this.signFailed = null;
     this.branch = "";
     /** @type {string | null} the model, the mode and the level picked before the agent started: its launch's */
     this.firstModel = null;
@@ -427,9 +432,35 @@ export class Chat {
         ? done.stdout.trim() : "")).catch(() => ""),
       knownAgents().catch(() => [])]);
     [this.branch, this.known] = [branch, known];
-    if (this.space?.machine) return;              // this Mac's agents alone are told yet
-    this.core(AGENT_STATE, ["agents"], String(folder), null).then((/** @type {any} */ told) => (this.machine = told))
-      .catch(() => {});                           // not told: the list marks none to sign in
+    this.readAgents(cx);
+  }
+
+  /** This Mac's agents as core tells them (agent_state.py's agents, the Agent panel's word): which are to sign in;
+   * not told, none is marked. Another machine's are not told yet. */
+  readAgents(cx) {
+    const folder = this.folder();
+    if (!folder || this.space?.machine) return;
+    cx.spawn(async (cx) => {
+      const told = await this.core(AGENT_STATE, ["agents"], folder, null).catch(() => null);
+      if (told && JSON.stringify(told) !== JSON.stringify(this.machine)) [this.machine, this.signFailed] = [told, null];
+      cx.notify();
+    });
+  }
+
+  /** The empty chat's agent where core tells it is not signed in (as the Agent panel shows it), else null: the chat
+   * asks for its sign-in before a word is sent. */
+  signedOut() {
+    if (!this.fresh || this.space?.machine || !Array.isArray(this.machine)) return null;
+    return this.machine.find((/** @type {any} */ a) => a?.key === this.agentKey && a.signed_in === false) ?? null;
+  }
+
+  /** AGENT's own sign-in in a terminal tab of the chat's space, as the Agent panel starts it; the chat back in front
+   * reads whether it is in. @param {any} agent */
+  signIn(agent, cx) {
+    const tab = signInTab(agent, { space: this.space?.id, folder: this.folder() || null });
+    this.signFailed = tab ? null : `Couldn't start ${agent.name}'s sign-in: no command for it`;
+    if (tab) command("tab.new", tab);
+    cx.notify();
   }
 
   /** What the agent starts with in the chat's folder, read (agent_setup.py, the adapter's word for it): as the chat
@@ -460,6 +491,7 @@ export class Chat {
   backInFront(cx) {
     const front = this.inFront() && Boolean(window()?.active);
     if (front && !this.front) this.readSetup(cx);
+    if (front && !this.front && this.signedOut()) this.readAgents(cx);       // back from its sign-in: in or not
     if (front && Date.now() - this.budgetAt > BUDGET_EVERY) this.readBudget(cx);
     this.front = front;
   }
@@ -554,10 +586,10 @@ export class Chat {
     if (this.tab) command("tab.close", { id: this.tab });
   }
 
-  /** The agent's icon as the app draws its program's (knownAgents'), SIZE square; null while not known.
-   * @param {number} size */
-  agentIcon(t, size) {
-    const program = this.known.find((p) => p.key === this.agentKey);
+  /** The agent's (KEY's, the chat's by default) icon as the app draws its program's (knownAgents'), SIZE square; null
+   * while not known. @param {number} size @param {string} [key] */
+  agentIcon(t, size, key = this.agentKey) {
+    const program = this.known.find((p) => p.key === key);
     if (!program?.icon) return null;
     return program.tint ? svg(program.icon).size(size).flex_none().text_color(t.foreground)
       : image(program.icon).size(size).flex_none();
@@ -1562,12 +1594,39 @@ export class Chat {
       .when(Boolean(this.address), (e) => e.child(this.bottom(t, code)));
   }
 
-  /** The empty chat's words in its middle, high up, as decisions.html's: New chat, and in the space · its branch. */
+  /** The empty chat's words in its middle, high up, as decisions.html's: New chat, and in the space · its branch;
+   * its agent not signed in, the agents to sign in to under them (signedOut(), signInCard()). */
   welcome(t) {
-    const where = [this.space?.name ?? "", this.branch].filter(Boolean).join(" · ");
+    const where = [this.space?.name ?? "", this.branch].filter(Boolean).join(" · "), out = this.signedOut();
     return v_flex().id("welcome").flex_1().min_h(0).pt(64).px(R.edge).gap(R.pad).items_center()
       .child(div().text_size(15).font_semibold().child(NEW))
-      .when(Boolean(where), (e) => e.child(div().text_size(12).text_color(t.dim).child(`in ${where}`)));
+      .when(Boolean(where), (e) => e.child(div().text_size(12).text_color(t.dim).child(`in ${where}`)))
+      .when(Boolean(out), (e) => e.child(this.signInCard(t)));
+  }
+
+  /** The empty chat while its agent is not signed in: no agent taken for granted, every installed one a row of its
+   * own by name (its icon, its name, signed in or not) with its Sign in, as the Agent panel starts it, or Use where it
+   * is in (the chip's pick); no accent, none is the default; what went wrong under them. */
+  signInCard(t) {
+    const told = new Map((Array.isArray(this.machine) ? this.machine : []).map((/** @type {any} */ a) => [a?.key, a]));
+    const rows = agentChoices(this.known, DRAWABLE, [], this.machine).map((choice) => {
+      const agent = told.get(choice.key), out = agent?.signed_in === false;
+      return h_flex().id(`sign-in-${choice.key}`).w_full().h(44).px(12).gap(8).items_center()
+        .when(Boolean(this.agentIcon(t, 16, choice.key)), (e) => e.child(this.agentIcon(t, 16, choice.key)))
+        .child(div().text_size(13).child(choice.name))
+        .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.dim)
+          .child(out ? "Not signed in" : "Signed in"))
+        .child(out ? button(t, `sign-in-${choice.key}-go`, "Sign in", Boolean(agent?.login?.length), false,
+          (cx) => this.signIn(agent, cx)) : button(t, `sign-in-${choice.key}-use`, "Use", true, false,
+          (cx) => this.pick(choice, cx)));
+    });
+    return v_flex().w_full().max_w(400).pt(32).gap(8).items_center().text_size(12)
+      .child(div().text_size(13).font_semibold().child("Sign in to an agent"))
+      .child(div().line_height("18px").text_center().text_color(t.muted)
+        .child("A chat runs on an agent's own account. Each signs in its own way; herdr-fold keeps no token."))
+      .child(v_flex().w_full().mt(8).rounded(8).border(1).border_color(t.border).children(rows))
+      .when(Boolean(this.signFailed), (e) => e.child(div().text_size(11).text_center().text_color(toneInk(t, "bad"))
+        .child(this.signFailed ?? "")));
   }
 
   /** The timeline, held at its end as rows come (GPUI's scroll areas start at their top, so it scrolls itself: its
@@ -1636,8 +1695,8 @@ export class Chat {
         .when(Boolean(budget), (e) => e.child(notice("budget-close", budget?.text ?? "",
           (cx) => budget && this.closeBudget(budget.key, cx))))
         .when(Boolean(this.plan), (e) => e.child(this.strip(t)))
-        .child(this.answer?.card ? this.answer.render(t, code) : this.waits === "terminal" ? this.wayOut(t)
-          : this.prompt(t)));
+        .when(!this.signedOut(), (e) => e.child(this.answer?.card ? this.answer.render(t, code)
+          : this.waits === "terminal" ? this.wayOut(t) : this.prompt(t))));    // signed out: no prompt, as VS Code
   }
 
   /** The plan strip, the task list's one home: folded a line (the step at work, how many are done), pressed it opens

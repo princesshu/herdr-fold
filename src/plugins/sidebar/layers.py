@@ -26,7 +26,7 @@ WORKS = ("open", "retry", "connect", "sign-out", "reopen", "cancel", "graph")
 CLAUDES = ("retry",)
 ASKS = {"retry": "retry_server", "connect": "connect_server", "sign-out": "sign_out_server",
         "reopen": "reopen_sign_in", "cancel": "cancel_sign_in"}          # what an action asks the family for
-ADD_KEY, USAGE_KEY, GRAPH_KEY = "a", "U", "g"            # the form, the Usage view and the graph from the keys
+ADD_KEY, USAGE_KEY, GRAPH_KEY, RUNS_KEY = "a", "U", "g", "r"   # the form, the Usage and Runs views, the graph
 UNDO_KEY = "u"                # the foot line's Undo, while it shows
 WAITS = SAID_AS[NOT_APPROVED][0]     # a project server's state before it is approved: its form is core's two words
 EDITED = ("claude", "codex")  # the agents whose harness core changes (harness.py)
@@ -36,6 +36,7 @@ OWN_FILE = ("mode", "approval", "sandbox", "permission:", "conflict:")     # row
 PLUGIN = "Plugin"             # where a plugin's subagent is from (core's origin()): it turns off with its plugin
 # More's lines while this view shows (connectors.html's ⋯ menu), a key at the right of those it has
 OPEN_USAGE, SHOW_GRAPH, REFRESH = Keyed("Open Usage", USAGE_KEY), Keyed("Show graph", GRAPH_KEY), "Refresh"
+OPEN_RUNS = Keyed("Open Runs", RUNS_KEY)
 WAYS = {"claude-ai": "Add from claude.ai…", "url": Keyed("Add by URL…", ADD_KEY)}
 USAGE_BUTTON = {"id": "usage", "label": "Open Usage"}   # a Usage row's one action
 CONNECTORS = "connectors"     # the section a connector is added in
@@ -1009,19 +1010,21 @@ class Layers:
     # --- More's lines, the form a connector is added with under Connectors' head
 
     def menu_lines(self):
-        """What More lists first while this view shows (connectors.html's ⋯ menu): the Usage view and the graph, the
-        ways to add a connector, a read of the setup; none where no setup shows."""
+        """What More lists first while this view shows (connectors.html's ⋯ menu): the Usage and Runs views and the
+        graph, the ways to add a connector, a read of the setup; none where no setup shows."""
         add = self.adds()
         if not add:
             return []
         ways = [WAYS[way["id"]] for way in add["menu"] if way["id"] in WAYS]
-        return [OPEN_USAGE] * bool(self.usage()[0]) + [SHOW_GRAPH] * self.graphs() + ways + [REFRESH]
+        return [OPEN_USAGE] * bool(self.usage()[0]) + [OPEN_RUNS] + [SHOW_GRAPH] * self.graphs() + ways + [REFRESH]
 
     def menu_pick(self, choice):
         """More's line CHOICE done: the Usage view, the graph, claude.ai's page in the browser, the form opened, the
         setup read again."""
         if choice == OPEN_USAGE:
             return Action("open_usage", ())
+        if choice == OPEN_RUNS:
+            return Action("open_runs", ())
         if choice == SHOW_GRAPH:
             return Action("show_graph", ())
         if choice == REFRESH:
@@ -1186,6 +1189,8 @@ class Layers:
             self.foot = None
         elif typed == USAGE_KEY and self.usage()[0]:
             return Action("open_usage", ())
+        elif typed == RUNS_KEY and self.adds():
+            return Action("open_runs", ())
         elif typed == GRAPH_KEY and self.graphs():
             return Action("show_graph", ())
         return None

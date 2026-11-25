@@ -1,6 +1,6 @@
 // @ts-check
-// The main area's Agents tab, one a space (usage.html's): Graph (Wiring, or This chat with its costs) and
-// Usage (usageview.js). Core words the nodes and edges (graph.py, costs.py); the graph's rules are graph.js's.
+// The main area's Agents tab, one a space (usage.html's): Graph (Wiring, or This chat with its costs), Usage
+// (usageview.js) and Runs (runsview.js). Core words the nodes and edges (graph.py, costs.py), graph.js has the rules.
 import { div, PathBuilder } from "gpui-kit";
 import { h_flex, v_flex, Popover } from "gpui-base";
 import { panes, setShared, settings, shared, spaces } from "herdr";
@@ -19,6 +19,7 @@ import { openAgentPanel } from "./panel.js";
 import { actButton, brandMark, BUTTON, codeFont, icon, PAD, propertyLine, scopeTag, segmented, swatch }
   from "./parts.js";
 import { showPreview } from "./preview.js";
+import { RunsView } from "./runsview.js";
 import { UsageView } from "./usageview.js";
 
 const POLL = 30000;                // ms between two reads while it shows, as the Agent panel's
@@ -27,7 +28,7 @@ const GRID = 20;                   // px between two of the canvas's dots, agent
 const QUICK = 5000;                // ms between two reads of This chat while something runs in it
 const DASH = [5, 5];               // px: an on-demand, waiting or failed edge's dashes
 const RUN_INSPECTOR = 340, RUN_LABEL = 82;         // px: This chat's properties (usage.html's .ginsp, .kv)
-const PARTS = /** @type {[string, string][]} */ ([["graph", "Graph"], ["usage", "Usage"]]);    // the tab's two views
+const PARTS = /** @type {[string, string][]} */ ([["graph", "Graph"], ["usage", "Usage"], ["runs", "Runs"]]);
 const RING = 2;                    // px: the chosen node's ring round it
 const MOST = 300;                  // px: a node's width at most, its words cut past it
 const GATES = 320;                 // px: the room a gate's pills are centred in
@@ -45,8 +46,8 @@ const ICON = { file: "file", skill: "scroll-text", hook: "zap", bot: "bot", term
 /** core/'s code run: its source, its arguments, where, on which machine. @template T @typedef {(source: string,
  * args: string[], root: string, on: string | null) => Promise<T>} Runner */
 /** What draw() takes besides the view's own state: the agent shown, the app's programs (their icons), the spaces
- * Usage's scope lists. @typedef {{ agent: string, programs: Record<string, any>,
- * scopes?: { name: string, folder: string }[] }} Look */
+ * Usage's scope lists, the tab's space (Runs' folder). @typedef {{ agent: string, programs: Record<string, any>,
+ * scopes?: { name: string, folder: string }[], space?: any }} Look */
 
 /** The app's zoom now: what is set (a place, a size, a path's point) is drawn that many times as large, what is
  * measured (on_size_change's, a pointer's) is the window's own px. */
@@ -66,10 +67,11 @@ export class AgentsView {
   constructor(space, core, cx, text) {
     this.space = space;
     this.core = core;
-    /** @type {"graph" | "usage"} the view shown, and the graph's own (Wiring, This chat) */
+    /** @type {"graph" | "usage" | "runs"} the view shown, and the graph's own (Wiring, This chat) */
     this.view = "graph";
     this.mode = VIEWS[0];
     this.usage = new UsageView(core, text);
+    this.runs = new RunsView(core, this.usage);           // the two share the agents' plans and the spaces' scope
     /** @type {{ surface: string, foreground: string } | null} the theme's card and text, as last drawn */
     this.theme = null;
     /** @type {string | null} what was asked for last: the agent, the folder and the chat, as JSON */
@@ -115,11 +117,13 @@ export class AgentsView {
     cx.timer.every(POLL, (/** @type {any} */ cx) => {
       if (!this.shows()) return;
       if (this.view === "usage") this.usage.bringUp(cx);
-      else if (this.due()) this.read(cx);
+      else if (this.view === "graph" && this.due()) this.read(cx);
     });
-    cx.timer.every(QUICK, (/** @type {any} */ cx) => void (this.shows() && this.view === "graph"
-      && this.mode === "run" && this.found && running(this.found)
-      && Date.now() - this.readAt > Math.max(QUICK, SLOW * this.took) && this.read(cx)));
+    cx.timer.every(QUICK, (/** @type {any} */ cx) => {
+      if (this.shows() && this.view === "runs") this.runs.follow(cx);      // it reads when due, sooner while one works
+      else if (this.shows() && this.view === "graph" && this.mode === "run" && this.found && running(this.found)
+        && Date.now() - this.readAt > Math.max(QUICK, SLOW * this.took)) this.read(cx);
+    });
   }
 
   /** Whether the tab shows now: its space the shown one, its tab the space's shown one. */
@@ -250,9 +254,9 @@ export class AgentsView {
     cx.notify();
   }
 
-  /** The tab's view picked: Graph or Usage. @param {string} view */
+  /** The tab's view picked: Graph, Usage or Runs. @param {string} view */
   show(view, cx) {
-    this.view = view === "usage" ? "usage" : "graph";
+    this.view = view === "usage" || view === "runs" ? view : "graph";
     cx.notify();
   }
 
@@ -343,6 +347,8 @@ export class AgentsView {
       this.answered = ask.at;
       this.view = "usage";
       this.usage.ask(typeof ask.session === "string" ? ask.session : null);
+    } else if (ask?.view === "runs") {            // the palette's Runs, the status bar's runs working
+      Object.assign(this, { answered: ask.at, view: "runs" });
     } else if (ask) {
       Object.assign(this, { answered: ask.at, wants: typeof ask.node === "string" ? ask.node : null, view: "graph",
         session: "session" in ask ? (typeof ask.session === "string" ? ask.session : null) : this.session });
@@ -350,12 +356,13 @@ export class AgentsView {
     const agent = graphAgent({ kept: shared(AGENT_CHOSEN), space: space.id, recent: shared(RECENT_AGENTS) });
     this.theme = { surface: t.surface, foreground: t.foreground };
     if (this.view === "usage") this.usage.follow(t, cx);
+    else if (this.view === "runs") this.runs.follow(cx);
     else this.follow(space, agent, cx);
     if (this.wants && this.found) {
       this.chosen = nodeFor(seen(this.found, this.mode).nodes, this.wants) ?? this.chosen;
       this.wants = null;
     }
-    return this.draw(t, { agent, programs: programs(cx), scopes: this.usage.scopes() });
+    return this.draw(t, { agent, programs: programs(cx), scopes: this.usage.scopes(), space });
   }
 
   /** The tab's frame: a card, as a chat's. */
@@ -369,12 +376,13 @@ export class AgentsView {
     return div().flex_none().p(PAD).text_size(12).text_color(color).child(words);
   }
 
-  /** The tab as LOOK has it: the head, and under it Usage's report, or the graph on its canvas; in the graph's place
-   * what it says instead (loading, the read's failure, an agent not installed). @param {Look} look */
+  /** The tab as LOOK has it: the head, and under it Usage's report, the runs, or the graph on its canvas; in the
+   * graph's place what it says instead (loading, the read's failure, an agent not installed). @param {Look} look */
   draw(t, look) {
-    if (this.view === "usage") {
-      return this.frame(t).child(this.usage.draw(t, this.head(t, this.usage.scope(t, look.scopes ?? []), null,
-        true)));
+    if (this.view !== "graph") {
+      const head = this.head(t, this.usage.scope(t, look.scopes ?? []), null, true);
+      return this.frame(t).child(this.view === "usage" ? this.usage.draw(t, head)
+        : this.runs.draw(t, head, look.space));
     }
     const found = this.found, name = found?.name ?? NAMES[look.agent] ?? look.programs[look.agent]?.name ?? look.agent;
     const views = found?.run && found.words?.views?.run ? segmented(t, "agents-view", viewWords(found), this.mode,
@@ -387,9 +395,9 @@ export class AgentsView {
         : this.say(t, "Loading graph…"));
   }
 
-  /** The head (usage.html's .ahdr): SCOPE (a chip with its list), the graph's VIEWS beside it (none in Usage), and at
-   * its end Graph and Usage, 13, the shown one over a 2 px line in the accent. COLUMN: in Usage's column, its edges
-   * the column's. @param {any} scope @param {any} views @param {boolean} [column] */
+  /** The head (usage.html's .ahdr): SCOPE (a chip with its list), the graph's VIEWS beside it (none in Usage or
+   * Runs), and at its end Graph, Usage and Runs, 13, the shown one over a 2 px line in the accent. COLUMN: in Usage's
+   * or Runs' column, its edges the column's. @param {any} scope @param {any} views @param {boolean} [column] */
   head(t, scope, views, column = false) {
     const clear = `${t.accent}00`;
     return h_flex().flex_none().mt(PAD).mb(8).when(!column, (e) => e.px(PAD / 2)).gap(PAD).items_center()

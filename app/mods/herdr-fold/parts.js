@@ -264,14 +264,15 @@ export function chip(t, text) {
 }
 
 /** A choice of a few as one control (usage.html's .seg): LIST's [value, label] on the window's level, BUTTON high;
- * the CHOSEN part raised, a press on another gives PICK its value. @param {string} id
+ * the CHOSEN one raised, a press on another gives PICK its value, OFF's greyed. @param {string} id @param {any[]} [off]
  * @param {[string, string][]} list @param {string | null} chosen @param {(value: string, cx: any) => void} pick */
-export function segmented(t, id, list, chosen, pick) {
+export function segmented(t, id, list, chosen, pick, off = []) {
   return h_flex().id(id).h(BUTTON).flex_none().p(2).gap(2).items_center().rounded(8).border_1()
     .border_color(t.border).bg(t.canvas).children(list.map(([value, label]) => div().id(`${id}-${value}`).h_full()
       .px(8).flex().items_center().rounded(6).text_size(12).whitespace_nowrap()
       .when(value === chosen, (e) => e.bg(t.raised).text_color(t.foreground))
-      .when(value !== chosen, (e) => e.text_color(t.muted).cursor_pointer()
+      .when(off.includes(value) && value !== chosen, (e) => e.text_color(t.dim))
+      .when(value !== chosen && !off.includes(value), (e) => e.text_color(t.muted).cursor_pointer()
         .hover((/** @type {any} */ s) => s.bg(t.hover).text_color(t.foreground))
         .on_click((/** @type {any} */ _e, /** @type {any} */ cx) => pick(value, cx)))
       .child(label)));

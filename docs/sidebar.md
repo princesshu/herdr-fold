@@ -90,8 +90,8 @@ more than 3 cells wider, a smaller nudge going back to the rail.
 ## The Agent view
 
 Agent, the row's fifth button, shows what the agent in the tab starts with in the folder, changes a part of it from a
-form, and leads to the Usage view (`U`) and the agent's graph as a tree in the preview tab (`g`). All of it, for both
-clients: [The agent's harness](harness.md).
+form, and leads to the Usage view (`U`), the Runs view (`r`: what the agents ran in the background) and the agent's
+graph as a tree in the preview tab (`g`). All of it, for both clients: [The agent's harness](harness.md).
 
 The pictures below are from before the view's redesign; its sections, their order and the words are in that page.
 

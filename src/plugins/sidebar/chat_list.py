@@ -6,10 +6,10 @@ from dataclasses import dataclass
 
 import widgets
 from agent_setup import KNOWN
-from github import since
 from screen import PAD, PLAIN, Canvas, Style, truncate, width
 from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, Popup, TextInput, wrap
+from words import since
 
 # herdr's states, as its Spaces list and AI Sessions mark and color them (unknown: its overlay0, the sidebar's
 # "ignored"); a closed chat, which herdr has no state for, "·" in the faint guide color

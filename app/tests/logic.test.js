@@ -30,7 +30,7 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   SECTIONS, APP_SECTIONS, settingsSection, sectionStep, settingsTargets, columnToggle, restoreCommands, keyMenuBounds,
   themeChoices, layoutToast, soundsFor, noteShown, modTab, unsavedKey, unsavedTabs, editsInTab, markdownFile,
   editorLanguage, indentOf, withEnds, findAll, nextMatch, findCount, FOUND_MOST, draftName, commentAt, reviewReady,
-  primaryLit, loginColor }
+  primaryLit, loginColor, recentProjects, homeShort }
   from "../mods/herdr-fold/logic.js";
 import { format } from "../mods/herdr-fold/timeline.js";
 
@@ -441,7 +441,8 @@ test("the palette's own group: herdr-fold's commands after the app's groups, in 
   assert.deepEqual(own.filter((e) => e.group === "herdr-fold").map((e) => [e.title, e.name]), [
     ["Settings…", "herdr-fold.settings"], ["Files", "herdr-fold.files"], ["Search", "herdr-fold.search"],
     ["Changes", "herdr-fold.changes"], ["Issues", "herdr-fold.issues"], ["Agent", "herdr-fold.agent"],
-    ["Agents", "herdr-fold.agents"], ["Usage", "herdr-fold.usage"], ["Chats", "herdr-fold.chats"],
+    ["Agents", "herdr-fold.agents"], ["Usage", "herdr-fold.usage"], ["Runs", "herdr-fold.runs"],
+    ["Chats", "herdr-fold.chats"],
     ["Collapse or expand sidebar", "herdr-fold.sidebar"], ["Collapse or expand panels", "herdr-fold.panels"],
     ["Show or hide the dock", "herdr-fold.column"], ["Restore panels", "herdr-fold.restore"],
     ["New chat", "herdr-fold.new-agent"], ["New space in a folder…", "herdr-fold.new-space"],
@@ -2399,3 +2400,18 @@ test("a login's avatar color is one of the spaces' and the same every time", () 
   assert.ok(Object.values(MARK).includes(loginColor("ada")));
   assert.equal(loginColor("tomas"), loginColor("tomas"));
 });
+
+test("the Start tab offers the chats' projects, newest first, never the home or a folder above it", () => {
+  const chats = [{ folder: "/Users/dev/work/lumen-api", time: 3 }, { folder: "/Users/dev", time: 9 },
+    { folder: "/Users/dev/work/harbor-web/", time: 5 }, { folder: "/Users/dev/work/lumen-api", time: 8 },
+    { folder: "/srv/work/demo", time: 7 }, { folder: "/Users", time: 6 }, { folder: "", time: 4 },
+    { folder: "/Volumes/Work/tidepool", time: 2 }];
+  assert.deepEqual(recentProjects(chats, "/Users/dev"), ["/Users/dev/work/lumen-api", "/srv/work/demo",
+    "/Users/dev/work/harbor-web", "/Volumes/Work/tidepool"]);
+  assert.deepEqual(recentProjects(chats, "/Users/dev", 1), ["/Users/dev/work/lumen-api"]);
+  assert.deepEqual(recentProjects([], "/Users/dev"), []);
+  assert.deepEqual([homeShort("/Users/dev/work/lumen-api", "/Users/dev"), homeShort("/Volumes/Work", "/Users/dev"),
+    homeShort("/Users/dev/workshop", "/Users/dev/work")], ["~/work/lumen-api", "/Volumes/Work",
+    "/Users/dev/workshop"]);
+});
+

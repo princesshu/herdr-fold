@@ -196,7 +196,9 @@ out](../assets/styleguide/status-bar.webp)
 The window's foot, herdr-fold's own in place of the app's, as the mockups' `.status`: 28 high on the side's level
 (`chrome`) under a hairline, 16 in and its items 16 apart, 12 in the captions' tone. The machine (This computer), the
 branch, then the agents behind a 6 px dot: those waiting on you in ansi3 (`1 of 3 agents waiting for you`), else those
-working in the accent (`1 agent working`), else how many (`2 agents`) with a dim dot. At its end, only while Herdr has
+working in the accent (`1 agent working`), else how many (`2 agents`) with a dim dot. While a run works in the
+background, `1 run working` after them in the text's color, 20 high, 6 inside, rounded 4, the hover fill under the
+pointer, a press opening the Agents tab on Runs. At its end, only while Herdr has
 one ready, its update: a green dot (`ansi2`) and `Update ready: herdr-core 0.1.21` or `Update ready: Herdr 0.1.16`, 20
 high, 6 inside, rounded 4, on the hover fill in the text's color under the pointer, its tip saying what a press does
 (herdr-core updated, the terminals running; Herdr restarted into it); while herdr-core updates, a spinner in the dot's
@@ -391,10 +393,10 @@ agent shown with no reading keeps its row: `limits not told` at its end, 11 in `
 ### The Agents tab
 
 The main area's tab of that name, one a space, under Lucide's share-2 in the tab bar: usage.html's head, its Graph
-(agent-graph.html's Wiring and This chat) and its Usage (usage.html's Riport). The nodes, the edges, the
-figures and every word are core's (`graph.py`, `costs.py`, `report.py`); the views keep the layout (`agentstab.js`
-and `usageview.js`, their rules in `graph.js` and `report.js`). The styleguide's parts are `agents-graph` and
-`agents-usage`, each in two halves.
+(agent-graph.html's Wiring and This chat), its Usage (usage.html's Riport) and its Runs (runs.html's). The nodes, the
+edges, the figures, the runs and every word are core's (`graph.py`, `costs.py`, `report.py`, `runs.py`); the views keep
+the layout (`agentstab.js`, `usageview.js` and `runsview.js`, their rules in `graph.js`, `report.js` and `runs.js`).
+The styleguide's parts are `agents-graph`, `agents-usage` and `agents-runs`, each in two halves.
 
 ![The graph's Wiring: Claude in lumen-api, code-reviewer chosen, its edges always, on demand, waiting and failed with
 their gates, a connector off here; a failed connector chosen; a folded node chosen; Codex through the same shapes; not
@@ -443,6 +445,18 @@ Usage is one column, 1000 wide at most and centred, the head scrolling with it, 
 | Table | a hairline frame, rounded 10: its head 36 high, 12 in, the title semibold and core's note 12 in `muted` at its end, a hairline under it; the columns' names 11 in `muted` on a line 28 high with a hairline under it; a row 32 high, 12, its columns 8 apart, the first taking the rest (160 at least), the numbers' right-aligned, a faint line between two rows; a figure's short word (`value`, `spent`) in `muted` 6 after it; a conversation's models as marks 6 by 12 with corners 2, 2 apart; the hover fill under the pointer, the row asked for on the chosen fill (`chosenFill`); narrower than its columns, scrolled sideways |
 | Budget | a popover 300 wide under `Budget…`, its right edge with the button's (`popover`, a hairline, rounded 10, 12 in, 8 apart): `Monthly budget` semibold; a field's line 28 high, the agent's name in `muted` in 72, the field on `canvas` with a hairline, rounded 8, `$` in `muted` before what is typed, `a month` in `muted` after it; why a field was refused 11 in `ansi1`; Save raised, Cancel plain |
 
+Runs is one column, 1000 wide at most and centred: the head, then the list's frame (a hairline, rounded 10) down to
+the tab's foot, the chosen run's properties or New run's form at its foot as the graph's under its canvas. Its pictures
+are yet to be taken (`agents-runs-list`, `agents-runs-new-run`).
+
+| Part | Measures |
+|---|---|
+| Bar | 8 and 12 in, a hairline under: the agents a switch (`segmented`), New run at its right end, the view's one solid button (`button`) |
+| Row | 30 high, 12 in, its columns 8 apart: the mark 14 (a spinner 12 in the accent while it works, the waiting dot 7 in `ansi3` while it needs you, ✕ 11 in red for one that failed, none for one done), the run's name taking the rest (160 at least, then the columns scroll sideways), Agent 56, Folder 90, Started 48 and Made 100 in `muted`, `failed` in red, Cost 56 right-aligned; the columns' names 11 in `muted` on a line 26 high; a day's name 11 semibold in `muted`, 12 over its first row; the hover fill under the pointer, the chosen run on the chosen fill (`chosenFill`); its tip its whole name, its folder and what it made |
+| Foot | 12 in `muted` over a hairline, 12 in, wrapping: that scheduled cloud runs are not listed, then `Claude's routines` in the text's color over a faint underline, a new chat with `/schedule list`; what could not be read in red under it |
+| Properties | on `chrome` under a hairline, 12 in, 4 apart, 60% of the frame at most and scrolled past it: the title 13 (the run's mark, its name semibold, its state 12 at the end in `muted`, red for one that failed, × 20 square); a line 12, its label in `muted` in 64, its value wrapping; the files in the code font 11, six at most and how many more; a picture 112 wide at 16:9, rounded 6, its name 11 under it, a press opening it in the preview; buttons (`actButton`) h 26, 8 apart, wrapping, raised, `Open PR`, `Open on the web` and `Remove` plain; what a press did 11 under them, the agent's words in red |
+| New run | the properties' place and look: `New run` 13 semibold; Agent, Where, Env and When switches (`segmented`, a choice that cannot be greyed: Codex's schedule, the cloud with no environment); the folder the space's; the prompt a textarea on `background` with a hairline, rounded 6, 3 to 8 rows; what the choices do in `muted`; the agent's words in red where it did not start; Cancel plain and at the right end Start run or Open in a chat, the form's one accent, lit once there is a prompt |
+
 Charts follow the dataviz rules the mockups were drawn to: thin marks, a hairline grid, a legend for two or more
 series, text in the text's tokens (never a model's color), a model's color following the model wherever it shows, no
 second axis. A report of 200 chats and 30 days draws in 10 ms of script, a week's in under 1 ms (measured in
@@ -450,7 +464,8 @@ the demo app with a timer round its draw). Nothing in Usage is measured: a place
 
 What it says instead of a graph (loading, an agent not installed, the read's failure in red) stands 12 in, 12, under
 the head; Usage the same (`Loading usage…`, the read's failure, `Reading chats…` while nothing is read
-yet, core's `Nothing used in this period`), and with no model that has a price it shows no chart, the tables alone.
+yet, core's `Nothing used in this period`), and with no model that has a price it shows no chart, the tables alone;
+Runs the same (`Loading runs…`, the read's failure, `No runs yet: New run starts one in the background`).
 A graph of 48 nodes and 72 edges draws in 9 ms of script (measured in the demo app with a timer round its
 draw): the dots are one dashed path, each kind of edge one path, a node six elements. Nothing moves by itself: a
 node follows the pointer while it drags.
@@ -706,6 +721,12 @@ the call's first words in `dim`, cut where long. A sign-in's step is the logo, t
 on the raised fill, 8 in, rounded 6, 12); while it signs in the dot is the accent and a 12 px spinner stands in
 Connect's place; signed in, the dot is done's; why it could not start is said in `ansi1` as words read it, Connect still
 there; a server neither to sign in nor on since says `needed a sign-in`, its dot dim, no button.
+
+The Start tab and a signed-out empty chat draw in the empty chat's measure: their title 15 semibold (the sign-in's
+13), the words 12 in `dim` (the sign-in's in `muted`). Start has one button on the accent; the sign-in none, its
+agents rows 44 high on one bordered card, each with a raised button at its end. Start's Recent is a list's
+name, 11 in `muted`, over rows 32 high, rounded 6, the raised fill under the pointer: Files' folder mark, the name 13,
+the path 12 in `dim` (`~/…`, cut where long, the whole in the tip).
 
 ## Patterns
 

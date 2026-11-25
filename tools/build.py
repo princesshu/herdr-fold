@@ -37,6 +37,7 @@ HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"AGENT_LAYER
                                                                     "NAMED_FILES": "named_files.py",
                                                                     "PRICES": "prices.py",
                                                                     "REPORT": "report.py",
+                                                                    "RUNS": "runs.py",
                                                                     "SEARCH": "search.py",
                                                                     "STATEFILE": "statefile.py", "TOKENS": "tokens.py",
                                                                     "TREE": "tree.py", "UPDATE": "update.py",

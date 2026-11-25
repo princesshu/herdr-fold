@@ -800,6 +800,7 @@ export const PALETTE_OWNED = [
   ["herdr-fold.agent", "Agent", "view dock panel setup rules permissions skills connectors mcp show"],
   ["herdr-fold.agents", "Agents", "tab graph wiring rules skills subagents tools connectors gates show"],
   ["herdr-fold.usage", "Usage", "tab agents cost tokens spent value budget models conversations report show"],
+  ["herdr-fold.runs", "Runs", "tab agents background headless cloud exec runs tasks schedule new run show"],
   ["herdr-fold.chats", "Chats", "view dock panel conversations sessions history show"],
   ["herdr-fold.sidebar", "Collapse or expand sidebar", "left dock rail icons spaces toggle fold show hide"],
   ["herdr-fold.panels", "Collapse or expand panels", "right dock rail icons views toggle fold show hide"],
@@ -1822,3 +1823,20 @@ export const unsavedKey = (space, tab) => `${space}\t${tab}`;
  * @param {Record<string, boolean>} unsaved */
 export const unsavedTabs = (space, unsaved) => new Set((space?.tabs ?? [])
   .filter((t) => unsaved[unsavedKey(space?.id ?? "", t.name)]).map((t) => t.id));
+
+/** The projects the Start tab offers: the folders of CHATS (core/chats.py's list), the newest first, each once, at
+ * most LIMIT; HOME and a folder above it left out (an agent works in a project, never there).
+ * @param {{ folder: string, time: number }[]} chats @param {string} home @returns {string[]} */
+export function recentProjects(chats, home, limit = 6) {
+  const out = (/** @type {string} */ f) => f === "/" || f === home || home.startsWith(`${f}/`);
+  const found = [];
+  for (const chat of [...chats].sort((a, b) => b.time - a.time)) {
+    const folder = String(chat.folder ?? "").replace(/(.)\/+$/, "$1");
+    if (folder.startsWith("/") && !out(folder) && !found.includes(folder)) found.push(folder);
+    if (found.length === limit) break;
+  }
+  return found;
+}
+
+/** FOLDER as the Start tab says it: under HOME as ~/…. @param {string} folder @param {string} home */
+export const homeShort = (folder, home) => folder.startsWith(`${home}/`) ? `~${folder.slice(home.length)}` : folder;
