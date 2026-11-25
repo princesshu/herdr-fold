@@ -148,6 +148,33 @@ class Mouse(unittest.TestCase):
         self.assertIsNone(self.click(5, 2))                                    # the filter row: nothing
 
 
+class AddMachine(unittest.TestCase):
+    def test_its_questions_get_a_terminal_as_any_other_first(self):
+        # the picker reads keys one by one, unechoed, its cursor hidden: given back before the questions, else what
+        # is typed is not seen and the window looks hung
+        calls, root = [], tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root)
+        size = os.terminal_size((80, 24))
+        with mock.patch.object(new_workspace, "read_key", return_value="click"), \
+                mock.patch.object(new_workspace, "clicked", return_value=(0, 1, 1, True)), \
+                mock.patch.object(new_workspace.Picker, "click", return_value="machine"), \
+                mock.patch.object(new_workspace, "restore_terminal", side_effect=lambda: calls.append("terminal")), \
+                mock.patch.object(new_workspace.subprocess, "run",
+                                  side_effect=lambda argv, **_: calls.append(os.path.basename(argv[-1]))), \
+                mock.patch.object(new_workspace, "close_placeholder",
+                                  side_effect=lambda *_, **__: calls.append("back")), \
+                mock.patch.object(new_workspace, "start", return_value=root), \
+                mock.patch.object(new_workspace, "repositories", return_value=[]), \
+                mock.patch.object(new_workspace, "open_workspaces", return_value={}), \
+                mock.patch.object(new_workspace, "mouse"), mock.patch.object(new_workspace, "close_button"), \
+                mock.patch.object(new_workspace, "drain_input", side_effect=lambda: calls.append("drained")), \
+                mock.patch.object(new_workspace.os, "get_terminal_size", return_value=size), \
+                mock.patch.object(new_workspace.shutil, "get_terminal_size", return_value=size), \
+                mock.patch("builtins.print"):
+            new_workspace.main()
+        self.assertEqual(calls, ["drained", "terminal", "add_machine.py", "back"])
+
+
 class Screen(unittest.TestCase):
     def setUp(self):
         self.tmp = os.path.realpath(tempfile.mkdtemp())

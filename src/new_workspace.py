@@ -19,7 +19,7 @@ import widgets  # noqa: E402  the sidebar's, on the path herdrlib gives
 from icons import icon  # noqa: E402  the sidebar's, on the path herdrlib gives
 from screen import after, icons_on  # noqa: E402  the sidebar's, on the path herdrlib gives
 from tui import (CLOSE_ROOM, CLOSED, GAP, GRAY, INVERT, MARGIN, RESET, RIGHT, button_at, buttons, clicked,  # noqa: E402
-                 close_button, mouse, printable, read_key, wait_and_exit)
+                 close_button, drain_input, mouse, printable, read_key, restore_terminal, wait_and_exit)
 
 HOME = os.path.expanduser("~")
 BOLD = "\x1b[1m"
@@ -288,6 +288,9 @@ def main():
             return
         if action == "machine":                            # Ctrl+B, Shift+M's questions here, then back
             mouse(False)
+            drain_input()                                  # the click's release: never its first answer
+            restore_terminal()                             # its questions typed and seen as in any terminal
+            print("\x1b[2J\x1b[H", end="", flush=True)
             subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "add_machine.py")],
                            check=False)
             close_placeholder(placeholder, back=True)

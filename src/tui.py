@@ -166,6 +166,14 @@ def close_button():
     return CloseButton(glyphs(icons_on(herdrlib.PLUGIN_STATE))["close"], colors)
 
 
+def drain_input(wait=0.15):
+    """What is still on its way from the mouse (a click's release, the wheel), read and dropped: not the first
+    answer of what runs next in this terminal."""
+    fd, end = sys.stdin.fileno(), time.monotonic() + wait
+    while end > time.monotonic() and select.select([fd], [], [], max(0.0, end - time.monotonic()))[0]:
+        os.read(fd, 1024)
+
+
 def restore_terminal():
     global _saved_mode
     if _saved_mode is not None:
