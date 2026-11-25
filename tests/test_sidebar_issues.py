@@ -14,6 +14,7 @@ from support import SRC, text
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import github  # noqa: E402
 import issue_work  # noqa: E402
+import pager  # noqa: E402
 from github import Issue, Listing, Pull, Pulls, Query  # noqa: E402
 from issues import TEXT, Issues  # noqa: E402
 from icons import glyphs  # noqa: E402
@@ -505,8 +506,8 @@ class PullRequests(unittest.TestCase):
 
     def test_its_review_in_the_preview_tab_read_only_with_each_thread_on_its_line(self):
         thread = {"id": "t1", "resolved": False, "path": "src/a.py", "line": 30, "side": "RIGHT",
-                  "comments": [{"id": 1, "author": "tomas", "ago": "1h", "body": "Page it\x1b]0;x\x07 too"}]}
-        review = {**github.pull_listed(SHELVES, "dev"), "base": "main", "head": "3f2c1a9", "mine": False,
+                  "comments": [{"id": 1, "author": "tomas\x1b[2J", "ago": "1h", "body": "Page it\x1b]0;x\x07 too"}]}
+        review = {**github.pull_listed(SHELVES, "dev"), "base": "main\x1b]0;x\x07", "head": "3f2c1a9", "mine": False,
                   "files": [{"path": "src/a.py", "added": 1, "removed": 1, "cut": 0, "loose": [], "rows": [
                       {"kind": "@", "old": None, "new": None, "text": "@@ -30 +30 @@"},
                       {"kind": "-", "old": 30, "new": None, "text": "a = 1"},
@@ -515,9 +516,26 @@ class PullRequests(unittest.TestCase):
         self.assertEqual((spec["title"], spec["pipeline"], spec["view"]), ("#57 Group books by shelf", [], "r"))
         plain = [re.sub(r"\x1b\[[\d;]*m", "", line) for line in spec["views"][0]["lines"]]
         self.assertEqual(plain[0], "#57 Group books by shelf  your review")
-        self.assertEqual(plain[1], "feat/shelves → main · ada · ✓ 3 checks passed · 1 file")
-        self.assertEqual(plain[4:], ["      @@ -30 +30 @@", "   30 - a = 1", "   30 + a = 2", "      ┃ tomas · 1h",
+        self.assertEqual(plain[1], "feat/shelves → main]0;x · ada · ✓ 3 checks passed · 1 file")   # no escapes
+        self.assertEqual(plain[4:], ["      @@ -30 +30 @@", "   30 - a = 1", "   30 + a = 2", "      ┃ tomas[2J · 1h",
                                      "      ┃ Page it]0;x too"])
+
+    def test_a_review_wraps_in_a_narrow_pane_its_comments_read_whole_a_resolved_thread_said_once(self):
+        said = "end can pass len(books); the slice is fine, but say so, or clamp it."
+        thread = {"id": "t1", "resolved": True, "path": "src/a.py", "line": 12, "side": "RIGHT", "comments": [
+            {"id": 1, "author": "lena", "ago": "20m", "body": said}, {"id": 2, "author": "noa", "ago": "5m",
+                                                                     "body": "Clamped."}]}
+        review = {**github.pull_listed(SHELVES, "dev"), "base": "main", "head": "3f2c1a9", "mine": True,
+                  "files": [{"path": "src/a.py", "added": 1, "removed": 0, "cut": 0, "loose": [], "rows": [
+                      {"kind": "+", "old": None, "new": 12, "text": "end = start + PAGE  # " + "x" * 40,
+                       "threads": [thread]}]}]}
+        shown = pager.viewer(issue_work.pull_spec(review))
+        rows = [pager.plain(row) for row in shown.rows(40, 30)]
+        self.assertEqual(rows[5:8], ["   12 + end = start + PAGE  #", "        " + "x" * 32, "        " + "x" * 8])
+        self.assertEqual(rows[8:14], ["      ┃ lena · 20m · resolved", "      ┃ end can pass len(books); the",
+                                      "      ┃ slice is fine, but say so, or", "      ┃ clamp it.", "      ┃ noa · 5m",
+                                      "      ┃ Clamped."])                    # at a space, under the text, said once
+        self.assertTrue(all(len(row) <= 40 for row in rows))
 
 
 if __name__ == "__main__":

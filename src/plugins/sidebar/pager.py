@@ -222,9 +222,44 @@ def visible(line, cells):
     return "".join(out)
 
 
+HANG = re.compile(r" *(?:\d+ [-+ ] |┃ )")     # a review's gutter: a line's number and sign, or a thread's bar
+
+
+def folded(line, cells):
+    """LINE in rows of CELLS, as visible() keeps it, broken at a space where there is one: each next row starts under
+    its text past its gutter (HANG), a thread's bar drawn again there in the gutter's colors."""
+    gutter = HANG.match(plain(line))
+    hang = re.sub(r"[^ ┃]", " ", gutter.group(0)) if gutter and 2 * width(gutter.group(0)) < cells else ""
+    rows, row, used, lead, floor, pos = [], [], 0, "", None, 0        # row: its colors and its characters, one each
+    color = ""                                                        # the colors a next row goes on in
+    while pos < len(line):
+        m = ESCAPE.match(line, pos)
+        if m:
+            if SGR.fullmatch(m.group(0)):
+                row.append(shown(m.group(0)))
+                lead = lead or row[-1]
+            pos = m.end()
+            continue
+        ch, pos = line[pos], pos + 1
+        if ch in CONTROL:
+            continue
+        if floor is None and used >= width(hang):
+            floor = len(row)                                          # never broken in the gutter
+        if used + char_width(ch) > cells:
+            cut = next((i for i in range(len(row) - 1, floor - 1, -1) if row[i] == " "), len(row))
+            color = next((part for part in reversed(row[:cut]) if SGR.fullmatch(part)), color)
+            rows.append("".join(row[:cut]))
+            row = [f"\x1b[0m{lead}{hang}\x1b[0m{color}", *row[cut + 1:]]
+            floor, used = 1, width(hang) + sum(char_width(part) for part in row[1:] if not part.startswith("\x1b"))
+        row.append(ch)
+        used += char_width(ch)
+    return rows + ["".join(row)]
+
+
 class Pager:
     def __init__(self, lines, title, line=None, opens=None):
         self.lines, self.title, self.opens = lines, title, opens      # opens: a page o opens in the browser
+        self.wrap = False                                             # a long line goes on in the next rows
         self.top = max(0, (line or 1) - 1 - CONTEXT)
         self.height = 24
         self.query = self.typing = self.hit = self.note = None
@@ -255,6 +290,9 @@ class Pager:
         """The lines in view, ROWS of them cut to CELLS: each one's text, for its row."""
         self.height = max(1, rows)
         self.top = max(0, min(self.top, len(self.lines) - self.height))
+        if self.wrap:
+            found = [row for line in self.lines[self.top:self.top + self.height] for row in folded(line, cells)]
+            return (found + [""] * self.height)[:self.height]
         return [visible(self.lines[index], cells) if index < len(self.lines) else ""
                 for index in range(self.top, self.top + self.height)]
 
@@ -324,6 +362,7 @@ class Views(Pager):
         self.views = [view for view in spec["views"] if isinstance(view, dict) and isinstance(view.get("lines"), list)]
         self.view = next((view for view in self.views if view.get("key") == spec.get("view")), self.views[0])
         super().__init__([str(line) for line in self.view["lines"]], spec.get("title") or "")
+        self.wrap = bool(self.view.get("wrap"))      # a review's: its comments read whole in a narrow pane
         self.row, self.spans = None, []              # the status row and its controls' cells, as last drawn
 
     def shown(self):
@@ -333,6 +372,7 @@ class Views(Pager):
         found = next((view for view in self.views if view.get("key") == key), None)
         if found and found is not self.view:
             self.view, self.lines, self.top, self.hit = found, [str(line) for line in found["lines"]], 0, None
+            self.wrap = bool(found.get("wrap"))
 
     def draw(self, term):
         columns, height = term.size()

@@ -4,7 +4,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, Input, InputState, Textarea, TextareaState, TextView } from "gpui-base";
 import { GITHUB } from "./helper.js";
-import { commentAt, loginColor, reviewReady, said, safeMarkdown } from "./logic.js";
+import { commentAt, loginColor, primaryLit, reviewReady, said, safeMarkdown } from "./logic.js";
 import { button, field, icon, PAD, segmented, small } from "./parts.js";
 import { sendToAgent, tabAgent } from "./issues.js";
 import { checksMark, reviewWord } from "./pulls.js";
@@ -183,11 +183,12 @@ export class Review {
         .child(div().flex_none().text_color(t.muted).child(`#${pull.number}`))
         .child(div().flex_1().min_w(0).truncate().font_semibold().child(pull.title))
         .child(reviewWord(t, pull.review)))
-      .child(h_flex().gap(6).items_center().text_size(12).text_color(t.muted)
-        .child(div().flex_none().child(`${pull.branch} → ${pull.base} · ${pull.author}`))
+      .child(h_flex().gap(6).items_center().text_size(12).text_color(t.muted)      // narrow: the branches give way
+        .child(div().min_w(0).truncate().child(`${pull.branch} → ${pull.base}`))
+        .child("·").child(div().flex_none().child(pull.author))
         .when(Boolean(pull.checks_said), (e) => e.child("·").child(checksMark(t, pull.mark))
           .child(div().flex_none().child(pull.checks_said)))
-        .child(div().flex_none().child(`· ${files === 1 ? "1 file" : `${files} files`}`)));
+        .child("·").child(div().flex_none().child(files === 1 ? "1 file" : `${files} files`)));
   }
 
   /** FILE's bar (its path, lines added and removed), its lines, each thread and comment under its line. */
@@ -233,17 +234,17 @@ export class Review {
       ...(this.at && here(this.at) ? [this.editor(t)] : [])];
   }
 
-  /** A comment: its author's mark, name and age, BUTTONS beside them; its words as markdown (safe: no image fetched,
-   * no HTML). */
+  /** A comment: its author's mark, name and age, BUTTONS at the right end (narrow: on a line of their own); its words
+   * as markdown (safe: no image fetched, no HTML). */
   said(t, id, comment, buttons = []) {
     return v_flex().px(12).py(8).gap(4)
-      .child(h_flex().gap(8).items_center().text_size(12).text_color(t.muted)
+      .child(h_flex().flex_wrap().justify_end().gap(8).items_center().text_size(12).text_color(t.muted)
         .child(div().size(18).flex_none().flex().items_center().justify_center().rounded_full()
           .bg(loginColor(comment.author)).text_size(10).font_bold().text_color(t.background)
           .child((comment.author[0] ?? "?").toUpperCase()))
         .child(div().flex_none().font_semibold().text_color(t.foreground).child(comment.author))
         .child(div().flex_1().min_w(0).truncate().child(comment.ago))
-        .children(buttons))
+        .when(buttons.length > 0, (e) => e.child(h_flex().flex_none().gap(8).items_center().children(buttons))))
       .child(TextView.markdown(id, safeMarkdown(comment.body)).selectable());
   }
 
@@ -315,28 +316,29 @@ export class Review {
     return v_flex().px(12).py(8).gap(8).text_size(12)
       .child(div().rounded(6).border_1().border_color(t.border).bg(t.background)
         .child(Textarea.new(words).px(8).py(6).text_size(12)))
-      .child(h_flex().gap(8).justify_end().items_center()
+      .child(h_flex().flex_wrap().gap(8).justify_end().items_center()
         .child(small(t, `${label}-cancel`, "Cancel", "Leave it", true, cancel))
         .child(button(t, `${label}-done`, label, !this.busy, false, done)));
   }
 
-  /** The review's bar: its summary, how many comments it holds, Comment, Approve (not on one's own) or Request
-   * changes, and Submit review, the one primary button; what went wrong last above it. */
+  /** The review's bar: its summary, then how many comments it holds, Comment, Approve (not on one's own) or Request
+   * changes, and Submit review on the right, the one primary button; what went wrong last above it. */
   bar(t) {
     const count = this.pending.length, events = EVENTS.filter(([event]) => event !== "approve" || !this.pull.mine);
     const ready = reviewReady(this.event, this.summary.value(), this.pull.mine) && !this.busy;
     return v_flex().flex_none().border_t(1).border_color(t.border).bg(t.chrome)
       .when(Boolean(this.note || this.busy), (e) => e.child(div().px(PAD).pt(8).text_size(11)
         .text_color(this.busy ? t.muted : t.ansi1).child(this.busy ?? this.note ?? "")))
-      .child(h_flex().flex_wrap().px(PAD).py(8).gap(8).items_center()
-        .child(field(t, "review-summary", this.summary).flex_1().min_w(140))
-        .child(div().flex_none().text_size(12).text_color(t.muted).child(`Review · ${count === 1 ? "1 comment"
-          : `${count} comments`}`))
-        .child(segmented(t, "review-event", events, this.event, (event, cx) => {
-          this.event = event;
-          cx.notify();
-        }))
-        .child(button(t, "review-submit", "Submit review", ready, true, (cx) => this.submit(cx))
-          .tooltip(ready || this.busy ? "Send the review to GitHub" : "Comment and Request changes need a summary")));
+      .child(v_flex().px(PAD).py(8).gap(8).child(field(t, "review-summary", this.summary))
+        .child(h_flex().flex_wrap().justify_end().gap(8).items_center()      // narrow: Submit wraps, still right
+          .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.muted)
+            .child(`Review · ${count === 1 ? "1 comment" : `${count} comments`}`))
+          .child(segmented(t, "review-event", events, this.event, (event, cx) => {
+            this.event = event;
+            cx.notify();
+          }))
+          .child(button(t, "review-submit", "Submit review", ready, primaryLit(ready, this.busy),
+            (cx) => this.submit(cx)).flex_none().tooltip(ready || this.busy ? "Send the review to GitHub"
+            : "Comment and Request changes need a summary"))));
   }
 }

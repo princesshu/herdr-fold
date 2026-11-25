@@ -444,6 +444,8 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 
 ### Changed
 
+- The app's model chip names the model a chat on Default runs, and its level, never the word Default, as VS Code's
+  Claude does
 - Hidden files show in Files by default, in both clients and every folder; `.` (the TUI) or the toolbar's
   eye (the app) hides them, kept for the next start.
 - One wording in both clients: a folder's right click in Files says New space, and Add machine… ends in … where it

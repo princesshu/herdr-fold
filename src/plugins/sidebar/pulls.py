@@ -301,10 +301,12 @@ class PullForm:
             canvas.region(y, x + 1, end, "again")
         y += 1
         lit = bool(self.title.text.strip()) and not self.writing
-        end = canvas.put(y, 1, f" {self.label} ", Style(fg="button_text" if lit else "muted",
+        x = max(1, cells - 1 - width(f" {self.label} "))           # the one button at the row's right end
+        if x > 4:
+            canvas.put(y, 1, truncate("Esc cancels · Tab the next", x - 3), Style(fg="dim"))
+        end = canvas.put(y, x, f" {self.label} ", Style(fg="button_text" if lit else "muted",
                                                        bg="button" if lit else "input", bold=True))
-        canvas.region(y, 1, end, "create")
-        canvas.put(y, end + 2, truncate("Esc cancels · Tab the next", max(1, cells - end - 3)), Style(fg="dim"))
+        canvas.region(y, x, end, "create")
         return y + 2
 
     def handle(self, event):

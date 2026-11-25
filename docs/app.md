@@ -271,7 +271,9 @@ nothing starts there unasked.
 
 The model chip in a chat's bar names the model and, dimmer, its effort (Opus 5.5 High); a press opens Claude's models
 upward, as VS Code's Claude has them: each with its line (Default, the account's own, then Opus 5.5, Fable 5.2, Sonnet
-5.5 and Haiku 5.5, as Claude Code lists them; one in use that it does not list on top), the one in use checked on the
+5.5 and Haiku 5.5, as Claude Code lists them; one in use that it does not list on top). On Default the chip never
+says the word: it names the model and level Default last ran as, which Default's line names too (The recommended model
+for your account: Opus 5.5), till the chat's Claude says its own. The one in use is checked on the
 accent's tint, a press picking one and closing the list. The mode chip beside it opens the Modes panel: Modes and its
 hint, ⇧ + tab to switch, at its head, each of the agent's modes with its icon and its line (the one in use checked),
 then Effort with a dot slider and the level's name at the row's end (a press or a drag picks the level), then Ultracode

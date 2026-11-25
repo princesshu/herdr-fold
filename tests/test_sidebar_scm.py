@@ -692,6 +692,16 @@ class PullRequestRow(unittest.TestCase):
         self.assertEqual(self.press("right"), Action("write_pull", ("release",)))
         self.assertEqual(self.press("esc"), Action("pull_cancel", ()))
 
+    def test_the_forms_one_button_sits_at_its_rows_right_end_the_hint_before_it(self):
+        self.form()
+        for cells in (60, 30):
+            self.draw(width=cells)
+            row, title = self.rows()[self.row_of("Create draft")], self.canvas.rows[self.row_of("Title")]
+            self.assertTrue(row.rstrip().endswith("Create draft"), row)
+            edge = max(n for n, cell in enumerate(title) if cell[1].bg in ("input", "hover"))     # the fields'
+            self.assertEqual(len(row.rstrip()), edge)          # its last cell, a pad, on the fields' last column
+        self.assertTrue(row.lstrip().startswith("Esc cancels"), row)
+
     def test_no_title_no_pull_request(self):
         form = self.form()
         form.title.clear()

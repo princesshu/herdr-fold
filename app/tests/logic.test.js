@@ -30,7 +30,7 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   SECTIONS, APP_SECTIONS, settingsSection, sectionStep, settingsTargets, columnToggle, restoreCommands, keyMenuBounds,
   themeChoices, layoutToast, soundsFor, noteShown, modTab, unsavedKey, unsavedTabs, editsInTab, markdownFile,
   editorLanguage, indentOf, withEnds, findAll, nextMatch, findCount, FOUND_MOST, draftName, commentAt, reviewReady,
-  loginColor }
+  primaryLit, loginColor }
   from "../mods/herdr-fold/logic.js";
 import { format } from "../mods/herdr-fold/timeline.js";
 
@@ -2386,6 +2386,13 @@ test("a review goes as GitHub takes it: Approve never on one's own, Comment and 
   assert.equal(reviewReady("approve", "", true), false);
   assert.equal(reviewReady("comment", "  ", false), false);
   assert.equal(reviewReady("request", "Page it", true), true);
+});
+
+test("a primary button is lit when it can be pressed or its work runs, unlit otherwise (no title, no summary)", () => {
+  assert.equal(primaryLit(false, false), false);
+  assert.equal(primaryLit(false, null), false);
+  assert.equal(primaryLit(true, false), true);
+  assert.equal(primaryLit(false, "Submitting…"), true);
 });
 
 test("a login's avatar color is one of the spaces' and the same every time", () => {

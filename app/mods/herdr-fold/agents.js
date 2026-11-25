@@ -504,12 +504,21 @@ export function effortAt(adapter, x, left) {
  * on: boolean }} Plus */
 
 /** The model chip's rows: ADAPTER's models (Codex's would bring its own), the one in use first where it lists none
- * such (SHOWN with no id). @param {Adapter} adapter @param {{ id: string | null, label: string } | null} shown
- * @returns {PanelRow[]} */
-export const modelRows = (adapter, shown) => [
+ * such (SHOWN with no id), its Default's line naming what it RAN as (defaultRan()). @param {Adapter} adapter @param
+ * {{ id: string | null, label: string } | null} shown @param {{ label: string } | null} [ran] @returns {PanelRow[]} */
+export const modelRows = (adapter, shown, ran = null) => [
   ...(shown && shown.id === null ? [{ kind: /** @type {const} */ ("model"), id: null, label: shown.label,
     description: "In use in this chat" }] : []),
-  ...adapter.models.map((m) => ({ kind: /** @type {const} */ ("model"), ...m }))];
+  ...adapter.models.map((m, n) => ({ kind: /** @type {const} */ ("model"), ...m,
+    ...(n === 0 && ran ? { description: `${m.description}: ${ran.label}` } : {}) }))];
+
+/** What ADAPTER's Default ran as, SEEN as a chat on it said ({ model, effort }), in the chip's words: its model's
+ * label and its level, for a chat that has not said it yet (VS Code's Claude names the model, never "Default").
+ * @param {Adapter} adapter @param {any} seen @returns {{ label: string, effort: string | null } | null} */
+export function defaultRan(adapter, seen) {
+  if (!seen?.model) return null;
+  return { label: modelOf(adapter, seen.model)?.label ?? modelName(String(seen.model)), effort: seen.effort ?? null };
+}
 
 /** The mode chip's rows (center-chat.html's Modes): ADAPTER's modes, then its effort where it has levels, then its
  * switches (Claude's Ultracode; none for an agent without). @param {Adapter} adapter @returns {PanelRow[]} */

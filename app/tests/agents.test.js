@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { budgetNotice, costBlock } from "../mods/herdr-fold/agents.js";
 import { ADAPTERS, agentChoices, agentsOpen, barFolds, cardFor, claudeArgv, claudeSettings, contextColor,
   contextLine, contextParts, DRAWABLE, effortAt, effortLabel, exportName, limitNotice, menuSkills, modelName,
-  modelOf, modelRows, modeOf, modeRows, nearEffort, newAgent, nextScope, opensAs, panelStep, promptText,
+  defaultRan, modelOf, modelRows, modeOf, modeRows, nearEffort, newAgent, nextScope, opensAs, panelStep, promptText,
   rememberAgent, reopensAs, replyFor, ringArc, screenChoices, screenMode, shellQuote, skillCommand, skillOf,
   shellsOnly, slashMenu, slashQuery, slashRank, SLIDER, switchCommand, switchRefused, terminalSpace, terminalTab,
   usedSkills,
@@ -305,6 +305,16 @@ test("the model chip's rows are its adapter's models, the one in use first where
   assert.deepEqual([unlisted.length, unlisted[0]], [6, { kind: "model", id: null, label: "Opus 4.8",
     description: "In use in this chat" }]);
   assert.deepEqual(modelRows({ ...claude, models: [] }, null), []);
+  assert.equal(modelRows(claude, null, { label: "Opus 5.5" })[0].description,     // what Default runs as, on its line
+    "The recommended model for your account: Opus 5.5");
+});
+
+test("a chat on Default not started yet names the model and level Default last ran as, never the word", () => {
+  assert.deepEqual(defaultRan(claude, { model: "claude-opus-5-5", effort: "xhigh" }), { label: "Opus 5.5",
+    effort: "xhigh" });
+  assert.deepEqual(defaultRan(claude, { model: "Opus 5.5" }), { label: "Opus 5.5", effort: null });
+  assert.equal(defaultRan(claude, { model: "claude-opus-4-8" })?.label, modelName("claude-opus-4-8"));  // unlisted
+  assert.deepEqual([defaultRan(claude, null), defaultRan(claude, { effort: "high" })], [null, null]);   // never ran
 });
 
 test("the mode chip's rows: the adapter's modes, Effort where it has levels, its switches (Codex: none)", () => {

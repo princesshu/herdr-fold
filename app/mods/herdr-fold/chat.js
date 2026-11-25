@@ -9,7 +9,8 @@ import { exec, focused, hc, home, knownAgents, notify, panes, playSound, readTex
 import { AGENT_SETUP, AGENT_STATE, CHAT, CHATS, CONNECTORS, COSTS, GIT, REPORT, SEARCH } from "./helper.js";
 import { ADAPTERS, agentChoices, AGENTS_OPEN, agentsOpen, atTyped, barFolds, budgetNotice, cardFor, claudeArgv,
   contextColor, contextLine, contextParts, costBlock, DRAWABLE, effortAt, effortLabel, exportName, limitNotice,
-  mentionMenu, mentionPick, mentionQuery, menuSkills, modelName, modelOf, modelRows, modeOf, modeRows, nearEffort,
+  defaultRan, mentionMenu, mentionPick, mentionQuery, menuSkills, modelName, modelOf, modelRows, modeOf, modeRows,
+  nearEffort,
   newAgent, panelStep, promptText, readableOn, RECENT_AGENTS, rememberAgent, screenChoices, screenMode, shellsOnly,
   skillCommand,
   skillOf, slashMenu, slashQuery, SLIDER, switchCommand, switchRefused, terminalSpace, terminalTab, uploadPaths,
@@ -55,6 +56,7 @@ const CHIP_GAP = 6;                   // px: inside a chip, between its words (t
 const LEVEL = 76;                     // px: the effort's name at the slider's right, Extra high its longest, at 13
 const REST = 500;                     // ms the slider's arrows rest before the level they reached is sent
 const ASKED = 10000;                  // ms a model or an effort sent is shown before the agent says it
+const RAN = "herdr-fold.default-ran";  // + the agent's key: what its Default last ran as, { model, effort } (shared)
 const SWITCHES = "herdr-fold.chat-switches";   // each chat's switches on (Ultracode), by its session: none reports it
 const AFTER_SHRINK = 4;               // what a plan's step waits for gives way that much sooner than the step's words
 const ANSWER = 1500;                  // ms after a switch's command before the agent's screen is read for a refusal
@@ -205,6 +207,8 @@ export class Chat {
     this.firstModel = null;
     this.firstMode = null;
     this.firstEffort = null;
+    /** @type {{ model?: string, effort?: string }} the model and the level picked here once it ran */
+    this.picked = {};
     this.menus = new Menus();                     // the mode's, the commands'
     /** @type {any} the status line's numbers (core/chat.py's status); what Claude waits on (Task 7's cards) */
     this.status = null;
@@ -541,6 +545,7 @@ export class Chat {
       this.agentKey = choice.key;
       this.adapter = ADAPTERS[choice.key];
       [this.firstModel, this.firstMode, this.firstEffort, this.setup, this.setupError] = [null, null, null, null, null];
+      this.picked = {};
       this.readSetup(cx);
       return void cx.notify();
     }
@@ -574,6 +579,7 @@ export class Chat {
           this.plan]);
         this.offset = got.offset;
         this.status = got.status;
+        if (got.status?.model && this.onDefault()) this.sawDefault(got.status);
         this.plan = got.plan ?? null;
         this.pending = got.pending?.id === this.answered ? null : got.pending;
         const choices = this.pending?.kind === "dialog"           // asked in Claude's own dialog: its choices there
@@ -973,7 +979,28 @@ export class Chat {
     const said = this.status?.effort ?? this.named.effort, set = this.setup?.effort;
     if (this.asked && (this.asked.id === said || Date.now() - this.asked.at > ASKED)) this.asked = null;
     return this.draft ?? this.asked?.id ?? said ?? this.firstEffort
-      ?? (this.adapter.efforts.some((e) => e.id === set) ? set : null);
+      ?? (this.adapter.efforts.some((e) => e.id === set) ? set : null)
+      ?? (this.status?.model ? null : this.ran()?.effort) ?? null;
+  }
+
+  /** Whether the chat runs on its agent's Default, as far as told: no model picked here, none in its settings. */
+  onDefault() {
+    const set = this.picked.model ?? this.firstModel ?? this.setup?.model ?? null;
+    return Boolean(this.setup) && (!set || set === this.adapter.models[0]?.id);
+  }
+
+  /** What the agent's Default ran as last (defaultRan()), for a chat on it; else null. */
+  ran() {
+    return this.onDefault() ? defaultRan(this.adapter, shared(`${RAN}.${this.agentKey}`)) : null;
+  }
+
+  /** What STATUS says the agent's Default runs as, kept for the chats not started yet: its model, and its level where
+   * none is set here or in the settings (else the one kept before). */
+  sawDefault(status) {
+    const key = `${RAN}.${this.agentKey}`, kept = shared(key);
+    const set = this.picked.effort ?? this.firstEffort ?? this.setup?.effort;
+    const seen = { model: status.model, effort: (set ? kept?.effort : status.effort) ?? null };
+    if (JSON.stringify(kept) !== JSON.stringify(seen)) setShared(key, seen);
   }
 
   /** LEVEL sent to the agent, unless it is in effect already; the slider then shows it till the status line says it.
@@ -984,6 +1011,7 @@ export class Chat {
     if (!this.address) return void (this.firstEffort = level);
     this.tell(`/effort ${level}`);
     this.asked = { id: level, at: Date.now() };
+    this.picked.effort = level;
   }
 
   /** ← or → (DIRECTION) on the panel's Effort row: the slider one level on, sent once the arrows rest. */
@@ -1008,7 +1036,8 @@ export class Chat {
     const id = this.modelAsked?.id ?? (said ? row?.id : this.firstModel ?? modelOf(this.adapter, this.setup?.model)?.id
       ?? this.adapter.models[0]?.id);
     const listed = this.adapter.models.find((m) => m.id === id);
-    if (listed) return { id: listed.id, label: listed.label };
+    const ran = listed && !said && listed.id === this.adapter.models[0]?.id ? this.ran() : null;   // never "Default"
+    if (listed) return { id: listed.id, label: ran?.label ?? listed.label };
     return said ? { id: null, label: this.status?.model ?? modelName(String(said)) } : null;
   }
 
@@ -1019,6 +1048,7 @@ export class Chat {
     if (!model || model === this.modelShown()?.id) return;
     if (!this.address) return void (this.firstModel = model);
     this.tell(`/model ${model}`);
+    this.picked.model = model;
     this.modelAsked = { id: model, at: Date.now(), from: this.status?.model ?? this.named.model ?? null };
   }
 
@@ -1208,7 +1238,7 @@ export class Chat {
   /** The model chip's panel, upward from it (VS Code's Claude's picker, the Modes panel's rows): the adapter's models,
    * each its name over its line, the one in use ✓ on the accent's tint; a press picks one, and it closes. */
   modelPanel(t) {
-    const shown = this.modelShown(), rows = modelRows(this.adapter, shown), started = Boolean(this.address);
+    const shown = this.modelShown(), rows = modelRows(this.adapter, shown, this.ran()), started = Boolean(this.address);
     return this.surface(t, MODELS, rows, rows.map((row, n) => {
       const model = /** @type {{ id: string | null, label: string, description: string }} */ (row);
       const on = model.id === (shown?.id ?? null);

@@ -954,8 +954,8 @@ export default class HerdrFold extends View {
         .tooltip(`${hash} ${subject}`).on_click((_e, cx) => this.pick(key, { kind: "commit", hash }, cx))
         .child(div().w(14).flex_none().text_color(head ? t.accent : t.muted).child(head ? "◉" : "○"))
         .child(div().flex_1().min_w(0).truncate().child(subject))
-        .when(refs.length > 0, (e) => e.child(div().flex_none().text_size(11).text_color(t.accent)
-          .child(refs.join(" "))))
+        .when(refs.length > 0, (e) => e.child(div().min_w(0).max_w("45%").truncate().text_size(11)
+          .text_color(t.accent).child(refs.join(" "))))      // the subject keeps the rest
         .child(div().flex_none().text_size(11).text_color(t.muted).child(author));
     };
     // at the bottom, as the TUI sidebar's: the room the changes leave, a third at least when open, its heading on top;

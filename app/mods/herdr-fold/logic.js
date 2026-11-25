@@ -1201,6 +1201,10 @@ export function commentAt(row) {
  * @param {string} event @param {string} summary @param {boolean} mine */
 export const reviewReady = (event, summary, mine) => (event === "approve" ? !mine : Boolean(summary.trim()));
 
+/** Whether a primary button is lit: it can be pressed (READY), or its work runs (BUSY, its label says so); else unlit,
+ * as Commit with nothing to commit. @param {boolean} ready @param {unknown} busy */
+export const primaryLit = (ready, busy) => Boolean(ready || busy);
+
 /** A login's avatar color: one of MARK's, the same for it every time. @param {string} login */
 export function loginColor(login) {
   const sum = [...login].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 997, 7);

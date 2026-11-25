@@ -86,7 +86,7 @@ def pull_spec(review):
     glyph, role = MARKS.get(review["mark"], ("", None))
     rows = [[(f"#{review['number']} ", "dim"), (printable(review["title"]), "bold"),
              *([(f"  {word[0]}", PAINT[word[1]])] if word else [])],
-            [(f"{review['branch']} → {review['base']} · {review['author']}", "dim"),
+            [(printable(f"{review['branch']} → {review['base']} · {review['author']}"), "dim"),
              *([(" · ", "dim"), (glyph, PAINT[role]), (f" {review['checks_said']}", "dim")] if glyph else []),
              (f" · {len(review['files'])} file{'' if len(review['files']) == 1 else 's'}", "dim")]]
     side = {"+": "ok", "-": "bad"}
@@ -104,15 +104,16 @@ def pull_spec(review):
         rows += thread_rows(file["loose"])
     title = f"#{review['number']} {truncate(review['title'], TAB_TITLE)}"
     return {"title": title, "line": None, "file": os.devnull, "pipeline": [],
-            "views": [{"key": "r", "name": "Review", "lines": preview.painted(rows)}], "view": "r"}
+            "views": [{"key": "r", "name": "Review", "lines": preview.painted(rows), "wrap": True}], "view": "r"}
 
 
 def thread_rows(threads):
-    """THREADS under their line, as the app shows them: each comment's author and age, then its words."""
+    """THREADS under their line, as the app shows them: each comment's author and age (a resolved thread's first one
+    says so), then its words."""
     rows = []
     for thread in threads:
-        for comment in thread["comments"]:
-            rows.append([("      ┃ ", "dim"), (f"{comment['author']} · {comment['ago']}" +
-                                                 (" · resolved" if thread["resolved"] else ""), "dim")])
+        for n, comment in enumerate(thread["comments"]):
+            rows.append([("      ┃ ", "dim"), (printable(f"{comment['author']} · {comment['ago']}") +
+                                                 (" · resolved" if thread["resolved"] and not n else ""), "dim")])
             rows += [[("      ┃ ", "dim"), (printable(line), None)] for line in comment["body"].splitlines()]
     return rows

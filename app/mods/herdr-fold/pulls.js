@@ -4,7 +4,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex, Input, InputState, Textarea, TextareaState } from "gpui-base";
 import { COMMIT_MESSAGE, GIT, GITHUB } from "./helper.js";
-import { hovering, issuesParts, said } from "./logic.js";
+import { hovering, issuesParts, primaryLit, said } from "./logic.js";
 import { button, BUTTON, choices, field, footNote, GAP, icon, iconButton, keepNote, PAD, segmented, small, SPINNER }
   from "./parts.js";
 import { sendToAgent, tabAgent } from "./issues.js";
@@ -238,7 +238,7 @@ export class BranchPull {
     const frame = h_flex().id("branch-pull").h(32).flex_none().mx(PAD / 2).mt(2).mb(4).px(12).gap(8).items_center()
       .rounded(8).border_1().border_color(t.border).bg(t.chrome).text_size(12);
     if (!pull) return frame.child(icon("git-pull-request", 14).text_color(t.muted))
-      .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child("No pull request for this branch"))
+      .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child("No pull request"))
       .child(small(t, "pull-create", "Create pull request…", "Open a pull request of this branch", this.host.ready,
         (cx) => this.start(cx)));
     const { root, on, github } = this.host;
@@ -366,9 +366,10 @@ export class BranchPull {
       })))
       .when(Boolean(form.note || form.writing), (e) => e.child(div().text_size(11)
         .text_color(form.note?.error ? t.ansi1 : t.muted).child(form.writing ?? form.note?.text ?? "")))
-      .child(h_flex().gap(8).items_center().justify_end()
+      .child(h_flex().flex_wrap().gap(8).items_center().justify_end()      // the one button at the right end
         .child(small(t, "pull-cancel", "Cancel", "Open none", true, (cx) => this.cancel(cx)))
         .child(button(t, "pull-open", form.busy ? "Opening…" : form.draft ? "Create draft pull request"
-          : "Create pull request", ready, true, (cx) => this.create(cx))));
+          : "Create pull request", ready, primaryLit(ready, form.busy), (cx) => this.create(cx))
+          .max_w("100%").truncate()));                // narrow: on a line of its own, never past the dock's edge
   }
 }
