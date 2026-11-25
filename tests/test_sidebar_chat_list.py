@@ -190,8 +190,8 @@ class List(unittest.TestCase):
         self.click(5, y, button=2)
         self.draw()
         self.assertEqual(self.press("enter"), Action("open", (PRICES,)))   # the menu takes the keys meanwhile
-        _, shown = self.menu_of("Login redirect fix")                     # running: no Archive
-        self.assertEqual(shown, ["Open", "Copy chat", "Rename"])
+        _, shown = self.menu_of("Login redirect fix")                     # running: no Archive; Claude's: Checkpoints…
+        self.assertEqual(shown, ["Open", "Copy chat", "Rename", "Checkpoints…"])
 
     def test_its_menu_closes_when_the_pane_loses_the_keys(self):
         y, _ = self.menu_of("Price list")
@@ -549,7 +549,7 @@ class ChosenPlan(unittest.TestCase):
         self.view.plan = ("claude:s1", {**PLAN, "finished": True, "count": "All 4 done", "plan": None})
         self.assertEqual([" ".join(row.split()) for row in self.plan_rows()], ["Plan All 4 done"])
         self.assertEqual(self.style("All 4 done").fg, "done")
-        self.assertIsNone(self.press("right"))
+        self.assertEqual(self.press("right"), Action("checkpoints", (LOGIN,)))   # no step to list: its checkpoints
 
     def test_a_note_wraps_to_two_rows_over_the_steps(self):
         self.view.plan = ("claude:s1", {**PLAN, "note": "Tables first, so the docs can quote the real page size."})

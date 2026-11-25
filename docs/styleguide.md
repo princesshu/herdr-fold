@@ -701,6 +701,18 @@ When Claude asks in its own terminal instead (a new folder's trust question), a 
 place, 48 high as a card's head, and the terminal shows under the chat, answered there; Hide terminal puts it away
 (Show terminal brings it back) and it goes by itself once answered.
 
+A prompt's checkpoint is quiet (checkpoints.html's): while Claude is idle, the prompt under the mouse shows `Restore
+files to here` at its time's line's start, 11 in `muted` (the text's color under the pointer), after Lucide's rotate-ccw
+12, 4 apart, and only where its turn wrote files Claude keeps. It opens a card in the prompt's place, a card's measure
+with a neutral border (`border`, as Claude does not wait on it): the icon 14 in `muted`, `Restore files to before
+13:32?` semibold and the prompt's first words in `muted`, the fold at the end; under a hairline the files Claude's dry
+run names, a row 22 each (the name in the code font 12, its folder 12 in `muted`, the path its tip; 160 high at most,
+then it scrolls), the lines in all under a hairline (12 in `muted`, + in `ansi2`, − in `ansi1`), then what stays as it
+is, 12 in `muted`; asking, a spinner and its words; refused, Claude's words in `ansi1`. Its foot, under a hairline,
+holds `esc Cancel` and at its end the restore, 28 high, rounded 8, 12 semibold on the accent with ↩ as a cap, faint on
+the raised fill until it can be pressed. After a restore a row on the timeline's line (a step's dim dot, the icon 12, 12
+in `muted`) says `Restored 2 files to before 13:32`, `Undo` after it in the link's ink, once.
+
 ![The chat's timeline: the person's message, Claude's steps on the line, a change open, its words with their time, a
 command waiting](../assets/styleguide/chat-timeline-chat.webp)
 

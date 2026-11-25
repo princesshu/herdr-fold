@@ -45,6 +45,7 @@ export const ICONS = {
   "plug": "mods/herdr-fold/icons/lucide/plug.svg",
   "plus": "mods/herdr-fold/icons/lucide/plus.svg",
   "refresh-cw": "mods/herdr-fold/icons/lucide/refresh-cw.svg",
+  "rotate-ccw": "mods/herdr-fold/icons/lucide/rotate-ccw.svg",
   "rows-2": "mods/herdr-fold/icons/lucide/rows-2.svg",
   "scroll-text": "mods/herdr-fold/icons/lucide/scroll-text.svg",
   "search": "mods/herdr-fold/icons/lucide/search.svg",

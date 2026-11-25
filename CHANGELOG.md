@@ -11,6 +11,9 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 
 ### Added
 
+- Checkpoints: a Claude chat's files back to how they were at one of its prompts. In the app the prompt under the
+  mouse offers Restore files to here; in the TUI a chat's Checkpoints… in Chats (or →). Claude says first which files
+  would change and what stays; the restore is Claude's own `--rewind-files`, and one Undo puts the files back
 - The TUI's New space picker has Add machine…, beside Cancel and Open
 - Runs, the Agents tab's third view (the TUI: the Agent view's More, `r`): Claude's background sessions and Codex's
   `codex exec` runs and cloud tasks, a row each with what it made (files, the PR it opened, its pictures) and its cost;
@@ -454,6 +457,8 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 
 ### Changed
 
+- The TUI's Add machine opens its own window, framed as Settings: its close button, Esc or Ctrl+C end it at any
+  question
 - The installer no longer lists Tailscale as missing: it is one way to a machine, any SSH reaches one
 - The app's model chip names the model a chat on Default runs, and its level, never the word Default, as VS Code's
   Claude does
@@ -579,6 +584,7 @@ which collapsed the column, is gone with it.
 
 ### Fixed
 
+- A New space or Add machine left before it is done no longer leaves an empty "new" space in the list
 - Shift + Enter sent Claude Code's message instead of starting a new line, in some of the TUI's panes (an agent that
   had not asked the terminal for the extended keys, as one herdr restored) and in the Herdr app's terminals. Both
   now send it as Option + Enter (ESC CR): Ghostty's config in every pane, herdr-fold's keys in the app in every

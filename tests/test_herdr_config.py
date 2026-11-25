@@ -78,7 +78,7 @@ class Add(unittest.TestCase):
         self.assertNotIn('next_workspace = "prefix+down"', merged)     # their my_switch has prefix+down
         self.assertIn("prefix+f", notes)
         self.assertIn("prefix+down", notes)
-        self.assertIn("close_tab.py", merged)                          # the other commands are added
+        self.assertIn("cmd_keys.py w", merged)                         # the other commands are added (Cmd+W's)
 
     def test_their_top_level_settings_stay(self):
         merged, _ = self.add()

@@ -327,6 +327,19 @@ A plan approved in plan mode is a step of its own, `Plan approved · 4 steps`, i
 as a document in the preview tab, copied into the chat's folder in herdr-fold's own state (`plan.md`, its owner's only).
 Codex's list (its `update_plan`) comes to the same strip once a chat draws Codex; the TUI's Chats list shows it now.
 
+Each prompt that starts a turn is a checkpoint: Claude keeps the files its file tools change as they were there. While
+Claude is idle, the prompt under the mouse shows `Restore files to here` beside its time, where its turn wrote files
+Claude still keeps (the newest 100 prompts' files, as Claude keeps them). It first asks Claude which files would change,
+as Claude's Agent SDK asks it, and a card takes the prompt's place: `Restore files to before 13:32?`, those files with
+the lines in all, and what stays as it is: what Bash commands and subagents changed since (Claude's checkpoints cover
+its file tools alone), edits made outside Claude, and the chat itself, which keeps the later turns in mind, since only
+the files go back (Esc Esc in Claude's own terminal rewinds files and chat together). Enter or `Restore 2 files`
+restores them through Claude's own `--rewind-files`; Esc or Cancel closes the card, ⌥ ↓ folds it. herdr-fold sets those
+files' contents aside first, in its own state on the chat's machine (the owner's only), so a row at the timeline's end,
+`Restored 2 files to before 13:32`, carries `Undo` until the next message: it puts them back as they were, once.
+Whatever Claude refuses (a checkpoint it no longer keeps, backups still being copied) is said in its words. Codex keeps
+no file checkpoints, so its chats have none.
+
 The + at the bar's start opens the + menu upward (its first row lit: ↑ ↓ step the rows, Enter or Space acts, Esc or a
 press beside closes it). `Upload from computer…` (⌘ U in a chat) opens macOS's own file chooser on the chat's folder,
 several files at once; the files picked stand as chips over the prompt (the type's icon, the name, its path as its tip,

@@ -4,8 +4,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { bottomLayout, callWords, clock, connectorRow, format, planStrip, planWords, RHYTHM, setForms, signinRow,
-  stepLayout, timeline, timelineMarkdown, userLayout } from "../mods/herdr-fold/timeline.js";
+import { bottomLayout, callWords, clock, connectorRow, filePlace, format, planStrip, planWords, restorable,
+  restoredWords, restoreLabel, RHYTHM, setForms, signinRow, stays, stepLayout, timeline, timelineMarkdown, userLayout }
+  from "../mods/herdr-fold/timeline.js";
 
 const at = (minute) => `2026-11-08T14:${String(minute).padStart(2, "0")}:00.000Z`;
 const EDIT = { path: "src/books.py", lines: ["@@ -12,1 +12,1 @@", "-    return page", "+    return min(page, last)"] };
@@ -281,4 +282,29 @@ test("a sign-in's step is a row of the timeline, in its place", () => {
   const rows = timeline([{ kind: "text", text: "The notes are in Box.", at: at(1) },
     { kind: "signin", server: "claude.ai Box", at: at(2) }]);
   assert.deepEqual(rows[1], { kind: "signin", server: "claude.ai Box", at: at(2) });
+});
+
+test("a prompt's checkpoint restores only what Claude keeps and its turn wrote, and says what stays", () => {
+  assert.equal(restorable({ kept: true, files: 2 }), true);
+  assert.equal(restorable({ kept: false, files: 2 }), false);
+  assert.equal(restorable({ kept: true, files: 0 }), false);
+  assert.equal(restorable(undefined), false);
+  assert.equal(stays({ bash: 2, agents: 0 }), "what 2 Bash commands changed, and edits made outside Claude");
+  assert.equal(stays({ bash: 1, agents: 1 }),
+    "what 1 Bash command changed, what 1 subagent changed, and edits made outside Claude");
+  assert.equal(stays({ bash: 0, agents: 0 }), "edits made outside Claude");
+});
+
+test("a restore's file is named, its folder from the chat's own, and its row and button count the files", () => {
+  const root = "/Users/dev/lumen-api";
+  assert.deepEqual(filePlace("/Users/dev/lumen-api/src/lumen/routes/books.py", root),
+    { name: "books.py", folder: "src/lumen/routes" });
+  assert.deepEqual(filePlace("/Users/dev/lumen-api/CHANGELOG.md", `${root}/`), { name: "CHANGELOG.md", folder: "" });
+  assert.deepEqual(filePlace("/Users/dev/notes/todo.md", root), { name: "todo.md", folder: "/Users/dev/notes" });
+  const today = new Date();
+  today.setHours(13, 32, 0, 0);
+  setForms({ time: "HH:mm" });
+  assert.equal(restoredWords(2, today.toISOString()), "Restored 2 files to before 13:32");
+  setForms(null);
+  assert.equal(restoreLabel(1), "Restore 1 file");
 });

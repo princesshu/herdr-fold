@@ -37,9 +37,10 @@ not asked about: ssh trusts their key on the first connection and checks it from
 
 ## Adding a machine later
 
-Ctrl + B, then Shift + M asks the installer's machine questions (from `~/.ssh/config`, your Tailscale network, or by
-address) and sets up only the new machine. It runs `machines.sh` from the `herdr-fold` folder, so keep that folder on
-the Mac; after moving it, run `./install.sh` once in the new place.
+Ctrl + B, then Shift + M (or New space's Add machine…) opens Add a machine, a window framed as Settings whose close
+button, Esc or Ctrl + C end it at any question. It asks the installer's machine questions (from `~/.ssh/config`, your
+Tailscale network, or by address) and sets up only the new machine. It runs `machines.sh` from the `herdr-fold` folder,
+so keep that folder on the Mac; after moving it, run `./install.sh` once in the new place.
 
 A machine on the list (`~/.config/herdr-fold/machines.txt`) at the very address a `~/.ssh/config` Host names, its `User`
 and `HostName`, goes through that Host from the next run of `machines.sh` on (the installer's step 8, Ctrl + B then

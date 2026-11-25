@@ -233,3 +233,34 @@ export function clock(iso, now = new Date()) {
   if (days === 1) return `Yesterday ${written(when, "time")}`;
   return written(when, when.getFullYear() === now.getFullYear() ? "day" : "year");
 }
+
+// --- a prompt's checkpoint (core/checkpoints.py's point): its files back as they were there
+
+const counted = (/** @type {number} */ n, /** @type {string} */ one) => `${n} ${one}${n === 1 ? "" : "s"}`;
+
+/** Whether POINT (or none) can take the chat's files back: Claude still keeps it, and its turn wrote a file.
+ * @param {any} point */
+export const restorable = (point) => Boolean(point?.kept && point.files > 0);
+
+/** What a restore to POINT leaves as it is, as a sentence's end: what Bash and subagents changed from it on (Claude's
+ * checkpoints cover its file tools alone), and edits made outside Claude. @param {any} point */
+export function stays(point) {
+  const parts = [point?.bash > 0 ? `what ${counted(point.bash, "Bash command")} changed` : "",
+    point?.agents > 0 ? `what ${counted(point.agents, "subagent")} changed` : "", "edits made outside Claude"]
+    .filter(Boolean);
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}` : parts[0];
+}
+
+/** PATH as a restore's list shows it: its name, and its folder from ROOT (the chat's; whole outside it, "" at its top).
+ * @param {string} path @param {string} root */
+export function filePlace(path, root) {
+  const cut = path.lastIndexOf("/"), folder = path.slice(0, Math.max(0, cut)), top = root.replace(/\/+$/, "");
+  const inside = folder === top ? "" : folder.startsWith(`${top}/`) ? folder.slice(top.length + 1) : folder;
+  return { name: path.slice(cut + 1), folder: inside };
+}
+
+/** The row after a restore of FILES files to the point of time AT. @param {number} files @param {string} at */
+export const restoredWords = (files, at) => `Restored ${counted(files, "file")} to before ${clock(at)}`;
+
+/** The restore's button: how many files it takes back. @param {number} files */
+export const restoreLabel = (files) => `Restore ${counted(files, "file")}`;

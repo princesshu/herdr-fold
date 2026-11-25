@@ -1,6 +1,6 @@
-"""The Chats list's work in the dock (chat_list.py draws it, the ✦ opens it over the sidebar): read again every second
-while open with the chosen chat's plan, a running chat focused, a closed one reopened in a new tab of its workspace, one
-archived, renamed, copied or, once asked, moved to the Trash; done through its host, the sidebar (jobs, herdr, note)."""
+"""The Chats list's work in the dock (chat_list.py draws it): read every second while open with the chosen chat's plan,
+a running chat focused, a closed one reopened in a new tab, one archived, renamed, copied or, once asked, moved to the
+Trash, a Claude chat's files restored to a checkpoint; done through its host, the sidebar (jobs, herdr, note)."""
 import base64
 import os
 import re
@@ -8,10 +8,12 @@ import sys
 from dataclasses import replace
 
 import chats
+import checkpoints
 import panes
 import plan
 import preview
 import richtext
+import usage
 from chat_list import ChatList
 from family import Family
 from fileops import system_clipboard
@@ -27,6 +29,14 @@ def tab_name(name):
     with "…"; a clean label for herdr's command line."""
     name = preview.label(name)
     return name if len(name) <= TAB_NAME else name[:TAB_NAME - 1] + "…"
+
+
+def answered(work):
+    """WORK's answer (core/checkpoints.py's), or {error} for what stopped it: the view waits on an answer."""
+    try:
+        return work()
+    except (OSError, ValueError) as err:
+        return {"error": chats.said(err)}
 
 
 def own_tab(call, pane):
@@ -105,6 +115,12 @@ class Chats(Family):
         view = self.view
         view.archived, view.front, view.icons = seen["archived"], seen["front"], self.host.settings["icons"]
         view.set(seen["found"], seen["order"], lambda folder: names.get(self.folders.get(folder)), names.get(self.here))
+        shown = view.points                     # its checkpoints read again once the chat has changed
+        fresh = next((one for one in seen["found"] if shown and (one.agent, one.id) == (shown.item.agent,
+                                                                                       shown.item.id)), None)
+        if fresh and fresh.time != shown.item.time and not shown.busy and "points" not in self.host.running:
+            shown.item = fresh
+            self.do_checkpoints(fresh)
 
     def read_plan(self, item):
         """On the job's thread: ITEM's task list, its file read on from where the last read of it stopped."""
@@ -135,7 +151,7 @@ class Chats(Family):
         return [self.next_read()]
 
     def holds(self):
-        return (self.view.naming, self.view.confirm)
+        return (self.view.naming, self.view.confirm, self.view.points)
 
     def left(self):
         view = self.view
@@ -244,6 +260,58 @@ class Chats(Family):
                            for one in self.view.items]
         self.view.rebuild()
         self.host.note = "Renamed"
+
+    # --- a Claude chat's checkpoints (checkpoint_list.py), through core/checkpoints.py and Claude's own rewind
+
+    def points_of(self, item):
+        """The checkpoints view while it shows ITEM; None once closed or showing another."""
+        shown = self.view.points
+        return shown if shown and shown.item.id == item.id else None
+
+    def do_checkpoints(self, item):
+        shown = self.points_of(item)
+        if shown:
+            shown.twelve = usage.twelve_hours(os.path.expanduser("~"))
+        self.host.job("points", lambda: answered(lambda: checkpoints.listed(item.id)),
+                      lambda found: self.got_points(item, found))
+
+    def got_points(self, item, found):
+        shown = self.points_of(item)
+        if shown and "error" in found:
+            shown.told = (found["error"], True)
+            shown.set({"points": [], "undo": None})
+        elif shown:
+            shown.set(found)
+
+    def do_checkpoint_ask(self, item, point):
+        """Claude's dry run for POINT, shown under it while it is still the one chosen."""
+        def got(asked):
+            shown = self.points_of(item)
+            if shown and shown.asked == "asking" and (shown.chosen() or {}).get("id") == point["id"]:
+                shown.asked = asked
+        self.host.job("point-ask", lambda: answered(lambda: checkpoints.ask(item.id, point["id"])), got)
+
+    def do_checkpoint_restore(self, item, point, last):
+        """ITEM's files back to POINT (LAST its newest point, the Undo's), what happened said on the view's foot."""
+        def done(answer):
+            shown = self.points_of(item)
+            if shown:
+                shown.busy, shown.asked = False, answer if "error" in answer else None
+                if "error" not in answer:
+                    shown.told = (shown.restored_words(answer["files"], point["id"]), False)
+            self.do_checkpoints(item)
+        self.host.job("point-restore", lambda: answered(lambda: checkpoints.restore(item.id, point["id"], last)), done)
+
+    def do_checkpoint_undo(self, item):
+        def done(answer):
+            shown = self.points_of(item)
+            if shown:
+                files = answer.get("files", 0)
+                shown.busy = False
+                shown.told = (answer["error"], True) if "error" in answer else (
+                    f"Undid the restore: {files} file{'' if files == 1 else 's'} back as they were", False)
+            self.do_checkpoints(item)
+        self.host.job("point-undo", lambda: answered(lambda: checkpoints.undo(item.id)), done)
 
     def do_show_archived(self, shown):
         """The archived chats in sight (SHOWN) or out of it, in every tab."""

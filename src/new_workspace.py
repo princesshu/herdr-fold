@@ -4,6 +4,7 @@ one), and the empty one is closed."""
 import collections
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -19,12 +20,13 @@ import widgets  # noqa: E402  the sidebar's, on the path herdrlib gives
 from icons import icon  # noqa: E402  the sidebar's, on the path herdrlib gives
 from screen import after, icons_on  # noqa: E402  the sidebar's, on the path herdrlib gives
 from tui import (CLOSE_ROOM, CLOSED, GAP, GRAY, INVERT, MARGIN, RESET, RIGHT, button_at, buttons, clicked,  # noqa: E402
-                 close_button, drain_input, mouse, printable, read_key, restore_terminal, wait_and_exit)
+                 close_button, mouse, printable, read_key, wait_and_exit)
 
 HOME = os.path.expanduser("~")
 BOLD = "\x1b[1m"
 FIRST_ROW = 3              # the tree's first row on screen, under the title and the filter
 DOUBLE = 0.4               # seconds within which a second click on a row opens it
+ADD_MACHINE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "add_machine.py")    # Add machine…'s popup
 NAME_CELLS = 48            # a row's cells before its tags, fewer in a narrower window (a wrapped row moves the clicks)
 TAGS_CELLS = 8             # "git open"
 
@@ -261,6 +263,8 @@ def screen(picker, opened, height, width):
 
 def main():
     placeholder = os.environ.get("HERDR_NEW_WORKSPACE")
+    for ended in (signal.SIGHUP, signal.SIGTERM):   # the popup closed from outside: the empty space goes too
+        signal.signal(ended, lambda *_: (close_placeholder(placeholder, back=True), os._exit(0)))
     picker = Picker(start(repositories()), os.environ.get("HERDR_NEW_WORKSPACE_FOLDER"), last_agent(PLUGIN_STATE))
     opened, close = set(open_workspaces()), close_button()
     mouse(True, moves=True)
@@ -286,14 +290,10 @@ def main():
         if action == "cancel":
             close_placeholder(placeholder, back=True)
             return
-        if action == "machine":                            # Ctrl+B, Shift+M's questions here, then back
-            mouse(False)
-            drain_input()                                  # the click's release: never its first answer
-            restore_terminal()                             # its questions typed and seen as in any terminal
-            print("\x1b[2J\x1b[H", end="", flush=True)
-            subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "add_machine.py")],
-                           check=False)
-            close_placeholder(placeholder, back=True)
+        if action == "machine":                            # Add a machine over the space you came from, once
+            subprocess.Popen([sys.executable, ADD_MACHINE, "--open", str(os.getpid())], start_new_session=True,
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            close_placeholder(placeholder, back=True)      # this popup gone with it: herdr shows one at a time
             return
 
 

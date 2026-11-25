@@ -149,30 +149,46 @@ class Mouse(unittest.TestCase):
 
 
 class AddMachine(unittest.TestCase):
-    def test_its_questions_get_a_terminal_as_any_other_first(self):
-        # the picker reads keys one by one, unechoed, its cursor hidden: given back before the questions, else what
-        # is typed is not seen and the window looks hung
-        calls, root = [], tempfile.mkdtemp()
+    def run_main(self, action):
+        """The picker's main loop given one click whose ACTION is ACTION; (close_placeholder's mock, Popen's)."""
+        root, size = tempfile.mkdtemp(), os.terminal_size((80, 24))
         self.addCleanup(shutil.rmtree, root)
-        size = os.terminal_size((80, 24))
         with mock.patch.object(new_workspace, "read_key", return_value="click"), \
                 mock.patch.object(new_workspace, "clicked", return_value=(0, 1, 1, True)), \
-                mock.patch.object(new_workspace.Picker, "click", return_value="machine"), \
-                mock.patch.object(new_workspace, "restore_terminal", side_effect=lambda: calls.append("terminal")), \
-                mock.patch.object(new_workspace.subprocess, "run",
-                                  side_effect=lambda argv, **_: calls.append(os.path.basename(argv[-1]))), \
-                mock.patch.object(new_workspace, "close_placeholder",
-                                  side_effect=lambda *_, **__: calls.append("back")), \
+                mock.patch.object(new_workspace.Picker, "click", return_value=action), \
+                mock.patch.object(new_workspace, "close_placeholder") as closed, \
+                mock.patch.object(new_workspace.subprocess, "Popen") as started, \
+                mock.patch.object(new_workspace.signal, "signal"), \
                 mock.patch.object(new_workspace, "start", return_value=root), \
                 mock.patch.object(new_workspace, "repositories", return_value=[]), \
                 mock.patch.object(new_workspace, "open_workspaces", return_value={}), \
                 mock.patch.object(new_workspace, "mouse"), mock.patch.object(new_workspace, "close_button"), \
-                mock.patch.object(new_workspace, "drain_input", side_effect=lambda: calls.append("drained")), \
                 mock.patch.object(new_workspace.os, "get_terminal_size", return_value=size), \
                 mock.patch.object(new_workspace.shutil, "get_terminal_size", return_value=size), \
                 mock.patch("builtins.print"):
             new_workspace.main()
-        self.assertEqual(calls, ["drained", "terminal", "add_machine.py", "back"])
+        return closed, started
+
+    def test_its_button_opens_add_a_machine_once_this_popup_has_gone(self):
+        # herdr keeps one popup at a time: the new one waits for this process, the empty space closes as you leave
+        closed, started = self.run_main("machine")
+        self.assertEqual(started.call_args.args[0][-3:], [new_workspace.ADD_MACHINE, "--open", str(os.getpid())])
+        self.assertTrue(started.call_args.kwargs["start_new_session"])           # it outlives this popup
+        closed.assert_called_once_with(None, back=True)
+
+    def test_closed_from_outside_the_empty_space_goes_too(self):
+        handlers = {}
+        with mock.patch.object(new_workspace.signal, "signal", side_effect=lambda sig, f: handlers.update({sig: f})), \
+                mock.patch.object(new_workspace, "Picker", side_effect=SystemExit), \
+                mock.patch.object(new_workspace, "start"), mock.patch.object(new_workspace, "repositories"):
+            set_env(self, HERDR_NEW_WORKSPACE="w2")
+            with self.assertRaises(SystemExit):
+                new_workspace.main()
+        with mock.patch.object(new_workspace, "close_placeholder") as closed, \
+                mock.patch.object(new_workspace.os, "_exit") as left:
+            handlers[new_workspace.signal.SIGHUP]()
+        closed.assert_called_once_with("w2", back=True)
+        left.assert_called_once_with(0)
 
 
 class Screen(unittest.TestCase):

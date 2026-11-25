@@ -40,6 +40,7 @@ all.
 |---|---|
 | Cmd + Shift + R | find a chat: the sidebar opens its ✦'s list in this tab (on its rail, the sidebar opened in every tab; a sidebar closed by hand comes back, a tab without one goes to the space's first), its filter empty and the keys going to it; Enter goes to a running one or reopens a closed one in a new tab; Esc closes it |
 | Space / Shift + ↑ ↓ | in the sidebar's Chats, with nothing typed: mark closed chats, to archive them together with a right click on one of them; Esc unmarks them |
+| → | in the sidebar's Chats, on a Claude chat (its plan's done steps listed first): its checkpoints; there Enter asks Claude what `Restore files to here…` would change, Enter again restores, Esc gives it up, `u` undoes the last restore, ← goes back to the chats |
 | Cmd + F | search the Claude chat: Enter accepts, `n` / `N` next / previous match, Esc goes back to typing; in an editor's tab, the editor's own find (micro, nano) |
 
 ## Copy and links

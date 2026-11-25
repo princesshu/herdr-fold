@@ -51,6 +51,17 @@ width = 65
 height = 15
 command = ["/usr/bin/python3", "settings.py"]
 
+# Add a machine (add_machine.py, beside the plugin's folder): Ctrl+B, Shift+M and New space's Add machine… open it;
+# framed as Settings, its close button, Esc or Ctrl+C end it at any question, a click outside closes it too
+[[panes]]
+id = "add-machine"
+platforms = ["macos", "linux"]
+title = "Add a machine"
+placement = "popup"
+width = 96
+height = 28
+command = ["/usr/bin/python3", "../../add_machine.py"]
+
 # The Usage view (usage_view.py), opened from the Agent view's Usage head on its period: what the agents used and what
 # that cost, over the tab's panes (herdr's overlay), closed by its ×, Esc or a click outside it
 [[panes]]

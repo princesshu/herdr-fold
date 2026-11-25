@@ -64,7 +64,7 @@ def needs(servers, minute=0, **extra):
                   **extra})
 
 
-USER = prompt("Why does page 4 answer page 3?")
+USER = prompt("Why does page 4 answer page 3?", uuid="7d2e4c1a-3b5f-4e6d-9a8b-1c2d3e4f5a6b")
 THOUGHT = said({"type": "thinking", "thinking": "", "signature": "x"}, thinkingDurationMs=4200)
 READ = call("t1", "Read", file_path=BOOKS)
 READ_OK = answered("t1", "1\tfrom lumen import store")
@@ -99,7 +99,8 @@ class Steps(Case):
         answer = chat.steps(self.write(USER, THOUGHT, READ, READ_OK, ANSWER))
         steps = answer["steps"]
         self.assertEqual([s["kind"] for s in steps], ["user", "thought", "tool", "result", "text"])
-        self.assertEqual(steps[0], {"kind": "user", "text": "Why does page 4 answer page 3?", "at": at(0)})
+        self.assertEqual(steps[0], {"kind": "user", "text": "Why does page 4 answer page 3?", "at": at(0),
+                                    "id": "7d2e4c1a-3b5f-4e6d-9a8b-1c2d3e4f5a6b"})
         self.assertEqual(steps[1]["ms"], 4200)
         self.assertEqual((steps[2]["id"], steps[2]["name"], steps[2]["main"]), ("t1", "Read", BOOKS))
         self.assertEqual(steps[2]["input"], {"file_path": BOOKS})

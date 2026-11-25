@@ -16,8 +16,9 @@ A space is a row of the Spaces list in herdr's sidebar; herdr's own commands and
    Tab, or a click on Claude or Codex at the top right, switches between them; it starts on the agent herdr-fold
    started last.
 3. Enter, **Open** or a double click opens the space, or jumps to the one the folder already has. Esc or
-   **Cancel** goes back to the space you came from. **Add machine…**, left of them, asks Ctrl + B, then Shift + M's
-   questions instead: a space on another machine starts with the machine ([Remote machines](remote-machines.md)).
+   **Cancel** goes back to the space you came from. **Add machine…**, left of them, opens Add a machine instead
+   (Ctrl + B, then Shift + M's): a space on another machine starts with the machine
+   ([Remote machines](remote-machines.md)).
 
 ![The New space folder picker over the new space: Documents as a tree with its four repositories, lumen-api already
 open, Claude or Codex at its top right, Cancel and Open at the bottom](../assets/screenshots/tui-new-space.webp)
@@ -128,6 +129,18 @@ A right click on a chat offers Open, Copy chat (all of it, formatted for Notes, 
 and, for a closed one, Archive: it leaves the list (`Archived "Login redirect fix"` at the sidebar's foot) and its file
 stays as it was, so `claude --resume` or `codex resume` still finds it; while any is archived, More (⋯) and a right
 click beside the chats offer Show archived.
+
+A Claude chat's right click also offers Checkpoints…, and → on its row opens them too (once its plan's done steps, if
+any, are listed): its prompts in the list's place, the newest first, the chat's name over them (‹ or ← goes back to the
+chats). Each prompt that starts a turn is a checkpoint, and where its turn wrote files Claude still keeps, the row says
+how many it wrote (`wrote 2 files`) and the chosen one offers `Restore files to here…`. Enter asks Claude first which
+files would change (its dry run): `Files as they were before this message`, those files, the lines in all, and what
+stays as it is (what Bash commands and subagents changed since, edits made outside Claude, and the chat, which keeps the
+later turns), then `Esc cancels` and `Restore 2 files` at the row's right end; Enter restores them through Claude's own
+`--rewind-files`, Esc gives it up. herdr-fold keeps the files' contents from just before, so the foot says `Restored 2
+files to before 13:32` and `u` puts them back, once, until the next message. A running Claude rewinds files and chat
+together in its own pane (Esc Esc there); the list says so over the prompts. Codex keeps no file checkpoints, so its
+chats have no Checkpoints….
 
 Archive is the everyday way to tidy the list. Delete…, under it in a closed chat's menu (an archived one's too), is the
 rarer one: it asks first, by the chat's name, then moves the chat's file to the system's Trash (on a Mac the Finder's

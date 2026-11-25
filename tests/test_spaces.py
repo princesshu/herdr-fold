@@ -77,6 +77,19 @@ class NewTab(unittest.TestCase):
                          [('["macos", "linux"]', '["/usr/bin/python3", "spaces.py"]')])
 
 
+class Leftovers(unittest.TestCase):
+    def test_the_new_buttons_empty_workspace_left_behind_goes_never_one_in_use(self):
+        # its picker closed from outside, or left before it finished: an empty "new" not in front is closed
+        workspaces = [{"workspace_id": "w1", "label": "lumen-api", "focused": True},
+                      {"workspace_id": "w2", "label": spaces.PLACEHOLDER},
+                      {"workspace_id": "w3", "label": spaces.PLACEHOLDER, "focused": True},           # its picker on
+                      {"workspace_id": "w4", "label": spaces.PLACEHOLDER},                            # an agent in it
+                      {"workspace_id": "w5", "label": spaces.PLACEHOLDER}]                            # worked in
+        panes = [{"workspace_id": "w1"}, {"workspace_id": "w2"}, {"workspace_id": "w3"},
+                 {"workspace_id": "w4", "agent": "claude"}, {"workspace_id": "w5"}, {"workspace_id": "w5"}]
+        self.assertEqual(spaces.leftovers(workspaces, panes), ["w2"])
+
+
 class SpacesFollowTheirFolder(unittest.TestCase):
     """A workspace named after its folder takes the folder's new name when the folder is renamed while herdr runs
     (its panes' folders follow it there); a name you gave it stays."""

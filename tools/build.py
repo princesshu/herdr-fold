@@ -26,6 +26,7 @@ HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"AGENT_LAYER
                                                                     "AGENT_STATE": "agent_state.py",
                                                                     "CHAT": "chat.py",
                                                                     "CHAT_HOOK": "chat_hook.py",
+                                                                    "CHECKPOINTS": "checkpoints.py",
                                                                     "COMMIT_MESSAGE": "commit_message.py",
                                                                     "CONNECTORS": "connectors.py",
                                                                     "COSTS": "costs.py",

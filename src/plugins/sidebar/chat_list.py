@@ -1,11 +1,12 @@
 """The Chats list the ✦ opens over the sidebar: herdr's workspaces with chats in its Spaces list's order, each a group
-of its chats (the active tab's first, then the newest; none outside every workspace) under a filter, the chosen one's
-plan under it; closed ones marked to archive together, one deleted once asked. What it does comes back as an Action."""
+of its chats (the active tab's first, then the newest) under a filter, the chosen one's plan under it, a Claude chat's
+checkpoints in its place; closed ones marked to archive together, one deleted once asked. Actions come back."""
 import time
 from dataclasses import dataclass
 
 import widgets
 from agent_setup import KNOWN
+from checkpoint_list import CheckpointList
 from screen import PAD, PLAIN, Canvas, Style, truncate, width
 from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, Popup, TextInput, wrap
@@ -18,6 +19,7 @@ STATE_MARK = {"blocked": "●", "done": "●", "working": "●", "idle": "○", 
 SHOW, HIDE = "Show archived", "Hide archived"           # the archived ones in sight or not: More's line, the list's
 MENU = ("Open", "Copy chat", "Rename")
 DELETE = "Delete…"            # a closed chat's, asked first: its file to the system's Trash
+CHECKPOINTS = "Checkpoints…"  # a Claude chat's: its prompts to take its files back to, in the list's place
 ASKED = 40                    # characters of a chat's name in that question
 BOX, MARKED = "□", "■"        # a closed chat's box, and a marked one's
 TITLE = 5                     # where a chat's name starts, its mark two cells before it
@@ -63,6 +65,7 @@ class ChatList:
         self.icons = True                   # the sidebar's icons (its settings), or plain marks (the app sets it)
         self.plan = None                    # ("<agent>:<id>", its list: core/plan.py's shown), as the app read it
         self.done_open = None               # "<agent>:<id>" of the chat whose done steps are listed, each on a line
+        self.points = None                  # a Claude chat's checkpoints in the list's place (CheckpointList)
         self.list = ListView()
         self.hover = self.canvas = self.menu = None
         self.top = self.height = 0
@@ -258,6 +261,9 @@ class ChatList:
     def draw(self, canvas, top, height, roomy):
         """The view from row TOP, HEIGHT rows: the filter, tall in a ROOMY slice as the dock's other fields are, a
         line when there is something to say, the rows."""
+        if self.points:
+            self.points.draw(canvas, top, height)
+            return
         self.canvas, self.top, self.height, cells = canvas, top, height, canvas.width
         for y in range(top, top + height):
             canvas.backdrop(y, 0, cells, "blank")                   # its own menu, under everything else
@@ -373,12 +379,17 @@ class ChatList:
     def shut(self):
         """The list closed (its lit button, Esc, a click outside it, another pane): its menu, a name being typed, a
         question and the marks go with it; what was typed stays for the next time."""
-        self.menu = self.naming = self.confirm = self.doomed = None
+        self.menu = self.naming = self.confirm = self.doomed = self.points = None
         self.marked.clear()
 
     # --- keys and the mouse
 
     def handle(self, event):
+        if self.points:
+            done = self.points.handle(event)
+            if done == "back":
+                self.points = None
+            return None if done == "back" else done
         if isinstance(event, Mouse):
             return self.mouse(event)
         if not isinstance(event, Key):
@@ -414,7 +425,8 @@ class ChatList:
             if not self.list_done(False):
                 self.close(row)
         elif name == "right" and row and row[0] == "item":
-            self.list_done(True)
+            if not self.list_done(True) and row[1].agent == "claude":
+                return self.open_points(row[1])
         elif name == "right" and row and row[0] == "group":
             if row[3]:
                 self.list.move(1)
@@ -485,17 +497,23 @@ class ChatList:
         return Action("show_archived", (choice == SHOW,))
 
     def choices(self, item):
-        """The right click's menu for ITEM: Archive for a closed one, Unarchive for an archived one, Delete… for either
-        (a running one has neither); for None (anywhere else in the list) More's lines."""
+        """The right click's menu for ITEM: Checkpoints… for a Claude chat, Archive for a closed one, Unarchive for an
+        archived one, Delete… for either (a running one has neither); for None (elsewhere in the list) More's lines."""
         if item is None:
             return tuple(self.menu_lines())
         bulk = self.bulk() if self.archive_key(item) in self.marked else {}
         if bulk:
             return tuple(bulk) + ("Unmark all",)
         closed = () if item.state else (DELETE,)
+        mine = MENU + ((CHECKPOINTS,) if item.agent == "claude" else ())
         if self.archive_key(item) in self.archived:
-            return MENU + ("Unarchive",) + closed
-        return MENU + (("Archive",) if closed else ()) + closed
+            return mine + ("Unarchive",) + closed
+        return mine + (("Archive",) if closed else ()) + closed
+
+    def open_points(self, item):
+        """ITEM's checkpoints in the list's place, read by Chats."""
+        self.points = CheckpointList(item)
+        return Action("checkpoints", (item,))
 
     def open_menu(self, item, event):
         """ITEM's menu where EVENT clicked; none where it would be empty."""
@@ -515,6 +533,8 @@ class ChatList:
         if choice == DELETE:
             self.ask_delete(item)
             return None
+        if choice == CHECKPOINTS:
+            return self.open_points(item)
         if choice == "Rename":
             self.naming = Naming(item, TextInput())
             self.naming.field.insert(item.title)

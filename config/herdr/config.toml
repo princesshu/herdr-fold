@@ -181,15 +181,13 @@ command = "herdr-fold.sessions-view.mark-unread"
 description = "mark the focused agent unread, or not any more (Cmd+Shift+U)"
 
 # Add a remote machine — herdr's machines list has no button for it: the installer's questions (~/.ssh/config, the
-# Tailscale network, an address typed in), then the new machine gets set up; in a small window. Needs the herdr-fold
-# folder (the installer records where it is).
+# Tailscale network, an address typed in), then the new machine gets set up; in the sidebar plugin's Add a machine
+# popup, framed as Settings (its close button or Esc ends it). Needs the herdr-fold folder the installer records.
 [[keys.command]]
 key = "prefix+shift+m"
-type = "popup"
-command = "/usr/bin/python3 ~/.config/herdr-fold/add_machine.py"
+type = "shell"
+command = "/usr/bin/python3 ~/.config/herdr-fold/add_machine.py --open"
 description = "add machine…"
-width = "85%"
-height = "80%"
 
 # Pick a color theme (Ghostty: Cmd+K, Cmd+T → Ctrl+B, i) — colors for Ghostty, herdr and the prompt
 [[keys.command]]

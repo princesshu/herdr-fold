@@ -12,6 +12,7 @@ import { AgentView } from "./agent.js";
 import { AgentsView } from "./agentstab.js";
 import { Answer } from "./card.js";
 import { Chat } from "./chat.js";
+import { Checkpoints } from "./checkpoint.js";
 import { ChatsView } from "./chats.js";
 import { IssuesView } from "./issues.js";
 import { BranchPull, PullsView } from "./pulls.js";
@@ -475,6 +476,30 @@ const STEPS = [
     at: minute(4) },
   { kind: "tool", id: "c4", name: "Bash", main: "pytest -q", input: {}, at: minute(5) }];
 
+// a chat with two prompts to take its files back to (checkpoints.html's), their checkpoints as core/checkpoints.py
+// reads them, and Claude's dry run for the first
+const POINTS = ["c0d1e2f3-0001-4a5b-8c6d-7e8f9a0b1c2d", "c0d1e2f3-0002-4a5b-8c6d-7e8f9a0b1c2d"];
+const CHECKED = [
+  { kind: "user", id: POINTS[0], text: "Fix #42: past the last page the API should answer the last page, not an "
+    + "empty list.", at: minute(32) },
+  { kind: "tool", id: "k1", name: "Read", main: "src/lumen/routes/books.py", input: {}, at: minute(33) },
+  { kind: "result", id: "k1", ok: true, output: "12\t    page = int(query.get(\"page\", 1))", change: null,
+    at: minute(33) },
+  { kind: "tool", id: "k2", name: "Edit", main: "src/lumen/routes/books.py", input: {}, at: minute(34) },
+  { kind: "result", id: "k2", ok: true, output: "The file was updated.", change: CHANGE, at: minute(34) },
+  { kind: "tool", id: "k3", name: "Bash", main: "pytest tests/test_books.py -q", input: {}, at: minute(35) },
+  { kind: "result", id: "k3", ok: true, output: "12 passed", change: null, at: minute(35) },
+  { kind: "text", text: "The page asked for now stays inside `1…pages`; the book tests pass.", at: minute(36) },
+  { kind: "user", id: POINTS[1], text: "Add a test for a page below one, too.", at: minute(58) },
+  { kind: "tool", id: "k4", name: "Bash", main: "pytest -q", input: {}, at: minute(59) },
+  { kind: "result", id: "k4", ok: true, output: "14 passed", change: null, at: minute(59) },
+  { kind: "text", text: "Both ends are covered now: 14 passed.", at: minute(59) }];
+const CHECKPOINTED = new Map([
+  [POINTS[0], { id: POINTS[0], at: minute(32), text: CHECKED[0].text, files: 1, bash: 2, agents: 0, kept: true }],
+  [POINTS[1], { id: POINTS[1], at: minute(58), text: CHECKED[8].text, files: 1, bash: 1, agents: 0, kept: true }]]);
+const DRY_RUN = { files: ["/work/lumen-api/src/lumen/routes/books.py", "/work/lumen-api/tests/test_books.py"],
+  insertions: 1, deletions: 13 };
+
 // a chat's task list as core/plan.py words it (plan-todo.html's), and its changes as the timeline tells them
 const PLAN = { steps: [{ text: "Keep the page inside 1…pages", state: "done", after: null },
   { text: "Answer page 0 with the first page", state: "done", after: null },
@@ -913,7 +938,8 @@ function chatOf(cx, { rows = [], context = 34, typed = "", state = "idle", limit
   menu = /** @type {string | null} */ (null), files = /** @type {string[]} */ ([]),
   mention = /** @type {string | null} */ (null), listed = /** @type {any} */ (null),
   listError = /** @type {string | null} */ (null), signing = {}, connectFailed = {}, toTell = [],
-  budget = /** @type {any} */ (null), costs = /** @type {any} */ (null) } = {}) {
+  budget = /** @type {any} */ (null), costs = /** @type {any} */ (null), checkpoints = /** @type {any} */ (null) }
+  = {}) {
   const started = { address: "t1", named: { model: model[0], effort, mode: "default" },
     status: { model: model[1], effort, context, window: 200000, limits } };
   const props = { session: "styleguide", agent: "claude", folder: "/work/lumen-api" };
@@ -946,6 +972,9 @@ function chatOf(cx, { rows = [], context = 34, typed = "", state = "idle", limit
     chat.answer = new Answer(() => {}, cx);
     chat.answer.reset(waits[0], waits[1]);
   }
+  // its prompts' checkpoints (checkpoint.js's): a prompt under the mouse, a restore's card, the row after it
+  if (checkpoints) chat.checkpoints = Object.assign(new Checkpoints(async () => ({}), () => "/work/lumen-api",
+    () => {}, cx), { points: CHECKPOINTED, last: POINTS[1] }, checkpoints);
   return chat;
 }
 
@@ -1196,6 +1225,15 @@ export function guide(proto, cx) {
       ["Asking in its own terminal, shown under the chat", chatOf(cx, { asks: true, shown: true })],
       ["Asking in its own terminal, hidden by hand", chatOf(cx, { asks: true })]],
     chat: chatOf(cx, { rows: timeline(STEPS), state: "blocked", setup }),
+    // a prompt's checkpoint: its action under the mouse, the card with Claude's dry run, asking, refused; the row after
+    restoring: chatOf(cx, { rows: timeline(CHECKED), checkpoints: { over: 5 } }),
+    restores: [["Claude's dry run: the files it would change, the lines in all, what stays as it is",
+      { asked: DRY_RUN, error: null }],
+    ["Asking Claude which files would change", { asked: null, error: null }],
+    ["Claude says no, in its own words", { asked: null, error: "No file checkpoint found for this message." }]]
+      .map(([name, card]) => [name, chatOf(cx, { rows: timeline(CHECKED), checkpoints: { card: { point:
+        CHECKPOINTED.get(POINTS[0]), words: CHECKED[0].text, busy: false, folded: false, ...card } } })]),
+    restored: chatOf(cx, { rows: timeline(CHECKED), checkpoints: { undo: { point: POINTS[0], files: 2 } } }),
     fresh: chatOf(cx, { fresh: true }),
     // the Agent panel: [name, view, height, width]
     agentPanels: [["Claude in lumen-api, as connectors.html's Áttekintés: its head line and problems, the bar, Usage, "
@@ -2247,6 +2285,17 @@ function sections(g, t) {
         g.planned.timeline(t, CODE_FONT)), { width: CHAT })]))]],
     ["chat-cards", () => [group(t, "What Claude waits on", g.cards.map(([name, chat], i) => specimen(t, `card-${i}`,
       name, chat.bottom(t, CODE_FONT), { width: CHAT, spec: i ? "" : "in the prompt's place · a digit picks" })))]],
+    ["chat-checkpoints", () => [group(t, "A prompt's checkpoint", [specimen(t, "restore-action",
+      "A prompt under the mouse while Claude is idle: Restore files to here beside its time", fixed(300,
+        g.restoring.timeline(t, CODE_FONT)), { width: CHAT, spec: "checkpoints.html's · 11, muted, the foreground "
+        + "under the mouse · Lucide's rotate-ccw 12 · only where its turn wrote files Claude keeps" })]
+      .concat(g.restores.map(([name, chat], i) => specimen(t, `restore-${i}`, name, chat.bottom(t, CODE_FONT),
+        { width: CHAT, spec: i ? "" : "in the prompt's place, its border neutral · head 44 · a file 22: its name in "
+          + "the code font, its folder 12 muted · the lines in all 12 · Cancel and esc, the restore on the accent at "
+          + "the end, faint until it can be pressed" })))
+      .concat([specimen(t, "restored", "After the restore: a row on the line, its Undo once", fixed(220,
+        g.restored.timeline(t, CODE_FONT)), { width: CHAT, spec: "a step's dot, dim · 12 muted · Undo in the link's "
+          + "ink" })]))]],
     ...halves("chat-timeline", (keep) => [group(t, "The chat's timeline", keep([specimen(t, "timeline",
       "A chat, a command waiting", fixed(360, g.chat.timeline(t, CODE_FONT)),
       { width: CHAT, spec: "a dot a step: done, failed ansi1, running accent, waiting ansi3 and fading" })])),

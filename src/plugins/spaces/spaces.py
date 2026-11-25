@@ -4,6 +4,7 @@ folder is gone said deleted, one holding a repository shown that one, one named 
 # On a workspace's close and a pane's focus the home folder's workspace is made again when none is left, and whenever
 # the list of workspaces changes it is moved first when it is not (put_home). A workspace herdr ended with its last
 # tab is made again in its place; one closed on purpose stays closed (spaces_changed)
+import collections
 import contextlib
 import importlib.util
 import json
@@ -370,13 +371,26 @@ def came_from(placeholder):
     return focus.get("before") if focus.get("now") == placeholder else focus.get("now")
 
 
+def leftovers(workspaces, panes):
+    """The "new" button's empty workspaces left behind (its picker closed from outside, or left before it finished):
+    named PLACEHOLDER, not in front, a single pane with no agent in it."""
+    held = collections.Counter(p.get("workspace_id") for p in panes)
+    agents = {p.get("workspace_id") for p in panes if p.get("agent")}
+    return [w["workspace_id"] for w in workspaces if w.get("label") == PLACEHOLDER and not w.get("focused")
+            and held[w["workspace_id"]] <= 1 and w["workspace_id"] not in agents]
+
+
 def on_focus():
-    """The workspace in front kept, with the one before it; a workspace whose folder is gone said deleted, one whose
-    folder holds a repository given that one's repo_tokens; each followed one whose folder was renamed, and one herdr
-    named ~ or as a root, takes its new name (own_name's), and so does its main tab (named as it)."""
+    """The "new" button's empty workspaces left behind closed (leftovers()); the one in front kept, with the one before;
+    one whose folder is gone said deleted, one holding a repository given its repo_tokens; a followed or herdr-named
+    one (~, a root) renamed (own_name's), and its main tab so too."""
     workspaces = herdr("workspace", "list", check=False).get("workspaces")
     if not workspaces:                                  # herdr not answering: what is known stays
         return
+    gone_ones = leftovers(workspaces, panes_listed())
+    for ws in gone_ones:
+        herdr("workspace", "close", ws, check=False)
+    workspaces = [w for w in workspaces if w["workspace_id"] not in gone_ones]
     state, focus = load(FOCUS)
     kept = {key: focus[key] for key in ("now", "before") if key in focus}
     front = next((w["workspace_id"] for w in workspaces if w.get("focused")), None)

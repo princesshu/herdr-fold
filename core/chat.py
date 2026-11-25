@@ -182,7 +182,7 @@ def said(entry, seen):
     if kind == "user":
         words = [part.strip() for part in texts_of(content)
                  if part.strip() and not part.lstrip().startswith(NOT_A_PROMPT)]
-        found = [{"kind": "user", "text": "\n\n".join(words)}] if words else []
+        found = [{"kind": "user", "text": "\n\n".join(words), "id": text(entry.get("uuid"))}] if words else []
         found += [outcome(block, entry, told) for block in map(obj, content if isinstance(content, list) else [])
                   if block.get("type") == "tool_result"]
     elif kind == "assistant" and isinstance(content, list):

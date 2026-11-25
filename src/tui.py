@@ -166,14 +166,6 @@ def close_button():
     return CloseButton(glyphs(icons_on(herdrlib.PLUGIN_STATE))["close"], colors)
 
 
-def drain_input(wait=0.15):
-    """What is still on its way from the mouse (a click's release, the wheel), read and dropped: not the first
-    answer of what runs next in this terminal."""
-    fd, end = sys.stdin.fileno(), time.monotonic() + wait
-    while end > time.monotonic() and select.select([fd], [], [], max(0.0, end - time.monotonic()))[0]:
-        os.read(fd, 1024)
-
-
 def restore_terminal():
     global _saved_mode
     if _saved_mode is not None:
@@ -182,7 +174,7 @@ def restore_terminal():
         cursor(True)
 
 
-def _key_mode():
+def key_mode():
     """Cbreak mode until the script ends (keys one by one, no echo; output and Ctrl+C as usual), not switched back after
     each key, so keystrokes in between are not lost. Hides the cursor: a window draws its own caret, or none."""
     global _saved_mode
@@ -199,7 +191,7 @@ def getkey(timeout=None):
     None when none comes in TIMEOUT seconds. Reads straight from the file descriptor: sys.stdin's buffering would hide
     the rest of a sequence from select()."""
     global _pending
-    _key_mode()
+    key_mode()
     fd = sys.stdin.fileno()
     if timeout is not None and not _pending and not select.select([fd], [], [], timeout)[0]:
         return None

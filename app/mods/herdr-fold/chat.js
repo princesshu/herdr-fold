@@ -6,7 +6,8 @@ import { v_flex, h_flex, Popover, Popup, ScrollHandle, Textarea, TextareaState, 
 import { randomUUID } from "crypto";
 import { exec, focused, hc, home, knownAgents, notify, panes, playSound, readTextFile, setShared, shared, spaces,
   terminals, theme, window, writeTextFile, run as command } from "herdr";
-import { AGENT_SETUP, AGENT_STATE, CHAT, CHATS, CONNECTORS, COSTS, GIT, REPORT, SEARCH } from "./helper.js";
+import { AGENT_SETUP, AGENT_STATE, CHAT, CHATS, CHECKPOINTS, CONNECTORS, COSTS, GIT, REPORT, SEARCH }
+  from "./helper.js";
 import { ADAPTERS, agentChoices, AGENTS_OPEN, agentsOpen, atTyped, barFolds, budgetNotice, cardFor, claudeArgv,
   contextColor, contextLine, contextParts, costBlock, DRAWABLE, effortAt, effortLabel, exportName, limitNotice,
   defaultRan, mentionMenu, mentionPick, mentionQuery, menuSkills, modelName, modelOf, modelRows, modeOf, modeRows,
@@ -16,6 +17,7 @@ import { ADAPTERS, agentChoices, AGENTS_OPEN, agentsOpen, atTyped, barFolds, bud
   skillOf, slashMenu, slashQuery, SLIDER, switchCommand, switchRefused, terminalSpace, terminalTab, uploadPaths,
   withFiles } from "./agents.js";
 import { Answer } from "./card.js";
+import { Checkpoints } from "./checkpoint.js";
 import { groupHead, keepInView, listNote, listWords, Menus, panelList, panelRow, panelSurface, rule }
   from "./menus.js";
 import { checkedOver, chipColors, loginRun, overdue, partColor, plusMenu, signIns, signInTab, switched, toneInk,
@@ -243,6 +245,8 @@ export class Chat {
     this.blank = true;                            // the prompt empty, as last drawn: its words over it
     /** @type {Answer | null} the card in the prompt's place (init's) */
     this.answer = null;
+    /** @type {Checkpoints | null} its prompts' checkpoints: a restore's card in the prompt's place, its row (init's) */
+    this.checkpoints = null;
     /** @type {string | null} the request answered last: shown no more while the hook takes the answer */
     this.answered = null;
     /** @type {number | null} since when the agent asks in its own terminal, no card; since when the chat waits */
@@ -328,6 +332,8 @@ export class Chat {
     this.input.set_auto_grow(1, ROWS);
     this.promptEvents();
     this.answer = new Answer((reply, cx) => this.reply(reply, cx), cx);
+    this.checkpoints = new Checkpoints(([command, ...args]) => this.core(CHECKPOINTS, [command, this.session, ...args],
+      this.folder() || "/", null), () => this.folder(), () => this.input?.focus(), cx);
     this.panelFocus = cx.focus_handle();
     this.listScroll = ScrollHandle.new();
     if (!bound) {
@@ -599,6 +605,8 @@ export class Chat {
    * works or a mode is asked for, every IDLE ms while it waits. */
   look(cx) {
     if (!this.address || this.reading) return;
+    if (this.idle() && this.agentKey === "claude") this.checkpoints?.read(this.steps.length, cx);
+    else if (!this.idle() && this.checkpoints?.card && !this.checkpoints.card.busy) this.checkpoints.close(cx);
     const waiting = ["working", "blocked"].includes(this.agent?.status);
     if (!waiting && !this.wanted && Date.now() - this.read < IDLE) return;
     this.reading = true;
@@ -1646,7 +1654,8 @@ export class Chat {
               this.shown += SHOWN;
               cx.notify();
             }))))
-        .children(this.rows.slice(from).map((_row, n) => this.row(t, code, from + n))))
+        .children(this.rows.slice(from).map((_row, n) => this.row(t, code, from + n)))
+        .when(Boolean(this.checkpoints?.rowWords()), (e) => e.child(this.restored(t))))
       .when(this.back > 0, (e) => e.child(div().absolute().bottom(R.turn).left_0().right_0().flex().justify_center()
         .child(div().id("latest").px(R.inset).py(R.pad).rounded(10).bg(t.raised).border(1).border_color(t.border)
           .text_size(12).cursor_pointer().hover((s) => s.bg(t.hover)).child("Jump to latest")
@@ -1675,7 +1684,8 @@ export class Chat {
   }
 
   /** Under the timeline, as wide as its column: a usage limit near its end and a budget near or past its own (each
-   * closed by its ×), the plan strip, then what Claude waits on in the prompt's place, else the prompt and its bar. */
+   * closed by its ×), the plan strip, then what Claude waits on in the prompt's place (else a restore's card), else the
+   * prompt and its bar. */
   bottom(t, code) {
     const limit = limitNotice(this.status, this.dismissed), budget = budgetNotice(this.budget, this.dismissed);
     const place = bottomLayout(this.carded());
@@ -1696,7 +1706,8 @@ export class Chat {
           (cx) => budget && this.closeBudget(budget.key, cx))))
         .when(Boolean(this.plan), (e) => e.child(this.strip(t)))
         .when(!this.signedOut(), (e) => e.child(this.answer?.card ? this.answer.render(t, code)
-          : this.waits === "terminal" ? this.wayOut(t) : this.prompt(t))));    // signed out: no prompt, as VS Code
+          : this.checkpoints?.card ? this.checkpoints.render(t, code)
+            : this.waits === "terminal" ? this.wayOut(t) : this.prompt(t))));    // signed out: no prompt, as VS Code
   }
 
   /** The plan strip, the task list's one home: folded a line (the step at work, how many are done), pressed it opens
@@ -1765,10 +1776,10 @@ export class Chat {
         }).child(shown ? "Hide terminal" : "Show terminal"));
   }
 
-  /** Whether a card stands in the prompt's place (what Claude waits on, or its asking in its own terminal): a step on
-   * the timeline's line, a step gap under the last one. */
+  /** Whether a card stands in the prompt's place (what Claude waits on, a restore's, or its asking in its own
+   * terminal): a step on the timeline's line, a step gap under the last one. */
   carded() {
-    return Boolean(this.answer?.card) || this.waits === "terminal";
+    return Boolean(this.answer?.card || this.checkpoints?.card) || this.waits === "terminal";
   }
 
   /** The prompt: what is typed, its words while empty (the agent's name; a working one queues a message, Esc stops
@@ -1945,27 +1956,44 @@ export class Chat {
     if (redraw) cx.notify();
   }
 
-  /** Row INDEX in the timeline's column: the person's message boxed, the agent's text with its time, a step on the
-   * line with its dot. */
+  /** INNER in the timeline's column, as wide as the prompt at most, mid-tab. @param {any} inner */
+  column(inner) {
+    return div().w_full().flex().justify_center().px(R.edge).child(div().w_full().max_w(COLUMN).child(inner));
+  }
+
+  /** Whether the chat is idle: its agent neither at work nor waiting on the person (a prompt's checkpoint usable). */
+  idle() {
+    return !["working", "blocked"].includes(this.agent?.status ?? "") && !this.answer?.card && this.waits === null;
+  }
+
+  /** Row INDEX in the timeline's column: the person's message boxed, its time over it (its checkpoint's action beside
+   * it under the mouse), the agent's text with its time, a step on the line with its dot. */
   row(t, code, index) {
     const row = this.rows[index];
-    const column = (/** @type {any} */ inner) => div().w_full().flex().justify_center().px(R.edge)
-      .child(div().w_full().max_w(COLUMN).child(inner));
     if (row.kind === "user") {
       const user = userLayout();
-      return column(v_flex().pt(user.top).pb(user.bottom).gap(user.label)
-        .child(div().text_right().text_size(11).text_color(t.dim).child(clock(row.at)))
+      return this.column(v_flex().id(`user-${index}`).pt(user.top).pb(user.bottom).gap(user.label)
+        .on_hover((over, cx) => this.checkpoints?.hover(index, over, cx))
+        .child(this.checkpoints?.label(t, row, index, this.idle())
+          ?? div().text_right().text_size(11).text_color(t.dim).child(clock(row.at)))
         .child(div().px(user.inset).py(user.boxY).rounded(8).border(1).border_color(t.border).bg(t.chrome)
           .child(row.text)));
     }
     const step = stepLayout(row.kind);
-    return column(h_flex().id(`row-${index}`).items_start().gap(R.gap)
+    return this.column(h_flex().id(`row-${index}`).items_start().gap(R.gap)
       .when(this.opens(index), (e) => e.cursor_pointer().on_click((_e, cx) => {
         this.opened.set(this.key(index), !this.isOpen(index));
         cx.notify();
       }))
       .child(this.dot(t, row, step))
       .child(v_flex().flex_1().min_w(0).py(step.pad).gap(R.inner).child(this.body(t, code, row, index, step))));
+  }
+
+  /** The row after a restore (checkpoint.js's: what was done, its Undo), a step on the timeline's line. */
+  restored(t) {
+    const step = stepLayout("restore");
+    return this.column(h_flex().items_start().gap(R.gap).child(this.dot(t, { kind: "restore" }, step))
+      .child(div().flex_1().min_w(0).py(step.pad).child(this.checkpoints?.row(t, linkInk))));
   }
 
   /** Whether ROW is a call still running: its agent at work, no outcome yet. */
