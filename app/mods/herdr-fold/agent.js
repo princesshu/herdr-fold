@@ -847,7 +847,7 @@ export class AgentView {
   /** Connectors' + pressed: its menu shown or shut, the keys on no row; Codex adds one way: the form at once.
    * @param {boolean} open */
   showWays(open, cx) {
-    const ways = this.found?.connect?.add.menu ?? [];
+    const ways = this.found?.connect?.add?.menu ?? [];
     if (open && ways.length === 1) return this.add(ways[0], cx);
     Object.assign(this, { addMenu: open && ways.length > 0 });
     this.addList.cursor = null;
@@ -899,7 +899,7 @@ export class AgentView {
   submit(cx) {
     const form = this.form, { key, agent, folder } = this;
     if (!form || form.busy || !folder) return;
-    const scoped = (this.found?.connect?.add.scopes ?? []).length > 0;
+    const scoped = (this.found?.connect?.add?.scopes ?? []).length > 0;
     Object.assign(form, { busy: true, error: null });
     cx.notify();
     cx.spawn(async (/** @type {any} */ cx) => {

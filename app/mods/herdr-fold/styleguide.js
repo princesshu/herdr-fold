@@ -167,8 +167,8 @@ const TALKS = [
     pane: "", ago: "2h" },
   { agent: "claude", id: "s4", title: "Login redirect fix", folder: "/work/lumen-api", time: 3, state: "", pane: "",
     ago: "1d" },
-  { agent: "claude", id: "s9", title: "Shelves as tags, a spike", folder: "/work/lumen-api", time: 1, state: "",
-    pane: "", ago: "3w" },
+  { agent: "opencode", id: "ses_9a1b2c3d", title: "Shelves as tags, a spike", folder: "/work/lumen-api", time: 1,
+    state: "", pane: "", ago: "3w" },
   { agent: "codex", id: "s5", title: "Harbor map tiles", folder: "/work/harbor-web", time: 2, state: "idle",
     pane: "t5", ago: "5m" }];
 const PLACES = { "/work/lumen-api": "lumen-api", "/work/harbor-web": "harbor-web" };
@@ -582,6 +582,7 @@ const USED = [{ kind: "skill", id: "s1", name: "api-routes", ok: true, open: fal
 // the app's agents (knownAgents), as a new chat's list offers them: Claude and Codex used last, Aider not installed
 const KNOWN_AGENTS = [{ key: "claude", name: "Claude", icon: ICONS.sparkle, tint: true, run: ["claude"],
   installed: true }, { key: "codex", name: "Codex", icon: ICONS.bot, tint: true, run: ["codex"], installed: true },
+  { key: "opencode", name: "OpenCode", icon: ICONS["square-terminal"], tint: true, run: ["opencode"], installed: true },
   { key: "gemini", name: "Gemini", icon: ICONS.sparkles, tint: true, run: ["gemini"], installed: true },
   { key: "aider", name: "Aider", icon: ICONS.code, tint: true, run: ["aider"], installed: false }];
 // the Agent panel's layers as core words them (agent_layers.py's layers()): Claude in lumen-api as connectors.html's
@@ -721,6 +722,21 @@ const CODEX_LAYERS = { head: headOf("Codex", "in tidepool", "GPT-5.2 Codex · Hi
           ["URL", "mcp.linear.app/mcp", null]], actions: acts(["sign-out", "Sign out", "linear"],
           ["open", "Open config.toml", "/home/dev/.codex/config.toml"], GRAPHED) } }),
       layer("plug", "notion", { tag: "Global", state: said("off", "off"), dim: true, brand: "notion" })])] };
+// OpenCode in tidepool, as core reads it: its instructions, the model its config sets, a server off and one not
+// checked; no Permissions, no + and no Show in graph (core changes and draws nothing of OpenCode's)
+const OPENCODE_LAYERS = { head: headOf("OpenCode", "in tidepool", "Sonnet 5.5 · High · starts at ~2.1k of 1M", []),
+  bar: barOf(2100, 0, 0), error: null, connect: { ...CONNECT, add: null },
+  sections: [
+    sectionOf("rules", "Rules", 2, "2.1k", [
+      layer("file", "~/.config/opencode/AGENTS.md", { tag: "Global", tokens: 900, cost: "900", agents: ["opencode"] }),
+      layer("file", "AGENTS.md", { tag: "Project", tokens: 1200, cost: "1.2k", agents: ["opencode"] })]),
+    sectionOf("connectors", "Connectors", 2, null, [
+      layer("plug", "docs", { tag: "Project", state: said("not checked", "off"), agents: ["opencode"],
+        id: "connector:docs", properties: { lines: [["From", "opencode.json", "Project"],
+          ["URL", "docs.lumen.example/mcp", null]], actions: acts(["open", "Open opencode.json",
+          "/work/tidepool/opencode.json"]) } }),
+      layer("plug", "notion", { tag: "Global", state: said("off", "off"), dim: true, brand: "notion",
+        agents: ["opencode"] })])] };
 // Codex where `codex mcp list` gave no list, as core says it: Connectors one dim row, not read, no count
 const UNLISTED = layer("plug", "Codex's servers", { id: "unread:connectors", state: said("not read", "off"),
   dim: true, agents: ["codex"], properties: { title: "Connectors", text: "`codex mcp list` gave no list, so which "
@@ -875,7 +891,7 @@ const NOT_PERMS = ["rules", "skills", "connectors", "subagents"];
 const LOCAL_SKILL = { layers: savedIn("Local", ["Project", "Local"]), when: "From the next session",
   submit: "Save" };
 // the agents on this Mac as core tells them (agent_state.py agents), as agent-picker.html's list: Claude on Max,
-// Codex on Plus, Gemini CLI to sign in, Aider not installed; OVER changes one, its row in the list as core words it
+// Codex on Plus, OpenCode with no plan to tell, Gemini CLI to sign in, Aider not installed; OVER changes one
 /** @param {string} key @param {string} name @param {Record<string, any>} [over] */
 const machine = (key, name, over = {}) => {
   const one = { key, name, installed: true, signed_in: true, plan: null, login: [key, "login"],
@@ -892,7 +908,8 @@ const NOT_HERE = { kind: "install", title: "Codex is not installed", words: "It 
   foot: "herdr-fold runs no installer.", actions: [{ id: "copy", label: "Copy" },
     { id: "page", label: "Open its page" }] };
 const MACHINE = [machine("claude", "Claude", { plan: "Max" }), machine("codex", "Codex", { plan: "Plus" }),
-  machine("gemini", "Gemini CLI", { signed_in: false, empty: SIGN_IN })];
+  machine("opencode", "OpenCode", { signed_in: null }), machine("gemini", "Gemini CLI", { signed_in: false,
+    empty: SIGN_IN })];
 const KNOWN_MACHINE = [...MACHINE, machine("aider", "Aider", { installed: false })];    // and one not installed
 const PROBLEMS = { tone: "bad", said: "1 failed, 1 sign in" };       // the Agent tab's and the rail's dot
 let agentViews = 0;                   // each drawn panel's own slides (AgentView.slides)
@@ -1245,6 +1262,7 @@ export function guide(proto, cx) {
     ["A narrow panel: the tags left out, the states and the costs kept", agentOf(LAYERS,
       { folded: ["permissions", "skills", "subagents"], px: 280 }), 356, 280],
     ["Codex: its own rules, approval and sandbox, servers", agentOf(CODEX_LAYERS, {}, "codex"), 356],
+    ["OpenCode: its own instructions and servers, read alone", agentOf(OPENCODE_LAYERS, {}, "opencode"), 264],
     ["A file it could not read: why on the head's line, the file its tip", agentOf({ ...LAYERS,
       error: { text: "Couldn't read Claude's setup: permission denied", tip: "~/.claude/settings.json" } },
     { folded: SECTIONS }), 240],
@@ -1524,13 +1542,13 @@ export function guide(proto, cx) {
           "Granular is set in the file"]])]), { touched: false }) }, "codex").draw, 360]],
     // the agents' list and where an agent stands in its setup's place: [name, what draws it, height]
     agentLists: [["The head's chip pressed: the installed agents, Claude shown, Gemini CLI to sign in; then the one "
-      + "not installed, dim", agentOf(LAYERS, { listing: true, agents: KNOWN_MACHINE }).listed, 276],
-    ["The keys on Codex", agentOf(LAYERS, { listing: true, agents: KNOWN_MACHINE, cursor: 1 }).listed, 276],
+      + "not installed, dim", agentOf(LAYERS, { listing: true, agents: KNOWN_MACHINE }).listed, 308],
+    ["The keys on Codex", agentOf(LAYERS, { listing: true, agents: KNOWN_MACHINE, cursor: 1 }).listed, 308],
     ["One not installed looked at: the check its own", agentOf(LAYERS, { listing: true, agents: KNOWN_MACHINE,
-      looking: "aider" }).listed, 276],
-    ["Every agent installed: one group", agentOf(LAYERS, { listing: true, agents: MACHINE }).listed, 204],
+      looking: "aider" }).listed, 308],
+    ["Every agent installed: one group", agentOf(LAYERS, { listing: true, agents: MACHINE }).listed, 236],
     ["A narrow panel, 200: a long name cut, its word kept", agentOf(LAYERS, { listing: true, agents: KNOWN_MACHINE,
-      px: 200 }).listed, 276, 200],
+      px: 200 }).listed, 308, 200],
     ["Before the agents are told", agentOf(LAYERS, { listing: true }).listed, 124]],
     agentStates: [["Gemini CLI, not signed in: Sign in runs its own login in a terminal tab", agentOf(null,
       { agents: MACHINE }, "gemini").draw, 356],

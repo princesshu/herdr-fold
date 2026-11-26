@@ -1240,6 +1240,32 @@ class Reading(unittest.TestCase):
         app.act(Action("choose_agent", ("--help",)), "agent")                   # not an agent: nothing kept
         self.assertEqual(app.settings["agent_chosen"], {self.folder: "gemini"})
 
+    def test_opencode_picked_shows_its_instructions_and_servers_and_no_graph(self):
+        # a stand-in opencode prints its config files as OpenCode 2.4's `debug config` does
+        bin_dir, config = os.path.join(self.home, "bin"), os.path.join(self.folder, "opencode.json")
+        listed = [{"type": "document", "path": config, "info": {"mcp": {"servers": {
+            "docs": {"type": "remote", "url": "https://docs.lumen.example/mcp"}}}}}]
+        self.put(os.path.join(bin_dir, "opencode"), f"#!/bin/sh\necho '{json.dumps(listed)}'\n")
+        os.chmod(os.path.join(bin_dir, "opencode"), 0o755)
+        self.put(os.path.join(self.folder, "AGENTS.md"), "# lumen-api\n")
+        set_attrs(self, agent_setup, find=lambda name: shutil.which(name, path=bin_dir))
+        set_env(self, XDG_CONFIG_HOME=None, OPENCODE_DISABLE_CLAUDE_CODE_PROMPT=None, OPENCODE_DISABLE_CLAUDE_CODE=None)
+        self.machine.append({key: value for key, value in machine("opencode", "OpenCode", signed_in=None).items()
+                             if key != "empty"})
+        app = self.app()
+        self.read(app)
+        app.act(Action("choose_agent", ("opencode",)), "agent")
+        end_jobs()
+        app.collect()
+        answer = app.views["agent"].answer
+        self.assertEqual((answer["agent"], answer["head"]["name"], [s["id"] for s in answer["sections"]]),
+                         ("opencode", "OpenCode", ["rules", "connectors"]))
+        self.assertEqual([r["name"] for r in answer["sections"][0]["rows"]], ["AGENTS.md"])   # its own: not CLAUDE.md
+        self.assertEqual([r["name"] for r in answer["sections"][1]["rows"]], ["docs"])
+        self.assertEqual([u["key"] for u in answer["usage"]["rows"]], ["opencode"])
+        self.assertEqual(answer["usage"]["rows"][0]["untold"]["why"], usage.WHY["opencode"])
+        self.assertFalse(app.views["agent"].graphs())
+
     def test_sign_in_runs_the_agents_own_login_in_a_tab_and_asks_again_till_it_is_in(self):
         now, opened = [100.0], []
         app = sidebar.App(self.folder, FakeTerminal(WIDE, 40), mock.Mock(call=lambda *args: {}), self.state,
@@ -1472,6 +1498,11 @@ class Connectors(unittest.TestCase):
         codex = layers.Layers(icons=True)
         codex.set({**lumen(), "agent": "codex", "connect": A.connecting("codex", "/work/lumen-api")})
         self.assertEqual(codex.menu_lines(), ["Open Runs", "Show graph", "Add by URL…", "Refresh"])  # no claude.ai
+        # OpenCode: its setup read, no graph drawn of it, nothing added to it from here
+        opencode = layers.Layers(icons=True)
+        opencode.set({**lumen(), "agent": "opencode", "connect": A.connecting("opencode", "/work/lumen-api")})
+        self.assertEqual(opencode.menu_lines(), ["Open Runs", "Refresh"])
+        self.assertIsNone(opencode.handle(Key("char", "g")))
         for none in (None, {**lumen(), "agents": MACHINE, "empty": MACHINE[2]["empty"]}):
             empty = layers.Layers(icons=True)
             if none:

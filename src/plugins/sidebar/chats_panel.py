@@ -21,7 +21,7 @@ from fileops import system_clipboard
 POLL = 1.0                    # seconds between two looks at the chats
 AWAY = 10.0                   # the same while closed: the ✦'s count and reopened panes cleared all the same
 TAB_NAME = 24                 # characters of a chat's name on its tab, as AI Sessions puts it there
-SESSION = re.compile(r"[0-9A-Za-z][0-9A-Za-z._-]*")     # a chat's id, as claude --resume and codex resume take
+SESSION = re.compile(r"[0-9A-Za-z][0-9A-Za-z._-]*")     # a chat's id, as each agent's CLI takes it to reopen
 
 
 def tab_name(name):
@@ -172,10 +172,9 @@ class Chats(Family):
     def copy(self, item):
         """On the job's thread: ITEM's whole chat on the clipboard as Markdown, formatted beside it on a Mac;
         the text back when there is no clipboard program (the terminal's own carries it then)."""
-        paths = chats.session_files(item.agent, item.id)
-        if not paths:
+        text = chats.markdown(item)
+        if text is None:
             raise RuntimeError("its file is gone")
-        text = chats.markdown(item, paths[0])
         if not self.clipboard(text):
             return text
         if sys.platform == "darwin":
@@ -235,8 +234,9 @@ class Chats(Family):
         else:
             self.host.note = "Moved to the Trash"
 
-    def do_no_delete(self, _item):
-        self.host.note = "A running chat is not deleted"
+    def do_no_delete(self, item):
+        self.host.note = "A running chat is not deleted" if item.state else \
+            f"{chats.NAMES[item.agent]} keeps its chats in its own database: delete it there"
 
     def do_rename(self, item, name):
         """ITEM named NAME by hand, as herdr's Rename pane names one: AI Sessions keeps it and shows it too, a
@@ -346,10 +346,9 @@ class Chats(Family):
         pane = made["root_pane"]["pane_id"]
         call("pane", "rename", pane, item.agent)       # named, so the new-tab plugin leaves it alone
         panes.build(call, pane, item.folder, state)    # the right column, as elsewhere
-        resume = ["--resume", item.id] if item.agent == "claude" else ["resume", item.id]
         panes.resume(state, pane, item.id)             # its row marked before herdr knows the session
         call("agent", "start", f"{item.agent}-{item.id[:8]}", "--kind", item.agent, "--pane", pane, "--timeout",
-             "60000", "--", *resume)
+             "60000", "--", chats.RESUME[item.agent], item.id)
         if chats.manual_names().get(item.id) == item.title:           # a name given in herdr goes back on its pane
             call("pane", "rename", pane, preview.label(item.title))
         call("tab", "focus", made["tab"]["tab_id"])

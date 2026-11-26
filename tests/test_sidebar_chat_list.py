@@ -24,6 +24,7 @@ REVIEW = Chat("codex", "c2", "Review the API", "/repo/api", NOW - 600, "done", "
 OLD = Chat("claude", "s3", "Old notes", "/notes", NOW - 30 * 86400)
 STRAY = Chat("claude", "s4", "Somewhere else", "/tmp/other", NOW)
 DRAFT = Chat("claude", "s5", "Draft the README", "/repo/shop", NOW - 9000)
+PROBE = Chat("opencode", "ses_b2", "Readiness probe", "/repo/shop", NOW - 5000)     # a row of OpenCode's database
 PLACES = {"/repo/shop": "shop", "/repo/api": "api", "/notes": "notes"}
 SPACES = ["notes", "shop", "api", "empty"]                   # as the Spaces list has them
 HEADER = 3                                                   # the filter, tall as the dock's other fields
@@ -427,6 +428,19 @@ class List(unittest.TestCase):
         self.assertIsNone(self.view.confirm)
         self.view.list.index = self.row_of("shop") - HEADER                 # a space: nothing
         self.assertIsNone(self.press("delete"))
+        self.assertIsNone(self.view.confirm)
+
+    def test_an_opencode_chat_is_archived_never_deleted_here(self):
+        # OpenCode keeps its chats in its database, no file of its own to move to the Trash
+        self.view.set([LOGIN, PROBE, PRICES], SPACES, PLACES.get, "shop")
+        self.draw()
+        self.assertTrue(text(self.canvas, self.row_of("Readiness probe")).rstrip().endswith("OpenCode  1h"))
+        _, shown = self.menu_of("Readiness probe")
+        self.assertEqual(shown, ["Open", "Copy chat", "Rename", "Archive"])
+        self.press("esc")
+        self.draw()
+        self.view.list.index = self.row_of("Readiness probe") - HEADER
+        self.assertEqual(self.press("delete"), Action("no_delete", (PROBE,)))
         self.assertIsNone(self.view.confirm)
 
     def test_once_something_is_typed_delete_edits_the_filter(self):

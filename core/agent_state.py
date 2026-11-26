@@ -38,6 +38,8 @@ HOW = {"claude": {"program": "claude", "login": ["claude", "auth", "login"],
                   "page": "https://code.claude.com/docs/en/setup"},
        "codex": {"program": "codex", "login": ["codex", "login"], "install": "npm install -g @openai/codex",
                  "page": "https://developers.openai.com/codex/cli"},
+       "opencode": {"program": "opencode", "login": ["opencode", "auth", "login"],
+                    "install": "npm install -g @opencode/cli", "page": "https://opencode.ai/docs/"},
        "gemini": {"program": "gemini", "login": ["gemini"], "install": "npm install -g @google/gemini-cli",
                   "page": "https://github.com/google-gemini/gemini-cli"}}
 # the head's list in both clients' words: its two groups' heads (beside one signed out: agent_setup.py's sign in)
@@ -93,6 +95,18 @@ def codex_state(binary, home):
     return code == 0, (API_KEY if on_key else codex_plan(home)) if code == 0 else None
 
 
+def opencode_state(binary):
+    """Whether OpenCode is signed in: True where `opencode auth list --format json` (a private server's, never its
+    background service) names an integration, a stored credential or a key in the environment; else None, as its free
+    models need neither. No plan told."""
+    try:
+        code, out, _ = setup.run([binary, "auth", "list", "--format", "json", "--standalone"])
+        told = json.loads(out) if code == 0 else None
+    except (OSError, subprocess.TimeoutExpired, ValueError, RecursionError):
+        return None, None
+    return (True if isinstance(told, list) and told else None), None
+
+
 def machine_agents(home, which=None, fresh=False):
     """The agents herdr-fold knows, in its order: installed (WHICH finds its program; else the usual places), signed in
     and on which plan (None where it does not tell: Gemini CLI's never does), how it signs in and is installed. An
@@ -101,11 +115,11 @@ def machine_agents(home, which=None, fresh=False):
     for key, known in setup.KNOWN.items():
         how = HOW[key]
         binary, state = (which or setup.find)(how["program"]), (None, None)
-        if binary and key in ("claude", "codex"):
+        if binary and key in ("claude", "codex", "opencode"):
             kept = KEPT.get(binary)
             if fresh or not kept or time.monotonic() - kept[0] >= KEEP:
                 kept = KEPT[binary] = (time.monotonic(), claude_state(binary) if key == "claude" else
-                                       codex_state(binary, home))
+                                       codex_state(binary, home) if key == "codex" else opencode_state(binary))
             state = kept[1]
         found.append({"key": key, "name": known["name"], "installed": bool(binary), "signed_in": state[0],
                       "plan": state[1], "login": list(how["login"]), "install": how["install"],

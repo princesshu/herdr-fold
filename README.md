@@ -22,15 +22,15 @@ Codex's month against its budget and what each space cost, above a terminal](ass
 
 ## What you get
 
-- One space per repo: Claude or Codex on the left; on the right, a sidebar (Files, Search, Changes (git), for a
-  repo on GitHub Issues, and Agent) above a terminal. An issue goes to the agent in one key, and the next commit
+- One space per repo: Claude, Codex or OpenCode on the left; on the right, a sidebar (Files, Search, Changes (git),
+  for a repo on GitHub Issues, and Agent) above a terminal. An issue goes to the agent in one key, and the next commit
   closes it; a file the agent names opens at its line in one key too, and a picture or a PDF shows as it looks.
 
   ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with a message,
   the issue it fixes and the Graph, Issues by priority](assets/screenshots/tui-sidebar.webp)
 
-- Chats over the sidebar, a click or Cmd + Shift + R away: every space's Claude and Codex chats, running and
-  closed.
+- Chats over the sidebar, a click or Cmd + Shift + R away: every space's Claude, Codex and OpenCode chats,
+  running and closed.
 - The agent's setup, shown and changed, with its limits, costs and graph: [The agent's harness](docs/harness.md).
 - AI Sessions in herdr's sidebar, with each chat's state, and in the Spaces list how long an agent has waited
   on you. Cmd + D / Cmd + E step through the sessions, Cmd with the arrows through the spaces and the panes, even

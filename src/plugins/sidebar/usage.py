@@ -31,7 +31,8 @@ API_KEY = "API key"             # agent_state.py's word for a plan on an API key
 UNTOLD = "limits not told"      # the current agent's row with no reading: said in its place, why in its properties
 WHY = {"claude": "Claude tells its limits to herdr-fold's status line and to its own cache: neither holds a reading "
                  "yet.",
-       "codex": "Codex tells its limits in a chat's token counts: none of its newest chats holds one yet."}
+       "codex": "Codex tells its limits in a chat's token counts: none of its newest chats holds one yet.",
+       "opencode": "OpenCode tells no plan's limits on this machine: its stats count tokens and cost alone."}
 SOON = 12 * 3600                # a reset nearer than this names its time alone, a later one its day too
 SAME = 3600                     # resets this close are one window's: the next resets a window's length later at least
 STAMP = re.compile(r"(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d):(\d\d)(?:\.\d*)?(Z|[+-]\d\d:?\d\d)?$")

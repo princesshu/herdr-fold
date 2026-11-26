@@ -399,8 +399,9 @@ export const AGENT_LAYERS = [
   "'LINE_NAME = re.compile(r\"[^\\\\s:]+\")',",
   "'GENERAL = \"general-purpose\"',",
   "'TOLD = (b\\'\"deferred_tools_delta\"\\', b\\'\"mcp_instructions_delta\"\\', b\\'\"compact_boundary\"\\')',",
-  "'KNOWN = {\"claude\": {\"name\": \"Claude\"}, \"codex\": {\"name\": \"Codex\"}, \"gemini\": {\"name\": " +
-    "\"Gemini CLI\"}}',",
+  "'KNOWN = {\"claude\": {\"name\": \"Claude\"}, \"codex\": {\"name\": \"Codex\"}, \"opencode\": {\"name\": " +
+    "\"OpenCode\"},',",
+  "'         \"gemini\": {\"name\": \"Gemini CLI\"}}',",
   "'MODE_WORDS = {\"default\": \"Manual\", \"manual\": \"Manual\", \"acceptEdits\": \"Edit automatically\", " +
     "\"plan\": \"Plan\",',",
   "'              \"auto\": \"Auto\", \"dontAsk\": \"Don\\'t ask\", \"bypassPermissions\": \"Bypass " +
@@ -1342,10 +1343,10 @@ export const AGENT_LAYERS = [
   "'from agent_setup import (APPROVALS, BEHAVIORS, BUILT_IN, CLAUDE, CLAUDE_AI, EFFORTS, FAILED, GLOBAL,',",
   "'                         HERDR_FOLD, KNOWN, LINE, MANAGED, MODE_WORDS, NOT_APPROVED, NOT_CHECKED, OFF, " +
     "OFF_HERE, ON,',",
-  "'                         PENDING, PROJECT, READ_ONLY, SANDBOXES, SIGN_IN, clean, inside, mode_told, " +
+  "'                         PENDING, PROJECT, READ, READ_ONLY, SANDBOXES, SIGN_IN, clean, inside, mode_told, " +
     "plugged,',",
   "'                         read_text, shown)',",
-  "'from connectors import CLAUDE_AI as CLAUDE_PAGE, logout',",
+  "'from connectors import AGENTS as ADDS, CLAUDE_AI as CLAUDE_PAGE, logout',",
   "'from jsonl import obj',",
   "'SECTIONS = ((\"subagents\", \"Subagents\"), (\"rules\", \"Rules\"), (\"skills\", \"Skills\"), " +
     "(\"permissions\", \"Permissions\"),',",
@@ -1364,6 +1365,7 @@ export const AGENT_LAYERS = [
   "'FIRST_LINES = 3',",
   "'NAMED = 3',",
   "'PATH_IN = re.compile(r\"\"\"[\\'\"]?((?:~|\\\\.{1,2})?/[^\\\\s\\'\":,;()]+)[\\'\"]?\"\"\")',",
+  "'LISTS = {\"codex\": \"codex mcp list\", \"opencode\": \"opencode debug config\"}',",
   "'def tag(one):',",
   "'    return one[\"source\"] if one[\"scope\"] != DEFAULT and (plugged(one) or one.get(\"source\") == " +
     "CLAUDE_AI) \\\\',",
@@ -1456,6 +1458,8 @@ export const AGENT_LAYERS = [
   "'    return rows',",
   "'def permission_rows(setup, agent, folder, home):',",
   "'    table, rows, box, codex = setup[\"permissions\"], [], setup[\"sandbox\"], agent == \"codex\"',",
+  "'    if table is None:',",
+  "'        return rows',",
   "'    own = {\"scope\": DEFAULT, \"source\": f\"{KNOWN[agent][\\'name\\']}\\'s default\", \"path\": None}',",
   "'    told = (table[\"told\"] if table[\"mode\"] in APPROVALS else None) if codex else mode_told(folder, " +
     "home)',",
@@ -1549,7 +1553,7 @@ export const AGENT_LAYERS = [
   "'    return rows',",
   "'def server_actions(one, agent, folder, home):',",
   "'    state, name, here = one[\"state\"], one[\"name\"], os.path.basename(os.path.abspath(folder))',",
-  "'    files = opened([one[\"path\"]], folder, home) if one[\"path\"] and (agent == \"codex\" or " +
+  "'    files = opened([one[\"path\"]], folder, home) if one[\"path\"] and (agent != \"claude\" or " +
     "one[\"source\"] in (',",
   "'        PROJECT, MANAGED)) else []',",
   "'    off = act(\"turn-off\", f\"Turn off in {here}\", server=name)',",
@@ -1576,7 +1580,7 @@ export const AGENT_LAYERS = [
   "'    if setup.get(\"unlisted\"):',",
   "'        return [layer(\"unread:connectors\", \"plug\", f\"{KNOWN[agent][\\'name\\']}\\'s servers\", " +
     "properties(',",
-  "'            \"Connectors\", NOT_READ, text=f\"`{agent} mcp list` gave no list, so which servers " +
+  "'            \"Connectors\", NOT_READ, text=f\"`{LISTS[agent]}` gave no list, so which servers " +
     "{KNOWN[agent][\\'name\\']} \"',",
   "'            \"has is not known here.\"), state=NOT_READ, agents=[agent], dim=True)]',",
   "'    rank, rows = {state: n for n, (state, _, _) in enumerate(PROBLEMS)}, []',",
@@ -1611,7 +1615,8 @@ export const AGENT_LAYERS = [
   "'                    \"fields\": {\"name\": \"Name\", \"url\": \"URL\", \"scope\": \"For\"},',",
   "'                    \"scopes\": [{\"id\": \"local\", \"label\": here}, {\"id\": \"user\", \"label\": \"All " +
     "projects\"}] if claude',",
-  "'                    else [], \"submit\": \"Add and connect\", \"cancel\": \"Cancel\"}}',",
+  "'                    else [], \"submit\": \"Add and connect\", \"cancel\": \"Cancel\"} if agent in ADDS " +
+    "else None}',",
   "'def head(setup, agent, folder, parts):',",
   "'    start, told = setup[\"start\"], setup[\"model\"]',",
   "'    ran, measured = start[\"model\"], start[\"tokens\"] is not None',",
@@ -1647,9 +1652,9 @@ export const AGENT_LAYERS = [
   "'        groups = [{\"id\": \"hooks\", \"title\": \"Hooks\", \"count\": len(hooks), \"rows\": hooks,',",
   "'                   \"state\": None if setup[\"hooks\"] else OFF_STATE}] if hooks else []',",
   "'        for row in rows + [one for group in groups for one in group[\"rows\"]]:',",
-  "'            if row[\"id\"].split(\":\")[0] in (\"rule\", \"skill\", \"connector\", \"hook\") or " +
-    "row[\"id\"].startswith(',",
-  "'                    \"subagent:\") and row[\"id\"] != \"subagent:built-in\":',",
+  "'            if agent in READ and (row[\"id\"].split(\":\")[0] in (\"rule\", \"skill\", \"connector\", " +
+    "\"hook\") or row[',",
+  "'                    \"id\"].startswith(\"subagent:\") and row[\"id\"] != \"subagent:built-in\"):',",
   "'                acts = row[\"properties\"][\"actions\"]',",
   "'                acts.append({**act(\"graph\", \"Show in graph\"), \"primary\": not acts})',",
   "'        loads = [row[\"tokens\"] for row in rows if row[\"tokens\"] is not None and not row[\"dim\"]]',",
@@ -1678,11 +1683,90 @@ export const AGENT_LAYERS = [
   "'                      \"tip\": \", \".join(files)} if files else None,',",
   "'            \"sections\": sections, \"connect\": connecting(agent, folder)}',",
   "]), _sys.modules['agent_layers'].__dict__)",
+  "_sys.modules['opencode_setup'] = _types.ModuleType('opencode_setup')",
+  "exec('\\n'.join([",
+  "'import json',",
+  "'import os',",
+  "'import subprocess',",
+  "'import sys',",
+  "'sys.dont_write_bytecode = True',",
+  "'import agent_setup',",
+  "'from agent_setup import (EFFORTS, GLOBAL, LOCAL, MANAGED, NOT_CHECKED, OFF, PROJECT, ancestors, inside,',",
+  "'                         read_text, repo_top, server, strings, tokens, unread)',",
+  "'from jsonl import obj',",
+  "'SYSTEM = \"/Library/Application Support/opencode\" if sys.platform == \"darwin\" else \"/etc/opencode\"',",
+  "'KINDS = {\"local\": \"stdio\", \"remote\": \"http\"}',",
+  "'NO_CLAUDE = (\"OPENCODE_DISABLE_CLAUDE_CODE_PROMPT\", \"OPENCODE_DISABLE_CLAUDE_CODE\")',",
+  "'def config_home(home):',",
+  "'    return os.path.join(os.environ.get(\"XDG_CONFIG_HOME\") or os.path.join(home, \".config\"), " +
+    "\"opencode\")',",
+  "'def rule_paths(folder, home):',",
+  "'    claude = not any(os.environ.get(name, \"\").lower() in (\"1\", \"true\") for name in NO_CLAUDE)',",
+  "'    names = (\"AGENTS.md\", \"CLAUDE.md\") if claude else (\"AGENTS.md\",)',",
+  "'    own = [os.path.join(config_home(home), \"AGENTS.md\")] + [os.path.join(home, \".claude\", " +
+    "\"CLAUDE.md\")] * claude',",
+  "'    found = [(path, GLOBAL) for path in own if os.path.isfile(path)][:1]',",
+  "'    folder, home = os.path.abspath(folder), os.path.abspath(home)',",
+  "'    stop = home if folder == home or inside(folder, home) else repo_top(folder) or folder',",
+  "'    for here in reversed(ancestors(folder)):',",
+  "'        found += [(path, PROJECT) for path in (os.path.join(here, name) for name in names) if " +
+    "os.path.isfile(path)][:1]',",
+  "'        if here == stop:',",
+  "'            break',",
+  "'    return list(dict.fromkeys(found))',",
+  "'def documents(binary, folder):',",
+  "'    try:',",
+  "'        code, out, _ = agent_setup.run([binary, \"debug\", \"config\", \"--standalone\"], folder)',",
+  "'        listed = json.loads(out) if code == 0 else None',",
+  "'    except (OSError, subprocess.TimeoutExpired, ValueError, RecursionError):',",
+  "'        return None',",
+  "'    if not isinstance(listed, list):',",
+  "'        return None',",
+  "'    return [(one[\"path\"], obj(one.get(\"info\"))) for one in map(obj, listed)',",
+  "'            if one.get(\"type\") == \"document\" and isinstance(one.get(\"path\"), str) and " +
+    "os.path.isabs(one[\"path\"])]',",
+  "'def scope(path, home):',",
+  "'    own = config_home(home)',",
+  "'    if inside(path, own):',",
+  "'        return LOCAL if inside(path, os.path.join(own, \"project\")) else GLOBAL',",
+  "'    return MANAGED if inside(path, SYSTEM) else PROJECT',",
+  "'def servers(found, home):',",
+  "'    rows = {}',",
+  "'    for path, info in found:',",
+  "'        for name, config in obj(obj(info.get(\"mcp\")).get(\"servers\")).items():',",
+  "'            config, where = obj(config), scope(path, home)',",
+  "'            command = strings(config.get(\"command\"))',",
+  "'            one = server(name, {\"type\": KINDS.get(config.get(\"type\"), \"none\"), \"command\": " +
+    "command[0] if command else',",
+  "'                                None, \"args\": command[1:], \"url\": config.get(\"url\")}, where, where, " +
+    "path)',",
+  "'            if one:',",
+  "'                rows[name] = {**one, \"state\": OFF if config.get(\"disabled\") is True else NOT_CHECKED}',",
+  "'    return [rows[name] for name in sorted(rows, key=str.casefold)]',",
+  "'def setup(folder, home):',",
+  "'    binary = agent_setup.find(\"opencode\")',",
+  "'    if not binary:',",
+  "'        return None',",
+  "'    found, places = documents(binary, folder), rule_paths(folder, home)',",
+  "'    texts = [(path, where, read_text(path)) for path, where in places]',",
+  "'    picked = next((obj(info[\"model\"]) for _, info in reversed(found or []) if " +
+    "obj(info.get(\"model\")).get(\"model\")), {})',",
+  "'    model, variant = picked.get(\"model\"), picked.get(\"variant\")',",
+  "'    return {\"model\": model if isinstance(model, str) else None, \"effort\": variant if variant in " +
+    "EFFORTS else None,',",
+  "'            \"skills\": [], \"rules\": [{\"path\": path, \"scope\": where, \"tokens\": tokens(text), " +
+    "\"paths\": [], \"via\": None}',",
+  "'                      for path, where, text in texts if text is not None],',",
+  "'            \"permissions\": None, \"sandbox\": None, \"hooks\": [], \"agents\": [], \"servers\": " +
+    "servers(found or [], home),',",
+  "'            \"unlisted\": found is None, \"use\": {}, \"unread\": unread([path for path, _ in places]),',",
+  "'            \"start\": dict.fromkeys((\"tokens\", \"model\", \"window\", \"effort\"))}',",
+  "]), _sys.modules['opencode_setup'].__dict__)",
   "\"\"\"The command the Herdr app mod runs for the Agent panel's layers (agent_layers.py's, with Claude's own " +
     "looks over",
   "its servers), a module of its own: graph.py's helper, which draws from those layers, does not carry it. " +
     "Usage (in",
-  "JSON): agent_layers_cli.py claude FOLDER [SESSION] [--checked JSON] | codex FOLDER.\"\"\"",
+  "JSON): agent_layers_cli.py claude FOLDER [SESSION] [--checked JSON] | codex FOLDER | opencode FOLDER.\"\"\"",
   "import json",
   "import os",
   "import sys",
@@ -1691,6 +1775,7 @@ export const AGENT_LAYERS = [
   "from agent_layers import SAID_AS, layers  # noqa: E402",
   "from agent_setup import clean, conversation, setup  # noqa: E402",
   "from jsonl import obj  # noqa: E402",
+  "import opencode_setup  # noqa: E402",
   "",
   "",
   "def checked_over(servers, checked):",
@@ -1706,29 +1791,32 @@ export const AGENT_LAYERS = [
   "",
   "",
   "def main(argv):",
-  "    \"\"\"The Herdr app mod runs this on the space's machine, answering in JSON: claude FOLDER [SESSION] " +
-    "and codex FOLDER",
-  "    (the Agent panel's layers, \"states\" each server's own; SESSION a file or an id, else the newest; " +
-    "Claude's may end",
-  "    with --checked JSON).\"\"\"",
+  "    \"\"\"The Herdr app mod runs this on the space's machine, answering in JSON: claude FOLDER [SESSION], " +
+    "codex FOLDER and",
+  "    opencode FOLDER (the Agent panel's layers, \"states\" each server's own; SESSION a file or an id, else " +
+    "the newest;",
+  "    Claude's may end with --checked JSON).\"\"\"",
   "    home, checked = os.path.expanduser(\"~\"), {}",
   "    if argv[1:2] == [\"claude\"] and argv[-2:-1] == [\"--checked\"] and len(argv) in (5, 6):",
   "        try:",
   "            argv, checked = argv[:-2], json.loads(argv[-1])",
   "        except ValueError:",
   "            argv = argv[:1]                         # not JSON: the usage",
-  "    if argv[1:2] == [\"claude\"] and len(argv) in (3, 4) or argv[1:2] == [\"codex\"] and len(argv) == 3:",
+  "    if argv[1:2] == [\"claude\"] and len(argv) in (3, 4) or argv[1:2] in ([\"codex\"], [\"opencode\"]) and " +
+    "len(argv) == 3:",
   "        session = conversation(argv[2], argv[3] if len(argv) == 4 else None, home) if argv[1] == \"claude\" " +
     "else None",
-  "        found = setup(argv[1], argv[2], home, session)",
+  "        found = opencode_setup.setup(argv[2], home) if argv[1] == \"opencode\" else setup(argv[1], argv[2], " +
+    "home, session)",
   "        states = {one[\"name\"]: one[\"state\"] for one in found[\"servers\"]} if found else {}",
   "        if found:",
   "            checked_over(found[\"servers\"], checked)",
   "        print(json.dumps(found and {\"agent\": argv[1], \"folder\": argv[2], \"states\": states,",
   "                                    **layers(found, argv[1], argv[2], home)}))",
   "        return 0",
-  "    print(\"usage: agent_layers_cli.py claude FOLDER [SESSION] [--checked JSON] | codex FOLDER\", " +
-    "file=sys.stderr)",
+  "    print(\"usage: agent_layers_cli.py claude FOLDER [SESSION] [--checked JSON] | codex FOLDER | opencode " +
+    "FOLDER\",",
+  "          file=sys.stderr)",
   "    return 2",
   "",
   "",
@@ -2157,8 +2245,9 @@ export const AGENT_SETUP = [
     "starting both over",
   "TOLD = (b'\"deferred_tools_delta\"', b'\"mcp_instructions_delta\"', b'\"compact_boundary\"')",
   "# the agents herdr-fold knows, in its order (agent_state.py's HOW: each one's program, sign-in and install)",
-  "KNOWN = {\"claude\": {\"name\": \"Claude\"}, \"codex\": {\"name\": \"Codex\"}, \"gemini\": {\"name\": " +
-    "\"Gemini CLI\"}}",
+  "KNOWN = {\"claude\": {\"name\": \"Claude\"}, \"codex\": {\"name\": \"Codex\"}, \"opencode\": {\"name\": " +
+    "\"OpenCode\"},",
+  "         \"gemini\": {\"name\": \"Gemini CLI\"}}",
   "# a mode in the chat's words",
   "MODE_WORDS = {\"default\": \"Manual\", \"manual\": \"Manual\", \"acceptEdits\": \"Edit automatically\", " +
     "\"plan\": \"Plan\",",
@@ -3925,8 +4014,9 @@ export const AGENT_STATE = [
   "'LINE_NAME = re.compile(r\"[^\\\\s:]+\")',",
   "'GENERAL = \"general-purpose\"',",
   "'TOLD = (b\\'\"deferred_tools_delta\"\\', b\\'\"mcp_instructions_delta\"\\', b\\'\"compact_boundary\"\\')',",
-  "'KNOWN = {\"claude\": {\"name\": \"Claude\"}, \"codex\": {\"name\": \"Codex\"}, \"gemini\": {\"name\": " +
-    "\"Gemini CLI\"}}',",
+  "'KNOWN = {\"claude\": {\"name\": \"Claude\"}, \"codex\": {\"name\": \"Codex\"}, \"opencode\": {\"name\": " +
+    "\"OpenCode\"},',",
+  "'         \"gemini\": {\"name\": \"Gemini CLI\"}}',",
   "'MODE_WORDS = {\"default\": \"Manual\", \"manual\": \"Manual\", \"acceptEdits\": \"Edit automatically\", " +
     "\"plan\": \"Plan\",',",
   "'              \"auto\": \"Auto\", \"dontAsk\": \"Don\\'t ask\", \"bypassPermissions\": \"Bypass " +
@@ -4908,6 +4998,8 @@ export const AGENT_STATE = [
   "       \"codex\": {\"program\": \"codex\", \"login\": [\"codex\", \"login\"], \"install\": \"npm install -g " +
     "@openai/codex\",",
   "                 \"page\": \"https://developers.openai.com/codex/cli\"},",
+  "       \"opencode\": {\"program\": \"opencode\", \"login\": [\"opencode\", \"auth\", \"login\"],",
+  "                    \"install\": \"npm install -g @opencode/cli\", \"page\": \"https://opencode.ai/docs/\"},",
   "       \"gemini\": {\"program\": \"gemini\", \"login\": [\"gemini\"], \"install\": \"npm install -g " +
     "@google/gemini-cli\",",
   "                  \"page\": \"https://github.com/google-gemini/gemini-cli\"}}",
@@ -4974,6 +5066,20 @@ export const AGENT_STATE = [
   "    return code == 0, (API_KEY if on_key else codex_plan(home)) if code == 0 else None",
   "",
   "",
+  "def opencode_state(binary):",
+  "    \"\"\"Whether OpenCode is signed in: True where `opencode auth list --format json` (a private server's, " +
+    "never its",
+  "    background service) names an integration, a stored credential or a key in the environment; else None, " +
+    "as its free",
+  "    models need neither. No plan told.\"\"\"",
+  "    try:",
+  "        code, out, _ = setup.run([binary, \"auth\", \"list\", \"--format\", \"json\", \"--standalone\"])",
+  "        told = json.loads(out) if code == 0 else None",
+  "    except (OSError, subprocess.TimeoutExpired, ValueError, RecursionError):",
+  "        return None, None",
+  "    return (True if isinstance(told, list) and told else None), None",
+  "",
+  "",
   "def machine_agents(home, which=None, fresh=False):",
   "    \"\"\"The agents herdr-fold knows, in its order: installed (WHICH finds its program; else the usual " +
     "places), signed in",
@@ -4984,11 +5090,12 @@ export const AGENT_STATE = [
   "    for key, known in setup.KNOWN.items():",
   "        how = HOW[key]",
   "        binary, state = (which or setup.find)(how[\"program\"]), (None, None)",
-  "        if binary and key in (\"claude\", \"codex\"):",
+  "        if binary and key in (\"claude\", \"codex\", \"opencode\"):",
   "            kept = KEPT.get(binary)",
   "            if fresh or not kept or time.monotonic() - kept[0] >= KEEP:",
   "                kept = KEPT[binary] = (time.monotonic(), claude_state(binary) if key == \"claude\" else",
-  "                                       codex_state(binary, home))",
+  "                                       codex_state(binary, home) if key == \"codex\" else " +
+    "opencode_state(binary))",
   "            state = kept[1]",
   "        found.append({\"key\": key, \"name\": known[\"name\"], \"installed\": bool(binary), \"signed_in\": " +
     "state[0],",
@@ -5593,9 +5700,11 @@ export const CHAT = [
   "'import glob',",
   "'import json',",
   "'import os',",
+  "'import sqlite3',",
   "'import stat',",
   "'import sys',",
   "'import unicodedata',",
+  "'import urllib.parse',",
   "'from dataclasses import asdict, dataclass, replace',",
   "'sys.dont_write_bytecode = True',",
   "'import fileops',",
@@ -5611,6 +5720,19 @@ export const CHAT = [
   "'FIRST_LINE = 1 << 20',",
   "'TAIL = 8 << 20',",
   "'NOT_A_PROMPT = (\"<\", \"# AGENTS.md\", \"[Request interrupted\")',",
+  "'NAMES = {\"claude\": \"Claude\", \"codex\": \"Codex\", \"opencode\": \"OpenCode\"}',",
+  "'RESUME = {\"claude\": \"--resume\", \"codex\": \"resume\", \"opencode\": \"--session\"}',",
+  "'TRASHED = (\"claude\", \"codex\")',",
+  "'OPENCODE_CHATS = (\"select id, title, directory, time_updated, (select data from session_message where " +
+    "session_id = \"',",
+  "'                  \"s.id and type = \\'user\\' order by seq limit 1) from session_v2 s where parent_id is " +
+    "null and \"',",
+  "'                  \"time_archived is null\")',",
+  "'OPENCODE_TURNS = (\"select m.id, m.type, m.data, p.data from session_message m left join session_part p on " +
+    "\"',",
+  "'                  \"p.message_id = m.id and p.type = \\'text\\' where m.session_id = ? and m.type in " +
+    "(\\'user\\', \\'assistant\\') \"',",
+  "'                  \"order by m.seq, p.ordinal\")',",
   "'@dataclass(frozen=True)',",
   "'class Chat:',",
   "'    agent: str',",
@@ -5711,10 +5833,17 @@ export const CHAT = [
   "'        for text in texts:',",
   "'            if text.strip() and not (role == \"user\" and text.lstrip().startswith(NOT_A_PROMPT)):',",
   "'                yield role, text',",
-  "'def markdown(item, path):',",
-  "'    who = {\"user\": \"You\", \"assistant\": item.agent.capitalize()}',",
+  "'def markdown(item):',",
+  "'    if item.agent == \"opencode\":',",
+  "'        said = list(opencode_messages(item.id))',",
+  "'    else:',",
+  "'        paths = session_files(item.agent, item.id)',",
+  "'        said = list(messages(item.agent, paths[0])) if paths else []',",
+  "'    if not said:',",
+  "'        return None',",
+  "'    who = {\"user\": \"You\", \"assistant\": NAMES[item.agent]}',",
   "'    turns = []',",
-  "'    for role, text in messages(item.agent, path):',",
+  "'    for role, text in said:',",
   "'        if turns and turns[-1][0] == role:',",
   "'            turns[-1][1].append(text.strip())',",
   "'        else:',",
@@ -5779,6 +5908,36 @@ export const CHAT = [
   "'            return None',",
   "'    entry.update(offset=offset, size=info.st_size, mtime=info.st_mtime)',",
   "'    return entry',",
+  "'def opencode_db():',",
+  "'    data = os.environ.get(\"XDG_DATA_HOME\") or os.path.join(os.path.expanduser(\"~\"), \".local\", " +
+    "\"share\")',",
+  "'    return os.path.join(data, \"opencode\", \"opencode.db\")',",
+  "'def opencode_rows(query, *args):',",
+  "'    try:',",
+  "'        with contextlib.closing(sqlite3.connect(f\"file:{urllib.parse.quote(opencode_db())}?mode=ro\", " +
+    "uri=True,',",
+  "'                                                timeout=1)) as db:',",
+  "'            return db.execute(query, args).fetchall()',",
+  "'    except sqlite3.Error:',",
+  "'        return []',",
+  "'def opencode_chats(names):',",
+  "'    found = []',",
+  "'    for id, title, folder, updated, first in opencode_rows(OPENCODE_CHATS):',",
+  "'        prompt = first_prompt([text(parse(first or \"\").get(\"text\")) or \"\"])[:PROMPT]',",
+  "'        if isinstance(id, str) and prompt and isinstance(updated, (int, float)):',",
+  "'            found.append(Chat(\"opencode\", id, names.get(id) or text(title) or prompt, text(folder) or " +
+    "\"\",',",
+  "'                              updated / 1000))',",
+  "'    return found',",
+  "'def opencode_messages(session):',",
+  "'    seen = set()',",
+  "'    for message, role, data, part in opencode_rows(OPENCODE_TURNS, session):',",
+  "'        if role == \"user\" and message in seen:',",
+  "'            continue',",
+  "'        seen.add(message)',",
+  "'        said = text(parse(data if role == \"user\" else part or \"\").get(\"text\"))',",
+  "'        if said and said.strip():',",
+  "'            yield role, said',",
   "'def names_path():',",
   "'    return os.path.join(os.path.expanduser(\"~\"), \".local\", \"state\", \"herdr\", \"plugins\", " +
     "\"herdr-fold.sessions-view\",',",
@@ -5877,7 +6036,7 @@ export const CHAT = [
   "'def running(found, agents, resumed=None):',",
   "'    told, untold = {}, {}',",
   "'    for agent in agents:',",
-  "'        if agent.get(\"agent\") not in (\"claude\", \"codex\"):',",
+  "'        if agent.get(\"agent\") not in NAMES:',",
   "'            continue',",
   "'        seen = (agent.get(\"agent_status\") or \"\", agent.get(\"pane_id\") or \"\")',",
   "'        session = (agent.get(\"agent_session\") or {}).get(\"value\") or (resumed or " +
@@ -5908,7 +6067,8 @@ export const CHAT = [
   "'def local(state_dir, agents=(), resumed=None):',",
   "'    names, threads, runs = manual_names(), codex_names(), background()',",
   "'    found = [item for item in (chat(kind, path, entry, names, threads, runs)',",
-  "'                               for path, (kind, entry) in indexed(state_dir).items()) if item]',",
+  "'                               for path, (kind, entry) in indexed(state_dir).items()) if item] + " +
+    "opencode_chats(names)',",
   "'    return running(sorted(found, key=lambda item: item.time, reverse=True), agents, resumed)',",
   "'def setting(state_dir):',",
   "'    return statefile.read(os.path.join(state_dir, SETTINGS))',",
@@ -5942,9 +6102,8 @@ export const CHAT = [
   "'        found.append(path)',",
   "'    return found',",
   "'def delete(state_dir, kind, session, agents=(), resumed=None, **how):',",
-  "'    listed = local(state_dir, agents, resumed) if kind in (\"claude\", \"codex\") and " +
-    "fileops.CHAT_ID.fullmatch(session) \\\\',",
-  "'        else []',",
+  "'    listed = local(state_dir, agents, resumed) if kind in TRASHED and fileops.CHAT_ID.fullmatch(session) " +
+    "else []',",
   "'    item = next((one for one in listed if (one.agent, one.id) == (kind, session)), None)',",
   "'    paths = own_files(kind, session) if item else []',",
   "'    if not paths:',",
@@ -5995,8 +6154,7 @@ export const CHAT = [
   "'                answer = {\"ok\": False, \"advice\": said(err)}',",
   "'        elif command == \"markdown\" and len(args) == 2:',",
   "'            item = next((c for c in local(state) if (c.agent, c.id) == tuple(args)), None)',",
-  "'            paths = session_files(*args) if item else []',",
-  "'            answer = {\"markdown\": markdown(item, paths[0]) if paths else None}',",
+  "'            answer = {\"markdown\": markdown(item) if item else None}',",
   "'        else:',",
   "'            raise ValueError(\"unknown command\")',",
   "'    except (ValueError, TypeError, AttributeError):',",
@@ -7094,9 +7252,11 @@ export const CHAT_HOOK = [
   "'import glob',",
   "'import json',",
   "'import os',",
+  "'import sqlite3',",
   "'import stat',",
   "'import sys',",
   "'import unicodedata',",
+  "'import urllib.parse',",
   "'from dataclasses import asdict, dataclass, replace',",
   "'sys.dont_write_bytecode = True',",
   "'import fileops',",
@@ -7112,6 +7272,19 @@ export const CHAT_HOOK = [
   "'FIRST_LINE = 1 << 20',",
   "'TAIL = 8 << 20',",
   "'NOT_A_PROMPT = (\"<\", \"# AGENTS.md\", \"[Request interrupted\")',",
+  "'NAMES = {\"claude\": \"Claude\", \"codex\": \"Codex\", \"opencode\": \"OpenCode\"}',",
+  "'RESUME = {\"claude\": \"--resume\", \"codex\": \"resume\", \"opencode\": \"--session\"}',",
+  "'TRASHED = (\"claude\", \"codex\")',",
+  "'OPENCODE_CHATS = (\"select id, title, directory, time_updated, (select data from session_message where " +
+    "session_id = \"',",
+  "'                  \"s.id and type = \\'user\\' order by seq limit 1) from session_v2 s where parent_id is " +
+    "null and \"',",
+  "'                  \"time_archived is null\")',",
+  "'OPENCODE_TURNS = (\"select m.id, m.type, m.data, p.data from session_message m left join session_part p on " +
+    "\"',",
+  "'                  \"p.message_id = m.id and p.type = \\'text\\' where m.session_id = ? and m.type in " +
+    "(\\'user\\', \\'assistant\\') \"',",
+  "'                  \"order by m.seq, p.ordinal\")',",
   "'@dataclass(frozen=True)',",
   "'class Chat:',",
   "'    agent: str',",
@@ -7212,10 +7385,17 @@ export const CHAT_HOOK = [
   "'        for text in texts:',",
   "'            if text.strip() and not (role == \"user\" and text.lstrip().startswith(NOT_A_PROMPT)):',",
   "'                yield role, text',",
-  "'def markdown(item, path):',",
-  "'    who = {\"user\": \"You\", \"assistant\": item.agent.capitalize()}',",
+  "'def markdown(item):',",
+  "'    if item.agent == \"opencode\":',",
+  "'        said = list(opencode_messages(item.id))',",
+  "'    else:',",
+  "'        paths = session_files(item.agent, item.id)',",
+  "'        said = list(messages(item.agent, paths[0])) if paths else []',",
+  "'    if not said:',",
+  "'        return None',",
+  "'    who = {\"user\": \"You\", \"assistant\": NAMES[item.agent]}',",
   "'    turns = []',",
-  "'    for role, text in messages(item.agent, path):',",
+  "'    for role, text in said:',",
   "'        if turns and turns[-1][0] == role:',",
   "'            turns[-1][1].append(text.strip())',",
   "'        else:',",
@@ -7280,6 +7460,36 @@ export const CHAT_HOOK = [
   "'            return None',",
   "'    entry.update(offset=offset, size=info.st_size, mtime=info.st_mtime)',",
   "'    return entry',",
+  "'def opencode_db():',",
+  "'    data = os.environ.get(\"XDG_DATA_HOME\") or os.path.join(os.path.expanduser(\"~\"), \".local\", " +
+    "\"share\")',",
+  "'    return os.path.join(data, \"opencode\", \"opencode.db\")',",
+  "'def opencode_rows(query, *args):',",
+  "'    try:',",
+  "'        with contextlib.closing(sqlite3.connect(f\"file:{urllib.parse.quote(opencode_db())}?mode=ro\", " +
+    "uri=True,',",
+  "'                                                timeout=1)) as db:',",
+  "'            return db.execute(query, args).fetchall()',",
+  "'    except sqlite3.Error:',",
+  "'        return []',",
+  "'def opencode_chats(names):',",
+  "'    found = []',",
+  "'    for id, title, folder, updated, first in opencode_rows(OPENCODE_CHATS):',",
+  "'        prompt = first_prompt([text(parse(first or \"\").get(\"text\")) or \"\"])[:PROMPT]',",
+  "'        if isinstance(id, str) and prompt and isinstance(updated, (int, float)):',",
+  "'            found.append(Chat(\"opencode\", id, names.get(id) or text(title) or prompt, text(folder) or " +
+    "\"\",',",
+  "'                              updated / 1000))',",
+  "'    return found',",
+  "'def opencode_messages(session):',",
+  "'    seen = set()',",
+  "'    for message, role, data, part in opencode_rows(OPENCODE_TURNS, session):',",
+  "'        if role == \"user\" and message in seen:',",
+  "'            continue',",
+  "'        seen.add(message)',",
+  "'        said = text(parse(data if role == \"user\" else part or \"\").get(\"text\"))',",
+  "'        if said and said.strip():',",
+  "'            yield role, said',",
   "'def names_path():',",
   "'    return os.path.join(os.path.expanduser(\"~\"), \".local\", \"state\", \"herdr\", \"plugins\", " +
     "\"herdr-fold.sessions-view\",',",
@@ -7378,7 +7588,7 @@ export const CHAT_HOOK = [
   "'def running(found, agents, resumed=None):',",
   "'    told, untold = {}, {}',",
   "'    for agent in agents:',",
-  "'        if agent.get(\"agent\") not in (\"claude\", \"codex\"):',",
+  "'        if agent.get(\"agent\") not in NAMES:',",
   "'            continue',",
   "'        seen = (agent.get(\"agent_status\") or \"\", agent.get(\"pane_id\") or \"\")',",
   "'        session = (agent.get(\"agent_session\") or {}).get(\"value\") or (resumed or " +
@@ -7409,7 +7619,8 @@ export const CHAT_HOOK = [
   "'def local(state_dir, agents=(), resumed=None):',",
   "'    names, threads, runs = manual_names(), codex_names(), background()',",
   "'    found = [item for item in (chat(kind, path, entry, names, threads, runs)',",
-  "'                               for path, (kind, entry) in indexed(state_dir).items()) if item]',",
+  "'                               for path, (kind, entry) in indexed(state_dir).items()) if item] + " +
+    "opencode_chats(names)',",
   "'    return running(sorted(found, key=lambda item: item.time, reverse=True), agents, resumed)',",
   "'def setting(state_dir):',",
   "'    return statefile.read(os.path.join(state_dir, SETTINGS))',",
@@ -7443,9 +7654,8 @@ export const CHAT_HOOK = [
   "'        found.append(path)',",
   "'    return found',",
   "'def delete(state_dir, kind, session, agents=(), resumed=None, **how):',",
-  "'    listed = local(state_dir, agents, resumed) if kind in (\"claude\", \"codex\") and " +
-    "fileops.CHAT_ID.fullmatch(session) \\\\',",
-  "'        else []',",
+  "'    listed = local(state_dir, agents, resumed) if kind in TRASHED and fileops.CHAT_ID.fullmatch(session) " +
+    "else []',",
   "'    item = next((one for one in listed if (one.agent, one.id) == (kind, session)), None)',",
   "'    paths = own_files(kind, session) if item else []',",
   "'    if not paths:',",
@@ -7496,8 +7706,7 @@ export const CHAT_HOOK = [
   "'                answer = {\"ok\": False, \"advice\": said(err)}',",
   "'        elif command == \"markdown\" and len(args) == 2:',",
   "'            item = next((c for c in local(state) if (c.agent, c.id) == tuple(args)), None)',",
-  "'            paths = session_files(*args) if item else []',",
-  "'            answer = {\"markdown\": markdown(item, paths[0]) if paths else None}',",
+  "'            answer = {\"markdown\": markdown(item) if item else None}',",
   "'        else:',",
   "'            raise ValueError(\"unknown command\")',",
   "'    except (ValueError, TypeError, AttributeError):',",
@@ -7995,7 +8204,9 @@ export const CHAT_HOOK = [
     "holds a reading \"',",
   "'                 \"yet.\",',",
   "'       \"codex\": \"Codex tells its limits in a chat\\'s token counts: none of its newest chats holds one " +
-    "yet.\"}',",
+    "yet.\",',",
+  "'       \"opencode\": \"OpenCode tells no plan\\'s limits on this machine: its stats count tokens and cost " +
+    "alone.\"}',",
   "'SOON = 12 * 3600',",
   "'SAME = 3600',",
   "'STAMP = re.compile(r\"(\\\\d{4})-(\\\\d\\\\d)-(\\\\d\\\\d)[T " +
@@ -8884,9 +9095,11 @@ export const CHECKPOINTS = [
   "'import glob',",
   "'import json',",
   "'import os',",
+  "'import sqlite3',",
   "'import stat',",
   "'import sys',",
   "'import unicodedata',",
+  "'import urllib.parse',",
   "'from dataclasses import asdict, dataclass, replace',",
   "'sys.dont_write_bytecode = True',",
   "'import fileops',",
@@ -8902,6 +9115,19 @@ export const CHECKPOINTS = [
   "'FIRST_LINE = 1 << 20',",
   "'TAIL = 8 << 20',",
   "'NOT_A_PROMPT = (\"<\", \"# AGENTS.md\", \"[Request interrupted\")',",
+  "'NAMES = {\"claude\": \"Claude\", \"codex\": \"Codex\", \"opencode\": \"OpenCode\"}',",
+  "'RESUME = {\"claude\": \"--resume\", \"codex\": \"resume\", \"opencode\": \"--session\"}',",
+  "'TRASHED = (\"claude\", \"codex\")',",
+  "'OPENCODE_CHATS = (\"select id, title, directory, time_updated, (select data from session_message where " +
+    "session_id = \"',",
+  "'                  \"s.id and type = \\'user\\' order by seq limit 1) from session_v2 s where parent_id is " +
+    "null and \"',",
+  "'                  \"time_archived is null\")',",
+  "'OPENCODE_TURNS = (\"select m.id, m.type, m.data, p.data from session_message m left join session_part p on " +
+    "\"',",
+  "'                  \"p.message_id = m.id and p.type = \\'text\\' where m.session_id = ? and m.type in " +
+    "(\\'user\\', \\'assistant\\') \"',",
+  "'                  \"order by m.seq, p.ordinal\")',",
   "'@dataclass(frozen=True)',",
   "'class Chat:',",
   "'    agent: str',",
@@ -9002,10 +9228,17 @@ export const CHECKPOINTS = [
   "'        for text in texts:',",
   "'            if text.strip() and not (role == \"user\" and text.lstrip().startswith(NOT_A_PROMPT)):',",
   "'                yield role, text',",
-  "'def markdown(item, path):',",
-  "'    who = {\"user\": \"You\", \"assistant\": item.agent.capitalize()}',",
+  "'def markdown(item):',",
+  "'    if item.agent == \"opencode\":',",
+  "'        said = list(opencode_messages(item.id))',",
+  "'    else:',",
+  "'        paths = session_files(item.agent, item.id)',",
+  "'        said = list(messages(item.agent, paths[0])) if paths else []',",
+  "'    if not said:',",
+  "'        return None',",
+  "'    who = {\"user\": \"You\", \"assistant\": NAMES[item.agent]}',",
   "'    turns = []',",
-  "'    for role, text in messages(item.agent, path):',",
+  "'    for role, text in said:',",
   "'        if turns and turns[-1][0] == role:',",
   "'            turns[-1][1].append(text.strip())',",
   "'        else:',",
@@ -9070,6 +9303,36 @@ export const CHECKPOINTS = [
   "'            return None',",
   "'    entry.update(offset=offset, size=info.st_size, mtime=info.st_mtime)',",
   "'    return entry',",
+  "'def opencode_db():',",
+  "'    data = os.environ.get(\"XDG_DATA_HOME\") or os.path.join(os.path.expanduser(\"~\"), \".local\", " +
+    "\"share\")',",
+  "'    return os.path.join(data, \"opencode\", \"opencode.db\")',",
+  "'def opencode_rows(query, *args):',",
+  "'    try:',",
+  "'        with contextlib.closing(sqlite3.connect(f\"file:{urllib.parse.quote(opencode_db())}?mode=ro\", " +
+    "uri=True,',",
+  "'                                                timeout=1)) as db:',",
+  "'            return db.execute(query, args).fetchall()',",
+  "'    except sqlite3.Error:',",
+  "'        return []',",
+  "'def opencode_chats(names):',",
+  "'    found = []',",
+  "'    for id, title, folder, updated, first in opencode_rows(OPENCODE_CHATS):',",
+  "'        prompt = first_prompt([text(parse(first or \"\").get(\"text\")) or \"\"])[:PROMPT]',",
+  "'        if isinstance(id, str) and prompt and isinstance(updated, (int, float)):',",
+  "'            found.append(Chat(\"opencode\", id, names.get(id) or text(title) or prompt, text(folder) or " +
+    "\"\",',",
+  "'                              updated / 1000))',",
+  "'    return found',",
+  "'def opencode_messages(session):',",
+  "'    seen = set()',",
+  "'    for message, role, data, part in opencode_rows(OPENCODE_TURNS, session):',",
+  "'        if role == \"user\" and message in seen:',",
+  "'            continue',",
+  "'        seen.add(message)',",
+  "'        said = text(parse(data if role == \"user\" else part or \"\").get(\"text\"))',",
+  "'        if said and said.strip():',",
+  "'            yield role, said',",
   "'def names_path():',",
   "'    return os.path.join(os.path.expanduser(\"~\"), \".local\", \"state\", \"herdr\", \"plugins\", " +
     "\"herdr-fold.sessions-view\",',",
@@ -9168,7 +9431,7 @@ export const CHECKPOINTS = [
   "'def running(found, agents, resumed=None):',",
   "'    told, untold = {}, {}',",
   "'    for agent in agents:',",
-  "'        if agent.get(\"agent\") not in (\"claude\", \"codex\"):',",
+  "'        if agent.get(\"agent\") not in NAMES:',",
   "'            continue',",
   "'        seen = (agent.get(\"agent_status\") or \"\", agent.get(\"pane_id\") or \"\")',",
   "'        session = (agent.get(\"agent_session\") or {}).get(\"value\") or (resumed or " +
@@ -9199,7 +9462,8 @@ export const CHECKPOINTS = [
   "'def local(state_dir, agents=(), resumed=None):',",
   "'    names, threads, runs = manual_names(), codex_names(), background()',",
   "'    found = [item for item in (chat(kind, path, entry, names, threads, runs)',",
-  "'                               for path, (kind, entry) in indexed(state_dir).items()) if item]',",
+  "'                               for path, (kind, entry) in indexed(state_dir).items()) if item] + " +
+    "opencode_chats(names)',",
   "'    return running(sorted(found, key=lambda item: item.time, reverse=True), agents, resumed)',",
   "'def setting(state_dir):',",
   "'    return statefile.read(os.path.join(state_dir, SETTINGS))',",
@@ -9233,9 +9497,8 @@ export const CHECKPOINTS = [
   "'        found.append(path)',",
   "'    return found',",
   "'def delete(state_dir, kind, session, agents=(), resumed=None, **how):',",
-  "'    listed = local(state_dir, agents, resumed) if kind in (\"claude\", \"codex\") and " +
-    "fileops.CHAT_ID.fullmatch(session) \\\\',",
-  "'        else []',",
+  "'    listed = local(state_dir, agents, resumed) if kind in TRASHED and fileops.CHAT_ID.fullmatch(session) " +
+    "else []',",
   "'    item = next((one for one in listed if (one.agent, one.id) == (kind, session)), None)',",
   "'    paths = own_files(kind, session) if item else []',",
   "'    if not paths:',",
@@ -9286,8 +9549,7 @@ export const CHECKPOINTS = [
   "'                answer = {\"ok\": False, \"advice\": said(err)}',",
   "'        elif command == \"markdown\" and len(args) == 2:',",
   "'            item = next((c for c in local(state) if (c.agent, c.id) == tuple(args)), None)',",
-  "'            paths = session_files(*args) if item else []',",
-  "'            answer = {\"markdown\": markdown(item, paths[0]) if paths else None}',",
+  "'            answer = {\"markdown\": markdown(item) if item else None}',",
   "'        else:',",
   "'            raise ValueError(\"unknown command\")',",
   "'    except (ValueError, TypeError, AttributeError):',",
@@ -11884,20 +12146,22 @@ export const CHATS = [
   "'            return f\"{int(seconds // size)}{unit}\"',",
   "'    return \"now\"',",
   "]), _sys.modules['words'].__dict__)",
-  "\"\"\"This machine's Claude Code and Codex chats for the Chats list and the formatted copy: nothing of " +
-    "Claude's, Codex's",
-  "or herdr's is written, and only a closed chat's own file leaves, for the Trash, on Delete\u2026 (delete). " +
-    "Each file is read",
-  "once, then only where it grew (INDEX, every pane's); an unreadable one is left out, a field of a wrong type " +
-    "missing.\"\"\"",
+  "\"\"\"This machine's Claude Code, Codex and OpenCode chats for Chats and the formatted copy: nothing of the " +
+    "agents' or",
+  "herdr's is written, and only a closed chat's own file leaves, for the Trash, on Delete\u2026 (delete). Each " +
+    "file is read",
+  "once, then only where it grew (INDEX); OpenCode's database is asked as it is. One unreadable is left " +
+    "out.\"\"\"",
   "import contextlib",
   "import errno",
   "import glob",
   "import json",
   "import os",
+  "import sqlite3",
   "import stat",
   "import sys",
   "import unicodedata",
+  "import urllib.parse",
   "from dataclasses import asdict, dataclass, replace",
   "",
   "sys.dont_write_bytecode = True  # no __pycache__ beside the installed files",
@@ -11926,12 +12190,32 @@ export const CHATS = [
     "notes, a note",
   "# that a reply was cut off",
   "NOT_A_PROMPT = (\"<\", \"# AGENTS.md\", \"[Request interrupted\")",
+  "NAMES = {\"claude\": \"Claude\", \"codex\": \"Codex\", \"opencode\": \"OpenCode\"}    # the agents whose " +
+    "chats are listed",
+  "RESUME = {\"claude\": \"--resume\", \"codex\": \"resume\", \"opencode\": \"--session\"}  # the word before " +
+    "an id their CLI reopens",
+  "TRASHED = (\"claude\", \"codex\")         # those whose chat is a file of its own, which Delete\u2026 moves " +
+    "to the Trash",
+  "# OpenCode's chats in its database (its V2 tables), each with its first prompt: its subagents' and those it " +
+    "archived",
+  "# left out (a scripted `opencode run --archived` too)",
+  "OPENCODE_CHATS = (\"select id, title, directory, time_updated, (select data from session_message where " +
+    "session_id = \"",
+  "                  \"s.id and type = 'user' order by seq limit 1) from session_v2 s where parent_id is null " +
+    "and \"",
+  "                  \"time_archived is null\")",
+  "# an OpenCode chat's turns in order: the user's text in its message, a reply's in its text parts",
+  "OPENCODE_TURNS = (\"select m.id, m.type, m.data, p.data from session_message m left join session_part p on " +
+    "\"",
+  "                  \"p.message_id = m.id and p.type = 'text' where m.session_id = ? and m.type in ('user', " +
+    "'assistant') \"",
+  "                  \"order by m.seq, p.ordinal\")",
   "",
   "",
   "@dataclass(frozen=True)",
   "class Chat:",
-  "    agent: str              # claude or codex",
-  "    id: str                 # its session: claude --resume ID, codex resume ID",
+  "    agent: str              # claude, codex or opencode",
+  "    id: str                 # its session: claude --resume ID, codex resume ID, opencode --session ID",
   "    title: str",
   "    folder: str             # where it was started",
   "    time: float             # when it last changed",
@@ -12074,15 +12358,22 @@ export const CHATS = [
   "                yield role, text",
   "",
   "",
-  "def markdown(item, path):",
-  "    \"\"\"ITEM's chat (its file PATH) as Markdown: its title, then each turn under who said it, the parts " +
-    "of a",
-  "    turn together. No control character but line breaks and tabs: pasted into a terminal, a code the chat " +
-    "holds",
-  "    would run there.\"\"\"",
-  "    who = {\"user\": \"You\", \"assistant\": item.agent.capitalize()}",
+  "def markdown(item):",
+  "    \"\"\"ITEM's chat as Markdown, its title, then each turn under who said it, the parts of a turn " +
+    "together; None where",
+  "    its file (OpenCode's rows) is gone. No control character but line breaks and tabs: pasted into a " +
+    "terminal, a code",
+  "    the chat holds would run there.\"\"\"",
+  "    if item.agent == \"opencode\":",
+  "        said = list(opencode_messages(item.id))",
+  "    else:",
+  "        paths = session_files(item.agent, item.id)",
+  "        said = list(messages(item.agent, paths[0])) if paths else []",
+  "    if not said:",
+  "        return None",
+  "    who = {\"user\": \"You\", \"assistant\": NAMES[item.agent]}",
   "    turns = []",
-  "    for role, text in messages(item.agent, path):",
+  "    for role, text in said:",
   "        if turns and turns[-1][0] == role:",
   "            turns[-1][1].append(text.strip())",
   "        else:",
@@ -12164,6 +12455,56 @@ export const CHATS = [
   "            return None",
   "    entry.update(offset=offset, size=info.st_size, mtime=info.st_mtime)",
   "    return entry",
+  "",
+  "",
+  "# --- OpenCode's database",
+  "",
+  "def opencode_db():",
+  "    \"\"\"OpenCode's database, which holds its chats: under XDG_DATA_HOME, as OpenCode takes it, else " +
+    "~/.local/share.\"\"\"",
+  "    data = os.environ.get(\"XDG_DATA_HOME\") or os.path.join(os.path.expanduser(\"~\"), \".local\", " +
+    "\"share\")",
+  "    return os.path.join(data, \"opencode\", \"opencode.db\")",
+  "",
+  "",
+  "def opencode_rows(query, *args):",
+  "    \"\"\"QUERY's rows (ARGS its values) in OpenCode's database, opened read-only; none where it is not " +
+    "there or cannot be",
+  "    read (busy past a second, another version's tables).\"\"\"",
+  "    try:",
+  "        with contextlib.closing(sqlite3.connect(f\"file:{urllib.parse.quote(opencode_db())}?mode=ro\", " +
+    "uri=True,",
+  "                                                timeout=1)) as db:",
+  "            return db.execute(query, args).fetchall()",
+  "    except sqlite3.Error:",
+  "        return []",
+  "",
+  "",
+  "def opencode_chats(names):",
+  "    \"\"\"OpenCode's chats with a prompt of the user's (OPENCODE_CHATS'), named as AI Sessions names them, " +
+    "else as",
+  "    OpenCode does, else by that prompt.\"\"\"",
+  "    found = []",
+  "    for id, title, folder, updated, first in opencode_rows(OPENCODE_CHATS):",
+  "        prompt = first_prompt([text(parse(first or \"\").get(\"text\")) or \"\"])[:PROMPT]",
+  "        if isinstance(id, str) and prompt and isinstance(updated, (int, float)):",
+  "            found.append(Chat(\"opencode\", id, names.get(id) or text(title) or prompt, text(folder) or " +
+    "\"\",",
+  "                              updated / 1000))",
+  "    return found",
+  "",
+  "",
+  "def opencode_messages(session):",
+  "    \"\"\"OpenCode's chat SESSION as messages() gives one: the user's prompts and each text part of a " +
+    "reply, in order.\"\"\"",
+  "    seen = set()",
+  "    for message, role, data, part in opencode_rows(OPENCODE_TURNS, session):",
+  "        if role == \"user\" and message in seen:",
+  "            continue",
+  "        seen.add(message)",
+  "        said = text(parse(data if role == \"user\" else part or \"\").get(\"text\"))",
+  "        if said and said.strip():",
+  "            yield role, said",
   "",
   "",
   "# --- the names given elsewhere",
@@ -12311,7 +12652,7 @@ export const CHATS = [
   "    its kind in its folder.\"\"\"",
   "    told, untold = {}, {}",
   "    for agent in agents:",
-  "        if agent.get(\"agent\") not in (\"claude\", \"codex\"):",
+  "        if agent.get(\"agent\") not in NAMES:",
   "            continue",
   "        seen = (agent.get(\"agent_status\") or \"\", agent.get(\"pane_id\") or \"\")",
   "        session = (agent.get(\"agent_session\") or {}).get(\"value\") or (resumed or " +
@@ -12353,7 +12694,8 @@ export const CHATS = [
   "    reopened in panes herdr knows no session of yet ({pane: id}), for the running ones.\"\"\"",
   "    names, threads, runs = manual_names(), codex_names(), background()",
   "    found = [item for item in (chat(kind, path, entry, names, threads, runs)",
-  "                               for path, (kind, entry) in indexed(state_dir).items()) if item]",
+  "                               for path, (kind, entry) in indexed(state_dir).items()) if item] + " +
+    "opencode_chats(names)",
   "    return running(sorted(found, key=lambda item: item.time, reverse=True), agents, resumed)",
   "",
   "",
@@ -12419,9 +12761,8 @@ export const CHATS = [
   "    its archive and its name dropped. Only a chat of the list, never a running one (AGENTS, RESUMED: " +
     "local()'s):",
   "    fileops.Refused says why not, nothing moved or dropped then.\"\"\"",
-  "    listed = local(state_dir, agents, resumed) if kind in (\"claude\", \"codex\") and " +
-    "fileops.CHAT_ID.fullmatch(session) \\",
-  "        else []",
+  "    listed = local(state_dir, agents, resumed) if kind in TRASHED and fileops.CHAT_ID.fullmatch(session) " +
+    "else []",
   "    item = next((one for one in listed if (one.agent, one.id) == (kind, session)), None)",
   "    paths = own_files(kind, session) if item else []",
   "    if not paths:",
@@ -12484,8 +12825,7 @@ export const CHATS = [
   "                answer = {\"ok\": False, \"advice\": said(err)}",
   "        elif command == \"markdown\" and len(args) == 2:",
   "            item = next((c for c in local(state) if (c.agent, c.id) == tuple(args)), None)",
-  "            paths = session_files(*args) if item else []",
-  "            answer = {\"markdown\": markdown(item, paths[0]) if paths else None}",
+  "            answer = {\"markdown\": markdown(item) if item else None}",
   "        else:",
   "            raise ValueError(\"unknown command\")",
   "    except (ValueError, TypeError, AttributeError):",
@@ -14665,8 +15005,9 @@ export const GRAPH = [
   "'LINE_NAME = re.compile(r\"[^\\\\s:]+\")',",
   "'GENERAL = \"general-purpose\"',",
   "'TOLD = (b\\'\"deferred_tools_delta\"\\', b\\'\"mcp_instructions_delta\"\\', b\\'\"compact_boundary\"\\')',",
-  "'KNOWN = {\"claude\": {\"name\": \"Claude\"}, \"codex\": {\"name\": \"Codex\"}, \"gemini\": {\"name\": " +
-    "\"Gemini CLI\"}}',",
+  "'KNOWN = {\"claude\": {\"name\": \"Claude\"}, \"codex\": {\"name\": \"Codex\"}, \"opencode\": {\"name\": " +
+    "\"OpenCode\"},',",
+  "'         \"gemini\": {\"name\": \"Gemini CLI\"}}',",
   "'MODE_WORDS = {\"default\": \"Manual\", \"manual\": \"Manual\", \"acceptEdits\": \"Edit automatically\", " +
     "\"plan\": \"Plan\",',",
   "'              \"auto\": \"Auto\", \"dontAsk\": \"Don\\'t ask\", \"bypassPermissions\": \"Bypass " +
@@ -15608,10 +15949,10 @@ export const GRAPH = [
   "'from agent_setup import (APPROVALS, BEHAVIORS, BUILT_IN, CLAUDE, CLAUDE_AI, EFFORTS, FAILED, GLOBAL,',",
   "'                         HERDR_FOLD, KNOWN, LINE, MANAGED, MODE_WORDS, NOT_APPROVED, NOT_CHECKED, OFF, " +
     "OFF_HERE, ON,',",
-  "'                         PENDING, PROJECT, READ_ONLY, SANDBOXES, SIGN_IN, clean, inside, mode_told, " +
+  "'                         PENDING, PROJECT, READ, READ_ONLY, SANDBOXES, SIGN_IN, clean, inside, mode_told, " +
     "plugged,',",
   "'                         read_text, shown)',",
-  "'from connectors import CLAUDE_AI as CLAUDE_PAGE, logout',",
+  "'from connectors import AGENTS as ADDS, CLAUDE_AI as CLAUDE_PAGE, logout',",
   "'from jsonl import obj',",
   "'SECTIONS = ((\"subagents\", \"Subagents\"), (\"rules\", \"Rules\"), (\"skills\", \"Skills\"), " +
     "(\"permissions\", \"Permissions\"),',",
@@ -15630,6 +15971,7 @@ export const GRAPH = [
   "'FIRST_LINES = 3',",
   "'NAMED = 3',",
   "'PATH_IN = re.compile(r\"\"\"[\\'\"]?((?:~|\\\\.{1,2})?/[^\\\\s\\'\":,;()]+)[\\'\"]?\"\"\")',",
+  "'LISTS = {\"codex\": \"codex mcp list\", \"opencode\": \"opencode debug config\"}',",
   "'def tag(one):',",
   "'    return one[\"source\"] if one[\"scope\"] != DEFAULT and (plugged(one) or one.get(\"source\") == " +
     "CLAUDE_AI) \\\\',",
@@ -15722,6 +16064,8 @@ export const GRAPH = [
   "'    return rows',",
   "'def permission_rows(setup, agent, folder, home):',",
   "'    table, rows, box, codex = setup[\"permissions\"], [], setup[\"sandbox\"], agent == \"codex\"',",
+  "'    if table is None:',",
+  "'        return rows',",
   "'    own = {\"scope\": DEFAULT, \"source\": f\"{KNOWN[agent][\\'name\\']}\\'s default\", \"path\": None}',",
   "'    told = (table[\"told\"] if table[\"mode\"] in APPROVALS else None) if codex else mode_told(folder, " +
     "home)',",
@@ -15815,7 +16159,7 @@ export const GRAPH = [
   "'    return rows',",
   "'def server_actions(one, agent, folder, home):',",
   "'    state, name, here = one[\"state\"], one[\"name\"], os.path.basename(os.path.abspath(folder))',",
-  "'    files = opened([one[\"path\"]], folder, home) if one[\"path\"] and (agent == \"codex\" or " +
+  "'    files = opened([one[\"path\"]], folder, home) if one[\"path\"] and (agent != \"claude\" or " +
     "one[\"source\"] in (',",
   "'        PROJECT, MANAGED)) else []',",
   "'    off = act(\"turn-off\", f\"Turn off in {here}\", server=name)',",
@@ -15842,7 +16186,7 @@ export const GRAPH = [
   "'    if setup.get(\"unlisted\"):',",
   "'        return [layer(\"unread:connectors\", \"plug\", f\"{KNOWN[agent][\\'name\\']}\\'s servers\", " +
     "properties(',",
-  "'            \"Connectors\", NOT_READ, text=f\"`{agent} mcp list` gave no list, so which servers " +
+  "'            \"Connectors\", NOT_READ, text=f\"`{LISTS[agent]}` gave no list, so which servers " +
     "{KNOWN[agent][\\'name\\']} \"',",
   "'            \"has is not known here.\"), state=NOT_READ, agents=[agent], dim=True)]',",
   "'    rank, rows = {state: n for n, (state, _, _) in enumerate(PROBLEMS)}, []',",
@@ -15877,7 +16221,8 @@ export const GRAPH = [
   "'                    \"fields\": {\"name\": \"Name\", \"url\": \"URL\", \"scope\": \"For\"},',",
   "'                    \"scopes\": [{\"id\": \"local\", \"label\": here}, {\"id\": \"user\", \"label\": \"All " +
     "projects\"}] if claude',",
-  "'                    else [], \"submit\": \"Add and connect\", \"cancel\": \"Cancel\"}}',",
+  "'                    else [], \"submit\": \"Add and connect\", \"cancel\": \"Cancel\"} if agent in ADDS " +
+    "else None}',",
   "'def head(setup, agent, folder, parts):',",
   "'    start, told = setup[\"start\"], setup[\"model\"]',",
   "'    ran, measured = start[\"model\"], start[\"tokens\"] is not None',",
@@ -15913,9 +16258,9 @@ export const GRAPH = [
   "'        groups = [{\"id\": \"hooks\", \"title\": \"Hooks\", \"count\": len(hooks), \"rows\": hooks,',",
   "'                   \"state\": None if setup[\"hooks\"] else OFF_STATE}] if hooks else []',",
   "'        for row in rows + [one for group in groups for one in group[\"rows\"]]:',",
-  "'            if row[\"id\"].split(\":\")[0] in (\"rule\", \"skill\", \"connector\", \"hook\") or " +
-    "row[\"id\"].startswith(',",
-  "'                    \"subagent:\") and row[\"id\"] != \"subagent:built-in\":',",
+  "'            if agent in READ and (row[\"id\"].split(\":\")[0] in (\"rule\", \"skill\", \"connector\", " +
+    "\"hook\") or row[',",
+  "'                    \"id\"].startswith(\"subagent:\") and row[\"id\"] != \"subagent:built-in\"):',",
   "'                acts = row[\"properties\"][\"actions\"]',",
   "'                acts.append({**act(\"graph\", \"Show in graph\"), \"primary\": not acts})',",
   "'        loads = [row[\"tokens\"] for row in rows if row[\"tokens\"] is not None and not row[\"dim\"]]',",
@@ -16812,8 +17157,9 @@ export const HARNESS = [
   "'LINE_NAME = re.compile(r\"[^\\\\s:]+\")',",
   "'GENERAL = \"general-purpose\"',",
   "'TOLD = (b\\'\"deferred_tools_delta\"\\', b\\'\"mcp_instructions_delta\"\\', b\\'\"compact_boundary\"\\')',",
-  "'KNOWN = {\"claude\": {\"name\": \"Claude\"}, \"codex\": {\"name\": \"Codex\"}, \"gemini\": {\"name\": " +
-    "\"Gemini CLI\"}}',",
+  "'KNOWN = {\"claude\": {\"name\": \"Claude\"}, \"codex\": {\"name\": \"Codex\"}, \"opencode\": {\"name\": " +
+    "\"OpenCode\"},',",
+  "'         \"gemini\": {\"name\": \"Gemini CLI\"}}',",
   "'MODE_WORDS = {\"default\": \"Manual\", \"manual\": \"Manual\", \"acceptEdits\": \"Edit automatically\", " +
     "\"plan\": \"Plan\",',",
   "'              \"auto\": \"Auto\", \"dontAsk\": \"Don\\'t ask\", \"bypassPermissions\": \"Bypass " +
@@ -21044,7 +21390,9 @@ export const REPORT = [
     "holds a reading \"',",
   "'                 \"yet.\",',",
   "'       \"codex\": \"Codex tells its limits in a chat\\'s token counts: none of its newest chats holds one " +
-    "yet.\"}',",
+    "yet.\",',",
+  "'       \"opencode\": \"OpenCode tells no plan\\'s limits on this machine: its stats count tokens and cost " +
+    "alone.\"}',",
   "'SOON = 12 * 3600',",
   "'SAME = 3600',",
   "'STAMP = re.compile(r\"(\\\\d{4})-(\\\\d\\\\d)-(\\\\d\\\\d)[T " +
@@ -22313,9 +22661,11 @@ export const RUNS = [
   "'import glob',",
   "'import json',",
   "'import os',",
+  "'import sqlite3',",
   "'import stat',",
   "'import sys',",
   "'import unicodedata',",
+  "'import urllib.parse',",
   "'from dataclasses import asdict, dataclass, replace',",
   "'sys.dont_write_bytecode = True',",
   "'import fileops',",
@@ -22331,6 +22681,19 @@ export const RUNS = [
   "'FIRST_LINE = 1 << 20',",
   "'TAIL = 8 << 20',",
   "'NOT_A_PROMPT = (\"<\", \"# AGENTS.md\", \"[Request interrupted\")',",
+  "'NAMES = {\"claude\": \"Claude\", \"codex\": \"Codex\", \"opencode\": \"OpenCode\"}',",
+  "'RESUME = {\"claude\": \"--resume\", \"codex\": \"resume\", \"opencode\": \"--session\"}',",
+  "'TRASHED = (\"claude\", \"codex\")',",
+  "'OPENCODE_CHATS = (\"select id, title, directory, time_updated, (select data from session_message where " +
+    "session_id = \"',",
+  "'                  \"s.id and type = \\'user\\' order by seq limit 1) from session_v2 s where parent_id is " +
+    "null and \"',",
+  "'                  \"time_archived is null\")',",
+  "'OPENCODE_TURNS = (\"select m.id, m.type, m.data, p.data from session_message m left join session_part p on " +
+    "\"',",
+  "'                  \"p.message_id = m.id and p.type = \\'text\\' where m.session_id = ? and m.type in " +
+    "(\\'user\\', \\'assistant\\') \"',",
+  "'                  \"order by m.seq, p.ordinal\")',",
   "'@dataclass(frozen=True)',",
   "'class Chat:',",
   "'    agent: str',",
@@ -22431,10 +22794,17 @@ export const RUNS = [
   "'        for text in texts:',",
   "'            if text.strip() and not (role == \"user\" and text.lstrip().startswith(NOT_A_PROMPT)):',",
   "'                yield role, text',",
-  "'def markdown(item, path):',",
-  "'    who = {\"user\": \"You\", \"assistant\": item.agent.capitalize()}',",
+  "'def markdown(item):',",
+  "'    if item.agent == \"opencode\":',",
+  "'        said = list(opencode_messages(item.id))',",
+  "'    else:',",
+  "'        paths = session_files(item.agent, item.id)',",
+  "'        said = list(messages(item.agent, paths[0])) if paths else []',",
+  "'    if not said:',",
+  "'        return None',",
+  "'    who = {\"user\": \"You\", \"assistant\": NAMES[item.agent]}',",
   "'    turns = []',",
-  "'    for role, text in messages(item.agent, path):',",
+  "'    for role, text in said:',",
   "'        if turns and turns[-1][0] == role:',",
   "'            turns[-1][1].append(text.strip())',",
   "'        else:',",
@@ -22499,6 +22869,36 @@ export const RUNS = [
   "'            return None',",
   "'    entry.update(offset=offset, size=info.st_size, mtime=info.st_mtime)',",
   "'    return entry',",
+  "'def opencode_db():',",
+  "'    data = os.environ.get(\"XDG_DATA_HOME\") or os.path.join(os.path.expanduser(\"~\"), \".local\", " +
+    "\"share\")',",
+  "'    return os.path.join(data, \"opencode\", \"opencode.db\")',",
+  "'def opencode_rows(query, *args):',",
+  "'    try:',",
+  "'        with contextlib.closing(sqlite3.connect(f\"file:{urllib.parse.quote(opencode_db())}?mode=ro\", " +
+    "uri=True,',",
+  "'                                                timeout=1)) as db:',",
+  "'            return db.execute(query, args).fetchall()',",
+  "'    except sqlite3.Error:',",
+  "'        return []',",
+  "'def opencode_chats(names):',",
+  "'    found = []',",
+  "'    for id, title, folder, updated, first in opencode_rows(OPENCODE_CHATS):',",
+  "'        prompt = first_prompt([text(parse(first or \"\").get(\"text\")) or \"\"])[:PROMPT]',",
+  "'        if isinstance(id, str) and prompt and isinstance(updated, (int, float)):',",
+  "'            found.append(Chat(\"opencode\", id, names.get(id) or text(title) or prompt, text(folder) or " +
+    "\"\",',",
+  "'                              updated / 1000))',",
+  "'    return found',",
+  "'def opencode_messages(session):',",
+  "'    seen = set()',",
+  "'    for message, role, data, part in opencode_rows(OPENCODE_TURNS, session):',",
+  "'        if role == \"user\" and message in seen:',",
+  "'            continue',",
+  "'        seen.add(message)',",
+  "'        said = text(parse(data if role == \"user\" else part or \"\").get(\"text\"))',",
+  "'        if said and said.strip():',",
+  "'            yield role, said',",
   "'def names_path():',",
   "'    return os.path.join(os.path.expanduser(\"~\"), \".local\", \"state\", \"herdr\", \"plugins\", " +
     "\"herdr-fold.sessions-view\",',",
@@ -22597,7 +22997,7 @@ export const RUNS = [
   "'def running(found, agents, resumed=None):',",
   "'    told, untold = {}, {}',",
   "'    for agent in agents:',",
-  "'        if agent.get(\"agent\") not in (\"claude\", \"codex\"):',",
+  "'        if agent.get(\"agent\") not in NAMES:',",
   "'            continue',",
   "'        seen = (agent.get(\"agent_status\") or \"\", agent.get(\"pane_id\") or \"\")',",
   "'        session = (agent.get(\"agent_session\") or {}).get(\"value\") or (resumed or " +
@@ -22628,7 +23028,8 @@ export const RUNS = [
   "'def local(state_dir, agents=(), resumed=None):',",
   "'    names, threads, runs = manual_names(), codex_names(), background()',",
   "'    found = [item for item in (chat(kind, path, entry, names, threads, runs)',",
-  "'                               for path, (kind, entry) in indexed(state_dir).items()) if item]',",
+  "'                               for path, (kind, entry) in indexed(state_dir).items()) if item] + " +
+    "opencode_chats(names)',",
   "'    return running(sorted(found, key=lambda item: item.time, reverse=True), agents, resumed)',",
   "'def setting(state_dir):',",
   "'    return statefile.read(os.path.join(state_dir, SETTINGS))',",
@@ -22662,9 +23063,8 @@ export const RUNS = [
   "'        found.append(path)',",
   "'    return found',",
   "'def delete(state_dir, kind, session, agents=(), resumed=None, **how):',",
-  "'    listed = local(state_dir, agents, resumed) if kind in (\"claude\", \"codex\") and " +
-    "fileops.CHAT_ID.fullmatch(session) \\\\',",
-  "'        else []',",
+  "'    listed = local(state_dir, agents, resumed) if kind in TRASHED and fileops.CHAT_ID.fullmatch(session) " +
+    "else []',",
   "'    item = next((one for one in listed if (one.agent, one.id) == (kind, session)), None)',",
   "'    paths = own_files(kind, session) if item else []',",
   "'    if not paths:',",
@@ -22715,8 +23115,7 @@ export const RUNS = [
   "'                answer = {\"ok\": False, \"advice\": said(err)}',",
   "'        elif command == \"markdown\" and len(args) == 2:',",
   "'            item = next((c for c in local(state) if (c.agent, c.id) == tuple(args)), None)',",
-  "'            paths = session_files(*args) if item else []',",
-  "'            answer = {\"markdown\": markdown(item, paths[0]) if paths else None}',",
+  "'            answer = {\"markdown\": markdown(item) if item else None}',",
   "'        else:',",
   "'            raise ValueError(\"unknown command\")',",
   "'    except (ValueError, TypeError, AttributeError):',",
@@ -25893,7 +26292,9 @@ export const USAGE = [
     "holds a reading \"",
   "                 \"yet.\",",
   "       \"codex\": \"Codex tells its limits in a chat's token counts: none of its newest chats holds one " +
-    "yet.\"}",
+    "yet.\",",
+  "       \"opencode\": \"OpenCode tells no plan's limits on this machine: its stats count tokens and cost " +
+    "alone.\"}",
   "SOON = 12 * 3600                # a reset nearer than this names its time alone, a later one its day too",
   "SAME = 3600                     # resets this close are one window's: the next resets a window's length " +
     "later at least",

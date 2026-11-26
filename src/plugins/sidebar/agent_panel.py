@@ -15,6 +15,7 @@ import costs
 import graph
 import harness
 import media
+import opencode_setup
 import panes
 import preview
 import statefile
@@ -180,13 +181,15 @@ class Agent(Family):
                 "head": {"name": agent_setup.KNOWN[agent]["name"], "where": f"in {os.path.basename(root)}"}}
         if told[agent]["empty"]:
             return {**said, "empty": told[agent]["empty"]}
-        if agent not in agent_setup.READ:     # no setup of it is read: its head alone
+        if agent == "opencode":
+            setup = opencode_setup.setup(root, home)
+        elif agent not in agent_setup.READ:   # no setup of it is read: its head alone
             return said
-        if agent == "claude":
+        elif agent == "claude":
             setup = agent_setup.claude_setup(root, home, agent_setup.conversation(cwd or root, session, home))
         else:
             setup = agent_setup.codex_setup(root, home)
-        if setup is None:                     # Codex gone since the agents were told
+        if setup is None:                     # Codex or OpenCode gone since the agents were told
             return {**said, "empty": agent_state.standing({**told[agent], "installed": False})}
         states = {one["name"]: one["state"] for one in setup["servers"]}
         for one in setup["servers"]:

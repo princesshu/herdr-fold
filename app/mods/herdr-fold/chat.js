@@ -1613,8 +1613,8 @@ export class Chat {
   }
 
   /** The empty chat while its agent is not signed in: no agent taken for granted, every installed one a row of its
-   * own by name (its icon, its name, signed in or not) with its Sign in, as the Agent panel starts it, or Use where it
-   * is in (the chip's pick); no accent, none is the default; what went wrong under them. */
+   * own by name (its icon, its name, signed in or not where core tells) with its Sign in, as the Agent panel starts
+   * it, or Use where it is in (the chip's pick); no accent, none is the default; what went wrong under them. */
   signInCard(t) {
     const told = new Map((Array.isArray(this.machine) ? this.machine : []).map((/** @type {any} */ a) => [a?.key, a]));
     const rows = agentChoices(this.known, DRAWABLE, [], this.machine).map((choice) => {
@@ -1623,7 +1623,7 @@ export class Chat {
         .when(Boolean(this.agentIcon(t, 16, choice.key)), (e) => e.child(this.agentIcon(t, 16, choice.key)))
         .child(div().text_size(13).child(choice.name))
         .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.dim)
-          .child(out ? "Not signed in" : "Signed in"))
+          .child(out ? "Not signed in" : agent?.signed_in ? "Signed in" : ""))
         .child(out ? button(t, `sign-in-${choice.key}-go`, "Sign in", Boolean(agent?.login?.length), false,
           (cx) => this.signIn(agent, cx)) : button(t, `sign-in-${choice.key}-use`, "Use", true, false,
           (cx) => this.pick(choice, cx)));

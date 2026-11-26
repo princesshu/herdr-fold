@@ -212,11 +212,11 @@ export const issueAgent = (agents, tab, terminals = []) =>
  * @typedef {{ agent: string, id: string, title: string, folder: string, time: number, state: string,
  *   pane: string }} Chat */
 
-/** The app's AGENTS as core/chats.py takes herdr's: Claude and Codex in this Mac's spaces (LOCAL, their ids),
- * each with its pane's folder (from PANES), its terminal for its pane.
+/** The app's AGENTS as core/chats.py takes herdr's: those whose chats it lists (RESUME's) in this Mac's spaces
+ * (LOCAL, their ids), each with its pane's folder (from PANES), its terminal for its pane.
  * @param {any[]} agents @param {any[]} panes @param {Set<string>} local */
 export const coreAgents = (agents, panes, local) => agents
-  .filter((a) => local.has(a.space) && ["claude", "codex"].includes(a.program?.key ?? ""))
+  .filter((a) => local.has(a.space) && Object.hasOwn(RESUME, a.program?.key ?? ""))
   .map((a) => ({ agent: a.program.key, agent_status: a.status, pane_id: a.address,
     cwd: panes.find((p) => p.pane === a.pane)?.cwd ?? null }));
 
@@ -291,14 +291,16 @@ export function groupPlace(rows, name) {
   return at < 0 ? null : { head: at * 2, last: groups.length * 2 - 1 };
 }
 
-/** A chat's id as claude --resume and codex resume take it: from a file's content, so never an option, a space
- * or a control code. */
+/** A chat's id as each agent's CLI takes it to reopen: from a file's content, so never an option, a space or a
+ * control code. */
 const SESSION = /^[0-9A-Za-z][0-9A-Za-z._-]*$/;
+/** The agents whose chats core lists, each with the word its CLI takes before the id it reopens (core's RESUME). */
+const RESUME = /** @type {Record<string, string>} */ ({ claude: "--resume", codex: "resume", opencode: "--session" });
 
 /** The command that reopens ITEM, a closed chat: its agent resuming it. @param {Chat} item */
 export function resumeArgv(item) {
-  if (!SESSION.test(item.id) || !["claude", "codex"].includes(item.agent)) throw new Error("not a chat's id");
-  return item.agent === "claude" ? ["claude", "--resume", item.id] : ["codex", "resume", item.id];
+  if (!SESSION.test(item.id) || !Object.hasOwn(RESUME, item.agent)) throw new Error("not a chat's id");
+  return [item.agent, RESUME[item.agent], item.id];
 }
 
 const CHOICES = ["Open", "Copy chat", "Rename"];
@@ -312,9 +314,10 @@ export function chatChoices(item, archived, showArchived) {
   return [...CHOICES, ...tidy, "Delete…"];
 }
 
-/** Why ITEM's Delete… is off, its tip: a running chat's file is its agent's; null for a closed one.
- * @param {Chat} item */
-export const deleteOff = (item) => (item.state ? "A running chat is not deleted: close it first" : null);
+/** Why ITEM's Delete… is off, its tip: a running chat's file is its agent's, an OpenCode chat is no file of its own
+ * (core's TRASHED); null for a closed one. @param {Chat} item */
+export const deleteOff = (item) => (item.state ? "A running chat is not deleted: close it first"
+  : item.agent === "opencode" ? "OpenCode keeps its chats in its own database: delete it there" : null);
 
 /** ITEMS without the chats on their way to the Trash (LEAVING: archiveKey's): a deleted one's row leaves at once.
  * @template {Chat} T @param {T[]} items @param {Set<string>} leaving */

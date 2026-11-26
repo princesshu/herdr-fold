@@ -22,7 +22,7 @@ NEW_TAB = 1.5                 # seconds a new tab is left to whatever made it: a
 # Spaces' name for the "new" button's workspace while its folder is chosen: the picker builds the chosen folder's
 # workspace and closes this one
 PLACEHOLDER = "new"
-AGENTS = ("claude", "codex")  # the agents herdr-fold starts (`herdr agent start NAME`), each beside a right column
+AGENTS = ("claude", "codex", "opencode")  # the agents herdr-fold starts (`herdr agent start`), beside a right column
 # The shells a pane can run with nothing else in its foreground (Unix and Windows)
 COLLAPSED = column.SPLIT[0]   # the terminal's share of the rows under the agent on the rail: herdr's least, a tenth
 RAISED = 0.3                  # its share raised there, where its height in the right column is not known

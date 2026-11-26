@@ -115,6 +115,16 @@ class Layout(unittest.TestCase):
         with self.assertRaises(herdr_layout.LayoutError):
             herdr_layout.build("nowhere", "claude", "/srv/app", "app")
 
+    def test_opencode_starts_as_the_others_and_an_unknown_agent_is_a_usage_error(self):
+        herdr_layout.build(None, "opencode", self.folder, "My App")
+        start = self.named("agent", "start")[0]
+        self.assertEqual(start[start.index("--kind") + 1], "opencode")
+        self.assertIn(("pane", "rename", "w9:p1", "opencode"), self.calls)
+        for args in (["--agent", "aider", self.folder], ["--agent", "opencode"]):
+            with self.assertRaises(SystemExit) as stopped:
+                herdr_layout.main(args)
+            self.assertIn("--agent claude|codex|opencode", str(stopped.exception))
+
     def test_an_agent_that_does_not_start_is_said(self):
         self.agent_fails = True
         lines = herdr_layout.build(None, "claude", self.folder, "My App")

@@ -184,13 +184,15 @@ class AgentState(unittest.TestCase):
         log = self.programs({"claude": {"auth status --json": [json.dumps(SIGNED_IN), "", 0]}})
         found = agent_state.machine_agents(self.home)
         self.assertEqual([(a["key"], a["name"], a["installed"]) for a in found],
-                         [("claude", "Claude", True), ("codex", "Codex", False), ("gemini", "Gemini CLI", False)])
+                         [("claude", "Claude", True), ("codex", "Codex", False), ("opencode", "OpenCode", False),
+                          ("gemini", "Gemini CLI", False)])
         self.assertEqual(found[1], {"key": "codex", "name": "Codex", "installed": False, "signed_in": None,
                                     "plan": None, "login": ["codex", "login"],
                                     "install": "npm install -g @openai/codex",
                                     "page": "https://developers.openai.com/codex/cli"})
         self.assertEqual([(a["login"], a["install"]) for a in found if a["key"] != "codex"], [
             (["claude", "auth", "login"], "npm install -g @anthropic-ai/claude-code"),
+            (["opencode", "auth", "login"], "npm install -g @opencode/cli"),
             (["gemini"], "npm install -g @google/gemini-cli")])
         self.assertTrue(all(a["page"].startswith("https://") for a in found))
         # where the caller looks: Gemini CLI alone is there
@@ -269,9 +271,30 @@ class AgentState(unittest.TestCase):
                 self.answer({"codex": {"login status": [out, error, code]}})
                 self.assertEqual(agent_state.machine_agents(self.home, fresh=True)[1]["plan"], plan)
 
+    def test_opencode_is_signed_in_where_its_own_list_names_an_integration(self):
+        # `opencode auth list --format json` as OpenCode 2.4 prints it: an integration's name and how it is connected
+        # (a stored credential's label, an environment variable's name), never a secret; its plan never told
+        ask = "auth list --format json --standalone"
+        stored = [{"id": "anthropic", "name": "Anthropic", "connections": [{"type": "credential", "label": "work"}]}]
+        log = self.programs({"opencode": {ask: [json.dumps(stored), "", 0]}})
+        opencode = agent_state.machine_agents(self.home)[2]
+        self.assertEqual(opencode, {"key": "opencode", "name": "OpenCode", "installed": True, "signed_in": True,
+                                    "plan": None, "login": ["opencode", "auth", "login"],
+                                    "install": "npm install -g @opencode/cli", "page": "https://opencode.ai/docs/"})
+        self.assertEqual([c["argv"] for c in self.calls(log)], [ask.split()])    # a private server, never its service
+        env = [{"id": "openai", "name": "OpenAI", "connections": [{"type": "env", "name": "OPENAI_API_KEY"}]}]
+        # none: its free models need no sign-in, so it is never said to be signed out; anything else tells nothing
+        for out, code, signed in ((json.dumps(env), 0, True), ("[]\n", 0, None), ("No integrations\n", 0, None),
+                                  (json.dumps({"error": "x"}), 0, None), ("", 1, None), (json.dumps(env), 1, None)):
+            with self.subTest(out):
+                self.answer({"opencode": {ask: [out, "", code]}})
+                found = agent_state.machine_agents(self.home, fresh=True)[2]
+                self.assertEqual((found["signed_in"], found["plan"]), (signed, None))
+        self.assertIsNone(agent_state.standing(agent_state.machine_agents(self.home, fresh=True)[2]))
+
     def test_gemini_has_no_state(self):
         log = self.programs({"gemini": {}})
-        self.assertEqual(agent_state.machine_agents(self.home)[2], {
+        self.assertEqual(agent_state.machine_agents(self.home)[3], {
             "key": "gemini", "name": "Gemini CLI", "installed": True, "signed_in": None, "plan": None,
             "login": ["gemini"], "install": "npm install -g @google/gemini-cli",
             "page": "https://github.com/google-gemini/gemini-cli"})
@@ -306,8 +329,8 @@ class AgentState(unittest.TestCase):
             self.assertEqual(agent_state.main(["agent_state.py", "agents"]), 0)
         agents = json.loads(out.getvalue())
         self.assertEqual([(a["key"], (a["empty"] or {}).get("kind")) for a in agents],
-                         [("claude", "sign-in"), ("codex", "install"), ("gemini", "install")])
-        self.assertEqual([a["listed"]["group"] for a in agents], ["Agents on this Mac"] + ["Not installed"] * 2)
+                         [("claude", "sign-in"), ("codex", "install"), ("opencode", "install"), ("gemini", "install")])
+        self.assertEqual([a["listed"]["group"] for a in agents], ["Agents on this Mac"] + ["Not installed"] * 3)
 
     def test_an_agents_row_in_the_heads_list(self):
         agent = {"key": "codex", "name": "Codex", "installed": True, "signed_in": True, "plan": "Plus"}
@@ -325,13 +348,13 @@ class AgentState(unittest.TestCase):
         log = self.programs({"claude": {"auth status --json": [json.dumps(SIGNED_IN), "", 0]},
                              "codex": {"login status": ["", "", 0]}})
         for _ in range(2):
-            self.assertEqual([a["signed_in"] for a in agent_state.machine_agents(self.home)], [True, True, None])
+            self.assertEqual([a["signed_in"] for a in agent_state.machine_agents(self.home)], [True, True, None, None])
         self.assertEqual([c["program"] for c in self.calls(log)], ["claude", "codex"])
         self.answer({"claude": {"auth status --json": [json.dumps({"loggedIn": False, "authMethod": "none"}), "", 1]},
                      "codex": {"login status": ["", "", 1]}})
         # asked fresh (as after a sign-in), or a minute on: asked again
         self.assertEqual([a["signed_in"] for a in agent_state.machine_agents(self.home, fresh=True)],
-                         [False, False, None])
+                         [False, False, None, None])
         with mock.patch.object(agent_state, "KEEP", 0):
             agent_state.machine_agents(self.home)
         self.assertEqual([c["program"] for c in self.calls(log)], ["claude", "codex"] * 3)
@@ -351,7 +374,8 @@ class AgentState(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             self.assertEqual(agent_state.main(["agent_state.py", "agents"]), 0)
         self.assertEqual([(a["key"], a["installed"], a["signed_in"], a["plan"]) for a in json.loads(out.getvalue())],
-                         [("claude", True, True, "Max"), ("codex", True, True, None), ("gemini", False, None, None)])
+                         [("claude", True, True, "Max"), ("codex", True, True, None), ("opencode", False, None, None),
+                          ("gemini", False, None, None)])
         os.remove(os.path.join(self.bin, "claude"))
         self.stand_in({"sentry": ["sentry:\n  Status: ✓ Connected\n", "", 0]})
         out = io.StringIO()

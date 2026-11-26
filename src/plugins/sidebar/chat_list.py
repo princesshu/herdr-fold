@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import widgets
 from agent_setup import KNOWN
+from chats import TRASHED
 from checkpoint_list import CheckpointList
 from screen import PAD, PLAIN, Canvas, Style, truncate, width
 from vt import Key, Mouse
@@ -18,7 +19,7 @@ STATE_ROLE = {"blocked": "deleted", "done": "done", "working": "modified", "idle
 STATE_MARK = {"blocked": "●", "done": "●", "working": "●", "idle": "○", "unknown": "·"}
 SHOW, HIDE = "Show archived", "Hide archived"           # the archived ones in sight or not: More's line, the list's
 MENU = ("Open", "Copy chat", "Rename")
-DELETE = "Delete…"            # a closed chat's, asked first: its file to the system's Trash
+DELETE = "Delete…"            # a closed chat's of TRASHED, asked first: its file to the system's Trash
 CHECKPOINTS = "Checkpoints…"  # a Claude chat's: its prompts to take its files back to, in the list's place
 ASKED = 40                    # characters of a chat's name in that question
 BOX, MARKED = "□", "■"        # a closed chat's box, and a marked one's
@@ -438,7 +439,8 @@ class ChatList:
             self.mark_row(row)
         elif name == "delete" and not self.typed:               # the filter empty: nothing of it to delete
             if row and row[0] == "item":
-                return self.ask_delete(row[1]) if self.markable(row) else Action("no_delete", (row[1],))
+                return self.ask_delete(row[1]) if self.markable(row) and row[1].agent in TRASHED \
+                    else Action("no_delete", (row[1],))
         elif name in ("backspace", "delete") or (event.name == "char" and not (event.ctrl or event.alt)
                                                 and event.char.isprintable()):
             self.filter(lambda: self.field.handle(event))
@@ -498,17 +500,18 @@ class ChatList:
 
     def choices(self, item):
         """The right click's menu for ITEM: Checkpoints… for a Claude chat, Archive for a closed one, Unarchive for an
-        archived one, Delete… for either (a running one has neither); for None (elsewhere in the list) More's lines."""
+        archived one, Delete… for either whose file is its own (a running one has neither); for None (elsewhere in the
+        list) More's lines."""
         if item is None:
             return tuple(self.menu_lines())
         bulk = self.bulk() if self.archive_key(item) in self.marked else {}
         if bulk:
             return tuple(bulk) + ("Unmark all",)
-        closed = () if item.state else (DELETE,)
+        delete = () if item.state or item.agent not in TRASHED else (DELETE,)
         mine = MENU + ((CHECKPOINTS,) if item.agent == "claude" else ())
         if self.archive_key(item) in self.archived:
-            return mine + ("Unarchive",) + closed
-        return mine + (("Archive",) if closed else ()) + closed
+            return mine + ("Unarchive",) + delete
+        return mine + (() if item.state else ("Archive",)) + delete
 
     def open_points(self, item):
         """ITEM's checkpoints in the list's place, read by Chats."""

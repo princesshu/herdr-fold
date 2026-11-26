@@ -18,7 +18,7 @@ from i18n import line, t  # noqa: E402
 from projects import repositories, start  # noqa: E402
 import widgets  # noqa: E402  the sidebar's, on the path herdrlib gives
 from icons import icon  # noqa: E402  the sidebar's, on the path herdrlib gives
-from screen import after, icons_on  # noqa: E402  the sidebar's, on the path herdrlib gives
+from screen import after, icons_on, truncate  # noqa: E402  the sidebar's, on the path herdrlib gives
 from tui import (CLOSE_ROOM, CLOSED, GAP, GRAY, INVERT, MARGIN, RESET, RIGHT, button_at, buttons, clicked,  # noqa: E402
                  close_button, mouse, printable, read_key, wait_and_exit)
 
@@ -29,6 +29,7 @@ DOUBLE = 0.4               # seconds within which a second click on a row opens 
 ADD_MACHINE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "add_machine.py")    # Add machine…'s popup
 NAME_CELLS = 48            # a row's cells before its tags, fewer in a narrower window (a wrapped row moves the clicks)
 TAGS_CELLS = 8             # "git open"
+TOGGLE = len(" │ ".join(f" {a} " for a in AGENTS))     # the agent toggle's cells, at the title row's right
 
 Row = collections.namedtuple("Row", "path name depth open")
 
@@ -62,15 +63,15 @@ def indent(depth):
     return "" if not depth else "  " + "│ " * (depth - 1)
 
 
-def title_of(folder):
-    return printable(folder.replace(HOME, "~", 1))
+def title_of(folder, width):
+    """FOLDER as the title row names it in WIDTH cells: from ~, cut with "…" where the toggle needs the room."""
+    return truncate(printable(folder.replace(HOME, "~", 1)), width - MARGIN - RIGHT - CLOSE_ROOM - TOGGLE - 1)
 
 
 def toggle_start(title, width):
     """The toggle's first column (0-based) on the title row: at its right end, before the close button, a cell from
     the title at least."""
-    toggle = len(" │ ".join(f" {a} " for a in AGENTS))
-    return MARGIN + len(title) + max(1, width - MARGIN - RIGHT - CLOSE_ROOM - len(title) - toggle)
+    return MARGIN + len(title) + max(1, width - MARGIN - RIGHT - CLOSE_ROOM - len(title) - TOGGLE)
 
 
 def picker_buttons(width):
@@ -174,7 +175,7 @@ class Picker:
             return None
         shown = self.fit(height)
         if at == 1:
-            x, start = column - 1 - toggle_start(title_of(self.root), width), 0
+            x, start = column - 1 - toggle_start(title_of(self.root, width), width), 0
             for agent in AGENTS:
                 if start <= x < start + len(agent) + 2:
                     self.agent = agent
@@ -247,7 +248,7 @@ def screen(picker, opened, height, width):
     rows, icons = picker.fit(height), icons_on(PLUGIN_STATE)
     cells = max(1, min(NAME_CELLS, width - TAGS_CELLS - 3))
     toggle = " │ ".join(f"{INVERT} {a} {RESET}" if a == picker.agent else f" {a} " for a in AGENTS)
-    title = title_of(picker.root)
+    title = title_of(picker.root, width)
     lines = [" " * MARGIN + f"{BOLD}{title}{RESET}" + " " * (toggle_start(title, width) - MARGIN - len(title)) + toggle
              + " " * (CLOSE_ROOM + RIGHT), " " * MARGIN + f"{picker.filt}▏" if picker.filt else ""]
     for n, row in enumerate(rows, picker.top):

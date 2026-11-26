@@ -55,7 +55,8 @@ GENERAL = "general-purpose"     # the subagent Claude starts for an Agent call t
 # the session lines that tell the MCP servers' state: their tools, their instructions, a compaction starting both over
 TOLD = (b'"deferred_tools_delta"', b'"mcp_instructions_delta"', b'"compact_boundary"')
 # the agents herdr-fold knows, in its order (agent_state.py's HOW: each one's program, sign-in and install)
-KNOWN = {"claude": {"name": "Claude"}, "codex": {"name": "Codex"}, "gemini": {"name": "Gemini CLI"}}
+KNOWN = {"claude": {"name": "Claude"}, "codex": {"name": "Codex"}, "opencode": {"name": "OpenCode"},
+         "gemini": {"name": "Gemini CLI"}}
 # a mode in the chat's words
 MODE_WORDS = {"default": "Manual", "manual": "Manual", "acceptEdits": "Edit automatically", "plan": "Plan",
               "auto": "Auto", "dontAsk": "Don't ask", "bypassPermissions": "Bypass permissions"}

@@ -11,6 +11,11 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 
 ### Added
 
+- OpenCode (V2) as a coding agent, through the agents' adapters: installed and signed in in the agents' lists, its CLI
+  in a terminal tab from New chat and a new space (the TUI's picker: `claude │ codex │ opencode`), its chats in Chats
+  from its own database, reopened with `opencode --session` and copied, never deleted here, and in the Agent panel the
+  instructions it reads, its model and its MCP servers as `opencode debug config` lists them; Usage says its limits
+  are not told, and it has no graph, form or headless run here yet
 - Checkpoints: a Claude chat's files back to how they were at one of its prompts. In the app the prompt under the
   mouse offers Restore files to here; in the TUI a chat's Checkpoints… in Chats (or →). Claude says first which files
   would change and what stays; the restore is Claude's own `--rewind-files`, and one Undo puts the files back

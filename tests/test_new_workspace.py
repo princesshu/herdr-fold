@@ -1,6 +1,6 @@
 """Tests for new_workspace.py's folder picker: a tree as the sidebar's Files view shows it, under the folder as title
-and a claude │ codex toggle; the filter only while typing; the keys, the mouse, Cancel and Open; and where it starts
-(projects.py): unasked, at the folder holding the most git repositories, under a temporary home."""
+and a claude │ codex │ opencode toggle; the filter only while typing; the keys, the mouse, Cancel and Open; and where
+it starts (projects.py): unasked, at the folder holding the most git repositories, under a temporary home."""
 import os
 import shutil
 import tempfile
@@ -229,7 +229,9 @@ class Screen(unittest.TestCase):
         self.assertIn(new_workspace.INVERT + " claude " + new_workspace.RESET, first)
         self.assertNotIn(new_workspace.INVERT + " codex ", first)
         self.assertIn(new_workspace.INVERT + " codex " + new_workspace.RESET, self.screen(agent="codex").split("\n")[0])
-        self.assertTrue(self.lines()[0].rstrip().endswith("codex"))              # on the right of the title row
+        self.assertTrue(self.lines()[0].rstrip().endswith("codex  │  opencode"))  # on the right of the title row
+        self.assertIn(new_workspace.INVERT + " opencode " + new_workspace.RESET,
+                      self.screen(agent="opencode").split("\n")[0])
 
     def test_the_filter_shows_only_while_typing(self):
         self.assertNotIn("filter", " ".join(self.lines()).lower())
@@ -247,7 +249,7 @@ class Screen(unittest.TestCase):
         # the toggle a cell before the close button, which takes the row's last three cells (herdr's column after)
         first = self.lines()[0]
         self.assertEqual(len(first), 80)
-        self.assertTrue(first.startswith(" ~/projects") and first.endswith(" codex     "), first)
+        self.assertTrue(first.startswith(" ~/projects") and first.endswith(" opencode     "), first)
         self.assertTrue(self.lines(filt="no")[1].startswith(" no"))
 
     def test_every_row_fits_a_narrow_window(self):
@@ -255,6 +257,15 @@ class Screen(unittest.TestCase):
         lines = ANSI.sub("", new_workspace.screen(self.picker, {os.path.join(self.tmp, "projects", "app")}, 10, 50))
         self.assertLessEqual(max(len(line) for line in lines.split("\n")), 50)
         self.assertIn("git open", lines)
+        # a long folder's title gives way to the whole toggle, cut with "…", and a click still finds each agent
+        deep = os.path.join(self.tmp, "projects", "lumen-api-gateway", "services", "billing-reconciliation")
+        os.makedirs(deep)
+        self.picker = new_workspace.Picker(deep)
+        first = ANSI.sub("", new_workspace.screen(self.picker, set(), 10, 50)).split("\n")[0]
+        self.assertEqual(len(first), 50)
+        self.assertTrue(first.startswith(" ~/projects/") and "… " in first and "opencode" in first, first)
+        self.assertIsNone(self.picker.click((0, first.index("opencode") + 1, 1, True), 0, 50, 10))
+        self.assertEqual(self.picker.agent, "opencode")
 
     def test_no_helper_text_and_no_dot_row(self):
         text = " ".join(self.lines())

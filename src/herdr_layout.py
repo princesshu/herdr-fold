@@ -8,11 +8,11 @@ import sys
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from herdrlib import add_column, agent_name, herdr, machines, space_name  # noqa: E402
+from herdrlib import AGENTS, add_column, agent_name, herdr, machines, space_name  # noqa: E402
 from i18n import line, t  # noqa: E402
 
 HOME = os.path.realpath(os.path.expanduser("~"))
-USAGE = "Usage: herdr_layout.py [--machine <machine>] [--agent claude|codex] <folder> [name]"
+USAGE = f"Usage: herdr_layout.py [--machine <machine>] [--agent {'|'.join(AGENTS)}] <folder> [name]"
 
 
 class LayoutError(Exception):
@@ -80,7 +80,7 @@ def main(args):
         else:
             agent = args[1]
         args = args[2:]
-    if agent not in ("claude", "codex") or not 1 <= len(args) <= 2:
+    if agent not in AGENTS or not 1 <= len(args) <= 2:
         sys.exit(USAGE)
     try:
         print("\n".join(build(machine, agent, *args)))

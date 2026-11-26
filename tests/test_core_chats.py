@@ -1,4 +1,4 @@
-"""Tests for core/chats.py in a temporary HOME: the Claude Code and Codex chats with title, folder,
+"""Tests for core/chats.py in a temporary HOME: the Claude Code, Codex and OpenCode chats with title, folder,
 time and state; a file read again only where it grew, unreadable files and damaged lines skipped, none of their files
 written."""
 import contextlib
@@ -6,6 +6,7 @@ import io
 import json
 import os
 import shutil
+import sqlite3
 import sys
 import tempfile
 import time
@@ -558,9 +559,11 @@ class Transcript(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.dir)
+        set_env(self, HOME=self.dir)
 
     def write(self, name, *entries):
         path = os.path.join(self.dir, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             f.write("".join(jsonl(entry) for entry in entries))
         return path
@@ -620,22 +623,156 @@ class Transcript(unittest.TestCase):
         self.assertEqual(list(chats.messages("codex", path)), [("user", "Price list"), ("assistant", "Done.")])
 
     def test_as_markdown_the_title_then_each_turn_under_who_said_it(self):
-        path = self.write("s1.jsonl",
+        self.write(".claude/projects/-repo-app/s1.jsonl",
                           {"type": "user", "message": {"content": "Fix the login"}},
                           {"type": "assistant", "message": {"content": [{"type": "text", "text": "Found it."}]}},
                           {"type": "assistant", "message": {"content": [{"type": "text", "text": "**Fixed.**"}]}})
         item = chats.Chat("claude", "s1", "Login fix", "/repo/app", 0)
-        self.assertEqual(chats.markdown(item, path),
+        self.assertEqual(chats.markdown(item),
                          "# Login fix\n\n**You**\n\nFix the login\n\n**Claude**\n\nFound it.\n\n**Fixed.**\n")
+        self.assertIsNone(chats.markdown(chats.Chat("claude", "gone", "Gone", "/repo/app", 0)))
 
     def test_as_markdown_no_control_character_but_line_breaks_and_tabs(self):
         # pasted into a terminal, a code a chat holds would run there: set the title, write the clipboard
-        path = self.write("s1.jsonl",
-                          {"type": "user", "message": {"content": "Fix \x1b]2;owned\x07it"}},
-                          {"type": "assistant", "message": {"content": [{"type": "text", "text": "a\tb\x9b\x1b[31m"}]}})
+        self.write(".claude/projects/-repo-app/s1.jsonl",
+                   {"type": "user", "message": {"content": "Fix \x1b]2;owned\x07it"}},
+                   {"type": "assistant", "message": {"content": [{"type": "text", "text": "a\tb\x9b\x1b[31m"}]}})
         item = chats.Chat("claude", "s1", "Login\x1b]0;x\x07 fix", "/repo/app", 0)
-        self.assertEqual(chats.markdown(item, path),
+        self.assertEqual(chats.markdown(item),
                          "# Login]0;x fix\n\n**You**\n\nFix ]2;ownedit\n\n**Claude**\n\na\tb[31m\n")
+
+
+# OpenCode 2.4's tables as far as Chats reads them, with their own columns' names and types
+OPENCODE_SCHEMA = """
+create table if not exists session_v2 (id text primary key, project_id text not null, parent_id text,
+  slug text not null, directory text not null, title text, version text not null, time_created integer not null,
+  time_updated integer not null, time_archived integer);
+create table if not exists session_message (id text primary key, session_id text not null, type text not null,
+  seq integer not null, time_created integer not null, time_updated integer not null, data text not null);
+create table if not exists session_part (message_id text not null, session_id text not null, ordinal integer not null,
+  type text not null, call_id text, time_created integer not null, time_updated integer not null, data text not null,
+  primary key (message_id, ordinal));
+"""
+
+
+class OpenCode(unittest.TestCase):
+    """OpenCode's chats as its database holds them (an invented one in V2's tables), only read: named, listed with the
+    others, marked running, copied; never deleted from here."""
+
+    def setUp(self):
+        self.home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.home)
+        set_env(self, HOME=self.home, XDG_DATA_HOME=None)
+        self.state = os.path.join(self.home, ".local", "state", "herdr", "plugins", "herdr-fold.sidebar")
+        self.db = os.path.join(self.home, ".local", "share", "opencode", "opencode.db")
+
+    def session(self, id, updated, *turns, title=None, parent=None, archived=None, folder="/Users/dev/lumen-api"):
+        """A chat in OpenCode's database changed at UPDATED (ms), in WAL mode as OpenCode keeps it: TURNS each (role,
+        text), the user's text in its message, a reply's in a text part."""
+        os.makedirs(os.path.dirname(self.db), exist_ok=True)
+        with contextlib.closing(sqlite3.connect(self.db)) as db, db:
+            db.execute("pragma journal_mode = wal")
+            db.executescript(OPENCODE_SCHEMA)
+            db.execute("insert into session_v2 values (?, 'p1', ?, 'misty-forest', ?, ?, '2.4.1', ?, ?, ?)",
+                       (id, parent, folder, title, updated - 1000, updated, archived))
+            for n, (role, said) in enumerate(turns):
+                data = {"text": said, "files": []} if role == "user" else {"agent": "build", "finish": "stop"}
+                db.execute("insert into session_message values (?, ?, ?, ?, ?, ?, ?)",
+                           (f"msg_{id}_{n}", id, role, n * 3 + 1, updated, updated, json.dumps(data)))
+                if role == "assistant":
+                    db.execute("insert into session_part values (?, ?, 0, 'text', null, ?, ?, ?)",
+                               (f"msg_{id}_{n}", id, updated, updated, json.dumps({"type": "text", "text": said})))
+
+    def listed(self, agents=()):
+        return {c.id: c for c in chats.local(self.state, agents) if c.agent == "opencode"}
+
+    def test_a_chat_goes_by_a_name_given_in_herdr_its_title_or_its_first_prompt(self):
+        self.session("ses_a1", 1795600000000, ("user", "Where is the health check?"),
+                     ("assistant", "In src/health.py."), title="Health check endpoint")
+        self.session("ses_b2", 1795600100000, ("user", "Add a readiness probe\nthen test it"))
+        self.session("ses_c3", 1795600200000, ("user", "Rate limits"), title="Rate limiter")
+        chats.name_session("ses_c3", "Throttle")
+        found = self.listed()
+        self.assertEqual({k: (c.title, c.folder, c.time) for k, c in found.items()},
+                         {"ses_a1": ("Health check endpoint", "/Users/dev/lumen-api", 1795600000.0),
+                          "ses_b2": ("Add a readiness probe", "/Users/dev/lumen-api", 1795600100.0),
+                          "ses_c3": ("Throttle", "/Users/dev/lumen-api", 1795600200.0)})
+
+    def test_its_subagents_archived_and_empty_chats_are_no_rows(self):
+        self.session("ses_a1", 1795600000000, ("user", "Fix the login"))
+        self.session("ses_s1", 1795600000500, ("user", "Search the code"), parent="ses_a1")     # a subagent's
+        self.session("ses_r1", 1795600001000, ("user", "Nightly report"), archived=1795600002000)
+        self.session("ses_e1", 1795600003000, title="New session")                              # nothing asked yet
+        self.assertEqual(list(self.listed()), ["ses_a1"])
+
+    def test_it_is_listed_with_the_others_the_newest_first_and_marked_running(self):
+        path = os.path.join(self.home, ".claude", "projects", "-Users-dev-lumen-api", "s1.jsonl")
+        os.makedirs(os.path.dirname(path))
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(jsonl({"type": "user", "isSidechain": False, "cwd": "/Users/dev/lumen-api",
+                           "message": {"content": "Fix the login"}}))
+        os.utime(path, (1795600050, 1795600050))
+        self.session("ses_a1", 1795600100000, ("user", "Health check"))
+        self.session("ses_b2", 1795600000000, ("user", "Readiness probe"))
+        agents = [{"agent": "opencode", "agent_status": "working", "pane_id": "p1", "cwd": "/Users/dev/lumen-api"}]
+        found = chats.local(self.state, agents)
+        self.assertEqual([(c.agent, c.id, c.state, c.pane) for c in found],
+                         [("opencode", "ses_a1", "working", "p1"), ("claude", "s1", "", ""),
+                          ("opencode", "ses_b2", "", "")])               # its newest in the folder runs
+        told = [{"agent": "opencode", "agent_status": "blocked", "pane_id": "p2", "agent_session": {"value": "ses_b2"}}]
+        self.assertEqual([(c.id, c.state) for c in chats.local(self.state, told) if c.state], [("ses_b2", "blocked")])
+
+    def test_copy_chat_is_its_prompts_and_replies_in_order(self):
+        self.session("ses_a1", 1795600000000, ("user", "Where is the health check?"),
+                     ("assistant", "In src/health.py."), ("user", "And the readiness probe?"),
+                     ("assistant", "Not there yet."), title="Health check")
+        item = self.listed()["ses_a1"]
+        self.assertEqual(chats.markdown(item), "# Health check\n\n**You**\n\nWhere is the health check?\n\n"
+                         "**OpenCode**\n\nIn src/health.py.\n\n**You**\n\nAnd the readiness probe?\n\n"
+                         "**OpenCode**\n\nNot there yet.\n")
+        self.assertIsNone(chats.markdown(chats.Chat("opencode", "ses_gone", "Gone", "/Users/dev/lumen-api", 0)))
+
+    def test_its_database_is_only_read(self):
+        self.session("ses_a1", 1795600000000, ("user", "Health check"))
+        folder = os.path.dirname(self.db)
+        before = {name: read(os.path.join(folder, name)) for name in ("opencode.db", "opencode.db-wal")}
+        self.listed()
+        chats.markdown(self.listed()["ses_a1"])
+        self.assertEqual({name: read(os.path.join(folder, name)) for name in before}, before)
+
+    def test_no_database_or_another_kind_of_file_lists_no_opencode_chat(self):
+        self.assertEqual(self.listed(), {})
+        os.makedirs(os.path.dirname(self.db))
+        with open(self.db, "w", encoding="utf-8") as f:
+            f.write("not a database")
+        self.assertEqual(self.listed(), {})
+        os.remove(self.db)
+        with contextlib.closing(sqlite3.connect(self.db)) as db, db:      # OpenCode 1's tables: none of V2's
+            db.execute("create table session (id text primary key, directory text, title text)")
+        self.assertEqual(self.listed(), {})
+
+    def test_it_is_found_where_xdg_data_home_says(self):
+        set_env(self, XDG_DATA_HOME=os.path.join(self.home, "data"))
+        self.db = os.path.join(self.home, "data", "opencode", "opencode.db")
+        self.session("ses_a1", 1795600000000, ("user", "Health check"))
+        self.assertEqual(list(self.listed()), ["ses_a1"])
+
+    def test_one_is_never_deleted_from_here(self):
+        self.session("ses_a1", 1795600000000, ("user", "Health check"))
+        with self.assertRaises(fileops.Refused):
+            chats.delete(self.state, "opencode", "ses_a1")
+        self.assertEqual(list(self.listed()), ["ses_a1"])
+
+    def test_the_cli_lists_and_copies_it(self):
+        self.session("ses_a1", 1795600000000, ("user", "Health check"), ("assistant", "In src/health.py."))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(chats.main(["chats.py", "list", "[]", "{}"]), 0)
+        self.assertEqual([(c["agent"], c["id"]) for c in json.loads(out.getvalue())["chats"]], [("opencode", "ses_a1")])
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(chats.main(["chats.py", "markdown", "opencode", "ses_a1"]), 0)
+        self.assertIn("**OpenCode**\n\nIn src/health.py.", json.loads(out.getvalue())["markdown"])
 
 
 if __name__ == "__main__":

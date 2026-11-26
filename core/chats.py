@@ -1,14 +1,16 @@
-"""This machine's Claude Code and Codex chats for the Chats list and the formatted copy: nothing of Claude's, Codex's
-or herdr's is written, and only a closed chat's own file leaves, for the Trash, on Delete… (delete). Each file is read
-once, then only where it grew (INDEX, every pane's); an unreadable one is left out, a field of a wrong type missing."""
+"""This machine's Claude Code, Codex and OpenCode chats for Chats and the formatted copy: nothing of the agents' or
+herdr's is written, and only a closed chat's own file leaves, for the Trash, on Delete… (delete). Each file is read
+once, then only where it grew (INDEX); OpenCode's database is asked as it is. One unreadable is left out."""
 import contextlib
 import errno
 import glob
 import json
 import os
+import sqlite3
 import stat
 import sys
 import unicodedata
+import urllib.parse
 from dataclasses import asdict, dataclass, replace
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
@@ -30,12 +32,24 @@ TAIL = 8 << 20                        # bytes from a chat's end the formatted co
 # a text that is not the user's own prompt: the agent's system text or a command (<…>), the project's notes, a note
 # that a reply was cut off
 NOT_A_PROMPT = ("<", "# AGENTS.md", "[Request interrupted")
+NAMES = {"claude": "Claude", "codex": "Codex", "opencode": "OpenCode"}    # the agents whose chats are listed
+RESUME = {"claude": "--resume", "codex": "resume", "opencode": "--session"}  # the word before an id their CLI reopens
+TRASHED = ("claude", "codex")         # those whose chat is a file of its own, which Delete… moves to the Trash
+# OpenCode's chats in its database (its V2 tables), each with its first prompt: its subagents' and those it archived
+# left out (a scripted `opencode run --archived` too)
+OPENCODE_CHATS = ("select id, title, directory, time_updated, (select data from session_message where session_id = "
+                  "s.id and type = 'user' order by seq limit 1) from session_v2 s where parent_id is null and "
+                  "time_archived is null")
+# an OpenCode chat's turns in order: the user's text in its message, a reply's in its text parts
+OPENCODE_TURNS = ("select m.id, m.type, m.data, p.data from session_message m left join session_part p on "
+                  "p.message_id = m.id and p.type = 'text' where m.session_id = ? and m.type in ('user', 'assistant') "
+                  "order by m.seq, p.ordinal")
 
 
 @dataclass(frozen=True)
 class Chat:
-    agent: str              # claude or codex
-    id: str                 # its session: claude --resume ID, codex resume ID
+    agent: str              # claude, codex or opencode
+    id: str                 # its session: claude --resume ID, codex resume ID, opencode --session ID
     title: str
     folder: str             # where it was started
     time: float             # when it last changed
@@ -166,13 +180,20 @@ def messages(kind, path, tail=None):
                 yield role, text
 
 
-def markdown(item, path):
-    """ITEM's chat (its file PATH) as Markdown: its title, then each turn under who said it, the parts of a
-    turn together. No control character but line breaks and tabs: pasted into a terminal, a code the chat holds
-    would run there."""
-    who = {"user": "You", "assistant": item.agent.capitalize()}
+def markdown(item):
+    """ITEM's chat as Markdown, its title, then each turn under who said it, the parts of a turn together; None where
+    its file (OpenCode's rows) is gone. No control character but line breaks and tabs: pasted into a terminal, a code
+    the chat holds would run there."""
+    if item.agent == "opencode":
+        said = list(opencode_messages(item.id))
+    else:
+        paths = session_files(item.agent, item.id)
+        said = list(messages(item.agent, paths[0])) if paths else []
+    if not said:
+        return None
+    who = {"user": "You", "assistant": NAMES[item.agent]}
     turns = []
-    for role, text in messages(item.agent, path):
+    for role, text in said:
         if turns and turns[-1][0] == role:
             turns[-1][1].append(text.strip())
         else:
@@ -248,6 +269,49 @@ def update(path, kind, entry):
             return None
     entry.update(offset=offset, size=info.st_size, mtime=info.st_mtime)
     return entry
+
+
+# --- OpenCode's database
+
+def opencode_db():
+    """OpenCode's database, which holds its chats: under XDG_DATA_HOME, as OpenCode takes it, else ~/.local/share."""
+    data = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
+    return os.path.join(data, "opencode", "opencode.db")
+
+
+def opencode_rows(query, *args):
+    """QUERY's rows (ARGS its values) in OpenCode's database, opened read-only; none where it is not there or cannot be
+    read (busy past a second, another version's tables)."""
+    try:
+        with contextlib.closing(sqlite3.connect(f"file:{urllib.parse.quote(opencode_db())}?mode=ro", uri=True,
+                                                timeout=1)) as db:
+            return db.execute(query, args).fetchall()
+    except sqlite3.Error:
+        return []
+
+
+def opencode_chats(names):
+    """OpenCode's chats with a prompt of the user's (OPENCODE_CHATS'), named as AI Sessions names them, else as
+    OpenCode does, else by that prompt."""
+    found = []
+    for id, title, folder, updated, first in opencode_rows(OPENCODE_CHATS):
+        prompt = first_prompt([text(parse(first or "").get("text")) or ""])[:PROMPT]
+        if isinstance(id, str) and prompt and isinstance(updated, (int, float)):
+            found.append(Chat("opencode", id, names.get(id) or text(title) or prompt, text(folder) or "",
+                              updated / 1000))
+    return found
+
+
+def opencode_messages(session):
+    """OpenCode's chat SESSION as messages() gives one: the user's prompts and each text part of a reply, in order."""
+    seen = set()
+    for message, role, data, part in opencode_rows(OPENCODE_TURNS, session):
+        if role == "user" and message in seen:
+            continue
+        seen.add(message)
+        said = text(parse(data if role == "user" else part or "").get("text"))
+        if said and said.strip():
+            yield role, said
 
 
 # --- the names given elsewhere
@@ -384,7 +448,7 @@ def running(found, agents, resumed=None):
     its kind in its folder."""
     told, untold = {}, {}
     for agent in agents:
-        if agent.get("agent") not in ("claude", "codex"):
+        if agent.get("agent") not in NAMES:
             continue
         seen = (agent.get("agent_status") or "", agent.get("pane_id") or "")
         session = (agent.get("agent_session") or {}).get("value") or (resumed or {}).get(agent.get("pane_id"))
@@ -423,7 +487,7 @@ def local(state_dir, agents=(), resumed=None):
     reopened in panes herdr knows no session of yet ({pane: id}), for the running ones."""
     names, threads, runs = manual_names(), codex_names(), background()
     found = [item for item in (chat(kind, path, entry, names, threads, runs)
-                               for path, (kind, entry) in indexed(state_dir).items()) if item]
+                               for path, (kind, entry) in indexed(state_dir).items()) if item] + opencode_chats(names)
     return running(sorted(found, key=lambda item: item.time, reverse=True), agents, resumed)
 
 
@@ -484,8 +548,7 @@ def delete(state_dir, kind, session, agents=(), resumed=None, **how):
     """Chat SESSION of KIND deleted: its own file to the system's Trash (fileops.trash_chat, HOW its stand-ins), then
     its archive and its name dropped. Only a chat of the list, never a running one (AGENTS, RESUMED: local()'s):
     fileops.Refused says why not, nothing moved or dropped then."""
-    listed = local(state_dir, agents, resumed) if kind in ("claude", "codex") and fileops.CHAT_ID.fullmatch(session) \
-        else []
+    listed = local(state_dir, agents, resumed) if kind in TRASHED and fileops.CHAT_ID.fullmatch(session) else []
     item = next((one for one in listed if (one.agent, one.id) == (kind, session)), None)
     paths = own_files(kind, session) if item else []
     if not paths:
@@ -543,8 +606,7 @@ def main(argv):
                 answer = {"ok": False, "advice": said(err)}
         elif command == "markdown" and len(args) == 2:
             item = next((c for c in local(state) if (c.agent, c.id) == tuple(args)), None)
-            paths = session_files(*args) if item else []
-            answer = {"markdown": markdown(item, paths[0]) if paths else None}
+            answer = {"markdown": markdown(item) if item else None}
         else:
             raise ValueError("unknown command")
     except (ValueError, TypeError, AttributeError):

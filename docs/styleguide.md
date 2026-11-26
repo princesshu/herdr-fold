@@ -298,8 +298,9 @@ the title 13 semibold, the body's first line 12 muted; a click runs its action a
 ### The Agent panel
 
 ![The Agent panel: Claude in lumen-api with its limits, sentry failed, figma to sign in and a permission hidden; git
-typed into its filter; Connectors alone open; a narrow panel; Codex's own rules, approvals and servers; nothing found,
-loading, not on this machine, the read failed](../assets/styleguide/agent-panel.webp)
+typed into its filter; Connectors alone open; a narrow panel; Codex's own rules, approvals and servers; OpenCode's
+instructions and servers, read alone, Connectors with no +; nothing found, loading, not on this machine, the read
+failed](../assets/styleguide/agent-panel.webp)
 
 ![Usage, the panel's first section: Claude in use at 72% of its 5 hours, Codex folded to its row; one window, a window
 past its reset, a reading's age near the limit; what the agents cost under their limits, Codex's month against its
@@ -356,9 +357,9 @@ sign-out; Codex's servers not read](../assets/styleguide/agent-connectors-states
 empty, a name refused, the agent refusing it, Adding while its command runs; Codex's
 form](../assets/styleguide/agent-connectors-adding.webp)
 
-![The agents on this Mac: the head's chip pressed, the installed agents with Claude shown, then the one not installed,
-dim; the keys on Codex; one not installed looked at; every agent installed; a narrow panel; before the agents are
-told](../assets/styleguide/agent-list.webp)
+![The agents on this Mac: the head's chip pressed, the installed agents with Claude shown, OpenCode with no plan to
+tell, then the one not installed, dim; the keys on Codex; one not installed looked at; every agent installed; a
+narrow panel; before the agents are told](../assets/styleguide/agent-list.webp)
 
 ![An agent with no setup to show: Gemini CLI not signed in, Sign in beside it; Codex not installed, its vendor's line
 to copy; the line copied](../assets/styleguide/agent-states.webp)
@@ -544,8 +545,9 @@ project's initial is.
 
 ### Chats
 
-![Chats in the dock, in the view's place: by space, the running ones marked in herdr's colors; filtered, one renamed
-in its row, the archived shown, Delete… asked about in its row](../assets/styleguide/chats-list.webp)
+![Chats in the dock, in the view's place: by space, the running ones marked in herdr's colors, an OpenCode chat among
+them, its agent's name whole; filtered, one renamed in its row, the archived shown, Delete… asked about in its
+row](../assets/styleguide/chats-list.webp)
 
 ![Chats loading, empty, one archived (said under the list), and not read](../assets/styleguide/chats-states.webp)
 

@@ -19,14 +19,15 @@ const KEPT = "herdr-fold.chats";
 // when the list last opened, and the group a chat's clock asked for: { at, space } (panel.js's toggleChats)
 export const OPENED = "herdr-fold.chats-opened";
 const PENDING = 120000;            // ms a reopened chat's agent may take to start before it is given up
-const WATCHED = [".claude/projects", ".codex/sessions"];      // under the home folder, where the agents write them
+// under the home folder, where the agents write them (OpenCode its database)
+const WATCHED = [".claude/projects", ".codex/sessions", ".local/share/opencode"];
 const ACTIONS = { Open: "open", "Copy chat": "copy", Rename: "rename", Archive: "archive",
   Unarchive: "unarchive", "Delete…": "delete" };
 const STATES = { working: "Working", blocked: "Blocked", done: "Done", idle: "Idle" };   // a mark's, in words
 const SPACE_ROW = 26, CHAT_ROW = 24;          // px: a space's row, a chat's
 const CHEVRON = 14;                           // px: a space's chevron, leftmost (Lucide's)
 const UNDER = PAD / 2 + CHEVRON + 6;          // a chat's row in, its mark under its space's name (pad, chevron, gap)
-const AGENT = 44, AGE = 48;                   // px: a chat's two columns at its end, its agent's name and its age
+const AGENT = 54, AGE = 48;                   // px: a chat's two columns at its end, its agent's name and its age
 
 /** Whether the archived ones are shown, as the list's right click or More left it. */
 const showsArchived = () => shared(KEPT)?.showArchived === true;
@@ -50,7 +51,7 @@ const running = () => [...coreAgents(agents(), panes(), local()), ...chatAgents(
 const chatTab = (address) => terminals().find((t) => t.address === address && t.state === "live")?.labels?.[CHAT_TAB];
 
 /** ITEM shown: a chat tab's its tab, a running one's agent, else a new tab in its folder's space, its agent resuming
- * it as Settings' Open agents in says (a chat; Codex's, until its adapter, a terminal). Why it could not be, or null.
+ * it as Settings' Open agents in says (a chat; one with no adapter yet, a terminal). Why it could not be, or null.
  * @param {Listed} item @returns {string | null} */
 export function showChat(item) {
   const tab = item.pane ? chatTab(item.pane) : null;

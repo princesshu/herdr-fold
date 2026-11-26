@@ -1,6 +1,6 @@
 """Tests for core/agent_layers.py in a temporary home, folder and managed folder: the Agent panel's layers of what
-agent_setup.py reads, in both clients' words: the head, the sections with their rows, properties and actions, the
-command the app runs; nothing of the agents' written."""
+agent_setup.py and opencode_setup.py read, in both clients' words: the head, the sections with their rows, properties
+and actions, the command the app runs; nothing of the agents' written."""
 import contextlib
 import io
 import json
@@ -8,12 +8,13 @@ import os
 import sys
 import unittest
 
-from support import PACKAGE, AgentHome
+from support import PACKAGE, AgentHome, logged, set_env
 
 sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import agent_layers    # noqa: E402
 import agent_layers_cli    # noqa: E402
 import agent_setup    # noqa: E402
+import opencode_setup    # noqa: E402
 
 # a row the graph draws ends with its way there, the first only where it is the row's one action
 SHOW = {"id": "graph", "label": "Show in graph", "path": None, "server": None, "primary": False}
@@ -762,6 +763,112 @@ class AgentLayers(AgentHome, unittest.TestCase):
             self.skipTest("this user reads every file")
         self.assertEqual(self.layers()["error"], {"text": "Couldn't read Claude's setup: permission denied",
                                                   "tip": "~/.claude/settings.json"})
+
+
+class OpenCodeLayers(AgentHome, unittest.TestCase):
+    """OpenCode's setup in the rows Claude's and Codex's take: its instructions as it finds them, its model and servers
+    from the config files its own `opencode debug config` lists (a stand-in's, as OpenCode 2.4 prints it); no graph,
+    no form, no button of Claude's or Codex's."""
+
+    ASK = "debug config --standalone"
+
+    def setUp(self):
+        super().setUp()
+        set_env(self, XDG_CONFIG_HOME=None, OPENCODE_DISABLE_CLAUDE_CODE_PROMPT=None, OPENCODE_DISABLE_CLAUDE_CODE=None)
+        self.own = os.path.join(self.home, ".config", "opencode")
+
+    def config(self, *documents):
+        """What `opencode debug config` prints for DOCUMENTS (path, what it sets), its own folder among them."""
+        return json.dumps([{"type": "directory", "path": self.own}] + [
+            {"type": "document", **({"path": path} if path else {}), "info": info} for path, info in documents])
+
+    def layers(self):
+        return agent_layers.layers(opencode_setup.setup(self.folder, self.home), "opencode", self.folder, self.home)
+
+    def test_its_instructions_model_and_servers(self):
+        self.put(os.path.join(os.path.dirname(self.folder), ".git", "HEAD"), "ref: refs/heads/main\n")   # work/: top
+        mine = self.put(os.path.join(self.own, "AGENTS.md"), "Mine")
+        self.put(os.path.join(self.home, ".claude", "CLAUDE.md"), "Claude's")   # a global AGENTS.md stands first
+        here = self.put(os.path.join(self.folder, "AGENTS.md"), "lumen-api")
+        self.put(os.path.join(self.folder, "CLAUDE.md"), "skipped beside AGENTS.md")
+        above = self.put(os.path.join(os.path.dirname(self.folder), "CLAUDE.md"), "work")
+        self.put(os.path.join(os.path.dirname(os.path.dirname(self.folder)), "AGENTS.md"), "above the repository")
+        global_file, project_file = os.path.join(self.own, "opencode.jsonc"), os.path.join(self.folder, "opencode.json")
+        log = self.programs({"opencode": {self.ASK: [self.config(
+            (global_file, {"model": {"providerID": "anthropic", "model": "claude-opus-5-5", "variant": "high"},
+                           "mcp": {"servers": {
+                               "tracker": {"type": "local", "command": ["npx", "-y", "@lumen/tracker-mcp"],
+                                           "environment": {"TRACKER_TOKEN": "trk_0000"}},
+                               "docs": {"type": "remote", "url": "https://docs.lumen.example/mcp"}}}}),
+            (project_file, {"mcp": {"servers": {"docs": {"type": "remote", "url": "https://docs.lumen.example/v2/mcp",
+                                                         "disabled": True},
+                                                "odd": {"type": "websocket", "url": "wss://x.example"}}}}),
+            (None, {"model": {"providerID": "openai", "model": "gpt-5.5"}})), "", 0]}})
+        before = self.files()
+        found = self.layers()
+        self.assertEqual({k: v for k, v in self.files().items() if k != log}, before)
+        self.assertEqual([(c["argv"], c["cwd"]) for c in map(json.loads, logged(log))],
+                         [(self.ASK.split(), os.path.realpath(self.folder))])
+        head = found["head"]
+        self.assertEqual((head["name"], head["model"], head["runs"], head["effort"]),
+                         ("OpenCode", "Opus 5.5", "claude-opus-5-5", "High"))     # a file's model, not the variable's
+        self.assertEqual([s["id"] for s in found["sections"]], ["rules", "connectors"])   # nothing else is read
+        self.assertEqual([(r["name"], r["tag"], r["agents"], r["properties"]["actions"])
+                          for r in AgentLayers.section(found, "rules")["rows"]], [
+            ("~/.config/opencode/AGENTS.md", "Global", ["opencode"], [opened(mine, "AGENTS.md", True)]),
+            ("AGENTS.md", "Project", ["opencode"], [opened(here, "AGENTS.md", True)]),         # the nearest first
+            ("../CLAUDE.md", "Project", ["opencode"], [opened(above, "CLAUDE.md", True)])])
+        connectors = AgentLayers.section(found, "connectors")["rows"]
+        self.assertEqual([(r["name"], r["tag"], r["state"], r["dim"], r["properties"]["lines"],
+                           r["properties"]["actions"]) for r in connectors], [
+            ("docs", "Project", {"text": "off", "tone": "off"}, True,             # the project's over the global one
+             [["From", "opencode.json", "Project"], ["URL", "docs.lumen.example/v2/mcp", None]],
+             [opened(project_file, "opencode.json", True)]),
+            ("tracker", "Global", {"text": "not checked", "tone": "off"}, False,
+             [["From", "~/.config/opencode/opencode.jsonc", "Global"], ["Runs", "npx -y @lumen/tracker-mcp", None]],
+             [opened(global_file, "opencode.jsonc", True)])])
+        self.assertNotIn("trk_0000", json.dumps(found))
+        self.assertIsNone(found["connect"]["add"])                                # herdr-fold adds none to it
+        self.assertEqual(found["head"]["problems"], [])
+
+    def test_its_instructions_without_claudes_and_up_to_the_home_folder(self):
+        self.folder = os.path.join(self.home, "work", "lumen-api")
+        os.makedirs(self.folder)
+        self.programs({"opencode": {self.ASK: [self.config(), "", 0]}})
+        self.put(os.path.join(self.home, ".claude", "CLAUDE.md"), "Claude's")
+        self.put(os.path.join(self.home, "CLAUDE.md"), "home")
+        self.put(os.path.join(os.path.dirname(self.home), "AGENTS.md"), "above the home folder")
+        self.assertEqual([(r["name"], r["tag"]) for r in AgentLayers.section(self.layers(), "rules")["rows"]],
+                         [("~/.claude/CLAUDE.md", "Global"), ("../../CLAUDE.md", "Project")])
+        set_env(self, OPENCODE_DISABLE_CLAUDE_CODE_PROMPT="1")                 # no CLAUDE.md read at all
+        self.assertEqual([s["id"] for s in self.layers()["sections"]], ["connectors"])
+
+    def test_servers_it_could_not_list_are_not_read_never_none(self):
+        self.programs({"opencode": {self.ASK: ["", "Error: opencode.json: invalid JSON", 1]}})
+        self.put(os.path.join(self.folder, "AGENTS.md"), "lumen-api")
+        found = self.layers()
+        self.assertEqual(len(AgentLayers.section(found, "rules")["rows"]), 1)       # its instructions read all the same
+        section = AgentLayers.section(found, "connectors")
+        self.assertIsNone(section["count"])
+        self.assertEqual(section["rows"][0]["properties"]["text"],
+                         "`opencode debug config` gave no list, so which servers OpenCode has is not known here.")
+
+    def test_not_here_none_and_the_cli_prints_it(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(agent_layers_cli.main(["agent_layers_cli.py", "opencode", self.folder]), 0)
+        self.assertIsNone(json.loads(out.getvalue()))
+        self.programs({"opencode": {self.ASK: [self.config(), "", 0]}})
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(agent_layers_cli.main(["agent_layers_cli.py", "opencode", self.folder]), 0)
+        told = json.loads(out.getvalue())
+        self.assertEqual((told["agent"], told["head"]["name"], told["states"]), ("opencode", "OpenCode", {}))
+
+
+def opened(path, name, primary):
+    """A row's Open action for the file PATH, NAME its label's."""
+    return {"id": "open", "label": f"Open {name}", "path": path, "server": None, "primary": primary}
 
 
 if __name__ == "__main__":

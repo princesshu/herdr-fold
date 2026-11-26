@@ -17,10 +17,10 @@ This page calls the first one the Agent panel in both. The TUI's keys inside the
 ## The Agent panel
 
 It shows the agent picked for the folder, kept until another is picked (the TUI: per folder, in every tab; the app:
-per space). With none picked it is the tab's Claude or Codex, else the one herdr-fold started last. The setup is read
-when the panel shows, when the folder's rules and settings or the agent's own folder change (the app), and every 30 s
-while it shows; behind another view it is looked at every 5 minutes, for the dot on its button. A space on another
-machine says `On <machine>: with a later version` in the app.
+per space). With none picked it is the tab's Claude, Codex or OpenCode, else the one herdr-fold started last. The
+setup is read when the panel shows, when the folder's rules and settings or the agent's own folder change (the app),
+and every 30 s while it shows; behind another view it is looked at every 5 minutes, for the dot on its button. A space
+on another machine says `On <machine>: with a later version` in the app.
 
 ### The head
 
@@ -42,11 +42,20 @@ machine says `On <machine>: with a later version` in the app.
 
 An agent with no setup to show says why in its place, in core's words:
 
-- not signed in: Sign in runs the agent's own login (`claude auth login`, `codex login`, `gemini`) in a terminal tab.
+- not signed in: Sign in runs the agent's own login (`claude auth login`, `codex login`, `opencode auth login`,
+  `gemini`) in a terminal tab. OpenCode is signed in where `opencode auth list` names a provider; with none it still
+  runs its free models, so it is never said to be signed out.
   The panel asks the agents again every 5 s, 10 minutes at most. herdr-fold keeps no token.
 - not installed: its vendor's install line with Copy, and a link to its page. herdr-fold runs no installer.
 
 An agent whose setup herdr-fold does not read (Gemini CLI, signed in) has its head alone.
+
+OpenCode's setup is read as far as OpenCode tells it (`core/opencode_setup.py`, V2's): Rules, the instructions it
+reads (its config folder's `AGENTS.md`, else `~/.claude/CLAUDE.md`; then each folder's `AGENTS.md`, else its
+`CLAUDE.md`, from the folder up to the home folder, the nearest first), and Connectors, the MCP servers of the config
+files its own `opencode debug config` lists, each `off` where its config says so, else `not checked`; the head's model
+and effort are its config's. It has no Subagents, Skills or Permissions here, nothing of it is changed from the panel
+(no form, no +), it has no graph, and Usage says its limits are not told: it keeps no plan's limits on the machine.
 
 ### The sections
 

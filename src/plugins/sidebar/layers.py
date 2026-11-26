@@ -7,6 +7,7 @@ import usage
 import widgets
 from agent_form import REMOVE_KEY, Form
 from agent_layers import NOT_APPROVED, SAID_AS
+from agent_setup import READ
 from agent_state import HERE
 from connectors import BRANDS
 from icons import glyphs
@@ -1012,10 +1013,9 @@ class Layers:
     def menu_lines(self):
         """What More lists first while this view shows (connectors.html's ⋯ menu): the Usage and Runs views and the
         graph, the ways to add a connector, a read of the setup; none where no setup shows."""
-        add = self.adds()
-        if not add:
+        if not self.shows():
             return []
-        ways = [WAYS[way["id"]] for way in add["menu"] if way["id"] in WAYS]
+        ways = [WAYS[way["id"]] for way in (self.adds() or {}).get("menu", ()) if way["id"] in WAYS]
         return [OPEN_USAGE] * bool(self.usage()[0]) + [OPEN_RUNS] + [SHOW_GRAPH] * self.graphs() + ways + [REFRESH]
 
     def menu_pick(self, choice):
@@ -1189,15 +1189,19 @@ class Layers:
             self.foot = None
         elif typed == USAGE_KEY and self.usage()[0]:
             return Action("open_usage", ())
-        elif typed == RUNS_KEY and self.adds():
+        elif typed == RUNS_KEY and self.shows():
             return Action("open_runs", ())
         elif typed == GRAPH_KEY and self.graphs():
             return Action("show_graph", ())
         return None
 
-    def graphs(self):
-        """Whether the agent shown has a graph to show: one whose setup is read."""
+    def shows(self):
+        """Whether the agent's setup shows: read, and not where it stands in its place (not installed, signed out)."""
         return bool(self.answer) and not self.standing() and bool(self.answer.get("sections"))
+
+    def graphs(self):
+        """Whether the agent shown has a graph to show: one whose setup shows, of those graph.py draws (READ)."""
+        return self.shows() and self.agent() in READ
 
     def choose(self, key):
         self.chosen, self.follow, self.menu = key, True, None

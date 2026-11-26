@@ -13,8 +13,8 @@ A space is a row of the Spaces list in herdr's sidebar; herdr's own commands and
    holding most of your git repositories as a tree, as the sidebar's Files view does: the folder on top, open.
 2. Type to filter; ↑ ↓ or the wheel move, a click chooses. → opens a folder (or steps into an open one), ← closes it
    (or steps to its parent), and ← on the top row goes up a folder; a click on a folder's chevron opens or closes it.
-   Tab, or a click on Claude or Codex at the top right, switches between them; it starts on the agent herdr-fold
-   started last.
+   Tab, or a click on Claude, Codex or OpenCode at the top right, switches between them; it starts on the agent
+   herdr-fold started last. A long folder's name gives way to them, cut with "…".
 3. Enter, **Open** or a double click opens the space, or jumps to the one the folder already has. Esc or
    **Cancel** goes back to the space you came from. **Add machine…**, left of them, opens Add a machine instead
    (Ctrl + B, then Shift + M's): a space on another machine starts with the machine

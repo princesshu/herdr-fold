@@ -545,6 +545,14 @@ test("an agent in a terminal tab: as the app starts it, in the space's folder, t
     { machine: "", folder: "/work/lumen-api", tab: "Codex", argv: ["codex", "--no-daemon"] });
   assert.deepEqual(terminalSpace(codex, { machine: "lab" }), { machine: "lab", tab: "Codex",
     argv: ["codex", "--no-daemon"] });
+  // OpenCode as the app knows it: no adapter, so its own CLI, in a tab or as a new space's first
+  const known = [...KNOWN, { key: "opencode", name: "OpenCode", icon: "icons/opencode.svg", tint: true,
+    run: ["opencode"], installed: true }];
+  const opencode = agentChoices(known, DRAWABLE, ["opencode"])[0];
+  assert.deepEqual([opencode.key, opencode.terminal, opencode.icon], ["opencode", true, "icons/opencode.svg"]);
+  assert.deepEqual(terminalTab(opencode, { space: "s1", folder: "/work/lumen-api" }),
+    { name: "OpenCode", space: "s1", folder: "/work/lumen-api", argv: ["opencode"] });
+  assert.deepEqual(terminalSpace(opencode, { machine: "" }), { machine: "", tab: "OpenCode", argv: ["opencode"] });
 });
 
 test("the / menu follows what is typed after a \"/\" at the prompt's start, till a space or a new line", () => {

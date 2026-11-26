@@ -11,7 +11,7 @@ import { AGENT, AGENTS_ASK, agentsAsked, agentsTab, badgeAt, boxes, DISC, dragTo
   measured, nodeShown, placed, portOf, propertiesOf, running, seen, shareWidth, shownInAgent, sizeOf, stepNode,
   unzoomed, viewWords, VIEWS, wireColor, wireLook } from "./graph.js";
 import { AGENT_STATE, COSTS, GRAPH } from "./helper.js";
-import { AGENT_CHOSEN, agentList, errorColors, graphAgent, keepAgent, NAMES, READ, tagWord, toneInk, usageAgents }
+import { AGENT_CHOSEN, agentList, errorColors, GRAPHED, graphAgent, keepAgent, NAMES, tagWord, toneInk, usageAgents }
   from "./layers.js";
 import { said } from "./logic.js";
 import { listNote, panelRow, panelSurface } from "./menus.js";
@@ -76,7 +76,7 @@ export class AgentsView {
     this.theme = null;
     /** @type {string | null} what was asked for last: the agent, the folder and the chat, as JSON */
     this.key = null;
-    this.agent = READ[0];
+    this.agent = GRAPHED[0];
     /** @type {string | null} */
     this.folder = null;
     /** @type {string | null} the chat Show graph came from; null: the folder's newest */
@@ -167,7 +167,7 @@ export class AgentsView {
    * where a read fails. This chat: its costs asked first (by the chat the last read told, so its
    * first read is made twice) and handed to core's graph. */
   read(cx) {
-    if (!this.folder || !READ.includes(this.agent)) return;
+    if (!this.folder || !GRAPHED.includes(this.agent)) return;
     if (this.busy) return void (this.again = true);
     const { key, agent, folder, session, mode } = this, began = Date.now();
     Object.assign(this, { busy: true, readAt: began });
@@ -428,12 +428,12 @@ export class AgentsView {
       .trigger(chip).when(open && !this.still, (/** @type {any} */ e) => e.content(this.listed(t, look).mt(4)));
   }
 
-  /** The head's list, the Agent panel's form (agent-picker.html's .agm) under core's head: the installed agents core
-   * reads, each with its icon, its name and its plan's word, ✓ on the one shown. A press or Enter picks; ↑ ↓ step.
+  /** The head's list, the Agent panel's form (agent-picker.html's .agm) under core's head: the installed agents the
+   * graph draws, each with its icon, name and plan's word, ✓ on the one shown. A press or Enter picks; ↑ ↓ step.
    * @param {Look} look */
   listed(t, look) {
     const rows = agentList(this.agents, look.programs, look.agent).filter((row) => !row.dim
-      && READ.includes(row.key));
+      && GRAPHED.includes(row.key));
     const none = this.agentsError ? listNote(t, `Couldn't list the agents: ${this.agentsError}`, true, PAD)
       : !this.agents ? listNote(t, "Loading agents…", false, PAD) : null;
     return panelSurface(t, "agents-list-surface", LIST).p(4).gap(2).track_focus(this.listFocus)

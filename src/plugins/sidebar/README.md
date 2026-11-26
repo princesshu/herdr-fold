@@ -29,9 +29,10 @@ The row, the column's width and the rail in full: [The sidebar](../../../docs/si
 ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with a message,
 the issue it fixes and the Graph, Issues by priority](../../../assets/screenshots/tui-sidebar.webp)
 
-- **Chats** (the list over the sidebar): the Claude Code and Codex chats of herdr's spaces, each space with a chat a
-  group in the Spaces list's order, its chats under it, a running one's mark in its state's color and the closed ones
-  faint, their agent and age at the right; under the chosen one its task list (Claude's tasks, Codex's plan: the done
+- **Chats** (the list over the sidebar): the Claude Code, Codex and OpenCode chats of herdr's spaces, each space
+  with a chat a group in the Spaces list's order, its chats under it, a running one's mark in its state's color and
+  the closed ones faint, their agent and age at the right (an OpenCode chat is archived, never deleted here: OpenCode
+  keeps its chats in its own database); under the chosen one its task list (Claude's tasks, Codex's plan: the done
   steps in one row, the step at work, the ones to do; `plan.py`), with Open the plan where a plan mode's plan was
   approved, in the preview tab. Typing filters; Enter or a click goes to a running one, or reopens a closed
   one in a new tab of its space with the right column beside it; a right click offers Open, Copy chat (the whole of it,
@@ -189,7 +190,8 @@ Alt + Enter commits from the message there too.
   its own `~/.codex/AGENTS.md`), so a diff cannot make it read or send anything else. The AI tool sends what it gets to
   its own service; the sidebar itself sends nothing anywhere but the look for a newer herdr-fold (below).
 - Chats reads Claude's and Codex's chat files (`~/.claude/projects/`, `~/.codex/sessions/`,
-  `~/.codex/session_index.jsonl`) and AI Sessions' names (`names.json` of `herdr-fold.sessions-view`), never
+  `~/.codex/session_index.jsonl`), OpenCode's database (`~/.local/share/opencode/opencode.db`, read-only, asked
+  whole each time) and AI Sessions' names (`names.json` of `herdr-fold.sessions-view`), never
   writing the chat files (Rename writes the name you give into that `names.json`, under AI Sessions' own
   lock; Delete…, once you answer its question, moves a closed chat's own file to the system's Trash and nothing
   else, as [A chat you delete](../../../SECURITY.md#a-chat-you-delete) lists); each file is read through once, then
@@ -202,13 +204,15 @@ Alt + Enter commits from the message there too.
   row too: the terminal closed or shown back, Restore panels). Copy chat puts one on the
   clipboard (`pbcopy` and, on a Mac, `osascript` for the formatted version). herdr's command line lists the running
   agents, goes to one (`herdr agent focus`), and reopens a closed chat (`herdr tab create`, `herdr pane split`,
-  `herdr agent start` with `--resume`), and names a running one's pane and its own tab on Rename (`herdr pane rename`,
-  `herdr tab rename`).
+  `herdr agent start` with the agent's own resume: `--resume`, `resume`, `--session`), and names a running one's pane
+  and its own tab on Rename (`herdr pane rename`, `herdr tab rename`).
 - For Agent, what the agent reads in the folder and in your home, as text: Claude's `CLAUDE.md` files and rules, its
   settings files (the organization's too), skills, subagents, `.mcp.json`, `~/.claude.json` (the servers and this
   folder's settings, never the account), the enabled plugins' own, and the lines of its newest sessions that tell the
   servers' state and what the open conversation used; Codex's `AGENTS.md` files, rules and skills, and its servers
-  through `codex mcp list --json` (in a tab with Codex). herdr's command line names the tab's agent (`herdr pane list`,
+  through `codex mcp list --json` (in a tab with Codex); OpenCode's `AGENTS.md` or `CLAUDE.md` files, and its config
+  files and servers through `opencode debug config --standalone` (a private server, never its background service).
+  herdr's command line names the tab's agent (`herdr pane list`,
   `herdr agent list`). Retry runs `claude mcp get <name>` in the folder, which checks only a server Claude approved.
   On your press it runs the agent's own commands, each one argv with the server's name as one argument: `claude mcp
   login <name>` or `codex mcp login <name>` in a herdr tab (its pane read only for the address to open again), `mcp

@@ -11,9 +11,9 @@ sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 import words  # noqa: E402
 from agent_setup import (APPROVALS, BEHAVIORS, BUILT_IN, CLAUDE, CLAUDE_AI, EFFORTS, FAILED, GLOBAL,  # noqa: E402
                          HERDR_FOLD, KNOWN, LINE, MANAGED, MODE_WORDS, NOT_APPROVED, NOT_CHECKED, OFF, OFF_HERE, ON,
-                         PENDING, PROJECT, READ_ONLY, SANDBOXES, SIGN_IN, clean, inside, mode_told, plugged,
+                         PENDING, PROJECT, READ, READ_ONLY, SANDBOXES, SIGN_IN, clean, inside, mode_told, plugged,
                          read_text, shown)
-from connectors import CLAUDE_AI as CLAUDE_PAGE, logout  # noqa: E402
+from connectors import AGENTS as ADDS, CLAUDE_AI as CLAUDE_PAGE, logout  # noqa: E402
 from jsonl import obj  # noqa: E402
 
 # the owner's order (2026-11-20): who works (the subagents), what they read always, then on demand, what they may
@@ -33,6 +33,7 @@ PROBLEMS = ((FAILED, "failed", "bad"), (SIGN_IN, "sign in", "warn"))    # first 
 FIRST_LINES = 3                 # lines of a rule its properties show
 NAMED = 3                       # Claude's own subagents their folded row names before "N more"
 PATH_IN = re.compile(r"""['"]?((?:~|\.{1,2})?/[^\s'":,;()]+)['"]?""")      # a file named in an error
+LISTS = {"codex": "codex mcp list", "opencode": "opencode debug config"}     # the command each lists its servers by
 
 
 def tag(one):
@@ -150,8 +151,10 @@ def hook_rows(setup, agent, folder, home):
 def permission_rows(setup, agent, folder, home):
     """First what the agent starts with (Claude's mode, Codex's approval policy: its words the note), then its sandbox,
     each from the file that sets it, else the agent's own default; then each conflict, in place of the rule it hides
-    (the sentence its note, both rules its lines), then every other rule with its behavior."""
+    (the sentence its note, both rules its lines), then every other rule with its behavior. None where none is read."""
     table, rows, box, codex = setup["permissions"], [], setup["sandbox"], agent == "codex"
+    if table is None:
+        return rows
     own = {"scope": DEFAULT, "source": f"{KNOWN[agent]['name']}'s default", "path": None}
     told = (table["told"] if table["mode"] in APPROVALS else None) if codex else mode_told(folder, home)
     name, word = ("Approval", APPROVALS[table["mode"]] if told else own["source"]) if codex else (
@@ -242,9 +245,9 @@ def subagent_rows(setup, agent, folder, home):
 
 def server_actions(one, agent, folder, home):
     """What a server's state allows: Claude's own commands (Retry, Turn off or on here, Sign out) on Claude's alone;
-    Connect; its file where it is edited (a project's .mcp.json, the organization's, Codex's configuration)."""
+    Connect; its file where it is edited (a project's .mcp.json, the organization's, the other agents' config)."""
     state, name, here = one["state"], one["name"], os.path.basename(os.path.abspath(folder))
-    files = opened([one["path"]], folder, home) if one["path"] and (agent == "codex" or one["source"] in (
+    files = opened([one["path"]], folder, home) if one["path"] and (agent != "claude" or one["source"] in (
         PROJECT, MANAGED)) else []
     off = act("turn-off", f"Turn off in {here}", server=name)
     if state == SIGN_IN:
@@ -277,7 +280,7 @@ def connector_rows(setup, agent, folder, home):
     agent could not give: one row saying so."""
     if setup.get("unlisted"):
         return [layer("unread:connectors", "plug", f"{KNOWN[agent]['name']}'s servers", properties(
-            "Connectors", NOT_READ, text=f"`{agent} mcp list` gave no list, so which servers {KNOWN[agent]['name']} "
+            "Connectors", NOT_READ, text=f"`{LISTS[agent]}` gave no list, so which servers {KNOWN[agent]['name']} "
             "has is not known here."), state=NOT_READ, agents=[agent], dim=True)]
     rank, rows = {state: n for n, (state, _, _) in enumerate(PROBLEMS)}, []
     for one in sorted(setup["servers"], key=lambda one: rank.get(one["state"], len(rank))):
@@ -296,7 +299,7 @@ def connector_rows(setup, agent, folder, home):
 def connecting(agent, folder):
     """What a sign-in and the add form say in both clients: a row's state while its agent signs in in a terminal and
     what can be done then; why Claude's Turn off or on waits for a chat; the form's words, Claude's two ways to add
-    and its two scopes (this folder's, every folder's), Codex's one (by its address, for every folder)."""
+    and its two scopes, Codex's one (by its address, every folder's); none for an agent connectors.py adds none to."""
     here, claude = os.path.basename(os.path.abspath(folder)), agent == "claude"
     return {"state": {"text": "signing in", "tone": "busy"}, "words": "Finish in your browser",
             "actions": [{"id": "reopen", "label": "Open the page again"}, {"id": "cancel", "label": "Cancel"}],
@@ -306,7 +309,7 @@ def connecting(agent, folder):
                     + [{"id": "url", "label": "By URL…", "url": None}],
                     "fields": {"name": "Name", "url": "URL", "scope": "For"},
                     "scopes": [{"id": "local", "label": here}, {"id": "user", "label": "All projects"}] if claude
-                    else [], "submit": "Add and connect", "cancel": "Cancel"}}
+                    else [], "submit": "Add and connect", "cancel": "Cancel"} if agent in ADDS else None}
 
 
 def head(setup, agent, folder, parts):
@@ -347,8 +350,8 @@ def layers(setup, agent, folder, home):
         groups = [{"id": "hooks", "title": "Hooks", "count": len(hooks), "rows": hooks,
                    "state": None if setup["hooks"] else OFF_STATE}] if hooks else []
         for row in rows + [one for group in groups for one in group["rows"]]:
-            if row["id"].split(":")[0] in ("rule", "skill", "connector", "hook") or row["id"].startswith(
-                    "subagent:") and row["id"] != "subagent:built-in":
+            if agent in READ and (row["id"].split(":")[0] in ("rule", "skill", "connector", "hook") or row[
+                    "id"].startswith("subagent:") and row["id"] != "subagent:built-in"):
                 acts = row["properties"]["actions"]
                 acts.append({**act("graph", "Show in graph"), "primary": not acts})
         loads = [row["tokens"] for row in rows if row["tokens"] is not None and not row["dim"]]

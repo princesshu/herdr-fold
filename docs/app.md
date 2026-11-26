@@ -237,7 +237,7 @@ beside it closes it. What is a row and what is not (a program's runs through the
 |---|---|
 | Filter | the words a chat's name, space or folder holds, `archived` for the archived ones; Cmd + Shift + R from anywhere opens the list with the keys here (the dock a rail: floating beside it), Enter opens the first one |
 | A space | its chevron first (14, dim), its name, how many chats it holds muted at its end, no dot; its chats, the active tab's first, then the newest; a space with none is left out (so nothing shows `0` while the list is read); a chat whose folder has no space open stands under that folder's name, the newest folder first; a click folds or opens it, the shown space open by itself |
-| A chat | its state's mark in herdr's colors (a closed one's a faint dot; a chat tab's blocked while it asks you something), its agent's icon and its name, then its agent's name (where the app draws no icon of it: `Claude`, `Codex`) and how long ago it changed, two right-aligned muted columns; a click goes to a running one (a chat tab's: its tab; one in a terminal: its pane), or reopens a closed one in a new tab of its space as Settings' Open agents in says: a Claude chat as a chat tab, resuming it, else its agent resuming it in a terminal (`claude --resume`, `codex resume`; Codex's always, until the chat draws Codex), and the list closes |
+| A chat | its state's mark in herdr's colors (a closed one's a faint dot; a chat tab's blocked while it asks you something), its agent's icon and its name, then its agent's name (where the app draws no icon of it: `Claude`, `Codex`, `OpenCode`) and how long ago it changed, two right-aligned muted columns; a click goes to a running one (a chat tab's: its tab; one in a terminal: its pane), or reopens a closed one in a new tab of its space as Settings' Open agents in says: a Claude chat as a chat tab, resuming it, else its agent resuming it in a terminal (`claude --resume`, `codex resume`, `opencode --session`; Codex's and OpenCode's always, until the chat draws them), and the list closes; an OpenCode chat's Delete… is off, its tip saying why: OpenCode keeps its chats in its own database |
 | Its right click | Open, Copy chat (all of it, as Markdown), Rename (in its row: Enter keeps it, as herdr's Rename pane names it), for a closed one Archive or Unarchive, and Delete…, the rarer one: asked in its row first (`Move to Trash?`, Cancel and Move, the chat's name staying beside them; Esc gives it up), then its row leaves at once and its file goes to the Mac's Trash, its archive mark and its name dropped; a running chat's Delete… is faint, its tip saying to close it first; elsewhere in the list, Show or Hide archived; while the list shows, More keeps it and lists `Show archived` first, ✓ while they are |
 
 The archived ones and the names are the TUI's own, so either shows what the other changed. Unlike the TUI's, it copies a
@@ -549,8 +549,8 @@ not take it.
 
 ## Agent
 
-The dock's fifth view: what the space's agent, Claude or Codex, starts with in the space's folder, as a design tool's
-layers, with a form on each row that can be changed. Its sections, each edit and what it writes are in
+The dock's fifth view: what the space's agent, Claude, Codex or OpenCode, starts with in the space's folder, as a
+design tool's layers, with a form on each row that can be changed. Its sections, each edit and what it writes are in
 [The agent's harness](harness.md#the-agent-panel), for both clients.
 
 What is the app's own: the Agent tab carries a dot after its name, and the rail's Agent one on its corner, while the
@@ -602,7 +602,8 @@ project](../assets/screenshots/app-agents-usage.webp)
   issue: its text shows as markdown with no image fetched (a link in its place, so no address of yours reaches the
   image's host) and HTML as text.
 - Chats reads the files Claude Code and Codex keep their chats in on this Mac (`~/.claude/projects`,
-  `~/.codex/sessions`), and never writes them; a rename goes where herdr's Rename pane keeps names, the archived ones
+  `~/.codex/sessions`) and OpenCode's database (`~/.local/share/opencode/opencode.db`, opened read-only), and never
+  writes them; a rename goes where herdr's Rename pane keeps names, the archived ones
   beside the TUI column's settings. Delete… alone moves one: a closed chat's own file, to the Trash, once you answer
   its question: [A chat you delete](../SECURITY.md#a-chat-you-delete). A closed one reopens only by an id that is one
   (letters, digits, `.`, `_`, `-`): read from a file, it is never taken for an option or a control code.

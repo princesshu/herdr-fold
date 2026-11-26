@@ -1864,14 +1864,16 @@ const talk = (id, folder, time, state = "", pane = "") =>
 const shown = (rows) => rows.map((r) => (r.kind === "group" ? `${r.name} ${r.items.length} ${r.open}` : r.item.id));
 const PLACE = { "/repo/shop": "shop", "/repo/api": "api" };
 
-test("the app's agents as core/chats.py takes herdr's: Claude and Codex on this Mac, with their pane's folder",
+test("the app's agents as core/chats.py takes herdr's: Claude, Codex and OpenCode on this Mac, with their folder",
   () => {
     const agents = [{ address: "t1", pane: "p1", space: "s1", status: "working", program: { key: "claude" } },
       { address: "t2", pane: "p2", space: "s1", status: "idle", program: { key: "pi" } },
+      { address: "t4", pane: "p4", space: "s1", status: "blocked", program: { key: "opencode" } },
       { address: "box/t3", pane: "p3", space: "s2", status: "blocked", program: { key: "codex" } }];
-    const panes = [{ pane: "p1", cwd: "/repo/app" }, { pane: "p3", cwd: "/srv" }];
+    const panes = [{ pane: "p1", cwd: "/repo/app" }, { pane: "p3", cwd: "/srv" }, { pane: "p4", cwd: "/repo/api" }];
     assert.deepEqual(coreAgents(agents, panes, new Set(["s1"])),
-      [{ agent: "claude", agent_status: "working", pane_id: "t1", cwd: "/repo/app" }]);
+      [{ agent: "claude", agent_status: "working", pane_id: "t1", cwd: "/repo/app" },
+        { agent: "opencode", agent_status: "blocked", pane_id: "t4", cwd: "/repo/api" }]);
   });
 
 test("a folder is the first of this Mac's spaces with a pane there, as the TUI's column reads it", () => {
@@ -1922,9 +1924,12 @@ test("a space opened or closed by hand stays so, the one here open unless closed
 test("a closed one reopens with its agent's resume, its id never an option, a space or a control code", () => {
   assert.deepEqual(resumeArgv({ agent: "claude", id: "0a1b-2c" }), ["claude", "--resume", "0a1b-2c"]);
   assert.deepEqual(resumeArgv({ agent: "codex", id: "019a.x_y" }), ["codex", "resume", "019a.x_y"]);
+  assert.deepEqual(resumeArgv({ agent: "opencode", id: "ses_2150a9850001ZJ5z" }),
+    ["opencode", "--session", "ses_2150a9850001ZJ5z"]);
   for (const id of ["--help", "-x", "a b", "a\u001b[2J", ""]) {
     assert.throws(() => resumeArgv({ agent: "claude", id }), id);
   }
+  assert.throws(() => resumeArgv({ agent: "pi", id: "0a1b" }));                 // no chat of its is listed
 });
 
 test("a right click: Open, Copy chat, Rename, Archive or Unarchive, then Delete…; elsewhere the archived shown or not",
@@ -1942,6 +1947,11 @@ test("Delete… is off for a running chat, its tip saying why; a closed or an ar
   assert.equal(deleteOff(talk("r", "/x", 1, "working")), "A running chat is not deleted: close it first");
   assert.equal(deleteOff(talk("i", "/x", 1, "idle")), "A running chat is not deleted: close it first");
   assert.equal(deleteOff(talk("o", "/x", 1)), null);
+  // an OpenCode chat is a row of its database, no file of its own to move
+  assert.equal(deleteOff({ ...talk("s", "/x", 1), agent: "opencode" }),
+    "OpenCode keeps its chats in its own database: delete it there");
+  assert.equal(deleteOff({ ...talk("s", "/x", 1, "working"), agent: "opencode" }),
+    "A running chat is not deleted: close it first");
 });
 
 test("a chat on its way to the Trash is no row, its space counting one fewer", () => {
