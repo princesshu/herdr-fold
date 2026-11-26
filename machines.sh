@@ -416,6 +416,65 @@ cmd_netbird() {
   added_summary "$added" ${kept[@]+"${kept[@]}"}        # (bash 3.2 + set -u: an empty array is unset)
 }
 
+dns_sd_bin() { command -v dns-sd 2>/dev/null; }     # macOS's dns-sd: what the local network announces (Bonjour)
+to_fd3() { "$@" >&3; }                              # to_fd3 COMMAND…: its output on file descriptor 3
+
+# The machines announcing SSH on this local network, as core/networks.py hears dns-sd (3 s, then 2 s to look each up,
+# under a waiting line), a "host|port|instance" line each. They reach the caller through file descriptor 3: loading
+# keeps a command's output in a file, and nothing a network announces is ever written to one
+local_machines() {
+  local dns; dns=$(dns_sd_bin) || return 0
+  { LOADING_PLAIN=1 loading "$(t machines.looking_local)" to_fd3 python3 "$DOT/core/networks.py" local "$dns" \
+      >/dev/null; } 3>&1
+}
+
+# Pick from the machines announcing SSH on this local network, one question each. Any machine there can claim any name:
+# each one's key is asked about as one typed in by hand, it is a listed machine's route only by the key it shows now,
+# and it is never taken for one by its name. The name it announces is shown in its question alone
+cmd_local() {
+  local found
+  note "$(t machines.local_line)"
+  found=$(local_machines)
+  [ -n "$found" ] || { skip "$(t machines.local_empty)"; return 0; }
+  local hosts known added=0 kept=() host port instance short alias keys key scanned what listed_as name shown user
+  local target os
+  hosts=$(ssh_config_hosts); known=$(machine_keys)
+  while IFS='|' read -r host port instance <&3; do
+    if [ "$port" != 22 ]; then skip "$(t machines.local_port "$host" "$port")"; continue; fi
+    short=${host%%.*}
+    # a ~/.ssh/config Host that leads to this very name: a listed machine through it is at its own address
+    alias=$(printf '%s\n' "$hosts" | awk -F'|' -v h="$host" '{ a = $2; sub(/.*@/, "", a) }
+      tolower(a) == h { print $1; exit }')
+    # its key, when a listed machine's could be it: the one it shows now (none shown: never another way to one)
+    keys= scanned=
+    [ -z "$known" ] || { keys=$(keyscan "$short" "$host"); scanned=1; }
+    key=$(fingerprint_of "$keys")
+    what=$(identify "$known" "$key" local "" "$host" ${alias:+"$alias"})       # its address and key; never its name
+    listed_as=$(cut -d'|' -f2 <<< "$what")
+    case $what in
+      listed\|*)
+        os=$(machines "$listed_as" | cut -d'|' -f3)
+        ask "$(t machines.select_ask_listed "$listed_as" "$os" "$host")" y && { kept+=("$listed_as"); continue; }
+        remove_from_list "$listed_as"; note "$(t machines.removed_from_list "$listed_as")"; continue ;;
+      known\|*) kept+=("$listed_as"); continue ;;
+      route\|*) also_route "$listed_as" local "$host" "$key"; kept+=("$listed_as"); continue ;;
+    esac
+    name=$(unique_name "$short" local)        # its own, or with -local where a machine of that name is another one
+    shown=$host; [ -z "$instance" ] || shown=$(joined "$instance" "$host")      # the name it announces, shown alone
+    ask "$(t machines.select_ask_local "$name" "$shown")" n || continue
+    user=$(prompt "$(t machines.select_user)" "${USER:-$(id -un)}")        # this Mac's: most often a Mac's own
+    [ -n "$scanned" ] || keys=$(keyscan "$short" "$host")
+    confirm_host_key "$host" "$keys" || continue
+    target="$user@$host"
+    reachable "$target" || continue
+    os=$(remote_os "$target")
+    add_line "$name" "$target" "$os" "$(fingerprint_of "$keys")"
+    ok "$(t machines.added "$name" "$os")"
+    added=$((added + 1)); known=$(machine_keys)
+  done 3< <(printf '%s\n' "$found")           # a pipe: a here-string would be a file
+  added_summary "$added" ${kept[@]+"${kept[@]}"}        # (bash 3.2 + set -u: an empty array is unset)
+}
+
 # The machines of ~/.ssh/config (Include-d files too, but herdr-fold's own Hosts), one "alias|user@host" line each —
 # no patterns or git hosts
 ssh_config_hosts() {   # [plain]: only the Hosts that change nothing but the name (see use_config_hosts)
@@ -576,8 +635,8 @@ cmd_manual() {
 }
 
 # The installer's step 8, and Ctrl+B, Shift+M: a line saying any network works, then where to read new machines from —
-# each source on its own question, its machines then one by one: ~/.ssh/config, the Tailscale and NetBird networks
-# (each skips the machines already on the list), an address typed in. Exit status 1 if none was asked for.
+# each source on its own question, its machines then one by one: ~/.ssh/config, the Tailscale and NetBird networks, this
+# local network (each skips the machines already on the list), an address typed in. Exit status 1 if none was asked for.
 cmd_pick() {
   local picked=1
   note "$(t machines.any_network)"
@@ -589,6 +648,9 @@ cmd_pick() {
   fi
   if [ -n "$(netbird_bin)" ] && ask "$(t machines.pick_netbird)" n; then
     has_ssh_key || make_ssh_key; cmd_netbird; picked=0
+  fi
+  if [ -n "$(dns_sd_bin)" ] && ask "$(t machines.pick_local)" n; then
+    has_ssh_key || make_ssh_key; cmd_local; picked=0
   fi
   if ask "$(t machines.pick_manual)" n; then
     has_ssh_key || make_ssh_key; cmd_manual; picked=0
@@ -886,12 +948,13 @@ cmd_remove() {
 # sourced (the tests): only the functions above
 [ "${BASH_SOURCE[0]}" = "$0" ] || return 0
 case "${1:-status}" in
-  status|tailscale|netbird|sshconfig|manual|pick|new|add|prepare) take_over_connected; use_config_hosts ;;
+  status|tailscale|netbird|local|sshconfig|manual|pick|new|add|prepare) take_over_connected; use_config_hosts ;;
 esac
 case "${1:-status}" in
   status)  shift $(( $# > 0 )); cmd_status "$@" ;;
   tailscale) cmd_tailscale ;;
   netbird) cmd_netbird ;;
+  local)   cmd_local ;;
   sshconfig) cmd_sshconfig ;;
   manual)  cmd_manual ;;
   pick)    cmd_pick ;;

@@ -188,6 +188,42 @@ def fake_netbird(peers=NETBIRD_PEERS):
 
 
 FAKE_NETBIRD = fake_netbird()
+# What announces SSH on the local network, as dns-sd -L answers for each instance (instance, host, port): two machines,
+# a Mac named with spaces and an apostrophe, this Mac itself, one on another port, and crafted ones (a control sequence
+# in its name, an option, a shell word, a host that is no .local name, an address, no port at all)
+DNS_SD_FOUND = (("studio", "studio.local.", 22), ("lab-pi", "lab-pi.local.", 22),
+                ("Dev's MacBook Pro", "devs-macbook-pro.local.", 22), ("this-mac", "this-mac.local.", 22),
+                ("build-01", "build-01.local.", 2222), ("Evil\x1b]0;owned\x07Box", "evil-box.local.", 22),
+                ("-oProxyCommand=sh", "-oProxyCommand=sh.local.", 22), ("x;id", "x;id.local.", 22),
+                ("far", "far.example.com.", 22), ("bare", "192.0.2.30.", 22), ("none", "db-02.local.", 0))
+FAKE_SCUTIL = "#!/bin/sh\n[ \"$*\" = '--get LocalHostName' ] && echo this-mac\nexit 0\n"     # this Mac's Bonjour name
+
+
+def dns_sd_name(instance):
+    """An instance's full name as dns-sd -L prints it: a dot and a backslash escaped, a space or a control character as
+    \\DDD, anything else as it is."""
+    return "".join("\\" + ch if ch in ".\\" else f"\\{ord(ch):03}" if ord(ch) <= 32 else ch for ch in instance)
+
+
+def fake_dns_sd(found=DNS_SD_FOUND):
+    """A stand-in dns-sd as macOS's answers: -B lists FOUND's instances (and kelp-ci, gone again), -L an instance's host
+    and port; each waits for more and never ends, as the real one (its waiting child's pid into DNS_SD_PIDS first)."""
+    def quoted(text):
+        return "'" + text.replace("'", "'\\''") + "'"
+    browse = ["Browsing for _ssh._tcp.local.", "DATE: ---Thu 26 Nov 2026---", " 9:00:00.000  ...STARTING...",
+              "Timestamp     A/R    Flags  if Domain               Service Type         Instance Name"]
+    browse += [f" 9:00:00.{n + 100:03}  Add        3  11 local.               _ssh._tcp.           {instance}"
+               for n, instance in enumerate([one[0] for one in found] + ["kelp-ci"])]
+    browse += [" 9:00:01.000  Rmv        0  11 local.               _ssh._tcp.           kelp-ci"]
+    lookups = "".join(f"    {quoted(instance)}) printf '%s\\n' " + quoted(
+        f" 9:00:00.200  {dns_sd_name(instance)}._ssh._tcp.local. can be reached at {host}:{port} (interface 11)")
+        + " ;;\n" for instance, host, port in found)
+    return ("#!/bin/sh\nsleep 30 & echo $! >> \"${DNS_SD_PIDS:-/dev/null}\"\n"
+            "case \"$1\" in\n  -B) printf '%s\\n' " + " ".join(quoted(line) for line in browse) + " ;;\n"
+            "  -L) case \"$2\" in\n" + lookups + "    esac ;;\nesac\nwait\n")
+
+
+FAKE_DNS_SD = fake_dns_sd()
 
 
 def host_key(seed):

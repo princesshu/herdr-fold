@@ -1,14 +1,14 @@
-"""Tests for machines.sh pick (installer step 8) and new (Ctrl+B, Shift+M) in a pty with fake ssh, Tailscale, NetBird
-and herdr: any network works, then ~/.ssh/config, Tailscale (only what can be yours), NetBird, by hand; `new` sets up
-only what it added; a Host's own address goes through that Host; a listed machine's host key makes a route of it."""
+"""Tests for machines.sh pick (installer step 8) and new (Ctrl+B, Shift+M) in a pty with fake ssh, Tailscale, NetBird,
+dns-sd and herdr: any network works, then ~/.ssh/config, Tailscale (only what can be yours), NetBird, the local network
+(each key asked about), by hand; `new` sets up only what it added; a listed machine's host key makes a route of it."""
 import os
 import shutil
 import subprocess
 import tempfile
 import unittest
 
-from support import (FAKE_NETBIRD, FAKE_TAILSCALE, TAILNET_HOST_KEY_FINGERPRINT, catalog_text, copy_package,
-                     fake_netbird, host_key, run_in_terminal, stubs)
+from support import (DNS_SD_FOUND, FAKE_NETBIRD, FAKE_SCUTIL, FAKE_TAILSCALE, TAILNET_HOST_KEY_FINGERPRINT,
+                     catalog_text, copy_package, fake_dns_sd, fake_netbird, host_key, run_in_terminal, stubs)
 
 SSH_CONFIG = """Host alpha
   HostName alpha.example
@@ -48,6 +48,11 @@ esac
 HERDR = ("#!/bin/sh\necho \"herdr $*\" >> \"$HOME/herdr-calls\"\n"
          "[ \"$*\" = \"machine list --json\" ] && echo '[]'\nexit 0\n")
 FAKE_FINGERPRINT = "SHA256:FakeFingerprintForTests"        # SSH_KEYGEN's for any key: one added by hand keeps it
+# the local network: studio, lab-pi, a Mac named with spaces, this Mac itself and build-01 on port 2222 announce SSH.
+# Every test has it: the real dns-sd is never asked, whatever a test answers
+LOCAL_DNS_SD = fake_dns_sd(DNS_SD_FOUND[:5])
+LOCAL_LINE = "      " + catalog_text("machines.local_line") + "\n"
+LOCAL_ASK = "Look for machines on this local network? [y/N]"
 
 
 class Step8(unittest.TestCase):
@@ -66,9 +71,10 @@ class Step8(unittest.TestCase):
         self.pkg = copy_package(os.path.join(self.tmp, "pkg"))
         self.stubs = stubs(os.path.join(self.tmp, "stubs"), {"ssh": FAKE_SSH, "tailscale": FAKE_TAILSCALE,
                                                               "herdr": HERDR, "ssh-keyscan": SSH_KEYSCAN,
-                                                              "ssh-keygen": SSH_KEYGEN})
+                                                              "ssh-keygen": SSH_KEYGEN, "dns-sd": LOCAL_DNS_SD,
+                                                              "scutil": FAKE_SCUTIL})
 
-    def run_questions(self, answers, command="pick"):
+    def run_questions(self, answers, command="pick", timeout=20, **env):
         """The questions of ./machines.sh COMMAND (step 8: pick), answered in order; returns the questions it asked —
         and where it got stuck, if it waits for more answers than given. What it showed: self.shown."""
         answers, prompts = list(answers), []
@@ -80,7 +86,7 @@ class Step8(unittest.TestCase):
             return answers.pop(0)
         self.shown, ended = run_in_terminal(["/bin/bash", os.path.join(self.pkg, "machines.sh"), command],
                                             {"PATH": f"{self.stubs}:/usr/bin:/bin", "TERM": "dumb", "HOME": self.home,
-                                             "USER": "dev"}, answer, timeout=20, idle=0.3)
+                                             "USER": "dev", **env}, answer, timeout=timeout, idle=0.3)
         if not ended:
             prompts.append("STUCK AT: " + self.shown.rstrip("\n").rsplit("\n", 1)[-1].strip())
         return prompts
@@ -93,6 +99,7 @@ class Step8(unittest.TestCase):
     def test_the_questions_come_in_order(self):
         prompts = self.run_questions(["y", "y", "n",               # ~/.ssh/config: yes; alpha, beta (drop it)
                                       "y", "y", "", "y", "",       # Tailscale: mac-mini, its user; srv; not vps-edge
+                                      "",                          # not the local network
                                       "y", "", "192.0.2.9", "y", "n"])  # by hand: user, address, its key; another
         self.assertEqual(prompts, [
             "Import machines from ~/.ssh/config? [y/N]",
@@ -103,6 +110,7 @@ class Step8(unittest.TestCase):
             "user [dev]:",                                     # this Mac's own user name
             "Import srv (linux, server.tail0000.ts.net)? [y/N]",
             "Import vps-edge (linux, vps-edge.tail0000.ts.net)? [y/N]",
+            LOCAL_ASK,
             "Add a machine by hand? [y/N]",
             "user [root]:",
             "IP address or host name:",
@@ -120,13 +128,13 @@ class Step8(unittest.TestCase):
         # address
         with open(os.path.join(self.home, ".ssh", "config"), "w") as f:
             f.write("Host server\n  HostName server.example\n  User dev\n")
-        prompts = self.run_questions(["y", "y", "", "y", "", ""])  # ~/.ssh/config; Tailscale: server alone
+        prompts = self.run_questions(["y", "y", "", "y", "", "", ""])  # ~/.ssh/config; Tailscale: server alone
         self.assertEqual(prompts, ["Import machines from ~/.ssh/config? [y/N]",
                                    "Import machines from your Tailscale network? [y/N]",
                                    "Import mac-mini (macos, mac-mini.tail0000.ts.net)? [y/N]",
                                    "Import server (linux, dev@server.example)? [y/N]",       # where it connects
                                    "Import vps-edge (linux, vps-edge.tail0000.ts.net)? [y/N]",
-                                   "Add a machine by hand? [y/N]"])
+                                   LOCAL_ASK, "Add a machine by hand? [y/N]"])
         self.assertEqual(self.listed(), [("beta", "beta", "linux"), ("server", "server", "linux")])
 
     def test_a_listed_address_a_host_names_goes_through_that_host_unasked(self):
@@ -136,7 +144,7 @@ class Step8(unittest.TestCase):
             f.write("Host server\n  HostName server.example\n  User dev\n\nHost other\n  HostName other.example\n")
         with open(os.path.join(self.home, ".config", "herdr-fold", "machines.txt"), "w") as f:
             f.write("# my machines\nsrv | dev@server.example | linux\nold | root@other.example | linux\n")
-        self.run_questions(["", "", ""])
+        self.run_questions(["", "", "", ""])
         self.assertEqual(self.listed(), [("old", "root@other.example", "linux"), ("srv", "server", "linux")])
         self.assertIn("srv: through its ~/.ssh/config entry from now on", self.shown)
         with open(os.path.join(self.home, ".config", "herdr-fold", "machines.txt")) as f:
@@ -153,20 +161,20 @@ class Step8(unittest.TestCase):
         with open(os.path.join(self.home, ".config", "herdr-fold", "machines.txt"), "w") as f:
             f.write("srv | dev@server.example | linux\nvia | dev@via.example | linux\n"
                     "nm | dev@named.example | linux\npl | dev@plain.example | linux\n")
-        self.run_questions(["", "", ""])
+        self.run_questions(["", "", "", ""])
         self.assertEqual(self.listed(), [("nm", "dev@named.example", "linux"), ("pl", "plain", "linux"),
                                          ("srv", "dev@server.example", "linux"), ("via", "dev@via.example", "linux")])
 
-    def test_no_to_everything_asks_only_the_three_questions(self):
-        prompts = self.run_questions(["", "", ""])
+    def test_no_to_everything_asks_only_the_four_questions(self):
+        prompts = self.run_questions(["", "", "", ""])
         self.assertEqual(prompts, ["Import machines from ~/.ssh/config? [y/N]",
                                    "Import machines from your Tailscale network? [y/N]",
-                                   "Add a machine by hand? [y/N]"])
+                                   LOCAL_ASK, "Add a machine by hand? [y/N]"])
         self.assertEqual(self.listed(), [("beta", "beta", "linux")])
 
     def test_the_questions_start_with_the_line_any_network_works(self):
         # no network is needed above another: said once, as a note, before the first question
-        prompts = self.run_questions(["", "", ""])
+        prompts = self.run_questions(["", "", "", ""])
         line = "      " + catalog_text("machines.any_network") + "\n"
         self.assertEqual(self.shown.count(line), 1)
         self.assertEqual(prompts[0], "Import machines from ~/.ssh/config? [y/N]")
@@ -203,15 +211,14 @@ class Step8(unittest.TestCase):
         prompts = self.tailscale_prompts()
         self.assertEqual(prompts[2:6], ["Import mac-mini (macos, mac-mini.tail0000.ts.net)? [y/N]",
                                         "Import srv (linux, server.tail0000.ts.net)? [y/N]",
-                                        "Import vps-edge (linux, vps-edge.tail0000.ts.net)? [y/N]",
-                                        "Add a machine by hand? [y/N]"])
+                                        "Import vps-edge (linux, vps-edge.tail0000.ts.net)? [y/N]", LOCAL_ASK])
 
     def test_netbird_is_asked_after_tailscale_and_offers_its_peers(self):
         # NetBird tells no OS: it is read by logging in, so the phone, which answers no SSH, is not added
         stubs(self.stubs, {"netbird": FAKE_NETBIRD})
         prompts = self.run_questions(["", "", "y",                 # not ~/.ssh/config nor Tailscale; NetBird
                                       "y", "", "", "", "y", "",    # dev-phone and its user; tidepool and its user
-                                      ""])                         # not by hand
+                                      "", ""])                     # not the local network, not by hand
         self.assertEqual(prompts, ["Import machines from ~/.ssh/config? [y/N]",
                                    "Import machines from your Tailscale network? [y/N]",
                                    "Import machines from your NetBird network? [y/N]",
@@ -221,16 +228,61 @@ class Step8(unittest.TestCase):
                                    "Import kelp-ci (kelp-ci.netbird.cloud)? [y/N]",
                                    "Import tidepool (tidepool.netbird.cloud)? [y/N]",
                                    "user [root]:",
-                                   "Add a machine by hand? [y/N]"])
+                                   LOCAL_ASK, "Add a machine by hand? [y/N]"])
         self.assertIn(catalog_text("machines.ssh_refused", "root" + AT + "dev-phone.netbird.cloud"), self.shown)
         self.assertEqual(self.listed(), [("beta", "beta", "linux"),
                                          ("tidepool", "root" + AT + "tidepool.netbird.cloud", "linux")])
 
     def test_netbird_signed_out_says_so_and_offers_nothing(self):
         stubs(self.stubs, {"netbird": FAKE_NETBIRD.replace('"${NETBIRD_STATE:-connected}"', "signed_out")})
-        prompts = self.run_questions(["", "", "y", ""])
-        self.assertEqual(prompts[3:], ["Add a machine by hand? [y/N]"])
+        prompts = self.run_questions(["", "", "y", "", ""])
+        self.assertEqual(prompts[3:], [LOCAL_ASK, "Add a machine by hand? [y/N]"])
         self.assertIn("[!] " + catalog_text("machines.netbird_signed_out") + "\n", self.shown)
+
+    def test_a_bonjour_machine_always_gets_the_fingerprint_question(self):
+        # anyone on the network can announce any name: each machine's key is asked about as one typed in by hand, with
+        # its fingerprint shown first and Enter alone a no; it is offered by its .local name, this Mac never
+        prompts = self.run_questions(["", "", "y",                 # not ~/.ssh/config nor Tailscale; the local network
+                                      "",                          # not the Mac
+                                      "y", "pi", "",               # lab-pi, its user; Enter at its key
+                                      "y", "", "y",                # studio, its user, its key
+                                      ""], timeout=30)             # not by hand
+        self.assertEqual(prompts, [
+            "Import machines from ~/.ssh/config? [y/N]", "Import machines from your Tailscale network? [y/N]",
+            LOCAL_ASK,
+            "Import devs-macbook-pro (Dev's MacBook Pro, devs-macbook-pro.local)? [y/N]",   # the name it announces
+            "Import lab-pi (lab-pi.local)? [y/N]", "user [dev]:",                           # this Mac's own user name
+            "Trust this ED25519 key of lab-pi.local (compare it with the machine's own)? [y/N]",
+            "Import studio (studio.local)? [y/N]", "user [dev]:",
+            "Trust this ED25519 key of studio.local (compare it with the machine's own)? [y/N]",
+            "Add a machine by hand? [y/N]"])
+        self.assertLess(self.shown.index("SHA256:FakeFingerprintForTests"),
+                        self.shown.index("Trust this ED25519 key of lab-pi.local"))
+        # its .local name kept, never an address; the key confirmed is the one ssh trusts; lab-pi is not added
+        self.assertEqual(self.listed(), [("beta", "beta", "linux"),
+                                         ("studio", "dev" + AT + "studio.local", "linux", FAKE_FINGERPRINT)])
+        self.assertEqual(self.known_hosts(), ["studio.local ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTests"])
+        self.assertEqual(self.outside(), ["known-host studio.local"])
+        # one on another port is named, with how to add it; the name a machine announces is never kept
+        self.assertIn("[-] " + catalog_text("machines.local_port", "build-01.local", "2222") + "\n", self.shown)
+        with open(os.path.join(self.home, ".config", "herdr-fold", "machines.txt")) as f:
+            self.assertNotIn("MacBook", f.read())
+
+    def test_the_local_question_says_whose_network_it_is(self):
+        # a no reads nothing of the network: dns-sd is never started
+        pids = os.path.join(self.tmp, "dns-sd-pids")
+        self.run_questions(["", "", "", ""], DNS_SD_PIDS=pids)
+        self.assertNotIn(LOCAL_LINE, self.shown)
+        self.assertFalse(os.path.exists(pids))
+        # a yes says these are what announces itself on the network this Mac is on now, before any of them
+        prompts = self.run_questions(["", "", "y", "", "", "", ""], timeout=30)
+        self.assertEqual(prompts[2:4], [LOCAL_ASK, "Import devs-macbook-pro (Dev's MacBook Pro, "
+                                                   "devs-macbook-pro.local)? [y/N]"])
+        self.assertEqual(self.shown.count(LOCAL_LINE), 1)
+        self.assertLess(self.shown.index(LOCAL_ASK), self.shown.index(LOCAL_LINE))
+        self.assertLess(self.shown.index(LOCAL_LINE), self.shown.index(prompts[3]))
+        self.assertEqual([p for p in prompts if "this-mac" in p], [])
+        self.assertIn("0 new machine(s) on the list, 0 already there", self.shown)
 
     def test_a_tailnet_machine_comes_with_its_host_key_fingerprint(self):
         # Tailscale's sshHostKeys, when it gives them: the ED25519 one (a machine's key), as ssh-keygen -l prints it
@@ -249,7 +301,7 @@ class Step8(unittest.TestCase):
             return []
 
     def test_new_sets_up_only_the_machine_it_added(self):
-        prompts = self.run_questions(["", "", "y", "", "192.0.2.9", "y", "n", " "], command="new")
+        prompts = self.run_questions(["", "", "", "y", "", "192.0.2.9", "y", "n", " "], command="new")
         self.assertEqual(prompts[-1], "Press any key to exit.")       # the window stays open until then
         self.assertEqual(self.listed(), [("192.0.2.9", "root@192.0.2.9", "linux", FAKE_FINGERPRINT),
                                          ("beta", "beta", "linux")])
@@ -273,13 +325,13 @@ class Step8(unittest.TestCase):
     def test_the_confirmed_key_is_the_one_ssh_trusts(self):
         # only the ED25519 key, the one the docs have you compare: another type the machine (or someone between)
         # shows is never trusted with it
-        self.run_questions(["", "", "y", "", "192.0.2.9", "y", "n"])
+        self.run_questions(["", "", "", "y", "", "192.0.2.9", "y", "n"])
         self.assertEqual(self.known_hosts(), ["192.0.2.9 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTests"])
 
     def test_a_machine_that_shows_no_key_is_not_added(self):
         # no answer to the key scan (or no ED25519 key): ssh would trust whatever answers next, so it stops there
         stubs(self.stubs, {"ssh-keyscan": "#!/bin/sh\nexit 0\n"})
-        prompts = self.run_questions(["", "", "y", "", "192.0.2.9", "n"])
+        prompts = self.run_questions(["", "", "", "y", "", "192.0.2.9", "n"])
         self.assertNotIn("Trust this ED25519 key of 192.0.2.9 (compare it with the machine's own)? [y/N]", prompts)
         self.assertIn("192.0.2.9 did not show its ED25519 key", self.shown)
         self.assertEqual(self.listed(), [("beta", "beta", "linux")])
@@ -287,17 +339,17 @@ class Step8(unittest.TestCase):
         self.assertEqual(self.outside(), [])
 
     def test_a_trusted_key_is_recorded_for_the_uninstaller(self):
-        self.run_questions(["", "", "y", "", "192.0.2.9", "y", "n"])
+        self.run_questions(["", "", "", "y", "", "192.0.2.9", "y", "n"])
         self.assertEqual(self.outside(), ["known-host 192.0.2.9"])
 
     def test_the_fingerprint_shows_before_the_question(self):
-        self.run_questions(["", "", "y", "", "192.0.2.9", "y", "n"])
+        self.run_questions(["", "", "", "y", "", "192.0.2.9", "y", "n"])
         shown = self.shown.index("SHA256:FakeFingerprintForTests")
         self.assertLess(shown, self.shown.index("Trust this ED25519 key of 192.0.2.9"))
 
     def test_enter_refuses_the_key_and_adds_nothing(self):
         # trusting a key is a typed yes, after comparing it: Enter on its own is no
-        prompts = self.run_questions(["", "", "y", "", "192.0.2.9", "", "n"])
+        prompts = self.run_questions(["", "", "", "y", "", "192.0.2.9", "", "n"])
         self.assertIn("Trust this ED25519 key of 192.0.2.9 (compare it with the machine's own)? [y/N]", prompts)
         self.assertEqual(self.listed(), [("beta", "beta", "linux")])
         self.assertEqual(self.known_hosts(), [])
@@ -306,8 +358,8 @@ class Step8(unittest.TestCase):
     def test_a_clashing_name_by_hand_gets_a_suffix_and_a_listed_address_is_not_added_twice(self):
         with open(os.path.join(self.home, ".config", "herdr-fold", "machines.txt"), "a") as f:
             f.write("web | root@web.a.example | linux\n")
-        prompts = self.run_questions(["", "", "y", "", "web.b.example", "y", "y",      # web.b: a new machine named web
-                                      "", "web.b.example", "n"])                        # the same address again
+        prompts = self.run_questions(["", "", "", "y", "", "web.b.example", "y", "y",  # web.b: a new machine named web
+                                      "", "web.b.example", "n"])                    # the same address again
         self.assertEqual(self.listed(), [("beta", "beta", "linux"), ("web", "root@web.a.example", "linux"),
                                          ("web-2", "root@web.b.example", "linux", FAKE_FINGERPRINT)])
         self.assertEqual(prompts.count("Trust this ED25519 key of web.b.example (compare it with the machine's own)? "
@@ -321,7 +373,7 @@ class Step8(unittest.TestCase):
         path = os.path.join(self.home, ".config", "herdr-fold", "machines.txt")
         with open(path, "w") as f:
             f.write(old)
-        self.run_questions(["", "", ""])
+        self.run_questions(["", "", "", ""])
         done = subprocess.run(["bash", os.path.join(self.pkg, "machines.sh"), "status"], capture_output=True,
                               text=True, stdin=subprocess.DEVNULL, timeout=60,
                               env={"PATH": f"{self.stubs}:/usr/bin:/bin", "HOME": self.home, "HERDR_FOLD_YES": "1"})
@@ -330,7 +382,7 @@ class Step8(unittest.TestCase):
             self.assertEqual(f.read(), old)
 
     def test_new_without_a_new_machine_sets_up_nothing(self):
-        prompts = self.run_questions(["", "", "", " "], command="new")
+        prompts = self.run_questions(["", "", "", "", " "], command="new")
         self.assertEqual(prompts[-1], "Press any key to exit.")
         self.assertEqual([call for call in self.herdr_calls() if call.startswith("herdr machine add")], [])
 
@@ -347,16 +399,17 @@ cat <<'JSON'
 }}
 JSON
 """ % STUDIO_KEY
-# studio shows its key at its tailnet name, its NetBird name and its other address; nothing else answers a key scan
+# studio shows its key at each of its names and at its other address; nothing else answers a key scan
 TWO_ROUTES_KEYSCAN = """#!/bin/sh
 for host; do :; done
-case "$host" in 192.0.2.20|studio.tail0000.ts.net|studio.netbird.cloud) echo "$host %s" ;; esac
+case "$host" in 192.0.2.20|studio.*) echo "$host %s" ;; esac
 exit 0
 """ % STUDIO_KEY
 # NetBird with studio and tidepool (NetBird keeps no host key: a machine's is read from it)
 TWO_ROUTES_NETBIRD = fake_netbird((("studio", "100.115.93.21", "Connected", "P2P", 3000000),
                                    ("tidepool", "100.115.93.10", "Idle", "-", 0)))
 SILENT_KEYSCAN = "#!/bin/sh\nexit 0\n"             # no machine answers a key scan
+STUDIO_DNS_SD = fake_dns_sd((("studio", "studio.local.", 22),))     # studio alone announces SSH on the local network
 # a machine answering with another key than the one Tailscale knows (someone between, or the wrong machine)
 OTHER_KEY, _ = host_key("FakeHostKeyOfSomeoneElse")
 HARBOR_KEY, _ = host_key("FakeHostKeyOfHarborWeb")
@@ -390,7 +443,8 @@ class TwoRoutes(unittest.TestCase):
         self.pkg = copy_package(os.path.join(self.tmp, "pkg"))
         self.stubs = stubs(os.path.join(self.tmp, "stubs"), {"ssh": FAKE_SSH, "tailscale": TWO_ROUTES_TAILSCALE,
                                                               "herdr": HERDR, "ssh-keyscan": TWO_ROUTES_KEYSCAN,
-                                                              "ssh-keygen": HOME_KEYGEN})
+                                                              "ssh-keygen": HOME_KEYGEN, "dns-sd": STUDIO_DNS_SD,
+                                                              "scutil": FAKE_SCUTIL})
 
     def path(self, rel):
         return os.path.join(self.home, rel)
@@ -425,13 +479,13 @@ class TwoRoutes(unittest.TestCase):
     SAID = "  studio.tail0000.ts.net is studio, already on the list: also reachable on Tailscale.\n"
 
     def test_a_candidate_with_a_listed_key_becomes_its_route(self):
-        prompts = self.run_questions(["y", "", "", "", ""])     # Tailscale; not harbor-web; the route; the Include
+        prompts = self.run_questions(["y", "", "", "", "", ""])  # Tailscale; not harbor-web; the route; the Include
         self.assertEqual(prompts, [
             "Import machines from your Tailscale network? [y/N]",
             "Import harbor-web (linux, harbor-web.tail0000.ts.net)? [y/N]",
             "Add this route? [Y/n]",
             "Add one line at the top of ~/.ssh/config to include them (Include ~/.config/herdr-fold/ssh_config)? [Y/n]",
-            "Add a machine by hand? [y/N]"])
+            LOCAL_ASK, "Add a machine by hand? [y/N]"])
         self.assertIn(self.SAID, self.shown)
         self.assertIn("0 new machine(s) on the list, 1 already there: studio", self.shown)
         # one machine, its two routes, the local one first; herdr has not connected it yet: its own Host from now on
@@ -447,11 +501,11 @@ class TwoRoutes(unittest.TestCase):
         theirs = "Host lab-pi\n  HostName 192.0.2.40\n  User pi\n"
         with open(self.path(".ssh/config"), "w") as f:
             f.write(theirs)
-        self.run_questions(["", "y", "", "", "", "n"])     # not from ~/.ssh/config; Tailscale: the route, the Include
+        self.run_questions(["", "y", "", "", "", "", "n"])  # not from ~/.ssh/config; Tailscale: the route, the Include
         # studio's other address, typed in: its key is studio's, so it is a route too, and the Include is not asked
-        prompts = self.run_questions(["", "", "y", "", "192.0.2.20", "", "n"])
+        prompts = self.run_questions(["", "", "", "y", "", "192.0.2.20", "", "n"])
         self.assertEqual(prompts, ["Import machines from ~/.ssh/config? [y/N]",
-                                   "Import machines from your Tailscale network? [y/N]",
+                                   "Import machines from your Tailscale network? [y/N]", LOCAL_ASK,
                                    "Add a machine by hand? [y/N]", "user [root]:", "IP address or host name:",
                                    "Add this route? [Y/n]", "Add another machine? [y/N]"])
         self.assertIn("  192.0.2.20 is studio, already on the list: also reachable at that address.\n", self.shown)
@@ -466,8 +520,8 @@ class TwoRoutes(unittest.TestCase):
         harbor = '"TailscaleIPs": ["100.115.92.20"]'
         stubs(self.stubs, {"ssh-keyscan": WRONG_KEYSCAN, "tailscale": TWO_ROUTES_TAILSCALE.replace(
             harbor, f'{harbor}, "sshHostKeys": ["{HARBOR_KEY}"]')})
-        prompts = self.run_questions(["y", ""])
-        self.assertEqual(prompts, ["Import machines from your Tailscale network? [y/N]",
+        prompts = self.run_questions(["y", "", ""])
+        self.assertEqual(prompts, ["Import machines from your Tailscale network? [y/N]", LOCAL_ASK,
                                    "Add a machine by hand? [y/N]"])
         self.assertIn("[!] " + catalog_text("machines.key_mismatch", "harbor-web") + "\n", self.shown)
         self.assertIn("[!] " + catalog_text("machines.route_key_mismatch", "studio.tail0000.ts.net", "studio") + "\n",
@@ -479,9 +533,9 @@ class TwoRoutes(unittest.TestCase):
     def test_a_route_needs_the_machine_to_show_the_listed_key_now(self):
         # Tailscale's record is what a peer says of itself: studio's key there is not enough; no answer, no route
         stubs(self.stubs, {"ssh-keyscan": SILENT_KEYSCAN})
-        prompts = self.run_questions(["y", "", ""])
+        prompts = self.run_questions(["y", "", "", ""])
         self.assertEqual(prompts, ["Import machines from your Tailscale network? [y/N]",
-                                   "Import harbor-web (linux, harbor-web.tail0000.ts.net)? [y/N]",
+                                   "Import harbor-web (linux, harbor-web.tail0000.ts.net)? [y/N]", LOCAL_ASK,
                                    "Add a machine by hand? [y/N]"])
         unchecked = catalog_text("machines.route_unchecked", "studio.tail0000.ts.net", "studio")
         self.assertIn(f"[-] {unchecked}\n", self.shown)
@@ -491,7 +545,7 @@ class TwoRoutes(unittest.TestCase):
         self.assertIsNone(self.read(".ssh/config"))
 
     def test_a_refused_include_keeps_one_route(self):
-        prompts = self.run_questions(["y", "", "", "n", ""])
+        prompts = self.run_questions(["y", "", "", "n", "", ""])
         self.assertIn("Add this route? [Y/n]", prompts)
         refused = catalog_text("machines.include_refused", "studio")
         self.assertIn(f"[-] {refused}\n", self.shown)
@@ -499,23 +553,23 @@ class TwoRoutes(unittest.TestCase):
         self.assertIsNone(self.read(".ssh/config"))
         self.assertIsNone(self.read(".config/herdr-fold/ssh_config"))
         # the no is kept: the next run says it is studio again, and asks neither question
-        prompts = self.run_questions(["y", "", ""])
+        prompts = self.run_questions(["y", "", "", ""])
         self.assertEqual(prompts, ["Import machines from your Tailscale network? [y/N]",
-                                   "Import harbor-web (linux, harbor-web.tail0000.ts.net)? [y/N]",
+                                   "Import harbor-web (linux, harbor-web.tail0000.ts.net)? [y/N]", LOCAL_ASK,
                                    "Add a machine by hand? [y/N]"])
         self.assertIn(self.SAID, self.shown)
         self.assertIn(f"[-] {refused}\n", self.shown)
 
     def test_a_netbird_peer_already_listed_by_key_is_a_route(self):
         stubs(self.stubs, {"netbird": TWO_ROUTES_NETBIRD})
-        prompts = self.run_questions(["", "y", "", "", "", ""])  # NetBird; the route; the Include; not tidepool
+        prompts = self.run_questions(["", "y", "", "", "", "", ""])  # NetBird; the route; the Include; not tidepool
         self.assertEqual(prompts, [
             "Import machines from your Tailscale network? [y/N]",
             "Import machines from your NetBird network? [y/N]",
             "Add this route? [Y/n]",
             "Add one line at the top of ~/.ssh/config to include them (Include ~/.config/herdr-fold/ssh_config)? [Y/n]",
             "Import tidepool (tidepool.netbird.cloud)? [y/N]",
-            "Add a machine by hand? [y/N]"])
+            LOCAL_ASK, "Add a machine by hand? [y/N]"])
         self.assertIn("  studio.netbird.cloud is studio, already on the list: also reachable on NetBird.\n", self.shown)
         self.assertEqual(self.studio(), [["studio", "herdr-fold.studio", "macos", STUDIO,
                                           f"local dev{AT}studio.local, netbird dev{AT}studio.netbird.cloud"]])
@@ -524,12 +578,37 @@ class TwoRoutes(unittest.TestCase):
     def test_a_netbird_peer_that_shows_no_key_is_never_a_route(self):
         # NetBird's list is what a peer says of itself: studio's name there is no proof; no key shown, no route
         stubs(self.stubs, {"netbird": TWO_ROUTES_NETBIRD, "ssh-keyscan": SILENT_KEYSCAN})
-        prompts = self.run_questions(["", "y", "", "", ""])
+        prompts = self.run_questions(["", "y", "", "", "", ""])
         self.assertNotIn("Add this route? [Y/n]", prompts)
         self.assertEqual(prompts[-1], "Add a machine by hand? [y/N]")
         self.assertEqual(self.read(".config/herdr-fold/machines.txt"), self.line)
         self.assertEqual(self.read(".ssh/known_hosts"), f"studio.local {STUDIO_KEY}\n")
         self.assertIsNone(self.read(".ssh/config"))
+
+    def test_a_bonjour_machine_is_a_route_only_by_the_key_it_shows_now(self):
+        # studio on the list by its tailnet name: what announces studio.local is offered as another machine, under a
+        # name of its own, while it shows no key; once it shows studio's own, it is studio's route
+        line = f"studio           | dev{AT}studio.tail0000.ts.net | macos | {STUDIO}\n"
+        with open(self.path(".config/herdr-fold/machines.txt"), "w") as f:
+            f.write(line)
+        with open(self.path(".ssh/known_hosts"), "w") as f:
+            f.write(f"studio.tail0000.ts.net {STUDIO_KEY}\n")
+        stubs(self.stubs, {"ssh-keyscan": SILENT_KEYSCAN})
+        prompts = self.run_questions(["", "y", "", ""])               # not Tailscale; the local network; not it
+        self.assertEqual(prompts, ["Import machines from your Tailscale network? [y/N]", LOCAL_ASK,
+                                   "Import studio-local (studio.local)? [y/N]", "Add a machine by hand? [y/N]"])
+        self.assertEqual(self.read(".config/herdr-fold/machines.txt"), line)
+        stubs(self.stubs, {"ssh-keyscan": TWO_ROUTES_KEYSCAN})
+        prompts = self.run_questions(["", "y", "", "", ""])           # the route, the Include
+        self.assertEqual(prompts, [
+            "Import machines from your Tailscale network? [y/N]", LOCAL_ASK, "Add this route? [Y/n]",
+            "Add one line at the top of ~/.ssh/config to include them (Include ~/.config/herdr-fold/ssh_config)? [Y/n]",
+            "Add a machine by hand? [y/N]"])
+        self.assertIn("  studio.local is studio, already on the list: also reachable on this local network.\n",
+                      self.shown)
+        self.assertEqual(self.studio(), [["studio", "herdr-fold.studio", "macos", STUDIO,
+                                          f"local dev{AT}studio.local, tailscale dev{AT}studio.tail0000.ts.net"]])
+        self.assertEqual(self.read(".ssh/known_hosts").splitlines()[-1], f"herdr-fold.studio {STUDIO_KEY}")
 
 
 if __name__ == "__main__":

@@ -164,11 +164,19 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
   most, and signed out, an expired sign-in or not connected is said in one line. A NetBird machine that shows the key
   of one on the list is a route of it, by the key it shows when asked, never by NetBird's word alone. See
   [Networks](docs/remote-machines.md#networks).
+- The machines announcing SSH on the local network: the machine questions (the installer's step 8, Add a machine) ask
+  `Look for machines on this local network?`, default no, then say these are the machines announcing SSH on the
+  network this Mac is on now, a café's too, and offer each by its `.local` name, the name it announces shown in its
+  question and never kept (`./machines.sh local` asks alone). Any machine there can claim any name, so each one's
+  fingerprint is asked about, as for one added by hand, and one that shows the key of a machine on the list is a route
+  of it. Nothing is scanned: Bonjour is listened to for 3 seconds and each machine looked up for 2. See
+  [Networks](docs/remote-machines.md#networks).
 
 ### Changed
 
 - The machine questions (the installer's step 8, Add a machine) start with a line saying any network works: a
-  machine is added by its address or name, and Tailscale's and NetBird's machines are also offered by name.
+  machine is added by its address or name, and Tailscale's, NetBird's and this local network's machines are also
+  offered by name.
 - herdr-fold's own ssh connections to a machine forward no agent and no port (`ClearAllForwardings`, `ForwardAgent
   no`), whatever `~/.ssh/config` says.
 - Tab Layout (`herdr-fold.tab-layout`) is gone, its work split: the sidebar lays out every new empty tab and comes back

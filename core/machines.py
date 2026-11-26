@@ -35,6 +35,8 @@ SOURCES = (
     ("Tailscale", "its coordination server signed the machine into your network", "trusted on the first connection"),
     ("NetBird", "its management server signed the machine into your network", "trusted on the first connection"),
     ("by address", "nothing: whatever answers there", "its fingerprint is shown and asked about first"),
+    ("Bonjour", "nothing: any machine on the network this Mac is on can announce any name",
+     "its fingerprint is shown and asked about first"),
 )
 KEY = re.compile(r"SHA256:[A-Za-z0-9+/]{1,64}")                 # a host key's fingerprint, as ssh-keygen -l prints it
 NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")           # a machine's name that can be a Host's
