@@ -39,7 +39,8 @@ starts from what is installed, and `3` adds the other. Choosing fewer parts than
 - A Mac with Apple silicon and macOS 15 or later: what Homebrew supports. Homebrew no longer supports Intel Macs: the
   install may get through there, but it is not supported or tested.
 - Homebrew. If it is missing, the installer offers to install it.
-- Claude Code and/or Codex, signed in. The installer does not install them; it tells you if one is missing.
+- A coding agent, signed in: Claude Code, Codex or OpenCode. The installer installs none of them; it tells you when
+  Claude Code or Codex is missing. The Herdr app's chat draws Claude; the others run in a terminal tab.
 - For the TUI, herdr 0.9.5 or newer. The installer installs it with Homebrew (`Brewfile`), unless a herdr from
   elsewhere (herdr's own installer, in `~/.local/bin`) is there: that one stays, without a second from Homebrew.
   Homebrew has it ready-built only for the newest macOS; on an older one it builds it first (with rust and zig, which it
@@ -203,7 +204,7 @@ What is yours is saved first, in `~/.local/state/herdr-fold/`:
 
 No copy of herdr-fold's own files is kept: the package has them.
 
-It never touches your chats (Claude and Codex sessions and their names) or herdr's own data.
+It never touches your chats (Claude's, Codex's and OpenCode's sessions and their names) or herdr's own data.
 
 ## The font
 

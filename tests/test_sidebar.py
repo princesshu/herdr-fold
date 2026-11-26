@@ -30,6 +30,7 @@ import panels  # noqa: E402
 import panes  # noqa: E402
 import preview  # noqa: E402
 import screen  # noqa: E402
+import scm  # noqa: E402
 import sidebar  # noqa: E402
 from chats import Chat                  # noqa: E402
 from git import Status  # noqa: E402
@@ -403,6 +404,18 @@ class Running(Harness):
                 self.until(lambda s: self.app.shown() == "search" and "Search" in s)
                 field = any(ch == "▄" and style.fg == "input" for row in self.app.canvas.rows for ch, style in row)
                 self.assertEqual(field, rows - sidebar.stack.TOP >= screen.ROOMY)
+                self.stop()
+
+    def test_changes_keeps_its_message_and_commit_tall_till_the_view_is_low(self):
+        # as VS Code's box keeps its size: the list gives way first, the message and Commit only under Scm.ROOMY
+        self.stop()
+        for rows in (15, 14):                                             # the view 12 rows high, then 11
+            with self.subTest(rows=rows):
+                self.start(rows=rows)
+                self.term.type(Key("f11"))
+                self.until(lambda s: self.app.shown() == "changes" and "Commit" in s)
+                field = any(ch == "▄" and style.fg == "input" for row in self.app.canvas.rows for ch, style in row)
+                self.assertEqual(field, rows - sidebar.stack.TOP >= scm.Scm.ROOMY)
                 self.stop()
 
     def test_a_key_reaches_the_panel_shown_only(self):

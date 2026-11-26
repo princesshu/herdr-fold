@@ -27,7 +27,7 @@ TITLE = 5                     # where a chat's name starts, its mark two cells b
 TITLE_LEAST = 16              # cells a chat's name keeps at least: in fewer the agent's column goes
 # the chosen chat's plan under its row (core/plan.py's list): a step's mark and its color, by its state
 STEP_MARK = {"done": ("✓", "done"), "now": ("◐", "accent"), "next": ("○", "muted")}
-OPEN_PLAN = "Open the plan"   # at the plan's head: the approved plan in the preview tab
+OPEN_PLAN = "Open the plan"   # at the plan's head: the approved plan in your editor
 NOTE_ROWS = 2                 # rows of a plan's note (Codex's) at most
 AFTER_LEAST = 8               # cells of what a step waits for at least: in fewer it is left out
 

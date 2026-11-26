@@ -1,8 +1,9 @@
 # Using it
 
-Every key is in [Keys](keybindings.md); the sidebar's views, one by one, in
-[its README](../src/plugins/sidebar/README.md); the agent's setup, its limits, costs and graph in
-[The agent's harness](harness.md).
+Every key is in [Keys](keybindings.md); the sidebar's views, one by one, in [its
+README](../src/plugins/sidebar/README.md); the agent's setup, its limits, costs and graph in [The agent's
+harness](harness.md); the Herdr app's own ways in [The Herdr app](app.md). This page follows the workspace: the spaces,
+the agent's pane, the sidebar's Changes, Issues and Chats, the terminal, then what opens in a tab.
 
 ## Spaces
 
@@ -38,7 +39,7 @@ tab, after a restart too, until Cmd + Shift + O (Restore panels) or the sidebar'
 tab always comes with every pane.
 
 A folder in the sidebar's Files view opens a space too: right-click it → **New space**, and the folder picker
-opens on it, with the Claude / Codex toggle.
+opens on it, with the agent toggle.
 
 Rename or move the folder, and the space and its main tab take the folder's new name at the next pane you focus
 (a folder renamed earlier too, known by the Claude chats kept under its old name), and the sidebar opens on it
@@ -57,7 +58,7 @@ python3 ~/.config/herdr-fold/herdr_layout.py --machine alpha /srv/app app       
 python3 ~/.config/herdr-fold/herdr_layout.py --machine win1 'C:\projects\app' app  # on a Windows machine
 ```
 
-Add `--agent codex` for Codex.
+Add `--agent codex` or `--agent opencode` for another agent.
 
 ## Sessions
 
@@ -102,127 +103,6 @@ tab when it has the tab to itself (a reopened one's); the space's main tab keeps
 
 A tab you renamed yourself keeps your name until you rename the chat.
 
-## Chats
-
-Every chat of the spaces under Spaces, running or closed, in the list the sidebar's ✦ opens over it:
-
-1. Cmd + Shift + R, from anywhere, or a click on the ✦: the list opens in the tab's sidebar (one closed by hand comes
-   back), its filter empty, the keys going to it; its lit button, Esc or a click outside closes it (on another of the
-   dock's buttons, that button's own happens too; More opens over it).
-2. Type in `Filter chats`: the chats of every space narrow at once.
-3. Enter goes to a running chat, or reopens a closed one in a new tab of its space.
-
-Each space with a chat is a group, its chevron first; under it each chat with its state's mark, its name, and at the
-right its agent and how long ago, in two columns (the agent's goes in a narrow pane).
-
-The chosen chat's task list stands under its row, as its agent keeps it (Claude's tasks, Codex's plan): Plan, with
-`Open the plan` at its right once a plan mode's plan was approved (in your editor, as any text file); Codex's note,
-two rows at most; the done steps in one row, `✓ 3 done` (→ or a click lists them under it, ← folds them again); then
-the step at work (◐) and the ones to do (○), what one waits for at the right where there is room. A finished list is
-one line, `Plan All 4 done`, until the next message. The other rows have none, and the agent's own pane keeps its own
-list.
-
-![Chats open in the sidebar beside Claude: each space's chats, lumen-api's open with Claude's two and Codex's
-four, a running one's mark in its state's color, the closed ones faint](../assets/screenshots/tui-chats.webp)
-
-A right click on a chat offers Open, Copy chat (all of it, formatted for Notes, Mail or Docs), Rename
-and, for a closed one, Archive: it leaves the list (`Archived "Login redirect fix"` at the sidebar's foot) and its file
-stays as it was, so `claude --resume` or `codex resume` still finds it; while any is archived, More (⋯) and a right
-click beside the chats offer Show archived.
-
-A Claude chat's right click also offers Checkpoints…, and → on its row opens them too (once its plan's done steps, if
-any, are listed): its prompts in the list's place, the newest first, the chat's name over them (‹ or ← goes back to the
-chats). Each prompt that starts a turn is a checkpoint, and where its turn wrote files Claude still keeps, the row says
-how many it wrote (`wrote 2 files`) and the chosen one offers `Restore files to here…`. Enter asks Claude first which
-files would change (its dry run): `Files as they were before this message`, those files, the lines in all, and what
-stays as it is (what Bash commands and subagents changed since, edits made outside Claude, and the chat, which keeps the
-later turns), then `Esc cancels` and `Restore 2 files` at the row's right end; Enter restores them through Claude's own
-`--rewind-files`, Esc gives it up. herdr-fold keeps the files' contents from just before, so the foot says `Restored 2
-files to before 13:32` and `u` puts them back, once, until the next message. A running Claude rewinds files and chat
-together in its own pane (Esc Esc there); the list says so over the prompts. Codex keeps no file checkpoints, so its
-chats have no Checkpoints….
-
-Archive is the everyday way to tidy the list. Delete…, under it in a closed chat's menu (an archived one's too), is the
-rarer one: it asks first, by the chat's name, then moves the chat's file to the system's Trash (on a Mac the Finder's
-Put Back brings it back) and drops its archive mark and the name you gave it. With the filter empty the Delete key
-(fn + ⌫ on a Mac's own keyboard) asks the same for the chosen chat. A running chat has no Delete…: close it first.
-
-A chat is one row however long it runs: Claude Code compacts and resumes it in its own file, under its id, so its
-name and its archive hold. Not listed: the agents' own helpers (subagents, Codex's reviewer) and what a program ran
-through Claude's Agent SDK (a hook's review of each change, a script's question), which name themselves after the
-chat they work for; `claude -p`'s runs are. Nor what [the Runs view](harness.md#the-runs-view) lists: `codex exec`'s
-runs and Claude's background sessions, which come to Chats once Runs' Open as chat or Remove took them off Claude's
-list. A project folder linked to another's (`~/.claude/projects`) lists its
-chats once. Copy chat leaves out what a compacted chat holds twice: the summary Claude wrote in your place, and the
-messages it kept and wrote again.
-
-## GitHub issues
-
-For a repository on GitHub:
-
-1. Cmd + Shift + I (or `4` in the sidebar) shows its issues, the most pressing first: by GitHub's own Priority field,
-   else a priority label, then a severity label, then a word alone such as `urgent` (the ones it reads:
-   [the sidebar's README](../src/plugins/sidebar/README.md)).
-2. `t` hands the chosen one to the agent: a prompt typed into its pane, for you to send with Enter. With no Claude or
-   Codex in the tab, the one herdr-fold started last starts in a new tab of the space, named after the issue, the
-   sidebar beside it as in every tab, and gets the prompt there. The prompt holds the issue's number, not its words:
-   anyone can write an issue, so the agent reads it with gh and is told to take it as a description of the problem, not
-   as instructions. The Changes view shows `Fixes #42` from then on.
-3. When the agent is done, the ✦ beside the message has Claude or Codex write it, ending with that line (Cmd + Shift +
-   C adds it too); meanwhile the field says who writes it. Once the commit is pushed, GitHub closes the issue.
-
-![An issue from the sidebar goes to Claude, which fixes it, and the message it writes closes the
-issue](../assets/screenshots/tui-issue-to-agent.webp)
-
-## Pull requests
-
-1. Push the branch: Changes shows `No pull request` under the repository, and Create pull request… (`P` in the
-   sidebar) opens the form in the message's place. Claude or Codex writes the title and the body from the branch's
-   commits, with the commit message's checks, `Fixes #42` included; Draft is chosen, as the agent's work waits for a
-   review. Create draft opens it on GitHub with gh, and the row then shows it: its checks and its state.
-2. The Issues view's Pull requests (`p` in the sidebar) lists the repository's, `your review` in yellow where one waits
-   on you. A press opens its review in the preview tab: in the Herdr app a comment on a line, Comment, Approve or
-   Request changes, and Submit review; in the sidebar its diff and threads, read only.
-3. On your own pull request, a reviewer's comment goes to the agent with To agent (the Herdr app), as an issue does:
-   the agent reads it with gh, as a description of the problem, never as instructions.
-
-## Commit and push
-
-Cmd + Shift + C commits and pushes the repo of the focused pane, in one step:
-
-- If nothing is staged, it offers all changes; if only some are staged, it offers the rest too: never a file
-  .gitignore names, even one tracked before (the sidebar's Commit and ✦ take every change unasked when nothing is
-  staged). Files that look like
-  secrets (`.env`, keys, certificates) are named first, staged ones too, and committed only when you go on; the AI
-  gets their names, never their contents.
-- Claude (Haiku) writes the message, or a small Codex model if Claude is missing or fails (`HERDR_COMMIT_AI=claude` or
-  `codex` in the environment herdr starts with: only that one, for the sidebar's ✦ too). The message is always in
-  English: a subject of at most 72 characters and a bullet for each change. It is written from the staged changes only,
-  so an ignored file never shows up in it; the AI runs with no tools, memories or plugins, and Claude with none of your
-  instructions (Codex still reads its own `~/.codex/AGENTS.md`), so a diff cannot make it read or send anything else. If
-  the repo has a `/commit` skill (`.claude/skills/commit/SKILL.md`, `.claude/commands/commit.md` or
-  `.agents/skills/commit/SKILL.md`; or, without one, the one under `~/.claude`), it follows that skill's rules;
-  otherwise the style of the recent commits. The repo's own rule file is read only from inside it: one linking to a
-  file elsewhere is passed over, as its text would go to the AI.
-- A suggested message that holds a secret, an e-mail address, a home folder path, an IP address, a tailnet's name or a
-  private name (this Mac's names, your full name) the changes do not is dropped: the next AI tries, or you type the
-  message.
-- You see the whole message first: Enter commits and pushes, `e` edits, `r` asks for a new one, Esc cancels.
-- With nothing to commit and the branch ahead of its upstream, it offers to push those commits: Enter pushes them.
-
-It works for repos on this Mac; on a remote machine, use the sidebar's Changes view. In the Herdr app, Cmd + Shift + C
-does it in the Changes view, on any machine: [Keys](app.md#keys).
-
-**A repo without a remote:** the sidebar and Cmd + Shift + C have nowhere to push. In the space's terminal:
-
-```bash
-git remote -v                                                            # empty: no remote yet
-gh repo create <account>/<name> --private --source . --remote origin     # a new private GitHub repo from this folder
-git remote add origin https://github.com/<account>/<name>.git            # or an existing one
-```
-
-The first push, from either, sets the upstream (`push -u`).
-
 ## Closing tabs
 
 Cmd + W closes the active tab, never the main tab. A tab with a chat asks first (Enter or **Close** closes,
@@ -239,50 +119,11 @@ with a new shell, behind the one in front unless its last tab was closed while i
 space, it goes back to the top. On a connected machine with herdr-fold's plugins, its spaces stay the same
 way. The Herdr app's herdr-fold layout keeps only home: [Spaces](app.md#spaces).
 
-## Copying and searching
+## Claude in herdr panes
 
-Select text with the mouse. In a Claude pane it is copied when you release; in other panes Cmd + C copies. Text
-selected from a Claude or Codex reply is copied formatted too (headings, lists, tables, bold, code, links): Docs, Mail,
-Notes and Slack get the formatted version, plain-text targets the plain one. Only web and mail links stay links.
-
-Cmd + F searches the Claude chat of the focused pane: type, Enter accepts, `n` / `N` jump to the next /
-previous match, Esc goes back to typing.
-
-## Opening a file the agent named
-
-Cmd + Shift + L lists the files the focused pane's recent output names, the newest first: `src/app.py:42`,
-`src/app.ts(12,5)`, `README.md#L3`, a Python traceback's `File "…", line 9`, or a path alone. Only files that are
-there show, a relative path found from the pane's folder or its repository's top. Type to narrow the list; Enter, a
-double click or Open opens a text file at that line in your editor ([Editing files](#editing-files)); an image, a PDF,
-a page or an SVG shows in the sidebar's preview tab (`o` opening it in the browser), audio or a video too (`o` opening
-it in the player), and that tab's sidebar opens Files on it. It works on any pane: an agent's reply, a test run's
-failure, a compiler's errors. A remote machine's pane lists nothing: its files are on that machine, and the list shows
-only files that are on the Mac.
-
-## Editing files
-
-Enter or a click on a text file in Files, a search hit, the Agent panel's Open, a saved file's name and Cmd + Shift + L
-open the file in your own editor, in a terminal tab named for its path: `$VISUAL`, else `$EDITOR` (`code -w` too), else
-the first of micro, nano and vim found, at the line asked where the editor takes `+N`. Opened again, its tab shows
-(never a second editor on one file). There the Cmd keys are the editor's own, as in VS Code: Cmd + S saves, Cmd + F
-finds (never the chat search), Cmd + Z and Cmd + Shift + Z undo and redo, Cmd + A, C, X and V select all, copy, cut and
-paste, and Cmd + W quits the editor, never the tab under it ([each editor's keys](keybindings.md#the-editor-tab)); in
-vim only the paste works. micro's bottom line names the file, a + while it is unsaved, the line and column, and those
-keys; nano's help lines, of other keys, are hidden. When the editor quits, the tab closes and Files, Changes and the
-preview show the file as saved. A desktop editor without `-w` opens its own window: the sidebar says so. A page or an
-SVG stays in the preview, drawn, and `e` (Edit in its status row) opens the same editor tab; once saved, the picture is
-drawn again. A binary file or one over 1 MiB stays in the read-only preview. With an agent's settings file chosen in
-Files (`.claude/settings*.json`, `.codex/config.toml`), Files' last row says the Agent panel's forms are its checked
-way, with Show in Agent.
-
-## Pictures, audio and video an agent made
-
-An image the agent made through a connector (fal, ElevenLabs, FLUX, Runway: [The agent's
-harness](harness.md#a-row-and-its-properties)) shows in the preview tab with where it came from under it, as the chat
-tells it: `fal-ai/flux-pro/v1.1 · 16:9 · fal · 2 calls · hero-image`, then the prompt. A video shows a frame of it, its
-shape and length (`16:9 · 5 s`); audio its waveform in the accent, with its length; `o` opens either in the player. A
-right click offers Open in Player (Browser, Preview), Show in Finder on a Mac, and Ask for Another, which types the
-chat that made it a request for another take, never sent: Enter in that chat sends it. Runs counts the same files.
+In herdr panes Claude runs full screen: the input box stays at the bottom with the status line under it, Claude
+scrolls the chat, and a "Jump to bottom" button appears when you scroll up. Claude elsewhere is unchanged. A
+Claude that was already running switches on its next start.
 
 ## The status line
 
@@ -326,11 +167,174 @@ shorter labels (`ctx`, `5h`, `wk`), no context window size, then no reset times 
 again every 10 seconds (`refreshInterval`), so it fits a pane made narrower too, the right column dragged wider beside
 it. Codex cuts its own line at the end, so its items go in the order of importance.
 
-## Claude in herdr panes
+## Copying and searching
 
-In herdr panes Claude runs full screen: the input box stays at the bottom with the status line under it, Claude
-scrolls the chat, and a "Jump to bottom" button appears when you scroll up. Claude elsewhere is unchanged. A
-Claude that was already running switches on its next start.
+Select text with the mouse. In a Claude pane it is copied when you release; in other panes Cmd + C copies. Text
+selected from a Claude or Codex reply is copied formatted too (headings, lists, tables, bold, code, links): Docs, Mail,
+Notes and Slack get the formatted version, plain-text targets the plain one. Only web and mail links stay links.
+
+Cmd + F searches the Claude chat of the focused pane: type, Enter accepts, `n` / `N` jump to the next /
+previous match, Esc goes back to typing.
+
+## Commit and push
+
+Cmd + Shift + C commits and pushes the repo of the focused pane, in one step:
+
+- If nothing is staged, it offers all changes; if only some are staged, it offers the rest too: never a file
+  .gitignore names, even one tracked before (the sidebar's Commit and ✦ take every change unasked when nothing is
+  staged). Files that look like
+  secrets (`.env`, keys, certificates) are named first, staged ones too, and committed only when you go on; the AI
+  gets their names, never their contents.
+- Claude (Haiku) writes the message, or a small Codex model if Claude is missing or fails (`HERDR_COMMIT_AI=claude` or
+  `codex` in the environment herdr starts with: only that one, for the sidebar's ✦ too). The message is always in
+  English: a subject of at most 72 characters and a bullet for each change. It is written from the staged changes only,
+  so an ignored file never shows up in it; the AI runs with no tools, memories or plugins, and Claude with none of your
+  instructions (Codex still reads its own `~/.codex/AGENTS.md`), so a diff cannot make it read or send anything else. If
+  the repo has a `/commit` skill (`.claude/skills/commit/SKILL.md`, `.claude/commands/commit.md` or
+  `.agents/skills/commit/SKILL.md`; or, without one, the one under `~/.claude`), it follows that skill's rules;
+  otherwise the style of the recent commits. The repo's own rule file is read only from inside it: one linking to a
+  file elsewhere is passed over, as its text would go to the AI.
+- A suggested message that holds a secret, an e-mail address, a home folder path, an IP address, a tailnet's name or a
+  private name (this Mac's names, your full name) the changes do not is dropped: the next AI tries, or you type the
+  message.
+- You see the whole message first: Enter commits and pushes, `e` edits, `r` asks for a new one, Esc cancels.
+- With nothing to commit and the branch ahead of its upstream, it offers to push those commits: Enter pushes them.
+
+It works for repos on this Mac; on a remote machine, use the sidebar's Changes view. In the Herdr app, Cmd + Shift + C
+does it in the Changes view, on any machine: [Keys](app.md#keys).
+
+**A repo without a remote:** the sidebar and Cmd + Shift + C have nowhere to push. In the space's terminal:
+
+```bash
+git remote -v                                                            # empty: no remote yet
+gh repo create <account>/<name> --private --source . --remote origin     # a new private GitHub repo from this folder
+git remote add origin https://github.com/<account>/<name>.git            # or an existing one
+```
+
+The first push, from either, sets the upstream (`push -u`).
+
+## Pull requests
+
+1. Push the branch: Changes shows `No pull request` under the repository, and Create pull request… (`P` in the
+   sidebar) opens the form in the message's place. Claude or Codex writes the title and the body from the branch's
+   commits, with the commit message's checks, `Fixes #42` included; Draft is chosen, as the agent's work waits for a
+   review. Create draft opens it on GitHub with gh, and the row then shows it: its checks and its state.
+2. The Issues view's Pull requests (`p` in the sidebar) lists the repository's, `your review` in yellow where one waits
+   on you. A press opens its review in the preview tab: in the Herdr app a comment on a line, Comment, Approve or
+   Request changes, and Submit review; in the sidebar its diff and threads, read only.
+3. On your own pull request, a reviewer's comment goes to the agent with To agent (the Herdr app), as an issue does:
+   the agent reads it with gh, as a description of the problem, never as instructions.
+
+## GitHub issues
+
+For a repository on GitHub:
+
+1. Cmd + Shift + I (or `4` in the sidebar) shows its issues, the most pressing first: by GitHub's own Priority field,
+   else a priority label, then a severity label, then a word alone such as `urgent` (the ones it reads:
+   [the sidebar's README](../src/plugins/sidebar/README.md)).
+2. `t` hands the chosen one to the agent: a prompt typed into its pane, for you to send with Enter. With no agent in the
+   tab (Claude, Codex or OpenCode), the one herdr-fold started last starts in a new tab of the space, named after the
+   issue, the sidebar beside it as in every tab, and gets the prompt there. The prompt holds the issue's number, not its
+   words: anyone can write an issue, so the agent reads it with gh and is told to take it as a description of the
+   problem, not as instructions. The Changes view shows `Fixes #42` from then on.
+3. When the agent is done, the ✦ beside the message has Claude or Codex write it, ending with that line (Cmd + Shift +
+   C adds it too); meanwhile the field says who writes it. Once the commit is pushed, GitHub closes the issue.
+
+![An issue from the sidebar goes to Claude, which fixes it, and the message it writes closes the
+issue](../assets/screenshots/tui-issue-to-agent.webp)
+
+## Chats
+
+Every chat of the spaces under Spaces, running or closed, in the list the sidebar's ✦ opens over it:
+
+1. Cmd + Shift + R, from anywhere, or a click on the ✦: the list opens in the tab's sidebar (one closed by hand comes
+   back), its filter empty, the keys going to it; its lit button, Esc or a click outside closes it (on another of the
+   dock's buttons, that button's own happens too; More opens over it).
+2. Type in `Filter chats`: the chats of every space narrow at once.
+3. Enter goes to a running chat, or reopens a closed one in a new tab of its space.
+
+Each space with a chat is a group, its chevron first; under it each chat with its state's mark, its name, and at the
+right its agent and how long ago, in two columns (the agent's goes in a narrow pane).
+
+The chosen chat's task list stands under its row, as its agent keeps it (Claude's tasks, Codex's plan): Plan, with
+`Open the plan` at its right once a plan mode's plan was approved (in your editor, as any text file); Codex's note,
+two rows at most; the done steps in one row, `✓ 3 done` (→ or a click lists them under it, ← folds them again); then
+the step at work (◐) and the ones to do (○), what one waits for at the right where there is room. A finished list is
+one line, `Plan All 4 done`, until the next message. The other rows have none, and the agent's own pane keeps its own
+list.
+
+![Chats open in the sidebar beside Claude: each space's chats, lumen-api's open with Claude's two and Codex's
+four, a running one's mark in its state's color, the closed ones faint](../assets/screenshots/tui-chats.webp)
+
+A right click on a chat offers Open, Copy chat (all of it, formatted for Notes, Mail or Docs), Rename
+and, for a closed one, Archive: it leaves the list (`Archived "Login redirect fix"` at the sidebar's foot) and its file
+stays as it was, so `claude --resume` or `codex resume` still finds it; while any is archived, More (⋯) and a right
+click beside the chats offer Show archived.
+
+Archive is the everyday way to tidy the list. Delete…, under it in a closed chat's menu (an archived one's too), is the
+rarer one: it asks first, by the chat's name, then moves the chat's file to the system's Trash (on a Mac the Finder's
+Put Back brings it back) and drops its archive mark and the name you gave it. With the filter empty the Delete key (fn +
+⌫ on a Mac's own keyboard) asks the same for the chosen chat. A running chat has no Delete…: close it first. An OpenCode
+chat has none either: OpenCode keeps its chats in its own database, so Archive is its way off the list.
+
+A chat is one row however long it runs: Claude Code compacts and resumes it in its own file, under its id, so its
+name and its archive hold. Not listed: the agents' own helpers (subagents, Codex's reviewer) and what a program ran
+through Claude's Agent SDK (a hook's review of each change, a script's question), which name themselves after the
+chat they work for; `claude -p`'s runs are. Nor what [the Runs view](harness.md#the-runs-view) lists: `codex exec`'s
+runs and Claude's background sessions, which come to Chats once Runs' Open as chat or Remove took them off Claude's
+list. A project folder linked to another's (`~/.claude/projects`) lists its
+chats once. Copy chat leaves out what a compacted chat holds twice: the summary Claude wrote in your place, and the
+messages it kept and wrote again.
+
+### Checkpoints
+
+A Claude chat's right click also offers Checkpoints…, and → on its row opens them too (once its plan's done steps, if
+any, are listed): its prompts in the list's place, the newest first, the chat's name over them (‹ or ← goes back to the
+chats). Each prompt that starts a turn is a checkpoint, and where its turn wrote files Claude still keeps, the row says
+how many it wrote (`wrote 2 files`) and the chosen one offers `Restore files to here…`. Enter asks Claude first which
+files would change (its dry run): `Files as they were before this message`, those files, the lines in all, and what
+stays as it is (what Bash commands and subagents changed since, edits made outside Claude, and the chat, which keeps the
+later turns), then `Esc cancels` and `Restore 2 files` at the row's right end; Enter restores them through Claude's own
+`--rewind-files`, Esc gives it up. herdr-fold keeps the files' contents from just before, so the foot says `Restored 2
+files to before 13:32` and `u` puts them back, once, until the next message. A running Claude rewinds files and chat
+together in its own pane (Esc Esc there); the list says so over the prompts. Codex keeps no file checkpoints, so its
+chats have no Checkpoints….
+
+## Opening a file the agent named
+
+Cmd + Shift + L lists the files the focused pane's recent output names, the newest first: `src/app.py:42`,
+`src/app.ts(12,5)`, `README.md#L3`, a Python traceback's `File "…", line 9`, or a path alone. Only files that are
+there show, a relative path found from the pane's folder or its repository's top. Type to narrow the list; Enter, a
+double click or Open opens a text file at that line in your editor ([Editing files](#editing-files)); an image, a PDF,
+a page or an SVG shows in the sidebar's preview tab (`o` opening it in the browser), audio or a video too (`o` opening
+it in the player), and that tab's sidebar opens Files on it. It works on any pane: an agent's reply, a test run's
+failure, a compiler's errors. A remote machine's pane lists nothing: its files are on that machine, and the list shows
+only files that are on the Mac.
+
+## Editing files
+
+Enter or a click on a text file in Files, a search hit, the Agent panel's Open, a saved file's name and Cmd + Shift + L
+open the file in your own editor, in a terminal tab named for its path: `$VISUAL`, else `$EDITOR` (`code -w` too), else
+the first of micro, nano and vim found, at the line asked where the editor takes `+N`. Opened again, its tab shows
+(never a second editor on one file). There the Cmd keys are the editor's own, as in VS Code: Cmd + S saves, Cmd + F
+finds (never the chat search), Cmd + Z and Cmd + Shift + Z undo and redo, Cmd + A, C, X and V select all, copy, cut and
+paste, and Cmd + W quits the editor, never the tab under it ([each editor's keys](keybindings.md#the-editor-tab)); in
+vim only the paste works. micro's bottom line names the file, a + while it is unsaved, the line and column, and those
+keys; nano's help lines, of other keys, are hidden. When the editor quits, the tab closes and Files, Changes and the
+preview show the file as saved. A desktop editor without `-w` opens its own window: the sidebar says so. A page or an
+SVG stays in the preview, drawn, and `e` (Edit in its status row) opens the same editor tab; once saved, the picture is
+drawn again. A binary file or one over 1 MiB stays in the read-only preview. With an agent's settings file chosen in
+Files (`.claude/settings*.json`, `.codex/config.toml`), Files' last row says the Agent panel's forms are its checked
+way, with Show in Agent.
+
+## Pictures, audio and video an agent made
+
+An image the agent made through a connector (fal, ElevenLabs, FLUX, Runway: [Media services](harness.md#media-services))
+shows in the preview tab with where it came from under it, as the chat tells it: `fal-ai/flux-pro/v1.1 · 16:9 · fal · 2
+calls · hero-image`, then the prompt. A video shows a frame of it, its shape and length (`16:9 · 5 s`); audio its
+waveform in the accent, with its length; `o` opens either in the player. A right click offers Open in Player (Browser,
+Preview), Show in Finder on a Mac, and Ask for Another, which types the chat that made it a request for another take,
+never sent: Enter in that chat sends it. Runs counts the same files.
 
 ## Quitting and restarting
 

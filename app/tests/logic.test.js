@@ -688,11 +688,13 @@ test("an issue's text has no image to fetch and no HTML, in code or not, and rea
   assert.equal(safeMarkdown(plain), plain);
 });
 
-test("an issue goes to the focused tab's own Claude or Codex, not another tab's nor another program", () => {
+test("an issue goes to the focused tab's own Claude, Codex or OpenCode, not another tab's nor another program", () => {
   const agents = [{ tab: "t1", address: "t3", program: { key: "claude" } },
-    { tab: "t2", address: "t4", program: { key: "codex" } }, { tab: "t2", address: "t5", program: { key: "pi" } }];
+    { tab: "t2", address: "t4", program: { key: "codex" } }, { tab: "t2", address: "t5", program: { key: "pi" } },
+    { tab: "t10", address: "t11", program: { key: "opencode" } }];
   assert.equal(issueAgent(agents, "t1")?.address, "t3");
   assert.equal(issueAgent(agents, "t2")?.address, "t4");
+  assert.equal(issueAgent(agents, "t10")?.address, "t11");              // as the TUI hands it to OpenCode
   assert.equal(issueAgent(agents, "t9"), null);
   // a chat tab's agent, a terminal with no pane: the tab's own when no pane's agent is there; an ended one is not
   const chats = [{ address: "t8", state: "live", labels: { [CHAT_TAB]: "t9" } },

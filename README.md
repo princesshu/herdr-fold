@@ -22,27 +22,42 @@ Codex's month against its budget and what each space cost, above a terminal](ass
 
 ## What you get
 
-- One space per repo: Claude, Codex or OpenCode on the left; on the right, a sidebar (Files, Search, Changes (git),
-  for a repo on GitHub Issues, and Agent) above a terminal. An issue goes to the agent in one key, and the next commit
-  closes it; a file the agent names opens at its line in one key too, and a picture or a PDF shows as it looks.
+In the workspace's own order, the TUI's (herdr in Ghostty) and the Herdr app's alike unless a line says otherwise:
+
+- **Spaces and sessions**: a space per repository, Claude, Codex or OpenCode on the left; how long an agent has waited
+  on you, AI Sessions with each chat's state, Cmd + D / Cmd + E through them: [Spaces](docs/usage.md#spaces).
+- **The chat** (the Herdr app): Claude as a timeline, its questions answered in the prompt's place, its agent, model,
+  mode, effort, context and cost in its bar; Start in a home space: [The chat](docs/app.md#the-chat).
+- **Checkpoints**: a Claude chat's files back to how they were at one of its prompts, Claude saying first what changes,
+  with one Undo: [in the app](docs/app.md#checkpoints), [in the TUI](docs/usage.md#checkpoints).
+- **The dock**: Files, Search, Changes and, for a repository on GitHub, Issues, one view at a time beside the agent,
+  above the terminal; folded, a rail of icons: [The sidebar](docs/sidebar.md), [the app's dock](docs/app.md#the-dock).
 
   ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with a message,
   the issue it fixes and the Graph, Issues by priority](assets/screenshots/tui-sidebar.webp)
 
-- Chats over the sidebar, a click or Cmd + Shift + R away: every space's Claude, Codex and OpenCode chats,
-  running and closed.
-- The agent's setup, shown and changed, with its limits, costs and graph: [The agent's harness](docs/harness.md).
-- AI Sessions in herdr's sidebar, with each chat's state, and in the Spaces list how long an agent has waited
-  on you. Cmd + D / Cmd + E step through the sessions, Cmd with the arrows through the spaces and the panes, even
-  while you type.
-- Commit and push in one step, with a message Claude or Codex writes and you approve.
-- Twelve color themes for Ghostty, herdr and the prompt, Ghostty's app icon too: herdr-fold's logo, the sheep, in the
-  theme's colors. A status line with the model, effort, context with its window size and limits, the same for Claude
-  and Codex.
-- Spaces on Linux, macOS and Windows machines over SSH; the agents keep running there when the Mac sleeps.
-- In herdr's desktop app too, as a layout of its own: the chat drawn as a timeline, the Agent panel, the Agents tab
-  with the graph and the usage report, the sidebar's views and a terminal, Spaces with the waits; on remote machines
-  alike: [The Herdr app](docs/app.md).
+- **Commit and push** in one step, the message by Claude or Codex: [Commit and push](docs/usage.md#commit-and-push).
+- **Pull requests**: the branch's own under Changes, a new one's title and body written by the agent, the repository's
+  list beside Issues, and in the app a review with comments on its lines: [Pull requests](docs/usage.md#pull-requests).
+- **Issues to the agent** in one key; the next commit closes the issue: [GitHub issues](docs/usage.md#github-issues).
+- **Chats**: every space's Claude, Codex and OpenCode chats, running and closed, a click or Cmd + Shift + R away, the
+  chosen one's task list under it: [Chats](docs/usage.md#chats).
+- **The Agent panel**: the agent's rules, skills, subagents, permissions, hooks, connectors and limits, each part
+  changed from a form that shows the line it writes, with Undo: [The agent's harness](docs/harness.md).
+- **Media connectors**: image, voice and video services (fal, ElevenLabs, FLUX, Runway…) added from the Agent panel;
+  what they make shows in the preview with its prompt: [Media services](docs/harness.md#media-services).
+- **The terminal** under the dock in every tab, on the space's machine; a file the agent names opens at its line in one
+  key: [Opening a file the agent named](docs/usage.md#opening-a-file-the-agent-named).
+- **The preview tab and editing files**: a picture, a PDF, a page or Markdown as it looks, a diff, a commit; a text file
+  in an editor: [in the TUI](docs/usage.md#editing-files), [in the app](docs/app.md#editing-files).
+- **Graph, Usage and Runs**: how the agent is wired, what the agents cost, what ran in the background:
+  [Graph](docs/harness.md#the-graph), [Usage](docs/harness.md#the-usage-view), [Runs](docs/harness.md#the-runs-view).
+- **Remote machines**: spaces on Linux, macOS and Windows machines over SSH: [Remote machines](#remote-machines).
+- **Themes and the status line**: twelve color themes for Ghostty, herdr, the prompt and the app, Ghostty's app icon
+  too: herdr-fold's logo, the sheep, in the theme's colors; a status line with the model, effort, context and limits,
+  the same for Claude and Codex: [Themes](docs/themes.md), [The status line](docs/usage.md#the-status-line).
+- **The Herdr app**: all of it as a layout of herdr's desktop app, alone or beside the TUI, with its own command palette
+  and one Settings: [The Herdr app](docs/app.md).
 
 ![An issue from the sidebar goes to Claude, which fixes it, and the message it writes closes the
 issue](assets/screenshots/tui-issue-to-agent.webp)
@@ -51,7 +66,7 @@ issue](assets/screenshots/tui-issue-to-agent.webp)
 
 - a Mac with Apple silicon and macOS 15 or later (what Homebrew supports; on an Intel Mac the install may get
   through, but it is not supported or tested);
-- Claude Code and/or Codex, signed in;
+- a coding agent, signed in: Claude Code, Codex or OpenCode;
 - Homebrew (the installer offers to install it). herdr 0.9.5 or newer, Ghostty and the rest come from the `Brewfile`.
 
 ## Install
@@ -71,18 +86,16 @@ cd herdr-fold
 ```
 
 Either way it is the same installer with the same questions, the first one the TUI, the Herdr app or both. From the
-folder, you can also double-click `install.command`. On macOS 15 and later, a downloaded copy may need System Settings
-→ Privacy & Security → **Open Anyway**. Enter always gives the default answer. When it is done, open Ghostty (herdr
-starts in it; the **new** button under Spaces makes a space) or the Herdr app (herdr-fold's layout is there).
-
-The parts, the questions, what each one changes, and the switches: [Installation](docs/installation.md).
+folder, you can also double-click `install.command`. On macOS 15 and later, a downloaded copy may need System Settings →
+Privacy & Security → **Open Anyway**. Enter always gives the default answer. When it is done, open Ghostty (herdr starts
+in it; the **new** button under Spaces makes a space) or the Herdr app (herdr-fold's layout is there). The parts, the
+questions, what each one changes, and the switches: [Installation](docs/installation.md).
 
 ## What it changes
 
 - the settings of Ghostty, herdr and starship, and Claude Code's and Codex's status lines;
 - one marked block in `~/.zshrc`, active only inside herdr panes;
-- three herdr plugins of its own (the sidebar with Chats, AI Sessions, Spaces), and
-  herdr's Claude and Codex integrations;
+- three herdr plugins of its own (the sidebar, AI Sessions, Spaces) and herdr's Claude and Codex integrations;
 - in the Herdr app, herdr-fold's mod, layout, themes and keys.
 
 Your own files are saved first, in `~/.local/state/herdr-fold/`. Your chats are never touched.
@@ -92,32 +105,28 @@ Your own files are saved first, in `~/.local/state/herdr-fold/`. Your chats are 
 
 | Key | What it does |
 |---|---|
-| Cmd + 1…9 | jump to a space |
-| Cmd + ↓ / Cmd + ↑ | next / previous space |
+| Cmd + 1…9, Cmd + ↓ / Cmd + ↑ | jump to a space; next / previous space |
 | Cmd + → / Cmd + ← | next / previous pane: the agent, the sidebar, the terminal |
 | Cmd + T / Cmd + R | next / previous tab |
 | Cmd + D / Cmd + E | next / previous session |
 | Cmd + Shift + U | mark the agent unread, to come back to |
-| Ctrl + B, then w | the Spaces list: W / S move, Enter switches |
-| Ctrl + B, then Shift + N | new space |
+| Ctrl + B, then Shift + N / Shift + M | new space / add a machine |
 | Cmd + Shift + C | commit and push |
 | Cmd + Shift + L | open a file the agent named, at its line |
 | Cmd + Shift + R | find a chat in the sidebar's Chats |
 | Cmd + Shift + E | show / hide the sidebar and terminal (Cmd + Option + B: the sidebar folded to its icons or open) |
-| Cmd + Shift + O | restore the panels closed in the tab |
 | Cmd + Shift + G / Cmd + Shift + I | the sidebar's Changes / Issues |
-| Cmd + A | select the whole text of the sidebar's field you are in |
-| Cmd + F | search the Claude chat |
 | Cmd + W | close the tab |
 | Cmd + K, then Cmd + T | pick a theme |
 
-In typing, Ctrl + A / Ctrl + E go to the start or the end of the line. All keys, and how to change them:
-[Keys](docs/keybindings.md).
+In typing, Ctrl + A / Ctrl + E go to the start or the end of the line. All keys, the Herdr app's too, and how to change
+them: [Keys](docs/keybindings.md).
 
 ## Remote machines
 
-Step 8 of the installer connects machines from `~/.ssh/config`, your Tailscale network, or by address; Ctrl + B, then
-Shift + M adds one later. The agents, the sidebar and the terminal run on the machine; the Mac shows them.
+Step 8 of the installer connects any machine the Mac reaches over SSH: from `~/.ssh/config`, by address, or from a
+Tailscale network where one is installed; Ctrl + B, then Shift + M (Add a machine) adds one later. The agents, the
+sidebar and the terminal run on the machine, and keep running when the Mac sleeps; the Mac shows them:
 [Remote machines](docs/remote-machines.md).
 
 ## Updating
@@ -129,9 +138,6 @@ herdr-fold`, and the installer opens in a herdr tab again. The sidebar's More (a
 bar say when a newer version is out, a look once a day at most
 ([how, and how to turn it off](docs/installation.md#a-newer-version)).
 
-After `brew upgrade herdr`, the herdr running in the background keeps the old version: `herdr server live-handoff`
-switches to the new one without stopping your agents.
-
 ## Uninstall
 
 ```bash
@@ -139,36 +145,30 @@ switches to the new one without stopping your agents.
 ./machines.sh remove alpha      # one remote machine
 ```
 
-Installed from herdr's marketplace, the folder is `~/.local/share/herdr-fold`.
-
+Installed from herdr's marketplace, the folder is `~/.local/share/herdr-fold`. What goes and what stays:
 [Uninstall](docs/uninstall.md).
 
 ## Troubleshooting
 
-| Symptom | Fix |
-|---|---|
-| The sidebar and the terminal are gone | Cmd + Shift + E: hidden or closed, it brings them back |
-| Claude's status line is empty | trust the folder: `/exit`, then `claude --continue`, and answer yes |
-| A machine will not connect | the installer says why and what to do; for a key it does not take, try `ssh dev@alpha.example` by hand, and for a key with a passphrase, `ssh-add --apple-use-keychain` |
-| Text selected from a reply pastes as plain text | reopen Ghostty (Cmd + Q, then open it) |
-
-More: [Troubleshooting](docs/troubleshooting.md).
+Each symptom with its fix, in its message's own words: [Troubleshooting](docs/troubleshooting.md). The sidebar and the
+terminal gone: Cmd + Shift + E brings them back. Claude's status line empty: `/exit`, then `claude --continue`, and
+trust the folder.
 
 ## Documentation
 
 - [Installation](docs/installation.md): the questions, what changes, the switches
-- [Using it](docs/usage.md): spaces, sessions, chats, issues, commit and push, copying, the status line
-- [The agent's harness](docs/harness.md): the Agent panel, each edit and what it writes, Usage and the graph
+- [Using it](docs/usage.md): spaces, sessions, the status line, commit and push, pull requests, issues, chats,
+  checkpoints, editing files
+- [The agent's harness](docs/harness.md): the Agent panel, each edit and what it writes, the graph, Usage and Runs
 - [Keys](docs/keybindings.md): every key, and remapping
 - [Remote machines](docs/remote-machines.md): Linux, macOS and Windows machines
 - [Themes](docs/themes.md): the twelve themes and the picker
 - [The sidebar](docs/sidebar.md): the TUI's right column, its row of views and its rail
-- [The Herdr app](docs/app.md): herdr-fold's layout for herdr's desktop app, its views, themes and machines; its
-  parts in each state: [Styleguide](docs/styleguide.md)
-- [Troubleshooting](docs/troubleshooting.md)
+- [The Herdr app](docs/app.md): herdr-fold's layout for herdr's desktop app: the chat, the dock, the Agents tab,
+  Settings; its parts in each state: [Styleguide](docs/styleguide.md)
 - [Translating](docs/translating.md): the installer in another language
 - [How it is built](docs/architecture.md): the files and the installer's records
-- [Uninstall](docs/uninstall.md)
+- [Troubleshooting](docs/troubleshooting.md), [Uninstall](docs/uninstall.md)
 
 ## Contributing
 

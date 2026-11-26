@@ -1,9 +1,10 @@
 # The sidebar
 
 The sidebar at the top of the right column is herdr-fold's own herdr plugin, `herdr-fold.sidebar`
-(`src/plugins/sidebar/`): Files, Search, Changes (git), for a repository on GitHub Issues, and the agent's setup (Agent)
-in one pane, on macOS, Linux and Windows. Its keys, what it reads and writes on the machine, and how to use it without
-herdr-fold are in [its README](../src/plugins/sidebar/README.md). This page is what herdr-fold does with it.
+(`src/plugins/sidebar/`): Files, Search, Changes (git), for a repository on GitHub Issues, the Chats list and the
+agent's setup (Agent) in one pane, on macOS, Linux and Windows. Its keys, what it reads and writes on the machine, and
+how to use it without herdr-fold are in [its README](../src/plugins/sidebar/README.md). This page is what herdr-fold
+does with it.
 
 ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with the repository
 on top, a message, the issue it fixes and the Graph, Issues by priority](../assets/screenshots/tui-sidebar.webp)
@@ -91,12 +92,11 @@ more than 3 cells wider, a smaller nudge going back to the rail.
 
 Agent, the row's fifth button, shows what the agent in the tab starts with in the folder, changes a part of it from a
 form, and leads to the Usage view (`U`), the Runs view (`r`: what the agents ran in the background) and the agent's
-graph as a tree in the preview tab (`g`). All of it, for both clients: [The agent's harness](harness.md).
-A known service's connector is named as its maker writes it, its letter or glyph before it; a media service's (fal,
-ElevenLabs, FLUX, Runway) says what it makes and its calls today (`voice`, `7 calls today`), and More's `Add fal…`,
-`Add ElevenLabs…` and the like fill the add form with its maker's hosted MCP. What such a service made shows in the
-preview tab with where it came from
-([Pictures, audio and video an agent made](usage.md#pictures-audio-and-video-an-agent-made)).
+graph as a tree in the preview tab (`g`). All of it, for both clients: [The agent's harness](harness.md). A known
+service's connector wears its letter or glyph, and a media service's says what it makes and its calls today; More's `Add
+fal…`, `Add ElevenLabs…` and the like fill the add form ([Media services](harness.md#media-services)). What such a
+service made shows in the preview tab with where it came from ([Pictures, audio and video an agent
+made](usage.md#pictures-audio-and-video-an-agent-made)).
 
 The pictures below are from before the view's redesign; its sections, their order and the words are in that page.
 
@@ -116,11 +116,10 @@ while More leaves it off the row).
 
 ## Keys
 
-Cmd + Shift + G (Changes), Cmd + Shift + I (Issues), Cmd + Shift + E, Cmd + Shift + O and Cmd + Option + B (the
-rail) reach it from anywhere:
-[Keys](keybindings.md#panes-and-tabs). Cmd + Shift + L opens a file the focused pane's output names at that line, a
-text file in your editor and a picture in the preview
-([Opening a file the agent named](usage.md#opening-a-file-the-agent-named)).
+Cmd + Shift + G (Changes), Cmd + Shift + I (Issues), Cmd + Shift + R (Chats), Cmd + Shift + E, Cmd + Shift + O and Cmd +
+Option + B (the rail) reach it from anywhere: [Keys](keybindings.md#panes-and-tabs). Cmd + Shift + L opens a file the
+focused pane's output names at that line, a text file in your editor and a picture in the preview ([Opening a file the
+agent named](usage.md#opening-a-file-the-agent-named)).
 
 More at the row's end (or a right click on the row) lists the views first, each with a ✓ while shown, as Adobe's Window
 menu: one unchecked leaves the row in every tab, and a check or its key brings it back; one view always stays. Below

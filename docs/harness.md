@@ -1,15 +1,17 @@
 # The agent's harness
 
-An agent's harness is what Claude Code or Codex starts with in a folder: its model and effort, its rules, skills,
-subagents, permissions, hooks and connectors, and what all of that costs. herdr-fold shows it, changes a part of it
-from a form, and draws it as a graph. Both clients have it, in the same words: `core/` reads the files, words the
-rows, plans each change and writes it.
+An agent's harness is what Claude Code, Codex or OpenCode starts with in a folder: its model and effort, its rules,
+skills, subagents, permissions, hooks and connectors, and what all of that costs. herdr-fold shows it, changes a part of
+it from a form, and draws it as a graph, for Claude and Codex in full and for OpenCode as far as it tells
+([below](#the-agent-panel)). Both clients have it, in the same words: `core/` reads the files, words the rows, plans
+each change and writes it.
 
 | | The TUI sidebar | The Herdr app |
 |---|---|---|
 | The setup | the Agent view, the row's fifth button (`5`) | the Agent panel, the dock's fifth tab |
-| Usage in full | the Usage view, over the tab (`U`) | the Agents tab's Usage |
 | The graph | a tree in the preview tab (`g`) | the Agents tab's Graph, a canvas |
+| Usage in full | the Usage view, over the tab (`U`) | the Agents tab's Usage |
+| Runs | the Runs view, over the tab (`r`) | the Agents tab's Runs |
 
 This page calls the first one the Agent panel in both. The TUI's keys inside the view are in
 [the sidebar's README](../src/plugins/sidebar/README.md#keys).
@@ -42,10 +44,10 @@ on another machine says `On <machine>: with a later version` in the app.
 
 An agent with no setup to show says why in its place, in core's words:
 
-- not signed in: Sign in runs the agent's own login (`claude auth login`, `codex login`, `opencode auth login`,
-  `gemini`) in a terminal tab. OpenCode is signed in where `opencode auth list` names a provider; with none it still
-  runs its free models, so it is never said to be signed out.
-  The panel asks the agents again every 5 s, 10 minutes at most. herdr-fold keeps no token.
+- not signed in: Sign in runs the agent's own login (`claude auth login`, `codex login`, `gemini`) in a terminal tab.
+  The panel asks the agents again every 5 s, 10 minutes at most. herdr-fold keeps no token. OpenCode is never said to
+  be signed out: with no provider it runs its free models. `opencode auth login`, in a terminal, connects one, and once
+  `opencode auth list` names it, OpenCode is signed in.
 - not installed: its vendor's install line with Copy, and a link to its page. herdr-fold runs no installer.
 
 An agent whose setup herdr-fold does not read (Gemini CLI, signed in) has its head alone.
@@ -81,52 +83,6 @@ own default (`Manual`, `off`, `Codex's default`).
 What opens and folds differs: in the TUI, Usage and Connectors are open and the rest folded until opened, kept in
 every tab; in the app every section is open but Subagents, kept per space.
 
-### A row and its properties
-
-One column of marks stands before the names: ✕ red for a connector that failed, a yellow dot for one to sign in to
-or for a conflict, a green dot for what the open chat used. On and off have no mark. A row ends with its state (`32
-tools`, `on`, `failed`, `sign in`, `off here`; `allow`, `ask`, `deny`) and where it comes from (Global, Project,
-Local, Managed, claude.ai, Built-in, a plugin's name), each in a column; the tags are muted, never a hue. A known
-service's connector is named as its maker writes it (Sentry, ElevenLabs, fal, FLUX), its name in the agent's config
-in its properties (`Name`), and wears its logo where the maker's licence gives one (SVG Logos'; FLUX and Meshy their
-letter; the TUI: its glyph or its letter). A file both agents read carries both agents' icons in the app.
-
-A media service (ElevenLabs, fal, FLUX, Runway, Higgsfield, Luma, Cartesia, Meshy) bills in credits, not tokens: its
-row says what it makes (`voice`, `image, video`) and its calls today in place of its tools and their cost (`7 calls
-today`, `no calls today`), each MCP call of that server in today's Claude and Codex chats on the machine counted once
-(`core/calls.py`); what its tools load at start is in its properties (`Loads`). Money is never shown: no service tells
-a call's price in the chat.
-
-A conflict is a permission a deny or an ask hides: a yellow dot, the rule, and its sentence under it (`deny in
-Project hides allow in Global`).
-
-A skill, a subagent or a connector turned off for the folder stays a row, dim, with `off here`. With every hook off,
-the `Hooks` line says `off here` over dim rows.
-
-A press chooses a row. Its properties are label and value: where it is from, what it runs or its address, a rule's
-paths, a subagent's tools, a hook's event, how often the chat used it, an error in words (the file it names in its
-tip), a rule's first lines or a skill's description. The TUI lays them under the row, the app under the layers. Then
-its buttons:
-
-| Button | What it does |
-|---|---|
-| Open | the row's file in the preview tab |
-| Show in graph | [the graph](#the-graph), on that row's node |
-| Retry | on a Claude server that failed or was never checked: Claude checks it (`claude mcp get`), the mark a spinner meanwhile |
-| Connect | on a server to sign in: the agent's own login (`claude mcp login <name>`, `codex mcp login <name>`) in a terminal, which opens your browser; the row says `signing in` with `Open the page again` and Cancel, ten minutes at most |
-| Sign out | on a claude.ai connector and a Codex server signed in through Codex: the agent's own `mcp logout <name>`; for a Claude server added by its address the properties name the command instead |
-
-A connector is added from Connectors' + (the TUI: More's `Add from claude.ai…` and `Add by URL…`, or `a`).
-`From claude.ai…` opens claude.ai's connectors page. `By URL…` is a form: Name (letters, digits, `-`, `_`), URL
-(https, or http to this machine) and, for Claude, For: this folder (Claude's `local` scope) or `All projects`
-(`user`). `Add and connect` runs the agent's own `mcp add`. Codex adds for every folder. Under them, by name and logo
-(the TUI: `Add fal…`), the media services and Figma not added yet: each fills the form with its maker's hosted MCP,
-signed in to in the browser by Connect, never a key (fal `https://mcp.fal.ai/mcp-relay`, ElevenLabs
-`https://api.elevenlabs.io/v1/mcp`, FLUX `https://mcp.bfl.ai`, Runway `https://mcp.runwayml.com/mcp`, Figma
-`https://mcp.figma.com/mcp`). The prompt-writing know-how for a service (its style, ratio and what to avoid) is a
-skill of your own (`kling-video`, `hero-image`), listed under Skills with its cost like any other; herdr-fold ships
-none.
-
 ### Usage
 
 The panel's first section: a row an agent, the agent shown first.
@@ -155,6 +111,58 @@ window, so an idle chat's older reading never takes it back, and another weekly 
 Without that reading (a remote machine, before Claude's first look) a chat's own reading stands. Codex's are its
 newest chat's. A limit past its reset is left out. What the status line keeps for this is in
 [The status line](usage.md#the-status-line). Two accounts of one agent on one machine share one reading.
+
+### A row and its properties
+
+One column of marks stands before the names: ✕ red for a connector that failed, a yellow dot for one to sign in to
+or for a conflict, a green dot for what the open chat used. On and off have no mark. A row ends with its state (`32
+tools`, `on`, `failed`, `sign in`, `off here`; `allow`, `ask`, `deny`) and where it comes from (Global, Project,
+Local, Managed, claude.ai, Built-in, a plugin's name), each in a column; the tags are muted, never a hue. A known
+service's connector is named as its maker writes it (Sentry, ElevenLabs, fal, FLUX), its name in the agent's config
+in its properties (`Name`), and wears its logo where the maker's licence gives one (SVG Logos'; FLUX and Meshy their
+letter; the TUI: its glyph or its letter). A file both agents read carries both agents' icons in the app.
+
+A conflict is a permission a deny or an ask hides: a yellow dot, the rule, and its sentence under it (`deny in
+Project hides allow in Global`).
+
+A skill, a subagent or a connector turned off for the folder stays a row, dim, with `off here`. With every hook off,
+the `Hooks` line says `off here` over dim rows.
+
+A press chooses a row. Its properties are label and value: where it is from, what it runs or its address, a rule's
+paths, a subagent's tools, a hook's event, how often the chat used it, an error in words (the file it names in its
+tip), a rule's first lines or a skill's description. The TUI lays them under the row, the app under the layers. Then
+its buttons:
+
+| Button | What it does |
+|---|---|
+| Open | the row's file in the preview tab |
+| Show in graph | [the graph](#the-graph), on that row's node |
+| Retry | on a Claude server that failed or was never checked: Claude checks it (`claude mcp get`), the mark a spinner meanwhile |
+| Connect | on a server to sign in: the agent's own login (`claude mcp login <name>`, `codex mcp login <name>`) in a terminal, which opens your browser; the row says `signing in` with `Open the page again` and Cancel, ten minutes at most |
+| Sign out | on a claude.ai connector and a Codex server signed in through Codex: the agent's own `mcp logout <name>`; for a Claude server added by its address the properties name the command instead |
+
+### Adding a connector
+
+A connector is added from Connectors' + (the TUI: More's `Add from claude.ai…` and `Add by URL…`, or `a`). `From
+claude.ai…` opens claude.ai's connectors page. `By URL…` is a form: Name (letters, digits, `-`, `_`), URL (https, or
+http to this machine) and, for Claude, For: this folder (Claude's `local` scope) or `All projects` (`user`). `Add and
+connect` runs the agent's own `mcp add`. Codex adds for every folder. Under them, by name and logo (the TUI: `Add
+fal…`), the media services and Figma not added yet: each fills the form with its maker's hosted MCP, signed in to in the
+browser by Connect, never a key (fal `https://mcp.fal.ai/mcp-relay`, ElevenLabs `https://api.elevenlabs.io/v1/mcp`, FLUX
+`https://mcp.bfl.ai`, Runway `https://mcp.runwayml.com/mcp`, Figma `https://mcp.figma.com/mcp`).
+
+### Media services
+
+A media service (ElevenLabs, fal, FLUX, Runway, Higgsfield, Luma, Cartesia, Meshy) bills in credits, not tokens: its row
+says what it makes (`voice`, `image, video`) and its calls today in place of its tools and their cost (`7 calls today`,
+`no calls today`), each MCP call of that server in today's Claude and Codex chats on the machine counted once
+(`core/calls.py`); what its tools load at start is in its properties (`Loads`). Money is never shown: no service tells a
+call's price in the chat.
+
+The prompt-writing know-how for a service (its style, ratio and what to avoid) is a skill of your own (`kling-video`,
+`hero-image`), listed under Skills with its cost like any other; herdr-fold ships none. What such a service makes shows
+in the preview tab with where it came from: in the app ([The preview tab](app.md#the-preview-tab)) and in the TUI
+([Pictures, audio and video an agent made](usage.md#pictures-audio-and-video-an-agent-made)).
 
 ## Changing the setup
 
@@ -275,6 +283,40 @@ formatting. A file the save created goes with its Undo.
 | A settings file that is a link, or whose folder is one | no file outside the agent's folders is written | `… is a link: change it where it lives` |
 | A file not written in the plain way | a key set twice, a JSON file that is no object, a TOML value in a table or over several lines | `… is not written in a way herdr-fold changes: change it in the file` |
 
+## The graph
+
+How the agent is wired in the folder (`core/graph.py`), for Claude and Codex alike. The app draws it on a canvas in
+the Agents tab, one a space (the palette's Agents, or Show in graph on a row). The TUI writes it as a tree in the
+preview tab, titled `graph: Claude in lumen-api` (`g` in the Agent view, More's Show graph, or a row's Show in
+graph).
+
+Wiring has three parts:
+
+- In: the rules, the hooks that add context and the skills, each with when it loads (`always · 2.4k`, `when
+  src/lumen/** is read`). A skill the project owns or the chat used is a node; the others fold into one (`15 more
+  skills`).
+- The agent, with its model, effort and mode (Codex: its approval policy, `Ask on request`) and the hooks that watch
+  it, and its subagents under it.
+- Uses: the tools and the connectors, each with its state.
+
+An edge is solid for what always loads and dashed for what loads on demand; a connector to sign in to is yellow, one
+that failed red. An edge to a tool or a connector carries its gates, each a verb and its object: `ask`, `allow
+pytest, git status +1`, `deny git push`, `hook guard.sh`. The TUI writes them in brackets after the tool, each verb
+in its color.
+
+Where the folder has a chat, `This chat` shows the same graph with what that chat ran: each first use numbered in
+its order, the agent and each subagent with its model, what it cost and its share (`core/costs.py`), a tool and a
+connector with their calls. The app lights the edges that ran and draws the one a call still waits on wider; its head
+says the chat's whole (`This chat · ~$4.12`). The TUI writes the path as one line (`1 api-routes → 2 Read · Edit ·
+Write → 3 Bash`); `c` shows This chat and `w` Wiring.
+
+In the app a press chooses a node: its properties, Open for its file, and `Show in Agent`, which shows the Agent
+panel on that node's row. A node drags and stays where it is let go, for that space, folder and agent; a double
+click beside the nodes lays the graph out again. A canvas too narrow brings the columns nearer first, then scrolls.
+The app reads the graph again as the setup changes; the TUI reads it when asked, and `g` again reads it anew.
+
+The graph only shows: changing a server or a rule stays the Agent panel's.
+
 ## The Usage view
 
 The one place usage is read in full: what the agents used and what that cost, each message at its own model's
@@ -346,46 +388,14 @@ once Runs (or the app's status bar) has read Claude's list. A `claude -p` run st
 apart only by a field Claude Code does not document. Claude's list is kept 30 seconds; the view reads again every 30
 seconds while open, every 5 while a run works.
 
-## The graph
-
-How the agent is wired in the folder (`core/graph.py`), for Claude and Codex alike. The app draws it on a canvas in
-the Agents tab, one a space (the palette's Agents, or Show in graph on a row). The TUI writes it as a tree in the
-preview tab, titled `graph: Claude in lumen-api` (`g` in the Agent view, More's Show graph, or a row's Show in
-graph).
-
-Wiring has three parts:
-
-- In: the rules, the hooks that add context and the skills, each with when it loads (`always · 2.4k`, `when
-  src/lumen/** is read`). A skill the project owns or the chat used is a node; the others fold into one (`15 more
-  skills`).
-- The agent, with its model, effort and mode (Codex: its approval policy, `Ask on request`) and the hooks that watch
-  it, and its subagents under it.
-- Uses: the tools and the connectors, each with its state.
-
-An edge is solid for what always loads and dashed for what loads on demand; a connector to sign in to is yellow, one
-that failed red. An edge to a tool or a connector carries its gates, each a verb and its object: `ask`, `allow
-pytest, git status +1`, `deny git push`, `hook guard.sh`. The TUI writes them in brackets after the tool, each verb
-in its color.
-
-Where the folder has a chat, `This chat` shows the same graph with what that chat ran: each first use numbered in
-its order, the agent and each subagent with its model, what it cost and its share (`core/costs.py`), a tool and a
-connector with their calls. The app lights the edges that ran and draws the one a call still waits on wider; its head
-says the chat's whole (`This chat · ~$4.12`). The TUI writes the path as one line (`1 api-routes → 2 Read · Edit ·
-Write → 3 Bash`); `c` shows This chat and `w` Wiring.
-
-In the app a press chooses a node: its properties, Open for its file, and `Show in Agent`, which shows the Agent
-panel on that node's row. A node drags and stays where it is let go, for that space, folder and agent; a double
-click beside the nodes lays the graph out again. A canvas too narrow brings the columns nearer first, then scrolls.
-The app reads the graph again as the setup changes; the TUI reads it when asked, and `g` again reads it anew.
-
-The graph only shows: changing a server or a rule stays the Agent panel's.
-
 ## What it reads and writes
 
 - It reads the agent's own files as text: the folder's and the home's rules, settings, skills and subagents
   (`CLAUDE.md`, `AGENTS.md`, `.claude/`, `.mcp.json`, `~/.claude`, `~/.claude.json`, `~/.codex`), and the agent's
-  session files for the servers' state, what a chat used and its token counts. A server's command line and address
-  show; its environment, its headers' values and an address's query never leave the reader.
+  session files for the servers' state, what a chat used and its token counts. OpenCode's config is what
+  `opencode debug config` lists, run in the home folder, and a project's `opencode.json` and `.opencode/` read as text,
+  never run. A server's command line and address show; its environment, its headers' values and an address's query
+  never leave the reader.
 - It writes an agent's settings file only on a form's Save, one key of the list above.
 - Every other change is the agent's own command, run on your press: a server checked, a sign-in, a sign-out, a
   connector added, `/mcp enable`, a run started, stopped, removed or applied.

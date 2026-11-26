@@ -26,7 +26,7 @@ What is the machine's own is saved first, in `~/.local/state/herdr-fold/` there 
 
 No copy of herdr-fold's own files is kept: the package has them.
 
-It does not install Claude Code or Codex or sign them in: do that once on each machine.
+It installs no coding agent (Claude Code, Codex, OpenCode) and signs none in: do that once on each machine.
 
 For a machine you add by hand that `~/.ssh/known_hosts` does not know yet, it shows the fingerprint of the machine's
 ED25519 key and asks whether to trust it: type `y` once it matches the machine's own (on a Linux or Mac machine:
@@ -38,9 +38,12 @@ not asked about: ssh trusts their key on the first connection and checks it from
 ## Adding a machine later
 
 Ctrl + B, then Shift + M (or New space's Add machine…) opens Add a machine, a window framed as Settings whose close
-button, Esc or Ctrl + C end it at any question. It asks the installer's machine questions (from `~/.ssh/config`, your
-Tailscale network, or by address) and sets up only the new machine. It runs `machines.sh` from the `herdr-fold` folder,
-so keep that folder on the Mac; after moving it, run `./install.sh` once in the new place.
+button, Esc or Ctrl + C end it at any question. It asks the installer's machine questions (from `~/.ssh/config`, by
+address, or from a Tailscale network where Tailscale is installed) and sets up only the new machine. It runs
+`machines.sh` from the `herdr-fold` folder, so keep that folder on the Mac: moved or deleted, Add a machine says the
+folder `isn't where the installer left it`, and `./install.sh` run once in its new place records it again. In the Herdr
+app, Add machine… (the sidebar's foot, the palette, Ctrl + B, then Shift + M) is the app's own: a machine added there
+works once git and Python 3 are on it ([On another machine](app.md#on-another-machine)).
 
 A machine on the list (`~/.config/herdr-fold/machines.txt`) at the very address a `~/.ssh/config` Host names, its `User`
 and `HostName`, goes through that Host from the next run of `machines.sh` on (the installer's step 8, Ctrl + B then

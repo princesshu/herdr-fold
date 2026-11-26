@@ -15,7 +15,7 @@ all.
 | Cmd + D / Cmd + E | next / previous session of the current space, even while typing; wraps around |
 | Cmd + Shift + U | mark the focused agent unread: its space says `waiting` again, from now, until you come back to it after leaving it; again on a marked one takes the mark off |
 | Cmd + B | show / hide herdr's sidebar (Spaces and Sessions) |
-| Ctrl + B, then Shift + M | add machine… |
+| Ctrl + B, then Shift + M | Add a machine: the installer's machine questions, in a window, for one more remote machine ([Remote machines](remote-machines.md#adding-a-machine-later)) |
 
 ## Panes and tabs
 
@@ -100,7 +100,7 @@ In herdr-fold's layout the app takes the TUI's keys. The same in both:
 | Cmd + W | close the tab |
 | Ctrl + B, then 1…9 | tab 1…9 of the space |
 | Ctrl + B, then w | the Spaces list (in the app, Go to space or tab) |
-| Ctrl + B, then Shift + N / Shift + M | a new space in a folder / add machine… |
+| Ctrl + B, then Shift + N / Shift + M | a new space in a folder / add a machine (in the app, its own Add machine) |
 | Cmd + K, then Cmd + T | pick a color theme |
 | Shift + Enter | in a terminal, a new line in Claude Code and in a shell's command line |
 

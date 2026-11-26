@@ -1,10 +1,10 @@
 # Sidebar
 
-A herdr plugin: AI agents' harnesses in one pane, the same on macOS, Linux and Windows: every space's Claude and Codex
-chats and the Agent view (each agent's rules, skills, subagents, permissions and connectors, its limits and costs, a
-Usage view, its graph as a tree), with Files, Search, Changes (git) and Issues (GitHub). Every new empty tab gets it on
-the right, above a terminal, beside the tab's own shell, as wide as in every other tab; when herdr starts, it comes
-back in every tab, but where a pane was closed by hand.
+A herdr plugin: AI agents' harnesses in one pane, the same on macOS, Linux and Windows: every space's Claude Code, Codex
+and OpenCode chats and the Agent view (each agent's rules, skills, subagents, permissions and connectors, its limits and
+costs, a Usage view, its graph as a tree), with Files, Search, Changes (git) and Issues (GitHub). Every new empty tab
+gets it on the right, above a terminal, beside the tab's own shell, as wide as in every other tab; when herdr starts, it
+comes back in every tab, but where a pane was closed by hand.
 
 The views are buttons in one row at the top, each its icon over its name: Files, Search, Changes, Issues, Agent,
 then Chats and More. One view shows under the row, the whole height; a click on a button, or its key, shows its view,
@@ -16,8 +16,8 @@ something to count, the number in the button's tip, and Agent while its setup ha
   outside it or another pane closes it.
 - More opens the pane's own menu: the views, each checked while shown (one unchecked leaves the row in every tab:
   `hidden_panels` in `settings.json`; one always stays), the tab's other panes, and Settings… (`settings.py`, herdr's
-  popup: General with the icons, About with the version, the update check and its switch, What's new). More has a dot
-  while a newer version is out.
+  popup: General with the icons, Notifications with the note when an agent waits on you, About with the version, the
+  update check and its switch, What's new). More has a dot while a newer version is out.
 - Narrower than the names need (80 cells, 69 without Issues), the row shows its icons alone, each name in its tip.
 - The » at the row's end, or Cmd + Option + B, folds the dock to its rail in every tab: the icons alone, one under
   another, the terminal moved under the agent. A press on an icon, or a view's key, opens the dock again on that view;
@@ -28,25 +28,6 @@ The row, the column's width and the rail in full: [The sidebar](../../../docs/si
 
 ![The four views: Files with its git marks, Search narrowed to the folder chosen in Files, Changes with a message,
 the issue it fixes and the Graph, Issues by priority](../../../assets/screenshots/tui-sidebar.webp)
-
-- **Chats** (the list over the sidebar): the Claude Code, Codex and OpenCode chats of herdr's spaces, each space
-  with a chat a group in the Spaces list's order, its chats under it, a running one's mark in its state's color and
-  the closed ones faint, their agent and age at the right (an OpenCode chat is archived, never deleted here: OpenCode
-  keeps its chats in its own database); under the chosen one its task list (Claude's tasks, Codex's plan: the done
-  steps in one row, the step at work, the ones to do; `plan.py`), with Open the plan where a plan mode's plan was
-  approved, in the preview tab. Typing filters; Enter or a click goes to a running one, or reopens a closed
-  one in a new tab of its space with the right column beside it; a right click offers Open, Copy chat (the whole of it,
-  formatted on a Mac), Rename (the name AI Sessions, a running one's pane and the tab it has to itself show too) and,
-  for a closed one, Archive (off the list, its file as it was), several at once when marked (Space, Shift + ↑ ↓, or the
-  box at a closed row's start); More (⋯) and a right click beside them, while any is archived, Show archived (the
-  archived ones back in sight, a shade fainter; Unarchive puts one back). Delete…, last in a closed chat's menu, is the
-  rarer one: asked first at the list's foot, by the chat's name, then its row leaves and its file is moved to the
-  system's Trash; never a running chat's. The action
-  **Chats: find** (`actions.py find-chat`) opens the list, its filter empty and the keys going to it, in the tab's
-  sidebar (one closed by hand comes back) or the space's first.
-
-  ![Chats open in the sidebar beside Claude: each space's chats, lumen-api's open with Claude's two and Codex's
-  four, a running one's mark in its state's color, the closed ones faint](../../../assets/screenshots/tui-chats.webp)
 
 - **Files:** the folder as a tree, with git's letter on each changed file and a dot on each folder holding changes; a
   new file or folder, renaming, moving to the Trash, copying a path. A click or Enter opens a text file in your editor
@@ -98,10 +79,28 @@ the issue it fixes and the Graph, Issues by priority](../../../assets/screenshot
   `Priority: Highest`, Kubernetes' `priority/critical-urgent`…), then a severity label (`severity: major`, `sev1`), then
   a word alone (`urgent`, `blocker`, `low`…; `minor`, `major`, `normal`, `moderate` and `backlog` only in a named label;
   `P4` on: low); critical, urgent and high red, medium yellow, low green, on the mark, the number and the priority. One
-  opens in the preview tab with its comments; handed to the agent, it becomes a prompt in the tab's Claude or Codex
-  pane (with none there, in the one started last, in a new tab of the space), and the next written commit message
-  fixes it (`Fixes #42`), until a commit from anywhere closes it. A new issue,
-  a reply, closing, reopening, assigning to you (the right click's menu).
+  opens in the preview tab with its comments; handed to the agent, it becomes a prompt in the tab's agent's pane
+  (Claude, Codex or OpenCode; with none there, in the one started last, in a new tab of the space), and the next written
+  commit message fixes it (`Fixes #42`), until a commit from anywhere closes it. A new issue, a reply, closing,
+  reopening, assigning to you (the right click's menu).
+- **Chats** (the list over the sidebar): the Claude Code, Codex and OpenCode chats of herdr's spaces, each space with a
+  chat a group in the Spaces list's order, its chats under it, a running one's mark in its state's color and the closed
+  ones faint, their agent and age at the right (an OpenCode chat is archived, never deleted here: OpenCode keeps its
+  chats in its own database); under the chosen one its task list (Claude's tasks, Codex's plan: the done steps in one
+  row, the step at work, the ones to do; `plan.py`), with Open the plan where a plan mode's plan was approved, in your
+  editor; a Claude chat's Checkpoints… (or → on its row) takes its files back to how they were at one of its prompts
+  ([Checkpoints](../../../docs/usage.md#checkpoints)). Typing filters; Enter or a click goes to a running one, or
+  reopens a closed one in a new tab of its space with the right column beside it; a right click offers Open, Copy chat
+  (the whole of it, formatted on a Mac), Rename (the name AI Sessions, a running one's pane and the tab it has to itself
+  show too) and, for a closed one, Archive (off the list, its file as it was), several at once when marked (Space,
+  Shift + ↑ ↓, or the box at a closed row's start); More (⋯) and a right click beside them, while any is archived, Show
+  archived (the archived ones back in sight, a shade fainter; Unarchive puts one back). Delete…, last in a closed chat's
+  menu, is the rarer one: asked first at the list's foot, by the chat's name, then its row leaves and its file is moved
+  to the system's Trash; never a running chat's. The action **Chats: find** (`actions.py find-chat`) opens the list, its
+  filter empty and the keys going to it, in the tab's sidebar (one closed by hand comes back) or the space's first.
+
+  ![Chats open in the sidebar beside Claude: each space's chats, lumen-api's open with Claude's two and Codex's
+  four, a running one's mark in its state's color, the closed ones faint](../../../assets/screenshots/tui-chats.webp)
 - **Agent:** what the agent in the tab starts with in the folder: its model, effort and start-up context, then Usage
   (a plan's limits or an API key's month against its budget), Subagents, Rules, Skills, Permissions (Mode, Sandbox,
   the rules, every hook) and Connectors. The chosen row has its properties, its buttons and, where it can be changed,
@@ -127,9 +126,9 @@ a pane taller than wide, the status row's turn, `v` or the right click turning t
 | Search | type to search; a click or Alt + C, Alt + W, Alt + R the switches; Esc or the field's × clears the text and the folder or file; Tab or ↓ to the hits (PgUp PgDn Home End too), Enter opens a hit or folds a file's, Esc, Tab or another letter goes back to the field |
 | Changes | `c` or typing writes the message (Enter a new line; Esc, then Enter commits), `A` or the star beside the message has it written, Enter stages or unstages, Space shows the diff, `d` discards, `S` syncs, `P` the branch's pull request (its review, or with none the form: Tab and Shift + Tab its parts, ← → Into and Draft or Ready, Enter on the button opens it, `A` there writes it again, Esc gives it up) |
 | Issues | `p` switches to Pull requests and back (there: `/` `s` filter, `c` a new one in Changes, `o` or Enter its review, `t` to the agent, `b` the browser, `R`, ← →); GitHub's: `/` `s` or Ctrl + / search, `c` a new issue, `a` `u` `l` the assignee, author and label filters, `o` or Enter opens it; herdr-fold's: `t` hands it to the agent, `r` replies, `b` opens it in the browser, `x` closes or reopens it, `R` asks again; ↑ ↓ PgUp PgDn Home End, ← → Open and Closed; a right click: all of it, Assign to me too |
-| Agent | ↑ ↓ PgUp PgDn Home End choose a section or a row; → opens a section (on an open one, to its first row), ← folds it (on a row, up to its section); Enter opens or folds a section, opens "N more", or does the row's first action (Open, Retry, Connect, Open Usage; with none, into its form); → on a row, the head's line or Hooks puts the keys in its form: ↑ ↓ step through it, ← → or Space choose, Tab changes the layer, Enter saves, Esc leaves; `a` on Permissions adds a rule, `x` on a rule removes it (it asks once), `u` undoes the last save while the foot shows it; `U` opens the Usage view (Tab steps the periods, `a` the agents, Enter edits the budget, Esc closes), `g` shows the graph as a tree; `a` adds a connector by URL (Tab or ↓ steps through the form, ← → choose For, Enter adds, Esc leaves); a click chooses, on a section opens or folds it, on Usage's ↗ opens its view, on a problem at the top chooses its server; a right click on a row: its actions |
-| Chats | every key goes to the list while it is open: type to filter; ↑ ↓ PgUp PgDn Home End; ← closes a group, → or Enter opens it; on a chat → lists its plan's done steps, ← folds them again; Enter goes to a running chat or reopens a closed one in a new tab; Space or Shift + ↑ ↓ marks closed ones (closing the list unmarks them); a right click: Open, Copy chat, Rename (Enter keeps the new name, Esc the old one), Archive, or with several marked, all of them at once, and Delete… for a closed one; Delete (fn + ⌫ on a Mac's own keyboard), while nothing is typed, asks the same of the chosen closed chat: Move the chat to the Trash? ← → or Tab choose, Enter presses the chosen button (Cancel at first), y moves it, n or Esc keeps it; its lit button, Esc or a click outside closes it |
+| Chats | every key goes to the list while it is open: type to filter; ↑ ↓ PgUp PgDn Home End; ← closes a group, → or Enter opens it; on a chat → lists its plan's done steps, ← folds them again; on a Claude chat → once more (or its right click's Checkpoints…) shows its checkpoints: Enter asks Claude what `Restore files to here…` would change, Enter again restores, Esc gives it up, `u` undoes the last restore, ← goes back; Enter goes to a running chat or reopens a closed one in a new tab; Space or Shift + ↑ ↓ marks closed ones (closing the list unmarks them); a right click: Open, Copy chat, Rename (Enter keeps the new name, Esc the old one), Archive, or with several marked, all of them at once, and Delete… for a closed one; Delete (fn + ⌫ on a Mac's own keyboard), while nothing is typed, asks the same of the chosen closed chat: Move the chat to the Trash? ← → or Tab choose, Enter presses the chosen button (Cancel at first), y moves it, n or Esc keeps it; its lit button, Esc or a click outside closes it |
 | Settings | herdr's popup, from More: ↑ ↓ choose the section; in General ← → or Tab switch the icons; in About Tab or ← → choose a button or a link, Enter presses it, Space switches Check for updates automatically; Esc or `q` closes it |
+| Agent | ↑ ↓ PgUp PgDn Home End choose a section or a row; → opens a section (on an open one, to its first row), ← folds it (on a row, up to its section); Enter opens or folds a section, opens "N more", or does the row's first action (Open, Retry, Connect, Open Usage; with none, into its form); → on a row, the head's line or Hooks puts the keys in its form: ↑ ↓ step through it, ← → or Space choose, Tab changes the layer, Enter saves, Esc leaves; `a` on Permissions adds a rule, `x` on a rule removes it (it asks once), `u` undoes the last save while the foot shows it; `U` opens the Usage view (Tab steps the periods, `a` the agents, Enter edits the budget, Esc closes), `g` shows the graph as a tree; `a` adds a connector by URL (Tab or ↓ steps through the form, ← → choose For, Enter adds, Esc leaves); a click chooses, on a section opens or folds it, on Usage's ↗ opens its view, on a problem at the top chooses its server; a right click on a row: its actions |
 | Preview | ↑ ↓ or `j` `k`, PgUp PgDn or `b` Space, Home End or `g` `G`, `/` search, `n` `N` the next and previous hit, `c` turns an SVG or a page to its next view (Code, Split, Picture: the status row's, a click there chooses one), `v` sets them side by side or one under the other (the status row's turn; a right click: those, Open in Browser, Close Preview), `e` edits the page or the SVG in your editor (the status row's Edit), `o` opens it in the browser (or Preview), `q`, Esc or Ctrl + C closes the whole tab |
 
 Everything works with the mouse too: a click, a right click for the menu, the wheel, and the row icons on hover. A
@@ -196,7 +195,7 @@ Alt + Enter commits from the message there too.
   lock; Delete…, once you answer its question, moves a closed chat's own file to the system's Trash and nothing
   else, as [A chat you delete](../../../SECURITY.md#a-chat-you-delete) lists); each file is read through once, then
   only where it grew, kept in `chat-index.json` in its state folder; the chosen chat's file is read on for its task
-  list, and Open the plan copies the plan it approved into `plans/<id>/plan.md` there, for the preview tab.
+  list, and Open the plan copies the plan it approved into `plans/<id>/plan.md` there and opens it in your editor.
   The archived chats, whether they are shown, the chat a pane reopens (until herdr knows its
   session), and whether the one-time note on a pane closed by hand was shown are in `chats.json` there. What
   each tab has had is in `panels.json` there: a pane closed by hand stays closed until it is brought back: its key,
@@ -209,7 +208,7 @@ Alt + Enter commits from the message there too.
 - For Agent, what the agent reads in the folder and in your home, as text: Claude's `CLAUDE.md` files and rules, its
   settings files (the organization's too), skills, subagents, `.mcp.json`, `~/.claude.json` (the servers and this
   folder's settings, never the account), the enabled plugins' own, and the lines of its newest sessions that tell the
-  servers' state and what the open conversation used; Codex's `AGENTS.md` files, rules and skills, and its servers
+  servers' state and what the open chat used; Codex's `AGENTS.md` files, rules and skills, and its servers
   through `codex mcp list --json` (in a tab with Codex); OpenCode's `AGENTS.md` or `CLAUDE.md` files, and its config
   files and servers through `opencode debug config --standalone` in the home folder (a private server, never its
   background service), a project's `opencode.json` read as text, never run (its plugins are code).

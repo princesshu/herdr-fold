@@ -11,712 +11,214 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 
 ### Added
 
-- Media generation, the agent's own: image, voice and video services as connectors, named and drawn as their makers
-  do (fal, ElevenLabs, FLUX, Runway, Higgsfield, Luma, Cartesia, Meshy), each media one saying what it makes and its
-  calls today in place of tokens (they bill in credits), and the hosted ones offered by name in the add form, signed in
-  to in the browser, never a key. What a chat made shows in the preview tab, audio and video too (a frame and a
-  waveform; an MP3 plays in the app, `o` opens the player in the TUI), with where it came from under it: the model,
-  the prompt, the skill and the calls, as the chat tells it; Ask for another asks that chat. Runs counts the same files
-- OpenCode (V2) as a coding agent, through the agents' adapters: installed and signed in in the agents' lists, its CLI
-  in a terminal tab from New chat and a new space (the TUI's picker: `claude │ codex │ opencode`), its chats in Chats
-  from its own database, reopened with `opencode --session` and copied, never deleted here, and in the Agent panel the
-  instructions it reads, its model and its MCP servers as `opencode debug config` lists them; Usage says its limits
-  are not told, and it has no graph, form or headless run here yet
+- The Herdr app's title row and command palette: a row of its own across the window's top, the traffic lights in it on
+  macOS, and at its centre a command field with the shown space's name; a press or Cmd + Shift + P opens herdr-fold's
+  palette onto it, in place of the app's: the app's commands in the app's groups, then herdr-fold's own (Settings…,
+  the views, Agents, Usage, Runs, New chat, Commit and push and more), each with its key, found as you type. See
+  [The title row](docs/app.md#the-title-row).
+- The Spaces list shows the repository inside a folder that is no repository itself, its branch with ↑ to push and ↓
+  to pull, in both clients; Changes and the app's tab bar follow that repository, where they said "Not a git
+  repository" before.
+- An agent in another tab of the TUI that starts waiting on you says so once, in herdr's own note at the bottom right
+  (`claude needs attention`, `claude finished`), never for the tab in front; herdr's sounds stay off.
+- The TUI's New space picker has Add machine…, beside Cancel and Open.
+- A chat tab in the Herdr app: Claude's chat drawn as a timeline from its session file, a call and its result one row;
+  what Claude waits on (a command, a change, a question, its plan) answered in a card in the prompt's place, its answers
+  numbered; a message typed while Claude works waits its turn; Claude's own terminal a press away, shown by itself when
+  Claude asks there. See [The chat](docs/app.md#the-chat).
+- New chats in the Herdr app: + after the tabs (Cmd + N) opens a chat with the agent used last, nothing running until
+  the first message starts it; the agent's chip lists the installed agents (the recent first, one to sign in marked,
+  the ones not installed dim), one the chat cannot draw yet opening its own CLI in a terminal tab. >_ opens a terminal.
+  Settings' Open agents in, Chat or Terminal, decides how every way in opens an agent (+, Chats, Issues' To the agent,
+  a new space); with Chat, a space on this Mac that holds shells alone gets an empty chat as its first tab, once. See
+  [New chats](docs/app.md#new-chats).
+- The chat's model and modes: the model chip names the model and its effort (Opus 5.5 High; on Default, the model
+  Default runs as), and lists Claude's models; the mode chip opens Modes, with Effort on a slider and Ultracode's
+  switch. Picked before the agent runs, they go with its start; after, as `/model`, `/effort` and Claude's own
+  shift+tab. See [Model, mode and effort](docs/app.md#model-mode-and-effort).
+- The chat's context and cost: the bar's meter (`context 34%`) opens the Context panel, with what fills the context in
+  the Agent panel's colors, what the chat cost by model, Compact and `Show all in Agent`; over the prompt, a notice
+  once a month when an agent on an API key nears or passes its budget. See
+  [Context and cost](docs/app.md#context-and-cost).
+- The chat's + and / menus: + uploads files from your Mac or adds a file by "@" (the changed files first), and turns
+  each connector on or off in the folder; / lists this chat's Export the chat…, the folder's skills and Claude's
+  commands, found as you type. A connector's call wears its service's logo in the timeline, and a server that comes to
+  need a sign-in is a step with Connect. The bar's clock shows this folder's chats in Chats.
+- The Start tab: a home space opens on `Open a project`, Open project… and the folders of the chats so far, each one
+  press from a space of its own with a new chat. An empty chat whose agent is not signed in lists every installed agent
+  with its Sign in or Use, and shows its prompt once one is in.
+- OpenCode as a coding agent, in both clients: in the agents' lists, its CLI in a terminal tab from New chat and a new
+  space (the TUI's picker: `claude │ codex │ opencode`), its chats in Chats from its own database (reopened with
+  `opencode --session`, copied and archived, never deleted here), and in the Agent panel the instructions it reads,
+  its model and its MCP servers, a project's config read as text and never run. It has no form, graph or run here, and
+  Usage says its limits are not told.
+- A chat's task list and its approved plan, in both clients: Claude's tasks and Codex's plan in one place, a strip over
+  the app's prompt (`3 of 5 done`) and under the chosen chat in the TUI's Chats; a plan approved in plan mode opens with
+  Open the plan. The app's timeline tells only the changes (`Tasks 5 added`, a ticked line for each step done).
 - Checkpoints: a Claude chat's files back to how they were at one of its prompts. In the app the prompt under the
-  mouse offers Restore files to here; in the TUI a chat's Checkpoints… in Chats (or →). Claude says first which files
-  would change and what stays; the restore is Claude's own `--rewind-files`, and one Undo puts the files back
-- The TUI's New space picker has Add machine…, beside Cancel and Open
-- Runs, the Agents tab's third view (the TUI: the Agent view's More, `r`): Claude's background sessions and Codex's
-  `codex exec` runs and cloud tasks, a row each with what it made (files, the PR it opened, its pictures) and its cost;
-  Attach, Stop, Open as chat, Run again, a cloud diff's Show diff and Apply, each the agent's own command; New run
-  starts one with `claude --bg`, `codex exec` or `codex cloud exec`, and On a schedule opens Claude's `/schedule` in a
-  chat. The app's status bar says `1 run working`; Chats leaves the runs out
-- The app's home space opens a Start tab: Open project… and the projects of the chats so far, each one press from
-  a space of its own with a new chat
-- An empty chat whose agent is not signed in offers every installed agent alike, each with its Sign in or Use, its
-  prompt shown once one is in
-- Pull requests, with gh on the space's machine. Changes shows the branch's own under the repository (its checks and
-  state, a press its review), or Create pull request…, whose form takes the message's place: Into, the title and body
-  Claude or Codex writes from the branch's commits with `Fixes #42`, Draft by default or Ready. The Issues view
-  switches to the repository's Pull requests, `your review` in yellow where one waits on you. In the Herdr app a review
-  in the preview tab: the diff with each thread on its line, comments added on a line, Comment, Approve or Request
-  changes, Submit review; Reply, Resolve and To agent on a comment; the TUI shows the review read only.
-- Editing files. In the Herdr app a text file (JSON, code, TOML, plain text) opens in a tab of its own in the app's
-  code editor, typed into at once: a neutral dot in the tab's × place while unsaved, Cmd + S saves in place (its line
-  ends and mode kept, no window), Cmd + F its find bar; closing asks nothing, as a draft is kept in herdr-fold's state
-  folder, and a bar offers Reload or Keep mine when the disk changed meanwhile. A page's, an SVG's and Markdown's Code
-  view is the same editor, Markdown drawn beside it. In the TUI a text file opens in your own editor (`$VISUAL`,
-  `$EDITOR`, else micro, which the installer brings, nano or vim) in a tab of its own, and `e` edits a drawn page or SVG
-  from its preview. There the Cmd keys are the editor's own, as in VS Code: Cmd + A, C, X and V select all, copy, cut
-  and paste, Cmd + Z and Cmd + Shift + Z undo and redo, Cmd + S saves, Cmd + F finds and Cmd + W quits the editor, never
-  the tab under it (`src/cmd_keys.py` routes them; elsewhere each does what it did); micro's bottom line names the file,
-  its line and column and those keys, and nano's help lines are hidden. An agent's settings file says where its checked
-  way is, with Show in Agent.
-- Changing an agent's setup from the Agent panel, in the Herdr app and the TUI sidebar's Agent view, with the same
-  forms (`core/harness.py` plans each, `core/harness_edit.py` writes it). The chosen row holds its form: the mode,
-  the model and effort (on the head's line), Claude's sandbox and its hosts, Codex's sandbox and approval, a
-  permission rule added (the + at Permissions' head; the TUI: `a`), changed, moved between layers or removed, a
-  conflict solved either way, a skill, a subagent or a connector off or on for the folder, a project's server
-  approved or kept off (`Approve in lumen-api`, `Keep off`), all hooks off or on. A control touched shows the layer
-  it is saved in, the line the save writes and when it applies, and in yellow what would override it. Nothing is
-  written before Save; a save writes one key of the agent's own settings file (Claude's `settings.json` or
-  `settings.local.json`, Codex's `config.toml`), never your organization's, and has its Undo at the panel's foot.
-  What cannot be changed says why (`Set by your organization`), and what is off for the folder stays a dimmed row,
-  `off here`. In the TUI → (or Enter) puts the keys in the form, ← → choose, Tab changes the layer, Enter saves, Esc
-  leaves, `x` removes a rule after asking once and `u` undoes the last save. In the app a new chat's model and
-  effort chips start from the same settings, and its `/` menu leaves out a skill turned off. Each edit and its key:
-  [The agent's harness](docs/harness.md).
-- A chat's task list and its approved plan, in both clients (`core/plan.py` reads them for both). Claude's tasks
-  (`TaskCreate`, `TaskUpdate`) and Codex's `update_plan` have one home: in the Herdr app a strip over the prompt,
-  folded to the step at work and `3 of 5 done`, opened upward to the done steps in one `3 done` row, the step at work
-  and the ones to do, what one waits for at its end; in the TUI sidebar under the chosen chat in Chats (→ lists the
-  done steps). The timeline tells only the changes (`Tasks 5 added`, a ticked line for each step done): its todo
-  step, the whole list again at every update, is gone. A plan approved in plan mode is a step of its own,
-  `Plan approved · 4 steps`, and Open the plan, there and at the strip's head, opens it as a document in the preview
-  tab. The app shows Codex's list once it draws a Codex chat.
-- Delete… for a chat, in Chats, in the TUI sidebar and the Herdr app. Archive stays the everyday way to tidy the list;
-  Delete… is the rarer one under it, for a closed chat (an archived one too), Claude's and Codex's alike. It asks
-  first, by the chat's name (the TUI at the list's foot, as its views ask; the app in the chat's own row, as Files
-  asks Move to Trash), then the row leaves at once and the chat's file is moved to the system's Trash, never
-  unlinked: Claude's with its subagents' folder, Codex's rollout file. Its archive mark and the name given to it are
-  dropped. A running chat is never deleted: the TUI offers none, the app's is faint and says why. In the TUI the
-  Delete key asks the same while the filter is empty. A Trash that does not take the file brings the row back and
-  says why under the list. What is moved, and what never is: [A chat you delete](SECURITY.md#a-chat-you-delete).
-
-- The mode, the approval policy and the sandbox as rows of the Agent panel's Permissions, in both clients: Claude's
-  `Mode` (`Plan`, `Edit automatically`), Codex's `Approval` in the graph's words (Ask on request, Never ask) and
-  each agent's `Sandbox`, tagged by the file that sets it, or `Default` where none does. A trusted project's
-  `.codex/config.toml` is read over the home's. A `config.toml` that names a profile says so in the row's form.
-
-- What an agent on an API key spent this month, in the TUI sidebar's Usage: its row `Codex  API key   ~$56.60 of
-  $150` in its level's color (yellow on pace past the budget, red once spent), the pace under it only then (`on pace
-  for ~$58 by November 30`); a plan's API value, the periods, the days and the projects are the Usage view's. Read on a
-  thread of its own, a minute apart while shown, through `core/report.py`, as the Herdr app's.
-- The session's cost in Claude's status line, one more item to choose (`statusline_setup.py`, off until chosen):
-  `~$4.12`, Claude's own count at list prices, on a plan its API value and with an API key about what it spent; the
-  first thing a narrower pane drops. Codex's line is its own and has none.
-- A Usage view in the TUI: the Herdr app's Usage in cells, opened over the tab by the ↗ on the Agent view's Usage
-  head, `U` or More's Open Usage (the sidebar plugin's pane `usage`; macOS and Linux). The periods' chips (Today, 7
-  days, 30 days, November), the chosen one bold on the hover's fill, and the agents' (Tab, `a`), the summary as aligned
-  rows in core's words, each day by model as five rows of stacked blocks with its legend, each API-key agent's month
-  against its budget with the pace's mark, the projects, the chats by cost and the models, under core's columns, and the
-  prices' source once at the foot; Enter edits the monthly budget, kept in herdr-fold's own `usage.json`; ↑ ↓ scroll,
-  Esc closes. No CSV export there.
-- An agent's graph as a tree in the TUI's preview tab, `graph: Claude in lumen-api`: `g` in the Agent view, More's
-  Show graph or a row's Show in graph. The agent with its model, effort, mode and hooks, what goes in, what it uses
-  with each edge's gates in brackets (`[ask, allow pytest, deny git push, hook guard.sh]`, each verb in its color) and
-  its subagents, names, tags and words in columns; `c` shows This chat, the numbered path that ran with each agent's
-  costs (its model in its head alone) and each tool's calls, `w` Wiring again (`w Wiring  c This chat` on the status
-  row).
-- The Herdr app's Agents tab, with an agent's graph. A tab of the main area, one a space (the palette's Agents, or
-  Show graph on a rule, a skill, a connector or a subagent in the Agent panel, which opens it on that row's node):
-  what goes in (rules, skills), the agent with its subagents under it, and what they use (tools, connectors), in
-  three columns; an edge solid for what always loads, dashed on demand, yellow for a connector to sign in to and red
-  for one that failed; on an edge its gates, each a verb and its object (`allow pytest, git status +1`, `deny git
-  push`, `hook guard.sh`).
-  A press shows a node's properties and opens its file in the preview tab, and Show in Agent there shows the Agent
-  panel on that node's row (on the agent's own node: its panel); the arrows step between the nodes. A node
-  drags, its edges following, and stays where it is let go for that space, folder and agent; a double click beside
-  the nodes lays the graph out again. Claude and Codex through the same graph.
-- This chat, in the Agents tab's graph. Where the folder has a chat, a switch turns the graph from Wiring to what
-  that chat ran, its whole cost after the switch's name (`This chat · ~$4.12`): its edges lit, the one a call still
-  waits on wider, the rest at half strength, each first use numbered in its order. The agent and each subagent that
-  ran show what they cost, their model's color and their share of the chat; a tool and a connector their calls. A
-  press on the agent shows its tokens by kind and Claude's own count beside herdr-fold's, with Open in Usage.
-- Usage, the Agents tab's other view in the Herdr app: what the agents used and what that cost, each message at its
-  own model's prices. An agent on a plan reads API value, never spent; one on an API key reads spent. The period
-  and the agent in one row; a summary row; each day by model; an API-key agent's month against its budget with the
-  pace it is on; the projects; the chats by cost with their cache share; the models with their tokens by kind, one
-  with no price its tokens alone. Budget…, on the month's card, keeps a monthly budget for an agent on an API key,
-  and Export CSV saves the period where macOS's save panel says. The palette's Usage opens it.
-- One tilde before every dollar figure herdr-fold computes, in both clients and the status line (`~$18.40`,
-  `~$130.90 API value`, `on pace for ~$46`): an estimate from the chats' tokens at Anthropic's and OpenAI's API list
-  prices, on a plan what that use would cost on the API, as the Usage view's foot says once; the budget you set
-  (`of $50`) and Export CSV's numbers wear none, nor the Usage view's table cells.
-- What the agents cost, where they are used, in the Herdr app. The Agent panel's Usage says an API key's month against
-  its budget, and Open Usage leads to the Agents tab's Usage. A chat says once a month when an API-key agent has spent
-  80% of its budget or is on pace to pass it, until its × closes it for that month in both clients. A chat's Context
-  panel says what the chat cost, by model, and how much of it came from the cache, with Usage to its row.
-
-- herdr-fold Mono, herdr-fold's own monospace font, both clients' one: JetBrains Mono with Nerd Fonts' icons, its line
-  10% taller (the room split above and below the text, so a row of the TUI and of the Herdr app is as tall), and the
-  symbols Claude Code, Codex, herdr and starship print that it lacked drawn from its own glyphs (⏺ ⎿, the spinners'
-  ✢ ✳ ✻ ✽ ◐ ◓ ◑ ◒, ⏵ ⏸ ⏹, ✔ ◼ ◻ ☐ ☑ ☒, /context's ⛁ ⛀ ⛶ ⛝, ⇡ ⇣ ⇕, ↻ ↵ ↳ ↯ and more), herdr's ▾ ▸ before a
-  machine drawn as the sidebar's chevrons. The TUI's installer puts it in `~/Library/Fonts` (the uninstaller takes
-  it off), Ghostty uses it, and the Herdr app's layout loads it from the mod for its terminals and the code its views
-  draw. `tools/fonts.py` builds it from Nerd Fonts' release; its license, the SIL Open Font License, is beside it.
-- Every message's tokens and what they cost, for Usage's cost view to come. `core/tokens.py` reads Claude's sessions
-  with their subagents' files and Codex's token records, each message once by its id (a message's repeated lines, a
-  session resumed into a new file, a subagent's file beside its parent's call), and tells input, the cache's
-  5-minute and 1-hour writes, its reads, output with its reasoning part and web searches apart, by the hour, model,
-  subagent type and session. The sessions are large, so each file is read once and then only where it grew, kept in
-  `~/.local/state/herdr-fold/usage-index.json` (numbers, session ids and folders, readable by you alone; the
-  uninstaller removes it); nothing of Claude's or Codex's is written. `core/prices.py` prices each kind at its own
-  model's rate from [LiteLLM](https://github.com/BerriAI/litellm)'s model cost map, a prompt past a size step at
-  that step's rate; a model with no price has no cost, never $0. The map is fetched once a day from
-  raw.githubusercontent.com with the request alone, under the update check's own switch (Check for updates
-  automatically, `HERDR_FOLD_NO_UPDATE_CHECK=1`); without it the last table fetched is used, else the one bundled
-  (`core/price_table.py`, written by `tools/prices.py`; LiteLLM's MIT license is in `THIRD_PARTY_NOTICES.md`). It
-  also names a model as people say it (Opus 5.5, GPT-5 Codex) and gives each family its color, moved toward a
-  theme's text where a mark of it would read under 3:1 on that theme's card (Nord's).
-- Usage's report, for both clients' cost view to come. `core/report.py` turns the token counts and prices into what a
-  period cost (Today, 7 days, 30 days, the month, as this machine's whole days), of every agent or one, of every
-  folder or one: a summary row (an agent on a plan as "API value" with "no charge on the plan" and its week's limit,
-  never as spent; an agent on an API key as "spent" with its month, budget and pace; the tokens with the share read
-  from the cache), each day by model, the month against its budget, the projects, the chats (turns, tokens,
-  cache share, cost, what a turn cost) and the models (a model with no price says "no price" and keeps its tokens).
-  A monthly budget for an agent on an API key is kept in `~/.local/state/herdr-fold/usage.json` (`report.py budget
-  AGENT DOLLARS`); from 80% of it spent, or a pace past it, a notice is told for the chat ("Codex has spent ~$45.10 of
-  $50 this month · on pace for ~$58 by Nov 30"), dismissed for that month. `report.py csv` gives the same numbers as
-  CSV, a row for each day, agent, model and chat. The words are made once, for the Herdr app and the TUI
-  alike.
-- An agent's graph, for the Agents tab and the TUI's tree to come. `core/graph.py` lays out what is in effect for an
-  agent in a folder as nodes in three columns (In: the rules and skills; Agents: the agent and its subagents; Uses:
-  the built-in tools and the connectors) and the edges between them: solid for what always loads, dashed for what
-  loads on demand, waiting for a connector to sign in to, failed for one that did not start. An edge to a tool
-  carries its gates, each a verb and its object: allow, ask or deny from the mode and the permission rules (`allow
-  pytest`, `deny git push`), and the hooks that decide a call, herdr-fold's own among them. The project's own skills and
-  subagents and the ones a chat used are a node each; the rest fold into one ("15 more skills"). For a
-  chat it reads the session file and its subagents' files and tells what ran: each node numbered at its
-  first use, the calls on each edge, the edge of a call with no answer yet as running. `core/costs.py` gives that
-  chat's cost from the token index: the agent and each subagent type with its model and its color, turns,
-  tokens and share, the lines of an inspector (input, the cache's writes and reads, output), as API value on a plan
-  and as spent with an API key, and Claude's own count of the chat beside it ("the same", or by how much
-  it differs). Codex goes through the same shapes: its rules, skills, prefix rules on its shell, servers and its
-  newest chat in the folder; its line says its effort and its approval policy (`Ask on request`), from the
-  chat's last turn, else its `config.toml`; a herdr-fold hook and a mode are never said of it. Both only
-  read; a name taken from
-  a session is drawn as text, cut, its control characters dropped.
-- The connectors' commands and brands, for the Agent panel's Connectors to come: `core/connectors.py` builds each
-  change as the agent's own command, one argv, nothing of the agent's written by herdr-fold (`claude mcp login`,
-  `logout` and `add --transport http --scope local|user`, Codex's `mcp login`, `logout` and `add --url`, and Claude's
-  `/mcp enable` and `disable` for a folder), and reads the address Claude prints while it waits for a sign-in. A
-  server's name is refused when it starts like an option or holds a control character, a new one's is letters,
-  digits, `-` and `_` (what both agents take); an added address is https, or http to this machine, with no user or
-  password in it. It also knows eight services by a server's name, else its address's host (Box, Dropbox, Figma,
-  Google Drive, Linear, Notion, OneDrive, Sentry): each server `core/agent_setup.py` lists and each Connectors row
-  now carries its `brand`. Their logos are in the mod (`icons/logos/`, from SVG Logos, CC0, fetched by
-  `tools/icons.py logos`; nothing is fetched while the app runs) and `icons.js` names each (`BRANDS`); the TUI gets a
-  Nerd Font brand glyph and a color for each, its letter for Box and Linear.
-- Connectors managed in the Agent panel, in the Herdr app and the TUI sidebar. A connector's row wears its service's
-  logo (the TUI: its glyph or letter in its color; a server of no known service its letter). Connect, on a server to
-  sign in, runs the agent's own login in a terminal (the app: one with no pane; the TUI: a herdr tab) and opens your
-  browser; the row says "signing in" with "Finish in your browser", "Open the page again" and Cancel until it ends, ten
-  minutes at most, and the agent is then asked about the server again. A connector is turned off and on for the folder
-  by its row's switch (the bullet on changing the setup, above); one Claude's own `/mcp disable` turned off is turned on
-  in that folder's chat (the app sends `/mcp enable` to an idle Claude, the TUI types it into the tab's Claude), and
-  with no Claude there the form waits and says so. Sign out, on a claude.ai connector and a Codex server signed in
-  through Codex, runs the agent's logout; a Claude server added by its address has no such button, its properties name
-  Claude's own command (`claude mcp logout <name>`). Connectors' + (the TUI: More's "Add from claude.ai…", "Add by URL…"
-  or `a`, and Refresh) opens claude.ai's connectors page, or a form: Name, URL and, for Claude, this folder or All
-  projects; "Add and connect" runs the agent's own `mcp add` and signs in where the agent says it must. Codex's rows
-  have Connect, Sign out and the form alone. Each of these is the agent's own command, and herdr-fold keeps no token.
-- The chat's + menu in the Herdr app, the bar's first button: `Upload from computer…` (⌘ U; macOS's own chooser, the
-  files as chips over the prompt, sent after the message's words as `@path`), `Add context…` (also an "@" typed at a
-  word's start: a list over the prompt, the changed files first, then the folder's, filtered by what is typed), and
-  Connectors: the failed and sign-in ones counted on pills, `Manage ›` to the Agent panel's Connectors, and each one on
-  or off in this folder with its logo and a switch (Claude's own `/mcp enable` or `disable`, sent once it is idle).
-  `core/search.py` lists a folder's files for it (`{"files": true}`).
-- Connectors in the chat's timeline: a connector's call is drawn with its service's logo and name, its tool and its
-  first words (`Google Drive search_files paging spec`); a server that comes to need a sign-in during a chat is
-  a step of its own (`Box needs you to sign in`, Connect at its end, `signing in…` while the agent's login runs, done
-  once the server is on). `core/chat.py` tells the step from Claude's session file (`signin`).
-- The clock in the chat's bar, `This folder's chats`: the dock's Chats list with that folder's group open and
-  scrolled to.
-- Usage, the first section of the Agent panel in the Herdr app and of the TUI sidebar's Agent view: an agent a row,
-  the agent shown first, no fold of its own. One on a plan has its plan's word (never an e-mail) and each window's bar
-  and percent in the status line's colors (green, yellow from 50, red from 80; `Claude  Max   5h ▰▰▰▱ 64%  wk ▰▱ 38%`),
-  `0%` for a window that reset with nothing run since and `–` for one run in since, its reset under it only while a
-  window is yellow or red (`5h resets 14:46`); one on an API key its month against its budget. A press shows a row's
-  properties: both resets, the reading's age and Open Usage. Folded whole, its head shows one figure: the agent in
-  use's tighter limit, or another agent's where that one is yellow or red and worse; Enter and a click fold it, as
-  every head. Read with the setup, every 30 s while shown. The words are `core/usage.py`'s (`usage.py section AGENT
-  [AGENTS]`), the same in both.
-- The Herdr app's Agent panel, the dock's fifth tab after Issues, wearing its agent's own icon (Lucide's bot on the
-  rail): what the space's agent, Claude or Codex, starts with in the folder, in the words of the TUI's Agent view
-  (`core/agent_layers.py`'s layers). Its head names the agent and the folder; under it the model, effort and start-up
-  context (`Opus 5.5 · High · starts at 34.2k of 1M`), a chip per problem ("1 failed" red, "1 sign in" yellow) and a
-  bar of what loads at start (the rules, the skills' listing, the connectors' tools); then Usage, Subagents, Rules,
-  Skills, Permissions and Connectors with their counts and costs (Permissions by behavior; Claude's built-in
-  subagents one row, `Built-in`), a fold kept per space. A section shows its first five rows, its problems and what
-  the open chat used, then "N more" in place. A row has one mark (✕ failed, a yellow dot to sign in or a conflict, a
-  green one used in this chat), a connector's logo, its name and note, both agents' icons where both read it, then
-  its state, its source's tag (a muted chip, never a hue) and its cost in columns; a permission a deny or an ask
-  hides has its sentence under it. The head's search filters every section by name, note, state or tag. It is read
-  when shown, when the folder's rules and settings or the agent's own folder change, and every 30 s while shown. The
-  command palette lists it (Agent). A space on another machine says so.
-- The Agent panel's properties and actions in the Herdr app: a press chooses a row, and under the layers stand its
-  properties as a design tool's (the label left, the value right: where it is from, what a server runs or its address,
-  a rule's paths, a subagent's tools, how often the chat used it; a conflict's two rules), a server's error, a
-  rule's first lines or a skill's description. Open shows the row's file in the preview tab; Retry asks Claude to check
-  a server again (`claude mcp get`), its state a spinner meanwhile, the answer kept until a newer chat says
-  otherwise (`agent_setup.py layers claude … --checked JSON`, which also tells each server's own state). A problem's
-  chip chooses its row; while the setup has a problem the Agent tab and the rail's Agent carry a dot, red over yellow.
-  The chat's Context panel ends with "Show all in Agent", which shows the panel.
-- The agents managed in the Agent panel, in both clients. The head is a chip, "Claude in lumen-api ⌄" (the TUI: Enter
-  or a click on the head's row), opening "Agents on this Mac": the installed agents, ✓ on the one shown, its
-  plan's word beside it where it tells one (never an e-mail), "sign in" where the agent says it is signed out, then
-  under a rule, dim, "Not installed": the known agents not on this machine, a pick showing how that one is installed
-  (the words core's, `agent_state.py`'s `listed()`). A pick of an installed one makes the whole panel that agent's,
-  kept per space (the TUI: per folder, in `settings.json`'s `agent_chosen`) until another is picked. An agent with no
-  setup to show says why in its place, in core's words (`standing()`, told with `agents` as "empty"): not signed in,
-  with Sign in, which runs the agent's own login (`claude auth login`, `codex login`, `gemini`) in a terminal tab and
-  asks again every 5 s until it is in (herdr-fold keeps no token); not installed, with its vendor's install line to
-  copy and its page (herdr-fold runs no installer). What could not be read is said in its place, never left out:
-  the agent shown with no reading of its limits keeps its Usage row, "limits not told", and Connectors says "not
-  read" where Codex gives no list of its servers, each with the reason in its properties. A new chat's agent list
-  shows the installed agents only, marks one to sign in, and under a rule the ones not installed, dim, each showing
-  the panel at how it installs; a chat's "Show all in Agent ›" shows the panel as that chat's agent's.
-- The TUI sidebar's Agent view, the row's fifth button (`5`) between Issues and Chats, under Codicons' robot (◇ without
-  a Nerd Font): what the agent in the tab starts with in the folder, in the Herdr app's Agent panel's words
-  (`core/agent_setup.py`'s layers, now the sidebar's too), in cells as the mockups draw it. On top "Claude in lumen-api"
-  and its problems ("1 failed" red, "1 sign in" yellow; a click chooses that server), under it the model, effort and
-  start-up context (`Opus 5.5 · High · starts at 34.2k of 1M`) and a ━ rule of what loads at start, its rules, skills
-  and connectors each a part in its color; then Usage, Subagents, Rules, Skills, Permissions and Connectors, a dim
-  chevron first (none on an empty one), the count after the title and at the right the rule's color before what the
-  section loads always (`■ 5.4k`) or Permissions' `12 allow  3 ask  2 deny`; Usage and Connectors open and the rest
-  folded until opened (kept in every tab), each showing its first five rows, its problems and what the open chat used,
-  then "N more" (never for one row). One mark column stands before the names: ✕ red failed, ● yellow to sign in or a
-  rule a deny or an ask hides (its sentence under it), ● green used in this chat; on and off have none, off is a dim
-  name. A row's state and its source stand in aligned columns, the tags in plain muted text. Subagents has your own
-  each with its model and tools and Claude's own in one Built-in row; Permissions has Mode, Sandbox, the conflicts, the
-  rules and every hook of every settings layer under Hooks. The chosen row's properties lie under it as label and
-  value, none its row says already, with its error (the file it names in its tip), first lines or description and its
-  buttons: Open shows the file in the preview tab, Show in graph the graph, Retry has Claude check a server that failed
-  (`claude mcp get`), its mark spinning meanwhile. ↑ ↓, → ← to open and fold, Enter for the row's first action, a
-  right click for its actions; More lists Open Usage (`U`), Show graph (`g`), Add from claude.ai…, Add by URL… (`a`)
-  and Refresh.
-  Agent's button and rail icon have a dot while the setup has a problem, red over yellow, the problems in its tip; the
-  setup is read every 30 s while shown and every 5 minutes behind another view (not while More leaves it off the row).
-- The TUI sidebar folds to its rail by the » at the right end of its row of buttons, in every tab, as Adobe's Collapse
-  to Icons: the row's icons alone in a column 5 cells wide, each name in its tip, Changes', Agent's and Chats' dots by
-  their icons, the tab's terminal moved under the agent at its fewest rows, the rail's Terminal icon (or 6) raising it
-  as tall as it was and lowering it again; the rail stays after herdr restarts. A press on an icon opens the dock in
-  every tab on that view (Chats on its list), with the keys, as VS Code's activity bar, and so does a view's key (its
-  herdr key, Cmd + Shift + G, too). « at the top of the rail, over its icons, opens the dock again as wide as before,
-  as does dragging the rail more than 3 cells wider, and Cmd + Option + B folds and opens it from anywhere. The open
-  column dragged narrower than its row of icons folds to the rail once let go, as in VS Code and Figma, « opening it at
-  the width it had. With the Chats list open, a press on another of the dock's buttons (a view's, ») closes it and does
-  its own at once.
-- The Spaces list shows the repository inside a folder that is no repository itself, with ↑ to push and ↓ to pull
-  against its remote branch, in both clients: in the TUI its name under the space's and its branch under that, in the
-  Herdr app `harbor-web · main` after the space's name (the name left out where it is the space's own); the active
-  pane's repository where the folder holds several. Changes and the app's tab bar show the same one, where they said
-  "Not a git repository" before.
-- The TUI sidebar's More lists its views first, each with a `✓` while shown, as Adobe's Window menu: one unchecked
-  leaves the row in every tab until a check or its key brings it back; one always stays. The menu's kinds of line stand
-  apart by a rule, as herdr's own menus.
-- The preview's code and picture one under the other: an SVG's or a page's code above its picture where the room is
-  taller than wide, as Xcode's canvas, or as chosen (the turn in the status row, `v` and the right click in the TUI;
-  the button beside Code, Split and Picture and the right click in the Herdr app), its divider dragged as the side by
-  side one.
-- The TUI preview's status row starts with Code, Split and Picture, as the Herdr app's buttons, the chosen one in the
-  accent, and in Split the turn; a click chooses, `c` and `v` stay, each named faintly before its control. A narrow
-  row leaves out its key hints, then cuts the file's name short, and keeps its controls whole; its gray spans the
-  pane.
-- Every picture macOS reads in the preview, both clients: HEIC, AVIF, JPEG XL, JPEG 2000, PSD, TGA, EXR, ICNS, the
-  GPU's textures and a camera's raw file (DNG, CR2, NEF, ARW…) beside PNG, JPEG, GIF, WebP, TIFF and BMP; one no
-  browser shows opens in Preview (Open in Preview), where a browser would only download it.
-- A changed picture under Changes shown as VS Code's image diff in both clients: before and after side by side, each
-  under its name and size (the TUI: Index and Working Tree, staged HEAD and Index; the app: HEAD and Working Tree),
-  one above the other where the room is taller than wide; a new one's after alone, a deleted one's before alone.
-- herdr-fold's own Settings in the TUI sidebar, More's last line (Settings…), as the Herdr app's: herdr's popup,
-  herdr-fold Settings, its sections in a list at the left, General and About (↑ ↓ or a click), the chosen one beside
-  it, one size whatever it shows. General has Icons, Nerd Font or Plain marks (← →, Tab or a click): the one lit is in
-  use, within a second in every tab's sidebar; `i` in Files stays its shortcut, and another tab's sidebar now takes
-  it too.
-  About has herdr-fold's version and license (the author's name a link to their GitHub page, from the LICENSE), Up to
-  date and when it looked or the newer version, how to get it and its release notes, Check now (GitHub not reached:
-  Couldn't check, with the time of the last look that answered), Check for updates automatically (Space), What's new
-  (this version's part of the CHANGELOG in the preview tab) and Third-party notices. Its close button, Esc or a click
-  outside closes it. While a newer version is out, More has a dot in the accent, its tip naming the version, and
-  Settings opens at About; after an update one herdr notification says it (What's new: More › Settings › About).
-- Every popup herdr-fold opens in the TUI (Settings, closing a tab with a chat, a new space's folder picker, Cmd +
-  Shift + L's files, the theme picker) has a close button at its top right, as the sidebar's icons alone: Codicons'
-  close (× with the icons off) on three cells, lit under the mouse, its tip `Close (Esc)`; a click closes the popup as
-  Esc does, whatever was typed. Their text and buttons keep one cell from each side, herdr's own blank column at the
-  right being that side's, as in About. The commit window and Add machine scroll as they ask, so they keep the ways out
-  they had.
-- The TUI's keys in the Herdr app's herdr-fold layout. Moving: Cmd + 1…9 a space, Cmd + ↓ / ↑ the next / previous
-  space, Cmd + T / R the next / previous tab, Ctrl + B, then 1…9 a tab, Ctrl + B, then w Go to space or tab (Cmd + P
-  too), Cmd + D / E the next / previous agent; a new tab is + and >_, Split right the palette's. Six commands, each a
-  palette row too: Ctrl + B, then Shift + N a new space in a folder (the Mac's folder picker), Ctrl + B, then Shift +
-  M Add machine…, Cmd + Shift + E the dock hidden entirely or shown again, Cmd + Shift + O Restore panels (the views
-  More hid, the dock, the terminal under the tab), Cmd + Shift + L a file the focused terminal's output names in the
-  preview tab at its line (by the TUI's rules, now core's `named_files.py`), Cmd + K, then Cmd + T herdr-fold's
-  color themes by the TUI's names. docs/keybindings.md has one table of the keys both clients share, and says the
-  one that differs: Cmd + → / ← step panes in the TUI only (the app's are Cmd + Option + arrows).
-- Notifications in Settings, between General and About in both clients: An agent waits on you, on by default. In the
-  Herdr app, off means no note at the window's corner and no sound when an agent asks or finishes (herdr-fold's
-  layout closes each note at once but an error or a warning, which it draws as the app's toast, the app's sounds go
-  off and come back as they were, a chat's own wait is quiet);
-  in the TUI's popup it turns herdr's own note at the bottom right off or on (`[ui.toast] delivery` in herdr's
-  `config.toml`, `herdr` or `off`, which herdr reads again at once), and another delivery of yours shows as on and
-  stays until you switch.
-  Herdr app alerts under it opens the app's own Alerts, which left the Application group.
-- One Settings in the Herdr app, a window of one size (600 × 380) that the sidebar's Settings and Cmd + , open: its
-  sections at its left, the chosen one beside them, every change in effect at once; under Application, Look, Machines,
-  Updates and Privacy open the app's own Settings at that section, and the sidebar's foot is herdr-fold's.
-  More's last line, About herdr-fold, opens it at About. General holds Open agents in, Chat or Terminal. About is as
-  the TUI sidebar's and in its words: herdr-fold's version and license (the author's name a
-  link to their GitHub page, from the mod's LICENSE), the update check's state (Up to date and when it looked, the
-  newer version and how to get it, Couldn't check with the last look that answered, Checked by hand only, a spinner
-  while a look runs), What's new (this version's part of the CHANGELOG in the preview tab) or the newer one's release
-  notes, Check now, Check for updates automatically and Third-party notices. ↑ and ↓ change the section, Tab steps
-  through its controls, Enter or Space presses one, and ×, Esc or a click beside closes it; it opens at the section
-  looked at last. While a newer version is out, the status bar says `herdr-fold 0.4.0 is out` at its end, a press
-  opening Settings at About; after an update one toast says it, a click on it opening What's new.
-  `herdr-fold.settings` opens the window from a key.
-- An agent in another tab of the TUI that starts waiting on you says so once, in herdr's own toast at the bottom right
-  (`claude needs attention`, or `claude finished`, its space and tab), never for the tab in front: herdr-fold's
-  herdr settings turn herdr's toasts on (`[ui.toast] delivery = "herdr"`); its sounds stay off.
-- The Herdr app starts agents from its tab bar: + after the tabs (Cmd + N) a new chat with the agent used last that the
-  chat draws (Claude), New chat and the space with its branch in its middle and the agent's chip in its prompt's bar,
-  nothing running until the first message starts the agent (with the model, mode, effort and Ultracode picked
-  meanwhile); the chip's list, searched as typed, offers the recent agents first, one not installed dim, one the chat
-  cannot draw yet (Codex) marked `terminal` and opened in a terminal tab in the chat's place. >_ beside + opens a
-  terminal with the machine's shell. Settings' Open agents in, Chat (the default) or Terminal, decides how every way
-  in opens an agent: +, a closed chat reopened from Chats (a Claude chat as a chat tab, resuming it; Codex's in its
-  terminal until the chat draws Codex), Issues' To the agent, which with no agent in the tab now hands the issue to a
-  new one (in a chat tab, the chat's own agent gets it), and a space: with Chat, a space on this Mac that holds shells
-  alone (a new one, the app's own picker's too, or an older one) gets an empty chat as its first tab the first time it
-  shows, once; with Terminal, a new space's first tab is the agent's CLI.
-- The Herdr app's chat has a model chip in its prompt's bar: the model and, dimmer, its effort (Opus 5.5 High); a press
-  opens Claude's models as Claude Code lists them, each with its line (Default, Opus 5.5, Fable 5.2, Sonnet 5.5, Haiku
-  5.5), the one in use checked, a press picking one (`/model`). The mode chip beside it opens the Modes panel: Modes and
-  `⇧ + tab to switch` at its head, Claude's modes with their icons and lines, then Effort with a dot slider and the
-  level's name (`/effort`, a press or a drag, ← →), then Ultracode with its switch, faint with Claude's reason where
-  Claude refuses it; ⇧ + tab in the prompt is Claude's next mode. Before the agent runs, what is picked goes with its
-  start (`--model`, `--permission-mode`, `--effort`, Ultracode in its settings). In a narrow chat the model chip leaves
-  its level out (its tip says it), then the bar's tools leave whole from their end and the model's name is cut short;
-  the mode and send stay whole.
-- The Herdr app's chat shows what is in its context: the bar's meter (the ring and `context 34%`, the share in the
-  ring's green, yellow or red) opens the Context panel, with how much is in use (68k of 200k · 34%), a bar of what
-  fills it and its legend, in the Agent panel's colors (the rules Claude reads at the start, its skills' list and its
-  connectors' tools, estimated, and the rest as one part), Compact, and `Show all in Agent`, which shows the Agent
-  panel, where the rules, skills and connectors are listed. A "/" typed in the prompt opens the / menu over it, as
-  Claude Code's own: This chat (Export the chat…, Markdown saved where macOS's save panel says), the folder's skills
-  with
-  their lines and source tags (Project, Global, a plugin's name), the ones used first, then Claude's commands, a few
-  of each and how many more; what is typed after the "/" filters it, the best match first and lit, Enter picks it,
-  ↑ ↓ step, Esc closes. A skill goes into the prompt as Claude takes it (`/api-routes`, `/code-review:code-review`);
-  a skill's step in the timeline names its source after it. The bar's panels share one row, as high as what it holds
-  (8 over and under): a list's 32, a model's or a mode's with its line 52. Before Claude runs, the mode chip shows
-  the mode Claude starts in (`permissions.defaultMode` in its settings), else Manual. `core/agent_setup.py` reads the
-  rules, the skills (the enabled plugins' too) and the mode from the chat's folder, only reading. In a narrow chat the
-  meter's words give way first. The model and mode chips no longer carry a chevron.
-- The TUI sidebar's Issues hand an issue (`t`) to a new agent when the tab has none: the one herdr-fold started last,
-  in a new tab of the space named after the issue, the sidebar beside it, the prompt typed in for you to send;
-  the new space's folder picker starts its Claude │ Codex toggle on that agent.
-- The usage limits for the Agent panel's Usage: Claude's status line, in the TUI and in a Herdr app chat, keeps the
-  5-hour and weekly limits it is told, with their reset times, in `~/.local/state/herdr-fold/limits/claude.json`,
-  readable by you alone and nothing else of the session. `core/usage.py` puts the reading together: Claude's windows
-  are the ones its own `/usage` reading names (cached in `~/.claude.json`), each at the highest use it or any chat
-  told since, and Codex's are its newest chat's; neither agent's files are written. A limit past its reset is left
-  out, and so is an agent without limits (an API key). The uninstaller removes them with
-  the last part.
-- Claude's permissions and subagents for the Agent panel: `core/agent_setup.py` reads the permission rules of every
-  settings file (your organization's managed ones, yours, the project's, the local ones) with their scope, how many
-  allow, ask and deny, and each conflict, a rule Claude never reaches as "deny in Project hides allow in Global"; and
-  the subagents (yours, the project's, the enabled plugins' and Claude's own) with their model and tools, only
-  reading.
-- Claude's MCP servers for the Agent panel: `core/agent_setup.py` lists each one Claude has in a folder (the project's
-  `.mcp.json`, the local ones and yours in `~/.claude.json`, your account's claude.ai connectors, the enabled plugins';
-  your organization's alone where it sets them) with what it runs or its host and path, never its env or header values
-  nor a URL's query. Its state is what Claude's newest session there last said, read with nothing run: on with its
-  tools and what they cost in context, failed with its error, sign in, not approved (a `.mcp.json` server waiting for
-  your yes), connecting or off here; also what the open chat used (its skills, servers and subagents). One
-  server is checked on asking with Claude's own `claude mcp get`, which starts none Claude has not approved.
-- The agents on this machine and Codex's setup for the Agent panel: `core/agent_state.py` lists Claude, Codex and
-  Gemini CLI, each installed or not, signed in or not and its plan's name (Max, Plus, API key; never an e-mail), asked
-  in ways that print no secret: `claude auth status` (its account's e-mail and organization never kept), `codex login
-  status`'s exit code, an API key told by how its words start (nothing after that start read), and the plan Codex's
-  newest chat names; Gemini CLI tells it to no
-  one without its credentials, so it shows none. Each comes with how it signs in, its own command in a terminal tab
-  (`claude auth login`, `codex login`, `gemini`), and how to install it. Codex's setup is read as Claude's is: its
-  `AGENTS.md` files from the repository's top down to the folder (an `AGENTS.override.md` first), its skills (yours in
-  `~/.codex/skills` and `~/.agents/skills`, the repository's `.agents/skills`), its rules in `~/.codex/rules` as allow,
-  ask and deny with each conflict, and its MCP servers as `codex mcp list` gives them (on, off or sign in, never their
-  env or headers); a rule file or a server both agents read is marked as both's.
-- The Agent panel's layers, laid out once for both clients: `core/agent_layers.py` turns Claude's or Codex's setup
-  in a folder (`core/agent_setup.py` reads it) into the panel's words: the head (`Claude in lumen-api`), its line
-  (the model, the effort and what the agent starts with of its window), the bar of what loads at start and the
-  problems (`1 failed`, `1 sign in`, each leading to its row), then Subagents, Rules, Skills, Permissions with its
-  Hooks group and Connectors with their counts and costs (`6.1k`), the problems first in each (a failed server, one
-  to sign in, a conflict in place of the rule it hides: `deny in Project hides allow in Global`). Each row has its
-  tag (Global, Project, a plugin's name, claude.ai, `Default` for what no file sets), its state in words (`32 tools`,
-  `failed`, `sign in`, `not approved`, `connecting`, `off here`), its one mark, and its properties as label and
-  value: From, Runs or URL, Paths, Model, Tools, Used, a rule's first lines, a skill's description, a server's error,
-  and its actions (Retry, Connect, Sign out, Open the file, Show in graph); Claude's own commands are never offered
-  on a Codex row. Token counts follow one number rule in both clients (`5.9k`, `120k`, `1.2M`; never `0.1k` or
-  `0.41M`).
-- The Herdr app's window has a title row of its own across the top, 36 px, as VS Code's command centre: the traffic
-  lights sit in it on macOS (the window's own buttons at its end elsewhere), and at the window's centre a command field,
-  the shown space's name faint in it and the palette's key at its end as bound (Cmd + Shift + P); in a narrow window it
-  narrows, down to its mark alone. The tab bar and the sidebar's head sit under it: Herdr's mark and name at the head's
-  start, now that the traffic lights have left it, Go to space or tab and the sidebar's toggle at its end (herdr-fold's
-  own, on the tab bar's line).
-- The Herdr app layout's own command palette, opened onto the title row's field by a press or Cmd + Shift + P (in the
-  herdr-fold layout the key opens it in place of the app's, so there is one palette): the field becomes its field, 600
-  px wide on the same centre, 8 px under the window's top, and under it the app's commands in the app's groups (Tab,
-  Pane, Space, Layout, Terminal, Agent, Window, App), each with its key at its end, the first lit. Typing finds them as
-  the chat's / menu finds its rows, the best first, each with its group; Enter runs the lit one, ↑ ↓ move it, and Esc,
-  a press beside it or the key again closes it. After the app's groups it lists herdr-fold's own commands in a group
-  of its name, found and ranked with the rest: Settings…, the views (Files, Search, Changes, Issues, Chats), New chat,
-  Styleguide, Mark agent unread, Commit and push and Write commit message, each with its key where it has one
-  (`herdr-fold.files` is new: it shows Files).
+  mouse offers Restore files to here; in the TUI a Claude chat's Checkpoints… in Chats (or →). Claude says first which
+  files would change and what stays; the restore is Claude's own `--rewind-files`, and one Undo puts the files back.
+  See [Checkpoints](docs/usage.md#checkpoints).
+- The TUI sidebar folds to a rail of icons by » or Cmd + Option + B, in every tab, the tab's terminal moved under the
+  agent and raised or lowered by the rail's Terminal; a press on an icon or a view's key opens it again on that view.
+- The TUI sidebar's More lists its views, each checked while shown: one unchecked leaves the row in every tab.
+- Pull requests, in both clients: the branch's own under Changes' repository row (its checks and state), or Create
+  pull request…, its title and body written by Claude or Codex from the branch's commits, Draft by default; the
+  repository's Pull requests beside Issues, `your review` in yellow where one waits on you. In the Herdr app a review
+  in the preview tab: comments on a line, Reply, Resolve, Comment, Approve or Request changes; the TUI shows it read
+  only. See [Pull requests](docs/usage.md#pull-requests).
+- An issue handed to the agent with none in the tab starts one, in both clients: the agent started last, with the
+  issue's prompt (in the app, as + starts it: a chat or a terminal).
+- Delete… for a closed chat in Chats, in both clients: asked first by the chat's name, then the chat's file goes to the
+  system's Trash, its archive mark and name dropped; Archive stays the everyday way. See
+  [A chat you delete](SECURITY.md#a-chat-you-delete).
+- herdr-fold's own Settings in both clients, More's Settings… in the TUI (herdr's popup) and one window in the app
+  (the sidebar's Settings, Cmd + ,): General (the TUI's icons; the app's Open agents in), Notifications (An agent waits
+  on you, on or off) and About (the version and license, the update check and its switch, What's new, Third-party
+  notices). The app's Application sections open the app's own Settings there.
+- The Agent panel, in both clients (the app's dock tab, the TUI sidebar's Agent view, `5`): what the agent starts with
+  in the folder, its model, effort and start-up context, then Usage, Subagents, Rules, Skills, Permissions (the mode or
+  approval, the sandbox, the rules, the conflicts, every hook) and Connectors, a failed server or one to sign in to
+  first; a row's properties with Open, Show in graph and Retry; the head's list switches between the agents on the Mac,
+  says one to sign in and shows how one not installed installs. Its tab or icon carries a dot while the setup has a
+  problem. See [The agent's harness](docs/harness.md).
+- Changing an agent's setup from the Agent panel, in both clients: the mode, the model and effort, the sandbox and its
+  hosts, Codex's approval, a permission rule added, changed, moved or removed, a conflict solved, a skill, a subagent,
+  a connector or every hook off or on for the folder, a project's server approved. A form shows the layer it saves in,
+  the line it writes and when it applies before anything is written; a save writes one key of the agent's own settings
+  file, never your organization's, with Undo after. See [Changing the setup](docs/harness.md#changing-the-setup).
+- Connectors managed from the Agent panel, each change the agent's own command and no token kept: Connect signs in
+  through your browser, Sign out, a connector added from claude.ai or by its address, and each one off or on for the
+  folder. A known service's connector wears its maker's name and logo.
+- Media connectors: image, voice and video services (fal, ElevenLabs, FLUX, Runway, Higgsfield, Luma, Cartesia,
+  Meshy), each saying what it makes and its calls today, as they bill in credits; the hosted ones offered by name in the
+  add form, signed in to in the browser, never a key. What a chat made shows in the preview tab with the model, the
+  prompt, the skill and the calls under it, audio and video too; Ask for another asks that chat. See
+  [Media services](docs/harness.md#media-services).
+- Usage in the Agent panel, its first section: an agent a row, a plan's 5-hour and weekly limits as bars in the status
+  line's colors, or an API key's month against its budget, the agent shown first; folded, one figure.
+- The TUI's keys in the Herdr app's herdr-fold layout: moving (Cmd + 1…9, Cmd + ↓ / ↑, Cmd + T / R, Cmd + D / E,
+  Ctrl + B, then 1…9 or w) and the TUI's commands (a new space in a folder, Add machine…, the dock hidden or shown,
+  Restore panels, a file the terminal's output names, the color themes). See [Keys](docs/keybindings.md#the-herdr-app).
+- Editing files. In the Herdr app a text file opens in a tab of its own in the app's editor: Cmd + S saves in place,
+  Cmd + F finds, a draft is kept so closing asks nothing, and a bar offers Reload or Keep mine when the disk changed. In
+  the TUI it opens in your own editor (`$VISUAL`, `$EDITOR`, else micro, which the installer brings) in a tab of its
+  own, the Cmd keys the editor's own there; `e` edits a drawn page or SVG. See
+  [Editing files](docs/usage.md#editing-files).
+- The preview draws every picture macOS reads (HEIC, AVIF, PSD, EXR, a camera's raw file…), one no browser shows
+  opening in Preview; an SVG's or a page's code above its picture where the room is taller than wide, or as chosen; the
+  TUI's status row starts with Code, Split and Picture, as the app's buttons.
+- A changed picture in Changes shows as an image diff in both clients: before and after side by side, each under its
+  name and size.
+- An agent's graph: the Herdr app's Agents tab draws what goes in, the agent with its subagents and what they use, each
+  edge with its gates (`allow pytest`, `deny git push`); the TUI writes it as a tree in the preview tab (`g`). This chat
+  shows what one chat ran, numbered in order, with each agent's cost. See [The graph](docs/harness.md#the-graph).
+- The Usage view: what the agents used and what that cost, each message at its model's list price (fetched once a
+  day under the update check's switch): the period, a summary, each day by model, an API key's month against its
+  budget, the projects, chats and models; Budget… and, in the app, Export CSV. The app's Agents tab has it; the TUI
+  opens it over the tab (`U`). See [The Usage view](docs/harness.md#the-usage-view).
+- Runs, the Agents tab's third view (the TUI: `r` in the Agent view): Claude's background sessions and Codex's
+  `codex exec` runs and cloud tasks, each with what it made and its cost; Attach, Stop, Open as chat, Run again, Show
+  diff and Apply, each the agent's own command; New run starts one. The app's status bar says `1 run working`. See
+  [The Runs view](docs/harness.md#the-runs-view).
+- One tilde before every dollar figure herdr-fold computes (`~$18.40`, `~$130.90 API value`): an estimate at list
+  prices, on a plan what that use would cost on the API; a budget you set wears none.
+- The session's cost in Claude's status line, one more item to choose (off until chosen): `~$4.12`, Claude's own count.
+- herdr-fold Mono, both clients' monospace font: JetBrains Mono with Nerd Fonts' icons, its line 10% taller, and the
+  symbols Claude Code, Codex, herdr and starship print that it lacked. The TUI's installer puts it in
+  `~/Library/Fonts`; the Herdr app loads it from the mod. See [The font](docs/installation.md#the-font).
+- Every popup herdr-fold opens in the TUI (Settings, closing a tab, the folder and theme pickers, Cmd + Shift + L's
+  files) has a close button at its top right, its tip `Close (Esc)`.
 
 ### Changed
 
-- The TUI's Add machine opens its own window, framed as Settings: its close button, Esc or Ctrl+C end it at any
-  question
-- The installer no longer lists Tailscale as missing: it is one way to a machine, any SSH reaches one
-- The app's model chip names the model a chat on Default runs, and its level, never the word Default, as VS Code's
-  Claude does
-- Hidden files show in Files by default, in both clients and every folder; `.` (the TUI) or the toolbar's
-  eye (the app) hides them, kept for the next start.
-- One wording in both clients: a folder's right click in Files says New space, and Add machine… ends in … where it
-  opens a window (the Herdr app's sidebar foot, the TUI's key list).
-- The terminal's prompt no longer names the repository, which the space already shows: at a repository's top
-  the branch, its status and the ❯ alone, one line; in a folder below it the path inside it (`/src`) above them;
-  outside a repository the path, as before.
-- Chats, in both clients: no space dot, no tree lines and no empty space; the agent and the age as two muted
-  columns; `Filter chats` in its field; `Archived "Login redirect fix"` under the list; More keeps the list open and
-  lists `Show archived`. In the TUI, grey text on a chosen or hovered row is a shade that reads there (`muted_row`
-  in every theme), and an error says what failed, the file in its tip.
-
-- A theme switched, the dock folded or opened, and what another tab's sidebar or Settings chose (the views shown,
-  the icons) reach every tab's TUI sidebar within a second, an idle one too: one look a second at the three files'
-  stamps, a file read only once its stamp changed. An idle tab took them at its poll before, up to ten seconds
-  later.
-- The Herdr app mod's styleguide page (`herdr-fold.styleguide`) lists its parts in an index at its side and draws the
-  one picked, where it drew every part down one page: the app stops a render that long, and the page came up
-  "interrupted" after a restart or a zoom.
-- The TUI sidebar shows one view at a time, the whole height, under a row of buttons at its top, from where a chosen
-  row's highlight starts, a cell between two, each its name in the very middle (9 cells for an odd one, 10 for an even
-  one), its icon over the name's middle, a blank row above and below: Files, Search, Changes, Issues, Agent, Chats,
-  More. The chosen button's icon and name are in the accent, its name bold; Changes, Agent and Chats have a dot beside
-  their icons while there is something to count, the number in the button's tip (1.2k from a thousand, 1.3m from a
-  million), so nothing moves when it comes or goes. The button under the mouse stands whole on the hover background a
-  list's row has, half a row of it above and below, as a menu's line does. A click, `1` to `5` or F9 to F12 (Files to
-  Issues) shows a view, and each folder keeps the one it shows. Without a Nerd Font the icons are plain marks (▤ ⌕ ⎇ # ◇
-  ✦ ⋯). The right column first opens as wide as the names need (80 cells; once again after this update, whatever an
-  earlier version kept) and keeps the width dragged, in cells, in every tab and window and after herdr restarts;
-  narrower than the names need (69 cells without Issues) the row shows its icons alone, each on the middle of five
-  cells, a dot or not, and named in its tip, and the column is never narrower than them (49 cells, 43 without Issues). A
-  chosen row's highlight runs from edge to edge; everything else (rows' content, », fields, menus, the line at the foot,
-  the rail's icons) keeps a cell in from each side. The icon-only view tabs and the shown view's title beside them are
-  gone.
-- The Herdr app's right panel is one card, its top level with the tab's beside it, with its views' text tabs on top, 8
-  px over and under them and 6 at the sides (the first tab's name over the views' words) and a hairline under them, as a
-  design tool's panel tabs: Files, Search, Changes, Issues (a repository on GitHub), each as wide as its name, the shown
-  one on a raised pill; under them the view chosen, and the tab's terminal at its foot on a card of its own. Changes'
-  count follows its name in a small round accent badge, whichever view shows; narrower, the last tabs leave, never the
-  shown one. Each space keeps its view, a new one starting on Files. Chats, More and » stand at the tab bar's right end,
-  over the dock, open or folded: Chats (its dot while chats wait on you, their number in its tip) opens the list in the
-  view's place, its filter taking the keys, no tab shown, and Chats again, Esc or a tab brings the view back; it lists
-  every chat of this Mac, one in a folder with no space open under that folder's name, and has left the left sidebar.
-  More shows or hides each view by its `✓` and has About herdr-fold; » folds
-  the dock to its rail of the views and the terminal (« in the same place opens it again; Chats then floats its list
-  beside the rail), and the tab's terminal then stands under the tab as VS Code's panel, the centre's width, as high as
-  last dragged, the rail's Terminal showing and hiding it, lit while it shows; it no longer floats in a window of its
-  own. The left sidebar is on the panels' own surface, the frame and the gaps darker. Cmd + Shift + G and Cmd + Shift +
-  I show Changes and Issues, Cmd + Shift + F Search, the dock opened; an update drops the app's state of the old panel,
-  its groups and its row's own block, keeping its width.
-- The Herdr app's status bar is herdr-fold's own, as the mockups draw it: the shown space's machine and branch, then
-  its agents in words, those waiting on you first (`1 of 3 agents waiting for you`, a yellow dot), else those working,
-  else how many (`1 agent`; the app's said `1 agents`). While Herdr or herdr-core has an update ready, a green dot and
-  `Update ready: herdr-core 0.1.21` stand at its end, a press updating herdr-core while the terminals keep running, or
-  restarting into Herdr's own; it is the layout's one sign of it, the folded sidebar's Settings losing its dot. With
-  neither ready, a newer herdr-fold stands there the same way. The palette's `commands` hint has left it for the title
-  row's field.
-- The sidebar plugin is named "Sidebar" on herdr's marketplace card.
-- Conversations is Chats in both clients, its saved state and its actions too: the sidebar keeps `chats.json` and
-  `chat-index.json`; herdr's action `herdr-fold.sidebar.find-conversation` is `herdr-fold.sidebar.find-chat`. The
-  installer rewrites its own key bindings; one made by hand to an old id has to name the new one.
-- The TUI's chat column, its rail and its own pane are gone, and so is a tab's third column: the list opens
-over the sidebar, on the views' own background, from Chats, after Issues in the row, under the AI sparkle and a
-dot beside it while chats wait for an answer. The keys go to the list while it is open; its lit button, Esc, a click
-outside it or another pane closes it. Cmd + Shift + R opens it in the tab's sidebar, its filter empty; Cmd + Shift + H,
-which collapsed the column, is gone with it.
-- Tab Layout (`herdr-fold.tab-layout`) is gone, its work split between two plugins: the sidebar lays out every new
-  empty tab (its shell on the left, the sidebar above a terminal on the right, as wide as in every other tab) and
-  comes back in every tab when herdr starts; Spaces (`herdr-fold.spaces 0.4.0`) keeps the rest: the **new**
-  button's folder picker, a space's name following its folder and its deleted mark, the question before a tab
-  with a chat closes, and herdr-fold's agents started again after a restart. Without Spaces, herdr's own
-  **new** button works as herdr's, and every new tab still gets the sidebar. herdr's marketplace card lists Spaces
-  in Tab Layout's place, and in that of Workspaces (`herdr-fold.workspaces`), its name on GitHub's main before this
-  release. herdr's own commands call a space a workspace (`herdr workspace list`).
-- The installer asks `Let a new space ask for its folder, and herdr-fold's agents start again after a restart?` in
-  place of `Give every new tab the sidebar and a terminal?`: the sidebar does that now. A remote machine gets the
-  sidebar, AI Sessions and Spaces linked.
-- The TUI folds with one chevron everywhere: the chats' spaces and the issues' filter as the file tree and the
-  sections, and without a Nerd Font a plain chevron (› ⌄) for each.
-- A fold turns its chevron as it opens or shuts: the Herdr app springs its section open with no overshoot and crosses
-  its two chevrons on the same spring (sections, Graph, the chats' spaces, the chat's rows and cards); the TUI
-  turns it through a frame at 45° (the file tree, the sections, the chats' spaces, the folder picker).
-- The Herdr app's two side docks as one, as Adobe's: a panel floating beside a rail opens beside it every time (the one
-  before closed first) and closes on a press beside it too, a press in a menu it opened being its own; Cmd + B in
-  herdr-fold's layout folds and opens the left sidebar as its toggle does, and the sidebar is never hidden; its toggle
-  sits in its head, centred over its rail when folded, as the right dock's « over its own, and both say Collapse to
-  icons and Expand panels; both rails stand on the side's level, their first icons level. Another icon on the rail,
-  Terminal, «, More or ✦ closes a floating panel and does its own at once, and » or More closes the Chats list in the
-  dock as it acts, as Adobe switches its panels; Esc in a float goes to its view first while that is editing (a search,
-  a commit message, a name, an open list; the Chats filter's words cleared first), the next closes it; a float opens at
-  the height last dragged for its panel, Spaces' too, which now has the grip; Cmd + Option + B folds and opens the right
-  dock, Cmd + B's twin. A float's icon is lit while it floats, and the float takes the keys as it opens (Esc reached
-  the terminal under it before); Spaces' float closes once the sidebar opens and is as tall as its rows; a view's
-  float stands 8 px beside the rail and under the tab bar, as tall as the rail at most.
-- The TUI's Spaces list stands a branch always under the name it belongs to, in gray, and a space with no branch is
-  one line; the wait (`waiting 12m`) sits beside the space's name, where it followed the branch. herdr-fold's theme
-  rows: the name with the wait, then herdr's branch and git status or the repository's name in the text color, then
-  that repository's branch in a gray still legible on the active row.
-- A root's space is named by a word in both clients, as home's is: `root` for `/`, the drive for a Windows drive's
-  root (`C:` for `C:\`), where herdr and the Herdr app name it by its path. In the TUI, Spaces renames one still
-  named so, with its main tab, at the next pane you focus and when herdr starts (on a Windows machine only then), and
-  a space herdr names `~` becomes `home` at the next pane you focus too; a name given by hand stays, and the folder
-  picker names a new one so. In the Herdr app its avatar is home's kind: a glyph tile in home's color, `/` or the
-  drive's letter.
-- The theme preview (`src/themes/preview.html`, the installer's and the picker's page) sketches each theme's window
-  as the TUI draws it now, in its proportions: Spaces without numbers, a space's wait beside its name and its branch
-  under it, then the agents and sessions; a tab without a number; Claude's pane in the accent frame with its diff and
-  status line; the sidebar's row of views, icon over name with » at its end, on Changes with a commit message and the
-  Commit button, its chevrons the sidebar's own, over the terminal; herdr's frames as quiet as the theme setter makes
-  them. The old icon boxes, the file tree and the Commit bar are gone.
+- Tab Layout (`herdr-fold.tab-layout`) is gone, its work split: the sidebar lays out every new empty tab and comes back
+  in every tab when herdr starts, and Spaces (`herdr-fold.spaces`) keeps the rest (the **new** button's folder picker,
+  a space following its folder, the question before a tab with a chat closes, the agents started again after a
+  restart). The installer asks `Let a new space ask for its folder, and herdr-fold's agents start again after a
+  restart?` in place of its old question, and a remote machine gets the three plugins linked.
+- Conversations is Chats in both clients, its saved state and its actions too: herdr's action
+  `herdr-fold.sidebar.find-conversation` is `herdr-fold.sidebar.find-chat` (a key bound by hand to the old id has to
+  name the new one).
+- The TUI's Chats list opens over the sidebar from Chats, after Issues in the row, a dot beside it while a chat waits
+  on you; the chat column, its rail and a tab's third column are gone.
+- The TUI sidebar shows one view at a time under a row of buttons, each its icon over its name (the icons alone when
+  narrow); the right column keeps one width, in cells, in every tab and window and after a restart.
+- The TUI's Spaces list stands a space's branch under its name, its wait (`waiting 12m`) beside the name.
+- A root's space is named by a word in both clients, as home's is: `root`, or the drive (`C:`).
+- The terminal's prompt no longer names the repository, which the space already shows: at its top the branch, its
+  status and the ❯ alone; below it the path inside it above them.
+- The theme preview sketches each theme's window as the TUI draws it now.
+- Chats look alike in both clients: no space dot or tree lines, the agent and the age as two muted columns, `Filter
+  chats`, `Archived "Login redirect fix"` under the list.
+- A fold turns its chevron as it opens or shuts, one chevron everywhere in the TUI.
+- A theme, the dock folded or opened, and a setting changed in another tab reach every TUI sidebar within a second.
+- The Herdr app's right panel is one card with its views' text tabs on top (Files, Search, Changes, Issues, Agent),
+  Changes' count in a badge; Chats, More and » stand at the tab bar's end, Chats opening its list in the view's place
+  (it left the left sidebar); folded, the tab's terminal stands under the tab.
+- The Herdr app's two side docks work as one: a panel floats beside its rail every time and closes on a press beside
+  it; Cmd + B folds the left sidebar, which is never hidden; Esc in a float goes to its view first.
+- The Herdr app draws its surfaces as the TUI does: every card (the chat, the dock, the preview, the terminal) on the
+  terminals' background, the window, its bars and the left sidebar in herdr's sidebar color, one color in most themes,
+  the cards parted by their border; the popovers a step lighter, so they float. See
+  [Color](docs/styleguide.md#color).
+- The Herdr app's status bar is herdr-fold's own: the machine and branch, the agents in words (`1 of 3 agents waiting
+  for you`), and the one update there is (Herdr's, herdr-core's or a newer herdr-fold).
+- Hidden files show in Files by default, in both clients.
+- One wording in both clients: a folder's right click says New space, and Add machine… ends in … where it opens a
+  window.
+- The TUI's Add machine opens its own window, Add a machine, framed as Settings: its close button, Esc or Ctrl + C end
+  it at any question.
+- The installer no longer lists Tailscale as missing: it is one way to a machine, any SSH reaches one.
+- The installer keeps no copy of herdr-fold's own earlier files, which the package has; what is yours stays saved as
+  before, on a remote machine too.
+- The Herdr app's styleguide lists its parts in an index at its side and draws the one picked.
+- The sidebar plugin is named "Sidebar" on herdr's marketplace card, and Spaces stands in Tab Layout's place there.
 
 ### Removed
 
-- The installer no longer installs JetBrainsMono Nerd Font with Homebrew, nor Ghostty's `adjust-cell-height`: herdr-fold
-  Mono carries both. One installed before stays, and is no longer named by the uninstaller.
-- The TUI sidebar's last row no longer says a newer version, and no "is out" notification comes: More's dot and About
-  herdr-fold say it. More's version line and Check for Updates went into About.
-- The Herdr app's "herdr-fold X is out" toast, and More's version and Check for Updates lines, are gone: the status
-  bar's item and Settings' About say it.
+- The installer no longer installs JetBrainsMono Nerd Font nor sets Ghostty's `adjust-cell-height`: herdr-fold Mono
+  carries both. One installed before stays.
+- The update notices on the TUI sidebar's last row and in a toast, and More's version line and Check for Updates, in
+  both clients: More's dot, the app's status bar and Settings' About say it now.
+- Cmd + Shift + H, which collapsed the TUI's chat column.
 
 ### Fixed
 
-- OpenCode's Agent panel never runs it in a project: a project's config, which can load its plugins, is read as text
-- A New space or Add machine left before it is done no longer leaves an empty "new" space in the list
-- Shift + Enter sent Claude Code's message instead of starting a new line, in some of the TUI's panes (an agent that
-  had not asked the terminal for the extended keys, as one herdr restored) and in the Herdr app's terminals. Both
-  now send it as Option + Enter (ESC CR): Ghostty's config in every pane, herdr-fold's keys in the app in every
-  layout.
-- In the Herdr app, the terminal at the dock's foot could not be made taller or lower: the boundary between the
-  dock's views and its terminal now drags, as the TUI's does.
-- The 5-hour and weekly limits differed a little from space to space, in the status lines, the Herdr app's
-  notice above the prompt and Usage: each chat knew them as of its own last answer, and an idle chat could put an
-  older reading back, or a chat's second weekly limit took the weekly's place. The windows are now Claude's own (its
-  `/usage` reading, which it refreshes now and then), each at the highest use it or any chat told since (use only
-  grows in a window), everywhere, through `core/usage.py` alone.
-- The TUI's right column jumped twice whenever herdr's own sidebar folded or opened, or the window changed its
-  width: herdr keeps a split's share, so the column first took the new width for a fifth of a second before it
-  went back to its cells. With its share unchanged it now goes back at once; only a drag waits to be let go.
-- Chats listed one chat as many rows of one name, in both clients. Two causes, neither a compacted chat's parts
-  (Claude Code 2.1 compacts and resumes a chat in its own file, under its id; Codex's user chats likewise): a project
-  folder linked to another's in `~/.claude/projects` listed each of its chats twice, and every run a program made
-  through Claude's Agent SDK (a hook's review of each change, titled after the chat it reviewed) was a row. A file is
-  now listed once, by its real folder, and the Agent SDK's runs (`sdk-py`, `sdk-ts`) are not chats, as the agents'
-  helpers never were; `claude -p`'s still are. A running agent herdr knows no session of is so matched to its
-  folder's newest chat, not to a review newer than it. Copy chat no longer repeats a compacted chat: the summary
-  Claude wrote in the user's place and the messages it kept and wrote again under their ids are left out. The chat
-  index is read anew once (version 3); archived chats and names are kept as they were.
-- The home folder left Spaces once its last tab was closed: the Herdr app ends a space with its last tab, and so
-  does herdr. Each machine's home is now always a row in Spaces, in both clients. In the Herdr app's herdr-fold
-  layout `~` is the first row of its machine's spaces (this computer's and each connected machine's), and with no
-  space there it stays as a row with nothing open (its avatar an outline, its name dim), a click opening a terminal
-  there; the floating list of the folded sidebar shows it too. In the TUI the Spaces plugin makes the `home`
-  space again as soon as none is left, behind the one in front, and keeps it the first row of Spaces: made again,
-  or below another space after one is made or moved, it goes back to the top (herdr's socket request
-  `workspace.move`, which its command line has not). Any other space closed is gone in the Herdr app, as before.
-- In the TUI a space left Spaces when its only tab was closed with herdr's own close (its tab's menu or key,
-  `herdr tab close`): herdr ends a space with its last tab. The Spaces plugin now makes it again at once, in
-  its place in the list, with its name, its folder and a new shell, and in front again when it was. herdr tells the
-  two apart: a last tab's close sends the space's close and the tab's (`tab.closed`, a new event in the plugin's
-  manifest), a space closed on purpose (its row's menu, the close-workspace key, `herdr workspace close`) the
-  first alone, and that one stays closed, as does one whose folder is gone or whose last pane was moved elsewhere.
-- The Herdr app's reader of what an agent starts with fits in one command-line argument on a Linux machine (132 KB,
-  over Linux's 128 KB for one, now 61 KB): it no longer carries whole modules for a few lines of theirs, finding a
-  program, a repository's top and reading the agents' files coming from two small ones of their own. Every reader the
-  app runs is checked to stay under 120 KB.
-- The Herdr app's captions read 4.5:1 on a control's fill in every theme, as on each level: the model chip's effort
-  read 4.2:1 in One Dark and 4.1:1 in Solarized. Its styleguide opens in a tab named Styleguide (it said Terminal), and
-  the / menu's specimen stands over its prompt (it opened anywhere over the page).
-- The Herdr app's window, its sides and its cards part in every theme, as the mockups draw them: the window behind the
-  cards the theme's darkest level, the left sidebar, the bars, the prompt and your messages the next, the chat, the dock
-  and the popovers the cards' level, each from the theme's own palette (Catppuccin's crust, mantle and base; GitHub's
-  canvas.inset, default and overlay; Nord's nord0 and nord1 with a step between) and at least 1.05:1 apart, where nine
-  of the thirteen themes had one color for all three; the terminals keep the TUI theme's own background. A count's
-  number on the accent and the words under the pointer read 4.5:1 at least in every theme (VS Code's and Solarized's did
-  not), and the sources' tags (Global, Project, a plugin's, claude.ai, Local) each take a color of their own in every
-  theme (Global and Project were one in Nord). A list's rows stand as far in on the right as on the left.
-- The Herdr app's Issues, Chats and Changes no longer jump: an Issues refresh keeps the list where it is, its Refresh
-  button (new, beside Open and Closed) a spinner meanwhile; the first load, a failure or none found is said where the
-  first row will be; what was done or went wrong (`Closed #42`, `Archived`) stands under the list, as the TUI's last
-  row, a done thing for four seconds. Changes keeps its list and Graph where they are: a failure is said over the card's
-  foot until the next action or its ×, the push Cmd + Shift + C offers in the empty message field, the issue the next
-  commit fixes as a chip at its end; while a commit, sync, pull or push runs, ↻ is a spinner naming the step and Commit
-  keeps its words, and with words in the field ✦'s tip says who writes the message.
-- The TUI's terminal, moved or resized by the sidebar (folded under the agent, raised, lowered, back in the column),
-  draws a bare shell's prompt again from its top (Ctrl+L, once); a running program is left alone. On the rail a tip
-  stands centred under its icon.
-- The TUI's right column kept its width only until the window changed: herdr keeps each split's share, so a window
-  made narrower and wider again left every tab's column at another width (99 and 87 cells where 85 were chosen) and
-  that one remembered. A window resized now sets each tab's column back to the width chosen, in cells, remembering
-  nothing; narrower only while the window leaves the agent less than 30 % of the tab, so the dock no longer opens over
-  most of a small window. A column dragged past that stayed so in its tab only, forgotten at the next fold or restart:
-  it now comes back to it, kept and set in every tab, as a drag under the row's least comes back to that. A tab that
-  needs a wider row (Issues there) no longer hands its least back to the others as their width. On the rail a new
-  tab's terminal, or one brought back, stands as low (or as raised) as every other tab's, not at half the height.
-  Cmd + Shift + E in a tab without an agent (a shell, herdr's +) zoomed the sidebar when the column was the wider
-  pane; it hides the column there too. A rail icon's tip no longer ends a line with the dot before its count.
-- The TUI's Changes list no longer jumps: a commit, sync, pull or push running spins in the sync glyph's place, its
-  tip naming the step (the glyph no longer turns the accent); a failure such as an empty message stands on the
-  sidebar's last row until a key; who writes the message, once the field has text, is ✦'s tip. None of them adds a
-  row under the button any more.
-- The TUI's Issues list no longer jumps: a refresh (`R`, or the new refresh button at the right of Open and Closed)
-  keeps the list where it is, the button a spinner meanwhile, its tip `Loading issues…`; the first load, a failure or
-  none found is said on the first issue's row.
-- The installer keeps no copy of herdr-fold's own earlier files, which the package has: what is yours stays saved as
-  before (your files as they were before the first install, an installed file you changed). A file a run leaves in
-  place keeps the sum it had, so an edit in it is never taken for herdr-fold's own and is still saved before a later
-  run replaces it. A remote machine alike: a
-  file changed there since it was prepared is kept in `prepared-changed-<date>/`, and its own Claude status line in
-  `prepared-original/` with its own files.
-- An update while the Herdr app runs closes it for that moment and opens it again behind the installer, its
-  terminals running on: the app loads the new mod at once, and nothing an earlier version left in it stays (its state
-  of the layout, the mod's shared values). Before, it kept drawing the earlier version until it was quit by hand.
-- The TUI's Changes no longer misses a change made just after its last git status (`git init`, a quick edit): it
-  showed only on the slow beat, 5 to 15 seconds later.
-- Changes made at the same moment are all kept: a chat archived while the TUI sidebar reads its list, a
-  reopened one's mark, the right column's width as it is dragged, and a setting changed in two places (two tabs'
-  sidebars, or a sidebar and the Herdr app linking an issue or switching the update check).
+- A New space or Add machine left before it is done no longer leaves an empty "new" space in the list.
+- Shift + Enter starts a new line in Claude Code in every pane of the TUI and every terminal of the Herdr app; it sent
+  the message where the agent had not asked the terminal for the extended keys.
+- In the Herdr app, the terminal at the dock's foot can be made taller or lower: the boundary drags, as the TUI's.
+- The 5-hour and weekly limits are the same in every space, status line and notice: an idle chat no longer puts an
+  older reading back, and a chat's second weekly limit no longer takes the weekly's place.
+- The TUI's right column keeps the width chosen when the window changes, and no longer jumps when herdr's own sidebar
+  folds or opens; a column dragged past the least it can be comes back to it in every tab.
+- Chats no longer lists one chat as many rows: a project folder linked to another's listed its chats twice, and a
+  program's runs through Claude's Agent SDK were rows. Copy chat no longer repeats a compacted chat.
+- The home folder stays the first row of Spaces in both clients, though its last tab is closed.
+- In the TUI, a space whose only tab is closed with herdr's own close is made again in its place; one closed on purpose
+  stays closed.
+- Issues, Chats and Changes no longer jump, in both clients: a refresh keeps the list where it is, a spinner in its
+  button's place, and what was done or went wrong stands under the list.
+- The TUI's terminal, moved or resized by the sidebar, draws a bare shell's prompt again from its top.
+- An update while the Herdr app runs closes it for that moment and opens it again on the new mod, your terminals
+  running on; before, it drew the earlier version until it was quit.
+- The TUI's Changes no longer misses a change made just after its last look.
+- Changes made at the same moment are all kept: a chat archived while the list is read, a width dragged, a setting
+  changed in two tabs or in the TUI and the app.
 - A second Enter or click on a closed chat while it reopens no longer opens it in a second tab.
-- The TUI preview's key hints in a narrow pane: each left out whole, the last first, never cut (`c: co`).
-- Claude's status line writes the weekly reset as the machine writes hours (`Monday 13:00` on a Mac set to 24 hours),
-  not always with am and pm.
-- The license and the notices of what herdr-fold builds on (its icons' among them) go with every install: herdr-fold's
-  folder on each machine, and the Herdr app's mod, which also names its author.
-- The Herdr app's themes give a control its own fill, frame and hover, so every button, stepper and field in the
-  panels and in the app's Settings looks alike and answers the mouse; GitHub Dark's buttons show on their panel, and
-  a field's frame is no longer white.
-- A menu opens above its button, or above the row clicked, where it does not fit under it, in both clients: the
-  chat bar's model, mode and command menus, and a right click near a pane's foot.
-- Ghostty's app icon in the theme's colors is a PNG, a format Ghostty documents (it was an SVG), and the theme's line
-  warns, with what Ghostty reads, where Ghostty's own config (`ghostty +show-config`) does not take it.
-- The TUI sidebar's last row says what herdr refused in herdr's own sentence (`A popup pane is already open`), not
-  its JSON answer.
-- The Herdr app's chat showed messages twice: Claude writes lines again into a chat's file under the ids they had
-  (the messages a compaction keeps, a chat taken up in another folder), and each was drawn anew. A line is now a step
-  once, and an older line written again no longer brings back its day's model, mode or servers to sign in to.
-- The Herdr app's Agents tab cut its graph's Uses column at the canvas's right edge with the sidebar and the panel
-  open: the columns kept 96 px apart however narrow the canvas, so a graph with rules needed 870 px where the canvas
-  had 781, and the rest scrolled out of sight with no bar to tell. A narrower canvas now brings the columns nearer
-  first, down to 48 px and the room the gates on the edges need; only a canvas narrower than that scrolls, and it
-  shows a scroll bar then, as the Usage view's wide tables now do.
-- The Herdr app's sides dragged and let go settle as the TUI sidebar does: narrower than 160 px, either side is its
-  rail at the rail's own width (the left one stayed as wide as dragged); a rail dragged more than 24 px wider opens as
-  its toggle does, as wide as it was (the right rail snapped back while dragged and opened only past 160 px, that
-  narrow), a smaller nudge leaving the rail; the width an open side is let go at is the one its toggle opens it to.
+- The TUI preview's key hints in a narrow pane are left out whole, never cut.
+- Claude's status line writes the weekly reset as the machine writes hours (`Monday 13:00` on a Mac set to 24 hours).
+- The license and the notices of what herdr-fold builds on go with every install: each machine's folder and the Herdr
+  app's mod.
+- The Herdr app's themes: a control has its own fill, frame and hover; captions, counts and the words under the pointer
+  read 4.5:1 at least; each source's tag has a color of its own. The styleguide opens in a tab named Styleguide.
+- A menu opens above its button, or the row clicked, where it does not fit under it, in both clients.
+- Ghostty's app icon in the theme's colors is a PNG, a format Ghostty documents, and the theme's line warns where
+  Ghostty's own config does not take it.
+- The TUI sidebar's last row says what herdr refused in herdr's own sentence, not its JSON answer.
+- The Herdr app's sides, dragged and let go, settle as the TUI sidebar does: under 160 px a side is its rail, and a rail
+  dragged more than 24 px wider opens as wide as it was.
 
 ## [0.3.0] - 2026-11-08
 

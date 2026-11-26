@@ -43,6 +43,8 @@ GAP = Gap()
 
 
 class Scm:
+    ROOMY = 12          # rows of view its message and Commit stay tall in, as VS Code's box: the list gives way first
+
     def __init__(self, mode="commit", icons=True, folded=()):
         self.mode = mode if mode in MODES else "commit"
         self.icons = icons

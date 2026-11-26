@@ -22,9 +22,9 @@
     "#bac2de"
   ],
   "colors": {
-    "canvas": "#11111b",
+    "canvas": "#181825",
     "chrome": "#181825",
-    "surface": "#1e1e2e",
+    "surface": "#11111b",
     "popover": "#1e1e2e",
     "selected": "#4a4060",
     "foreground": "#cdd6f4",
@@ -34,7 +34,7 @@
     "dim": "#6c7086",
     "raised": "#313244",
     "hover": "#414256",
-    "border": "#282839",
+    "border": "#212230",
     "input": "#505367",
     "blocked": "#f38ba8",
     "done": "#94e2d5",

@@ -200,11 +200,11 @@ export const safeMarkdown = (markdown) => markdown.replace(/!\[/g, "!⁠[").repl
 export const priorityColor = (t, level) => (level === null || level === undefined ? t.accent
   : [t.ansi1, t.ansi1, t.ansi3, t.ansi2][level]);
 
-/** The focused TAB's own Claude or Codex, to hand an issue to: one in a pane among AGENTS (the app's agents()), else a
- * chat tab's agent among TERMINALS (the app's); or null. @param {{ tab: string, program?: { key: string } }[]} agents
+/** The focused TAB's own Claude, Codex or OpenCode to hand an issue to: one in a pane among AGENTS (agents()), else a
+ * chat tab's agent among TERMINALS; or null. @param {{ tab: string, program?: { key: string } }[]} agents
  * @param {string | undefined} tab @param {any[]} [terminals] @returns {any} */
 export const issueAgent = (agents, tab, terminals = []) =>
-  agents.find((a) => a.tab === tab && ["claude", "codex"].includes(a.program?.key ?? ""))
+  agents.find((a) => a.tab === tab && ["claude", "codex", "opencode"].includes(a.program?.key ?? ""))
   ?? (tab ? terminals.filter((c) => c.state === "live" && c.labels?.[CHAT_TAB] === tab)
     .map((c) => ({ ...c, chat: true }))[0] : null) ?? null;
 

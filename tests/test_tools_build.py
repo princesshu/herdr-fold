@@ -253,23 +253,26 @@ class AppTheme(unittest.TestCase):
                 for level in ("canvas", "chrome"):
                     self.assertRegex(given[level] or "#000000", r"^#[0-9a-f]{6}$")
         made = {theme["id"]: self.made(f"herdr-fold-{theme['id']}.json")["colors"] for theme in self.themes}
-        for name, given in build.LEVELS.items():
-            for level in ("canvas", "chrome", "surface"):
-                if given[level]:
-                    self.assertEqual(made[name][level], given[level], (name, level))
+        for name, given in build.LEVELS.items():         # the lightest lifts the popovers where it parts from the cards
+            if self.apply.contrast(given["surface"], made[name]["surface"]) >= build.MIN_STEP:
+                self.assertEqual(made[name]["popover"], given["surface"], name)
 
-    def test_every_themes_three_levels_darkest_first_parted_by_the_minimum_step(self):
-        # the window (canvas), the side (chrome), the cards (surface) and the popovers as the cards
+    def test_every_app_theme_draws_as_the_tui_its_popovers_lifted(self):
+        # the cards (surface) on the terminals' background, the window and the side (canvas, chrome) in herdr's sidebar
+        # color, as the TUI draws its panes and its frame; a popover a step lighter than the cards, so it floats
         themes = self.every_app_theme()
         self.assertEqual(len(themes), 13)
+        tui = {theme["id"]: theme for theme in self.themes}
         for name, colors in themes.items():
+            theme = tui.get(name.removeprefix("herdr-fold-").removesuffix(".json")) or tui["catppuccin"]
+            custom = theme["herdr"].get("custom", {})
+            side = (custom.get("sidebar_bg") or theme["colors"]["herdr"].get("sidebar_bg")
+                    or theme["colors"]["background"])
             with self.subTest(name):
-                canvas, chrome, surface = (colors[level] for level in ("canvas", "chrome", "surface"))
-                self.assertLess(self.apply.luminance(canvas), self.apply.luminance(chrome))
-                self.assertLess(self.apply.luminance(chrome), self.apply.luminance(surface))
-                self.assertGreaterEqual(self.apply.contrast(canvas, chrome), build.MIN_STEP)
-                self.assertGreaterEqual(self.apply.contrast(chrome, surface), build.MIN_STEP)
-                self.assertEqual(colors["popover"], surface)
+                self.assertEqual((colors["surface"], colors["canvas"], colors["chrome"]),
+                                 (theme["colors"]["background"], side, side))
+                self.assertGreater(self.apply.luminance(colors["popover"]), self.apply.luminance(colors["surface"]))
+                self.assertGreaterEqual(self.apply.contrast(colors["popover"], colors["surface"]), build.MIN_STEP)
 
     def test_small_text_reads_on_every_level_and_control_in_every_theme(self):
         # WCAG AA for text of 11 to 13: the body and the captions on each level and on a control (a chip's words),

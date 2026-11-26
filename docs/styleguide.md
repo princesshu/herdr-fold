@@ -15,9 +15,10 @@ are the layout's theme, Catppuccin Mocha, as in the TUI.
 
 | Token | Use |
 |---|---|
-| `canvas` | the window, behind the cards; a well in a card (a command, a source's tag, the context bar, Effort's slider) |
-| `chrome` | the left sidebar, the bars, the prompt, the person's message, a tool's output, what Claude waits on |
-| `surface` | the cards (the chat, the dock, a panel floating beside a rail) and the popovers |
+| `canvas` | the window, behind the cards, in herdr's sidebar color; a well in a card (a command, a source's tag, the context bar, Effort's slider) |
+| `chrome` | herdr's sidebar color too: the left sidebar, the bars (the title row, the tab bar, the status bar), the prompt, the person's message, a tool's output, what Claude waits on |
+| `surface` | the cards (the chat, the dock, the preview, the terminal, a panel floating beside a rail): the terminals' background, the TUI's panes' color |
+| `popover` | menus, the chat bar's panels, tips and toasts: the palette's lightest level, so they float |
 | `background` | the terminals and the panes round them: the TUI theme's own |
 | `raised` | buttons and chips |
 | `hover` | what the mouse is on, a step lighter than `raised` |
@@ -33,26 +34,29 @@ are the layout's theme, Catppuccin Mocha, as in the TUI.
 | `blocked` | a modified file |
 | `ansi1` | a deleted file, a conflict, a removed line, an error |
 
-`canvas`, `chrome` and `surface` are the mockups' three levels, darkest first, each from its theme's own palette and
-named in its words (`LEVELS` in `tools/build.py`, with its source); a level a palette lacks is made a step off its
-neighbor (halfway between two, else toward black), and each parts from the next by 1.05:1 at least (a test over all 13
-themes). Body text, captions (a chip's words on the raised fill too), a count's number on the accent and the words
-under the pointer read 4.5:1 at least on what they stand on, in every theme.
+The app draws its surfaces as the TUI does (`app_theme()` in `tools/build.py`): every card on the terminals' background,
+the TUI's panes' color, and the window, its bars and the left sidebar in herdr's sidebar color. In most themes the two
+are one color, so the app is flat as the TUI, the cards parted by their 1 px `border`; Catppuccin Mocha's sidebar,
+mantle, stands a step lighter than its panes, crust. The popovers stay a step lighter than the cards, on the palette's
+lightest level (`LEVELS` in `tools/build.py`, from the theme's own palette and named in its words, with its source);
+where that level is the cards' own color, a step lighter is made, 1.05:1 off them (`MIN_STEP`, a test over all 13
+themes). Body text, captions (a chip's words on the raised fill too), a count's number on the accent and the words under
+the pointer read 4.5:1 at least on what they stand on, in every theme.
 
-| Theme | `canvas` | `chrome` | `surface` | Contrast |
+| Theme | Cards (`surface`) | Window, bars, sidebar (`canvas`, `chrome`) | Popovers (`popover`) | Popover to card |
 |---|---|---|---|---|
-| Catppuccin Mocha | crust #11111b | mantle #181825 | base #1e1e2e | 1.07, 1.07 |
-| VS Code (Dark Modern) | a step under sideBar.background #121212 | sideBar.background #181818 | editor.background #1f1f1f | 1.06, 1.08 |
-| Vesper | editor.background #101010 | tab.activeBackground #161616 | input.background #1c1c1c | 1.05, 1.06 |
-| GitHub Dark | canvas.inset #010409 | canvas.default #0d1117 | canvas.overlay #161b22 | 1.09, 1.09 |
-| Tokyo Night | bg_dark1 #0c0e14 | bg_dark #16161e | bg #1a1b26 | 1.07, 1.05 |
-| Kanagawa | sumiInk0 #16161d | sumiInk3 #1f1f28 | sumiInk4 #2a2a37 | 1.10, 1.16 |
-| Rosé Pine | base #191724 | surface #1f1d2e | overlay #26233a | 1.07, 1.09 |
-| One Dark | a step under @level-3-color #1d2126 | @level-3-color #21252b | @syntax-background-color #282c34 | 1.05, 1.10 |
-| Dracula | BGDarker #191a21 | BGDark #21222c | BG #282a36 | 1.10, 1.11 |
-| Gruvbox | bg0_h #1d2021 | bg0 #282828 | bg0_s #32302f | 1.11, 1.12 |
-| Nord | nord0 #2e3440 | halfway #343b49 | nord1 #3b4252 | 1.11, 1.12 |
-| Solarized | two steps under base03 #00212a | a step under base03 #002630 | base03 #002b36 | 1.06, 1.06 |
+| Catppuccin Mocha | crust #11111b | mantle #181825 | base #1e1e2e | 1.14 |
+| VS Code (Dark Modern) | #181818 | #181818 | editor.background #1f1f1f | 1.08 |
+| Vesper | #101010 | #101010 | input.background #1c1c1c | 1.12 |
+| GitHub Dark | #0d1117 | #0d1117 | canvas.overlay #161b22 | 1.09 |
+| Tokyo Night | #1a1b26 | #1a1b26 | a step over bg #1f202a | 1.06 |
+| Kanagawa | #1f1f28 | #1f1f28 | sumiInk4 #2a2a37 | 1.16 |
+| Rosé Pine | #191724 | #191724 | overlay #26233a | 1.16 |
+| One Dark | #21252b | #21252b | @syntax-background-color #282c34 | 1.10 |
+| Dracula | #282a36 | #282a36 | a step over BG #2c2e3a | 1.06 |
+| Gruvbox | #282828 | #282828 | bg0_s #32302f | 1.12 |
+| Nord | #2e3440 | #2e3440 | nord1 #3b4252 | 1.24 |
+| Solarized | #002b36 | #002b36 | a step over base03 #052f3a | 1.05 |
 
 A source's tag (Global, Project, Local, Managed, Built-in, a plugin's, claude.ai) wears no hue: `muted` on a `raised`
 chip (`scopeTag`), the graph's node tags too. Hue is for states (red failed or deny, yellow sign in, ask or a conflict,
@@ -346,7 +350,7 @@ The dock's fifth view, as center-chat.html's Agent panel: an agent's setup as la
 its file; Retry pressed, Claude checking it; a check that could not
 run](../assets/styleguide/agent-properties-connector.webp)
 
-![The chosen row's properties: a rule with its paths and first lines, a skill the conversation used, a subagent with
+![The chosen row's properties: a rule with its paths and first lines, a skill the chat used, a subagent with
 its tools and how often it ran, a conflict with both rules and both
 files](../assets/styleguide/agent-properties-rule-skill-agent.webp)
 
@@ -406,11 +410,11 @@ read yet, the read failed, an agent not installed](../assets/styleguide/agents-g
 
 ![The graph's This chat: what ran lit and numbered in its order, the agents' costs and shares in their models'
 colors, Claude chosen with Open in Usage; a call running, a tool chosen with its calls; Wiring of a graph with a
-conversation read](../assets/styleguide/agents-graph-conversation.webp)
+chat read](../assets/styleguide/agents-graph-conversation.webp)
 
 | Part | Measures |
 |---|---|
-| Head | on the card, 12 in and over it, 8 under: the scope's chip 26 high, 6 in, rounded 6 (the agent's icon 16, `Claude in lumen-api` 15 semibold, ⌄ 14 in `dim`, 6 apart), the hover fill under the pointer, `raised` with a hairline in the accent while its list is open; the list the Agent panel's agents' list, the agents core reads alone; 12 after it, where a conversation was read, the graph's views as a switch (`segmented`: Wiring, This chat); at the head's end the tab's two views, Graph and Usage, 16 apart: 13, 26 high, the shown one in the text's color over 2 px of the accent, the other in `muted` |
+| Head | on the card, 12 in and over it, 8 under: the scope's chip 26 high, 6 in, rounded 6 (the agent's icon 16, `Claude in lumen-api` 15 semibold, ⌄ 14 in `dim`, 6 apart), the hover fill under the pointer, `raised` with a hairline in the accent while its list is open; the list the Agent panel's agents' list, the agents core reads alone; 12 after it, where a chat was read, the graph's views as a switch (`segmented`: Wiring, This chat); at the head's end the tab's three views, Graph, Usage and Runs, 16 apart: 13, 26 high, the shown one in the text's color over 2 px of the accent, the other in `muted` |
 | Switch | `segmented` in `parts.js` (usage.html's `.seg`): 26 high on `canvas` with a hairline, 2 in, rounded 8; a part 8 in, rounded 6, 12 in `muted`, the chosen one on `raised` in the text's color, the hover fill under the pointer |
 | Canvas | 12 from the card's sides and foot: a hairline frame, rounded 10, on `surface`; dots 2 square, 20 apart, in the text's color at 5%; scrolled both ways where the graph needs more room |
 | Columns | their names 11 in `muted`, 48 down: In from the left edge, Agents over the agent, Uses to the right edge; the first node 80 down, 24 from the sides; two nodes 12 apart, two groups (rules and skills, tools and connectors) 32; the agent on the middle, its subagents 48 under it, 16 in, 12 apart; In and the agents 96 apart, the agents and Uses as far as the widest edge's gates need, so no gate lies over a node (`gatesRoom`: 96 to 528); a canvas too narrow for that brings both nearer, to 48 and the gates' own room (`gatesRoom`'s tight one), before it scrolls; with nothing going in, the agent from the left edge |
@@ -444,7 +448,7 @@ Usage is one column, 1000 wide at most and centred, the head scrolling with it, 
 | A day's tip | beside its column, 20 from its middle, 8 down: `popover` with a hairline, rounded 8, 12 and 8 in, 168 wide at least, lifted; its date and sum 12 semibold, a row a model (swatch, its name in `muted`, its cost medium at the end), 2 apart |
 | Month | 170 high: ticks as Per day's; the budget a 1 px line in `muted` with `Budget $50` 11 over its left end; what was spent a 2 px line in the agent's model's color, the pace on to the month's end the same at 40%, its words 11 in `muted` 20 from its end; today's point 8 across in that color, ringed 2 in `surface`, `$18.40 today` 12 beside it; the month's first and last day 11 in `muted` under the plot |
 | By project | a row 32 high: the name in a column 90 wide, 12, the bar 16 high in `muted`, its right corners 4, as long as its share of the largest in 70% of the room, its value 8 after it; core's note 12 in `muted` under the rows |
-| Table | a hairline frame, rounded 10: its head 36 high, 12 in, the title semibold and core's note 12 in `muted` at its end, a hairline under it; the columns' names 11 in `muted` on a line 28 high with a hairline under it; a row 32 high, 12, its columns 8 apart, the first taking the rest (160 at least), the numbers' right-aligned, a faint line between two rows; a figure's short word (`value`, `spent`) in `muted` 6 after it; a conversation's models as marks 6 by 12 with corners 2, 2 apart; the hover fill under the pointer, the row asked for on the chosen fill (`chosenFill`); narrower than its columns, scrolled sideways |
+| Table | a hairline frame, rounded 10: its head 36 high, 12 in, the title semibold and core's note 12 in `muted` at its end, a hairline under it; the columns' names 11 in `muted` on a line 28 high with a hairline under it; a row 32 high, 12, its columns 8 apart, the first taking the rest (160 at least), the numbers' right-aligned, a faint line between two rows; a figure's short word (`value`, `spent`) in `muted` 6 after it; a chat's models as marks 6 by 12 with corners 2, 2 apart; the hover fill under the pointer, the row asked for on the chosen fill (`chosenFill`); narrower than its columns, scrolled sideways |
 | Budget | a popover 300 wide under `Budget…`, its right edge with the button's (`popover`, a hairline, rounded 10, 12 in, 8 apart): `Monthly budget` semibold; a field's line 28 high, the agent's name in `muted` in 72, the field on `canvas` with a hairline, rounded 8, `$` in `muted` before what is typed, `a month` in `muted` after it; why a field was refused 11 in `ansi1`; Save raised, Cancel plain |
 
 Runs is one column, 1000 wide at most and centred: the head, then the list's frame (a hairline, rounded 10) down to

@@ -53,9 +53,9 @@ RAISED = 1.15                 # the contrast a control's fill needs on its panel
 MIN_STEP = 1.05               # the contrast that parts two surface levels (Catppuccin's own steps: 1.07)
 READ = 4.5                    # small text's contrast on what it stands on (WCAG AA)
 BLACK, WHITE = "#000000", "#ffffff"
-# Each theme's three surface levels in its palette's words, darkest first, as the mockups use them (docs/styleguide.md,
-# Color): canvas the window, chrome the side, the bars and the prompt, surface the cards and popovers; None where the
-# palette has none (levels() makes it). The terminals keep the TUI's own background (Herdr paints them with it).
+# Each theme's three surface levels in its palette's words, darkest first; None where the palette has none (levels()
+# makes it). The app draws as the TUI (app_theme()): its cards on the terminals' background, its frame in herdr's
+# sidebar color; the lightest level lifts its popovers above the cards.
 LEVELS = {
     "catppuccin": {"canvas": "#11111b", "chrome": "#181825", "surface": "#1e1e2e", "names": "crust / mantle / base",
                    "source": "https://catppuccin.com/palette (Mocha)"},
@@ -248,12 +248,17 @@ def on_accent(accent, canvas, text):
 
 
 def app_theme(theme):
-    """THEME, one of the TUI's, as a Herdr app theme: the TUI's terminal colors (the terminals' background its own),
-    the window, the side and the cards in its palette's three levels (LEVELS), the rest in herdr's frame's colors."""
+    """THEME, one of the TUI's, as a Herdr app theme drawn as the TUI is: every card (chat, dock, preview, terminal) on
+    the terminals' background, the window, its bars and the side in herdr's sidebar color, the popovers on the palette's
+    lightest level (LEVELS') so they float; the rest in herdr's frame's colors."""
     import apply
     colors, frame = theme["colors"], theme["colors"]["herdr"]
-    selection = theme["herdr"].get("custom", {}).get("selection_bg") or frame["surface0"]
-    level = levels(theme["id"])
+    custom = theme["herdr"].get("custom", {})
+    selection = custom.get("selection_bg") or frame["surface0"]
+    side = custom.get("sidebar_bg") or frame.get("sidebar_bg") or colors["background"]
+    content, palette = colors["background"], levels(theme["id"])["surface"]
+    lifted = apply.luminance(palette) > apply.luminance(content) and apply.contrast(palette, content) >= MIN_STEP
+    level = {"canvas": side, "chrome": side, "surface": content, "popover": palette if lifted else step(content, WHITE)}
     panels = {"selected": "active_row_bg", "foreground": "text", "accent": "accent", "solid": "accent"}
     # a control as Herdr draws it on a card: its fill (the TUI's surface0, else a step lighter than the card), in a
     # frame between the two, lighter under the mouse; a field's frame a step lighter again
@@ -268,10 +273,10 @@ def app_theme(theme):
     # an agent's state as the TUI's column marks it, its role's terminal color: blocked red, done cyan, working
     # yellow, idle green, unknown faint
     states = {"blocked": 1, "done": 6, "working": 3, "idle": 2, "unknown": 8}
-    ink = on_accent(frame["accent"], level["canvas"], text)
+    ink = on_accent(frame["accent"], level["surface"], text)
     made = {"background": colors["background"], "foreground": colors["foreground"], "selection": selection,
             "cursor": colors["cursor"], "ansi": colors["palette"],
-            "colors": {**level, "popover": card, **{name: frame[key] for name, key in panels.items()},
+            "colors": {**level, **{name: frame[key] for name, key in panels.items()},
                        "muted": muted, "dim": dim, **controls,
                        **{state: colors["palette"][n] for state, n in states.items()},
                        "selection": selection, "accent_foreground": ink, "solid_foreground": ink}}

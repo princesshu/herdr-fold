@@ -1036,7 +1036,8 @@ class App(Loop):
             family.drawing()
         if full:                                        # every row its own, the line over the last: nothing moves
             view = Canvas(max(1, cells - 2 * MARGIN), rows)          # its highlight edge to edge, its content a cell in
-            self.views[self.shown()].draw(view, top, full, full >= ROOMY)          # tall where it has the rows
+            shown = self.views[self.shown()]                              # tall where it has the rows (its own)
+            shown.draw(view, top, full, full >= getattr(shown, "ROOMY", ROOMY))
             canvas.paste(view, 0, MARGIN)
         if line:
             canvas.put(rows - 1, 0, " " * cells)

@@ -30,12 +30,14 @@ diff, a commit or an issue opens in the space's preview tab. Twelve themes come 
   name, short when large (1.2k, 18k); narrower, the last tabs left out, never the shown one. Under it the view chosen,
   or the Chats list in its place, 12 px inside on every side. Then, 8 px under it, the tab's own terminal on a card of
   its own (two sevenths at first, 120 px at least; the boundary between the two drags). The dock is open or its rail,
-  never hidden; folded, the tab's terminal stands under the tab instead, the centre's width, 240 px high at first
-  (then as dragged), 8 px under it.
+  hidden by Cmd + Shift + E alone; folded, the tab's terminal stands under the tab instead, the centre's width, 240 px
+  high at first (then as dragged), 8 px under it.
 - Bottom, herdr-fold's status bar, 28 px, on the side's level under a hairline, 16 px in and its items 16 apart, 12 px
   text in the captions' tone: the shown space's machine (This computer) and branch, the agents behind a 6 px dot, and at
   the end an update Herdr has ready (a green dot and `Update ready: herdr-core 0.1.21`).
-- Colors are the theme's roles (canvas, chrome, background, border, accent, the ansi colors for states); fonts the
+- Colors are the theme's roles (canvas, chrome, surface, popover, border, accent, the ansi colors for states), drawn as
+  the TUI is: every card on the terminals' background, the window, its bars and the left sidebar in herdr's sidebar
+  color (one color in most themes, the cards parted by their 1 px border), the popovers a step lighter; fonts the
   app's, code in herdr-fold Mono, the mod's own (`mods/herdr-fold/fonts/`).
 
 ## How it behaves
@@ -63,15 +65,21 @@ diff, a commit or an issue opens in the space's preview tab. Twelve themes come 
   another machine known, a head per machine that folds its spaces.
 - Chats: Chats at the tab bar's end shows them in the view's place, its filter taking the keys, as the TUI sidebar's
   does: by space (a folder with no space open under its name), the running ones marked; a click goes to a running one or
-  reopens a closed one in a new tab (a Claude chat as a chat tab; with Open agents in: Terminal, and Codex's always,
-  `claude --resume`, `codex resume`) and the view comes back, as with Chats again, Esc or a tab; right click: Open, Copy
-  chat, Rename, Archive, Delete… (asked in its row, then its file to the Trash).
+  reopens a closed one in a new tab (a Claude chat as a chat tab; with Open agents in: Terminal, and Codex's and
+  OpenCode's always, `claude --resume`, `codex resume`, `opencode --session`) and the view comes back, as with Chats
+  again, Esc or a tab; right click: Open, Copy chat, Rename, Archive, Delete… (asked in its row, then its file to the
+  Trash; never an OpenCode chat's, kept in OpenCode's own database).
 - New agents: + after the tabs (Cmd + N) opens a new chat with the agent used last that a chat draws: New chat and
   `in <space> · <branch>` in its middle, the prompt with the agent's chip; the chip's list (a filter, the recent first,
   not installed dim, `terminal` for one no chat draws) picks another, one marked terminal opening in a terminal tab in
   the chat's place; the first message starts the agent. A space on this Mac that holds shells alone (a new one too)
   gets an empty chat as its first tab the first time it shows, once. Settings' Open agents in: Terminal makes every
   way in (+, Chats, Issues' To agent, a new space) open the agent's CLI in a terminal tab instead.
+- The chat: Claude's chat as a timeline from its session file, a call and its result one row; what Claude waits on a
+  card in the prompt's place, its answers numbered; the task list a strip over the prompt, `3 of 5 done`; a prompt's
+  checkpoint, `Restore files to here`, Claude's dry run first and one Undo after. A home space opens the Start tab (Open
+  project…, the folders of the chats so far); an empty chat whose agent is not signed in lists every installed agent
+  with Sign in or Use.
 - The model chip in a chat's bar (Opus 5.5 High, the level dimmer; in a narrow chat the model alone) opens the
   agent's models upward, a line each, the one in use checked; the mode chip opens the Modes panel (⇧ + tab to switch):
   the modes, Effort with a dot slider and the level's name, Ultracode with a switch (Claude only). Picked before the
@@ -81,40 +89,44 @@ diff, a commit or an issue opens in the space's preview tab. Twelve themes come 
   what fills it (rules, skills, connectors, the rest), what the chat cost, Compact and Show all in Agent. A "/" typed
   in the prompt opens the / menu over it: Export the chat, the folder's skills with their source tags (Project,
   Global, a plugin's), Claude's commands; what follows the "/" filters it, Enter picks the lit row.
-- Changes: the repository row (branch, sync and a menu), the message field with the AI button beside it (Claude or
-  Codex writes the message, the field saying who meanwhile), Commit with its modes (Commit, Commit & Push, Commit &
-  Sync), staged and unstaged files with stage, unstage and discard on hover, the Graph of the last 20 commits. The
-  sync is ↻, the menu ⋯, the AI button ✦.
-- Files: the folder as a tree with git's marks; a click opens a file in the preview tab (an image or a PDF drawn, a
-  PDF's pages scrolled), a right click New File, New Folder, Rename, Copy Path, Move to Trash, Open in Browser (a
-  page, a PDF or a picture on this Mac), New space (a folder).
-- Search: ripgrep (else git grep) as you type, with case, word and regex switches. Issues: by priority, filters,
-  hand one to the tab's agent (none there: a new one, as + starts it), reply, assign, close.
-- Agent: what the space's agent (Claude or Codex) starts with in the folder: a head line (`Opus 5.5 · High · starts
-  at 34.2k of 1M`) and a bar of what loads, then Usage, Subagents, Rules, Skills, Permissions (with its Hooks) and
-  Connectors as layers with their counts and costs, a failed server or one to sign in to first and as a chip on the
-  head line (a press chooses its row; a dot on the Agent tab and the rail meanwhile), a filter from the head's search.
-  A press chooses a row: its properties under the layers, the label left and the value right, with Open (its file in
-  the preview tab), Show in graph and, on a failed server, Retry (`claude mcp get`). A row that can be changed holds
-  its form there (the mode, the model and effort, the sandbox, a permission rule, a switch for a skill, a subagent, a
+- Changes: the repository row (branch, sync and a menu), under it the branch's pull request or Create pull request…, the
+  message field with the AI button beside it (Claude or Codex writes the message, the field saying who meanwhile),
+  Commit with its modes (Commit, Commit & Push, Commit & Sync), staged and unstaged files with stage, unstage and
+  discard on hover, the Graph of the last 20 commits. The sync is ↻, the menu ⋯, the AI button ✦.
+- Files: the folder as a tree with git's marks; a click opens a text file in an editor tab of its own (Cmd + S saves in
+  place, Cmd + F finds, a draft kept so closing asks nothing), anything drawn in the preview tab (an image or a PDF, a
+  PDF's pages scrolled, a page, Markdown, audio, a video), a right click New File, New Folder, Rename, Copy Path, Move
+  to Trash, Open in Browser (a page, a PDF or a picture on this Mac), New space (a folder).
+- Search: ripgrep (else git grep) as you type, with case, word and regex switches. Issues: by priority, filters, hand
+  one to the tab's agent (none there: a new one, as + starts it), reply, assign, close; Pull requests beside them, a
+  press opening one's review in the preview tab (comments on a line, Approve, Request changes).
+- Agent: what the space's agent (Claude, Codex or OpenCode) starts with in the folder: a head line (`Opus 5.5 · High ·
+  starts at 34.2k of 1M`) and a bar of what loads, then Usage, Subagents, Rules, Skills, Permissions (with its Hooks)
+  and Connectors as layers with their counts and costs, a failed server or one to sign in to first and as a chip on the
+  head line (a press chooses its row; a dot on the Agent tab and the rail meanwhile), a filter from the head's search. A
+  press chooses a row: its properties under the layers, the label left and the value right, with Open (its file in the
+  preview tab), Show in graph and, on a failed server, Retry (`claude mcp get`). A row that can be changed holds its
+  form there (the mode, the model and effort, the sandbox, a permission rule, a switch for a skill, a subagent, a
   connector or every hook): the layer to save in, the line the save writes, Save, then Undo at the panel's foot;
   `helper.js`'s `HARNESS` plans and writes it. A chat's Context panel leads here (Show all in Agent).
 - Agents: a tab of the main area, one a space, with the agent's graph: three columns (what goes in, the agent with its
   subagents, what they use), an edge solid, dashed, waiting or failed, the permission and the hook as gates on it. A
-  press chooses a node (its properties at the canvas's foot), a node drags and stays where it is let go, a double
-  click beside the nodes lays them out again. The Agent panel's Show in graph opens it on a row's node. Its other
-  view, Usage, is the report of what the agents used and cost: the period and the agent, a summary, each day by
-  model, a month against its budget, the projects, chats and models, Export CSV.
+  press chooses a node (its properties at the canvas's foot), a node drags and stays where it is let go, a double click
+  beside the nodes lays them out again. The Agent panel's Show in graph opens it on a row's node. Its other views:
+  Usage, the report of what the agents used and cost (the period and the agent, a summary, each day by model, a month
+  against its budget, the projects, chats and models, Export CSV), and Runs, what the agents ran in the background
+  (Claude's background sessions, Codex's `codex exec` runs and cloud tasks), with New run.
 - A tab shows its view; each space keeps its own, a new one starting on Files, Issues coming back on GitHub. More shows
   or hides each view (one always stays) and opens Settings at About; the sidebar's Settings and Cmd + , open the one
-  Settings (General: agents open in a chat or a terminal; About: the version, the update check, What's new; under Herdr
-  app the app's own sections, each opening the app's Settings there; a newer herdr-fold is the status bar's item); » at
-  the tab bar's end folds the dock to a rail of icons, the views, then the terminal, and « in the same place opens it
-  again; a press floats a view beside the rail, its icon lit (pressed again, Esc, × or a press beside it closes it;
-  another icon, «, More or ✦ closes it and acts at once; Esc in its field is the view's first), as tall as last dragged,
-  Chats from the tab bar floats its list there, and Terminal shows or hides the tab's terminal under the tab, lit while
-  it shows. Let go after a drag, a side under 160 px is its rail, and a rail dragged 24 px wider opens. The left sidebar
-  folds the same way, to Spaces, its toggle in its head over the rail; both rails on the side's level.
+  Settings (General: agents open in a chat or a terminal; Notifications: an agent waiting on you; About: the version,
+  the update check, What's new; under Application the app's own sections, each opening the app's Settings there; a newer
+  herdr-fold is the status bar's item); » at the tab bar's end folds the dock to a rail of icons, the views, then the
+  terminal, and « in the same place opens it again; a press floats a view beside the rail, its icon lit (pressed again,
+  Esc, × or a press beside it closes it; another icon, «, More or ✦ closes it and acts at once; Esc in its field is the
+  view's first), as tall as last dragged, Chats from the tab bar floats its list there, and Terminal shows or hides the
+  tab's terminal under the tab, lit while it shows. Let go after a drag, a side under 160 px is its rail, and a rail
+  dragged 24 px wider opens. The left sidebar folds the same way, to Spaces, its toggle in its head over the rail; both
+  rails on the side's level.
 - Keys (`layout:herdr-fold`): Cmd + Shift + G Changes, Cmd + Shift + F Search, Cmd + Shift + I Issues, each shown, the
   dock opened; Cmd + Shift + C commit and push, Cmd + Shift + R Chats and back, Cmd + Shift + U mark the agent unread,
   Cmd + N a new agent (a chat, as +), Cmd + , Settings, Cmd + B the left sidebar folded or opened (never hidden),
@@ -139,7 +151,7 @@ diff, a commit or an issue opens in the space's preview tab. Twelve themes come 
   `changes`, `search`, `issues`, `agent`), `chats` (the list in the view's place), `terminal` (the terminals' stack's
   header), `none`, `rail`, `status` (the window's status bar); as overlays `float`, `menu` (a filter on top for a new
   chat's agents), `palette` (a popup with no frame at the window's top), `settings` (a dialog); as tabs `preview`,
-  `chat` and `styleguide`. Herdr's mark from the app's own `frame/welcome/herdr.png`.
+  `editor`, `chat`, `start`, `agents` and `styleguide`. Herdr's mark from the app's own `frame/welcome/herdr.png`.
 - herdr functions: `spaces`, `panes`, `agents`, `knownAgents`, `focused`, `machines`, `terminals`, `layout`,
   `settings`, `theme`, `props`, `shared` / `setShared`, `readTextFile`, `watchFolder`, `exec`, `hc`, `home`, `run`,
   `nextCommand`, `openOverlay` / `closeOverlay`, `notify`, `playSound`, `updates`, `keys`, `commands`, `layouts`,
@@ -154,8 +166,8 @@ diff, a commit or an issue opens in the space's preview tab. Twelve themes come 
 ## Watch out
 
 - It runs programs (`exec`, `hc`): git, gh, ripgrep and Python 3 on the space's machine; a commit message sends the
-  staged diff to Claude Code or Codex there. It reads the repository, this Mac's Claude and Codex chat files,
-  and gh's GitHub sign-in.
+  staged diff to Claude Code or Codex there. It reads the repository, this Mac's Claude and Codex chat files and
+  OpenCode's database (read-only), and gh's GitHub sign-in.
 - `image()` takes a path from the app's home: pictures are made in `herdr-fold-pictures/` there, a day at most.
 - `image()` takes the picture's own size where its box has none: `size_full()` in a `flex_1()` box grows past it.
   The preview puts the picture `absolute()` at 100% of a `relative()` box, and the app fits it there.
