@@ -2,10 +2,10 @@
 
 <img src="src/themes/logo.svg" alt="herdr-fold's logo: a white sheep with round eyes" width="120" align="right">
 
-AI agents' harnesses in herdr and Ghostty: chats, rules, skills, subagents, permissions, connectors, usage, costs and
-graph for Claude Code and Codex, with files, search, git and GitHub issues, AI commit messages and themes, on a Mac and
-on Linux, macOS and Windows machines over SSH. One installer sets up all of it; the sidebar and AI Sessions also install
-alone; herdr's desktop app gets it as a mod, alone or beside the TUI.
+Your coding agents in herdr and its desktop app: Claude Code, Codex, OpenCode and GitHub Copilot CLI, their chats,
+setup and usage, beside your files, git, GitHub issues and pull requests, on a Mac and on Linux, macOS and Windows
+machines over SSH. One installer sets it all up, the sidebar and AI Sessions also install alone, and herdr's desktop
+app gets it as a mod.
 
 Created by [princesshu](https://github.com/princesshu).
 

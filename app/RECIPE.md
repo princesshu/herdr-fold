@@ -1,9 +1,8 @@
 # herdr-fold
 
-herdr-fold's layout for the Herdr app: herdr-fold's sidebar from herdr's TUI (Files, Search, Changes, Issues) as a right
-panel beside the tab under its views' tabs, each tab's own terminal under it, every chat of this Mac a press of Chats at
-the tab bar's end away, and on the left a Spaces list that says how long an agent waits on you. A file, an image, a
-diff, a commit or an issue opens in the space's preview tab. Twelve themes come with it.
+herdr-fold's layout for the Herdr app: your coding agents in every space (Claude Code in a chat view; Codex, OpenCode
+and GitHub Copilot CLI in their own terminals), beside them one panel for Files, Search, Changes, Issues and the Agent
+view, and twelve themes.
 
 ![herdr-fold](preview.png)
 

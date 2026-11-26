@@ -45,6 +45,7 @@ HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"AGENT_LAYER
                                                                     "USAGE": "usage.py"}}
 # only the mod runs these: its chat, its jobs, the commands of what the sidebar imports itself
 MOD_ONLY = {"agent_layers_cli.py", "chat.py", "chat_hook.py", "graph_cli.py", "job.py"}
+SCRIPTS_ONLY = {"machines.py"}  # machines.sh's and uninstall.sh's, run from core/: no copy in the sidebar
 ICONS = os.path.join("app", "mods", "herdr-fold", "icons.js")       # the mod's icons, by name, and the file types'
 SVGS = "mods/herdr-fold/icons"     # as the app loads them: lucide/ the views', catppuccin/ a file's, logos/ a brand's
 THEMES = os.path.join("app", "themes")      # the TUI's themes in the Herdr app: herdr-fold-ID.json for each, and
@@ -287,7 +288,8 @@ def app_theme(theme):
 def outputs():
     """{path from the package's root: its content}."""
     made = {os.path.join(SIDEBAR, name): f"# {note(name)}\n" + core(name)
-            for name in sorted(os.listdir(os.path.join(ROOT, "core"))) if name.endswith(".py") and name not in MOD_ONLY}
+            for name in sorted(os.listdir(os.path.join(ROOT, "core")))
+            if name.endswith(".py") and name not in MOD_ONLY | SCRIPTS_ONLY}
     made.update({os.path.join(folder, name): f"# {note(name)}\n" + core(name)
                  for folder, names in ((SPACES, SPACES_CORE), (STATUSLINE, STATUSLINE_CORE),
                                        (CONFIG, CONFIG_CORE))

@@ -42,11 +42,13 @@ class Copies(unittest.TestCase):
                 self.assertIn("Generated from core/", content.split("\n", 2)[0 if rel.endswith(".py") else 1])
 
     def test_the_tui_sidebar_gets_each_core_module_but_the_ones_only_the_mod_runs(self):
-        # job.py starts the Herdr app mod's background jobs: the sidebar carries no copy it would never run
+        # job.py starts the Herdr app mod's background jobs, machines.py is machines.sh's: the sidebar carries no copy
+        # it would never run
         sidebar = os.path.join("src", "plugins", "sidebar")
+        elsewhere = build.MOD_ONLY | build.SCRIPTS_ONLY
         for name in sorted(os.listdir(CORE)):
             if name.endswith(".py"):
-                self.assertEqual(os.path.join(sidebar, name) in built(), name not in build.MOD_ONLY, name)
+                self.assertEqual(os.path.join(sidebar, name) in built(), name not in elsewhere, name)
         in_helpers = {name for sources in build.HELPERS.values() for name in sources.values()}
         self.assertLessEqual(build.MOD_ONLY, in_helpers)
         self.assertIn(os.path.join(sidebar, "agent_setup.py"), built())     # the TUI's Agent view reads it

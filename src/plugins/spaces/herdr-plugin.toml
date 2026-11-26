@@ -3,12 +3,9 @@ name = "Spaces"
 version = "0.4.0"
 min_herdr_version = "0.9.5"
 description = """\
-  Keeps herdr's spaces, the rows of the Spaces list: a new one asks for its folder, home is always there and the \
-  first row, one named after its folder follows its new name, a root's is named by a word (root, C:), one whose \
-  folder holds a repository shows that one's name and branch, one whose folder is gone says deleted, one closed \
-  with its last tab is made again in its place, a tab holding a chat asks before it closes, and herdr-fold's \
-  agents start again after a restart. Part of herdr-fold: install it with herdr-fold's installer. Created by \
-  princesshu"""
+  Keeps herdr's spaces in order: a new one asks for its folder, each shows its repository and branch, a closed one \
+  comes back, and herdr-fold's agents start again after a restart. Part of herdr-fold: \
+  install it with herdr-fold's installer. Created by princesshu"""
 platforms = ["macos", "linux", "windows"]
 
 # New tab (including a new space's first tab): for the "new" button's space it opens the folder picker, any other

@@ -3,10 +3,9 @@ name = "Full Setup"
 version = "0.4.0"
 min_herdr_version = "0.9.5"
 description = """\
-  The whole herdr-fold setup on a Mac, from one installer in a herdr tab: AI agents' harnesses (chats, rules, \
-  skills, subagents, permissions, connectors, usage, costs and graph for Claude Code and Codex), files, search, \
-  git and GitHub issues, AI commit messages, Ghostty and its themes, the status line, and Linux, macOS and \
-  Windows machines over SSH. Created by princesshu"""
+  The whole herdr-fold setup from one installer: Claude Code, Codex, OpenCode and GitHub Copilot CLI with their \
+  chats, setup and usage, files, git, GitHub issues and pull requests, Ghostty and its themes, and remote machines \
+  over SSH. Created by princesshu"""
 platforms = ["macos"]
 
 # The installer offered in a tab of its own, once for each copy herdr keeps of the package: on herdr's start and, right
