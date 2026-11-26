@@ -589,6 +589,7 @@ which collapsed the column, is gone with it.
 
 ### Fixed
 
+- OpenCode's Agent panel never runs it in a project: a project's config, which can load its plugins, is read as text
 - A New space or Add machine left before it is done no longer leaves an empty "new" space in the list
 - Shift + Enter sent Claude Code's message instead of starting a new line, in some of the TUI's panes (an agent that
   had not asked the terminal for the extended keys, as one herdr restored) and in the Herdr app's terminals. Both

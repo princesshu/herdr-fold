@@ -1,7 +1,7 @@
 # Generated from core/opencode_setup.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
 """What OpenCode starts with in a folder, in the rows Claude's and Codex's setups take: the instructions it reads, its
-model and its MCP servers from the config files its own `opencode debug config` lists (V2's). Only read; a module of its
-own, so the helpers that read Claude and Codex alone (the graph's, the harness's) do not carry it."""
+model and its MCP servers (V2's config: the user's own as `opencode debug config` lists them in the home folder, a
+project's read as text, never run). Only read; a module of its own, so the graph's and harness's helpers skip it."""
 import json
 import os
 import subprocess
@@ -15,6 +15,9 @@ from jsonl import obj  # noqa: E402
 
 SYSTEM = "/Library/Application Support/opencode" if sys.platform == "darwin" else "/etc/opencode"   # the machine's
 KINDS = {"local": "stdio", "remote": "http"}    # its servers' types as a row names them
+# a project's own config files, in a folder from the repository's top down (its plugins are code: read, never loaded)
+PROJECT_FILES = ("opencode.json", "opencode.jsonc", os.path.join(".opencode", "opencode.json"),
+                 os.path.join(".opencode", "opencode.jsonc"))
 # the switches that keep OpenCode from reading CLAUDE.md, as its docs name them (the second skips .claude skills too)
 NO_CLAUDE = ("OPENCODE_DISABLE_CLAUDE_CODE_PROMPT", "OPENCODE_DISABLE_CLAUDE_CODE")
 
@@ -41,11 +44,11 @@ def rule_paths(folder, home):
     return list(dict.fromkeys(found))
 
 
-def documents(binary, folder):
-    """OpenCode's config files for FOLDER as its own `opencode debug config` lists them (a private server's, never its
-    background service), in its order: (path, what it sets); one with no file of its own left out. None: no list."""
+def documents(binary, home):
+    """The user's own config files as `opencode debug config` lists them, run in HOME (a private server, never its
+    background service): never in a project, whose config may load its plugins. (path, what it sets); None: no list."""
     try:
-        code, out, _ = agent_setup.run([binary, "debug", "config", "--standalone"], folder)
+        code, out, _ = agent_setup.run([binary, "debug", "config", "--standalone"], home)
         listed = json.loads(out) if code == 0 else None
     except (OSError, subprocess.TimeoutExpired, ValueError, RecursionError):
         return None
@@ -53,6 +56,52 @@ def documents(binary, folder):
         return None
     return [(one["path"], obj(one.get("info"))) for one in map(obj, listed)
             if one.get("type") == "document" and isinstance(one.get("path"), str) and os.path.isabs(one["path"])]
+
+
+def jsonc(text):
+    """TEXT, a .json or .jsonc config, as JSON reads it: its // and /* */ comments and trailing commas left out, its
+    strings kept as written. ValueError where it is no JSON then."""
+    out, at, end = [], 0, len(text)
+    while at < end:
+        if text[at] == '"':                             # a string whole, its escapes with it
+            close = at + 1
+            while close < end and text[close] != '"':
+                close += 2 if text[close] == "\\" else 1
+            out.append(text[at:close + 1])
+            at = close + 1
+        elif text.startswith("//", at):
+            at = text.find("\n", at) if "\n" in text[at:] else end
+        elif text.startswith("/*", at):
+            at = text.find("*/", at + 2) + 2 if "*/" in text[at + 2:] else end
+        elif text[at] == "," and text[at + 1:].lstrip()[:1] in ("}", "]"):
+            at += 1                                     # a trailing comma
+        else:
+            out.append(text[at])
+            at += 1
+    return json.loads("".join(out))
+
+
+def project_documents(folder, home):
+    """FOLDER's project config files read as text, never run: each folder's opencode.json(c) and .opencode's, from the
+    repository's top (else FOLDER) down to FOLDER, as OpenCode merges them: (path, what it sets, its model decoded)."""
+    folder = os.path.abspath(folder)
+    if folder == os.path.abspath(home):
+        return []
+    top, found = repo_top(folder) or folder, []
+    for here in (here for here in ancestors(folder) if here == top or inside(here, top)):
+        for path in (os.path.join(here, name) for name in PROJECT_FILES):
+            text = read_text(path)
+            try:
+                info = obj(jsonc(text)) if text is not None else None
+            except (ValueError, RecursionError):
+                info = None
+            if info is not None:
+                model = info.get("model")                 # "provider/model", as `debug config` decodes it
+                if isinstance(model, str) and "/" in model:
+                    provider, _, name = model.partition("/")
+                    info = {**info, "model": {"providerID": provider, "model": name}}
+                found.append((path, info))
+    return found
 
 
 def scope(path, home):
@@ -86,13 +135,14 @@ def setup(folder, home):
     binary = agent_setup.find("opencode")
     if not binary:
         return None
-    found, places = documents(binary, folder), rule_paths(folder, home)
+    own, places = documents(binary, home), rule_paths(folder, home)
+    found = (own or []) + project_documents(folder, home)        # a project's, even where the user's list fails
     texts = [(path, where, read_text(path)) for path, where in places]
-    picked = next((obj(info["model"]) for _, info in reversed(found or []) if obj(info.get("model")).get("model")), {})
+    picked = next((obj(info["model"]) for _, info in reversed(found) if obj(info.get("model")).get("model")), {})
     model, variant = picked.get("model"), picked.get("variant")
     return {"model": model if isinstance(model, str) else None, "effort": variant if variant in EFFORTS else None,
             "skills": [], "rules": [{"path": path, "scope": where, "tokens": tokens(text), "paths": [], "via": None}
                       for path, where, text in texts if text is not None],
-            "permissions": None, "sandbox": None, "hooks": [], "agents": [], "servers": servers(found or [], home),
-            "unlisted": found is None, "use": {}, "unread": unread([path for path, _ in places]),
+            "permissions": None, "sandbox": None, "hooks": [], "agents": [], "servers": servers(found, home),
+            "unlisted": own is None, "use": {}, "unread": unread([path for path, _ in places]),
             "start": dict.fromkeys(("tokens", "model", "window", "effort"))}

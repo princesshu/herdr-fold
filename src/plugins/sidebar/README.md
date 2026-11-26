@@ -211,7 +211,8 @@ Alt + Enter commits from the message there too.
   folder's settings, never the account), the enabled plugins' own, and the lines of its newest sessions that tell the
   servers' state and what the open conversation used; Codex's `AGENTS.md` files, rules and skills, and its servers
   through `codex mcp list --json` (in a tab with Codex); OpenCode's `AGENTS.md` or `CLAUDE.md` files, and its config
-  files and servers through `opencode debug config --standalone` (a private server, never its background service).
+  files and servers through `opencode debug config --standalone` in the home folder (a private server, never its
+  background service), a project's `opencode.json` read as text, never run (its plugins are code).
   herdr's command line names the tab's agent (`herdr pane list`,
   `herdr agent list`). Retry runs `claude mcp get <name>` in the folder, which checks only a server Claude approved.
   On your press it runs the agent's own commands, each one argv with the server's name as one argument: `claude mcp

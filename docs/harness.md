@@ -52,8 +52,10 @@ An agent whose setup herdr-fold does not read (Gemini CLI, signed in) has its he
 
 OpenCode's setup is read as far as OpenCode tells it (`core/opencode_setup.py`, V2's): Rules, the instructions it
 reads (its config folder's `AGENTS.md`, else `~/.claude/CLAUDE.md`; then each folder's `AGENTS.md`, else its
-`CLAUDE.md`, from the folder up to the home folder, the nearest first), and Connectors, the MCP servers of the config
-files its own `opencode debug config` lists, each `off` where its config says so, else `not checked`; the head's model
+`CLAUDE.md`, from the folder up to the home folder, the nearest first), and Connectors, the MCP servers of your own
+config files (`opencode debug config`, run in the home folder) and the project's `opencode.json` and `.opencode/`,
+read as text and never run: a project's config can load its plugins, code. Each `off` where its config says so, else
+`not checked`; the head's model
 and effort are its config's. It has no Subagents, Skills or Permissions here, nothing of it is changed from the panel
 (no form, no +), it has no graph, and Usage says its limits are not told: it keeps no plan's limits on the machine.
 

@@ -767,8 +767,8 @@ class AgentLayers(AgentHome, unittest.TestCase):
 
 class OpenCodeLayers(AgentHome, unittest.TestCase):
     """OpenCode's setup in the rows Claude's and Codex's take: its instructions as it finds them, its model and servers
-    from the config files its own `opencode debug config` lists (a stand-in's, as OpenCode 2.4 prints it); no graph,
-    no form, no button of Claude's or Codex's."""
+    from the user's own config files `opencode debug config` lists in the home folder (a stand-in's, as 2.4 prints it)
+    and a project's read as text; no graph, no form, no button of Claude's or Codex's."""
 
     ASK = "debug config --standalone"
 
@@ -794,21 +794,22 @@ class OpenCodeLayers(AgentHome, unittest.TestCase):
         above = self.put(os.path.join(os.path.dirname(self.folder), "CLAUDE.md"), "work")
         self.put(os.path.join(os.path.dirname(os.path.dirname(self.folder)), "AGENTS.md"), "above the repository")
         global_file, project_file = os.path.join(self.own, "opencode.jsonc"), os.path.join(self.folder, "opencode.json")
+        self.put(project_file, '{\n  // the v2 docs\n  "mcp": {"servers": {"docs": {"type": "remote", '
+                 '"url": "https://docs.lumen.example/v2/mcp", "disabled": true,},\n  /* a type of its own */ '
+                 '"odd": {"type": "websocket", "url": "wss://x.example"}}},\n'
+                 '  "plugin": ["./.opencode/plugin/x.ts"],\n}\n')
         log = self.programs({"opencode": {self.ASK: [self.config(
             (global_file, {"model": {"providerID": "anthropic", "model": "claude-opus-5-5", "variant": "high"},
                            "mcp": {"servers": {
                                "tracker": {"type": "local", "command": ["npx", "-y", "@lumen/tracker-mcp"],
                                            "environment": {"TRACKER_TOKEN": "trk_0000"}},
                                "docs": {"type": "remote", "url": "https://docs.lumen.example/mcp"}}}}),
-            (project_file, {"mcp": {"servers": {"docs": {"type": "remote", "url": "https://docs.lumen.example/v2/mcp",
-                                                         "disabled": True},
-                                                "odd": {"type": "websocket", "url": "wss://x.example"}}}}),
             (None, {"model": {"providerID": "openai", "model": "gpt-5.5"}})), "", 0]}})
         before = self.files()
         found = self.layers()
         self.assertEqual({k: v for k, v in self.files().items() if k != log}, before)
-        self.assertEqual([(c["argv"], c["cwd"]) for c in map(json.loads, logged(log))],
-                         [(self.ASK.split(), os.path.realpath(self.folder))])
+        self.assertEqual([(c["argv"], c["cwd"]) for c in map(json.loads, logged(log))],     # never in the project:
+                         [(self.ASK.split(), os.path.realpath(self.home))])                # its plugins are code
         head = found["head"]
         self.assertEqual((head["name"], head["model"], head["runs"], head["effort"]),
                          ("OpenCode", "Opus 5.5", "claude-opus-5-5", "High"))     # a file's model, not the variable's
@@ -852,6 +853,12 @@ class OpenCodeLayers(AgentHome, unittest.TestCase):
         self.assertIsNone(section["count"])
         self.assertEqual(section["rows"][0]["properties"]["text"],
                          "`opencode debug config` gave no list, so which servers OpenCode has is not known here.")
+
+    def test_a_projects_jsonc_read_as_json_reads_it(self):
+        self.assertEqual(opencode_setup.jsonc('{"a": "x//y /*z*/", // b\n "c": [1, 2,], /* d */ "e": "\\"q\\"",}'),
+                         {"a": "x//y /*z*/", "c": [1, 2], "e": '"q"'})
+        with self.assertRaises(ValueError):
+            opencode_setup.jsonc("{oops}")
 
     def test_not_here_none_and_the_cli_prints_it(self):
         out = io.StringIO()
