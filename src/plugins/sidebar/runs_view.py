@@ -14,7 +14,7 @@ import preview  # noqa: E402
 import runs  # noqa: E402
 from icons import glyphs  # noqa: E402
 from loop import Loop  # noqa: E402
-from screen import INSET, SPIN, SPINNER, Canvas, Style, icons_on, truncate, width  # noqa: E402
+from screen import CONTENT, INSET, SPIN, SPINNER, Canvas, Style, icons_on, truncate, width  # noqa: E402
 from settings import CLOSE_CELLS  # noqa: E402
 from usage_view import Row  # noqa: E402
 from vt import Focus, Key, Mouse  # noqa: E402
@@ -414,7 +414,7 @@ class RunsView(Loop):
     def lines(self, cells):
         """The runs under their days' names, the chosen one's properties under its row, the foot's sentence; before
         an answer, what stands in its place."""
-        found, end = self.answer, cells - INSET
+        found, end = self.answer, cells - CONTENT        # a run's words a cell inside its highlight's end
         if found is None:
             if self.failed:
                 return [self.said_row(cells, f"{FAILED}: {self.failed}", True)]
@@ -435,37 +435,40 @@ class RunsView(Loop):
             lines.append(self.said_row(cells, *self.said))
         lines.append(Row())
         for words in [found["scheduled"], *found["notes"]]:
-            for start, stop in wrap(words, max(1, end - INSET)):
+            for start, stop in wrap(words, max(1, cells - 2 * INSET)):
                 lines.append(Row())
                 lines[-1].put(INSET, words[start:stop].rstrip(), Style(fg="muted" if words == found["scheduled"]
                                                                         else "deleted"))
         return lines
 
     def row(self, run, end, cursor):
-        """RUN's row: its mark (a spinner while it works), its name, then its agent, time, what it made and its cost in
+        """RUN's row on its highlight, its words on it too and a cell inside it each side (END: the column after their
+        last): its mark (a spinner while it works), its name, then its agent, time, what it made and its cost in
         columns from the right (the agent's and the time's go where the name would keep too few cells)."""
         row = Row()
+        row.chosen = run["key"] == self.chosen
+        pointed = cursor or self.pointed == ("row", run["key"])
+        row.band = bg = "selection" if row.chosen else "hover" if pointed else None
+        faint = "muted_row" if bg else "muted"           # readable on the highlight, as every list's
         mark, role = MARKS.get(run["state"], (SPINNER[int(self.clock() / SPIN) % len(SPINNER)], "accent")
                                 if run["state"] == "running" else (" ", "muted"))
-        row.put(INSET, mark, Style(fg=role))
+        row.put(CONTENT, mark, Style(fg=faint if role == "muted" else role, bg=bg))
         columns = [(run["name"], AGENT), (run["time"], TIME), (run["made"] or "–", MADE), (run["cost"], COST)]
-        while len(columns) > 2 and end - sum(size + 1 for _, size in columns) - INSET - 2 < LEAST:
+        while len(columns) > 2 and end - sum(size + 1 for _, size in columns) - CONTENT - 2 < LEAST:
             columns.pop(0)
         x = end
         for words, size in reversed(columns):
             failed = words == "failed"
-            row.right(x, truncate(words, size), Style(fg="deleted" if failed else "muted"))
+            row.right(x, truncate(words, size), Style(fg="deleted" if failed else faint, bg=bg))
             x -= size + 1
-        row.put(INSET + 2, truncate(run["title"], max(1, x - INSET - 2)), Style(fg="text"))
-        row.regions.append((0, end + INSET, ("row", run["key"])))
-        row.chosen = run["key"] == self.chosen
-        row.band = "selection" if row.chosen else "hover" if cursor or self.pointed == ("row", run["key"]) else None
+        row.put(CONTENT + 2, truncate(run["title"], max(1, x - CONTENT - 2)), Style(fg="text", bg=bg))
+        row.regions.append((0, end + CONTENT, ("row", run["key"])))
         return row
 
     def properties(self, run, cells):
         """RUN's properties under its row, as the app's: how it ran, where and when, its prompt, what it does now or
         made, its cost; its buttons, the one the keys are on lit; what was done."""
-        x, room, lines = INSET + 2, max(8, cells - 2 * INSET - 2 - LABEL), []
+        x, room, lines = CONTENT + 2, max(8, cells - 2 * CONTENT - 2 - LABEL), []      # its words end as the row's
 
         def line(label, words, role="text"):
             for n, (start, stop) in enumerate(wrap(words, room) or [(0, 0)]):

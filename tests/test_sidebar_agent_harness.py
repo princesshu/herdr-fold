@@ -150,12 +150,12 @@ class Choices(Home):
     def test_the_chosen_mode_row_shows_its_choices_and_enter_puts_the_keys_in_them(self):
         self.choose(MODE)
         self.assertEqual(self.under("Mode Edit automatically", 3), [
-            "From  .claude/settings.json", "Manual  Edit automatically  Plan  Auto  Don't ask", "Bypass"])
+            "From  .claude/settings.json", "Manual  Edit automatically  Plan  Auto", "Don't ask  Bypass"])
         self.assertFalse(self.view.editing)
         self.assertIsNone(self.press("enter"))                                  # no Open beside it: into the form
         self.assertTrue(self.view.editing)
         self.assertEqual(self.under("Mode Edit automatically", 4), [
-            "Manual  Edit automatically  Plan  Auto  Don't ask", "Bypass",
+            "Manual  Edit automatically  Plan  Auto", "Don't ask  Bypass",
             "Auto and Bypass permissions work only in Global", "Saved in ‹ Project ›  .claude/settings.json"])
         canvas = self.draw()
         y, x = self.at(canvas, "Edit automatically  Plan")
@@ -486,10 +486,9 @@ class Codex(Home):
         self.choose(SANDBOX)
         self.assertIn("Read only  Workspace write  Full access", self.under("Sandbox Workspace write", 4))
         self.press("enter", "right")
-        lines = self.under("Full access", 5, LEAST)
-        self.assertEqual(lines[:5], ["Saved in ‹ Global ›", "~/.codex/config.toml",
-                                     '− sandbox_mode = "workspace-write"', '+ sandbox_mode =',
-                                     '"danger-full-access"'])
+        lines = self.under("Full access", 6, LEAST)
+        self.assertEqual(lines[:6], ["Saved in ‹ Global ›", "~/.codex/config.toml", '− sandbox_mode =',
+                                     '"workspace-write"', '+ sandbox_mode =', '"danger-full-access"'])
         self.assertIn("No sandbox: commands can change any", " ".join(self.under("from the next session", 2, LEAST)))
         self.save(self.press("enter"))
         self.assertIn('sandbox_mode = "danger-full-access"', self.raw(os.path.join(self.home, ".codex", "config.toml")))

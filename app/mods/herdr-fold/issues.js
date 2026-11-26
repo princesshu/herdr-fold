@@ -7,8 +7,8 @@ import { agents, focused, hc, setShared, shared, spaces, terminals, theme, run a
 import { newAgentIn } from "./chat.js";
 import { COMMIT_MESSAGE, GITHUB, ISSUES_STALE } from "./helper.js";
 import { CENTRED, chipGroups, counted, filterGroups, hovering, issueAgent, issueFacets, issueSearch, issueSet,
-  ISSUE_GROUPS, issuesParts, LEVELS, listStale, ME, passes, priorityColor, said, toggled, TYPE_ICON, TYPES }
-  from "./logic.js";
+  ISSUE_GROUPS, issuesParts, LEVELS, listStale, ME, passes, priorityBar, priorityColor, said, toggled, TYPE_ICON,
+  TYPES } from "./logic.js";
 import { BUTTON, button, choices, field, footNote, GAP, icon, iconButton, keepNote, PAD, small, SPINNER }
   from "./parts.js";
 import { showPreview } from "./preview.js";
@@ -439,7 +439,8 @@ export class IssuesView {
       .on_hover(hovering(this.host, key)).on_click((_e, cx) => this.open(issue, cx))
       .on_mouse_down("right", (e) => this.host.menus.open(this.picks(t, issue), undefined, undefined,
         { point: e.position }))
-      .child(div().w(3).h(LINE + 2 + UNDER).flex_none().rounded_full().when(issue.level !== null, (e) => e.bg(color)))
+      .child(div().w(3).h(LINE + 2 + UNDER).flex_none().rounded_full()
+        .bg(issue.state === "CLOSED" ? t.muted : priorityBar(t, issue.level)))
       .when(slot, (e) => e.child(v_flex().w(TYPE).h(LINE + 2 + UNDER).flex_none()
         .child(div().h(LINE).flex_none().flex().items_center().justify_center()
           .when(iconed, (e) => e.child(icon(TYPE_ICON[/** @type {keyof typeof TYPE_ICON} */ (issue.type)], TYPE)
@@ -497,7 +498,8 @@ export function setItems(t, issue, what, settable, pick) {
     ?? []);
   const none = what === "priority" ? "No priority" : "No type";
   const rank = (/** @type {string} */ words) => LEVELS.findIndex((name) => name.toLowerCase() === words.toLowerCase());
-  return [null, { label: none, on: !current, wide: true, act: (cx) => pick(null, none.toLowerCase(), cx) },
+  const nothing = what === "priority" ? { mark: { text: "●", color: priorityBar(t, null) } } : { wide: true };
+  return [null, { label: none, on: !current, ...nothing, act: (cx) => pick(null, none.toLowerCase(), cx) },
     ...options.map(([id, words]) => ({ label: words, on: current === words, act: (/** @type {any} */ cx) =>
       pick(id, words, cx), ...(what === "priority" && rank(words) >= 0
       ? { mark: { text: "●", color: priorityColor(t, rank(words)) } } : {}) }))];

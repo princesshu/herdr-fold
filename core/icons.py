@@ -4,12 +4,12 @@ import os
 
 # Nerd Fonts 3 glyphs (Codicons, one line weight; Task's clipboard Material Design's: Codicons have none), and plain
 # ones for a font without them; a check is ✓ in both, the one mark of done. Ghostty draws each a bit wider than its
-# cell, so the views' icons are equally wide and Issues' is GitHub's mark (the symmetric issue icon looks off-center).
+# cell, so the views' icons are equally wide; Issues' is the issue icon itself (cod-issues), as the owner asked.
 NERD_GLYPHS = {"closed": "\ueab6", "open": "\ueab4", "folder": "\uea83", "folder_open": "\ueaf7", "file": "\uea7b",
                "new_file": "\uea7f", "new_folder": "\uea80", "refresh": "\ueb37", "collapse": "\ueac5",
                "check": "✓", "more": "\ueab4", "stage": "\uea60", "unstage": "\ueb3b", "discard": "\ueae2",
                "diff": "\ueae1", "files": "\ueaf0", "search": "\uea6d", "git": "\uea68", "ai": "\uec10",
-               "issues": "\ueb00", "agent": "\uec0f", "robot": "\uec20", "web": "\ueb14", "repo": "\uea62",
+               "issues": "\ueb0c", "agent": "\uec0f", "robot": "\uec20", "web": "\ueb14", "repo": "\uea62",
                "terminal": "\uea85", "close": "\uea76", "funnel": "\ueb83", "Bug": "\ueaaf", "Feature": "\uea61",
                "Task": "\U000f0a38"}
 # an issue type has no plain mark: without icons its word says it

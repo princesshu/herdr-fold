@@ -3,7 +3,7 @@ first, those whose turn wrote files Claude still keeps with Restore files to her
 shows what changes and what stays first; after a restore one line says so, u undoes it. Actions go to Chats."""
 from datetime import datetime
 
-from screen import PLAIN, Style, truncate, width
+from screen import CONTENT, PLAIN, Style, truncate, width
 from vt import Key, Mouse
 from widgets import Action, ListView, wrap
 
@@ -176,7 +176,8 @@ class CheckpointList:
         self.draw_foot(canvas, foot, feet)
 
     def draw_point(self, canvas, y, index):
-        """A point: its time, its prompt's first line, how many files its turn wrote where it can restore them."""
+        """A point: its time, its prompt's first line, how many files its turn wrote where it can restore them; the
+        chosen one on its highlight, a cell inside it at its end (CONTENT)."""
         point, cells = self.points[index], canvas.width
         chosen = index == self.list.index
         bg = "selection" if chosen else None
@@ -184,9 +185,9 @@ class CheckpointList:
             canvas.band(y, bg)
         canvas.region(y, 0, cells, ("point", index))
         count = f"wrote {counted(point['files'], 'file')}" if restorable(point) else ""    # its turn's; Ask: since
-        canvas.put(y, cells - 1 - width(count), count, Style(fg="muted_row" if bg else "muted", bg=bg))
+        canvas.put(y, cells - CONTENT - width(count), count, Style(fg="muted_row" if bg else "muted", bg=bg))
         canvas.put(y, TIME, clock(point["at"], self.twelve), Style(fg="text" if chosen else "subtext", bg=bg))
-        room = max(1, cells - 1 - self.indent() - (width(count) + 2 if count else 0))
+        room = max(1, cells - CONTENT - self.indent() - (width(count) + 2 if count else 0))
         canvas.put(y, self.indent(), truncate(point["text"], room), Style(fg="text" if chosen else "subtext", bg=bg,
                                                                         bold=chosen))
 

@@ -5,7 +5,7 @@ import sys
 import time
 import unittest
 
-from support import SRC, set_env, text
+from support import SRC, inset_band, set_env, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 from chat_list import ChatList                  # noqa: E402
@@ -66,6 +66,15 @@ class Points(unittest.TestCase):
         self.assertEqual(listed[2], "Restore files to here…")
         self.assertEqual(listed[4], "13:30 Read the paging spec")             # its turn wrote nothing
         self.assertEqual(" ".join(rows[-1].split()), "Enter restores files · ← back to Chats")
+
+    def test_the_chosen_point_stands_a_cell_in_from_each_side_its_content_a_cell_inside(self):
+        # as its button stands at the highlight's edge under it: its time, its words cut short and its count, each a
+        # cell inside the highlight
+        long = point(5, 10, "Answer every page in the order its rows were written, the last one too", files=3)
+        self.view.set({"points": [long, READ], "undo": None})
+        self.draw()
+        inset_band(self, self.canvas, self.row_of("13:10"))
+        self.assertEqual(text(self.canvas, self.row_of("13:10"))[53], "s")    # wrote 3 files: a cell inside the end
 
     def test_a_running_claude_is_told_to_rewind_in_its_own_pane(self):
         self.view.item = RUNNING

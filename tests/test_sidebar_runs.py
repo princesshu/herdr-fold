@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from support import SRC, FakeTerminal, end_jobs, set_env, text
+from support import SRC, FakeTerminal, end_jobs, inset_band, set_env, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import runs_view  # noqa: E402
@@ -77,6 +77,15 @@ class View(unittest.TestCase):
                       "~$0.31", "Scheduled cloud runs are not listed", "n New run · o opens a file · Esc closes"):
             self.assertIn(words, shown)
 
+    def test_a_chosen_run_stands_a_cell_in_from_each_side_its_words_on_it_a_cell_inside(self):
+        # as the chips stand above: its mark, its name and its columns on the highlight, each a cell inside it
+        app = self.open()
+        y = next(y for y, row in enumerate(self.rows(app)) if "Update the API docs" in row)
+        inset_band(self, app.canvas, y, lit="hover")                        # the keys on it: the hover's
+        self.assertTrue(all(app.canvas.rows[y][x][1].bg == "hover" for x in range(1, 59)))     # under its words too
+        self.keys(app, "enter")
+        inset_band(self, app.canvas, y)                                     # opened: the selection's
+
     def test_a_working_run_opened_says_what_it_does_now_and_stop_is_its_agents_command(self):
         app = self.open()
         self.keys(app, "enter")
@@ -90,8 +99,8 @@ class View(unittest.TestCase):
 
     def test_a_narrow_pane_keeps_the_runs_name_and_lets_the_agent_go(self):
         shown = "\n".join(self.rows(self.open(cells=40)))
-        self.assertIn("Update the …", shown)
-        self.assertNotIn("Claude 14:02", shown)
+        self.assertIn("Update the API …", shown)                            # its time gone too, a cell inside
+        self.assertNotIn("Claude", shown.split("Update")[1].split("\n")[0])
         self.assertIn("n New run · o opens a file · Esc\n closes", shown)          # the keys wrap, never cut
 
     def test_new_run_starts_claudes_in_the_background_once_a_prompt_is_typed(self):

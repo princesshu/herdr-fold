@@ -8,7 +8,7 @@ import widgets
 from agent_setup import KNOWN
 from chats import TRASHED
 from checkpoint_list import CheckpointList
-from screen import PAD, PLAIN, Canvas, Style, truncate, width
+from screen import CONTENT, PAD, PLAIN, Canvas, Style, truncate, width
 from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, Popup, TextInput, wrap
 from words import since
@@ -23,7 +23,7 @@ DELETE = "Delete…"            # a closed chat's of TRASHED, asked first: its f
 CHECKPOINTS = "Checkpoints…"  # a Claude chat's: its prompts to take its files back to, in the list's place
 ASKED = 40                    # characters of a chat's name in that question
 BOX, MARKED = "□", "■"        # a closed chat's box, and a marked one's
-TITLE = 5                     # where a chat's name starts, its mark two cells before it
+TITLE = CONTENT + 4           # where a chat's name starts, its mark two cells before it (under its space's name)
 TITLE_LEAST = 16              # cells a chat's name keeps at least: in fewer the agent's column goes
 # the chosen chat's plan under its row (core/plan.py's list): a step's mark and its color, by its state
 STEP_MARK = {"done": ("✓", "done"), "now": ("◐", "accent"), "next": ("○", "muted")}
@@ -201,7 +201,7 @@ class ChatList:
     def plan_lines(self, cells):
         """The plan's lines under the chosen chat's row, CELLS wide: its head (a finished one's all it says), its note,
         the done steps in one row (listed under it once opened), then the step at work and those to do."""
-        plan, room = self.planned(), max(1, cells - TITLE - 3)
+        plan, room = self.planned(), max(1, cells - TITLE - 2 - CONTENT)
         if not plan:
             return []
         if plan["finished"]:
@@ -230,15 +230,15 @@ class ChatList:
         """A line of the plan, under its chat's name: the head with the approved plan's link at its end, a step's mark
         and words, what it waits for at the right where there is room."""
         cells, kind, words = canvas.width, line["kind"], line["text"]
-        room = max(1, cells - TITLE - 3)
+        room = max(1, cells - TITLE - 2 - CONTENT)       # its words end where the rows' do
         canvas.region(y, 0, cells, "plan")
         if kind == "head":
             canvas.put(y, TITLE, "Plan", Style(fg="muted"))
             canvas.put(y, TITLE + 6, truncate(words, max(1, room - 4)), Style(fg="done"))
-            start = cells - 1 - width(OPEN_PLAN)
+            start = cells - CONTENT - width(OPEN_PLAN)
             if self.planned()["plan"] is not None and start >= TITLE + 6 + width(words) + 2:
                 canvas.put(y, start, OPEN_PLAN, Style(fg="subtext", underline=True))
-                canvas.region(y, start, cells - 1, "plan:open")
+                canvas.region(y, start, cells - CONTENT, "plan:open")
         elif kind in ("note", "listed"):
             canvas.put(y, TITLE if kind == "note" else TITLE + 2, truncate(words, room + (2 if kind == "note" else 0)),
                        Style(fg="muted"))
@@ -255,7 +255,7 @@ class ChatList:
             canvas.put(y, TITLE, mark, Style(fg=role))
             canvas.put(y, TITLE + 2, truncate(words, room - (width(after) + 2 if after else 0)),
                        Style(fg="text" if kind == "now" else "subtext"))
-            canvas.put(y, cells - 1 - width(after), after, Style(fg="muted"))
+            canvas.put(y, cells - CONTENT - width(after), after, Style(fg="muted"))
 
     # --- drawing
 
@@ -328,31 +328,32 @@ class ChatList:
         if row[0] == "group":
             _, name, found, opened = row
             count = str(len(found))
-            canvas.put(y, 1, widgets.TURNS.mark(self.icons, ("space", name), opened), Style(fg=faint, bg=bg))
-            canvas.put(y, cells - 1 - width(count), count, Style(fg=faint, bg=bg))
+            canvas.put(y, CONTENT, widgets.TURNS.mark(self.icons, ("space", name), opened), Style(fg=faint, bg=bg))
+            canvas.put(y, cells - CONTENT - width(count), count, Style(fg=faint, bg=bg))
             here = name == self.here
-            canvas.put(y, 3, truncate(printable(name), max(1, cells - 6 - width(count))),
+            canvas.put(y, TITLE - 2, truncate(printable(name), max(1, cells - CONTENT - TITLE - width(count))),
                        Style(fg="text" if here else "subtext", bg=bg, bold=here))
             return
         item = row[1]
         agent, age = widths
         archived = self.archive_key(item) in self.archived
-        start = cells - 1 - age
-        canvas.put(y, cells - 1 - width(self.age(item)), self.age(item), Style(fg="archived" if archived else faint,
-                                                                              bg=bg))
+        start = cells - CONTENT - age
+        canvas.put(y, cells - CONTENT - width(self.age(item)), self.age(item),
+                   Style(fg="archived" if archived else faint, bg=bg))
         if start - agent - 2 - TITLE - 2 >= TITLE_LEAST:        # room for the agent's column too
             start -= agent + 2
             name = KNOWN[item.agent]["name"]
             canvas.put(y, start + agent - width(name), name, Style(fg=faint, bg=bg))
         if self.markable(row):                                  # its box, under the groups' chevrons
-            canvas.region(y, 0, 3, ("mark", index))
+            canvas.region(y, 0, CONTENT + 2, ("mark", index))
             if self.marked or index == self.hover:
                 on = self.archive_key(item) in self.marked
-                canvas.put(y, 1, MARKED if on else BOX, Style(fg="accent" if on else faint, bg=bg))
+                canvas.put(y, CONTENT, MARKED if on else BOX, Style(fg="accent" if on else faint, bg=bg))
         shown, role = mark(item.state)
         canvas.put(y, TITLE - 2, shown, Style(fg=faint if bg and role == "guide" else role, bg=bg))
         if self.naming and self.key(("item", self.naming.item)) == self.key(row):
-            self.naming.field.draw(canvas, y, TITLE, max(1, cells - TITLE - 1), 1, Style(bg="input"), focused=True)
+            self.naming.field.draw(canvas, y, TITLE, max(1, cells - TITLE - CONTENT), 1, Style(bg="input"),
+                                   focused=True)
             return
         title = truncate(printable(item.title), max(1, start - TITLE - 2))
         look = "archived" if archived else "subtext" if item.state else faint      # set aside: a shade further back

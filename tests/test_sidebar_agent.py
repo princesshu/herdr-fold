@@ -11,7 +11,7 @@ import time
 import unittest
 from unittest import mock
 
-from support import SRC, FakeTerminal, end_jobs, set_attrs, set_env, text
+from support import SRC, FakeTerminal, end_jobs, inset_band, set_attrs, set_env, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import agent_layers  # noqa: E402
@@ -34,7 +34,7 @@ A = agent_layers
 MCPJSON = "/work/lumen-api/.mcp.json"
 CLAUDE_MD = "/work/lumen-api/CLAUDE.md"
 NERD = glyphs(True)
-OPENED, CLOSED = f" {NERD['open']}  ", f" {NERD['closed']}  "            # a section's chevron, then its title
+OPENED, CLOSED = f"  {NERD['open']}  ", f"  {NERD['closed']}  "          # a section's chevron, then its title
 WIDE = 60
 GRAPH = A.act("graph", "Show in graph")
 
@@ -175,8 +175,8 @@ class AgentsList(unittest.TestCase):
         self.press("home")
         self.assertEqual(self.view.chosen, ("head", None))
         canvas = self.draw()
-        self.assertTrue(text(canvas, 0).startswith(" Claude in lumen-api ⌄ "), text(canvas, 0))
-        self.assertEqual(canvas.rows[0][1][1], Style(fg="text", bg="selection", bold=True))
+        self.assertTrue(text(canvas, 0).startswith("  Claude in lumen-api ⌄ "), text(canvas, 0))   # inside its band
+        self.assertEqual(canvas.rows[0][2][1], Style(fg="text", bg="selection", bold=True))
         self.assertTrue(text(canvas, 0).rstrip().endswith("1 failed  1 sign in"))
 
     def test_enter_on_the_head_opens_the_agents_on_this_machine_then_the_ones_not_installed(self):
@@ -237,7 +237,7 @@ class AgentsList(unittest.TestCase):
         self.press("up")                                                        # round to the last line, past the rule
         self.assertIsNone(self.press("enter"))
         lines = self.lines(self.draw())
-        self.assertEqual(lines[0], " Aider in lumen-api ⌄")
+        self.assertEqual(lines[0], "  Aider in lumen-api ⌄")
         self.assertEqual(lines[2], " Aider is not installed")
         self.assertIn(" npm install -g aider", lines)
         self.assertIn("  Copy    Open its page ↗", lines)
@@ -251,7 +251,7 @@ class AgentsList(unittest.TestCase):
         self.assertEqual(self.listed(self.draw(), 10)[2:8], ["Claude Max", "Codex Plus", "Gemini CLI sign in",
                                                              "─" * 21, "Not installed", "✓ Aider"])
         self.assertEqual(self.press("enter"), None)                             # the keys start on it: looked at still
-        self.assertEqual(self.lines(self.draw())[0], " Aider in lumen-api ⌄")
+        self.assertEqual(self.lines(self.draw())[0], "  Aider in lumen-api ⌄")
 
     def test_an_agent_not_signed_in_shows_sign_in_in_its_setups_place(self):
         self.view.set({"agent": "gemini", "folder": "/work/lumen-api", "agents": MACHINE,
@@ -259,7 +259,7 @@ class AgentsList(unittest.TestCase):
         canvas = self.draw(48)
         lines = self.lines(canvas)
         self.assertEqual(lines[:8], [
-            " Gemini CLI in lumen-api ⌄", "", " Gemini CLI is not signed in",
+            "  Gemini CLI in lumen-api ⌄", "", " Gemini CLI is not signed in",
             " It signs in its own way: Sign in opens it in a", " terminal tab, and you finish there, or in the",
             " browser if it asks.", "", "  Sign in"])
         self.assertEqual(lines[9], " herdr-fold keeps no token.")
@@ -275,7 +275,7 @@ class AgentsList(unittest.TestCase):
         self.view.set({"agent": "gemini", "folder": "/work/lumen-api", "agents": [
             *MACHINE[:2], machine("gemini", "Gemini CLI")], "head": {"name": "Gemini CLI", "where": "in lumen-api"}})
         lines = self.lines(self.draw(48))
-        self.assertEqual([line for line in lines if line.strip()], [" Gemini CLI in lumen-api ⌄"])
+        self.assertEqual([line for line in lines if line.strip()], ["  Gemini CLI in lumen-api ⌄"])
         self.assertEqual(self.view.chosen, layers.HEAD)                         # the agents' list, a key away
         self.assertIsNone(self.view.tone())
 
@@ -336,6 +336,17 @@ class View(unittest.TestCase):
             self.press("down")
         self.fail(f"{key} never chosen")
 
+    def test_a_chosen_line_stands_a_cell_in_from_each_side_its_content_a_cell_inside(self):
+        # as the start-up rule under the head stands: the head, the model's line, a section and a row, each one's
+        # words a cell inside its highlight
+        self.view.folded.clear()
+        for key, words in ((layers.HEAD, "lumen-api"), (("section", "connectors"), "Connectors"),
+                           (("row", "connector:sentry"), "sentry")):
+            with self.subTest(key=key):
+                self.choose(key)
+                canvas = self.draw()
+                inset_band(self, canvas, self.at(canvas, words)[0])
+
     def test_it_says_it_is_loading_on_the_heads_row_before_the_first_answer(self):
         view = layers.Layers()
         canvas = Canvas(WIDE, 10)
@@ -346,13 +357,14 @@ class View(unittest.TestCase):
     def test_the_head_names_the_agent_its_folder_and_problems_then_cores_line_then_the_start_up_rule(self):
         canvas = self.draw()
         head = text(canvas, 0)
-        self.assertTrue(head.startswith(" Claude in lumen-api "), head)
-        self.assertTrue(head.endswith("1 failed  1 sign in "), head)             # a cell in from the pane's side
+        self.assertTrue(head.startswith("  Claude in lumen-api "), head)        # a cell inside its highlight
+        self.assertTrue(head.endswith("1 failed  1 sign in  "), head)
         self.assertEqual([self.look(canvas, words) for words in ("Claude", "in lumen-api", "1 failed", "1 sign in")],
                          [Style(fg="text", bold=True), Style(fg="muted"), Style(fg="deleted"), Style(fg="modified")])
-        self.assertEqual(text(canvas, 1).rstrip(), " Opus 5.5 · High · starts at 34.2k of 1M")
+        self.assertEqual(text(canvas, 1).rstrip(), "  Opus 5.5 · High · starts at 34.2k of 1M")
         self.assertEqual(self.look(canvas, "Opus 5.5"), Style(fg="muted"))
-        # the blank row's place: what loads at start, a part by its share of the pane's cells, in its colors
+        # the blank row's place: what loads at start, a part by its share of the pane's cells, in its colors, as
+        # wide as a row's highlight
         self.assertEqual(text(canvas, 2), " " + "━" * (WIDE - 2) + " ")
         self.assertEqual([canvas.rows[2][x][1].fg for x in (1, 14, 15, 20, 21, WIDE - 2)],
                          ["accent", "accent", "done", "done", "account", "account"])
@@ -361,7 +373,7 @@ class View(unittest.TestCase):
         answer["head"]["line"] = "starts at ~0"
         self.view.set(answer)
         canvas = self.draw()
-        self.assertEqual((text(canvas, 1).rstrip(), text(canvas, 2).strip()), (" starts at ~0", ""))   # nothing loads
+        self.assertEqual((text(canvas, 1).rstrip(), text(canvas, 2).strip()), ("  starts at ~0", ""))  # nothing loads
 
     def test_the_sections_in_cores_order_their_counts_after_the_title_swatches_and_summary_at_the_right(self):
         lines = self.lines(self.draw())
@@ -369,11 +381,11 @@ class View(unittest.TestCase):
             "sentry", "google-drive", "notion", "dropbox"))
         self.assertEqual([line[:24].rstrip() for line in lines[3:14]], [        # a connector's brand before its name
             CLOSED + "Subagents 6", CLOSED + "Rules 3", CLOSED + "Skills 7", CLOSED + "Permissions",
-            OPENED + "Connectors 5", f"    ✕ {sentry} sentry", "    ● B Box", f"      {drive} Google Drive",
-            f"      {notion} Notion", f"    ● {dropbox} Dropbox", ""])
+            OPENED + "Connectors 5", f"     ✕ {sentry} sentry", "     ● B Box", f"       {drive} Google Drive",
+            f"       {notion} Notion", f"     ● {dropbox} Dropbox", ""])
         self.assertEqual([lines[n][30:].strip() for n in range(3, 8)],
                          ["", "■ 5.4k", "■ 2.1k", "1 allow  1 ask  1 deny  +", "■ 6.8k"])
-        self.assertEqual(len(lines[4]), WIDE - 1)
+        self.assertEqual(len(lines[4]), WIDE - 2)                              # a cell inside a highlight's end
         self.view.chosen = layers.HEAD                                          # no row lit
         canvas = self.draw()
         self.assertEqual([self.look(canvas, "■", row) for row in ("Rules", "Skills", "Connectors")],
@@ -386,14 +398,14 @@ class View(unittest.TestCase):
         answer = lumen()
         answer["sections"][4] = section("connectors", "Connectors", [])
         self.view.set(answer)
-        self.assertEqual(self.lines(self.draw())[7], "    Connectors 0")
+        self.assertEqual(self.lines(self.draw())[7], "     Connectors 0")
         self.choose(("section", "connectors"))
         self.assertIsNone(self.press("enter"))
         self.assertIsNone(self.press("left"))
 
     def test_one_mark_column_red_failed_yellow_to_sign_in_green_used_none_for_on_or_off(self):
         canvas = self.draw()
-        marks = {name: canvas.rows[self.at(canvas, name)[0]][4] for name in ("sentry", "Box", "Google Drive",
+        marks = {name: canvas.rows[self.at(canvas, name)[0]][5] for name in ("sentry", "Box", "Google Drive",
                                                                               "Notion", "Dropbox")}
         self.assertEqual(marks, {"sentry": ("✕", Style(fg="deleted")), "Box": ("●", Style(fg="modified")),
                                  "Google Drive": (" ", Style()), "Notion": (" ", Style()),
@@ -417,17 +429,17 @@ class View(unittest.TestCase):
             self.choose(("section", name))
             self.press("enter")
         canvas = self.draw()
-        marks = {name: canvas.rows[self.at(canvas, name)[0]][4] for name in ("skill-6", "skill-5", "code-reviewer")}
+        marks = {name: canvas.rows[self.at(canvas, name)[0]][5] for name in ("skill-6", "skill-5", "code-reviewer")}
         dot = ("●", Style(fg="added"))
         self.assertEqual(marks, {"skill-6": dot, "skill-5": (" ", Style()), "code-reviewer": dot})
-        self.assertEqual({self.at(canvas, name)[1] for name in ("skill-6", "skill-5", "code-reviewer")}, {6})
+        self.assertEqual({self.at(canvas, name)[1] for name in ("skill-6", "skill-5", "code-reviewer")}, {7})
 
     def test_the_states_and_tags_stand_in_aligned_columns_the_tags_at_the_right(self):
         canvas = self.draw()
         rows = [text(canvas, self.at(canvas, name)[0]) for name in ("sentry", "Box", "Google Drive", "Dropbox")]
-        self.assertEqual({len(row.rstrip()) for row in rows}, {WIDE - 1})     # each tag ends a cell in
+        self.assertEqual({len(row.rstrip()) for row in rows}, {WIDE - 2})     # each tag a cell inside a highlight
         states = {re.search(r"(failed|sign in|on|32 tools)\s+\S+\s*$", row).end(1) for row in rows}
-        self.assertEqual(states, {WIDE - 1 - len("claude.ai") - 2})             # the widest tag's column, 2 cells off
+        self.assertEqual(states, {WIDE - 2 - len("claude.ai") - 2})             # the widest tag's column, 2 cells off
         self.assertIn("sign in  claude.ai", rows[1])
         self.view.folded.discard("permissions")                                # one column in every section
         canvas = self.draw()
@@ -439,13 +451,13 @@ class View(unittest.TestCase):
         canvas = self.draw()
         own, built_in = (text(canvas, self.at(canvas, name)[0]).rstrip() for name in ("code-reviewer", "Explore"))
         self.assertTrue(own.endswith("Opus · 4 tools  pr-review"), own)
-        self.assertEqual(own.index("Opus") + len("Opus · 4 tools"), WIDE - 1 - len("claude.ai") - 2)
+        self.assertEqual(own.index("Opus") + len("Opus · 4 tools"), WIDE - 2 - len("claude.ai") - 2)
         self.assertEqual(self.look(canvas, "Opus · 4 tools").fg, "muted")
-        self.assertTrue(built_in.startswith("      Explore, general-purpose, Plan 2 more"), built_in)
+        self.assertTrue(built_in.startswith("       Explore, general-purpose, Plan 2 more"), built_in)
         self.assertTrue(built_in.endswith("Built-in"), built_in)
         self.assertEqual(self.look(canvas, "2 more").fg, "muted")
         narrow = text(self.draw(sidebar.column.FEWEST), self.at(canvas, "code-reviewer")[0]).rstrip()
-        self.assertTrue(narrow.startswith("    ● code-reviewer  Opus"), narrow)     # the name whole, its words cut
+        self.assertTrue(narrow.startswith("     ● code-reviewer  Opus"), narrow)    # the name whole, its words cut
         self.assertTrue(narrow.endswith("…  pr-review"), narrow)
 
     def test_permissions_mode_sandbox_the_conflict_the_rules_then_every_hook_in_its_group(self):
@@ -454,9 +466,9 @@ class View(unittest.TestCase):
         start = next(n for n, line in enumerate(lines) if "Permissions" in line)
         left = [re.match(r"(\s*\S.*?)(\s{2,}|$)", line).group(1) for line in lines[start + 1:start + 10]]
         self.assertEqual(left, [
-            "      Mode Edit automatically", "      Sandbox Bash · 2 hosts", "    ● Bash(git push:*)",
-            "        deny in Project hides allow in Global", "      Bash(npm test)", "      WebSearch", "      Hooks 2",
-            "      guard.sh on PreToolUse · Bash", "      herdr-fold on PermissionRequest"])
+            "       Mode Edit automatically", "       Sandbox Bash · 2 hosts", "     ● Bash(git push:*)",
+            "         deny in Project hides allow in Global", "       Bash(npm test)", "       WebSearch",
+            "       Hooks 2", "       guard.sh on PreToolUse · Bash", "       herdr-fold on PermissionRequest"])
         canvas = self.draw()
         self.assertEqual(self.look(canvas, "Hooks 2").fg, "muted")
         guard = text(canvas, self.at(canvas, "guard.sh")[0]).rstrip()
@@ -470,21 +482,21 @@ class View(unittest.TestCase):
         self.choose(("row", "connector:sentry"))
         canvas = self.draw()
         y = self.at(canvas, "sentry")[0]
-        self.assertEqual(canvas.rows[y][0][1].bg, "selection")                 # the chosen row, edge to edge
-        self.assertEqual(canvas.rows[y][WIDE - 1][1].bg, "selection")
+        self.assertEqual([canvas.rows[y][x][1].bg for x in (0, 1, WIDE - 2, WIDE - 1)],
+                         [None, "selection", "selection", None])                # the chosen row, a cell in
         under = [text(canvas, y + n).rstrip() for n in range(1, 5)]
         # two cells in from its name, past its brand's cell
-        self.assertEqual(under[0], "          From  .mcp.json")                    # its tag says Project above
-        self.assertEqual(under[1], "          Runs  npx -y @sentry/mcp-server")
-        self.assertEqual(under[2], "          npx is not on this machine's PATH")
-        self.assertEqual(under[3], "           Retry    Open .mcp.json")
-        self.assertEqual(canvas.rows[y + 3][10][1].fg, "deleted")
-        self.assertEqual([canvas.rows[y + 1][x][1].fg for x in (10, 16)], ["muted", "text"])
+        self.assertEqual(under[0], "           From  .mcp.json")                   # its tag says Project above
+        self.assertEqual(under[1], "           Runs  npx -y @sentry/mcp-server")
+        self.assertEqual(under[2], "           npx is not on this machine's PATH")
+        self.assertEqual(under[3], "            Retry    Open .mcp.json")
+        self.assertEqual(canvas.rows[y + 3][11][1].fg, "deleted")
+        self.assertEqual([canvas.rows[y + 1][x][1].fg for x in (11, 17)], ["muted", "text"])
         # each button a block of its own, a cell of air each side of its label, two cells between two
         buttons = canvas.rows[y + 4]
         self.assertEqual([x for x in range(WIDE) if buttons[x][1].bg == "input"],
-                         list(range(10, 17)) + list(range(19, 35)))
-        self.assertTrue(text(canvas, y + 5).startswith("    ● B Box "))       # the next row right after
+                         list(range(11, 18)) + list(range(20, 36)))
+        self.assertTrue(text(canvas, y + 5).startswith("     ● B Box "))      # the next row right after
 
     def test_an_error_says_what_failed_and_why_the_files_it_names_in_its_tip(self):
         answer = lumen()
@@ -588,8 +600,8 @@ class View(unittest.TestCase):
         self.press("right")
         canvas = self.draw()
         y = self.at(canvas, "Bash(git push:*)")[0]
-        self.assertEqual((text(canvas, y)[4], canvas.rows[y][4][1].fg), ("●", "modified"))
-        self.assertEqual(text(canvas, y + 1).rstrip(), "        deny in Project hides allow in Global")
+        self.assertEqual((text(canvas, y)[5], canvas.rows[y][5][1].fg), ("●", "modified"))
+        self.assertEqual(text(canvas, y + 1).rstrip(), "         deny in Project hides allow in Global")
         self.assertEqual(self.look(canvas, "deny in Project").fg, "modified")
         self.assertEqual([self.look(canvas, "allow", "Bash(npm test)").fg, self.look(canvas, "ask", "WebSearch").fg],
                          ["added", "modified"])
@@ -672,7 +684,7 @@ class View(unittest.TestCase):
         self.view.frame = "⠙"
         canvas = self.draw()
         y = self.at(canvas, "sentry")[0]
-        self.assertEqual((text(canvas, y)[4], canvas.rows[y][4][1].fg), ("⠙", "accent"))
+        self.assertEqual((text(canvas, y)[5], canvas.rows[y][5][1].fg), ("⠙", "accent"))
 
     def test_the_chosen_row_stays_chosen_through_a_new_answer(self):
         self.choose(("row", "connector:claude.ai Google Drive"))
@@ -687,7 +699,7 @@ class View(unittest.TestCase):
         self.view.set({"agent": "codex", "folder": "/work/lumen-api", "agents": [gone], "empty": gone["empty"],
                        "head": {"name": "Codex", "where": "in lumen-api"}})
         lines = self.lines(self.draw())
-        self.assertTrue(lines[0].startswith(" Codex in lumen-api "), lines[0])
+        self.assertTrue(lines[0].startswith("  Codex in lumen-api "), lines[0])      # a row: a cell inside its band
         self.assertEqual(lines[1:3], ["", " Codex is not installed"])
 
     def test_at_the_columns_least_every_row_keeps_a_cell_in_from_each_side(self):
@@ -706,7 +718,7 @@ class View(unittest.TestCase):
         self.assertIn("claude.ai", text(canvas, self.at(canvas, "Google Drive")[0]))
         canvas = self.draw(34)                                                  # a window narrower than that
         row = text(canvas, self.at(canvas, "Google Drive")[0])
-        self.assertEqual(len(row.rstrip()), 33, row)
+        self.assertEqual(len(row.rstrip()), 32, row)                            # a cell inside a highlight's end
         self.assertTrue(row.rstrip().endswith(" on"), row)
         self.assertNotIn("claude.ai", row)
 
@@ -730,7 +742,7 @@ class View(unittest.TestCase):
 NOW = 1794571200                # Friday, 13 November 2026, 12:00 UTC
 FIVE, WEEK = NOW + 2 * 3600 + 46 * 60, NOW + 3 * 86400 + 5 * 3600       # 14:46 UTC; Monday, 17:00 UTC
 FABLE = NOW + 3 * 86400 + 21 * 3600                                       # Fable's own week's: Tuesday, 09:00 UTC
-SHUT = f" {NERD['closed']}  "
+SHUT = f"  {NERD['closed']}  "
 
 
 def reading(agent, five=None, week=None, at=NOW - 60, fable=None):
@@ -785,10 +797,10 @@ class Usage(unittest.TestCase):
 
     def test_it_is_the_first_section_an_agent_a_row_the_arrow_at_its_heads_right(self):
         lines = self.lines(self.draw())
-        self.assertEqual(lines[3], OPENED + "Usage" + "↗".rjust(WIDE - 1 - 9))
-        self.assertEqual(lines[4], "      Claude Max" + "5h ▰▰▰▰▱ 72%  wk ▰▱▱▱▱ 16%".rjust(WIDE - 1 - 16))
-        self.assertEqual(lines[5], "        5h resets 14:46")                      # yellow: when it frees up
-        self.assertEqual(lines[6], "      Codex Plus" + "5h ▰▱▱▱▱ 8%  wk ▰▱▱▱▱ 3%".rjust(WIDE - 1 - 16))
+        self.assertEqual(lines[3], OPENED + "Usage" + "↗".rjust(WIDE - 2 - 10))
+        self.assertEqual(lines[4], "       Claude Max" + "5h ▰▰▰▰▱ 72%  wk ▰▱▱▱▱ 16%".rjust(WIDE - 2 - 17))
+        self.assertEqual(lines[5], "         5h resets 14:46")                      # yellow: when it frees up
+        self.assertEqual(lines[6], "       Codex Plus" + "5h ▰▱▱▱▱ 8%  wk ▰▱▱▱▱ 3%".rjust(WIDE - 2 - 17))
         self.assertEqual(lines[7], SHUT + "Subagents 6")
 
     def test_a_percent_and_its_bar_wear_its_levels_color_the_labels_and_the_plan_dim(self):
@@ -804,7 +816,7 @@ class Usage(unittest.TestCase):
         self.view.set(metered(reading("claude", 32, 16)))
         self.assertNotIn("resets", "\n".join(self.lines(self.draw())))
         self.view.set(metered(reading("claude", 72, 16), twelve=True))
-        self.assertIn("        5h resets 2:46 PM", self.lines(self.draw()))
+        self.assertIn("         5h resets 2:46 PM", self.lines(self.draw()))
 
     def test_a_window_just_reset_is_0_one_used_since_with_no_reading_a_dash(self):
         self.view.set(metered(reading("claude", 0, "–")))
@@ -814,86 +826,87 @@ class Usage(unittest.TestCase):
 
     def test_a_narrow_pane_drops_the_bars_then_the_looser_window(self):
         narrow, narrower = self.lines(self.draw(sidebar.column.FEWEST))[4], self.lines(self.draw(30))[4]
-        self.assertEqual(narrow, "      Claude Max" + "5h 72%  wk 16%".rjust(sidebar.column.FEWEST - 1 - 16))
-        self.assertEqual(narrower, "      Claude Max" + "5h 72%".rjust(30 - 1 - 16))
+        self.assertEqual(narrow, "       Claude Max" + "5h 72%  wk 16%".rjust(sidebar.column.FEWEST - 2 - 17))
+        self.assertEqual(narrower, "       Claude Max" + "5h 72%".rjust(30 - 2 - 17))
 
     def test_a_models_own_week_is_a_third_window_the_first_to_go_where_all_do_not_fit(self):
         self.view.set(metered(reading("claude", 32, 16, fable=24), reading("codex", 8, 3)))
-        roomy = 62                                                  # the name, the plan and the three, 2 apart
+        roomy = 64                                                  # the name, the plan and the three, 2 apart
         canvas = self.draw(roomy)
         figures = "5h ▰▰▱▱▱ 32%  wk ▰▱▱▱▱ 16%  Fable ▰▱▱▱▱ 24%"
-        self.assertEqual(self.lines(canvas)[4], "      Claude Max" + figures.rjust(roomy - 1 - 16))
+        self.assertEqual(self.lines(canvas)[4], "       Claude Max" + figures.rjust(roomy - 2 - 17))
         self.assertEqual([self.look(canvas, words) for words in ("Fable ▰", "▰▱▱▱▱ 24%")],
                          [Style(fg="muted"), Style(fg="added")])
-        self.assertEqual(self.lines(canvas)[5], "      Codex Plus" + "5h ▰▱▱▱▱ 8%  wk ▰▱▱▱▱ 3%".rjust(roomy - 1 - 16))
+        self.assertEqual(self.lines(canvas)[5], "       Codex Plus" + "5h ▰▱▱▱▱ 8%  wk ▰▱▱▱▱ 3%".rjust(roomy - 2 - 17))
         narrower = self.lines(self.draw(roomy - 1))[4]
-        self.assertEqual(narrower, "      Claude Max" + "5h ▰▰▱▱▱ 32%  wk ▰▱▱▱▱ 16%".rjust(roomy - 2 - 16))
+        self.assertEqual(narrower, "       Claude Max" + "5h ▰▰▱▱▱ 32%  wk ▰▱▱▱▱ 16%".rjust(roomy - 3 - 17))
 
     def test_a_models_own_week_used_most_stays_its_reset_under_the_row_its_figure_folded(self):
         self.view.set(metered(reading("claude", 32, 61, fable=86)))
         lines = self.lines(self.draw())                             # the bars go before the red one does
-        self.assertEqual(lines[4], "      Claude Max" + "5h 32%  wk 61%  Fable 86%".rjust(WIDE - 1 - 16))
-        self.assertEqual(lines[5], "        Fable resets Tue 09:00")
+        self.assertEqual(lines[4], "       Claude Max" + "5h 32%  wk 61%  Fable 86%".rjust(WIDE - 2 - 17))
+        self.assertEqual(lines[5], "         Fable resets Tue 09:00")
         self.choose(("usage", "claude"))
-        self.assertEqual(self.lines(self.draw())[5:9], ["        5h     resets 14:46",
-                                                        "        Week   resets Mon 17:00",
-                                                        "        Fable  resets Tue 09:00", "        Read   1 min ago"])
+        self.assertEqual(self.lines(self.draw())[5:9], ["         5h     resets 14:46",
+                                                        "         Week   resets Mon 17:00",
+                                                        "         Fable  resets Tue 09:00",
+                                                        "         Read   1 min ago"])
         self.view.folded.add("usage")
         self.view.chosen = layers.HEAD
-        self.assertEqual(self.lines(self.draw())[3], SHUT + "Usage" + "Claude Fable 86%  ↗".rjust(WIDE - 1 - 9))
+        self.assertEqual(self.lines(self.draw())[3], SHUT + "Usage" + "Claude Fable 86%  ↗".rjust(WIDE - 2 - 10))
 
     def test_an_api_key_is_its_month_spent_of_its_budget_in_its_levels_color(self):
         self.keyed(month())
         canvas = self.draw()
         lines = self.lines(canvas)
-        self.assertEqual(lines[4:6], ["      Claude Max" + "5h ▰▰▱▱▱ 32%  wk ▰▱▱▱▱ 16%".rjust(WIDE - 1 - 16),
-                                      "      Codex API key" + "~$18.40 of $50".rjust(WIDE - 1 - 19)])
+        self.assertEqual(lines[4:6], ["       Claude Max" + "5h ▰▰▱▱▱ 32%  wk ▰▱▱▱▱ 16%".rjust(WIDE - 2 - 17),
+                                      "       Codex API key" + "~$18.40 of $50".rjust(WIDE - 2 - 20)])
         self.assertEqual((self.look(canvas, "~$18.40").fg, self.look(canvas, "of $50").fg), ("added", "muted"))
         self.assertTrue(lines[6].startswith(SHUT + "Subagents"))              # no pace: not heading over
         self.keyed(month(budget=None))
-        self.assertEqual(self.lines(self.draw())[5], "      Codex API key" + "~$18.40".rjust(WIDE - 1 - 19))
+        self.assertEqual(self.lines(self.draw())[5], "       Codex API key" + "~$18.40".rjust(WIDE - 2 - 20))
 
     def test_heading_over_its_figure_turns_yellow_and_its_pace_shows_under_it_narrow_with_nov(self):
         self.keyed(month(45.1, 58.0))
         canvas = self.draw()
-        self.assertEqual(self.lines(canvas)[6], "        on pace for ~$58 by November 30")
+        self.assertEqual(self.lines(canvas)[6], "         on pace for ~$58 by November 30")
         self.assertEqual((self.look(canvas, "~$45.10").fg, self.look(canvas, "on pace").fg), ("modified", "modified"))
-        self.assertEqual(self.lines(self.draw(36))[6], "        on pace for ~$58 by Nov 30")
+        self.assertEqual(self.lines(self.draw(38))[6], "         on pace for ~$58 by Nov 30")
         self.keyed(month(51.0, 58.0))
         self.assertEqual(self.look(self.draw(), "~$51.00").fg, "deleted")                # spent: red
 
     def test_the_agent_in_use_on_an_api_key_is_first(self):
         self.keyed(month(), current="codex")
         lines = self.lines(self.draw())
-        self.assertTrue(lines[4].startswith("      Codex API key"), lines[4])
-        self.assertTrue(lines[5].startswith("      Claude Max"), lines[5])
+        self.assertTrue(lines[4].startswith("       Codex API key"), lines[4])
+        self.assertTrue(lines[5].startswith("       Claude Max"), lines[5])
 
     def test_a_chosen_row_shows_its_resets_and_its_readings_age_and_open_usage(self):
         self.choose(("usage", "claude"))
         canvas = self.draw()
-        self.assertEqual(self.lines(canvas)[5:9], ["        5h    resets 14:46", "        Week  resets Mon 17:00",
-                                                   "        Read  1 min ago", "         Open Usage"])
+        self.assertEqual(self.lines(canvas)[5:9], ["         5h    resets 14:46", "         Week  resets Mon 17:00",
+                                                   "         Read  1 min ago", "          Open Usage"])
         self.assertEqual(self.look(canvas, "Open Usage").bg, "input")
         self.assertEqual(self.press("enter"), Action("open_usage", ()))
         y, x = self.at(canvas, "Open Usage")
         self.assertEqual(self.view.handle(Mouse("press", x, y, 0)), Action("open_usage", ()))
         self.keyed(month())
         self.choose(("usage", "codex"))
-        self.assertEqual(self.lines(self.draw())[6], "         Open Usage")    # its figures say the rest
+        self.assertEqual(self.lines(self.draw())[6], "          Open Usage")    # its figures say the rest
 
     def test_a_press_on_a_row_chooses_it_lit_under_the_mouse(self):
         canvas = self.draw()
         self.assertIsNone(self.view.handle(Mouse("press", 8, 6, 0)))
         self.assertEqual(self.view.chosen, ("usage", "codex"))
         self.view.handle(Mouse("move", 8, 4, 0))
-        self.assertEqual(self.draw().rows[4][0][1].bg, "hover")
+        self.assertEqual(self.draw().rows[4][1][1].bg, "hover")
         self.assertEqual(canvas.rows[4][WIDE - 1][1].bg, None)
 
     def test_folded_its_head_shows_the_tightest_figure_of_the_agent_in_use_then_the_arrow(self):
         self.view.folded.add("usage")
         self.view.chosen = layers.HEAD
         canvas = self.draw()
-        self.assertEqual(self.lines(canvas)[3], SHUT + "Usage" + "Claude 5h 72%  ↗".rjust(WIDE - 1 - 9))
+        self.assertEqual(self.lines(canvas)[3], SHUT + "Usage" + "Claude 5h 72%  ↗".rjust(WIDE - 2 - 10))
         self.assertEqual([self.look(canvas, words) for words in ("Claude 5h", "72%", "↗")],
                          [Style(fg="muted"), Style(fg="modified"), Style(fg="muted")])
         self.assertEqual(self.lines(canvas)[4], SHUT + "Subagents 6")
@@ -935,21 +948,21 @@ class Usage(unittest.TestCase):
     def test_with_no_reading_and_no_agent_told_it_says_not_known_yet(self):
         self.view.set(metered(agents=[]))
         lines = self.lines(self.draw())
-        self.assertEqual(lines[3:5], [OPENED + "Usage" + "↗".rjust(WIDE - 1 - 9), "      Not known yet"])
+        self.assertEqual(lines[3:5], [OPENED + "Usage" + "↗".rjust(WIDE - 2 - 10), "       Not known yet"])
 
     def test_the_agent_shown_with_no_reading_says_limits_not_told_and_why_when_chosen(self):
         self.view.set(metered(reading("claude", 72, 16), current="codex"))
         canvas = self.draw()
         lines = self.lines(canvas)
-        self.assertEqual(lines[4], "      Codex Plus" + "limits not told".rjust(WIDE - 1 - 16))
+        self.assertEqual(lines[4], "       Codex Plus" + "limits not told".rjust(WIDE - 2 - 17))
         self.assertEqual(self.look(canvas, "limits not told").fg, "muted")
-        self.assertTrue(lines[5].startswith("      Claude Max"), lines[5])
-        self.assertEqual(lines[3], OPENED + "Usage" + "↗".rjust(WIDE - 1 - 9))  # folded or not: no figure of its own
+        self.assertTrue(lines[5].startswith("       Claude Max"), lines[5])
+        self.assertEqual(lines[3], OPENED + "Usage" + "↗".rjust(WIDE - 2 - 10))  # folded or not: no figure of its own
         self.choose(("usage", "codex"))
-        lines = self.lines(self.draw(44))
-        self.assertEqual(lines[5:8], ["        Codex tells its limits in a chat's",
-                                      "        token counts: none of its newest", "        chats holds one yet."])
-        self.assertEqual(lines[8], "         Open Usage")
+        lines = self.lines(self.draw(46))
+        self.assertEqual(lines[5:8], ["         Codex tells its limits in a chat's",
+                                      "         token counts: none of its newest", "         chats holds one yet."])
+        self.assertEqual(lines[8], "          Open Usage")
 
     def test_an_answer_without_it_draws_no_usage(self):
         self.view.set(lumen())
@@ -1210,7 +1223,7 @@ class Reading(unittest.TestCase):
         canvas = Canvas(WIDE, 40)
         view.draw(canvas, 0, 40, True)
         shown = [text(canvas, y).rstrip() for y in range(40)]
-        self.assertRegex(shown[4], r"^      Claude Max +5h ▰▰▰▰▱ 72%$")              # no API value in the sidebar
+        self.assertRegex(shown[4], r"^       Claude Max +5h ▰▰▰▰▱ 72%$")              # no API value in the sidebar
         with open(session, encoding="utf-8") as f:
             self.assertEqual(f.read(), was)                                     # Claude's file as it was
         self.assertTrue(os.path.isfile(os.path.join(self.home, ".local", "state", "herdr-fold", "usage-index.json")))
@@ -1475,18 +1488,18 @@ class Connectors(unittest.TestCase):
     def test_a_known_service_wears_its_glyph_in_its_color_else_its_letter_another_its_own_letter_dim(self):
         canvas = self.draw()
         self.assertTrue(text(canvas, self.at(canvas, "sentry")[0]).startswith(
-            f"    ✕ {connectors.BRANDS['sentry']['glyph']} sentry"))
+            f"     ✕ {connectors.BRANDS['sentry']['glyph']} sentry"))
         self.assertEqual(self.look(canvas, connectors.BRANDS["sentry"]["glyph"]).fg, "#e1567c")
-        self.assertTrue(text(canvas, self.at(canvas, "Box")[0]).startswith("    ● B Box"))      # no glyph in the font
+        self.assertTrue(text(canvas, self.at(canvas, "Box")[0]).startswith("     ● B Box"))     # no glyph in the font
         self.assertEqual(self.look(canvas, "B Box").fg, "#3b8fe6")
         found = lumen()                                 # one of no known brand: its own letter, dim
         found["sections"][4]["rows"][4] = A.layer("connector:tidepool-db", "plug", "tidepool-db", A.properties(
             "tidepool-db"), place="Local", state=state("on", "ok"))
         self.view.set(found)
         canvas = self.draw()
-        self.assertTrue(text(canvas, self.at(canvas, "tidepool-db")[0]).startswith("      T tidepool-db"))
+        self.assertTrue(text(canvas, self.at(canvas, "tidepool-db")[0]).startswith("       T tidepool-db"))
         self.assertEqual(self.look(canvas, "T tidepool-db").fg, "muted")
-        self.assertEqual(self.at(canvas, "Rules")[1], 4)                        # a section's title where it was
+        self.assertEqual(self.at(canvas, "Rules")[1], 5)                        # a section's title where it was
         self.view.icons = False                         # plain glyphs: every brand by its letter
         self.assertIn(" ✕ S sentry", text(self.draw(), self.at(self.draw(), "sentry")[0]))
 
@@ -1497,7 +1510,7 @@ class Connectors(unittest.TestCase):
     def test_box_to_sign_in_offers_connect_lit_and_core_s_turn_off_is_its_forms_switch_not_a_button(self):
         self.choose(("row", "connector:" + self.BOX))
         canvas = self.draw()
-        self.assertEqual(self.under(canvas, "B Box", 2), ["          URL  mcp.box.com", "           Connect"])
+        self.assertEqual(self.under(canvas, "B Box", 2), ["           URL  mcp.box.com", "            Connect"])
         y = self.at(canvas, "B Box")[0] + 2
         lit = canvas.rows[y][text(canvas, y).index("Connect")][1]
         self.assertEqual((lit.bg, lit.fg, lit.bold), ("button", "button_text", True))
@@ -1509,11 +1522,11 @@ class Connectors(unittest.TestCase):
         self.choose(("row", "connector:" + self.BOX))
         canvas = self.draw()
         y = self.at(canvas, "B Box")[0]
-        self.assertTrue(text(canvas, y).startswith(f"    {self.view.frame} B Box"))          # it spins meanwhile
-        self.assertEqual(canvas.rows[y][4][1].fg, "accent")
+        self.assertTrue(text(canvas, y).startswith(f"     {self.view.frame} B Box"))         # it spins meanwhile
+        self.assertEqual(canvas.rows[y][5][1].fg, "accent")
         self.assertEqual(self.look(canvas, "signing in").fg, "accent")
-        self.assertEqual(self.under(canvas, "B Box", 2), ["          Finish in your browser",
-                                                          "           Open the page again    Cancel"])
+        self.assertEqual(self.under(canvas, "B Box", 2), ["           Finish in your browser",
+                                                          "            Open the page again    Cancel"])
         self.assertEqual(self.look(canvas, "Open the page again").bg, "input")          # neither is Connect
         self.assertEqual(self.press("enter"), Action("reopen_sign_in", (self.BOX,)))
         y, x = self.at(canvas, "Cancel")
@@ -1522,7 +1535,7 @@ class Connectors(unittest.TestCase):
     def test_one_signed_in_offers_sign_out(self):
         self.choose(("row", "connector:claude.ai Google Drive"))
         canvas = self.draw()
-        self.assertIn("           Sign out", self.under(canvas, "Google Drive", 2))
+        self.assertIn("            Sign out", self.under(canvas, "Google Drive", 2))
         self.assertEqual(self.look(canvas, "Sign out").bg, "input")                     # only Connect is lit
         y, x = self.at(canvas, "Sign out")
         self.assertEqual(self.view.handle(Mouse("press", x, y, 0)),
@@ -1593,13 +1606,13 @@ class Connectors(unittest.TestCase):
         self.type("https://mcp.dropbox.com/mcp")
         canvas = self.draw()
         self.assertEqual(self.under(canvas, "Connectors", 5), [
-            "    Add a connector", "    Name  dropbox", "    URL   https://mcp.dropbox.com/mcp",
-            "    For    lumen-api    All projects", "     Add and connect    Cancel"])
+            "     Add a connector", "     Name  dropbox", "     URL   https://mcp.dropbox.com/mcp",
+            "     For    lumen-api    All projects", "      Add and connect    Cancel"])
         self.assertEqual(self.look(canvas, "Add a connector").bold, True)
         self.assertEqual(self.look(canvas, "dropbox").bg, "input")
-        self.assertEqual((self.look(canvas, "lumen-api", "    For").bg, self.look(canvas, "All projects").bg),
+        self.assertEqual((self.look(canvas, "lumen-api", "     For").bg, self.look(canvas, "All projects").bg),
                          ("button", None))                                     # this folder's, till chosen otherwise
-        self.assertTrue(text(canvas, self.at(canvas, "Add and connect")[0] + 2).startswith("    ✕"))   # then the rows
+        self.assertTrue(text(canvas, self.at(canvas, "Add and connect")[0] + 2).startswith("     ✕"))  # then the rows
         self.assertEqual(canvas.cursor, (self.at(canvas, "https://")[0], self.at(canvas, "https://")[1] + 27))
         self.press("tab")                               # For: ← → choose
         self.press("right")

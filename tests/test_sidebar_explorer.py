@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from support import SRC, FakeTerminal, end_jobs, psd_in_preview, set_attrs, set_env, text
+from support import SRC, FakeTerminal, end_jobs, inset_band, psd_in_preview, set_attrs, set_env, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 import explorer  # noqa: E402
@@ -116,13 +116,15 @@ class View(unittest.TestCase):
         self.assertEqual(line[name - 2:name], "  ")
         self.assertNotEqual(line[name - 3], " ")                            # the icon, right before the two blanks
 
-    def test_the_chosen_row_is_a_square_band_across_the_view(self):
-        # the view's own edge to edge: the sidebar draws every view a cell in from the pane's sides
-        self.view.focus = "list"
-        canvas = self.draw()
-        y = next(y for y in range(canvas.height) if canvas.rows[y][5][1].bg == "selection")
-        ends = (canvas.rows[y][0], canvas.rows[y][canvas.width - 1])
-        self.assertEqual([(ch, style.bg) for ch, style in ends], [(" ", "selection"), (" ", "selection")])
+    def test_the_chosen_row_stands_a_cell_in_from_each_side_its_content_a_cell_inside(self):
+        # as Changes' field and button stand: the guides, the chevron and the name a cell inside the highlight, git's
+        # mark a cell inside its end
+        self.press("down", "down")                                          # src: its chevron, its ●
+        inset_band(self, self.draw(), self.row_of("src"))
+        self.press("enter", "down")                                         # app.py under it: its guide, its M
+        inset_band(self, self.draw(), self.row_of("app.py"))
+        self.view.hover, self.view.list.index = self.view.list.index, 0     # under the mouse: the hover's, the same
+        inset_band(self, self.draw(), self.row_of("app.py"), lit="hover")
 
     def test_the_header_icons_have_room_between_them(self):
         canvas = self.draw()
@@ -133,23 +135,23 @@ class View(unittest.TestCase):
     def test_git_marks_on_the_right_edge(self):
         canvas = self.draw()
         y = self.row_of("src")
-        self.assertEqual(text(canvas, y)[43], "●")
-        self.assertEqual(canvas.rows[y][43][1].fg, "modified")
+        self.assertEqual(text(canvas, y)[42], "●")
+        self.assertEqual(canvas.rows[y][42][1].fg, "modified")
         self.press("down", "down", "enter")                       # open src
         canvas = self.draw()
         y = self.row_of("app.py")
-        self.assertEqual(text(canvas, y)[43], "M")
-        self.assertEqual(canvas.rows[y][43][1].fg, "modified")
-        self.assertEqual(text(canvas, self.row_of("util.py"))[43], " ")
+        self.assertEqual(text(canvas, y)[42], "M")
+        self.assertEqual(canvas.rows[y][42][1].fg, "modified")
+        self.assertEqual(text(canvas, self.row_of("util.py"))[42], " ")
 
     def test_the_stronger_change_gives_the_mark(self):
         self.status = Status(staged=[Change("src/util.py", "A")],
                              changes=[Change("src/util.py", "M"), Change("src/app.py", "U")])
         self.press("down", "down", "enter")
         canvas = self.draw()
-        self.assertEqual(text(canvas, self.row_of("util.py"))[43], "A")       # added, then edited: still new
-        self.assertEqual(text(canvas, self.row_of("app.py"))[43], "!")
-        self.assertEqual(canvas.rows[self.row_of("src")][43][1].fg, "conflict")
+        self.assertEqual(text(canvas, self.row_of("util.py"))[42], "A")       # added, then edited: still new
+        self.assertEqual(text(canvas, self.row_of("app.py"))[42], "!")
+        self.assertEqual(canvas.rows[self.row_of("src")][42][1].fg, "conflict")
 
     def test_an_ignored_row_is_faint(self):
         canvas = self.draw()
@@ -161,8 +163,8 @@ class View(unittest.TestCase):
         canvas = self.draw(width=24)
         y = self.row_of("a-very")
         self.assertIn("…", text(canvas, y))
-        self.assertEqual(text(canvas, y)[22], "U")
-        self.assertEqual(canvas.rows[y][22][1].fg, "added")
+        self.assertEqual(text(canvas, y)[21], "U")                          # a cell inside a highlight's end
+        self.assertEqual(canvas.rows[y][21][1].fg, "added")
         self.assertTrue(text(canvas, 0).strip().startswith("project"))
 
     def test_enter_opens_a_folder_and_previews_a_file(self):

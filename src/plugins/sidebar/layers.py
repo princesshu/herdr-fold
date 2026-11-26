@@ -11,7 +11,7 @@ from agent_setup import READ
 from agent_state import HERE
 from connectors import BRANDS
 from icons import glyphs
-from screen import INSET, SPINNER, Style, after, truncate, width
+from screen import CONTENT, INSET, PAD, SPINNER, Style, after, truncate, width
 from vt import Key, Mouse
 from widgets import MENU_WIDEST, Action, Keyed, Menu, Popup, TextInput, wrap
 
@@ -635,7 +635,7 @@ class Layers:
                 found += [("pace", key, (pace, row["month"]["level"]))] if pace else []
                 if key == self.chosen:
                     found += [(kind, key, what) for kind, what in self.usage_properties(
-                        row, cells - INSET - self.under_x(key))]
+                        row, cells - CONTENT - self.under_x(key))]
                 elif row.get("reset"):
                     found.append(("words", key, usage.reset_said(row["reset"], self.answer.get("twelve"))))
             found += [] if rows else [("none", None, usage_["none"])]
@@ -658,15 +658,16 @@ class Layers:
                         found.append(("warning", key, row["note"]))
                     if key == self.chosen:
                         found += [(kind, key, what) for kind, what in self.properties(
-                            row, cells - INSET - self.under_x(key))]
+                            row, cells - CONTENT - self.under_x(key))]
                 if more:
                     found.append(("more", ("more", part["id"]), f"{more} more"))
         return found
 
     def columns(self):
-        """The columns a line starts at: a section's chevron, its title (a row's mark under it), a row's name."""
-        title = INSET + 1 + len(after(self.icons))
-        return {"chevron": INSET, "title": title, "name": title + 2}
+        """The columns a line starts at: a section's chevron, its title (a row's mark under it), a row's name; a cell
+        inside a highlight (CONTENT), as every list's."""
+        title = CONTENT + 1 + len(after(self.icons))
+        return {"chevron": CONTENT, "title": title, "name": title + 2}
 
     def name_x(self, key):
         """Where the item KEY's name starts: a connector's past its brand."""
@@ -675,7 +676,7 @@ class Layers:
     def under_x(self, key):
         """Where what lies under the item KEY starts: UNDER cells in from its name (the head's line: from the side);
         a rule's form at the names' column."""
-        return INSET + UNDER if key == MODEL else self.name_x(key) + (0 if key[0] == "section" else UNDER)
+        return CONTENT + UNDER if key == MODEL else self.name_x(key) + (0 if key[0] == "section" else UNDER)
 
     def form_lines(self, key, cells):
         """The form's lines where it lies under the item KEY, which is not a row (a row's are among its properties)."""
@@ -688,7 +689,7 @@ class Layers:
         """Where ROWS, every section's, folded or not, end their states and how wide their tags are, the same for
         each, so nothing moves as one opens: (state end, tag cells); no tags where names from column NAME would keep
         fewer than NAME_LEAST cells."""
-        edge = cells - INSET
+        edge = cells - CONTENT
         tags = max([min(TAG, width(row["tag"])) for row in rows if row["tag"]] or [0])
         states = max([width(row["state"]["text"]) for row in rows if row["state"]] or [0])
         if tags and edge - tags - 2 - states - 2 - name < NAME_LEAST:
@@ -697,10 +698,10 @@ class Layers:
 
     def properties(self, row, room):
         """ROW's properties as lines ROOM cells wide: label and value in aligned columns (a third at the right), none
-        the row says already (said()), its error (the files it names its tip), its text, its form as it opens, its
-        buttons; with the keys in its form, the form alone."""
+        the row says already (said()), its error (the files it names its tip), its text, its form as it opens (a cell
+        wider: its fields reach the highlight's edge), its buttons; with the keys in its form, the form alone."""
         form = self.edit if self.edit and self.edit.key == ("row", row["id"]) else None
-        edit = [("edit", line) for line in form.lines(room, self.claude())] if form else []
+        edit = [("edit", line) for line in form.lines(room + PAD, self.claude())] if form else []
         if form and form.entered:
             return edit
         props, lines = row["properties"], said(row)
@@ -782,8 +783,8 @@ class Layers:
         bg = "selection" if self.chosen == HEAD else "hover" if self.hover == HEAD else None
         if bg:
             canvas.band(y, bg)
-        x = cells - INSET
-        name_room = x - INSET - (sum(width(one["text"]) + 2 for one in problems))
+        x = cells - CONTENT
+        name_room = x - CONTENT - (sum(width(one["text"]) + 2 for one in problems))
         if name_room < width(name):                         # no room for both: the name
             problems = []
         canvas.region(y, 0, cells, ("layer", HEAD))
@@ -792,8 +793,8 @@ class Layers:
             canvas.put(y, x, one["text"], Style(fg=STATE_ROLE[one["tone"]], bg=bg))
             canvas.region(y, x, x + width(one["text"]), ("problem", one["row"]))
             x -= 2
-        end = x if problems else cells - INSET
-        at = canvas.put(y, INSET, truncate(name, end - INSET), Style(fg="text", bg=bg, bold=True))
+        end = x if problems else cells - CONTENT
+        at = canvas.put(y, CONTENT, truncate(name, end - CONTENT), Style(fg="text", bg=bg, bold=True))
         more = glyphs(self.icons)["more"]
         if end - at > 2:
             at = canvas.put(y, at + 1, truncate(head["where"], end - at - 1), Style(fg=grey(bg), bg=bg))
@@ -808,8 +809,8 @@ class Layers:
                 canvas.band(y + 1, bg)
             if self.request(MODEL):
                 canvas.region(y + 1, 0, cells, ("layer", MODEL))
-            canvas.put(y + 1, INSET, truncate(head["line"], cells - 2 * INSET), Style(fg=grey(bg), bg=bg))
-        self.rule(canvas, y + 1 + line, cells - 2 * INSET)
+            canvas.put(y + 1, CONTENT, truncate(head["line"], cells - 2 * CONTENT), Style(fg=grey(bg), bg=bg))
+        self.rule(canvas, y + 1 + line, cells - 2 * INSET)               # as wide as a highlight, its edges theirs
         return 2 + line
 
     def rule(self, canvas, y, cells):
@@ -872,24 +873,24 @@ class Layers:
             self.usage_line(canvas, y, what, bg)
         elif kind in ("more", "none", "group"):
             words = f"{what['title']} {what['count']}" if kind == "group" else what
-            canvas.put(y, x["name"], truncate(words, cells - INSET - x["name"]), Style(fg=grey(bg), bg=bg))
+            canvas.put(y, x["name"], truncate(words, cells - CONTENT - x["name"]), Style(fg=grey(bg), bg=bg))
             if kind == "group" and what.get("state"):       # every hook off here
-                self.right(canvas, y, cells - INSET, [(what["state"]["text"], "muted")], bg)
+                self.right(canvas, y, cells - CONTENT, [(what["state"]["text"], "muted")], bg)
         elif kind == "edit":
             self.edit.draw(canvas, y, self.under_x(key), what, self.hover)
         elif kind == "error":
-            at = INSET if key is None else self.under_x(key)
-            words = truncate(what[0], cells - INSET - at)
+            at, end = (INSET, cells - INSET) if key is None else (self.under_x(key), cells - CONTENT)  # the list's line
+            words = truncate(what[0], end - at)
             canvas.put(y, at, words, Style(fg="deleted"))
             if what[1]:                                 # the files it named: its tip
                 canvas.region(y, at, at + width(words), ("tip", what[1]))
         elif kind == "pace":
             (pace, level), at = what, self.under_x(key)
-            words = pace["text"] if width(pace["text"]) <= cells - INSET - at else pace["narrow"]
-            canvas.put(y, at, truncate(words, cells - INSET - at), Style(fg=LEVEL_ROLE.get(level, "muted")))
+            words = pace["text"] if width(pace["text"]) <= cells - CONTENT - at else pace["narrow"]
+            canvas.put(y, at, truncate(words, cells - CONTENT - at), Style(fg=LEVEL_ROLE.get(level, "muted")))
         elif kind in ("warning", "text", "words"):
             role = {"warning": "modified", "text": "muted", "words": "muted"}[kind]
-            canvas.put(y, self.under_x(key), truncate(what, cells - INSET - self.under_x(key)), Style(fg=role))
+            canvas.put(y, self.under_x(key), truncate(what, cells - CONTENT - self.under_x(key)), Style(fg=role))
         elif kind == "form":
             self.form_line(canvas, y, what)
         elif kind == "property":
@@ -905,11 +906,11 @@ class Layers:
         if what["id"] == USAGE or what["rows"] or what["groups"]:       # Usage's line says when it has none
             mark = widgets.TURNS.mark(self.icons, ("agent", what["id"]), what["id"] not in self.folded)
             canvas.put(y, x["chevron"], mark, Style(fg=faint, bg=bg))
-        at = canvas.put(y, x["title"], truncate(what["title"], cells - INSET - x["title"]), Style(fg="text", bg=bg,
-                                                                                                    bold=True))
-        if what["count"] is not None and at + 1 + width(str(what["count"])) <= cells - INSET:
+        at = canvas.put(y, x["title"], truncate(what["title"], cells - CONTENT - x["title"]), Style(fg="text", bg=bg,
+                                                                                                      bold=True))
+        if what["count"] is not None and at + 1 + width(str(what["count"])) <= cells - CONTENT:
             at = canvas.put(y, at + 1, str(what["count"]), Style(fg=faint, bg=bg))
-        end, room = cells - INSET, cells - INSET - at - 2
+        end, room = cells - CONTENT, cells - CONTENT - at - 2
         if what["id"] == USAGE:
             row = headline(what["rows"], self.agent()) if USAGE in self.folded else None
             parts = [(f"{row['name']} ", "muted")] + figures(row, bars=False, short=True) if row else []
@@ -945,7 +946,7 @@ class Layers:
             canvas.put(y, x["title"], glyph, Style(fg=role, bg=bg))
         if tags and row["tag"]:
             words = truncate(row["tag"], tags)
-            canvas.put(y, cells - INSET - width(words), words, Style(fg=faint, bg=bg))
+            canvas.put(y, cells - CONTENT - width(words), words, Style(fg=faint, bg=bg))
         name_x = self.name_x(key)
         if row["icon"] == "plug":                       # its brand between its mark and its name
             glyph, role = brand_cell(row, self.icons)
@@ -972,7 +973,7 @@ class Layers:
         """An agent of Usage: its name bold, its plan's word dim, at the right its figures (figures()): a model's own
         week goes first where all do not fit (but the tightest), then the bars, the looser windows, an API key's
         budget; with no reading, core's words."""
-        x, end = self.columns()["name"], canvas.width - INSET
+        x, end = self.columns()["name"], canvas.width - CONTENT
         at = canvas.put(y, x, truncate(row["name"], max(1, end - x)), Style(fg="text", bold=True, bg=bg))
         if row["plan"] and end - at > 1 + width(row["plan"]):
             at = canvas.put(y, at + 1, row["plan"], Style(fg=grey(bg), bg=bg))
@@ -994,7 +995,7 @@ class Layers:
         third column at the right, dim."""
         cells = canvas.width
         name, value, right = line
-        end = cells - INSET
+        end = cells - CONTENT
         if right:
             canvas.put(y, end - width(right), right, Style(fg="muted"))
             end -= width(right) + 2

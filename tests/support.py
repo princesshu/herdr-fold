@@ -337,6 +337,20 @@ def text(canvas, y):
     return "".join(ch for ch, _ in canvas.rows[y])
 
 
+def inset_band(test, canvas, y, lit="selection", edge=False):
+    """Row Y of a view's CANVAS as a chosen or hovered row (LIT): its highlight a cell in from each side (a chip on it
+    between its ends), its content's first and last character a cell inside it; EDGE: a leading mark meant for the
+    highlight's edge (an issue's priority bar) may stand in its first column."""
+    row, cells, line = canvas.rows[y], canvas.width, text(canvas, y)
+    test.assertEqual((row[0][1].bg, row[cells - 1][1].bg), (None, None), line)
+    test.assertEqual((row[1][1].bg, row[cells - 2][1].bg), (lit, lit), line)
+    test.assertTrue(all(row[x][1].bg for x in range(1, cells - 1)), line)
+    drawn = [x for x, (ch, _) in enumerate(row) if ch.strip()]
+    test.assertTrue(drawn, line)
+    test.assertGreaterEqual(drawn[0], 1 if edge else 2, line)
+    test.assertLessEqual(drawn[-1], cells - 3, line)
+
+
 def logged(path):
     """The lines a fake program wrote to PATH, none before it wrote one."""
     try:

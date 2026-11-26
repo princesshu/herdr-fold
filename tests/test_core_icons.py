@@ -19,7 +19,7 @@ class Glyphs(unittest.TestCase):
         # Codicons' robot, or a plain ◇; Chats' sparkle and Issues' To agent arrow as the owner chose them
         self.assertEqual((icons.glyphs(True)["robot"], icons.glyphs(False)["robot"]), ("\uec20", "◇"))
         self.assertEqual([icons.glyphs(True)[name] for name in ("files", "search", "git", "issues", "ai", "agent")],
-                         ["\ueaf0", "\uea6d", "\uea68", "\ueb00", "\uec10", "\uec0f"])
+                         ["\ueaf0", "\uea6d", "\uea68", "\ueb0c", "\uec10", "\uec0f"])     # Issues: cod-issues
 
 
 class FileType(unittest.TestCase):

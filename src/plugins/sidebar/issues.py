@@ -9,7 +9,7 @@ from github import (ISSUE_GROUPS, LEVELS, ME, STATES, TYPES, Query, ago, issue_f
                     matches, priority, rank, ranked, shown_labels)
 from icons import glyphs
 from pulls import Pulls
-from screen import PAD, PLAIN, SPIN, SPINNER, Canvas, Style, truncate, width
+from screen import BAND, PAD, PLAIN, SPIN, SPINNER, Canvas, Style, truncate, width
 from vt import Key, Mouse
 from widgets import TYPED, Action, Confirm, Heading, ListView, Menu, Popup, Row, TextInput
 
@@ -17,9 +17,9 @@ KEYS = {"t": "issue_to_agent", "b": "issue_web", "r": "issue_comment", "o": "pre
 HOVER = ("agent", "web")                  # the buttons an issue shows on hover, in this order
 # a priority's traffic-light color role, by its rank (core/github.py's LEVELS)
 PRIORITY_ROLE = ("deleted", "deleted", "modified", "added")
+NO_PRIORITY = "guide"         # an issue with none: a quiet bar all the same, "not sorted yet", never a gap
 TEXT = 3                      # an issue's number: its priority's bar, a cell of air and the margin before it
 SLOT = 2                      # a type's icon and a cell of air before the number, where any issue listed has one
-BAND = 1                      # a row's highlight a cell in from each side, as Changes' field and button stand
 BOARDS = {"issues": "Issues", "pulls": "Pull requests"}      # its two lists, the switch's; p switches them
 SETS = {"priority": ("Priority", "No priority"), "type": ("Type", "No type")}     # the right click's chained menus
 
@@ -244,24 +244,25 @@ class Issues(Filtered):
         bg = "selection" if index == self.list.index else ("hover" if hovered else None)
         for r in (y, y + 1):
             if r < canvas.height:
-                canvas.band(r, bg, BAND)
+                canvas.band(r, bg)
                 canvas.region(r, 0, cells, ("issue", index))
         end = cells - 1 - BAND
         if hovered:
             end = self.buttons(canvas, y, end, index, bg)
         level, _ = priority(issue)
         closed = issue.state == "CLOSED"
-        if level < len(PRIORITY_ROLE):
-            for r in (y, y + 1):
-                if r < canvas.height:
-                    canvas.put(r, 1, "▌", Style(fg="muted" if closed else PRIORITY_ROLE[level], bg=bg))
+        ranked = level < len(PRIORITY_ROLE)
+        for r in (y, y + 1):
+            if r < canvas.height:
+                bar = "muted" if closed else PRIORITY_ROLE[level] if ranked else NO_PRIORITY
+                canvas.put(r, 1, "▌", Style(fg=bar, bg=bg))
         x = TEXT
         if slot:
             typed = kind(issue)[0]
             if typed in TYPES:
                 canvas.put(y, x, glyphs(True)[typed], Style(fg="muted", bg=bg))
             x += SLOT
-        number, color = f"#{issue.number}", PRIORITY_ROLE[level] if level < len(PRIORITY_ROLE) else "accent"
+        number, color = f"#{issue.number}", PRIORITY_ROLE[level] if ranked else "text"
         x = canvas.put(y, x, number, Style(fg="muted" if closed else color, bg=bg, bold=True))
         canvas.put(y, x + 1, truncate(issue.title, max(1, end - x - 2)), Style(fg="text", bg=bg))
         if y + 1 < canvas.height:
@@ -301,7 +302,7 @@ class Issues(Filtered):
         y = max(self.top + 2, self.top + self.height - rows - 1)
         for row in range(y, self.top + self.height):
             canvas.put(row, 0, " " * cells, PLAIN)
-        canvas.put(y, PAD, "─" * (cells - 2 * PAD), Style(fg="muted"))      # as wide as a row's content
+        canvas.put(y, BAND, "─" * (cells - 2 * BAND), Style(fg="muted"))    # as wide as a row's highlight
         self.confirm.draw(canvas, y + 1, 0, cells)
 
     # --- events
@@ -410,7 +411,9 @@ class Issues(Filtered):
         current = issue.priority if what == "priority" else issue.issue_type
         options = settable["options"] if what == "priority" else settable["types"]
         level = lambda words: rank(words) if what == "priority" else None          # noqa: E731
-        choices = [Heading(f"#{issue.number} · {name}", head=True), None, Row(none, on=not current, wide=True)]
+        nothing = Row(none, on=not current, mark=("●", NO_PRIORITY)) if what == "priority" else \
+            Row(none, on=not current, wide=True)                      # no priority: the bar's own grey dot
+        choices = [Heading(f"#{issue.number} · {name}", head=True), None, nothing]
         choices += [Row(words, on=current == words, mark=("●", PRIORITY_ROLE[level(words)])
                         if level(words) is not None else None) for _, words in options]
         actions = [None, None, (None, none.lower())] + [(key, words) for key, words in options]

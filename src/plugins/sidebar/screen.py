@@ -7,9 +7,11 @@ import unicodedata
 from dataclasses import dataclass, replace
 
 ROOMY = 16          # rows a pane needs for tall controls: the tabs' three, twelve for the view, a footer
-MARGIN = 0          # the cells between the pane's side and a view's: a chosen row's highlight runs edge to edge
+MARGIN = 0          # the cells between the pane's side and a view's: none, a view keeps its own air (BAND)
+BAND = 1            # the cells between a view's side and a chosen row's highlight, as Changes' field and button stand
 PAD = 1             # the cells between a highlight's side and the row's content
-INSET = MARGIN + PAD    # the pane's side to everything but a highlight: rows, the row of buttons, », fields, menus
+INSET = MARGIN + BAND   # the pane's side to a highlight, and to what lines up with it: », fields, buttons, menus
+CONTENT = INSET + PAD   # the pane's side to a row's content, a cell inside its highlight (right: up to cells - CONTENT)
 COUNT = 4           # a count's cells at most (short_count()), as a tip or a view shows it
 SPINNER, SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏", 0.1     # something running: a frame every SPIN seconds (✦ writing, gh asked)
 
@@ -152,10 +154,10 @@ class Canvas:
             self.put(y, x, "▐", Style(fg=color, bg=under))
             self.put(y, x + cells - 1, "▌", Style(fg=color, bg=under))
 
-    def band(self, y, bg, inset=0):
-        """Row Y's background as a chosen or hovered row (none: a plain row): the view's whole width, the pane's from
-        edge to edge (MARGIN); INSET cells in from each side (Issues' rows: as Changes' field and button stand)."""
-        self.put(y, inset, " " * max(0, self.width - 2 * inset), Style(bg=bg))
+    def band(self, y, bg):
+        """Row Y's background as a chosen or hovered row (none: a plain row): BAND cells in from each side of the view,
+        as Changes' field and button stand, the row's content a cell inside it (CONTENT)."""
+        self.put(y, BAND, " " * max(0, self.width - 2 * BAND), Style(bg=bg))
 
     def tint(self, y, x0, x1, bg):
         """Columns X0..X1-1 of row Y on the background BG, their characters and colors as they are."""

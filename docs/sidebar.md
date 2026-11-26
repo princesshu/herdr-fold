@@ -48,12 +48,12 @@ Quitting it (`q`) leaves a shell; `python3 ~/.config/herdr-fold/restore_panes.py
 it starts its new version by itself, where it was, and so it does on its folder's new place when the folder is renamed
 or moved.
 
-Its views are buttons in one row at the top, a cell in from each side as the views' content, a cell between two, as the
+Its views are buttons in one row at the top, a cell in from each side as the views' fields, a cell between two, as the
 first version's tabs: each its name in the very middle, as much air left of it as right (9 cells for a name of an odd
 length, 10 for an even one), its icon over the name's middle, a blank row above and below: Files, Search, Changes,
 Issues, Agent, then Chats and More. The chosen one, in the accent, fills the rest of the pane, and each folder keeps
-which one it is. A chosen row's highlight runs from edge to edge; everything else, every row's content, », fields,
-headers, menus and the line at the foot, keeps a cell in from each side. Changes and Chats show a dot beside their icons
+which one it is. A chosen row's highlight stands a cell in from each side, its content a cell inside it; », fields,
+buttons, headers, menus and the line at the foot keep to its edges. Changes and Chats show a dot beside their icons
 while there is something to count, in the changes' color and the waiting chats', the number in the button's tip, and
 Agent while its setup has a problem, red for a server that failed over yellow for one to sign in to, the problems in its
 tip; nothing moves when a dot comes or goes. The button under the mouse stands whole on the hover background a list's

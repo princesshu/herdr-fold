@@ -8,7 +8,7 @@ from filters import Filtered, Filters, counted
 from github import ME, PULL_GROUPS, PULL_STATES, Query, ago, checks_mark, checks_said, pull_facets, pull_search, \
     review_state
 from icons import glyphs
-from screen import PAD, SPIN, SPINNER, Style, truncate, width
+from screen import BAND, PAD, SPIN, SPINNER, Style, truncate, width
 from vt import Key, Mouse
 from widgets import TYPED, Action, ListView, Popup, TextInput
 
@@ -19,7 +19,6 @@ MARKS = {"passed": ("✓", "added"), "running": ("●", "modified"), "failed": (
 REVIEW = {"draft": ("Draft", "muted"), "yours": ("your review", "modified"), "changes": ("changes", "deleted"),
           "approved": ("approved", "added"), "merged": ("merged", "muted"), "closed": ("closed", "muted")}
 TEXT = 3                      # a pull request's number: its checks' mark, a cell of air and the margin before it
-BAND = 1                      # a row's highlight a cell in from each side, as an issue's
 # the Review group's values in the filters' menu: its words and their role, as the rows' (REVIEW) in full
 REVIEWS = {"draft": ("Draft", None), "yours": ("Your review", "modified"), "approved": ("Approved", "added"),
            "changes": ("Changes requested", "deleted")}
@@ -209,7 +208,7 @@ class Pulls(Filtered):
         bg = "selection" if index == self.list.index else ("hover" if hovered else None)
         for r in (y, y + 1):
             if r < canvas.height:
-                canvas.band(r, bg, BAND)
+                canvas.band(r, bg)
                 canvas.region(r, 0, cells, ("pull", index))
         end = cells - 1 - BAND
         if hovered:

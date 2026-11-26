@@ -8,7 +8,7 @@ import filekinds
 import media
 import widgets
 from icons import GIT_LETTER, glyphs, icon
-from screen import GIT_ROLE, PAD, PLAIN, Canvas, Style, after, truncate
+from screen import BAND, CONTENT, GIT_ROLE, PAD, PLAIN, Canvas, Style, after, truncate
 from git import Status
 from tree import Node
 from vt import Key, Mouse
@@ -136,15 +136,18 @@ class Explorer:
             x += 3
 
     def row(self, canvas, y, index):
+        """A file or folder on its highlight, a cell inside it each side (CONTENT): the guides of its depth, its
+        chevron and icon, its name in git's color, git's mark at the end."""
         node, width = self.list.items[index], canvas.width
+        end = width - CONTENT                               # the column after the content's last
         bg = "selection" if index == self.list.index else ("hover" if index == self.hover else None)
         canvas.band(y, bg)
         canvas.region(y, 0, width, ("row", index))
-        x = canvas.put(y, 1, "│ " * node.depth, Style(fg="muted", bg=bg))
+        x = canvas.put(y, CONTENT, "│ " * node.depth, Style(fg="muted", bg=bg))
         naming = self.naming
         named = naming and (node is naming.node or (naming.action == "rename" and node.path == naming.target))
         if node.path is None and not named:                 # "… N more"
-            canvas.put(y, x + 2, truncate(node.name, width - x - 3), Style(fg="muted", bg=bg))
+            canvas.put(y, x + 2, truncate(node.name, end - x - 2), Style(fg="muted", bg=bg))
             return
         chevron = widgets.TURNS.mark(self.icons, ("tree", node.path), node.expanded) if node.is_dir else " "
         x = canvas.put(y, x, chevron + after(self.icons), Style(fg="muted", bg=bg))
@@ -152,18 +155,18 @@ class Explorer:
             glyph = icon(node.name, node.is_dir, node.expanded)
             x = canvas.put(y, x, glyph + after(True), Style(fg="accent" if node.is_dir else "muted", bg=bg))
         if named:
-            naming.field.draw(canvas, y, x, max(1, width - x - 1), 1, Style(bg="input"), focused=True)
+            naming.field.draw(canvas, y, x, max(1, end - x), 1, Style(bg="input"), focused=True)
             return
         code = (self.folders if node.is_dir else self.marks).get(node.path)
         fg = "ignored" if self.tree.is_ignored(node.path) else GIT_ROLE[code] if code else "text"
         strike = code == "D" and not node.is_dir
-        shown = truncate(node.name, width - x - 3)
+        shown = truncate(node.name, end - x - 2)
         canvas.put(y, x, shown, Style(fg=fg, bg=bg, strike=strike))
         if shown != node.name:
             self.cut.add(index)
         if code:
             mark = "●" if node.is_dir else GIT_LETTER.get(code, code)
-            canvas.put(y, width - 2, mark, Style(fg=GIT_ROLE[code], bg=bg))
+            canvas.put(y, end - 1, mark, Style(fg=GIT_ROLE[code], bg=bg))
 
     def tip(self, target):
         """A name cut short in its row, whole (its path in the folder), for the mouse resting on it."""
@@ -182,7 +185,7 @@ class Explorer:
         y = max(self.top + LIST, self.top + self.height - rows - 1)
         for row in range(y, self.top + self.height):
             canvas.put(row, 0, " " * width, PLAIN)
-        canvas.put(y, PAD, "─" * (width - 2 * PAD), Style(fg="muted"))      # as wide as a row's content
+        canvas.put(y, BAND, "─" * (width - 2 * BAND), Style(fg="muted"))    # as wide as a row's highlight
         self.confirm.draw(canvas, y + 1, 0, width)
 
     # --- events

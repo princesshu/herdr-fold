@@ -9,7 +9,8 @@ from commit_message import secret_looking
 from git import Change, Commit, taken
 from github import checks_said
 from icons import GIT_LETTER, glyphs, icon
-from screen import GIT_ROLE, PAD, PLAIN, Canvas, Style, after, centered, short_count, truncate, width
+from screen import BAND, CONTENT, GIT_ROLE, PAD, PLAIN, Canvas, Style, after, centered, short_count, truncate, \
+    width
 from pulls import mark, review_word
 from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, TextInput
@@ -180,23 +181,23 @@ class Scm:
         bg = "hover" if self.hover == "pull" else None
         if pull is None:
             canvas.band(at, bg)
-            canvas.put(at, 2, "No pull request", Style(fg="muted", bg=bg))
+            canvas.put(at, CONTENT, "No pull request", Style(fg="muted", bg=bg))
             label = " Create pull request… "
-            canvas.put(at, cells - 1 - width(label), label, Style(fg="text", bg="input"))
+            canvas.put(at, cells - CONTENT - width(label), label, Style(fg="text", bg="input"))
             canvas.region(at, 0, cells, "pull")
             return at + (1 if roomy else 2)
         word = review_word(pull)
-        end = cells - 1 - (width(word[0]) if word else 0)
+        end = cells - CONTENT - (width(word[0]) if word else 0)     # each a cell inside the highlight's end
         for row in (at, at + 1):
             canvas.band(row, bg)
             canvas.region(row, 0, cells, "pull")
-        mark(canvas, at, 2, pull, bg)
+        mark(canvas, at, CONTENT, pull, bg)
         if word:
             canvas.put(at, end, word[0], Style(fg=word[1], bg=bg))
         canvas.put(at, 4, truncate(f"#{pull.number} {pull.title}", max(1, end - 5)), Style(fg="text", bg=bg))
         waiting = "no review yet" if pull.decision in ("", "REVIEW_REQUIRED") else ""
         under = " · ".join(part for part in (checks_said(pull.checks), waiting) if part)
-        canvas.put(at + 1, 4, truncate(under, cells - 5), Style(fg="muted", bg=bg))
+        canvas.put(at + 1, 4, truncate(under, cells - CONTENT - 4), Style(fg="muted", bg=bg))
         return at + 1 + (1 if roomy else 2)
 
     def composer(self, canvas, top, roomy):
@@ -241,7 +242,7 @@ class Scm:
             return y
         folded = "repositories" in self.folded
         mark = widgets.TURNS.mark(self.icons, ("section", "repositories"), not folded)
-        x = canvas.put(y, 1, mark + after(self.icons), Style(fg="muted"))
+        x = canvas.put(y, CONTENT, mark + after(self.icons), Style(fg="muted"))      # the sections' chevron column
         canvas.put(y, x, "Repositories", Style(fg="text", bold=True))
         canvas.region(y, 0, cells, "repositories")
         air = 1 if roomy else 2
@@ -259,7 +260,7 @@ class Scm:
         end -= width(sync) + 2
         canvas.put(y, end, sync, Style(fg="muted"))
         canvas.region(y, end - 1, end + width(sync) + 1, "sync")
-        x = 2 + len(after(self.icons))                    # under the heading's name, as a change's row
+        x = CONTENT + 1 + len(after(self.icons))          # under the heading's name, as a change's row (entry())
         x = canvas.put(y, x, marks["repo"] + after(self.icons), Style(fg="muted"))
         name = os.path.basename(self.repo.rstrip(os.sep))
         room = end - 2 - (x + width(name) + 1)            # the branch's: what the name leaves before the sync
@@ -337,10 +338,12 @@ class Scm:
         return x
 
     def section(self, canvas, y, index, item, bg, hovered):
+        """A section's row on its highlight, a cell inside it each side (CONTENT): its chevron and title, its count on
+        a chip at the end, its hover icons before it."""
         cells = canvas.width
         mark = widgets.TURNS.mark(self.icons, ("section", item.kind), item.kind not in self.folded)
-        x = canvas.put(y, 1, mark + after(self.icons), Style(fg="muted", bg=bg))
-        end = cells - 1
+        x = canvas.put(y, CONTENT, mark + after(self.icons), Style(fg="muted", bg=bg))
+        end = cells - CONTENT
         if item.count is not None:                       # the count on a chip, as the row's beside the icon
             count = short_count(item.count)
             end -= width(count) + 2
@@ -353,11 +356,11 @@ class Scm:
 
     def entry(self, canvas, y, index, item, bg, hovered):
         change, cells = item.change, canvas.width
-        x = 2 + len(after(self.icons))                    # under the section's name
+        x = CONTENT + 1 + len(after(self.icons))          # under the section's name
         folder, name = os.path.split(change.path.rstrip("/"))          # a nested repository is "inner/"
         if self.icons:
             x = canvas.put(y, x, icon(name) + after(True), Style(fg="muted", bg=bg))
-        letter = cells - 3                                # under the last digit of its section's count
+        letter = cells - CONTENT - 2                      # under the last digit of its section's count
         canvas.put(y, letter, GIT_LETTER.get(change.code, change.code), Style(fg=GIT_ROLE[change.code], bg=bg))
         end = letter
         if hovered:
@@ -369,10 +372,10 @@ class Scm:
 
     def commit_row(self, canvas, y, commit, bg):
         cells = canvas.width
-        x = canvas.put(y, 2 + len(after(self.icons)), "◉ " if commit.head else "○ ",   # in the files' column
+        x = canvas.put(y, CONTENT + 1 + len(after(self.icons)), "◉ " if commit.head else "○ ",   # the files' column
                        Style(fg="accent" if commit.head else "muted", bg=bg))
         for part, role in ((commit.subject, "text"), (" ".join(commit.refs), "accent"), (commit.author, "muted")):
-            room = cells - 1 - x
+            room = cells - CONTENT - x
             if part and room > 1:
                 x = canvas.put(y, x, truncate(part, room), Style(fg=role, bg=bg)) + 1
 
@@ -382,7 +385,7 @@ class Scm:
         y = max(self.top + 1, self.top + self.height - rows - 1)
         for row in range(y, self.top + self.height):
             canvas.put(row, 0, " " * cells, PLAIN)
-        canvas.put(y, PAD, "─" * (cells - 2 * PAD), Style(fg="muted"))      # as wide as a row's content
+        canvas.put(y, BAND, "─" * (cells - 2 * BAND), Style(fg="muted"))    # as wide as a row's highlight
         self.confirm.draw(canvas, y + 1, 0, cells)
 
     # --- events

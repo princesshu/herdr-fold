@@ -197,8 +197,11 @@ export const safeMarkdown = (markdown) => markdown.replace(/!\[/g, "!⁠[").repl
 
 /** A priority's color by its rank (LEVEL, core/github.py's: Urgent 0 to Low 3), as the TUI sidebar's traffic light;
  * the accent without one. @param {Record<string, string>} t @param {number | null | undefined} level */
-export const priorityColor = (t, level) => (level === null || level === undefined ? t.accent
+export const priorityColor = (t, level) => (level === null || level === undefined ? t.foreground
   : [t.ansi1, t.ansi1, t.ansi3, t.ansi2][level]);
+/** LEVEL's bar (and its menu dot): its priority's color, an issue with none a quiet one all the same ("not sorted
+ * yet", never a gap), the field frame's tone as the TUI's guide. @param {any} t @param {number | null} level */
+export const priorityBar = (t, level) => (level === null || level === undefined ? t.input : priorityColor(t, level));
 
 /** The focused TAB's own Claude, Codex, OpenCode or Copilot to hand an issue to: one in a pane among AGENTS (agents()),
  * else a chat tab's agent among TERMINALS; or null. @param {{ tab: string, program?: { key: string } }[]} agents

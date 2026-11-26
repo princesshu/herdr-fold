@@ -5,7 +5,7 @@ import re
 import sys
 import unittest
 
-from support import SRC, set_attrs, text
+from support import SRC, inset_band, set_attrs, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 from chat_list import ChatList                  # noqa: E402
@@ -60,6 +60,23 @@ class List(unittest.TestCase):
     def click(self, x, y, button=0):
         return self.view.handle(Mouse("press", x, y, button))
 
+    def index(self, found):
+        return next(i for i, row in enumerate(self.view.list.items) if found(row))
+
+    def test_a_chosen_row_stands_a_cell_in_from_each_side_its_content_a_cell_inside(self):
+        # as the filter stands above it: a space's chevron and count, a chat's mark, name, agent and age, a closed
+        # one's box under the mouse, each a cell inside the highlight
+        self.draw()
+        self.view.list.index = self.index(lambda row: row[0] == "group" and row[1] == "shop")
+        self.draw()
+        inset_band(self, self.canvas, self.row_of("shop"))
+        self.view.list.index = self.index(lambda row: row[1] == LOGIN)
+        self.draw()
+        inset_band(self, self.canvas, self.row_of("Login redirect fix"))
+        self.view.hover = self.index(lambda row: row[1] == PRICES)          # closed: its box at the row's start
+        self.draw()
+        inset_band(self, self.canvas, self.row_of("Price list"), lit="hover")
+
     def test_the_filter_then_the_spaces(self):
         rows = self.draw()
         self.assertIn("Filter chats", rows[1])                               # the field's row, as the dock's fields
@@ -75,7 +92,7 @@ class List(unittest.TestCase):
         self.assertEqual([words[1] for words in groups], ["notes", "shop", "api"])       # "empty" has none
         closed, opened = glyphs(True)["closed"], glyphs(True)["open"]          # the file tree's chevrons, as every fold
         self.assertEqual([(words[0], words[-1]) for words in groups], [(closed, "1"), (opened, "2"), (closed, "1")])
-        self.assertEqual([line[:5] for line in shown[2:4]], ["   ● ", "   · "])     # its own, the newest first
+        self.assertEqual([line[:6] for line in shown[2:4]], ["    ● ", "    · "])   # its own, the newest first
         self.assertIn("Login redirect fix", shown[2])
         self.assertIn("Price list", shown[3])
 
@@ -104,7 +121,7 @@ class List(unittest.TestCase):
                          ("muted", "muted"))
         self.assertEqual((self.style(glyphs(True)["open"], at="shop").fg, self.style("2", at="shop").fg),
                          ("muted_row", "muted_row"))                        # the chosen one's: readable on its band
-        self.assertEqual(rows[self.row_of("shop")][:7], f" {glyphs(True)['open']} shop")   # the chevron first
+        self.assertEqual(rows[self.row_of("shop")][:8], f"  {glyphs(True)['open']} shop")  # the chevron first
 
     def test_the_chat_of_the_workspaces_active_tab_leads_its_group(self):
         newer = Chat("claude", "s5", "Newer notes", "/repo/shop", NOW)             # written to a moment ago
@@ -262,9 +279,9 @@ class List(unittest.TestCase):
         self.press("char", " ")                                             # Price list again: unmarked
         self.assertEqual(self.view.marked, {"claude:s5"})
         rows = self.draw()
-        self.assertEqual(rows[self.row_of("Draft the README")][1], "■")
-        self.assertEqual(rows[self.row_of("Price list")][1], "□")         # while any is marked, every closed one's box
-        self.assertEqual(rows[self.row_of("Login redirect fix")][1], " ")
+        self.assertEqual(rows[self.row_of("Draft the README")][2], "■")
+        self.assertEqual(rows[self.row_of("Price list")][2], "□")         # while any is marked, every closed one's box
+        self.assertEqual(rows[self.row_of("Login redirect fix")][2], " ")
         self.assertEqual(self.style("■", "Draft the README").fg, "accent")
         self.view.shut()                                                    # the list closed: the marks go
         self.assertEqual(self.view.marked, set())
@@ -291,8 +308,8 @@ class List(unittest.TestCase):
         y = self.row_of("Price list")
         self.view.handle(Mouse("move", 12, y, 0))
         rows = self.draw()
-        self.assertEqual(rows[y][1], "□")
-        self.assertEqual(rows[self.row_of("Draft the README")][1], " ")    # only the one under the pointer
+        self.assertEqual(rows[y][2], "□")
+        self.assertEqual(rows[self.row_of("Draft the README")][2], " ")    # only the one under the pointer
         self.assertIsNone(self.click(1, y))                                 # marked, not opened
         self.assertEqual(self.view.marked, {"codex:c1"})
         self.assertEqual(self.click(12, y), Action("open", (PRICES,)))    # the rest of the row as before
@@ -539,8 +556,8 @@ class ChosenPlan(unittest.TestCase):
         rows = self.plan_rows()
         self.assertEqual([" ".join(row.split()) for row in rows], [
             "Plan Open the plan", f"✓ 2 done {glyphs(True)['closed']}", "◐ Add the tests past the end",
-            "○ Run the whole suite after Add the…"])
-        self.assertTrue(all(row.startswith(" " * 5) for row in rows))        # under the chat's name
+            "○ Run the whole sui… after Add the…"])
+        self.assertTrue(all(row.startswith(" " * 6) for row in rows))        # under the chat's name
         self.assertEqual((self.style("◐").fg, self.style("✓").fg, self.style("after").fg), ("accent", "done", "muted"))
         self.assertTrue(rows[3].endswith("after Add the…"))                  # what it waits for at the right edge
 
@@ -581,14 +598,14 @@ class ChosenPlan(unittest.TestCase):
 
     def test_a_note_wraps_to_two_rows_over_the_steps(self):
         self.view.plan = ("claude:s1", {**PLAN, "note": "Tables first, so the docs can quote the real page size."})
-        rows = [" ".join(row.split()) for row in self.plan_rows(cells=36)]
+        rows = [" ".join(row.split()) for row in self.plan_rows(cells=38)]
         self.assertEqual(rows[1:3], ["Tables first, so the docs can", "quote the real page size."])
 
     def test_a_narrow_pane_cuts_the_words_and_leaves_out_what_a_step_waits_for(self):
-        rows = self.plan_rows(cells=28)
+        rows = self.plan_rows(cells=30)
         self.assertEqual([" ".join(row.split()) for row in rows][2:], ["◐ Add the tests past …",
                                                                        "○ Run the whole suite"])
-        self.assertTrue(all(len(row) <= 27 for row in rows))
+        self.assertTrue(all(len(row) <= 28 for row in rows))                # a cell inside a highlight's end
 
     def test_a_low_pane_keeps_the_chosen_chat_in_sight_over_its_plan(self):
         rows = self.draw(rows=HEADER + 4)

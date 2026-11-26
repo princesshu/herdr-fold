@@ -75,7 +75,7 @@ SLOW_AI = "#!/bin/sh\nsleep 1.5\nprintf 'feat: from the ai\\n'\n"
 
 ROW, NAMES = sidebar.stack.ROW, sidebar.stack.NAMES       # the buttons' icons, and their names under them
 COLS = 69                     # the row's names without Issues: its views' texts fit in whole
-MARGIN, INSET = screen.MARGIN, screen.INSET     # a chosen row's highlight in from each side; everything else
+MARGIN, INSET, CONTENT = screen.MARGIN, screen.INSET, screen.CONTENT   # the view's side, a highlight's, a row's
 LIT = ("selection", "hover")                    # a chosen or a hovered row's highlight
 RAILED = 0.895                # the agent's share by the rail alone in a 200-cell tab: herdr's tenth and a cell
 
@@ -85,14 +85,14 @@ def keys(text):
 
 
 def banded(canvas, y):
-    """Whether row Y is a chosen or hovered row's: lit from MARGIN in to MARGIN in."""
+    """Whether row Y is a chosen or hovered row's: lit from INSET in to INSET in."""
     row = canvas.rows[y]
-    return row[MARGIN][1].bg in LIT and row[canvas.width - 1 - MARGIN][1].bg == row[MARGIN][1].bg
+    return row[INSET][1].bg in LIT and row[canvas.width - 1 - INSET][1].bg == row[INSET][1].bg
 
 
 def drawn(canvas, y):
     """The columns row Y draws in: a character or a background, a highlight's own blank aside (a chosen or hovered
-    row's, a hovered button's block with its half rows: from edge to edge)."""
+    row's, a hovered button's block with its half rows)."""
     row, band = canvas.rows[y], banded(canvas, y)
 
     def lit(ch, style):
@@ -187,26 +187,29 @@ class Running(Harness):
         self.assertNotIn(".hidden", self.screen())
         self.until(lambda s: self.row("a.txt").rstrip().endswith("M"))   # the temporary folder is behind a symlink
 
-    def keeps_the_inset(self, view, whole=(), first=(), last=()):
-        """Nothing drawn outside the content's inset but a chosen row's highlight, from edge to edge; rows WHOLE reach
-        from its left edge to its right, rows FIRST start at its left edge, rows LAST end at its right."""
+    def keeps_the_inset(self, view, whole=(), first=(), last=(), listed=((), (), ())):
+        """Nothing drawn outside the inset, a chosen row's highlight a cell in from each side too (none of it in the
+        pane's first or last column); rows WHOLE reach from its left edge to its right, rows FIRST start at its left
+        edge, rows LAST end at its right; a list's rows, LISTED's (whole, first, last), the same a cell inside it."""
         canvas = self.app.canvas
         self.assertEqual(strays(canvas), [], f"{view}:\n{self.screen()}")
         for y in range(canvas.height):
             if canvas.rows[y][COLS // 2][1].bg == "selection" and banded(canvas, y):
-                self.assertEqual([canvas.rows[y][x][1].bg for x in (0, COLS - 1)], ["selection"] * 2, view)
-        for rows, part, edges in ((whole, slice(0, 2), (INSET, COLS - INSET)), (first, slice(0, 1), (INSET,)),
-                                  (last, slice(1, 2), (COLS - INSET,))):
-            for y in rows:
-                self.assertEqual(reach(canvas, y)[part], edges, f"{view}: {text(canvas, y)!r}")
+                self.assertEqual([canvas.rows[y][x][1].bg for x in (0, INSET, COLS - 1 - INSET, COLS - 1)],
+                                 [None, "selection", "selection", None], view)
+        for inset, (whole_, first_, last_) in ((INSET, (whole, first, last)), (CONTENT, listed)):
+            for rows, part, edges in ((whole_, slice(0, 2), (inset, COLS - inset)), (first_, slice(0, 1), (inset,)),
+                                      (last_, slice(1, 2), (COLS - inset,))):
+                for y in rows:
+                    self.assertEqual(reach(canvas, y)[part], edges, f"{view}: {text(canvas, y)!r}")
 
-    def test_every_element_starts_and_ends_where_a_chosen_rows_content_does(self):
-        # a chosen row's highlight from edge to edge; everything else a cell (INSET) in, as that row's content:
-        # the row of buttons and », headers, fields, buttons, lists, a line, a menu, a tip
+    def test_every_element_starts_and_ends_where_a_chosen_rows_highlight_does(self):
+        # a chosen row's highlight a cell (INSET) in from each side, as the row of buttons and », headers, fields,
+        # buttons, a line, a menu and a tip stand; a list's rows a cell inside it (CONTENT)
         self.until(lambda s: "src" in self.body(s) and self.row("a.txt").rstrip().endswith("M"))     # its git mark
         self.term.type(Key("down"))
         self.until(lambda s: any(row[COLS // 2][1].bg == "selection" for row in self.app.canvas.rows[5:]))
-        self.keeps_the_inset("files", whole=[self.at("project")], first=[self.at("src")], last=[self.at("a.txt")])
+        self.keeps_the_inset("files", whole=[self.at("project")], listed=((), [self.at("src")], [self.at("a.txt")]))
         canvas = self.app.canvas                    # » on the icons' line, at the content's right edge
         self.assertEqual((text(canvas, ROW).rstrip()[-1], text(canvas, ROW).rindex("»"), text(canvas, 0).strip()),
                          ("»", COLS - 4, ""))                     # its block's middle, a cell in from the edge
@@ -218,15 +221,15 @@ class Running(Harness):
         self.term.type(Key("down"), Key("down"), Key("down"))                   # new.txt
         self.until(lambda s: any(row[COLS // 2][1].bg == "selection" for row in self.app.canvas.rows[8:]))
         field, button = self.at("Commit message"), self.at("Commit ", self.at("Commit message") + 1)
-        self.keeps_the_inset("changes", whole=[field - 1, field, field + 1, button, self.at("Changes")],
-                             first=[self.at("Repositories")], last=[self.at("main")])
+        self.keeps_the_inset("changes", whole=[field - 1, field, field + 1, button], last=[self.at("main")],
+                             listed=([self.at("Changes")], [self.at("Repositories")], ()))    # the sections' chevrons
         self.term.type(Key("f10"), *keys("needle"))
         self.until(lambda s: "a.txt" in self.body(s) and "needle" in self.body(s))
         self.term.type(Key("tab"))
         self.until(lambda s: any(row[COLS // 2][1].bg == "selection" for row in self.app.canvas.rows[8:]))
         field = self.at("needle")
-        self.keeps_the_inset("search", whole=[field - 1, field, field + 1, self.at("a.txt", field + 1)],
-                             first=[self.at("in a.txt"), self.at("1 result")])
+        self.keeps_the_inset("search", whole=[field - 1, field, field + 1], first=[self.at("in a.txt"),
+                             self.at("1 result")], listed=([self.at("a.txt", field + 1)], (), ()))
         self.term.type(Mouse("press", text(self.app.canvas, NAMES).index("Chats"), NAMES, 0))
         self.until(lambda s: "No chats" in s)
         field = self.at("Filter")
@@ -872,7 +875,7 @@ class IssuesTab(Harness):
         edges = (INSET, self.NAMED - INSET)
         self.assertEqual([reach(canvas, row) for row in (field - 1, field, field + 1)], [edges] * 3)
         self.assertEqual((reach(canvas, self.at("Open"))[0], reach(canvas, y)[0], reach(canvas, y + 1)),
-                         (INSET, INSET, edges))
+                         (INSET, INSET, (INSET, self.NAMED - CONTENT)))      # the bar at its edge, the age inside
         self.assertEqual(text(canvas, y)[INSET], "▌")                       # its priority's bar first
         set_env(self, GH_ISSUES="[]")
         self.term.type(Key("char", "R"))
@@ -1644,9 +1647,10 @@ class ChatsList(unittest.TestCase):
         self.assertEqual(backgrounds - {"input", "selection"}, {None})      # every cell the views' own, no second
         self.assertFalse(any(ch in "┌┐┘" for row in rows[top:30] for ch in row))          # edge to edge, no frame
         self.assertEqual(rows[top + 2].split()[0], "Filter")                 # its field, tall as the views' fields
-        self.assertEqual(rows[top + 5].index("Fix the page"), 5)            # under its space's name, past its mark
+        self.assertEqual(rows[top + 5].index("Fix the page"), 6)            # under its space's name, past its mark
         chosen = next(y for y in range(top, 30) if canvas.rows[y][20][1].bg == "selection")
-        self.assertEqual([canvas.rows[chosen][x][1].bg for x in (0, 1, COLS - 2, COLS - 1)], ["selection"] * 4)
+        self.assertEqual([canvas.rows[chosen][x][1].bg for x in (0, 1, COLS - 2, COLS - 1)],
+                         [None, "selection", "selection", None])            # a cell in from each side
         star = glyphs(True)["ai"]
         look = [canvas.rows[ROW][rows[ROW].index(star)][1], canvas.rows[NAMES][rows[NAMES].index("Chats")][1],
                 canvas.rows[NAMES][rows[NAMES].index("Files")][1]]
@@ -1965,6 +1969,24 @@ class Rail(unittest.TestCase):
                           if method == "layout.set_split_ratio" and params["tab_id"] == "w1:t1"][-1:], [0.59])
         self.assertEqual(sum(params == {"tab_id": "w1:t1", "path": [], "ratio": 0.59} for method, params in
                              self.fake.calls if method == "layout.set_split_ratio"), 1)
+
+    def test_opened_from_the_rail_it_stays_the_rail_until_its_column_has_widened(self):
+        # « pressed: the dock's text never squeezed into the rail's cells while herdr widens the column (a few
+        # seconds at times); once the dock's job has landed, the dock; dragged open, the column is wide already
+        self.folded()
+        rail = self.rows()
+        self.app.draw()
+        y, x = next((y, x0) for y, x0, _x1, found in reversed(self.app.canvas.regions) if found == "to_dock")
+        self.app.handle(Mouse("press", x, y, 0))                             # the job not ended yet
+        self.assertEqual((self.app.railed, self.app.opening, self.rows()), (False, True, rail))
+        self.settle()
+        self.app.term.cols = 45                                             # herdr widened it meanwhile
+        self.assertEqual((self.app.railed, self.app.opening), (False, False))
+        self.assertNotEqual(self.rows(), rail)
+        self.app.fold_dock(True)
+        self.settle()
+        self.app.fold_dock(False, wide=True)                                # dragged open: no rail in a wide pane
+        self.assertFalse(self.app.opening)
 
     def test_a_column_dragged_under_its_rows_least_folds_the_dock_once_let_go(self):
         # as VS Code's and Figma's: under the row's least, a nudge too, the dock folds in every tab once the drag has

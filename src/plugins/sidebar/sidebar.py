@@ -153,6 +153,7 @@ class App(Loop):
         self.dock = stack.state(state_dir, self.root)    # the view shown in this folder
         self.saw(column.FILE)
         self.railed = column.railed(state_dir)            # the dock folded to its rail, in every tab (column.json)
+        self.opening = False                    # opened from the rail, its column not widened yet: still the rail
         self.chats = False                                # the Chats list open, with the keys
         self.box = None                                   # the list's place, as last drawn: (top, left, bottom, right)
         self.named = True                                 # the row's names under its icons, as last drawn
@@ -679,7 +680,7 @@ class App(Loop):
         """The rail dragged open or the open dock under its row's least (drag()): the dock opened or folded in every tab
         as « or » would, the open width kept; whether it was."""
         if answer in ("open", "fold") and self.railed == (answer == "open"):
-            self.fold_dock(answer == "fold")
+            self.fold_dock(answer == "fold", wide=True)
             return True
         return False
 
@@ -790,10 +791,12 @@ class App(Loop):
 
     # --- the dock folded to its rail: the same in every tab, as the column's width
 
-    def fold_dock(self, rail):
+    def fold_dock(self, rail, wide=False):
         """The dock folded to its RAIL, or opened again, in every tab: kept in column.json first (another tab's sidebar
-        takes it at its next look), then each tab's column and terminal set (shape())."""
-        self.railed = rail
+        takes it at its next look), then each tab's column and terminal set (shape()). Opened, the rail stays drawn
+        until its column has widened (reshaped()), never the dock squeezed into the rail's cells; WIDE: dragged open,
+        already as wide."""
+        self.railed, self.opening = rail, not rail and not wide
         if not column.keep(self.state_dir, {"rail": rail}):
             self.error = "settings not saved"
         self.reshape(every=True)
@@ -834,6 +837,8 @@ class App(Loop):
         if every or "dock" in self.again:
             self.again -= {"dock", "dock-every"}
             self.reshape(every)
+        else:                                   # the last change landed: the column as the dock now is
+            self.opening = False
 
     def shape(self, rail, every):
         """On the job's thread: this tab's column (EVERY: every tab's, this one first) as wide as the dock takes, its
@@ -1005,8 +1010,9 @@ class App(Loop):
     def draw(self):
         cells, rows = self.term.size()
         canvas = Canvas(cells, rows)
-        self.reach, self.body, self.box = 0 if self.railed else cells, None, None
-        if not self.railed:
+        railed = self.railed or self.opening                # opening: the rail until the column has widened
+        self.reach, self.body, self.box = 0 if railed else cells, None, None
+        if not railed:
             self.named = stack.named(self.groups(), cells)          # too narrow: the icons alone, a row less
             top = stack.TOP if self.named else stack.TOP - 1
             self.draw_panel(canvas, top)
@@ -1035,7 +1041,7 @@ class App(Loop):
         for family in self.families:
             family.drawing()
         if full:                                        # every row its own, the line over the last: nothing moves
-            view = Canvas(max(1, cells - 2 * MARGIN), rows)          # its highlight edge to edge, its content a cell in
+            view = Canvas(max(1, cells - 2 * MARGIN), rows)          # its highlight a cell in, its content two
             shown = self.views[self.shown()]                              # tall where it has the rows (its own)
             shown.draw(view, top, full, full >= getattr(shown, "ROOMY", ROOMY))
             canvas.paste(view, 0, MARGIN)

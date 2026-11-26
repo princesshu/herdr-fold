@@ -10,10 +10,10 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   chatRows, chatsAsked, coreAgents, deleteOff, folderGroup, groupPlace, stillLeaving, withoutLeaving,
   diffRows, excerpt, fileRows, floatHeight, folderIcon, foldedSections, foldedWidth,
   folderSpaces, issueAgent, lastLine, launcher, letter, machineOf, marked, MODES, PANEL, panelShown, previewName,
-  previewTab, priorityColor, pushOffer, pythonCommand, railed, resumeArgv, rowActions, safeMarkdown, said, searchRows,
-  searchSummary, secretQuestion, shownView, strays, syncLabel, tabLabel, TALL, terminalId, TERMINALS, urgent,
-  withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread, spaceWaits, placeLabel, nested, folderKey,
-  atHome, homeFirst, homeId, homesEmpty, homesSeen, withHomes, HOME_NAME, spaceLabel, spaceColor,
+  previewTab, priorityBar, priorityColor, pushOffer, pythonCommand, railed, resumeArgv, rowActions, safeMarkdown, said,
+  searchRows, searchSummary, secretQuestion, shownView, strays, syncLabel, tabLabel, TALL, terminalId, TERMINALS,
+  urgent, withoutTabs, withTerminal, written, waited, nextWaits, toggleUnread, spaceWaits, placeLabel, nested,
+  folderKey, atHome, homeFirst, homeId, homesEmpty, homesSeen, withHomes, HOME_NAME, spaceLabel, spaceColor,
   placeKey, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow, railToggle, RAIL, RAIL_BLOCK,
   PANEL_PX, activeTerminal, hovering, tabRows, titleSide, fieldWidth, FIELD, FIELD_LEAST, paletteKey, toggleRoom,
   keyNames, keyWord, paletteEntries, entryKey, palettePlace, PALETTE_NAMED, PALETTE_GROUPS, PALETTE_OWNED,
@@ -746,9 +746,11 @@ test("the Files tree's rows as the TUI's: an open folder's entries under it, a v
   });
 
 test("a priority's color as the TUI sidebar's traffic light: urgent and high red, medium yellow, low green", () => {
-  const t = { ansi1: "red", ansi3: "yellow", ansi2: "green", blocked: "red", accent: "accent" };
+  const t = { ansi1: "red", ansi3: "yellow", ansi2: "green", blocked: "red", accent: "accent", foreground: "text",
+    input: "quiet" };
   assert.deepEqual([0, 1, 2, 3, null, undefined].map((level) => priorityColor(t, level)),
-    ["red", "red", "yellow", "green", "accent", "accent"]);
+    ["red", "red", "yellow", "green", "text", "text"]);                // none: its number plain text
+  assert.deepEqual([0, 3, null].map((level) => priorityBar(t, level)), ["red", "green", "quiet"]);   // a quiet bar
 });
 
 test("a space's preview tab: named as one, herdr-fold its pane; another tab so named is not it", () => {

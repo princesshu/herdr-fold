@@ -17,7 +17,7 @@ import github  # noqa: E402
 import issue_work  # noqa: E402
 import pager  # noqa: E402
 from github import Issue, Listing, Pull, Pulls, Query  # noqa: E402
-from issues import TEXT, Issues  # noqa: E402
+from issues import NO_PRIORITY, TEXT, Issues  # noqa: E402
 from icons import glyphs  # noqa: E402
 from screen import PAD, SPINNER, Canvas  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
@@ -106,9 +106,10 @@ class View(unittest.TestCase):
         details = text(self.canvas, y + 1)
         self.assertEqual(self.canvas.rows[y + 1][details.index("urgent")][1].fg, "deleted")
         self.assertEqual(self.canvas.rows[y + 1][details.index("ui")][1].fg, "muted")
-        dark = self.row_of("#38 ")
-        self.assertEqual(self.canvas.rows[dark][1][0], " ")                        # no priority: no mark
-        self.assertEqual(self.canvas.rows[dark][3][1].fg, "accent")                # its number where the others are
+        dark = self.row_of("#38 ")                     # no priority: a quiet bar all the same, its number plain text
+        self.assertEqual([(self.canvas.rows[r][1][0], self.canvas.rows[r][1][1].fg) for r in (dark, dark + 1)],
+                         [("▌", NO_PRIORITY)] * 2)
+        self.assertEqual((NO_PRIORITY, self.canvas.rows[dark][3][1].fg), ("guide", "text"))
 
     def test_each_priority_has_its_color_as_a_traffic_light(self):
         # red, yellow, green: three colors every theme keeps apart (GitHub Dark's high and medium were one color)
@@ -229,7 +230,7 @@ class View(unittest.TestCase):
         for part in ("auth, ui", "@dev", "2d"):
             self.assertIn(part, below)
         y = self.row_of("#38 Add a dark mode toggle")
-        self.assertEqual(text(self.canvas, y + 1).split(), ["5d"])
+        self.assertEqual(text(self.canvas, y + 1).split(), ["▌", "5d"])          # no priority: its quiet bar, the age
 
     def test_an_answer_for_another_query_is_dropped(self):
         self.press("right")                                             # Closed is being asked for
@@ -678,7 +679,8 @@ class Setting(unittest.TestCase):
         inside = [line[line.index("│"):] for line in self.lines() if "│" in line]       # the menu's rows alone
         none = next(line for line in inside if "No priority" in line)
         urgent = next(line for line in inside if "Urgent" in line)
-        self.assertEqual(none.index("No priority"), urgent.index("●"))            # none where the dots stand
+        self.assertEqual((none.index("●"), none.index("No priority")), (urgent.index("●"), urgent.index("Urgent")))
+        self.assertEqual(next(c for c in choices if isinstance(c, Row)).mark, ("●", NO_PRIORITY))   # the bar's grey
 
     def test_a_choice_sets_the_row_at_once_and_asks_github(self):
         self.shown()

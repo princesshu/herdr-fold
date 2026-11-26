@@ -4,7 +4,7 @@ import os
 import sys
 import unittest
 
-from support import SRC, text
+from support import SRC, inset_band, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 from find import DELAY, Find  # noqa: E402
@@ -70,6 +70,17 @@ class View(unittest.TestCase):
         self.assertEqual((line[name - 2:name], line[name - 3] != " "), ("  ", True))
         hit = text(self.canvas, self.row_of("def foo"))
         self.assertEqual(len(hit) - len(hit.lstrip()), name)                # the hit starts under the name
+
+    def test_a_chosen_row_stands_a_cell_in_from_each_side_its_content_a_cell_inside(self):
+        # as the field stands above it: a file's chevron, name and its count's chip, a hit's line cut short, each a
+        # cell inside the highlight
+        self.answer(Result(hits=[Hit("src/app.py", 3, "x = foo + " + "y" * 60, [(4, 7)])], total=1, files=1))
+        self.view.handle(Key("down"))                                       # the file, its count's chip at its end
+        inset_band(self, self.draw(), self.row_of("app.py"))
+        self.view.handle(Key("down"))                                       # its hit, its "…" a cell inside the end
+        inset_band(self, self.draw(), self.row_of("x = foo"))
+        self.view.hover, self.view.list.index = 0, 1                        # the file under the mouse
+        inset_band(self, self.draw(), self.row_of("app.py"), lit="hover")
 
     def test_the_hits_stand_apart_from_the_summary(self):
         self.answer(three())

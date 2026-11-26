@@ -7,7 +7,7 @@ import sys
 import time
 import unittest
 
-from support import SRC, set_attrs, text
+from support import SRC, inset_band, set_attrs, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
 from git import Change, Commit, Status  # noqa: E402
@@ -73,6 +73,18 @@ class View(unittest.TestCase):
 
     def target(self, name):
         return next((x0, y) for y, x0, _, target in self.canvas.regions if target == name)
+
+    def test_a_chosen_row_stands_a_cell_in_from_each_side_its_content_a_cell_inside(self):
+        # as the message and Commit stand above them: a section's chevron and its count's chip, a change's name and
+        # git's letter, a section's hover icons, a commit's line cut short, each a cell inside the highlight
+        self.draw()
+        for index, part in ((0, "Staged changes"), (1, "new.py")):
+            self.view.focus, self.view.list.index = "list", index
+            inset_band(self, self.draw(), self.row_of(part))
+        self.view.hover = 3                                                 # Changes under the mouse: its icons
+        inset_band(self, self.draw(), self.row_of(f"{OPEN} Changes"), lit="hover")
+        self.view.hover, self.view.focus, self.view.graph_list.index = None, "graph", 1     # commit number 0
+        inset_band(self, self.draw(width=30), self.row_of("commit number 0"))
 
     def test_the_wheel_over_a_long_message_scrolls_it(self):
         """A message taller than its field (an AI's): the wheel over it shows its other rows; the changes stay."""
@@ -289,13 +301,13 @@ class View(unittest.TestCase):
         canvas = self.draw()
         x, y = self.at("app.py")
         self.assertEqual(canvas.rows[y][x][1].fg, "text")
-        self.assertEqual(text(canvas, y)[42], "M")
-        self.assertEqual(canvas.rows[y][42][1].fg, "modified")
+        self.assertEqual(text(canvas, y)[41], "M")
+        self.assertEqual(canvas.rows[y][41][1].fg, "modified")
         x, y = self.at("old.txt")
         self.assertTrue(canvas.rows[y][x][1].strike)
-        self.assertEqual(text(canvas, y)[42], "D")
-        self.assertEqual(text(canvas, self.row_of("draft.md"))[42], "U")
-        self.assertEqual(canvas.rows[self.row_of("draft.md")][42][1].fg, "added")
+        self.assertEqual(text(canvas, y)[41], "D")
+        self.assertEqual(text(canvas, self.row_of("draft.md"))[41], "U")
+        self.assertEqual(canvas.rows[self.row_of("draft.md")][41][1].fg, "added")
 
     def test_the_mode_menu_and_the_remembered_mode(self):
         self.draw()
@@ -589,7 +601,7 @@ class View(unittest.TestCase):
         self.status = Status(branch="main", changes=[Change("a.txt", "U")])         # a conflict
         canvas = self.draw()
         y = self.row_of("a.txt")
-        self.assertEqual((text(canvas, y)[42], canvas.rows[y][42][1].fg), ("!", "conflict"))
+        self.assertEqual((text(canvas, y)[41], canvas.rows[y][41][1].fg), ("!", "conflict"))
         self.status = Status(error="fatal: not a git repository (or any of the parent directories): .git")
         self.draw()
         self.assertEqual(text(self.canvas, 0).strip(), "Not a git repository")
@@ -604,9 +616,9 @@ class View(unittest.TestCase):
         canvas = self.draw(width=24)
         y = self.row_of("a-very")
         self.assertIn("…", text(canvas, y))
-        self.assertEqual(text(canvas, y)[21], "M")
+        self.assertEqual(text(canvas, y)[20], "M")                          # under its count's last digit
         self.assertTrue(text(canvas, self.rows_where(5, "button")[0]).rstrip().endswith("⌄"))
-        self.assertIn("…", text(canvas, self.row_of("commit number 0")))
+        self.assertLessEqual(len(text(canvas, self.row_of("commit number 0")).rstrip()), 24 - 3)   # its refs left out
 
 
 if __name__ == "__main__":
@@ -650,6 +662,17 @@ class PullRequestRow(unittest.TestCase):
         self.assertEqual(self.rows()[y][2], "●")
         self.assertIn("checks 2 of 3 · no review yet", self.rows()[y + 1])
         self.assertEqual(self.click("#58 Keep a page"), Action("pull_row", ()))
+
+    def test_its_row_under_the_mouse_stands_a_cell_in_from_each_side(self):
+        # as the message and Commit under it: the way to open one, or the pull request's two rows, a cell inside
+        self.view.hover = "pull"
+        self.draw()
+        inset_band(self, self.canvas, self.row_of("No pull request"), lit="hover")
+        self.view.pull = (Pull(58, "Keep a page past the last one in range", "fix/page-past-end", "dev", draft=True,
+                               checks=(2, 1, 0)), "main")
+        self.draw(width=40)
+        for y in (self.row_of("#58 Keep a page"), self.row_of("#58 Keep a page") + 1):
+            inset_band(self, self.canvas, y, lit="hover")
 
     def test_commit_is_unlit_while_there_is_nothing_to_commit(self):
         label = f"{glyphs(False)['check']} Commit"

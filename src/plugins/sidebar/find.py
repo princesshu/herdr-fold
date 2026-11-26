@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 
 from icons import glyphs, icon
-from screen import Style, after, char_width, truncate, width
+from screen import CONTENT, Style, after, char_width, truncate, width
 from search import Hit, Query, Result, pattern
 from vt import Key, Mouse
 from widgets import Action, ListView, TextInput
@@ -176,22 +176,24 @@ class Find:
             self.row(canvas, first + row, index)
 
     def row(self, canvas, y, index):
+        """A file's row (its chevron, icon, name, folder, its hits' count on a chip at the end) or a hit's, on its
+        highlight, a cell inside it each side (CONTENT)."""
         item, cells = self.list.items[index], canvas.width
         chosen = index == self.list.index and not self.editing
         bg = "selection" if chosen else ("hover" if index == self.hover else None)
         canvas.band(y, bg)
         canvas.region(y, 0, cells, ("row", index))
-        indent = 1 + (1 + len(after(self.icons))) * (1 + self.icons)    # under the name: past the chevron and icon
+        indent = CONTENT + (1 + len(after(self.icons))) * (1 + self.icons)    # under the name: past chevron and icon
         if isinstance(item, Hit):
             self.hit(canvas, y, indent, item, bg)
             return
         mark = glyphs(self.icons)["closed" if item.path in self.folded else "open"]
-        x = canvas.put(y, 1, mark + after(self.icons), Style(fg="muted", bg=bg))
+        x = canvas.put(y, CONTENT, mark + after(self.icons), Style(fg="muted", bg=bg))
         folder, name = os.path.split(item.path)
         if self.icons:
             x = canvas.put(y, x, icon(name) + after(True), Style(fg="muted", bg=bg))
         count = str(item.count)
-        end = cells - 3 - width(count)                    # the count on a chip at the right edge
+        end = cells - CONTENT - 2 - width(count)          # the count on a chip, its end the content's
         x = canvas.put(y, x, truncate(name, end - x - 1), Style(fg="text", bg=bg))
         if folder and end - x - 2 > 1:
             canvas.put(y, x + 1, truncate(folder, end - x - 2), Style(fg="muted", bg=bg))
@@ -204,7 +206,7 @@ class Find:
         text = hit.text.lstrip()
         shift = len(hit.text) - len(text)
         spans = [(start - shift, end - shift) for start, end in hit.spans if start >= shift]
-        cells = canvas.width - 1 - x
+        cells = canvas.width - CONTENT - x
         if spans and width(text[:spans[0][1]]) > cells:
             cut = max(0, spans[0][0] - cells // 3)
             text, spans = "…" + text[cut:], [(start - cut + 1, end - cut + 1) for start, end in spans if start >= cut]
