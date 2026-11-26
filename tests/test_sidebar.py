@@ -1970,23 +1970,27 @@ class Rail(unittest.TestCase):
         self.assertEqual(sum(params == {"tab_id": "w1:t1", "path": [], "ratio": 0.59} for method, params in
                              self.fake.calls if method == "layout.set_split_ratio"), 1)
 
-    def test_opened_from_the_rail_it_stays_the_rail_until_its_column_has_widened(self):
-        # « pressed: the dock's text never squeezed into the rail's cells while herdr widens the column (a few
-        # seconds at times); once the dock's job has landed, the dock; dragged open, the column is wide already
+    def test_opened_from_the_rail_it_stays_the_rail_until_its_pane_widens(self):
+        # « pressed: the dock's text never squeezed into the rail's cells; the dock as soon as herdr has widened the
+        # pane, not after the rest of the job (the terminal's move, the prompt drawn again); dragged open: at once
         self.folded()
         rail = self.rows()
         self.app.draw()
         y, x = next((y, x0) for y, x0, _x1, found in reversed(self.app.canvas.regions) if found == "to_dock")
         self.app.handle(Mouse("press", x, y, 0))                             # the job not ended yet
-        self.assertEqual((self.app.railed, self.app.opening, self.rows()), (False, True, rail))
-        self.settle()
-        self.app.term.cols = 45                                             # herdr widened it meanwhile
-        self.assertEqual((self.app.railed, self.app.opening), (False, False))
+        self.assertEqual((self.app.railed, self.app.opening, self.rows()), (False, sidebar.column.RAIL, rail))
+        self.app.term.cols = 45                                             # herdr widened it, the job still runs
         self.assertNotEqual(self.rows(), rail)
+        self.assertIsNone(self.app.opening)
+        self.settle()
         self.app.fold_dock(True)
         self.settle()
         self.app.fold_dock(False, wide=True)                                # dragged open: no rail in a wide pane
-        self.assertFalse(self.app.opening)
+        self.assertIsNone(self.app.opening)
+        self.app.term.cols = sidebar.column.RAIL
+        self.app.fold_dock(False)                                           # the job lands, the pane never widened
+        self.settle()
+        self.assertIsNone(self.app.opening)
 
     def test_a_column_dragged_under_its_rows_least_folds_the_dock_once_let_go(self):
         # as VS Code's and Figma's: under the row's least, a nudge too, the dock folds in every tab once the drag has
