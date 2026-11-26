@@ -130,11 +130,22 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 - One tilde before every dollar figure herdr-fold computes (`~$18.40`, `~$130.90 API value`): an estimate at list
   prices, on a plan what that use would cost on the API; a budget you set wears none.
 - The session's cost in Claude's status line, one more item to choose (off until chosen): `~$4.12`, Claude's own count.
+- A model's own weekly limit beside the 5-hour and weekly ones, where the account has one, as Claude's VS Code
+  extension shows it: Fable's, read from Claude's own `/usage` reading. Claude's status line ends with it
+  (`Fable: 38%`, its own item, on by default, the first a narrower pane drops), and Usage has it as a third window in
+  both clients, its reset in the row's properties. See [The status line](docs/usage.md#the-status-line).
 - herdr-fold Mono, both clients' monospace font: JetBrains Mono with Nerd Fonts' icons, its line 10% taller, and the
   symbols Claude Code, Codex, herdr and starship print that it lacked. The TUI's installer puts it in
   `~/Library/Fonts`; the Herdr app loads it from the mod. See [The font](docs/installation.md#the-font).
 - Every popup herdr-fold opens in the TUI (Settings, closing a tab, the folder and theme pickers, Cmd + Shift + L's
   files) has a close button at its top right, its tip `Close (Esc)`.
+- Issue types and a new filter in both clients: each issue's type a muted icon before its number (Bug, Feature, Task:
+  GitHub's own issue type, else a `bug`, `enhancement` or `feature` label); Issues' and Pull requests' funnel opens
+  their filters in groups built from the list (Assigned to me, Created by me, Priority, Type or Review and Checks,
+  Label), each value with how many would stay, any of a group's values and every group, what is on as chips under the
+  field; Open and Closed each count the repository's, as GitHub's list does; where the organization has the Priority
+  field or issue types, the right click sets them (Priority…, Type…), and the app's preview shows both. See
+  [GitHub issues](docs/usage.md#github-issues).
 
 ### Changed
 

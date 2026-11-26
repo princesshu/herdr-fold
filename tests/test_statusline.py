@@ -33,11 +33,14 @@ GRAY, RESET = "\x1b[38;2;147;153;178m", "\x1b[0m"
 SEP = f" {GRAY}|{RESET} "
 
 
-def run(data, choice=None, columns=None, twelve=True, kept=None, blocked=False, before=None):
-    """What the status line prints for Claude's JSON DATA, with CHOICE as statusline.json, COLUMNS as the pane's width
-    and the machine's hours TWELVE or 24 (time.json's), in UTC, with no jq or anything else on the PATH. KEPT gets
-    the limits it kept (None for none); BLOCKED puts a file where their folder goes; BEFORE: another chat's kept."""
+def run(data, choice=None, columns=None, twelve=True, kept=None, blocked=False, before=None, cache=None):
+    """What the status line prints for Claude's JSON DATA, CHOICE as statusline.json, COLUMNS the pane's width, hours
+    TWELVE or 24 (time.json's), in UTC, nothing on the PATH. KEPT gets the limits it kept (None for none); BLOCKED puts
+    a file where their folder goes; BEFORE: another chat's kept; CACHE: Claude's own .claude.json."""
     with tempfile.TemporaryDirectory() as home:
+        if cache is not None:
+            with open(os.path.join(home, ".claude.json"), "w") as f:
+                json.dump(cache, f)
         if choice is not None:
             os.makedirs(os.path.join(home, ".config", "herdr-fold"))
             with open(os.path.join(home, ".config", "herdr-fold", "statusline.json"), "w") as f:
@@ -95,7 +98,7 @@ class Statusline(unittest.TestCase):
     def test_the_context_and_its_window_size_are_one_choice(self):
         # two would show the context twice in the installer's list (context: 22% and context: 22%/1M)
         import statusline_setup
-        for tool, own in (("claude", ["cost"]), ("codex", [])):         # Codex's line is its own: no cost there
+        for tool, own in (("claude", ["model_weekly", "cost"]), ("codex", [])):    # Codex's line is its own
             self.assertEqual([key for key, _, _ in statusline_setup.ITEMS[tool]],
                              ["effort", "context", "five_hour", "weekly"] + own, tool)
         self.assertEqual(statusline_setup.ITEMS["claude"][1][2], "context: 22%/1M")
@@ -182,7 +185,8 @@ class Statusline(unittest.TestCase):
         kept = []
         self.assertEqual(run(FULL, kept=kept), run(FULL, blocked=True))
         self.assertIsInstance(kept[0].pop("at"), int)
-        self.assertEqual(kept, [{"five_hour": {"used": 64, "resets": 1000}, "week": {"used": 91, "resets": MONDAY}}])
+        self.assertEqual(kept, [{"five_hour": {"used": 64, "resets": 1000}, "week": {"used": 91, "resets": MONDAY},
+                                 "models": []}])
 
     def test_another_chats_fresher_limits_are_drawn(self):
         # an idle chat's line, drawn again: the 5-hour use another chat was told since, not its own older 64%
@@ -190,6 +194,24 @@ class Statusline(unittest.TestCase):
                                  "at": 1})
         self.assertIn("70%", line)
         self.assertNotIn("64%", line)
+
+    def test_a_models_own_week_after_the_weekly_one_where_the_account_has_one(self):
+        # Claude's cache alone tells it (its status JSON never does): Fable's own allowance, in its level's color
+        now, plain = int(time.time()), (lambda line: re.sub(r"\x1b\[[0-9;]*m", "", line))
+        cache = {"cachedUsageUtilization": {"fetchedAtMs": (now - 60) * 1000, "utilization": {"limits": [
+            {"kind": "weekly_scoped", "group": "weekly", "percent": 38.2, "severity": "normal",
+             "resets_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now + 4 * 86400)),
+             "scope": {"model": {"display_name": "Fable"}}, "is_active": False}]}}}
+        line = run(FULL, cache=cache)
+        self.assertEqual(line, run(FULL) + f"{SEP}{GRAY}Fable:{RESET} {GREEN}38%{RESET}")
+        self.assertEqual(run(FULL, '{"claude": {"model_weekly": false}}', cache=cache), run(FULL))
+        # a narrower pane drops it first, the rest as before
+        self.assertEqual(run(FULL, columns=str(len(plain(line)) + 1), cache=cache), run(FULL))
+        self.assertEqual(run(FULL, columns=str(len(plain(line)) + 2), cache=cache), line)
+        # past its reset (a cache not fetched since) its use is not known: not drawn
+        past = json.loads(json.dumps(cache).replace(cache["cachedUsageUtilization"]["utilization"]["limits"][0][
+            "resets_at"], "2026-11-01T09:00:00Z"))
+        self.assertEqual(run(FULL, cache=past), run(FULL))
 
     def test_nothing_is_kept_before_the_first_answer(self):
         kept = []
@@ -579,7 +601,7 @@ class CodexConfig(unittest.TestCase):
         with open(self.module.CODEX) as f:
             self.assertNotIn("context-remaining", f.read())
         self.assertEqual([key for key, _, _ in self.module.ITEMS["claude"]],          # the same, in one order, and
-                         [key for key, _, _ in self.module.ITEMS["codex"]] + ["cost"])    # Claude's cost: its line's
+                         [key for key, _, _ in self.module.ITEMS["codex"]] + ["model_weekly", "cost"])  # Claude's own
 
     def test_your_own_chosen_herdr_folds_items_go_and_yours_stay(self):
         result, text = self.apply('[tui]\nstatus_line = ["model-with-reasoning", "context-remaining", "my-item"]\n',

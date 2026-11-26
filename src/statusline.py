@@ -1,6 +1,6 @@
-"""The Claude Code status line (model, effort, context, 5-hour and weekly limits, the session's cost), on the standard
-library alone for macOS, Linux and Windows. Claude Code passes the session's JSON on stdin and the pane's width in
-COLUMNS; the items are statusline.json's (statusline_setup.py), a narrow pane drops them step by step (STEPS)."""
+"""The Claude Code status line (model, effort, context, the 5-hour, weekly and a model's own limit, the session's cost),
+on the standard library alone for macOS, Linux and Windows. Claude Code passes the session's JSON on stdin and the
+pane's width in COLUMNS; the items are statusline.json's (statusline_setup.py), a narrow pane drops them by STEPS."""
 import json
 import os
 import plistlib
@@ -36,9 +36,10 @@ SEP = f"{GRAY}|{RESET}"
 COLOR = re.compile(r"\x1b\[[0-9;]*m")
 NOTE = re.compile(r"\s*\(.*\)$")                       # the model name's note: "Opus 5.5 (1M context)"
 INDENT = 2                                              # Claude Code draws the line two cells in
-# What a narrower pane takes, one more each step: the cost, shorter reset times (/1h 36m, /Mon 1pm), the model name's
-# note, shorter labels (ctx, 5h, wk), the context window size, the weekly reset, the 5-hour reset, the effort
-NO_COST, SHORT_TIMES, NO_NOTE, SHORT_LABELS, NO_SIZE, NO_WEEKLY_RESET, NO_RESET, NO_EFFORT = range(1, 9)
+# What a narrower pane takes, one more each step: a model's own week (Fable: 38%), the cost, shorter reset times
+# (/1h 36m, /Mon 1pm), the model name's note, shorter labels (ctx, 5h, wk), the context window size, the weekly reset,
+# the 5-hour reset, the effort
+NO_MODELS, NO_COST, SHORT_TIMES, NO_NOTE, SHORT_LABELS, NO_SIZE, NO_WEEKLY_RESET, NO_RESET, NO_EFFORT = range(1, 10)
 STEPS = NO_EFFORT
 LABELS = {"context": ("context:", "ctx"), "five_hour": ("current:", "5h"), "weekly": ("weekly:", "wk")}
 
@@ -53,7 +54,7 @@ def shown():
         claude = None
     if not isinstance(claude, dict):
         claude = {}
-    show = {key: claude.get(key) is not False for key in ("effort", "context", "five_hour", "weekly")}
+    show = {key: claude.get(key) is not False for key in ("effort", "context", "five_hour", "weekly", "model_weekly")}
     show["cost"] = claude.get("cost") is True          # the one item to switch on: an update adds nothing unasked
     return show
 
@@ -215,6 +216,10 @@ def draw(data, show, now, step, limits):
         used, reset = week["used"], week["resets"]
         extra = "" if reset is None or step >= NO_WEEKLY_RESET else weekday(reset, now, step >= SHORT_TIMES)
         line += f" {SEP} {GRAY}{label['weekly']}{RESET} {level(used)}{used}%{RESET}{GRAY}{extra}{RESET}"
+    # a model's own week, where the account has one; past its reset (Claude's cache not fetched since) its use unknown
+    for one in limits["models"] if show["model_weekly"] and step < NO_MODELS else ():
+        if one["resets"] is None or one["resets"] > now:
+            line += f" {SEP} {GRAY}{one['name']}:{RESET} {level(one['used'])}{one['used']}%{RESET}"
     spent = field(data, "cost", "total_cost_usd")       # Claude's own count of the session
     if show["cost"] and usage.number(spent) and spent >= 0.005 and step < NO_COST:
         # Claude's count at list prices, an estimate on a plan (its API value) and with an API key: ~, as herdr-fold's

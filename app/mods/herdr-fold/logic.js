@@ -538,11 +538,14 @@ export const keyMenuBounds = (room, wide) => ({ x: Math.round((room.width - wide
 
 const MENU_ROW = 28, MENU_RULE = 9, MENU_GAP = 2, MENU_PAD = 4;      // px: a menu's row, its rule, between, round
 const MENU_FIND = 32;              // px: a menu's filter on top, a field (parts.js's)
+export const MENU_GROUP = 22;      // px: a group's name in a menu, 6 over its 14 px line and 2 under it
 
-/** The height of a menu of ITEMS (null: a rule between its parts) under its HEAD, under a filter (FIND).
- * @param {(object | null)[]} items @param {object} [head] @param {boolean} [find] */
-export const menuHeight = (items, head, find = false) => items.reduce((h, item) => h + (item ? MENU_ROW : MENU_RULE)
-  + MENU_GAP, (head ? MENU_ROW + MENU_GAP : 0) + (find ? MENU_FIND + MENU_GAP : 0)) + 2 * MENU_PAD;
+/** The height of a menu of ITEMS (null: a rule between its parts; GROUP: a group's name; HIDDEN: none until its filter
+ * is typed in) under its HEAD, under a filter (FIND). @param {({ group?: boolean, hidden?: boolean } | null)[]} items
+ * @param {object} [head] @param {boolean} [find] */
+export const menuHeight = (items, head, find = false) => items.filter((item) => !item?.hidden).reduce((h, item) =>
+  h + (item ? (item.group ? MENU_GROUP : MENU_ROW) : MENU_RULE) + MENU_GAP,
+(head ? MENU_ROW + MENU_GAP : 0) + (find ? MENU_FIND + MENU_GAP : 0)) + 2 * MENU_PAD;
 
 // the one Settings (settings.html): the sidebar's Settings and ⌘, open it, one window of one size, its sections at its
 // left (a row ROW high), the Herdr app's under its title APART below them
@@ -933,6 +936,180 @@ export const waitingChats = (agents, local, chats = new Set()) => new Set([...co
   .filter((a) => a.agent_status === "blocked").map((a) => a.pane_id), ...chats]).size;
 
 const UNITS = /** @type {[number, string][]} */ ([[1e6, "m"], [1e3, "k"]]);     // the largest first, as the TUI's
+
+// The filters of Issues and its pull requests, core/github.py's: each group's values a list (Assigned to me, Created by
+// me: [true] while on), any of a group's values (OR), every group (AND); counted on the latest LIMIT
+export const LEVELS = ["Urgent", "High", "Medium", "Low"];
+export const TYPES = ["Bug", "Feature", "Task"];          // GitHub's own issue types, each with its icon (TYPE_ICON)
+export const TYPE_ICON = /** @type {const} */ ({ Bug: "bug", Feature: "lightbulb", Task: "clipboard-list" });
+const TYPE_LABELS = { bug: "Bug", enhancement: "Feature", feature: "Feature" };
+export const ME = ["assigned", "authored"];
+export const ISSUE_GROUPS = [...ME, "level", "type", "label"];
+export const PULL_GROUPS = [...ME, "review", "checks", "label"];
+const ORDERS = { review: ["draft", "yours", "approved", "changes"], checks: ["passed", "running", "failed"] };
+export const TOP_LABELS = 6;      // the labels a menu shows at first, the most used; the rest behind "N more"
+// px: the filters' parts centred in what holds them, each [the room, the part]: the two differ by an even number, so
+// the room over a part is the room under it to the pixel (the field's 30 inside its border; a menu's row 28; the
+// title's line 18; a chip 22; the checks' column 14 wide)
+export const CENTRED = { funnel: [30, 24], funnelIcon: [24, 14], chip: [22, 16], chipX: [16, 12], chipMark: [22, 14],
+  menuMark: [28, 14], typeIcon: [18, 16], checksMark: [14, 12], checksDot: [14, 6] };
+
+/** @typedef {Record<string, any[]>} Chosen each group's values on */
+
+/** An issue's type and the label it was read from (core/github.py's kind): GitHub's issue type, else its first of
+ * the bug, enhancement and feature labels. @param {string} type @param {string[]} labels */
+export function issueKind(type, labels) {
+  if (type) return { type, by: null };
+  const by = labels.find((label) => Object.hasOwn(TYPE_LABELS, label.toLowerCase()));
+  const named = /** @type {keyof typeof TYPE_LABELS} */ (by?.toLowerCase());
+  return by ? { type: TYPE_LABELS[named], by } : { type: "", by: null };
+}
+
+/** ISSUE (core/github.py's listed) with its priority (the Priority field's option PRIORITY) or its type (TYPE) set,
+ * as the row shows it at once: its rank, type and the labels its row lists read again. @param {any} issue
+ * @param {{ priority?: string, issue_type?: string }} set */
+export function issueSet(issue, set) {
+  const next = { ...issue, ...set };
+  if ("priority" in set) {
+    const field = LEVELS.findIndex((name) => name.toLowerCase() === String(set.priority).toLowerCase());
+    if (field >= 0) Object.assign(next, { level: field, ranked_by: set.priority });
+    else if (issue.ranked_by === issue.priority) Object.assign(next, { level: null, ranked_by: null });
+  }
+  const { type, by } = issueKind(next.issue_type, next.labels);
+  const shown = next.labels.filter((/** @type {string} */ label) => label !== next.ranked_by && label !== by);
+  return { ...next, type, typed_by: by, shown };
+}
+
+/** An issue's values in each group (core/github.py's issue_facets): whether it is ME's, its priority, its type, its
+ * row's labels. @param {any} issue @param {string} me @returns {Chosen} */
+export const issueFacets = (issue, me) => ({ assigned: me && issue.assignees.includes(me) ? [true] : [],
+  authored: me && issue.author === me ? [true] : [], level: issue.level === null ? [] : [issue.level],
+  type: issue.type ? [issue.type] : [], label: issue.shown ?? [] });
+
+/** A pull request's (core/github.py's pull_facets): whether it is ME's, its review's state, its checks, its labels.
+ * @param {any} pull @param {string} me @returns {Chosen} */
+export const pullFacets = (pull, me) => ({ assigned: me && (pull.assignees ?? []).includes(me) ? [true] : [],
+  authored: pull.authored ? [true] : [], review: ORDERS.review.includes(pull.review) ? [pull.review] : [],
+  checks: pull.mark ? [pull.mark] : [], label: pull.labels ?? [] });
+
+/** Whether an item of FACETS stays with CHOSEN on: one of each group's values (but SKIP's). @param {Chosen} facets
+ * @param {Chosen} chosen @param {string | null} [skip] */
+export const passes = (facets, chosen, skip = null) => Object.entries(chosen).every(([group, values]) =>
+  group === skip || !values.length || (facets[group] ?? []).some((value) => values.includes(value)));
+
+/** GROUP's VALUES in its order (core/github.py's ordered): priority by rank, review and checks as their groups list
+ * them, types as TYPES (an organization's own after them, by name), labels by name. @param {string} group
+ * @param {any[]} values */
+export function ordered(group, values) {
+  const name = (/** @type {any} */ a, /** @type {any} */ b) => String(a).toLowerCase()
+    .localeCompare(String(b).toLowerCase());
+  if (group === "level") return [...values].sort((a, b) => a - b);
+  if (group in ORDERS) return ORDERS[/** @type {keyof typeof ORDERS} */ (group)].filter((v) => values.includes(v));
+  if (group === "type") {
+    const at = (/** @type {string} */ v) => (TYPES.includes(v) ? TYPES.indexOf(v) : TYPES.length);
+    return [...values].sort((a, b) => at(a) - at(b) || name(a, b));
+  }
+  return [...values].sort(name);
+}
+
+/** GROUP's values a menu offers for ITEMS (their facets), core's offered: held or CHOSEN, each with how many would stay
+ * with it on (the other groups' filters counted, not its own) and how many hold it; labels by use, then name.
+ * @param {Chosen[]} items @param {Chosen} chosen @param {string} group @returns {any[]} */
+export function offered(items, chosen, group) {
+  const uses = new Map(), counts = new Map();
+  for (const facets of items) {
+    const held = new Set(facets[group] ?? []), stays = passes(facets, chosen, group);
+    for (const value of held) {
+      uses.set(value, (uses.get(value) ?? 0) + 1);
+      if (stays) counts.set(value, (counts.get(value) ?? 0) + 1);
+    }
+  }
+  const values = [...new Set([...uses.keys(), ...(chosen[group] ?? [])])];
+  const order = group === "label" ? values.sort((a, b) => (uses.get(b) ?? 0) - (uses.get(a) ?? 0)
+    || String(a).toLowerCase().localeCompare(String(b).toLowerCase())) : ordered(group, values);
+  return order.map((value) => ({ value, count: counts.get(value) ?? 0, uses: uses.get(value) ?? 0 }));
+}
+
+/** The groups a filter menu shows for ITEMS, CHOSEN on: each one's values (count, on), labels past TOP_LABELS HIDDEN
+ * unless MORE or on; the two of yours first (MINE), no count; FIND where the labels are many.
+ * @param {Chosen[]} items @param {Chosen} chosen @param {string[]} groups @param {boolean} [more] */
+export function filterGroups(items, chosen, groups, more = false) {
+  const mine = ME.filter((group) => groups.includes(group))
+    .map((group) => ({ group, on: Boolean(chosen[group]?.length) }));
+  const many = offered(items, {}, "label").length > TOP_LABELS;
+  const shown = groups.filter((group) => !ME.includes(group)).map((group) => {
+    const values = offered(items, chosen, group).map(({ value, count }, n) => ({ value, count,
+      on: (chosen[group] ?? []).includes(value), hidden: false, n }));
+    if (group === "label" && many && !more) {
+      for (const one of values) one.hidden = one.n >= TOP_LABELS && !one.on;
+    }
+    return { group, values, hidden: values.filter((one) => one.hidden).length };
+  }).filter(({ values }) => values.length);
+  return { mine, groups: shown, find: many };
+}
+
+/** What is on, a chip a group (core/github.py's order): [{ group, values }]. @param {Chosen} chosen
+ * @param {string[]} groups */
+export const chipGroups = (chosen, groups) => groups.filter((group) => chosen[group]?.length)
+  .map((group) => ({ group, values: ME.includes(group) ? [true] : ordered(group, chosen[group]) }));
+
+/** VALUES as GitHub's search names them, in quotes; null when one holds a quote. @param {any[]} values */
+const quoted = (values) => (values.some((v) => String(v).includes('"')) ? null : values.map((v) => `"${v}"`));
+
+/** GitHub's search for CHOSEN's filters (core/github.py's issue_search), wider than they are; asked once the list
+ * fills LIMIT, the list narrowed by them exactly. @param {Chosen} chosen */
+export function issueSearch(chosen) {
+  const parts = searchedMe(chosen), types = quoted(chosen.type ?? []), labels = quoted(chosen.label ?? []);
+  if (types?.length) {
+    const named = Object.entries(TYPE_LABELS).filter(([, type]) => chosen.type.includes(type))
+      .map(([label]) => `label:"${label}"`);
+    parts.push(`(${[...types.map((type) => `type:${type}`), ...named].join(" OR ")})`);
+  }
+  if (labels?.length) parts.push(`label:${labels.join(",")}`);
+  return parts.join(" ");
+}
+
+/** The pull requests' (core/github.py's pull_search): each review state by its qualifier, the labels; the checks are
+ * the loaded list's. @param {Chosen} chosen */
+export function pullSearch(chosen) {
+  const qualifier = { draft: "draft:true", yours: "review-requested:@me", approved: "review:approved",
+    changes: "review:changes_requested" };
+  const parts = searchedMe(chosen), labels = quoted(chosen.label ?? []);
+  const reviews = ORDERS.review.filter((state) => (chosen.review ?? []).includes(state))
+    .map((state) => qualifier[/** @type {keyof typeof qualifier} */ (state)]);
+  if (reviews.length) parts.push(`(${reviews.join(" OR ")})`);
+  if (labels?.length) parts.push(`label:${labels.join(",")}`);
+  return parts.join(" ");
+}
+
+/** @param {Chosen} chosen */
+const searchedMe = (chosen) => [["assigned", "assignee:@me"], ["authored", "author:@me"]]
+  .filter(([group]) => chosen[group]?.length).map(([, term]) => term);
+
+/** CHOSEN with GROUP's VALUE turned on, or off when on. @param {Chosen} chosen @param {string} group @param {any} value
+ * @returns {Chosen} */
+export const toggled = (chosen, group, value) => ({ ...chosen, [group]: (chosen[group] ?? []).includes(value)
+  ? chosen[group].filter((v) => v !== value) : [...(chosen[group] ?? []), value] });
+
+/** Open and Closed as the switch of Issues and Pull requests shows them, each with the repository's count from TOTALS
+ * (Open 2; core/github.py's totals, not narrowed by the filters), the word alone while it is not known, never a 0
+ * that is no count. @param {any} totals @returns {[string, string][]} */
+export const counted = (totals) => [["open", "Open"], ["closed", "Closed"]].map(([state, label]) => [state,
+  Number.isInteger(totals?.[state]) ? `${label} ${totals[state]}` : label]);
+
+/** Whether a list answered AT (ms; null: never) is asked again NOW: its answer older than STALE seconds (core's, the
+ * TUI's rule too), none on its way (ASKED). @param {number | null} at @param {number} now @param {boolean} asked
+ * @param {number} stale */
+export const listStale = (at, now, asked, stale) => !asked && at !== null && now - at >= stale * 1000;
+
+/** Where a menu HIGH and WIDE opens, its corner at POINT (a right click's, window px; a chained one's, the first's):
+ * there where it fits, else above, kept inside ROOM. @param {{ x: number, y: number }} point @param {number} high
+ * @param {{ width: number, height: number }} room @param {number} wide */
+export function menuAt(point, high, room, wide) {
+  const x = Math.max(MENU_EDGE, Math.min(point.x, room.width - MENU_EDGE - wide));
+  const y = point.y + high <= room.height - MENU_EDGE ? point.y : point.y - high;
+  return { x, y: Math.max(MENU_EDGE, Math.min(y, room.height - MENU_EDGE - high)) };
+}
 
 /** Issues (NOUN's: pull requests too) loading, moving nothing: in the list's first row's place the first load, a
  * failure or none found (faint as the TUI's), else rows; the head's refresh a spinner while a list is ASKED again.

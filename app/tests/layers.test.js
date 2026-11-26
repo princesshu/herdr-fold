@@ -11,8 +11,8 @@ import { agentList, agentOf, ASK_MS, asked, bodyHeight, CHIP_LIFT, chipColors, c
   tagRoom, tagWord, toneColor, toneInk, touches, USAGE_LINE, levelColor, levelFill, levelInk, resetWords, usageAgents,
   usageHeight, WARN_H, WORKS, actionLook, claudeIn, loginRun, MCP_AGENT, MCP_AT, MCP_LOGIN, overdue, printedAddress,
   SIGNING_MS, signingRow, signIns, tile, checkedOver, plusMenu, switched, graphAgent, usageRows, usageFigure, headline,
-  usageLine, usageRow, afterSave, approves, asking, filePath, footWords, formAsk, headParts, HOOKS, layersShown, MODEL,
-  RULE, removable, rowless, sayOnly, sentence, switchShown, GRAPHED }
+  usageLine, usageRow, usageColumns, MODEL_W, afterSave, approves, asking, filePath, footWords, formAsk, headParts,
+  HOOKS, layersShown, MODEL, RULE, removable, rowless, sayOnly, sentence, switchShown, GRAPHED }
   from "../mods/herdr-fold/layers.js";
 
 /** A row as core words it, OVER changing it. @param {string} name @param {Record<string, any>} [over] */
@@ -404,7 +404,11 @@ const window = (label, used, level, at = null) => ({ label, used, text: used ===
 /** A Usage row as core words it (usage.py's section()), OVER changing it. @param {string} key
  * @param {Record<string, any>} [over] */
 const meter = (key, over = {}) => ({ key, name: key, plan: null, current: false, five: window("5h", 8, "ok", 100),
-  week: window("wk", 3, "ok", 200), tight: window("5h", 8, "ok", 100), reset: null, age: "Read 3 min ago", ...over });
+  week: window("wk", 3, "ok", 200), models: [], tight: window("5h", 8, "ok", 100), reset: null, age: "Read 3 min ago",
+  ...over });
+/** Fable's own week as core words it: USED percent at LEVEL. @param {number} used @param {string} level */
+const fable = (used, level) => ({ label: "Fable", used, text: `${used}%`, level,
+  resets: { at: 300, words: "Fable resets {day} {time}" } });
 const FIRST_METER = meter("claude", { name: "Claude", plan: "Max", current: true,
   five: window("5h", 72, "warn", 100), tight: window("5h", 72, "warn", 100),
   reset: { at: 100, words: "5h resets {time}" } });
@@ -425,8 +429,8 @@ test("Usage has a row an agent: core's on a plan, then one on an API key from it
   const rows = usageRows(SECTION, { months: [monthOf(18.4, 46)] }, AGENTS, "claude");
   assert.deepEqual(rows.map((r) => [r.key, r.name, r.plan, r.current]), [["claude", "Claude", "Max", true],
     ["codex", "Codex", "API key", false]]);
-  assert.deepEqual([rows[0].month, rows[1].five, rows[1].week, rows[1].tight, rows[1].reset], [null, null, null, null,
-    null]);
+  assert.deepEqual([rows[0].month, rows[1].five, rows[1].week, rows[1].models, rows[1].tight, rows[1].reset], [null,
+    null, null, [], null, null]);
   assert.deepEqual(rows[1].month, { figure: "~$18.40", of: "of $50", level: "ok", used: 18.4 / 50 * 100, pace: null,
     budget: 50 });
   const using = usageRows({ ...SECTION, rows: [{ ...FIRST_METER, current: false }] }, { months: [monthOf(18.4, 46)] },
@@ -483,6 +487,31 @@ test("a row pressed shows its properties: the plan, both resets, the reading's a
   assert.deepEqual(usageRow(key, said).properties.lines, [["Plan", "API key", null], ["Budget", "$50", null]]);
   const none = usageRows(null, { months: [monthOf(18.4, 46, null)] }, AGENTS, "codex")[0];
   assert.deepEqual(usageRow(none, said).properties.lines.at(-1), ["Budget", "none", null]);
+});
+
+test("a model's own week is a column after the two, the first to go: the plans' words give it room first", () => {
+  const claude = meter("claude", { plan: "Max", models: [fable(38, "ok")] }), codex = meter("codex", { plan: "Plus" });
+  const rows = [claude, codex, { ...meter("gemini"), five: null, week: null, models: [] }];
+  assert.deepEqual(usageColumns(rows, 368), { models: 1, plans: false });        // the panel as it opens
+  assert.deepEqual(usageColumns(rows, 392), { models: 1, plans: true });
+  assert.deepEqual(usageColumns(rows, 363), { models: 0, plans: true });         // it goes first, the plans come back
+  assert.deepEqual(usageColumns(rows, 280), { models: 0, plans: true });
+  assert.deepEqual(usageColumns([codex], 600), { models: 0, plans: true });      // an account without one
+  // a second model's column wants its own room
+  const two = [meter("claude", { models: [fable(38, "ok"), { ...fable(12, "ok"), label: "Sonnet" }] })];
+  assert.deepEqual(usageColumns(two, 368 + MODEL_W + 6), { models: 2, plans: false });
+  assert.deepEqual(usageColumns(two, 392 + MODEL_W + 6), { models: 2, plans: true });
+  // a row without windows has no columns to keep: an API key's month, one with no reading
+  const keyed = usageRows({ ...SECTION, rows: [claude] }, { months: [monthOf(18.4, 46)] }, AGENTS, "claude");
+  assert.deepEqual(usageColumns(keyed, 368), { models: 1, plans: false });
+});
+
+test("a row pressed names a model's own week's reset after the week's", () => {
+  const said = (/** @type {{ words: string }} */ resets) => resetWords(resets, "09:00", "Tue");
+  const row = usageRows({ ...SECTION, rows: [{ ...FIRST_METER, models: [fable(86, "bad")] }] }, null, AGENTS,
+    "claude")[0];
+  assert.deepEqual(usageRow(row, said).properties.lines.slice(1, 4), [["5h", "resets 09:00", null],
+    ["Week", "resets Tue 09:00", null], ["Fable", "resets Tue 09:00", null]]);
 });
 
 test("Usage's head folded shows the agent in use's figure, another's that is yellow or red and stands worse", () => {

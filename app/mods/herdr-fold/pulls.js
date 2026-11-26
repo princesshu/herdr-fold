@@ -3,14 +3,16 @@
 // one's review in the preview tab) and Changes' row and form (the branch's; a new one's title and body by the agent).
 import { div } from "gpui-kit";
 import { v_flex, h_flex, Input, InputState, Textarea, TextareaState } from "gpui-base";
-import { COMMIT_MESSAGE, GIT, GITHUB } from "./helper.js";
-import { hovering, issuesParts, primaryLit, said } from "./logic.js";
+import { theme } from "herdr";
+import { COMMIT_MESSAGE, GIT, GITHUB, ISSUES_STALE } from "./helper.js";
+import { CENTRED, chipGroups, counted, filterGroups, hovering, issuesParts, listStale, ME, passes, primaryLit,
+  PULL_GROUPS, pullFacets, pullSearch, said, toggled } from "./logic.js";
 import { button, BUTTON, choices, field, footNote, GAP, icon, iconButton, keepNote, PAD, segmented, small, SPINNER }
   from "./parts.js";
-import { sendToAgent, tabAgent } from "./issues.js";
+import { chipMark, filterChips, filterMenu, funnel, keepFilters, keptFilters, MINE, sendToAgent, tabAgent }
+  from "./issues.js";
 import { showPreview } from "./preview.js";
 
-const STATES = { open: "Open", closed: "Closed" };
 const ROW = 48;                   // px: a pull request's row, as an issue's
 const LOOK = 60000;               // ms between two looks at the branch's pull request while nothing changed
 const AS = /** @type {[string, string][]} */ ([["draft", "Draft"], ["ready", "Ready for review"]]);
@@ -18,11 +20,20 @@ const AS = /** @type {[string, string][]} */ ([["draft", "Draft"], ["ready", "Re
 export const REVIEW = { draft: ["Draft", null], yours: ["your review", "ansi3"],
   changes: ["changes requested", "ansi1"], approved: ["approved", "ansi2"], merged: ["merged", "muted"],
   closed: ["closed", "muted"] };
-/** the checks' mark (core/github.py's pull_listed) and its color's role: passed, running, failed */
-export const MARKS = { passed: ["✓", "ansi2"], running: ["●", "ansi3"], failed: ["✕", "ansi1"] };
+/** the checks' mark (core/github.py's pull_listed) and its color's role: passed and failed lucide's check and x,
+ * running a filled dot */
+export const MARKS = { passed: ["check", "ansi2"], running: ["●", "ansi3"], failed: ["x", "ansi1"] };
+const [COLUMN, MARK] = CENTRED.checksMark;        // px: the checks' column, its check and x
+const RUNNING = CENTRED.checksDot[1];             // px: the running checks' disc, in that column
+/** the Review group's values in the filters' menu: its words and their role, as the rows' (REVIEW) in full */
+const REVIEWS = { draft: ["Draft", null], yours: ["Your review", "ansi3"], approved: ["Approved", "ansi2"],
+  changes: ["Changes requested", "ansi1"] };
+const CHECKS = { passed: "Passing", running: "Running", failed: "Failing" };      // the Checks group's, with MARKS
+const FILTER_MENU = 228;          // px: its filters' menu, issue-types.html's
 
 /** @typedef {{ number: number, title: string, branch: string, author: string, state: string, url: string,
- * mark: string, checks_said: string, review: string, said: string, ago: string }} Listed */
+ * mark: string, checks_said: string, review: string, said: string, ago: string, labels?: string[],
+ * assignees?: string[], authored?: boolean }} Listed */
 
 /** A pull request's review state as one word on the right: Draft a neutral tag, the rest in their color. */
 export function reviewWord(t, review) {
@@ -33,22 +44,37 @@ export function reviewWord(t, review) {
       .child(word);
 }
 
-/** The checks' mark in the mark column: ✓ green, ● yellow while they run, ✕ red; its room without checks. */
+/** The checks' mark in the mark column, 14 wide: a check in green, a dot in yellow while they run, an x in red (the
+ * check and the x 12, as every icon's check, centred); its room without checks. */
 export function checksMark(t, mark) {
   const [glyph, role] = MARKS[/** @type {keyof typeof MARKS} */ (mark)] ?? ["", "dim"];
-  return div().w(14).flex_none().flex().justify_center().text_size(mark === "running" ? 9 : 11).text_color(t[role])
-    .child(glyph);
+  return div().w(COLUMN).flex_none().flex().items_center().justify_center().text_color(t[role])
+    .when(Boolean(glyph), (e) => e.child(markGlyph(glyph, t[role])));
 }
+
+/** A checks' mark's GLYPH: the check and the x as icons, the running dot a disc of RUNNING (as the 9 px ● was) in
+ * COLOR. @param {string} glyph @param {string} color */
+const markGlyph = (glyph, color) => (glyph === "check" || glyph === "x" ? icon(glyph, MARK)
+  : div().size(RUNNING).flex_none().rounded_full().bg(color));
 
 export class PullsView {
   /** HOST: the view it shows in, for the repository (root, on, github), its core calls (core), the row the mouse is
    * on (hovered), and the way to Changes' form (newPull). @param {any} host */
   constructor(host) {
     this.host = host;
-    this.state = "open";
-    /** @type {{ pulls: Listed[], error: string | null } | null} */
+    const kept = keptFilters("pulls", PULL_GROUPS);
+    this.state = kept.state;
+    /** @type {Record<string, any[]>} the filters' values on, each group's, as Issues' */
+    this.filters = kept.chosen;
+    /** the query's search asked, the one the listing answers; the labels past six shown; its menu up; the funnel's */
+    this.search = ""; this.answered = null; this.more = false; this.filtering = null; this.pressed = null;
+    /** @type {{ pulls: Listed[], error: string | null, narrowed?: Listed[] | null, me?: string, limit?: number }
+     * | null} */
     this.listing = null;
-    this.asked = null;
+    /** @type {string | null} the query asked now; when its answer came (ms) */
+    this.asked = null; this.at = null;
+    /** @type {{ open: number, closed: number } | null} the repository's open and closed (and merged) ones */
+    this.totals = null;
     this.find = InputState.new({ placeholder: "Filter pull requests" });
     this.words = [];
     this.find.on("change", (_e, cx) => {
@@ -63,33 +89,147 @@ export class PullsView {
 
   /** Another repository's: nothing of this one's listed or chosen. */
   reset() {
-    Object.assign(this, { listing: null, asked: null, chosen: null, note: null });
+    Object.assign(this, { listing: null, asked: null, answered: null, at: null, chosen: null, note: null,
+      totals: null });
   }
 
-  /** The pull requests of STATE asked of GitHub again; an answer for another repository or state is dropped. */
-  load(cx, state = this.state) {
+  /** The pull requests of STATE (its SEARCH too, once the list is full) asked of GitHub again, the list shown staying
+   * till the answer comes; an answer for another repository or query is dropped. */
+  load(cx, state = this.state, search = this.search) {
     const { root, on, github } = this.host;
     if (!github) return;
-    const key = JSON.stringify([github, state]);
-    this.state = state;
-    this.asked = key;
+    const key = JSON.stringify([github, state, search]);
+    Object.assign(this, { state, search, asked: key });
     cx.spawn(async (cx) => {
       try {
-        const answer = await this.host.core(GITHUB, ["pulls", github, state], root, on);
-        if (this.asked === key) this.listing = answer;
+        const answer = await this.host.core(GITHUB, ["pulls", github, JSON.stringify({ state, search })], root, on);
+        if (this.asked === key) Object.assign(this, { listing: answer, answered: search,
+          totals: answer.totals ?? this.totals });
       } catch (e) {
         if (this.asked === key) this.listing = { pulls: [], error: said(e) };
       } finally {
-        if (this.asked === key) this.asked = null;
+        if (this.asked === key) {
+          Object.assign(this, { asked: null, at: Date.now() });
+          this.follow(cx);
+          this.liveMenu();
+        }
         cx.notify();
       }
     });
     cx.notify();
   }
 
-  /** @returns {Listed[]} the answer's that hold every word typed */
+  /** Whether its answer is older than ISSUES_STALE seconds, none on its way: asked again while it shows. */
+  stale() {
+    return listStale(this.at, Date.now(), Boolean(this.asked), ISSUES_STALE);
+  }
+
+  /** Whether the latest answer filled its LIMIT (the menu counts the latest LIMIT, its search asked for the rest). */
+  full() {
+    return Boolean(this.listing && !this.listing.error && this.listing.pulls.length >= (this.listing.limit ?? 100));
+  }
+
+  /** The list asked again where the values on want another search (or none), once it is full. */
+  follow(cx) {
+    const search = this.full() ? pullSearch(this.filters) : "";
+    if (search !== this.search) this.load(cx, this.state, search);
+  }
+
+  /** The facets its menu counts and its rows narrow by. @param {Listed[]} [rows] */
+  facets(rows = this.listing?.pulls ?? []) {
+    return rows.map((pull) => pullFacets(pull, this.listing?.me ?? ""));
+  }
+
+  /** @returns {Listed[]} the answer's (its search's, once asked) the filters keep that hold every word typed */
   shown() {
-    return (this.listing?.pulls ?? []).filter((pull) => this.words.every((w) => pull.said.includes(w)));
+    const listing = this.listing, narrowed = listing?.narrowed && this.answered === this.search;
+    const rows = (narrowed ? listing?.narrowed : listing?.pulls) ?? [];
+    const facets = this.facets(rows);
+    return rows.filter((pull, n) => this.words.every((w) => pull.said.includes(w)) && passes(facets[n], this.filters));
+  }
+
+  /** GROUP's VALUE turned on, or off when on, the menu staying open, as Issues'. @param {string} group
+   * @param {any} value */
+  toggle(group, value, cx) {
+    this.filters = toggled(this.filters, group, value);
+    this.changed(cx);
+  }
+
+  /** The values on changed (kept): narrowed, its search asked where it is full, the menu's counts anew. */
+  changed(cx) {
+    keepFilters("pulls", this.state, this.filters);
+    this.follow(cx);
+    this.liveMenu();
+    cx.notify();
+  }
+
+  /** GROUP's chip taken off. @param {string} group */
+  drop(group, cx) {
+    this.filters = { ...this.filters, [group]: [] };
+    this.changed(cx);
+  }
+
+  /** Every filter off. */
+  clear(cx) {
+    this.filters = Object.fromEntries(PULL_GROUPS.map((group) => [group, []]));
+    this.changed(cx);
+  }
+
+  /** How a filter's VALUE reads in GROUP: a review's word in its row's color, the checks' mark.
+   * @param {string} group @param {any} value @returns {{ words: string, mark: any, color?: string }} */
+  look(t, group, value) {
+    if (ME.includes(group)) return { words: MINE[/** @type {keyof typeof MINE} */ (group)], mark: null };
+    if (group === "review") {
+      const [words, role] = REVIEWS[/** @type {keyof typeof REVIEWS} */ (value)];
+      return { words, mark: null, ...(role ? { color: t[role] } : {}) };
+    }
+    if (group === "checks") {
+      const [glyph, role] = MARKS[/** @type {keyof typeof MARKS} */ (value)];
+      return { words: CHECKS[/** @type {keyof typeof CHECKS} */ (value)], mark: glyph === "●"
+        ? { text: glyph, color: t[role] } : { icon: glyph, color: t[role] } };
+    }
+    return { words: String(value), mark: null };
+  }
+
+  /** Its filters' menu, as Issues': Assigned to me, Created by me, Review, Checks, Label.
+   * @returns {(import("./menus.js").Item | null)[]} */
+  filterItems(t) {
+    return filterMenu(t, filterGroups(this.facets(), this.filters, PULL_GROUPS, this.more),
+      (group, value) => this.look(t, group, value), (group, value, cx) => this.toggle(group, value, cx), () => {
+        this.more = true;
+        this.liveMenu();
+      }, this.full() ? this.listing?.limit ?? 100 : 0);
+  }
+
+  /** The funnel's menu opened under it (BOUNDS: its press's). @param {any} bounds */
+  openFilters(t, bounds) {
+    this.more = false;
+    const menus = this.host.menus;
+    menus.open(this.filterItems(t), bounds, undefined,
+      { width: FILTER_MENU, find: filterGroups(this.facets(), this.filters, PULL_GROUPS).find ? "Find" : undefined });
+    this.filtering = menus.overlay;
+  }
+
+  /** Its filters' menu, while it is up, made anew. */
+  liveMenu() {
+    const menus = this.host.menus;
+    if (!this.filtering || menus.overlay !== this.filtering || !menus.up) return void (this.filtering = null);
+    menus.update(this.filterItems(theme()));
+    this.filtering = menus.overlay;
+  }
+
+  /** Whether its filters' menu is up. */
+  menuUp() {
+    return Boolean(this.filtering && this.host.menus.overlay === this.filtering && this.host.menus.up);
+  }
+
+  /** The chips of what is on, as Issues'. @returns {[string, any, string, any][]} */
+  chips(t) {
+    return chipGroups(this.filters, PULL_GROUPS).map(({ group, values }) => {
+      const looks = values.map((value) => this.look(t, group, value));
+      return [group, looks[0].mark && chipMark(looks[0].mark), looks.map((one) => one.words).join(", "),
+        (/** @type {any} */ cx) => this.drop(group, cx)];
+    });
   }
 
   /** PULL's review in the space's preview tab. @param {Listed} pull */
@@ -124,15 +264,25 @@ export class PullsView {
 
   render(t) {
     const shown = this.shown(), foot = this.busy ? { text: this.busy, error: false } : this.note;
+    const filtered = Object.values(this.filters).some((values) => values.length);
     const { refresh, say } = issuesParts({ asked: Boolean(this.asked), listing: this.listing, shown: shown.length,
-      state: this.state, filtered: Boolean(this.words.length), noun: "pull requests" });
+      state: this.state, filtered: filtered || Boolean(this.words.length), noun: "pull requests" });
+    const press = (/** @type {any} */ e) => (this.pressed = e.bounds);
     return v_flex().size_full().min_h(0)
       .child(h_flex().flex_none().p(PAD).pb(6).gap(6).items_center()
-        .child(field(t, "pull-search", this.find).flex_1().min_w(0))
+        .child(field(t, "pull-search", this.find, funnel(t, "pull-filters", filtered, this.menuUp(), press,
+          () => this.openFilters(t, this.pressed))).flex_1().min_w(0).on_key_down((e, cx) => {
+          const last = chipGroups(this.filters, PULL_GROUPS).at(-1);
+          if (e.key === "backspace" && !this.find.value() && last) this.drop(last.group, cx);
+        }))
         .child(button(t, "pull-new", icon("plus", 15), Boolean(this.host.github), false,
           (cx) => this.host.newPull(cx)).tooltip("New pull request: in Changes")))
+      .when(filtered, (e) => e.child(filterChips(t, "pull-chips", this.chips(t), (cx) => this.clear(cx))))
       .child(h_flex().flex_none().pl(PAD).pr(PAD / 2).pb(8).gap(GAP).items_center()
-        .child(choices(t, "pulls", Object.entries(STATES), this.state, (state, cx) => this.load(cx, state)))
+        .child(choices(t, "pulls", counted(this.totals), this.state, (state, cx) => {
+          keepFilters("pulls", state, this.filters);
+          this.load(cx, state, "");
+        }))
         .child(div().flex_1())
         .child(refresh === "spinner"
           ? div().id("pull-loading").size(BUTTON).flex_none().flex().items_center().justify_center()

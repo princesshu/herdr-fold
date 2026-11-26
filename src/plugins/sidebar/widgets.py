@@ -353,27 +353,67 @@ class Keyed(str):
         return made
 
 
-class Menu:
-    """A choice a row: ↑ ↓ and Enter, or a click; drawn as herdr's own menus: a frame in the accent on the panel's
-    background, the chosen row lit in the accent, a Keyed line's key dim at its right. A None among CHOICES: a rule
-    between two kinds, never chosen."""
+class Row(str):
+    """A menu's choice in columns (a filter's value): ON its check (None: no column), MARK (glyph, role) in its slot,
+    ROLE its words' color, COUNT dim at its right, FAINT all dim (nothing would stay with it on, still chosen), WIDE
+    its words from the mark's column (No priority, the choice of none)."""
 
-    def __init__(self, choices):
-        self.choices = list(choices)
-        self.index = next((n for n, choice in enumerate(self.choices) if choice is not None), 0)
+    def __new__(cls, words, on=None, mark=None, role=None, count=None, faint=False, wide=False):
+        made = super().__new__(cls, words)
+        made.on, made.mark, made.role, made.count, made.faint, made.wide = on, mark, role, count, faint, wide
+        return made
+
+
+class Heading(str):
+    """A menu's line never chosen: a group's name (dim, where the checks stand), or with HEAD what the menu acts on
+    (muted, its NOTE at its right)."""
+
+    def __new__(cls, words, note="", head=False):
+        made = super().__new__(cls, words)
+        made.note, made.head = note, head
+        return made
+
+
+TYPED = object()              # what a Menu's key answers when it changed the words in its find field
+
+
+class Menu:
+    """A choice a row: ↑ ↓ and Enter, or a click; drawn as herdr's own menus (an accent frame on the panel, the chosen
+    row lit), a Keyed line's key dim at its right; None a rule and a Heading never chosen; Rows in columns where any has
+    one; FIND a field on its first row that typing goes to (TYPED back when its words changed)."""
+
+    def __init__(self, choices, find=None):
+        self.choices, self.find = list(choices), find
+        self.index = next((n for n, choice in enumerate(self.choices) if self.choosable(choice)), 0)
         self.hover = None             # the choice under the mouse: its line on the hover background, as a row's
+
+    @staticmethod
+    def choosable(choice):
+        return choice is not None and not isinstance(choice, Heading)
+
+    def columns(self):
+        """The cells before a Row's words: its check's (2, the ✓ and air) where any has one, its mark's (2) too."""
+        rows = [choice for choice in self.choices if isinstance(choice, Row)]
+        return 2 * any(row.on is not None for row in rows), 2 * any(row.mark for row in rows)
 
     def point(self, target):
         """The mouse on what answers TARGET where it was last drawn: its line ("menu:N"), or none of them."""
         self.hover = int(target[5:]) if isinstance(target, str) and target.startswith("menu:") else None
 
+    def cells(self, choice):
+        """CHOICE's cells inside the menu's air: a Row's columns, words and count, a key or a note after two cells."""
+        if isinstance(choice, Row):
+            return sum(self.columns()) + width(choice) + (2 + width(str(choice.count)) if choice.count is not None
+                                                          else 0)
+        after = choice.key if isinstance(choice, Keyed) else choice.note if isinstance(choice, Heading) else ""
+        return width(choice) + (2 + width(after) if after else 0)
+
     def width(self):
         """The cells it takes, as herdr's own: its widest choice and four more (the frame, a cell of air each side)."""
-        return max(MENU_WIDEST, max(width(choice) + (2 + width(choice.key) if isinstance(choice, Keyed) else 0)
-                                    for choice in self.choices if choice is not None) + 4)
+        return max(MENU_WIDEST, max(self.cells(choice) for choice in self.choices if choice is not None) + 4)
 
     def height(self):
-        return len(self.choices) + 2
+        return len(self.choices) + 2 + bool(self.find)
 
     def at(self, y, x, cells, top, bottom, inset=0):
         """Where it goes for a click at Y, X between rows TOP and BOTTOM in a pane CELLS wide, INSET cells in from its
@@ -386,35 +426,68 @@ class Menu:
 
     def handle(self, key):
         if key.name in ("up", "down"):
+            if not any(self.choosable(choice) for choice in self.choices):
+                return None
             step = 1 if key.name == "down" else -1
             self.index = (self.index + step) % len(self.choices)
-            while self.choices[self.index] is None:     # a rule: on to the next choice
+            while not self.choosable(self.choices[self.index]):     # a rule or a heading: on to the next choice
                 self.index = (self.index + step) % len(self.choices)
         elif key.name == "enter":
-            return self.choices[self.index]
+            return self.choices[self.index] if self.choosable(self.choices[self.index]) else None
         elif key.name == "esc":
             return "cancel"
+        elif self.find is not None and key.name in ("char", "paste", "backspace", "delete", "left", "right"):
+            before = self.find.text
+            self.find.handle(key)
+            return TYPED if self.find.text != before else None
         return None
 
     def draw(self, canvas, y, x, cells):
         frame = Style(fg="accent", bg="panel")
         canvas.put(y, x, "┌" + "─" * (cells - 2) + "┐", frame)
+        if self.find is not None:
+            y += 1
+            canvas.put(y, x, "│ ", frame)
+            canvas.put(y, x + cells - 2, " │", frame)
+            self.find.draw(canvas, y, x + 2, cells - 4, 1, Style(bg="input"), focused=True)
         for i, choice in enumerate(self.choices, 1):
             if choice is None:
                 canvas.put(y + i, x, "├" + "─" * (cells - 2) + "┤", frame)
                 continue
-            style = (Style(fg="button_text", bg="button", bold=True) if i - 1 == self.index
-                     else Style(fg="text", bg="hover" if i - 1 == self.hover else "panel"))
+            chosen = i - 1 == self.index and self.choosable(choice)
+            style = (Style(fg="button_text", bg="button", bold=True) if chosen
+                     else Style(fg="text", bg="hover" if i - 1 == self.hover and self.choosable(choice) else "panel"))
             canvas.put(y + i, x, "│", frame)                 # lit from frame to frame, a cell of air round its text
-            text = " " + truncate(choice, max(0, cells - 4))
-            canvas.put(y + i, x + 1, text.ljust(cells - 2), style)
-            if isinstance(choice, Keyed) and width(text) + 2 + width(choice.key) <= cells - 3:
-                canvas.put(y + i, x + cells - 2 - width(choice.key), choice.key,
-                           style if i - 1 == self.index else replace(style, fg="muted"))
+            canvas.put(y + i, x + 1, " " * (cells - 2), style)
+            if isinstance(choice, Row):
+                self.draw_row(canvas, y + i, x + 2, cells - 4, choice, style, chosen)
+            else:
+                faded = replace(style, fg="dim" if isinstance(choice, Heading) and not choice.head else "muted")
+                after = choice.key if isinstance(choice, Keyed) else choice.note if isinstance(choice, Heading) else ""
+                text = truncate(choice, max(0, cells - 4))
+                canvas.put(y + i, x + 2, text, faded if isinstance(choice, Heading) else style)
+                if after and width(text) + 2 + width(after) <= cells - 4:
+                    canvas.put(y + i, x + cells - 2 - width(after), after, style if chosen else faded)
             canvas.put(y + i, x + cells - 1, "│", frame)
-            canvas.region(y + i, x + 1, x + cells - 1, f"menu:{i - 1}")
+            if self.choosable(choice):
+                canvas.region(y + i, x + 1, x + cells - 1, f"menu:{i - 1}")
         canvas.put(y + len(self.choices) + 1, x, "└" + "─" * (cells - 2) + "┘", frame)
         return self.height()
+
+    def draw_row(self, canvas, y, x, cells, row, style, chosen):
+        """ROW from column X, CELLS wide: its check, its mark, its words, its count at the right edge."""
+        check, slot = self.columns()
+        tone = (lambda role: style) if chosen else (lambda role: replace(style, fg="dim" if row.faint else role))
+        count = "" if row.count is None else str(row.count)
+        if check and row.on:
+            canvas.put(y, x, "✓", tone("text"))
+        if slot and row.mark:
+            canvas.put(y, x + check, row.mark[0], tone(row.mark[1]))
+        start = x + check + (0 if row.wide else slot)
+        room = x + cells - start - (width(count) + 2 if count else 0)
+        canvas.put(y, start, truncate(row, max(0, room)), tone(row.role or "text"))
+        if count:
+            canvas.put(y, x + cells - width(count), count, tone("dim"))
 
 
 @dataclass

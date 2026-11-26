@@ -130,9 +130,10 @@ Claude that was already running switches on its next start.
 ## The status line
 
 Next to the model name, the status line can show the effort, the context used with the context window size, and the
-5-hour and weekly limits: the same items, in the same order, for Claude and for Codex. The installer asks with one
-checkbox list, a group for Claude and one for Codex; everything is on by default. To change it later, or to keep your
-own status line instead:
+5-hour and weekly limits: the same items, in the same order, for Claude and for Codex. Claude's line also shows a
+model's own weekly limit where the account has one (`Fable: 38%`), as Claude's VS Code extension does. The installer
+asks with one checkbox list, a group for Claude and one for Codex; everything is on by default. To change it later,
+or to keep your own status line instead:
 
 ```bash
 python3 ~/.config/herdr-fold/statusline_setup.py
@@ -141,8 +142,8 @@ python3 ~/.config/herdr-fold/statusline_setup.py
 Once chosen (it is the one item that starts off), Claude's line also ends with the session's cost, Claude's own
 count of it at list prices (`cost.total_cost_usd`): `~$4.12`, the tilde herdr-fold puts before every dollar figure
 it does not read off an invoice. On a plan it is what the session would cost at API prices and nothing you pay; with
-an API key, about what was spent. It is the first thing a narrower pane drops, and it is not shown before anything is
-counted. Codex's line is Codex's own and has no such item; what Codex cost is in
+an API key, about what was spent. A narrower pane drops it right after a model's own week, and it is not shown before
+anything is counted. Codex's line is Codex's own and has no such item; what Codex cost is in
 [the Usage view](harness.md#the-usage-view).
 
 Claude's line is drawn by `~/.config/herdr-fold/statusline.py`; Codex's is its own `[tui] status_line` setting in
@@ -154,11 +155,12 @@ Language & Region, Windows' short time, else the locale's). The line asks once a
 
 On every answer Claude's line, and a chat's in the Herdr app, keeps the 5-hour and weekly limits it was told, with
 their reset times and when, in `~/.local/state/herdr-fold/limits/claude.json`, readable by you alone: nothing else of
-the session, its folder or its model. A second Claude account on the machine (its own `CLAUDE_CONFIG_DIR`) keeps its
-own beside it and reads its own `.claude.json`, so neither account's limits show on the other's line. It writes
-neither agent's files, and without a subscription's limits (an API key) nothing is kept. Every status line and the
-Agent panel's Usage show the same reading, whichever chat answered last: how it is put together is in
-[Usage](harness.md#usage).
+the session, its folder or its model. A model's own week, which Claude tells its status line nothing of, is kept
+beside them from Claude's own `/usage` reading (cached in `~/.claude.json`); one past its reset is left off the line.
+A second Claude account on the machine (its own `CLAUDE_CONFIG_DIR`) keeps its own beside it and reads its own
+`.claude.json`, so neither account's limits show on the other's line. It writes neither agent's files, and without a
+subscription's limits (an API key) nothing is kept. Every status line and the Agent panel's Usage show the same
+reading, whichever chat answered last: how it is put together is in [Usage](harness.md#usage).
 
 Your own status line: Space on the group's title (Claude Code or Codex) turns herdr-fold's off. Claude gets back the
 status line it had before, or none; Codex keeps your own items, or shows its default line. No install or update puts
@@ -166,10 +168,10 @@ herdr-fold's back until you turn it on again. Set yours with Claude's or Codex's
 after. While herdr-fold's is on, the next install or update replaces one set with `/statusline` (Claude's is saved
 first).
 
-In a narrow pane Claude's line gets shorter until it fits: shorter reset times, the model name without its note,
-shorter labels (`ctx`, `5h`, `wk`), no context window size, then no reset times and no effort. Claude Code draws it
-again every 10 seconds (`refreshInterval`), so it fits a pane made narrower too, the right column dragged wider beside
-it. Codex cuts its own line at the end, so its items go in the order of importance.
+In a narrow pane Claude's line gets shorter until it fits: no model's own week, no cost, shorter reset times, the
+model name without its note, shorter labels (`ctx`, `5h`, `wk`), no context window size, then no reset times and no
+effort. Claude Code draws it again every 10 seconds (`refreshInterval`), so it fits a pane made narrower too, the
+right column dragged wider beside it. Codex cuts its own line at the end, so its items go in the order of importance.
 
 ## Copying and searching
 
@@ -235,7 +237,11 @@ For a repository on GitHub:
 
 1. Cmd + Shift + I (or `4` in the sidebar) shows its issues, the most pressing first: by GitHub's own Priority field,
    else a priority label, then a severity label, then a word alone such as `urgent` (the ones it reads:
-   [the sidebar's README](../src/plugins/sidebar/README.md)).
+   [the sidebar's README](../src/plugins/sidebar/README.md)). Each one's type stands before its number as a faint
+   icon (Bug, Feature, Task): GitHub's own issue type, else a `bug`, `enhancement` or `feature` label. The funnel at
+   the field's end filters them: Assigned to me, Created by me, then the priorities, types and labels the list holds,
+   each with how many would stay; any of a group's values, every group. What is on stands as chips under the field.
+   Where the organization has the Priority field or issue types, the right click sets them (Priority…, Type…).
 2. `t` hands the chosen one to the agent: a prompt typed into its pane, for you to send with Enter. With no agent in the
    tab (Claude, Codex, OpenCode or Copilot), the one herdr-fold started last starts in a new tab of the space, named
    after the issue, the sidebar beside it as in every tab, and gets the prompt there. The prompt holds the issue's

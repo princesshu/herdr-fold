@@ -7,14 +7,14 @@ import { agents as paneAgents, exec, focused, hc, home, knownAgents, layout, pan
   terminals, watchFolder, run as command } from "herdr";
 import { panelStep, RECENT_AGENTS } from "./agents.js";
 import { AGENT_LAYERS, AGENT_STATE, CONNECTORS, HARNESS, REPORT, TOKENS, USAGE } from "./helper.js";
-import { actionLook, afterSave, AGENT_ASK, AGENT_CHOSEN, AGENT_OPEN, AGENT_PROBLEMS, agentList, agentOf,
-  approves, asked, asking, bodyHeight, changeLine, CHIP_LIFT, chipColors, chosenAgent, chosenFill, chosenRow, claudeIn,
+import { actionLook, afterSave, AGENT_ASK, AGENT_CHOSEN, AGENT_OPEN, AGENT_PROBLEMS, agentList, agentOf, approves,
+  asked, asking, bodyHeight, changeLine, CHIP_LIFT, chipColors, chosenAgent, chosenFill, chosenRow, claudeIn,
   conflicted, DEFAULT, doable, errorColors, filePath, footWords, formAsk, GROUP_H, HEAD_H, headline, headParts,
-  keepAgent, keepOpen, keepProblems, LABEL, layersShown, levelFill, levelInk, loginRun, MODEL, MORE_H, NAMES, NARROW,
-  overdue, partColor, printedAddress, propertyLines, READ, removable, resetWords, ROW_H, rowless, RULE, sayOnly,
-  sectionOpen, sentence, SERVER, serverOf, shown, signingRow, signIns, signInTab, switchShown, tabAgent, tagRoom,
-  tagWord, toneInk, touches, USAGE_LINE, usageAgents, usageFigure, usageHeight, usageLine, usageRow, usageRows, WARN_H,
-  WATCHED }
+  keepAgent, keepOpen, keepProblems, LABEL, layersShown, levelFill, levelInk, loginRun, MODEL, MODEL_W, MORE_H, NAMES,
+  NARROW, overdue, partColor, printedAddress, propertyLines, READ, removable, resetWords, ROW_H, rowless, RULE,
+  sayOnly, sectionOpen, sentence, SERVER, serverOf, shown, signingRow, signIns, signInTab, switchShown, tabAgent,
+  tagRoom, tagWord, toneInk, touches, USAGE_LINE, usageAgents, usageColumns, usageFigure, usageHeight, usageLine,
+  usageRow, usageRows, WARN_H, WATCHED }
   from "./layers.js";
 import { indexed, reportArgs } from "./report.js";
 import { CHAT_LABEL, CHAT_TAB, DOCK, find, lastLine, PANEL_PX, panelPx, panelRailed, panelShown,
@@ -1198,7 +1198,7 @@ export class AgentView {
    * figure before it (headline()); a row an agent (USAGE), a press choosing it (its properties under the layers);
    * none known, or the read failed: said in their place. @param {Usage[]} usage @param {Look} look */
   limits(t, usage, look) {
-    const open = look.open("usage"), shown = open ? null : headline(usage);
+    const open = look.open("usage"), shown = open ? null : headline(usage), columns = usageColumns(usage, look.px);
     const none = this.usageError ? `Couldn't read the limits: ${this.usageError}` : this.usage?.none ?? "";
     const opens = div().id(`agent-usage-open-${this.slides}`).size(ADD).flex_none().flex().items_center()
       .justify_center().rounded(6).text_color(t.muted).tooltip("Open Usage")
@@ -1215,7 +1215,7 @@ export class AgentView {
       .spring("height", SPRING)
       .when(!usage.length, (e) => e.child(this.line(t, none, ROW_H)
         .when(Boolean(this.usageError), (e) => e.text_color(toneInk(t, "bad")))))
-      .children(usage.flatMap((row, n) => this.meter(t, row, n, look)))];
+      .children(usage.flatMap((row, n) => this.meter(t, row, n, look, columns)))];
   }
 
   /** Usage's head folded (usage-agents.html's .hfig): ROW's agent's mark, then its figure, its words muted and the
@@ -1240,21 +1240,21 @@ export class AgentView {
       .when(Boolean(after), (e) => e.child(div().child(after)));
   }
 
-  /** ROW of Usage, the N-th (usage-agents.html's): icon, name, plan; a plan's two windows in their levels (no bars
-   * under NARROW), an API key's month, or core's words for no reading; under it, only while yellow or red, the reset
-   * or the pace. A press chooses it. @param {Usage} row @param {number} n @param {Look} look */
-  meter(t, row, n, look) {
+  /** ROW of Usage, the N-th: icon, name, plan; its windows in their levels, the models' as COLUMNS (usageColumns())
+   * has room for (no bars under NARROW), a month, or why none; under it the reset or the pace while yellow or red.
+   * @param {Usage} row @param {number} n @param {Look} look @param {{ models: number, plans: boolean }} columns */
+  meter(t, row, n, look, columns) {
     const id = `usage:${row.key}`, chosen = this.chosen === id, ground = chosen ? chosenFill(t) : t.surface;
-    const bars = look.px >= NARROW;
-    const window = (/** @type {import("./layers.js").Meter | null} */ one) => h_flex().w(WINDOW).flex_none().gap(4)
-      .justify_end().items_center().text_size(11).text_color(t.muted)
-      .when(Boolean(one), (e) => e.child(div().child(one?.label ?? ""))
+    const bars = look.px >= NARROW, windows = Boolean(row.five || row.week);
+    const window = (/** @type {import("./layers.js").Meter | null} */ one, wide = WINDOW) => h_flex().w(wide)
+      .flex_none().gap(4).justify_end().items_center().text_size(11).text_color(t.muted)
+      .when(Boolean(one), (e) => e.child(div().min_w(0).truncate().child(one?.label ?? ""))
         .when(bars, (e) => e.child(h_flex().w(METER).h(4).flex_none().rounded_full().overflow_hidden().bg(t.raised)
           .child(div().h_full().flex_basis(0).flex_grow(Math.max(0, Math.min(100, one?.used ?? 0))).rounded_full()
             .bg(levelFill(t, one?.level ?? "")))
           .child(div().h_full().flex_basis(0).flex_grow(100 - Math.max(0, Math.min(100, one?.used ?? 0))))))
-        .child(div().font_semibold().when(Boolean(one?.level), (e) => e.text_color(levelInk(t, one?.level ?? "",
-          ground))).child(one?.text ?? "")));
+        .child(div().flex_none().font_semibold().when(Boolean(one?.level), (e) => e.text_color(levelInk(t,
+          one?.level ?? "", ground))).child(one?.text ?? "")));
     const under = row.reset ? this.resetSaid(row.reset) : (bars ? row.month?.pace?.text : row.month?.pace?.narrow)
       ?? "";
     return [h_flex().id(`agent-usage-${this.slides}${n}`).h(ROW_H).flex_none().pl(INSET).pr(PAD / 2).gap(6)
@@ -1265,9 +1265,10 @@ export class AgentView {
       .child(agentMark(look.programs[row.key], 14) ?? icon("bot", 14).text_color(t.muted))
       .child(h_flex().flex_1().min_w(0).gap(6).items_center()
         .child(div().flex_none().child(row.name))
-        .when(Boolean(row.plan), (e) => e.child(div().min_w(0).truncate().text_size(11).text_color(t.muted)
-          .child(row.plan ?? ""))))
-      .when(Boolean(row.five || row.week), (e) => e.child(window(row.five)).child(window(row.week)))
+        .when(Boolean(row.plan) && (columns.plans || !windows), (e) => e.child(div().min_w(0).truncate()
+          .text_size(11).text_color(t.muted).child(row.plan ?? ""))))
+      .when(windows, (e) => e.child(window(row.five)).child(window(row.week))
+        .children(Array.from({ length: columns.models }, (_, i) => window(row.models[i] ?? null, MODEL_W))))
       .when(Boolean(row.month), (e) => e.child(this.figure(t, "", row.month?.figure ?? "", row.month?.level ?? null,
         row.month?.of ?? "", ground)))
       .when(Boolean(row.untold), (e) => e.child(div().flex_none().text_size(11).text_color(t.muted)

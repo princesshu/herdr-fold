@@ -2077,7 +2077,7 @@ export class Chat {
     const named = (/** @type {string} */ mark, /** @type {string} */ name, /** @type {string} */ words) => line()
       .gap(R.gap).child(icon(mark).text_color(t.muted)).child(div().flex_none().font_semibold().child(name))
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(words));
-    if (row.kind === "tasks") return named("list-checks", "Tasks", `${row.added} added`);
+    if (row.kind === "tasks") return named("list", "Tasks", `${row.added} added`);
     if (row.kind === "task") return line().gap(R.gap).child(icon("check").text_color(t.done))
       .child(div().flex_1().min_w(0).truncate().text_color(t.muted).child(row.text));
     if (typeof row.plan === "number") {     // the Plan mode's icon

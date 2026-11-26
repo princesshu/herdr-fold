@@ -28,6 +28,8 @@ def keep(state_dir, repo, query, listing):
     try:
         statefile.write(shared_path(state_dir, repo, query),
                         {"at": time.time(), "issues": [asdict(issue) for issue in listing.issues],
+                         "narrowed": None if listing.narrowed is None else [asdict(one) for one in listing.narrowed],
+                         "settable": listing.settable, "me": listing.me, "totals": listing.totals,
                          "error": listing.error})
     except OSError:
         pass
@@ -42,12 +44,17 @@ def kept(state_dir, repo, query, fresh):
         if not 0 <= time.time() - float(data["at"]) < fresh:
             return None
         found, error = tuple(kept_issue(row) for row in data["issues"]), data["error"]
+        narrowed = None if data["narrowed"] is None else tuple(kept_issue(row) for row in data["narrowed"])
+        settable, me, totals = data["settable"], data["me"], data["totals"]
+        if not all(one is None or isinstance(one, dict) for one in (settable, totals)) or not isinstance(me, str):
+            return None
     except (OSError, ValueError, TypeError, KeyError, AttributeError):
         return None
-    return Listing(found, error) if error is None or isinstance(error, str) else None
+    return Listing(found, error, narrowed, settable, me, totals) if error is None or isinstance(error, str) else None
 
 
-TEXTS, NAMES = ("title", "updated", "state", "url", "priority"), ("labels", "assignees")     # an Issue's, as kept
+TEXTS = ("title", "updated", "state", "url", "priority", "issue_type", "node", "author")      # an Issue's, as kept
+NAMES = ("labels", "assignees")
 
 
 def kept_issue(row):

@@ -1,6 +1,6 @@
 // @ts-check
 // Generated from core/ by tools/build.py: each export a module's source, run with Python's -c on the
-// space's machine (MEDIA_*, OUTPUT_LINES, THEME_NAMES: core's tables, the TUI's). Change them there.
+// space's machine; MEDIA_*, OUTPUT_LINES, ISSUES_STALE and THEME_NAMES core's tables, the TUI's. Change them there.
 export const AGENT_LAYERS = [
   "import sys as _sys, types as _types",
   "_sys.modules['model_windows'] = _types.ModuleType('model_windows')",
@@ -8663,6 +8663,8 @@ export const CHAT_HOOK = [
   "'NAMES = {\"claude\": \"Claude\", \"codex\": \"Codex\"}',",
   "'SAID = {\"five_hour\": (\"five\", \"5h\", \"5h\"), \"week\": (\"week\", \"wk\", \"Week\")}',",
   "'PLAN = re.compile(r\"[A-Za-z][A-Za-z ]{0,23}\")',",
+  "'MODEL = re.compile(r\"[A-Za-z][A-Za-z0-9 .-]{0,23}\")',",
+  "'NBSP = \"\\\\u00a0\"',",
   "'API_KEY = \"API key\"',",
   "'UNTOLD = \"limits not told\"',",
   "'WHY = {\"claude\": \"Claude tells its limits to herdr-fold\\'s status line and to its own cache: neither " +
@@ -8702,6 +8704,13 @@ export const CHAT_HOOK = [
   "'    if not number(value.get(\"used\")):',",
   "'        return None',",
   "'    return {\"used\": round(value[\"used\"]), \"resets\": epoch(value.get(\"resets\"))}',",
+  "'def model_windows(values):',",
+  "'    found = {}',",
+  "'    for value in values if isinstance(values, list) else ():',",
+  "'        one, name = window(value), obj(value).get(\"name\")',",
+  "'        if one and isinstance(name, str) and MODEL.fullmatch(name) and name not in found:',",
+  "'            found[name] = {\"name\": name, **one}',",
+  "'    return list(found.values())',",
   "'def opened(path):',",
   "'    fd = os.open(path, os.O_RDONLY | getattr(os, \"O_NONBLOCK\", 0) | getattr(os, \"O_BINARY\", 0))',",
   "'    try:',",
@@ -8729,9 +8738,10 @@ export const CHAT_HOOK = [
   "'    return os.path.join(home, *LIMITS, f\"{name}.json\")',",
   "'def told(data):',",
   "'    limits = obj(obj(data).get(\"rate_limits\"))',",
-  "'    return {name: window({\"used\": obj(limits.get(key)).get(\"used_percentage\"),',",
-  "'                          \"resets\": obj(limits.get(key)).get(\"resets_at\")})',",
-  "'            for name, key in ((\"five_hour\", \"five_hour\"), (\"week\", \"seven_day\"))}',",
+  "'    return {**{name: window({\"used\": obj(limits.get(key)).get(\"used_percentage\"),',",
+  "'                             \"resets\": obj(limits.get(key)).get(\"resets_at\")})',",
+  "'               for name, key in ((\"five_hour\", \"five_hour\"), (\"week\", \"seven_day\"))}, \"models\": " +
+    "[]}',",
   "'def fresher(mine, kept, now, own=None):',",
   "'    if own and own[\"resets\"] is not None and own[\"resets\"] > now:',",
   "'        return max((one for one in (own, mine, kept) if one and one[\"resets\"] is not None',",
@@ -8750,13 +8760,14 @@ export const CHAT_HOOK = [
   "'    home = os.path.expanduser(\"~\")',",
   "'    before, own = kept(home, agent) or {}, (claude_cached(home) if agent == \"claude\" else None) or {}',",
   "'    found = {name: fresher(found[name], before.get(name), int(at), own.get(name)) for name in WINDOWS}',",
+  "'    found[\"models\"] = own[\"models\"] if own else before.get(\"models\", [])',",
   "'    statefile.write(kept_path(home, agent), {**found, \"at\": int(at)})',",
   "'    return found',",
   "'def kept(home, agent):',",
   "'    found = read_json(kept_path(home, agent))',",
-  "'    return {**{name: window(found.get(name)) for name in WINDOWS}, \"at\": int(found[\"at\"]), \"source\": " +
-    "\"status\"} \\\\',",
-  "'        if number(found.get(\"at\")) else None',",
+  "'    return {**{name: window(found.get(name)) for name in WINDOWS}, \"models\": " +
+    "model_windows(found.get(\"models\")),',",
+  "'            \"at\": int(found[\"at\"]), \"source\": \"status\"} if number(found.get(\"at\")) else None',",
   "'def claude_cached(home):',",
   "'    found = read_json(os.path.join(claude_folder(home) or home, \".claude.json\"))',",
   "'    cached, signed = obj(found.get(\"cachedUsageUtilization\")), " +
@@ -8766,9 +8777,15 @@ export const CHAT_HOOK = [
   "'    used = obj(cached.get(\"utilization\"))',",
   "'    found = {name: obj(used.get(key)) for name, key in ((\"five_hour\", \"five_hour\"), (\"week\", " +
     "\"seven_day\"))}',",
+  "'    meters = used.get(\"limits\") if isinstance(used.get(\"limits\"), list) else []',",
+  "'    scoped = [obj(one) for one in meters if obj(one).get(\"kind\") == \"weekly_scoped\"]',",
   "'    return {**{name: window({\"used\": one.get(\"utilization\"), \"resets\": one.get(\"resets_at\")})',",
-  "'               for name, one in found.items()}, \"at\": int(cached[\"fetchedAtMs\"] // 1000), \"source\": " +
-    "\"claude\"}',",
+  "'               for name, one in found.items()},',",
+  "'            \"models\": model_windows([{\"name\": " +
+    "obj(obj(one.get(\"scope\")).get(\"model\")).get(\"display_name\"),',",
+  "'                                      \"used\": one.get(\"percent\"), \"resets\": one.get(\"resets_at\")} " +
+    "for one in scoped]),',",
+  "'            \"at\": int(cached[\"fetchedAtMs\"] // 1000), \"source\": \"claude\"}',",
   "'def codex_windows(limits, at):',",
   "'    found = dict.fromkeys(WINDOWS)',",
   "'    for key in (\"primary\", \"secondary\"):',",
@@ -8796,7 +8813,8 @@ export const CHAT_HOOK = [
   "'        payload = obj(entry.get(\"payload\"))',",
   "'        if entry.get(\"type\") == \"event_msg\" and payload.get(\"type\") == \"token_count\":',",
   "'            at = epoch(entry.get(\"timestamp\")) or changed',",
-  "'            yield {**codex_windows(payload.get(\"rate_limits\"), at), \"at\": at, \"source\": \"codex\"}',",
+  "'            yield {**codex_windows(payload.get(\"rate_limits\"), at), \"models\": [], \"at\": at, " +
+    "\"source\": \"codex\"}',",
   "'def codex_newest(home):',",
   "'    found = []',",
   "'    for path in glob.glob(os.path.join(home, \".codex\", \"sessions\", \"*\", \"*\", \"*\", " +
@@ -8813,15 +8831,15 @@ export const CHAT_HOOK = [
   "'        if readings:',",
   "'            return next((one for one in reversed(readings) if any(one[name] for name in WINDOWS)), None)',",
   "'    return None',",
-  "'def current(reading, now, used):',",
-  "'    found = {}',",
-  "'    for name in WINDOWS:',",
-  "'        one = reading[name]',",
-  "'        ends = one and (one[\"resets\"] if one[\"resets\"] is not None else reading[\"at\"] + " +
-    "WINDOWS[name])',",
-  "'        found[name] = one if not one or now < ends else {\"used\": 0 if used < ends else None, \"resets\": " +
+  "'def held(one, ends, now, used):',",
+  "'    ends = one and (one[\"resets\"] if one[\"resets\"] is not None else ends)',",
+  "'    return one if not one or now < ends else {**one, \"used\": 0 if used < ends else None, \"resets\": " +
     "None}',",
-  "'    return found',",
+  "'def current(reading, now, used):',",
+  "'    return {**{name: held(reading[name], reading[\"at\"] + WINDOWS[name], now, used) for name in " +
+    "WINDOWS},',",
+  "'            \"models\": [held(one, reading[\"at\"] + WINDOWS[\"week\"], now, used) for one in " +
+    "reading[\"models\"]]}',",
   "'def last_used(agent, home):',",
   "'    place = (\".claude\", \"projects\", \"*\", \"*.jsonl\") if agent == \"claude\" else \\\\',",
   "'        (\".codex\", \"sessions\", \"*\", \"*\", \"*\", \"rollout-*.jsonl\")',",
@@ -8851,6 +8869,14 @@ export const CHAT_HOOK = [
   "'    if seconds < 3600:',",
   "'        return f\"{seconds // 60} min ago\"',",
   "'    return f\"{seconds // 3600} h ago\" if seconds < 2 * 86400 else f\"{seconds // 86400} d ago\"',",
+  "'def meter(one, label, said, now):',",
+  "'    when = \"{day} {time}\" if one and one[\"resets\"] is not None and one[\"resets\"] - now >= SOON else " +
+    "\"{time}\"',",
+  "'    return one and {\"label\": label, \"used\": one[\"used\"], \"text\": \"\u2013\" if one[\"used\"] is " +
+    "None else f\"{one[\\'used\\']}%\",',",
+  "'                    \"level\": None if one[\"used\"] is None else level(one[\"used\"]),',",
+  "'                    \"resets\": one[\"resets\"] and {\"at\": one[\"resets\"], \"words\": f\"{said} resets " +
+    "{when}\"}}',",
   "'def section(limits, agents, current, now):',",
   "'    told = {one[\"key\"]: one for one in (agents if isinstance(agents, list) else []) if " +
     "isinstance(obj(one).get(\"key\"),',",
@@ -8864,17 +8890,11 @@ export const CHAT_HOOK = [
     "key == current,',",
   "'               \"age\": f\"Read {ago(now - reading[\\'at\\'])}\", \"untold\": None}',",
   "'        for window, (part, label, said) in SAID.items():',",
-  "'            one, when = reading[window], \"{time}\"',",
-  "'            if one and one[\"resets\"] is not None and one[\"resets\"] - now >= SOON:',",
-  "'                when = \"{day} {time}\"',",
-  "'            row[part] = one and {\"label\": label, \"used\": one[\"used\"],',",
-  "'                                 \"text\": \"\u2013\" if one[\"used\"] is None else " +
-    "f\"{one[\\'used\\']}%\",',",
-  "'                                 \"level\": None if one[\"used\"] is None else level(one[\"used\"]),',",
-  "'                                 \"resets\": one[\"resets\"] and {\"at\": one[\"resets\"], \"words\": " +
-    "f\"{said} resets {when}\"}}',",
-  "'        known = [row[part] for part in (\"five\", \"week\") if row[part] and row[part][\"used\"] is not " +
-    "None]',",
+  "'            row[part] = meter(reading[window], label, said, now)',",
+  "'        row[\"models\"] = [meter(one, one[\"name\"], one[\"name\"].replace(\" \", NBSP), now) for one in " +
+    "reading[\"models\"]]',",
+  "'        known = [one for one in (row[\"five\"], row[\"week\"], *row[\"models\"]) if one and one[\"used\"] " +
+    "is not None]',",
   "'        row[\"tight\"] = max(known, key=lambda one: one[\"used\"]) if known else None',",
   "'        row[\"reset\"] = row[\"tight\"][\"resets\"] if row[\"tight\"] and row[\"tight\"][\"level\"] in " +
     "(\"warn\", \"bad\") else None',",
@@ -8886,9 +8906,10 @@ export const CHAT_HOOK = [
   "'        name = name or NAMES.get(current, current)',",
   "'        rows.insert(0, {\"key\": current, \"name\": name, \"current\": True, \"age\": None, \"five\": " +
     "None, \"week\": None,',",
-  "'                        \"plan\": plan if isinstance(plan, str) and PLAN.fullmatch(plan) else None, " +
-    "\"tight\": None,',",
-  "'                        \"reset\": None, \"untold\": {\"text\": UNTOLD, \"why\": WHY.get(',",
+  "'                        \"models\": [], \"plan\": plan if isinstance(plan, str) and PLAN.fullmatch(plan) " +
+    "else None,',",
+  "'                        \"tight\": None, \"reset\": None, \"untold\": {\"text\": UNTOLD, \"why\": " +
+    "WHY.get(',",
   "'                            current, f\"{name} does not tell herdr-fold its limits.\")}})',",
   "'    return {\"id\": \"usage\", \"title\": \"Usage\", \"none\": \"Not known yet\", \"rows\": rows}',",
   "'def twelve_hours(home):',",
@@ -14523,6 +14544,7 @@ export const GITHUB = [
   "import sys",
   "import tempfile",
   "import time",
+  "from collections import Counter",
   "from dataclasses import asdict, dataclass, replace",
   "",
   "sys.dont_write_bytecode = True  # no __pycache__ beside the installed files",
@@ -14530,8 +14552,11 @@ export const GITHUB = [
   "",
   "STATES = {\"open\": \"Open\", \"closed\": \"Closed\"}         # GitHub's own: is:open, is:closed",
   "LIMIT = 100",
-  "FIELDS = \"number,title,labels,assignees,updatedAt,state,url\"",
-  "VIEW = \"number,title,body,state,url,createdAt,author,labels,assignees,comments\"     # an issue's preview",
+  "STALE = 60                    # seconds: a list shown (or held) asked for again, both clients' (a new one " +
+    "shows up)",
+  "FIELDS = \"number,title,labels,assignees,updatedAt,state,url,id,issueType,author\"",
+  "VIEW = \"number,title,body,state,url,createdAt,author,labels,assignees,comments,issueType\"     # an " +
+    "issue's preview",
   "TIMEOUT = 30",
   "NO_GH = \"Issues need the GitHub CLI: install gh, then sign in with gh auth login\"",
   "SIGNED_OUT = \"Sign in to GitHub first: gh auth login in a terminal\"",
@@ -14548,22 +14573,34 @@ export const GITHUB = [
   "    url: str = \"\"",
   "    priority: str = \"\"                      # GitHub's Priority field (an organization's issue field): " +
     "Urgent, High\u2026",
+  "    issue_type: str = \"\"                    # GitHub's issue type (an organization's): Bug, Feature, " +
+    "Task\u2026",
+  "    node: str = \"\"                          # its GraphQL id, which a change of its priority or type names",
+  "    author: str = \"\"",
   "",
   "",
   "@dataclass(frozen=True)",
   "class Query:",
-  "    \"\"\"Which issues to ask GitHub for, by its own filters: is:open or is:closed, assignee:@me, " +
-    "author:@me, a label.\"\"\"",
+  "    \"\"\"Which issues (or pull requests) to ask GitHub for: is:open or is:closed, the latest LIMIT; SEARCH " +
+    "(the filters",
+  "    on, issue_search()'s or pull_search()'s) asked as well once they fill LIMIT.\"\"\"",
   "    state: str = \"open\"",
-  "    assigned: bool = False",
-  "    authored: bool = False",
-  "    label: str = \"\"",
+  "    search: str = \"\"",
   "",
   "",
   "@dataclass(frozen=True)",
   "class Listing:",
+  "    \"\"\"The latest LIMIT issues of a query; NARROWED, its SEARCH's answer (None unasked); SETTABLE, what " +
+    "the user may",
+  "    set on them (fields()'s); ME, the signed-in user's login (Assigned to me, Created by me); TOTALS, the " +
+    "repository's",
+  "    open and closed ones ({\"open\": n, \"closed\": n}, None unknown), as GitHub's list counts them.\"\"\"",
   "    issues: tuple = ()",
   "    error: str = None",
+  "    narrowed: tuple = None",
+  "    settable: dict = None",
+  "    me: str = \"\"",
+  "    totals: dict = None",
   "",
   "",
   "LEVELS = (\"Urgent\", \"High\", \"Medium\", \"Low\")       # GitHub's Priority field's options, its rank " +
@@ -14641,11 +14678,161 @@ export const GITHUB = [
   "",
   "",
   "def said(issue):",
-  "    \"\"\"What a search finds ISSUE by: its number (#42), title, labels, assignees (@name) and priority, " +
-    "lowercase.\"\"\"",
+  "    \"\"\"What a search finds ISSUE by: its number (#42), title, labels, assignees (@name), priority and " +
+    "type,",
+  "    lowercase.\"\"\"",
   "    return \" \".join((f\"#{issue.number}\", issue.title, *issue.labels, *(\"@\" + who for who in " +
     "issue.assignees),",
-  "                     issue.priority)).lower()",
+  "                     issue.priority, kind(issue)[0])).lower()",
+  "",
+  "",
+  "TYPES = (\"Bug\", \"Feature\", \"Task\")      # GitHub's own issue types, each with its icon; the menus' " +
+    "order",
+  "TYPE_LABELS = {\"bug\": \"Bug\", \"enhancement\": \"Feature\", \"feature\": \"Feature\"}      # the labels " +
+    "a type is read from",
+  "",
+  "",
+  "def kind(issue):",
+  "    \"\"\"ISSUE's type and the label it was read from: GitHub's issue type (no label), else its first of " +
+    "TYPE_LABELS'",
+  "    labels; (\"\", None) without either. No other label is taken for one (question stays a label).\"\"\"",
+  "    if issue.issue_type:",
+  "        return issue.issue_type, None",
+  "    return next(((TYPE_LABELS[label.lower()], label) for label in issue.labels if label.lower() in " +
+    "TYPE_LABELS),",
+  "                (\"\", None))",
+  "",
+  "",
+  "def shown_labels(issue):",
+  "    \"\"\"ISSUE's labels as its row lists them: the one its priority or its type was read from is said by " +
+    "that.\"\"\"",
+  "    _, ranked_by = priority(issue)",
+  "    typed_by = kind(issue)[1]",
+  "    return tuple(label for label in issue.labels if label not in (ranked_by, typed_by))",
+  "",
+  "",
+  "# --- the filter menus: a group's values (each a set an item holds), any of a group's (OR), every group " +
+    "(AND)",
+  "",
+  "ME = (\"assigned\", \"authored\")      # Assigned to me, Created by me: two groups of one value each " +
+    "(True), first",
+  "ISSUE_GROUPS = (*ME, \"level\", \"type\", \"label\")",
+  "PULL_GROUPS = (*ME, \"review\", \"checks\", \"label\")",
+  "REVIEWS = (\"draft\", \"yours\", \"approved\", \"changes\")      # review_state()'s that the Review group " +
+    "offers, in its order",
+  "CHECKS = (\"passed\", \"running\", \"failed\")                 # checks_mark()'s, the Checks group's order",
+  "TOP_LABELS = 6                # the labels a menu shows at first, the most used; the rest behind \"N more\"",
+  "",
+  "",
+  "def mine(item, me):",
+  "    \"\"\"ITEM's (an issue's or a pull request's) values in ME's groups, the signed-in user ME's: assigned, " +
+    "written.\"\"\"",
+  "    return {\"assigned\": (True,) if me and me in item.assignees else (),",
+  "            \"authored\": (True,) if me and item.author == me else ()}",
+  "",
+  "",
+  "def issue_facets(issue, me=\"\"):",
+  "    \"\"\"ISSUE's values in each filter group: whether it is ME's, its priority's rank, its type, its row's " +
+    "labels.\"\"\"",
+  "    level = priority(issue)[0]",
+  "    return {**mine(issue, me), \"level\": (level,) if level < len(LEVELS) else (),",
+  "            \"type\": (kind(issue)[0],) if kind(issue)[0] else (), \"label\": shown_labels(issue)}",
+  "",
+  "",
+  "def pull_facets(pull, me=\"\"):",
+  "    \"\"\"PULL's values in each filter group: whether it is ME's, its review's state, its checks' mark, its " +
+    "labels.\"\"\"",
+  "    state, mark = review_state(pull), checks_mark(pull.checks)",
+  "    return {**mine(pull, me), \"review\": (state,) if state in REVIEWS else (), \"checks\": (mark,) if mark " +
+    "else (),",
+  "            \"label\": pull.labels}",
+  "",
+  "",
+  "def passes(facets, chosen, skip=None):",
+  "    \"\"\"Whether an item of FACETS stays with CHOSEN ({group: values} on) on: one of each group's values " +
+    "(but SKIP's).\"\"\"",
+  "    return all(not values or set(facets.get(group, ())) & set(values) for group, values in chosen.items()",
+  "               if group != skip)",
+  "",
+  "",
+  "def offered(items, chosen, group):",
+  "    \"\"\"GROUP's values a menu offers for ITEMS (their facets): those they hold and those CHOSEN has, in " +
+    "the group's",
+  "    order, each with how many would stay with it on (the other groups' filters counted, not its own) and " +
+    "how many",
+  "    hold it: [(value, count, uses)].\"\"\"",
+  "    uses, counts = Counter(), Counter()",
+  "    for facets in items:",
+  "        held = set(facets.get(group, ()))",
+  "        uses.update(held)",
+  "        if passes(facets, chosen, group):",
+  "            counts.update(held)",
+  "    values = set(uses) | set(chosen.get(group, ()))",
+  "    order = sorted(values, key=lambda name: (-uses[name], name.lower())) if group == \"label\" else " +
+    "ordered(group, values)",
+  "    return [(value, counts[value], uses[value]) for value in order]",
+  "",
+  "",
+  "def ordered(group, values):",
+  "    \"\"\"VALUES of GROUP in its order: priority by rank, review and checks as their groups list them, " +
+    "types as TYPES",
+  "    (an organization's own after them, by name), labels by name.\"\"\"",
+  "    if group == \"level\":",
+  "        return sorted(values)",
+  "    if group in (\"review\", \"checks\"):",
+  "        return [value for value in (REVIEWS if group == \"review\" else CHECKS) if value in values]",
+  "    if group == \"type\":",
+  "        return sorted(values, key=lambda name: (TYPES.index(name) if name in TYPES else len(TYPES), " +
+    "name.lower()))",
+  "    return sorted(values, key=str.lower)",
+  "",
+  "",
+  "def quoted(values):",
+  "    \"\"\"VALUES as GitHub's search names them, each in quotes; None when one holds a quote (no search can " +
+    "say it).\"\"\"",
+  "    return None if any('\"' in value for value in values) else [f'\"{value}\"' for value in values]",
+  "",
+  "",
+  "def searched_me(chosen):",
+  "    \"\"\"GitHub's search for CHOSEN's Assigned to me and Created by me.\"\"\"",
+  "    return [term for group, term in ((\"assigned\", \"assignee:@me\"), (\"authored\", \"author:@me\")) if " +
+    "chosen.get(group)]",
+  "",
+  "",
+  "def issue_search(chosen):",
+  "    \"\"\"GitHub's search for CHOSEN's filters, wider than they are (a type found by the labels it is read " +
+    "from too), so",
+  "    the list narrowed by them exactly loses none past LIMIT; \"\" when none is on. Priority is the loaded " +
+    "list's alone:",
+  "    a label's is read in too many ways to search for.\"\"\"",
+  "    parts = searched_me(chosen)",
+  "    types, labels = quoted(chosen.get(\"type\") or ()), quoted(chosen.get(\"label\") or ())",
+  "    if types:",
+  "        named = [label for label, name in TYPE_LABELS.items() if name in chosen[\"type\"]]",
+  "        terms = [f\"type:{name}\" for name in types] + [f'label:\"{label}\"' for label in named]",
+  "        parts.append(\"(\" + \" OR \".join(terms) + \")\")",
+  "    if labels:",
+  "        parts.append(\"label:\" + \",\".join(labels))",
+  "    return \" \".join(parts)",
+  "",
+  "",
+  "def pull_search(chosen):",
+  "    \"\"\"GitHub's search for CHOSEN's review states and labels, as issue_search(): each state found by its " +
+    "qualifier",
+  "    (a draft's review is also asked; the list narrows). The checks are the loaded list's: GitHub's status: " +
+    "tells a",
+  "    failed run from a running one otherwise than the rows' marks.\"\"\"",
+  "    qualifier = {\"draft\": \"draft:true\", \"yours\": \"review-requested:@me\", \"approved\": " +
+    "\"review:approved\",",
+  "                 \"changes\": \"review:changes_requested\"}",
+  "    parts = searched_me(chosen)",
+  "    reviews = [qualifier[state] for state in REVIEWS if state in (chosen.get(\"review\") or ())]",
+  "    if reviews:",
+  "        parts.append(\"(\" + \" OR \".join(reviews) + \")\")",
+  "    labels = quoted(chosen.get(\"label\") or ())",
+  "    if labels:",
+  "        parts.append(\"label:\" + \",\".join(labels))",
+  "    return \" \".join(parts)",
   "",
   "",
   "def gh(*args):",
@@ -14664,76 +14851,164 @@ export const GITHUB = [
   "",
   "",
   "def failure(done):",
-  "    \"\"\"The one line a failed gh run is shown as.\"\"\"",
+  "    \"\"\"The one line a failed gh run is shown as (gh's own \"gh: \" before a GraphQL error left " +
+    "out).\"\"\"",
   "    if done is None:",
   "        return NO_GH",
   "    text = (done.stderr or done.stdout).strip()",
   "    if \"gh auth login\" in text:",
   "        return SIGNED_OUT",
-  "    return (text.splitlines() or [\"gh failed\"])[-1]",
+  "    return (text.splitlines() or [\"gh failed\"])[-1].removeprefix(\"gh: \")",
+  "",
+  "",
+  "def issue_rows(stdout):",
+  "    \"\"\"gh's issue list (its JSON) as Issues; ValueError (or a TypeError, KeyError) for anything " +
+    "else.\"\"\"",
+  "    return tuple(Issue(int(row[\"number\"]), str(row.get(\"title\") or \"\"),",
+  "                       tuple(str(label.get(\"name\", \"\")) for label in row.get(\"labels\") or ()),",
+  "                       tuple(str(person.get(\"login\", \"\")) for person in row.get(\"assignees\") or ()),",
+  "                       str(row.get(\"updatedAt\") or \"\"), str(row.get(\"state\") or \"\"), " +
+    "str(row.get(\"url\") or \"\"),",
+  "                       issue_type=str((row.get(\"issueType\") or {}).get(\"name\") or \"\"), " +
+    "node=str(row.get(\"id\") or \"\"),",
+  "                       author=str((row.get(\"author\") or {}).get(\"login\") or \"\"))",
+  "                 for row in json.loads(stdout))",
   "",
   "",
   "def issues(repo, query):",
-  "    \"\"\"REPO's issues as QUERY asks for them, the latest change first.\"\"\"",
-  "    done = gh(\"issue\", \"list\", \"-R\", repo, \"--state\", query.state, *([\"--assignee\", \"@me\"] if " +
-    "query.assigned else []),",
-  "              *([\"--author\", \"@me\"] if query.authored else []),",
-  "              *([f\"--label={query.label}\"] if query.label else []),     # one word: a label is never an " +
-    "option",
-  "              \"--limit\", str(LIMIT), \"--search\", \"sort:updated-desc\", \"--json\", FIELDS)",
+  "    \"\"\"REPO's issues as QUERY asks for them, the latest change first; its search asked as well once they " +
+    "fill LIMIT",
+  "    (fewer: the list holds every one already); each one's Priority field, and what the user may set " +
+    "(fields()).\"\"\"",
+  "    def ask(*search):",
+  "        return gh(\"issue\", \"list\", \"-R\", repo, \"--state\", query.state, \"--limit\", str(LIMIT), " +
+    "\"--search\",",
+  "                  \" \".join((*search, \"sort:updated-desc\")), \"--json\", FIELDS)",
+  "    done = ask()",
   "    if done is None or done.returncode != 0:",
   "        return Listing(error=failure(done))",
   "    try:",
-  "        rows = json.loads(done.stdout)",
-  "        found = tuple(Issue(int(row[\"number\"]), str(row.get(\"title\") or \"\"),",
-  "                            tuple(str(label.get(\"name\", \"\")) for label in row.get(\"labels\") or ()),",
-  "                            tuple(str(person.get(\"login\", \"\")) for person in row.get(\"assignees\") or " +
-    "()),",
-  "                            str(row.get(\"updatedAt\") or \"\"), str(row.get(\"state\") or \"\"), " +
-    "str(row.get(\"url\") or \"\"))",
-  "                      for row in rows)",
+  "        found, narrowed = issue_rows(done.stdout), None",
+  "        if query.search and len(found) >= LIMIT:",
+  "            done = ask(query.search)",
+  "            if done is None or done.returncode != 0:",
+  "                return Listing(error=failure(done))",
+  "            narrowed = issue_rows(done.stdout)",
   "    except (ValueError, TypeError, KeyError, AttributeError):",
   "        return Listing(error=\"gh gave an answer that could not be read\")",
-  "    if query.state == \"open\":               # the open ones are ranked by it",
-  "        given = priorities(repo, [issue.number for issue in found])",
-  "        found = tuple(replace(issue, priority=given.get(issue.number, \"\")) for issue in found)",
-  "    return Listing(found)",
+  "    given, settable, me, totals = fields(repo, sorted({issue.number for issue in found + (narrowed or ())}))",
+  "    def ranked_in(rows):",
+  "        return tuple(replace(issue, priority=given.get(issue.number, \"\")) for issue in rows)",
+  "    return Listing(ranked_in(found), None, None if narrowed is None else ranked_in(narrowed), settable, me, " +
+    "totals)",
   "",
   "",
   "# The value of an option of a single select issue field, with the field's name (GitHub's GraphQL)",
   "OPTION = \"... on IssueFieldSingleSelectValue { name field { ... on IssueFieldSingleSelect { name } } }\"",
+  "# what the user may set on a repository's issues: the organization's Priority field and its options, its " +
+    "issue types;",
+  "# and how many issues it has open and closed, as GitHub's list counts them",
+  "SETTABLE = (\"viewerPermission issueTypes(first: 25) { nodes { id name isEnabled } } issueFields(first: 25) " +
+    "{ nodes \"",
+  "            \"{ ... on IssueFieldSingleSelect { id name options { id name } } } } open: issues(states: " +
+    "OPEN) { \"",
+  "            \"totalCount } closed: issues(states: CLOSED) { totalCount }\")",
+  "WRITERS = {\"ADMIN\", \"MAINTAIN\", \"WRITE\", \"TRIAGE\"}      # the roles that set an issue's fields and " +
+    "type",
   "",
   "",
-  "def priorities(repo, numbers):",
-  "    \"\"\"{number: its Priority} for REPO's issues NUMBERS, from GitHub's organization issue fields (gh's " +
-    "list lacks them)",
-  "    in one GraphQL request; {} where the owner has none or the request fails, so the labels rank. gh's exit " +
-    "code 1 on a",
-  "    partly failed answer (an issue moved away meanwhile) still counts the rest.\"\"\"",
-  "    if not numbers:",
-  "        return {}",
+  "def fields(repo, numbers):",
+  "    \"\"\"({number: its Priority} for REPO's issues NUMBERS, what may be set (settable_of()), the user's " +
+    "login, the open",
+  "    and closed counts (totals_of())) in one GraphQL request (gh's list lacks them); ({}, None, \"\", None) " +
+    "where it fails,",
+  "    so the labels rank; gh's exit code 1 on a partly failed answer (an issue moved away) still counts the " +
+    "rest.\"\"\"",
   "    owner, _, name = repo.partition(\"/\")",
   "    asked = \" \".join(f\"i{number}: issue(number: {int(number)}) \"",
   "                     f\"{{ issueFieldValues(first: 20) {{ nodes {{ {OPTION} }} }} }}\" for number in " +
     "numbers)",
-  "    query = f\"query($owner: String!, $name: String!) {{ repository(owner: $owner, name: $name) {{ {asked} " +
-    "}} }}\"",
+  "    query = (f\"query($owner: String!, $name: String!) {{ viewer {{ login }} repository(owner: $owner, " +
+    "name: $name) \"",
+  "             f\"{{ {SETTABLE} {asked} }} }}\")",
   "    done = gh(\"api\", \"graphql\", \"-f\", f\"query={query}\", \"-f\", f\"owner={owner}\", \"-f\", " +
     "f\"name={name}\")",
   "    if done is None:",
-  "        return {}",
+  "        return {}, None, \"\", None",
   "    try:",
-  "        repository = json.loads(done.stdout)[\"data\"][\"repository\"]",
-  "        given = {}",
+  "        data = json.loads(done.stdout)[\"data\"]",
+  "        repository, given = data[\"repository\"], {}",
   "        for number in numbers:",
   "            for value in ((repository.get(f\"i{number}\") or {}).get(\"issueFieldValues\") or " +
     "{}).get(\"nodes\") or ():",
   "                if (str((value.get(\"field\") or {}).get(\"name\", \"\")).lower() == \"priority\"",
   "                        and isinstance(value.get(\"name\"), str)):",
   "                    given[number] = value[\"name\"]",
-  "        return given",
+  "        return given, settable_of(repository), login_of(data), totals_of(repository)",
   "    except (ValueError, TypeError, KeyError, AttributeError):",
-  "        return {}",
+  "        return {}, None, \"\", None",
+  "",
+  "",
+  "def login_of(data):",
+  "    \"\"\"The signed-in user's login in GitHub's GraphQL DATA (its viewer), or \"\".\"\"\"",
+  "    return str((data.get(\"viewer\") or {}).get(\"login\") or \"\")",
+  "",
+  "",
+  "def totals_of(repository):",
+  "    \"\"\"{\"open\": n, \"closed\": n} from GitHub's REPOSITORY (its open and closed aliases' totalCount); " +
+    "None when either",
+  "    is not there.\"\"\"",
+  "    counts = [(repository.get(state) or {}).get(\"totalCount\") for state in (\"open\", \"closed\")]",
+  "    return dict(zip((\"open\", \"closed\"), counts)) if all(type(n) is int for n in counts) else None",
+  "",
+  "",
+  "def settable_of(repository):",
+  "    \"\"\"What the user may set, from GitHub's REPOSITORY (SETTABLE's answer): {\"field\": the Priority " +
+    "field's id,",
+  "    \"options\": its [id, name] pairs, \"types\": the enabled types' [id, name]}; None without a role to, " +
+    "or neither.\"\"\"",
+  "    if repository.get(\"viewerPermission\") not in WRITERS:",
+  "        return None",
+  "    field = next((one for one in (repository.get(\"issueFields\") or {}).get(\"nodes\") or ()",
+  "                  if isinstance(one, dict) and str(one.get(\"name\", \"\")).lower() == \"priority\" and " +
+    "one.get(\"id\")), None)",
+  "    options = [[str(option[\"id\"]), str(option[\"name\"])] for option in (field or {}).get(\"options\") or " +
+    "()",
+  "               if option.get(\"id\") and option.get(\"name\")]",
+  "    types = [[str(one[\"id\"]), str(one[\"name\"])] for one in (repository.get(\"issueTypes\") or " +
+    "{}).get(\"nodes\") or ()",
+  "             if isinstance(one, dict) and one.get(\"id\") and one.get(\"name\") and one.get(\"isEnabled\") " +
+    "is not False]",
+  "    types.sort(key=lambda pair: TYPES.index(pair[1]) if pair[1] in TYPES else len(TYPES))",
+  "    if not options and not types:",
+  "        return None",
+  "    return {\"field\": str(field[\"id\"]) if options else \"\", \"options\": options, \"types\": types}",
+  "",
+  "",
+  "SET_OPTION = (\"mutation($issue: ID!, $field: ID!, $option: ID!) { setIssueFieldValue(input: {issueId: " +
+    "$issue, \"",
+  "              \"issueFields: [{fieldId: $field, singleSelectOptionId: $option}]}) { clientMutationId } }\")",
+  "CLEAR_OPTION = (\"mutation($issue: ID!, $field: ID!) { setIssueFieldValue(input: {issueId: $issue, " +
+    "issueFields: \"",
+  "                \"[{fieldId: $field, delete: true}]}) { clientMutationId } }\")",
+  "SET_TYPE = (\"mutation($issue: ID!, $type: ID!) { updateIssueIssueType(input: {issueId: $issue, " +
+    "issueTypeId: $type}) \"",
+  "            \"{ clientMutationId } }\")",
+  "CLEAR_TYPE = (\"mutation($issue: ID!) { updateIssueIssueType(input: {issueId: $issue, issueTypeId: null}) \"",
+  "              \"{ clientMutationId } }\")",
+  "",
+  "",
+  "def set_field(node, what, value, field=\"\"):",
+  "    \"\"\"Issue NODE's (its GraphQL id) priority (WHAT \"priority\": FIELD's option VALUE) or type (WHAT " +
+    "\"type\": the type",
+  "    VALUE), each by its id; VALUE None clears it: None when done, else the line that says why not.\"\"\"",
+  "    if what == \"priority\":",
+  "        query, more = (SET_OPTION, [\"-f\", f\"option={value}\"]) if value else (CLEAR_OPTION, [])",
+  "        more += [\"-f\", f\"field={field}\"]",
+  "    else:",
+  "        query, more = (SET_TYPE, [\"-f\", f\"type={value}\"]) if value else (CLEAR_TYPE, [])",
+  "    done = gh(\"api\", \"graphql\", \"-f\", f\"query={query}\", \"-f\", f\"issue={node}\", *more)",
+  "    return None if done is not None and done.returncode == 0 else failure(done)",
   "",
   "",
   "def change(repo, number, what):",
@@ -14747,20 +15022,24 @@ export const GITHUB = [
   "",
   "",
   "def view(repo, number):",
-  "    \"\"\"Issue NUMBER of REPO for its preview: (its fields with its comments, None) or (None, the line " +
-    "that says why not).",
-  "    Its words are anyone's: shown as text, never run.\"\"\"",
+  "    \"\"\"Issue NUMBER of REPO for its preview: (its fields with its type and comments, None) or (None, the " +
+    "line that says",
+  "    why not). Its words are anyone's: shown as text, never run.\"\"\"",
   "    done = gh(\"issue\", \"view\", str(number), \"-R\", repo, \"--json\", VIEW)",
   "    if done is None or done.returncode != 0:",
   "        return None, failure(done)",
   "    try:",
   "        row = json.loads(done.stdout)",
   "        login = lambda person: str((person or {}).get(\"login\", \"\"))       # noqa: E731",
+  "        labels = [str(label.get(\"name\", \"\")) for label in row.get(\"labels\") or ()]",
+  "        typed, typed_by = kind(Issue(0, \"\", tuple(labels), issue_type=str((row.get(\"issueType\") or " +
+    "{}).get(\"name\")",
+  "                                                                          or \"\")))",
   "        return {\"number\": int(row[\"number\"]), \"title\": str(row.get(\"title\") or \"\"), \"body\": " +
     "str(row.get(\"body\") or \"\"),",
   "                \"state\": str(row.get(\"state\") or \"\"), \"url\": str(row.get(\"url\") or \"\"),",
   "                \"created\": str(row.get(\"createdAt\") or \"\"), \"author\": login(row.get(\"author\")),",
-  "                \"labels\": [str(label.get(\"name\", \"\")) for label in row.get(\"labels\") or ()],",
+  "                \"labels\": labels, \"type\": typed, \"typed_by\": typed_by,",
   "                \"assignees\": [login(person) for person in row.get(\"assignees\") or ()],",
   "                \"comments\": [{\"author\": login(comment.get(\"author\")), \"body\": " +
     "str(comment.get(\"body\") or \"\"),",
@@ -14822,17 +15101,22 @@ export const GITHUB = [
   "",
   "def listed(issue):",
   "    \"\"\"ISSUE as the app mod's list shows it: its fields, its priority's rank (None without one) and what " +
-    "says it, what",
-  "    a search finds it by, and how long ago it changed.\"\"\"",
+    "says it, its",
+  "    type and the label it was read from, the labels its row lists, what a search finds it by, how long ago " +
+    "it",
+  "    changed.\"\"\"",
   "    level, by = priority(issue)",
-  "    return {**asdict(issue), \"level\": by and level, \"ranked_by\": by, \"said\": said(issue), \"ago\": " +
-    "ago(issue.updated)}",
+  "    typed, typed_by = kind(issue)",
+  "    return {**asdict(issue), \"level\": by and level, \"ranked_by\": by, \"type\": typed, \"typed_by\": " +
+    "typed_by,",
+  "            \"shown\": list(shown_labels(issue)), \"said\": said(issue), \"ago\": ago(issue.updated)}",
   "",
   "",
   "# --- pull requests: a repository's, a branch's, one opened, one reviewed",
   "",
   "PULL_FIELDS = " +
-    "\"number,title,headRefName,author,updatedAt,state,isDraft,reviewDecision,statusCheckRollup,url\"",
+    "(\"number,title,headRefName,author,updatedAt,state,isDraft,reviewDecision,statusCheckRollup,url,labels,\"",
+  "               \"assignees\")",
   "PULL_VIEW = PULL_FIELDS + \",baseRefName,headRefOid\"",
   "PULL_STATES = {\"open\": \"Open\", \"closed\": \"Closed\"}     # gh's closed: closed and merged ones",
   "PASSED = {\"SUCCESS\", \"NEUTRAL\", \"SKIPPED\"}             # a check's conclusion, or a commit status's " +
@@ -14869,6 +15153,8 @@ export const GITHUB = [
   "    url: str = \"\"",
   "    yours: bool = False                     # its review is asked of the signed-in user, or of a team of " +
     "theirs",
+  "    labels: tuple = ()",
+  "    assignees: tuple = ()",
   "",
   "",
   "@dataclass(frozen=True)",
@@ -14876,6 +15162,9 @@ export const GITHUB = [
   "    pulls: tuple = ()",
   "    me: str = \"\"                            # the signed-in user's login",
   "    error: str = None",
+  "    narrowed: tuple = None                  # its query's search's answer, as Listing's",
+  "    totals: dict = None                     # the repository's open and closed (and merged) ones, as " +
+    "Listing's",
   "",
   "",
   "def tally(rollup):",
@@ -14901,17 +15190,9 @@ export const GITHUB = [
   "                str(row.get(\"state\") or \"OPEN\"), bool(row.get(\"isDraft\")), " +
     "str(row.get(\"reviewDecision\") or \"\"),",
   "                tally(row.get(\"statusCheckRollup\")), str(row.get(\"url\") or \"\"), int(row[\"number\"]) " +
-    "in yours)",
-  "",
-  "",
-  "def viewer():",
-  "    \"\"\"The signed-in user's login, or \"\" when gh cannot say.\"\"\"",
-  "    done = gh(\"api\", \"user\")",
-  "    try:",
-  "        return str(json.loads(done.stdout).get(\"login\") or \"\") if done is not None and done.returncode " +
-    "== 0 else \"\"",
-  "    except (ValueError, AttributeError):",
-  "        return \"\"",
+    "in yours,",
+  "                tuple(str(label.get(\"name\", \"\")) for label in row.get(\"labels\") or ()),",
+  "                tuple(str(person.get(\"login\", \"\")) for person in row.get(\"assignees\") or ()))",
   "",
   "",
   "def waiting(repo):",
@@ -14927,20 +15208,54 @@ export const GITHUB = [
   "        return set()",
   "",
   "",
-  "def pulls(repo, state=\"open\"):",
-  "    \"\"\"REPO's pull requests, open or closed (and merged), the latest change first, the user's login " +
-    "beside them.\"\"\"",
-  "    done = gh(\"pr\", \"list\", \"-R\", repo, \"--state\", state, \"--limit\", str(LIMIT), \"--json\", " +
-    "PULL_FIELDS)",
+  "def pulls(repo, query=Query()):",
+  "    \"\"\"REPO's pull requests as QUERY asks for them, open or closed (and merged), the latest change " +
+    "first, its search",
+  "    asked as well once they fill LIMIT (as issues()), the user's login beside them.\"\"\"",
+  "    def ask(*search):",
+  "        return gh(\"pr\", \"list\", \"-R\", repo, \"--state\", query.state, *([\"--search\", \" " +
+    "\".join(search)] if search else []),",
+  "                  \"--limit\", str(LIMIT), \"--json\", PULL_FIELDS)",
+  "    done = ask()",
   "    if done is None or done.returncode != 0:",
   "        return Pulls(error=failure(done))",
   "    try:",
-  "        rows = json.loads(done.stdout)",
-  "        yours = waiting(repo) if state == \"open\" else set()",
+  "        rows, narrowed = json.loads(done.stdout), None",
+  "        if query.search and len(rows) >= LIMIT:",
+  "            done = ask(query.search)",
+  "            if done is None or done.returncode != 0:",
+  "                return Pulls(error=failure(done))",
+  "            narrowed = json.loads(done.stdout)",
+  "        yours = waiting(repo) if query.state == \"open\" else set()",
   "        found = tuple(pull_of(row, yours) for row in rows)",
+  "        narrowed = None if narrowed is None else tuple(pull_of(row, yours) for row in narrowed)",
   "    except (ValueError, TypeError, KeyError, AttributeError):",
   "        return Pulls(error=\"gh gave an answer that could not be read\")",
-  "    return Pulls(found, viewer())",
+  "    me, totals = pull_counts(repo)",
+  "    return Pulls(found, me, None, narrowed, totals)",
+  "",
+  "",
+  "# the signed-in user, and how many pull requests a repository has open and closed (merged too, as gh's " +
+    "closed counts)",
+  "PULL_COUNTS = (\"query($owner: String!, $name: String!) { viewer { login } repository(owner: $owner, name: " +
+    "$name) { \"",
+  "               \"open: pullRequests(states: OPEN) { totalCount } closed: pullRequests(states: [CLOSED, " +
+    "MERGED]) { \"",
+  "               \"totalCount } } }\")",
+  "",
+  "",
+  "def pull_counts(repo):",
+  "    \"\"\"(The signed-in user's login, REPO's open and closed pull requests (totals_of())) in one GraphQL " +
+    "request; (\"\",",
+  "    None) where it fails.\"\"\"",
+  "    owner, _, name = repo.partition(\"/\")",
+  "    done = gh(\"api\", \"graphql\", \"-f\", f\"query={PULL_COUNTS}\", \"-f\", f\"owner={owner}\", \"-f\", " +
+    "f\"name={name}\")",
+  "    try:",
+  "        data = json.loads(done.stdout)[\"data\"] if done is not None else {}",
+  "        return login_of(data), totals_of(data.get(\"repository\") or {})",
+  "    except (ValueError, TypeError, KeyError, AttributeError):",
+  "        return \"\", None",
   "",
   "",
   "def branch_pull(repo, branch):",
@@ -15162,12 +15477,22 @@ export const GITHUB = [
   "            \"opening a link it gives.\")",
   "",
   "",
+  "def query_of(text):",
+  "    \"\"\"The mod's QUERY (a JSON object: state, search) as a Query; ValueError for anything else.\"\"\"",
+  "    asked = json.loads(text)",
+  "    if not isinstance(asked, dict) or asked.get(\"state\", \"open\") not in STATES \\",
+  "            or not isinstance(asked.get(\"search\", \"\"), str):",
+  "        raise ValueError(\"not a query\")",
+  "    return Query(asked.get(\"state\", \"open\"), asked.get(\"search\", \"\"))",
+  "",
+  "",
   "def main(argv):",
   "    \"\"\"herdr-fold's Herdr app mod runs this on the space's machine, answering in JSON: issues, change, " +
-    "prompt, view,",
-  "    reply and create for issues; pulls, branch, open-pull, review, submit, answer, resolve, pull-prompt and " +
-    "address",
-  "    for pull requests (the usage line names each one's arguments; a JSON object where it says JSON).\"\"\"",
+    "set, prompt,",
+  "    view, reply and create for issues; pulls, branch, open-pull, review, submit, answer, resolve, " +
+    "pull-prompt and",
+  "    address for pull requests (the usage line names each one's arguments; a JSON object where it says " +
+    "JSON).\"\"\"",
   "    command, args = (argv[1], argv[2:]) if len(argv) > 1 else (\"\", [])",
   "    try:",
   "        numbered = (\"change\", \"prompt\", \"view\", \"reply\", \"review\", \"submit\", \"answer\", " +
@@ -15176,17 +15501,22 @@ export const GITHUB = [
   "        if number is not None and number < 1:",
   "            raise ValueError(\"not an issue\")",
   "        if command == \"issues\" and len(args) == 2:",
-  "            asked = json.loads(args[1])",
-  "            fields = {name: asked[name] for name in (\"state\", \"assigned\", \"authored\", \"label\") if " +
-    "name in asked}",
-  "            if fields.get(\"state\", \"open\") not in STATES or not isinstance(fields.get(\"label\", \"\"), " +
-    "str):",
-  "                raise ValueError(\"not a query\")",
-  "            query = Query(**{**fields, \"assigned\": bool(fields.get(\"assigned\")),",
-  "                             \"authored\": bool(fields.get(\"authored\"))})",
+  "            query = query_of(args[1])",
   "            found = issues(args[0], query)",
-  "            shown = ranked(found.issues) if query.state == \"open\" else found.issues",
-  "            answer = {\"issues\": [listed(issue) for issue in shown], \"error\": found.error}",
+  "            order = ranked if query.state == \"open\" else tuple",
+  "            answer = {\"issues\": [listed(issue) for issue in order(found.issues)], \"error\": found.error,",
+  "                      \"narrowed\": None if found.narrowed is None else [listed(one) for one in " +
+    "order(found.narrowed)],",
+  "                      \"settable\": found.settable, \"me\": found.me, \"totals\": found.totals, \"limit\": " +
+    "LIMIT}",
+  "        elif command == \"set\" and len(args) == 1:",
+  "            asked = json.loads(args[0])",
+  "            if asked.get(\"what\") not in (\"priority\", \"type\") or not isinstance(asked.get(\"issue\"), " +
+    "str):",
+  "                raise ValueError(\"not a change\")",
+  "            error = set_field(asked[\"issue\"], asked[\"what\"], asked.get(\"value\") or None, " +
+    "str(asked.get(\"field\") or \"\"))",
+  "            answer = {\"ok\": error is None, \"advice\": error}",
   "        elif command == \"change\" and len(args) == 3 and args[2] in (\"close\", \"reopen\", \"assign\"):",
   "            error = change(args[0], number, args[2])",
   "            answer = {\"ok\": error is None, \"advice\": error}",
@@ -15201,10 +15531,13 @@ export const GITHUB = [
   "            answer = {\"argv\": comment_argv(args[0], number)}",
   "        elif command == \"create\" and len(args) == 1:",
   "            answer = {\"argv\": create_argv(args[0])}",
-  "        elif command == \"pulls\" and len(args) == 2 and args[1] in PULL_STATES:",
-  "            found = pulls(args[0], args[1])",
+  "        elif command == \"pulls\" and len(args) == 2:",
+  "            found = pulls(args[0], Query(args[1]) if args[1] in PULL_STATES else query_of(args[1]))",
   "            answer = {\"pulls\": [pull_listed(pull, found.me) for pull in found.pulls], \"error\": " +
-    "found.error}",
+    "found.error,",
+  "                      \"narrowed\": None if found.narrowed is None else [pull_listed(one, found.me)",
+  "                                                                       for one in found.narrowed],",
+  "                      \"me\": found.me, \"totals\": found.totals, \"limit\": LIMIT}",
   "        elif command == \"branch\" and len(args) == 2:",
   "            pull, base, error = branch_pull(args[0], args[1])",
   "            answer = {\"pull\": pull and pull_listed(pull), \"base\": base, \"error\": error}",
@@ -15236,13 +15569,12 @@ export const GITHUB = [
   "        else:",
   "            raise ValueError(\"unknown command\")",
   "    except (ValueError, TypeError, AttributeError, KeyError):",
-  "        print(\"usage: github.py issues REPO QUERY | change REPO NUMBER close|reopen|assign | " +
-    "prompt|view|reply REPO \"",
-  "              \"NUMBER | create REPO | pulls REPO open|closed | branch REPO BRANCH | open-pull REPO JSON | " +
-    "review REPO \"",
-  "              \"NUMBER | submit REPO NUMBER JSON | answer REPO NUMBER COMMENT BODY | resolve THREAD | " +
-    "pull-prompt \"",
-  "              \"REPO NUMBER | address REPO NUMBER JSON\", file=sys.stderr)",
+  "        print(\"usage: github.py issues REPO QUERY | change REPO NUMBER close|reopen|assign | set JSON | \"",
+  "              \"prompt|view|reply REPO NUMBER | create REPO | pulls REPO open|closed|QUERY | branch REPO " +
+    "BRANCH | \"",
+  "              \"open-pull REPO JSON | review REPO NUMBER | submit REPO NUMBER JSON | answer REPO NUMBER " +
+    "COMMENT BODY \"",
+  "              \"| resolve THREAD | pull-prompt REPO NUMBER | address REPO NUMBER JSON\", file=sys.stderr)",
   "        return 2",
   "    print(json.dumps(answer))",
   "    return 0",
@@ -22255,6 +22587,8 @@ export const REPORT = [
   "'NAMES = {\"claude\": \"Claude\", \"codex\": \"Codex\"}',",
   "'SAID = {\"five_hour\": (\"five\", \"5h\", \"5h\"), \"week\": (\"week\", \"wk\", \"Week\")}',",
   "'PLAN = re.compile(r\"[A-Za-z][A-Za-z ]{0,23}\")',",
+  "'MODEL = re.compile(r\"[A-Za-z][A-Za-z0-9 .-]{0,23}\")',",
+  "'NBSP = \"\\\\u00a0\"',",
   "'API_KEY = \"API key\"',",
   "'UNTOLD = \"limits not told\"',",
   "'WHY = {\"claude\": \"Claude tells its limits to herdr-fold\\'s status line and to its own cache: neither " +
@@ -22294,6 +22628,13 @@ export const REPORT = [
   "'    if not number(value.get(\"used\")):',",
   "'        return None',",
   "'    return {\"used\": round(value[\"used\"]), \"resets\": epoch(value.get(\"resets\"))}',",
+  "'def model_windows(values):',",
+  "'    found = {}',",
+  "'    for value in values if isinstance(values, list) else ():',",
+  "'        one, name = window(value), obj(value).get(\"name\")',",
+  "'        if one and isinstance(name, str) and MODEL.fullmatch(name) and name not in found:',",
+  "'            found[name] = {\"name\": name, **one}',",
+  "'    return list(found.values())',",
   "'def opened(path):',",
   "'    fd = os.open(path, os.O_RDONLY | getattr(os, \"O_NONBLOCK\", 0) | getattr(os, \"O_BINARY\", 0))',",
   "'    try:',",
@@ -22321,9 +22662,10 @@ export const REPORT = [
   "'    return os.path.join(home, *LIMITS, f\"{name}.json\")',",
   "'def told(data):',",
   "'    limits = obj(obj(data).get(\"rate_limits\"))',",
-  "'    return {name: window({\"used\": obj(limits.get(key)).get(\"used_percentage\"),',",
-  "'                          \"resets\": obj(limits.get(key)).get(\"resets_at\")})',",
-  "'            for name, key in ((\"five_hour\", \"five_hour\"), (\"week\", \"seven_day\"))}',",
+  "'    return {**{name: window({\"used\": obj(limits.get(key)).get(\"used_percentage\"),',",
+  "'                             \"resets\": obj(limits.get(key)).get(\"resets_at\")})',",
+  "'               for name, key in ((\"five_hour\", \"five_hour\"), (\"week\", \"seven_day\"))}, \"models\": " +
+    "[]}',",
   "'def fresher(mine, kept, now, own=None):',",
   "'    if own and own[\"resets\"] is not None and own[\"resets\"] > now:',",
   "'        return max((one for one in (own, mine, kept) if one and one[\"resets\"] is not None',",
@@ -22342,13 +22684,14 @@ export const REPORT = [
   "'    home = os.path.expanduser(\"~\")',",
   "'    before, own = kept(home, agent) or {}, (claude_cached(home) if agent == \"claude\" else None) or {}',",
   "'    found = {name: fresher(found[name], before.get(name), int(at), own.get(name)) for name in WINDOWS}',",
+  "'    found[\"models\"] = own[\"models\"] if own else before.get(\"models\", [])',",
   "'    statefile.write(kept_path(home, agent), {**found, \"at\": int(at)})',",
   "'    return found',",
   "'def kept(home, agent):',",
   "'    found = read_json(kept_path(home, agent))',",
-  "'    return {**{name: window(found.get(name)) for name in WINDOWS}, \"at\": int(found[\"at\"]), \"source\": " +
-    "\"status\"} \\\\',",
-  "'        if number(found.get(\"at\")) else None',",
+  "'    return {**{name: window(found.get(name)) for name in WINDOWS}, \"models\": " +
+    "model_windows(found.get(\"models\")),',",
+  "'            \"at\": int(found[\"at\"]), \"source\": \"status\"} if number(found.get(\"at\")) else None',",
   "'def claude_cached(home):',",
   "'    found = read_json(os.path.join(claude_folder(home) or home, \".claude.json\"))',",
   "'    cached, signed = obj(found.get(\"cachedUsageUtilization\")), " +
@@ -22358,9 +22701,15 @@ export const REPORT = [
   "'    used = obj(cached.get(\"utilization\"))',",
   "'    found = {name: obj(used.get(key)) for name, key in ((\"five_hour\", \"five_hour\"), (\"week\", " +
     "\"seven_day\"))}',",
+  "'    meters = used.get(\"limits\") if isinstance(used.get(\"limits\"), list) else []',",
+  "'    scoped = [obj(one) for one in meters if obj(one).get(\"kind\") == \"weekly_scoped\"]',",
   "'    return {**{name: window({\"used\": one.get(\"utilization\"), \"resets\": one.get(\"resets_at\")})',",
-  "'               for name, one in found.items()}, \"at\": int(cached[\"fetchedAtMs\"] // 1000), \"source\": " +
-    "\"claude\"}',",
+  "'               for name, one in found.items()},',",
+  "'            \"models\": model_windows([{\"name\": " +
+    "obj(obj(one.get(\"scope\")).get(\"model\")).get(\"display_name\"),',",
+  "'                                      \"used\": one.get(\"percent\"), \"resets\": one.get(\"resets_at\")} " +
+    "for one in scoped]),',",
+  "'            \"at\": int(cached[\"fetchedAtMs\"] // 1000), \"source\": \"claude\"}',",
   "'def codex_windows(limits, at):',",
   "'    found = dict.fromkeys(WINDOWS)',",
   "'    for key in (\"primary\", \"secondary\"):',",
@@ -22388,7 +22737,8 @@ export const REPORT = [
   "'        payload = obj(entry.get(\"payload\"))',",
   "'        if entry.get(\"type\") == \"event_msg\" and payload.get(\"type\") == \"token_count\":',",
   "'            at = epoch(entry.get(\"timestamp\")) or changed',",
-  "'            yield {**codex_windows(payload.get(\"rate_limits\"), at), \"at\": at, \"source\": \"codex\"}',",
+  "'            yield {**codex_windows(payload.get(\"rate_limits\"), at), \"models\": [], \"at\": at, " +
+    "\"source\": \"codex\"}',",
   "'def codex_newest(home):',",
   "'    found = []',",
   "'    for path in glob.glob(os.path.join(home, \".codex\", \"sessions\", \"*\", \"*\", \"*\", " +
@@ -22405,15 +22755,15 @@ export const REPORT = [
   "'        if readings:',",
   "'            return next((one for one in reversed(readings) if any(one[name] for name in WINDOWS)), None)',",
   "'    return None',",
-  "'def current(reading, now, used):',",
-  "'    found = {}',",
-  "'    for name in WINDOWS:',",
-  "'        one = reading[name]',",
-  "'        ends = one and (one[\"resets\"] if one[\"resets\"] is not None else reading[\"at\"] + " +
-    "WINDOWS[name])',",
-  "'        found[name] = one if not one or now < ends else {\"used\": 0 if used < ends else None, \"resets\": " +
+  "'def held(one, ends, now, used):',",
+  "'    ends = one and (one[\"resets\"] if one[\"resets\"] is not None else ends)',",
+  "'    return one if not one or now < ends else {**one, \"used\": 0 if used < ends else None, \"resets\": " +
     "None}',",
-  "'    return found',",
+  "'def current(reading, now, used):',",
+  "'    return {**{name: held(reading[name], reading[\"at\"] + WINDOWS[name], now, used) for name in " +
+    "WINDOWS},',",
+  "'            \"models\": [held(one, reading[\"at\"] + WINDOWS[\"week\"], now, used) for one in " +
+    "reading[\"models\"]]}',",
   "'def last_used(agent, home):',",
   "'    place = (\".claude\", \"projects\", \"*\", \"*.jsonl\") if agent == \"claude\" else \\\\',",
   "'        (\".codex\", \"sessions\", \"*\", \"*\", \"*\", \"rollout-*.jsonl\")',",
@@ -22443,6 +22793,14 @@ export const REPORT = [
   "'    if seconds < 3600:',",
   "'        return f\"{seconds // 60} min ago\"',",
   "'    return f\"{seconds // 3600} h ago\" if seconds < 2 * 86400 else f\"{seconds // 86400} d ago\"',",
+  "'def meter(one, label, said, now):',",
+  "'    when = \"{day} {time}\" if one and one[\"resets\"] is not None and one[\"resets\"] - now >= SOON else " +
+    "\"{time}\"',",
+  "'    return one and {\"label\": label, \"used\": one[\"used\"], \"text\": \"\u2013\" if one[\"used\"] is " +
+    "None else f\"{one[\\'used\\']}%\",',",
+  "'                    \"level\": None if one[\"used\"] is None else level(one[\"used\"]),',",
+  "'                    \"resets\": one[\"resets\"] and {\"at\": one[\"resets\"], \"words\": f\"{said} resets " +
+    "{when}\"}}',",
   "'def section(limits, agents, current, now):',",
   "'    told = {one[\"key\"]: one for one in (agents if isinstance(agents, list) else []) if " +
     "isinstance(obj(one).get(\"key\"),',",
@@ -22456,17 +22814,11 @@ export const REPORT = [
     "key == current,',",
   "'               \"age\": f\"Read {ago(now - reading[\\'at\\'])}\", \"untold\": None}',",
   "'        for window, (part, label, said) in SAID.items():',",
-  "'            one, when = reading[window], \"{time}\"',",
-  "'            if one and one[\"resets\"] is not None and one[\"resets\"] - now >= SOON:',",
-  "'                when = \"{day} {time}\"',",
-  "'            row[part] = one and {\"label\": label, \"used\": one[\"used\"],',",
-  "'                                 \"text\": \"\u2013\" if one[\"used\"] is None else " +
-    "f\"{one[\\'used\\']}%\",',",
-  "'                                 \"level\": None if one[\"used\"] is None else level(one[\"used\"]),',",
-  "'                                 \"resets\": one[\"resets\"] and {\"at\": one[\"resets\"], \"words\": " +
-    "f\"{said} resets {when}\"}}',",
-  "'        known = [row[part] for part in (\"five\", \"week\") if row[part] and row[part][\"used\"] is not " +
-    "None]',",
+  "'            row[part] = meter(reading[window], label, said, now)',",
+  "'        row[\"models\"] = [meter(one, one[\"name\"], one[\"name\"].replace(\" \", NBSP), now) for one in " +
+    "reading[\"models\"]]',",
+  "'        known = [one for one in (row[\"five\"], row[\"week\"], *row[\"models\"]) if one and one[\"used\"] " +
+    "is not None]',",
   "'        row[\"tight\"] = max(known, key=lambda one: one[\"used\"]) if known else None',",
   "'        row[\"reset\"] = row[\"tight\"][\"resets\"] if row[\"tight\"] and row[\"tight\"][\"level\"] in " +
     "(\"warn\", \"bad\") else None',",
@@ -22478,9 +22830,10 @@ export const REPORT = [
   "'        name = name or NAMES.get(current, current)',",
   "'        rows.insert(0, {\"key\": current, \"name\": name, \"current\": True, \"age\": None, \"five\": " +
     "None, \"week\": None,',",
-  "'                        \"plan\": plan if isinstance(plan, str) and PLAN.fullmatch(plan) else None, " +
-    "\"tight\": None,',",
-  "'                        \"reset\": None, \"untold\": {\"text\": UNTOLD, \"why\": WHY.get(',",
+  "'                        \"models\": [], \"plan\": plan if isinstance(plan, str) and PLAN.fullmatch(plan) " +
+    "else None,',",
+  "'                        \"tight\": None, \"reset\": None, \"untold\": {\"text\": UNTOLD, \"why\": " +
+    "WHY.get(',",
   "'                            current, f\"{name} does not tell herdr-fold its limits.\")}})',",
   "'    return {\"id\": \"usage\", \"title\": \"Usage\", \"none\": \"Not known yet\", \"rows\": rows}',",
   "'def twelve_hours(home):',",
@@ -27364,11 +27717,12 @@ export const USAGE = [
   "'if __name__ == \"__main__\":',",
   "'    sys.exit(main(sys.argv))',",
   "]), _sys.modules['statefile'].__dict__)",
-  "\"\"\"The agents' limits for the Agent panel's Usage, the 5-hour and the weekly one: herdr-fold's own " +
-    "readings and Claude's",
-  "cached ones (each Claude account its own), Codex's newest chat's, the newest per agent, a window just reset " +
-    "told as",
-  "such. Nothing of the agents' is written. Usage (in JSON): usage.py limits | section AGENT [AGENTS].\"\"\"",
+  "\"\"\"The agents' limits for the Agent panel's Usage, the 5-hour, the weekly and a model's own week " +
+    "(Fable's): herdr-fold's",
+  "own readings and Claude's cached ones (each Claude account its own), Codex's newest chat's, the newest per " +
+    "agent, one",
+  "just reset told as such. Nothing of the agents' is written. Usage (JSON): usage.py limits | section AGENT " +
+    "[AGENTS].\"\"\"",
   "import calendar",
   "import errno",
   "import glob",
@@ -27403,6 +27757,11 @@ export const USAGE = [
     "key, label and name",
   "PLAN = re.compile(r\"[A-Za-z][A-Za-z ]{0,23}\")           # a plan's word: letters alone, so never an " +
     "e-mail or an id",
+  "MODEL = re.compile(r\"[A-Za-z][A-Za-z0-9 .-]{0,23}\")     # a model's name, as Claude's cache names its own " +
+    "week's",
+  "# a model's name in its reset's words: no space in it, as the clients take the words' first word for their " +
+    "label",
+  "NBSP = \"\\u00a0\"",
   "API_KEY = \"API key\"             # agent_state.py's word for a plan on an API key: it has no window to tell",
   "UNTOLD = \"limits not told\"      # the current agent's row with no reading: said in its place, why in its " +
     "properties",
@@ -27460,6 +27819,18 @@ export const USAGE = [
   "    return {\"used\": round(value[\"used\"]), \"resets\": epoch(value.get(\"resets\"))}",
   "",
   "",
+  "def model_windows(values):",
+  "    \"\"\"The models' own weekly windows in VALUES (a list of {\"name\", \"used\", \"resets\"}), as kept " +
+    "and answered, each a",
+  "    window() with its model's name; one a name, the first kept; [] for none.\"\"\"",
+  "    found = {}",
+  "    for value in values if isinstance(values, list) else ():",
+  "        one, name = window(value), obj(value).get(\"name\")",
+  "        if one and isinstance(name, str) and MODEL.fullmatch(name) and name not in found:",
+  "            found[name] = {\"name\": name, **one}",
+  "    return list(found.values())",
+  "",
+  "",
   "def opened(path):",
   "    \"\"\"PATH opened to read in binary, a regular file only (OSError otherwise): a pipe in its place would " +
     "hold the",
@@ -27503,12 +27874,14 @@ export const USAGE = [
   "",
   "",
   "def told(data):",
-  "    \"\"\"The windows Claude's status-line JSON DATA tells ({\"five_hour\", \"week\"}): its rate_limits as " +
-    "last answered.\"\"\"",
+  "    \"\"\"The windows Claude's status-line JSON DATA tells ({\"five_hour\", \"week\", \"models\"}): its " +
+    "rate_limits as last",
+  "    answered; no model's own week, which it never tells.\"\"\"",
   "    limits = obj(obj(data).get(\"rate_limits\"))",
-  "    return {name: window({\"used\": obj(limits.get(key)).get(\"used_percentage\"),",
-  "                          \"resets\": obj(limits.get(key)).get(\"resets_at\")})",
-  "            for name, key in ((\"five_hour\", \"five_hour\"), (\"week\", \"seven_day\"))}",
+  "    return {**{name: window({\"used\": obj(limits.get(key)).get(\"used_percentage\"),",
+  "                             \"resets\": obj(limits.get(key)).get(\"resets_at\")})",
+  "               for name, key in ((\"five_hour\", \"five_hour\"), (\"week\", \"seven_day\"))}, \"models\": " +
+    "[]}",
   "",
   "",
   "def fresher(mine, kept, now, own=None):",
@@ -27529,11 +27902,11 @@ export const USAGE = [
   "",
   "",
   "def keep(agent, windows, at):",
-  "    \"\"\"WINDOWS ({\"five_hour\", \"week\"}, each a window or None) read at AT kept as AGENT's newest " +
-    "reading, each the",
-  "    fresher() of it, the one kept (another chat's may be newer) and Claude's own; its owner's only. The " +
-    "windows kept;",
-  "    None for a reading that tells neither (before a chat's first answer, an API key's), which is not " +
+  "    \"\"\"WINDOWS ({\"five_hour\", \"week\"}) read at AT kept as AGENT's newest reading, each the fresher() " +
+    "of it, the one kept",
+  "    and Claude's own, the models' weeks Claude's cache's (no chat tells them), else the ones kept; its " +
+    "owner's only. The",
+  "    windows kept; None for a reading that tells neither week nor 5 hours (an API key's), which is not " +
     "kept.\"\"\"",
   "    if agent not in AGENTS:",
   "        raise ValueError(f\"not an agent: {agent!r}\")",
@@ -27543,6 +27916,7 @@ export const USAGE = [
   "    home = os.path.expanduser(\"~\")",
   "    before, own = kept(home, agent) or {}, (claude_cached(home) if agent == \"claude\" else None) or {}",
   "    found = {name: fresher(found[name], before.get(name), int(at), own.get(name)) for name in WINDOWS}",
+  "    found[\"models\"] = own[\"models\"] if own else before.get(\"models\", [])",
   "    statefile.write(kept_path(home, agent), {**found, \"at\": int(at)})",
   "    return found",
   "",
@@ -27550,16 +27924,18 @@ export const USAGE = [
   "def kept(home, agent):",
   "    \"\"\"AGENT's reading as herdr-fold's status lines kept it, or None.\"\"\"",
   "    found = read_json(kept_path(home, agent))",
-  "    return {**{name: window(found.get(name)) for name in WINDOWS}, \"at\": int(found[\"at\"]), \"source\": " +
-    "\"status\"} \\",
-  "        if number(found.get(\"at\")) else None",
+  "    return {**{name: window(found.get(name)) for name in WINDOWS}, \"models\": " +
+    "model_windows(found.get(\"models\")),",
+  "            \"at\": int(found[\"at\"]), \"source\": \"status\"} if number(found.get(\"at\")) else None",
   "",
   "",
   "def claude_cached(home):",
   "    \"\"\"Claude's own reading, kept in its account's .claude.json at its own pace (cachedUsageUtilization, " +
     "when it was",
   "    fetched), or None; one fetched for another account than the one signed in is not its. Ids compared, " +
-    "never told.\"\"\"",
+    "never told.",
+  "    A model's own week is a usage row of its (limits[], kind weekly_scoped), shown as Claude's /usage lists " +
+    "them all.\"\"\"",
   "    found = read_json(os.path.join(claude_folder(home) or home, \".claude.json\"))",
   "    cached, signed = obj(found.get(\"cachedUsageUtilization\")), " +
     "obj(found.get(\"oauthAccount\")).get(\"accountUuid\")",
@@ -27568,9 +27944,15 @@ export const USAGE = [
   "    used = obj(cached.get(\"utilization\"))",
   "    found = {name: obj(used.get(key)) for name, key in ((\"five_hour\", \"five_hour\"), (\"week\", " +
     "\"seven_day\"))}",
+  "    meters = used.get(\"limits\") if isinstance(used.get(\"limits\"), list) else []",
+  "    scoped = [obj(one) for one in meters if obj(one).get(\"kind\") == \"weekly_scoped\"]",
   "    return {**{name: window({\"used\": one.get(\"utilization\"), \"resets\": one.get(\"resets_at\")})",
-  "               for name, one in found.items()}, \"at\": int(cached[\"fetchedAtMs\"] // 1000), \"source\": " +
-    "\"claude\"}",
+  "               for name, one in found.items()},",
+  "            \"models\": model_windows([{\"name\": " +
+    "obj(obj(one.get(\"scope\")).get(\"model\")).get(\"display_name\"),",
+  "                                      \"used\": one.get(\"percent\"), \"resets\": one.get(\"resets_at\")} " +
+    "for one in scoped]),",
+  "            \"at\": int(cached[\"fetchedAtMs\"] // 1000), \"source\": \"claude\"}",
   "",
   "",
   "def codex_windows(limits, at):",
@@ -27606,7 +27988,8 @@ export const USAGE = [
   "        payload = obj(entry.get(\"payload\"))",
   "        if entry.get(\"type\") == \"event_msg\" and payload.get(\"type\") == \"token_count\":",
   "            at = epoch(entry.get(\"timestamp\")) or changed",
-  "            yield {**codex_windows(payload.get(\"rate_limits\"), at), \"at\": at, \"source\": \"codex\"}",
+  "            yield {**codex_windows(payload.get(\"rate_limits\"), at), \"models\": [], \"at\": at, " +
+    "\"source\": \"codex\"}",
   "",
   "",
   "def codex_newest(home):",
@@ -27630,19 +28013,22 @@ export const USAGE = [
   "    return None",
   "",
   "",
+  "def held(one, ends, now, used):",
+  "    \"\"\"ONE, a window, at NOW: as it is while it holds; past its reset (one with no reset time, past " +
+    "ENDS) used 0 where",
+  "    nothing ran since it (USED: when the agent last wrote a chat), else not known (None), with no " +
+    "reset.\"\"\"",
+  "    ends = one and (one[\"resets\"] if one[\"resets\"] is not None else ends)",
+  "    return one if not one or now < ends else {**one, \"used\": 0 if used < ends else None, \"resets\": None}",
+  "",
+  "",
   "def current(reading, now, used):",
-  "    \"\"\"READING's windows at NOW: one still holding as it is; one past its reset (one with no reset time, " +
-    "past its",
-  "    length from the reading) used 0 where nothing ran since it (USED: when the agent last wrote a chat), " +
-    "else not",
-  "    known (None), with no reset.\"\"\"",
-  "    found = {}",
-  "    for name in WINDOWS:",
-  "        one = reading[name]",
-  "        ends = one and (one[\"resets\"] if one[\"resets\"] is not None else reading[\"at\"] + WINDOWS[name])",
-  "        found[name] = one if not one or now < ends else {\"used\": 0 if used < ends else None, \"resets\": " +
-    "None}",
-  "    return found",
+  "    \"\"\"READING's windows at NOW, each held(): one with no reset time ends its length after the reading, " +
+    "a model's",
+  "    own a week after.\"\"\"",
+  "    return {**{name: held(reading[name], reading[\"at\"] + WINDOWS[name], now, used) for name in WINDOWS},",
+  "            \"models\": [held(one, reading[\"at\"] + WINDOWS[\"week\"], now, used) for one in " +
+    "reading[\"models\"]]}",
   "",
   "",
   "def last_used(agent, home):",
@@ -27661,9 +28047,9 @@ export const USAGE = [
   "def limits(home, now):",
   "    \"\"\"Each agent's limits at NOW for the user whose home is HOME, the newest reading first: " +
     "[{\"agent\", \"five_hour\",",
-  "    \"week\", \"at\", \"source\": status, claude or codex}], from each agent's newest reading (current()'s " +
-    "windows); one",
-  "    with no window left out.\"\"\"",
+  "    \"week\", \"models\", \"at\", \"source\": status, claude or codex}], from each agent's newest reading " +
+    "(current()'s",
+  "    windows); one with neither week nor 5 hours left out.\"\"\"",
   "    found = []",
   "    for agent, own in ((\"claude\", claude_cached), (\"codex\", codex_newest)):",
   "        readings = [one for one in (kept(home, agent), own(home)) if one and any(one[name] for name in " +
@@ -27691,13 +28077,25 @@ export const USAGE = [
   "    return f\"{seconds // 3600} h ago\" if seconds < 2 * 86400 else f\"{seconds // 86400} d ago\"",
   "",
   "",
+  "def meter(one, label, said, now):",
+  "    \"\"\"ONE, a window at NOW, as a Usage row draws it: LABEL, its percent (\"0%\" just reset, \"\u2013\" " +
+    "not known), level and",
+  "    reset in SAID's words ({time}, {day}: the client's); None for none.\"\"\"",
+  "    when = \"{day} {time}\" if one and one[\"resets\"] is not None and one[\"resets\"] - now >= SOON else " +
+    "\"{time}\"",
+  "    return one and {\"label\": label, \"used\": one[\"used\"], \"text\": \"\u2013\" if one[\"used\"] is " +
+    "None else f\"{one['used']}%\",",
+  "                    \"level\": None if one[\"used\"] is None else level(one[\"used\"]),",
+  "                    \"resets\": one[\"resets\"] and {\"at\": one[\"resets\"], \"words\": f\"{said} resets " +
+    "{when}\"}}",
+  "",
+  "",
   "def section(limits, agents, current, now):",
   "    \"\"\"The Agent panel's Usage from LIMITS at NOW: a row an agent (CURRENT first; with no reading " +
     "\"untold\", its words",
-  "    and why, but on an API key), its name and plan as AGENTS tell, each window's percent (\"0%\" just " +
-    "reset, \"\u2013\" not",
-  "    known), level and reset ({time}, {day}: the client's), the tightest, \"reset\" (while yellow or red), " +
-    "the age.\"\"\"",
+  "    and why, but on an API key), its name and plan as AGENTS tell, each window's meter() (a model's own " +
+    "week labelled",
+  "    with its name), the tightest, \"reset\" (while yellow or red), the age.\"\"\"",
   "    told = {one[\"key\"]: one for one in (agents if isinstance(agents, list) else []) if " +
     "isinstance(obj(one).get(\"key\"),",
   "                                                                                                 str)}",
@@ -27711,16 +28109,11 @@ export const USAGE = [
     "== current,",
   "               \"age\": f\"Read {ago(now - reading['at'])}\", \"untold\": None}",
   "        for window, (part, label, said) in SAID.items():",
-  "            one, when = reading[window], \"{time}\"",
-  "            if one and one[\"resets\"] is not None and one[\"resets\"] - now >= SOON:",
-  "                when = \"{day} {time}\"",
-  "            row[part] = one and {\"label\": label, \"used\": one[\"used\"],",
-  "                                 \"text\": \"\u2013\" if one[\"used\"] is None else f\"{one['used']}%\",",
-  "                                 \"level\": None if one[\"used\"] is None else level(one[\"used\"]),",
-  "                                 \"resets\": one[\"resets\"] and {\"at\": one[\"resets\"], \"words\": " +
-    "f\"{said} resets {when}\"}}",
-  "        known = [row[part] for part in (\"five\", \"week\") if row[part] and row[part][\"used\"] is not " +
-    "None]",
+  "            row[part] = meter(reading[window], label, said, now)",
+  "        row[\"models\"] = [meter(one, one[\"name\"], one[\"name\"].replace(\" \", NBSP), now) for one in " +
+    "reading[\"models\"]]",
+  "        known = [one for one in (row[\"five\"], row[\"week\"], *row[\"models\"]) if one and one[\"used\"] " +
+    "is not None]",
   "        row[\"tight\"] = max(known, key=lambda one: one[\"used\"]) if known else None",
   "        row[\"reset\"] = row[\"tight\"][\"resets\"] if row[\"tight\"] and row[\"tight\"][\"level\"] in " +
     "(\"warn\", \"bad\") else None",
@@ -27731,9 +28124,9 @@ export const USAGE = [
   "        name = name or NAMES.get(current, current)",
   "        rows.insert(0, {\"key\": current, \"name\": name, \"current\": True, \"age\": None, \"five\": None, " +
     "\"week\": None,",
-  "                        \"plan\": plan if isinstance(plan, str) and PLAN.fullmatch(plan) else None, " +
-    "\"tight\": None,",
-  "                        \"reset\": None, \"untold\": {\"text\": UNTOLD, \"why\": WHY.get(",
+  "                        \"models\": [], \"plan\": plan if isinstance(plan, str) and PLAN.fullmatch(plan) " +
+    "else None,",
+  "                        \"tight\": None, \"reset\": None, \"untold\": {\"text\": UNTOLD, \"why\": WHY.get(",
   "                            current, f\"{name} does not tell herdr-fold its limits.\")}})",
   "    return {\"id\": \"usage\", \"title\": \"Usage\", \"none\": \"Not known yet\", \"rows\": rows}",
   "",
@@ -27888,6 +28281,7 @@ export const MEDIA_SERVICES = {
   "runway": "video"
 };
 export const OUTPUT_LINES = 400;
+export const ISSUES_STALE = 60;
 export const THEME_NAMES = {
   "herdr-fold-catppuccin": "Catppuccin Mocha",
   "herdr-fold-vscode": "VS Code (Dark Modern)",

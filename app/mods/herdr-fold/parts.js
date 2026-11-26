@@ -112,12 +112,17 @@ export function button(t, id, label, enabled, solid, onClick) {
     .when(enabled, (e) => e.cursor_pointer().on_click((_e, cx) => onClick(cx))).child(label);
 }
 
-/** @typedef {{ text: string, error: boolean }} Note what was done (ERROR: what went wrong) */
+/** @typedef {{ text: string, error: boolean, done?: boolean }} Note what was done (ERROR: what went wrong; DONE: a
+ * change made, its check before it) */
 
 /** NOTE under a list, on the card's foot, as the TUI's last row and Files' and Changes' problems: never over the rows,
- * so none moves; PAD in, PAD / 2 over it, 11, muted (an error ansi1), wrapping. @param {Note} note */
-export const footNote = (t, note) => div().flex_none().px(PAD).pt(PAD / 2).pb(PAD).text_size(11)
-  .text_color(note.error ? t.ansi1 : t.muted).child(note.text);
+ * so none moves; PAD in, PAD / 2 over it, 11, muted (an error ansi1), wrapping; a change DONE in the text's color,
+ * after the check in ansi2 (12, centred on the words' line). @param {Note} note */
+export const footNote = (t, note) => note.done && !note.error
+  ? h_flex().flex_none().px(PAD).pt(PAD / 2).pb(PAD).gap(6).items_center().text_size(11).text_color(t.foreground)
+    .child(icon("check", 12).text_color(t.ansi2)).child(div().min_w(0).child(note.text))
+  : div().flex_none().px(PAD).pt(PAD / 2).pb(PAD).text_size(11).text_color(note.error ? t.ansi1 : t.muted)
+    .child(note.text);
 
 /** NOTE (or none) on HOLDER's line, a done thing's gone after NOTE_MS unless another came meanwhile, an error's kept.
  * @param {{ note: Note | null }} holder @param {Note | null} note */

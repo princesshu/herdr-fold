@@ -1,6 +1,6 @@
-"""Tests for the GitHub layer (core/github.py: the TUI sidebar's and the app mod's) with a stand-in gh: issues per
-filter, GitHub's priority field, failures in plain words, changes, the agent's prompts, relative times, pull requests
-and their review, and the mod's command line."""
+"""Tests for the GitHub layer (core/github.py, both clients') with a stand-in gh: issues (their search once the list is
+full), the Priority field, types, setting them, the filters' counts, failures in plain words, changes, the agent's
+prompts, relative times, pull requests and their review, and the mod's command line."""
 import contextlib
 import io
 import json
@@ -32,8 +32,18 @@ if [ "$1 $2" = "api graphql" ]; then [ -n "$GH_FIELDS" ] || exit 1; cat "$GH_FIE
 cat "$GH_ANSWER"
 """
 # GitHub's issue fields as GraphQL gives them: the organization's Priority (Urgent, High, Medium, Low) on #42, another
-# field beside it; none on #38
+# field beside it; none on #38; the repository's fields and types, and the user's role there
+OPTIONS = [{"id": "PO_1", "name": "Urgent"}, {"id": "PO_2", "name": "High"}, {"id": "PO_3", "name": "Medium"},
+           {"id": "PO_4", "name": "Low"}]
+SETTABLE = {"viewerPermission": "TRIAGE", "issueFields": {"nodes": [{"id": "EF_1", "name": "Effort", "options": []},
+                                                                    {"id": "PF_1", "name": "Priority",
+                                                                     "options": OPTIONS}, {}]},
+            "issueTypes": {"nodes": [{"id": "IT_3", "name": "Task", "isEnabled": True},
+                                     {"id": "IT_1", "name": "Bug", "isEnabled": True},
+                                     {"id": "IT_9", "name": "Spike", "isEnabled": False},
+                                     {"id": "IT_2", "name": "Feature", "isEnabled": True}]}}
 FIELDS = {"data": {"repository": {
+    **SETTABLE,
     "i42": {"issueFieldValues": {"nodes": [{"name": "S", "field": {"name": "Effort"}},
                                            {"name": "High", "field": {"name": "Priority"}}]}},
     "i38": {"issueFieldValues": {"nodes": []}}}}}
@@ -70,16 +80,52 @@ class CLI(unittest.TestCase):
 
     def test_the_open_issues_take_githubs_priority_field(self):
         # GitHub's own priority: an organization's issue field, which gh's list does not hold; one GraphQL request asks
-        # for every listed issue's
+        # for every listed issue's, and the repository's fields and types beside them
         self.fields(FIELDS)
-        for query in (Query(), Query(assigned=True)):
-            listing = github.issues("acme/app", query)
-            self.assertEqual([(issue.number, issue.priority) for issue in listing.issues], [(42, "High"), (38, "")])
-            asked = logged(self.log)[-1]
-            self.assertTrue(asked.startswith("api graphql"), asked)
-            self.assertIn("owner=acme", asked)
-            self.assertIn("name=app", asked)
-            self.assertIn("i42: issue(number: 42)", asked)
+        listing = github.issues("acme/app", Query())
+        self.assertEqual([(issue.number, issue.priority) for issue in listing.issues], [(42, "High"), (38, "")])
+        asked = next(call for call in logged(self.log) if call.startswith("api graphql"))
+        for part in ("owner=acme", "name=app", "i42: issue(number: 42)", "viewerPermission issueTypes(first: 25)"):
+            self.assertIn(part, asked)
+
+    def test_what_the_user_may_set_the_priority_fields_options_and_the_enabled_types(self):
+        # the Priority field's id and options, the enabled types (GitHub's own first), with a role that sets them
+        self.fields(FIELDS)
+        self.assertEqual(github.issues("acme/app", Query()).settable, {
+            "field": "PF_1", "options": [["PO_1", "Urgent"], ["PO_2", "High"], ["PO_3", "Medium"], ["PO_4", "Low"]],
+            "types": [["IT_1", "Bug"], ["IT_2", "Feature"], ["IT_3", "Task"]]})
+        for role in ("READ", None):                              # a reader, or a repository that will not say
+            self.fields({"data": {"repository": {**FIELDS["data"]["repository"], "viewerPermission": role}}})
+            self.assertIsNone(github.issues("acme/app", Query()).settable, role)
+        alone = {"viewerPermission": "WRITE", "issueFields": {"nodes": []}, "issueTypes": None}   # a personal one
+        self.fields({"data": {"repository": alone}})
+        self.assertIsNone(github.issues("acme/app", Query()).settable)
+        self.fields({"data": {"repository": {**alone, "issueTypes": SETTABLE["issueTypes"]}}})
+        self.assertEqual(github.issues("acme/app", Query()).settable["field"], "")
+
+    def test_the_repositorys_open_and_closed_counts_and_the_user_ride_along(self):
+        # one request for all of it, the counts GitHub's own, as its list shows them (never the filters')
+        self.fields({"data": {"viewer": {"login": "dev"}, "repository": {**FIELDS["data"]["repository"],
+                                                                         "open": {"totalCount": 12},
+                                                                         "closed": {"totalCount": 30}}}})
+        listing = github.issues("acme/app", Query())
+        self.assertEqual((listing.totals, listing.me), ({"open": 12, "closed": 30}, "dev"))
+        self.assertEqual(len([call for call in logged(self.log) if call.startswith("api ")]), 1)
+        self.assertIn("open: issues(states: OPEN) { totalCount } closed: issues(states: CLOSED)",
+                      logged(self.log)[-1])
+        self.fields(FIELDS)                                                      # not told: none, never a 0
+        self.assertEqual((github.issues("acme/app", Query()).totals, github.issues("acme/app", Query()).me),
+                         (None, ""))
+
+    def test_each_issues_type_its_id_and_author(self):
+        rows = [{**ISSUES[0], "id": "I_42", "issueType": {"name": "Bug"}, "author": {"login": "ada"}},
+                {**ISSUES[1], "issueType": None}]
+        with open(self.answer, "w") as f:
+            json.dump(rows, f)
+        found = github.issues("acme/app", Query()).issues
+        self.assertEqual([(i.issue_type, i.node, i.author) for i in found], [("Bug", "I_42", "ada"), ("", "", "")])
+        self.assertIn("--json number,title,labels,assignees,updatedAt,state,url,id,issueType,author",
+                      logged(self.log)[0])
 
     def test_one_issue_that_cannot_be_read_leaves_the_others_priority(self):
         # gh ends with 1 when a part of the answer failed (an issue moved away meanwhile); the rest is still there
@@ -88,10 +134,12 @@ class CLI(unittest.TestCase):
         set_env(self, GH_FIELDS_RC="1")
         self.assertEqual([issue.priority for issue in github.issues("acme/app", Query()).issues], ["High", ""])
 
-    def test_closed_ones_ask_for_no_priority(self):
+    def test_closed_ones_take_their_fields_too(self):
+        # what may be set is the same on a closed one (a type set after the fact)
         self.fields(FIELDS)
-        github.issues("acme/app", Query("closed"))
-        self.assertEqual([call for call in logged(self.log) if call.startswith("api ")], [])
+        listing = github.issues("acme/app", Query("closed"))
+        self.assertEqual(listing.issues[0].priority, "High")
+        self.assertEqual(listing.settable["field"], "PF_1")
 
     def test_without_issue_fields_the_labels_are_left(self):
         # an owner without them (a personal account, an older GitHub), or an answer that cannot be read: no priority
@@ -104,12 +152,23 @@ class CLI(unittest.TestCase):
             listing = github.issues("acme/app", Query())
             self.assertIsNone(listing.error, answer)
             self.assertEqual([issue.priority for issue in listing.issues], ["", ""], answer)
+            self.assertIsNone(listing.settable, answer)
 
-    def test_githubs_own_filters_assigned_to_me_created_by_me_a_label(self):
-        github.issues("acme/app", Query(assigned=True))
-        self.assertIn("--state open --assignee @me", logged(self.log)[-2])
-        github.issues("acme/app", Query("closed", authored=True, label="good first issue"))
-        self.assertIn("--state closed --author @me --label=good first issue", logged(self.log)[-1])
+    def test_the_latest_hundred_then_the_filters_search_once_they_fill_it(self):
+        # fewer than LIMIT: the list holds every one, the filters narrow it here; LIMIT: GitHub's search is asked too,
+        # wider than the filters, so none past the latest hundred is lost
+        github.issues("acme/app", Query(search='label:"docs"'))
+        lists = [call for call in logged(self.log) if call.startswith("issue list")]
+        self.assertEqual(len(lists), 1)
+        self.assertIn("--state open --limit 100 --search sort:updated-desc --json", lists[0])
+        many = [{**ISSUES[1], "number": n} for n in range(1, github.LIMIT + 1)]
+        with open(self.answer, "w") as f:
+            json.dump(many, f)
+        listing = github.issues("acme/app", Query(search='label:"docs"'))
+        lists = [call for call in logged(self.log) if call.startswith("issue list")]
+        self.assertIn('--search label:"docs" sort:updated-desc', lists[-1])
+        self.assertEqual((len(listing.issues), len(listing.narrowed)), (github.LIMIT, github.LIMIT))
+        self.assertIsNone(github.issues("acme/app", Query()).narrowed)               # no filter: no search
 
     def test_closed_ones(self):
         github.issues("acme/app", Query("closed"))
@@ -126,6 +185,27 @@ class CLI(unittest.TestCase):
     def test_another_failure_is_its_own_last_line(self):
         set_env(self, GH_FAIL="HTTP 404: Not Found\nGraphQL: Could not resolve to a Repository")
         self.assertEqual(github.issues("acme/app", Query()).error, "GraphQL: Could not resolve to a Repository")
+        set_env(self, GH_FAIL="gh: princesshu does not have permission to update this issue")    # gh's own "gh: "
+        self.assertEqual(github.change("acme/app", 42, "close"), "princesshu does not have permission to update "
+                                                                  "this issue")
+
+    def test_a_priority_and_a_type_set_and_cleared_by_their_ids(self):
+        with open(self.answer, "w"):
+            pass
+        set_env(self, GH_FIELDS=self.answer)
+        for args, expected in ((("I_42", "priority", "PO_2", "PF_1"), ["setIssueFieldValue", "singleSelectOptionId",
+                                                                      "issue=I_42", "option=PO_2", "field=PF_1"]),
+                               (("I_42", "priority", None, "PF_1"), ["setIssueFieldValue", "delete: true",
+                                                                    "field=PF_1"]),
+                               (("I_42", "type", "IT_2"), ["updateIssueIssueType", "issueTypeId: $type", "type=IT_2"]),
+                               (("I_42", "type", None), ["updateIssueIssueType", "issueTypeId: null"])):
+            self.assertIsNone(github.set_field(*args))
+            call = logged(self.log)[-1]
+            self.assertTrue(call.startswith("api graphql -f query=mutation"), call)
+            for part in expected:
+                self.assertIn(part, call, args)
+        set_env(self, GH_FAIL="gh: Resource not accessible by integration")
+        self.assertEqual(github.set_field("I_42", "type", "IT_1"), "Resource not accessible by integration")
 
     def test_an_answer_that_is_not_a_list_is_a_failure_not_a_crash(self):
         with open(self.answer, "w") as f:
@@ -165,10 +245,23 @@ class CommandLine(CLI):
 
     def test_the_issues_as_the_sidebar_lists_them(self):
         code, answer = self.cli("issues", "acme/app", json.dumps({"state": "open"}))
-        self.assertEqual((code, answer["error"]), (0, None))
+        self.assertEqual((code, answer["error"], answer["narrowed"], answer["limit"]), (0, None, None, github.LIMIT))
         self.assertEqual([(i["number"], i["title"], i["labels"]) for i in answer["issues"]],
                          [(42, "Login fails on Safari", ["bug", "ui"]), (38, "Add a dark mode toggle", [])])
         self.assertIn("issue list -R acme/app --state open", logged(self.log)[0])
+        # each one's type, read from its bug label here, which then leaves the labels its row lists
+        self.assertEqual([(i["type"], i["typed_by"], i["shown"]) for i in answer["issues"]],
+                         [("Bug", "bug", ["ui"]), ("", None, [])])
+
+    def test_a_priority_or_type_set_by_the_mod(self):
+        set_env(self, GH_FIELDS=self.answer)
+        self.assertEqual(self.cli("set", json.dumps({"issue": "I_42", "what": "type", "value": "IT_2"})),
+                         (0, {"ok": True, "advice": None}))
+        self.assertIn("type=IT_2", logged(self.log)[-1])
+        self.cli("set", json.dumps({"issue": "I_42", "what": "priority", "value": None, "field": "PF_1"}))
+        self.assertIn("delete: true", logged(self.log)[-1])
+        for asked in ({"issue": "I_42", "what": "labels"}, {"issue": 42, "what": "type"}, ["I_42"]):
+            self.assertEqual(self.cli("set", json.dumps(asked))[0], 2, asked)
 
     def test_a_change_and_the_prompt(self):
         with open(self.answer, "w"):
@@ -204,7 +297,7 @@ class CommandLine(CLI):
         self.assertEqual(answer["issue"], {
             "number": 42, "title": "Login fails on Safari", "body": "Steps:\n\n1. Open it", "state": "OPEN",
             "url": "https://github.com/acme/app/issues/42", "created": "2026-10-20T10:00:00Z", "author": "ada",
-            "labels": ["bug"], "assignees": ["dev"],
+            "labels": ["bug"], "type": "Bug", "typed_by": "bug", "assignees": ["dev"],
             "comments": [{"author": "lin", "body": "Same on iOS", "created": "2026-10-21T10:00:00Z"}]})
         self.assertEqual(answer["ago"], [github.ago("2026-10-20T10:00:00Z"), github.ago("2026-10-21T10:00:00Z")])
         self.assertTrue(logged(self.log)[-1].startswith("issue view 42 -R acme/app --json "))
@@ -221,6 +314,7 @@ class CommandLine(CLI):
 
     def test_anything_else_is_a_usage_error(self):
         for args in (("issues", "acme/app", "{\"state\": \"all\"}"), ("issues", "acme/app", "open"),
+                     ("issues", "acme/app", "{\"search\": 7}"),
                      ("change", "acme/app", "42", "delete"), ("change", "acme/app", "x", "close"), ("list",),
                      ("view", "acme/app", "x"), ("reply", "acme/app", "-1"), ("create",)):
             self.assertEqual(self.cli(*args), (2, None), args)
@@ -264,12 +358,95 @@ class Priority(unittest.TestCase):
                  Issue(4, "d", (), (), "", "OPEN", "", "High"), Issue(5, "e", ("bug",)))
         self.assertEqual([issue.number for issue in github.ranked(found)], [3, 4, 1, 2, 5])
 
-    def test_an_issue_is_found_by_its_number_title_labels_assignees_and_priority(self):
-        issue = Issue(42, "Login fails on Safari", ("bug",), ("dev",), "", "OPEN", "", "High")
-        for words in (["#42"], ["safari", "login"], ["bug"], ["@dev"], ["high"], []):
+    def test_an_issue_is_found_by_its_number_title_labels_assignees_priority_and_type(self):
+        issue = Issue(42, "Login fails on Safari", ("ui",), ("dev",), "", "OPEN", "", "High", "Bug")
+        for words in (["#42"], ["safari", "login"], ["ui"], ["@dev"], ["high"], ["bug"], []):
             self.assertTrue(github.matches(issue, words), words)
         self.assertFalse(github.matches(issue, ["chrome"]))
         self.assertFalse(github.matches(issue, ["login", "chrome"]))
+
+
+class Types(unittest.TestCase):
+    """An issue's type, the TUI sidebar's and the app mod's alike: GitHub's issue type, else a bug, enhancement or
+    feature label; no other label is taken for one."""
+
+    def test_githubs_type_first_then_its_labels(self):
+        self.assertEqual(github.kind(Issue(1, "a", ("bug",), issue_type="Feature")), ("Feature", None))
+        for labels, found in ((("question", "Bug"), ("Bug", "Bug")), (("enhancement",), ("Feature", "enhancement")),
+                              (("feature", "bug"), ("Feature", "feature")), (("question", "docs"), ("", None)),
+                              (("type: bug",), ("", None))):
+            self.assertEqual(github.kind(Issue(1, "a", labels)), found, labels)
+
+    def test_the_labels_a_row_lists_leave_out_its_priority_and_its_type(self):
+        issue = Issue(1, "a", ("priority: high", "bug", "api"))
+        self.assertEqual(github.shown_labels(issue), ("api",))
+        typed = Issue(1, "a", ("priority: high", "bug", "api"), issue_type="Feature", priority="Urgent")
+        self.assertEqual(github.shown_labels(typed), ("priority: high", "bug", "api"))       # neither says it
+
+
+# the lists of issue-types.html: #42 Urgent Bug, #47 High Feature, #39 Medium Task, #51 Low Bug (its label), #53 none
+LISTED = (Issue(42, "Page past the last one", ("api",), ("you",), priority="Urgent", issue_type="Bug"),
+          Issue(47, "Group books by shelf", ("shelves", "enhancement"), ("ada",), priority="High", author="you"),
+          Issue(39, "Describe the routes", ("docs",), priority="Medium", issue_type="Task"),
+          Issue(51, "Export dates in UTC", ("export", "bug"), ("tomas",), priority="Low"),
+          Issue(53, "Page size from the config?", ("question",)))
+
+
+class Filters(unittest.TestCase):
+    """The filters' groups as both clients build them: each value with how many would stay with it on, the other
+    groups' filters counted and not its own (OR in a group, AND across them), a zero kept in its place."""
+
+    def facets(self, me="you"):
+        return [github.issue_facets(issue, me) for issue in LISTED]
+
+    def test_each_issue_in_each_group(self):
+        self.assertEqual(github.issue_facets(LISTED[1], "you"), {"assigned": (), "authored": (True,), "level": (1,),
+                                                                  "type": ("Feature",), "label": ("shelves",)})
+        self.assertEqual(github.issue_facets(LISTED[0], "")["assigned"], ())              # nobody signed in
+
+    def test_nothing_on_each_value_once(self):
+        items = self.facets()
+        self.assertEqual(github.offered(items, {}, "level"), [(0, 1, 1), (1, 1, 1), (2, 1, 1), (3, 1, 1)])
+        self.assertEqual(github.offered(items, {}, "type"), [("Bug", 2, 2), ("Feature", 1, 1), ("Task", 1, 1)])
+        self.assertEqual([value for value, _, _ in github.offered(items, {}, "label")],
+                         ["api", "docs", "export", "question", "shelves"])
+
+    def test_urgent_or_high_and_bug(self):
+        # the mockup's: Urgent and High on, then Bug; a group's own values not counted against it
+        chosen = {"level": (0, 1), "type": ("Bug",)}
+        items = self.facets()
+        self.assertEqual(github.offered(items, chosen, "level"), [(0, 1, 1), (1, 0, 1), (2, 0, 1), (3, 1, 1)])
+        self.assertEqual(github.offered(items, chosen, "type"), [("Bug", 1, 2), ("Feature", 1, 1), ("Task", 0, 1)])
+        self.assertEqual([issue.number for issue, facets in zip(LISTED, items) if github.passes(facets, chosen)], [42])
+
+    def test_a_value_on_that_no_issue_holds_stays_offered_at_zero(self):
+        self.assertEqual(github.offered(self.facets(), {"label": ("gone",)}, "label")[-1], ("gone", 0, 0))
+
+    def test_labels_by_use_then_name_and_types_githubs_first(self):
+        items = [{"label": ("b", "a")}, {"label": ("b",)}, {"label": ("c",)}]
+        self.assertEqual([value for value, _, _ in github.offered(items, {}, "label")], ["b", "a", "c"])
+        self.assertEqual(github.ordered("type", {"Epic", "Task", "Bug"}), ["Bug", "Task", "Epic"])
+        self.assertEqual(github.ordered("review", {"changes", "draft"}), ["draft", "changes"])
+
+    def test_githubs_search_wider_than_the_filters(self):
+        self.assertEqual(github.issue_search({}), "")
+        self.assertEqual(github.issue_search({"assigned": (True,), "level": (0,), "type": ("Bug", "Epic"),
+                                              "label": ("good first issue",)}),
+                         'assignee:@me (type:"Bug" OR type:"Epic" OR label:"bug") label:"good first issue"')
+        self.assertEqual(github.issue_search({"type": ("Feature",)}),
+                         '(type:"Feature" OR label:"enhancement" OR label:"feature")')
+        self.assertEqual(github.issue_search({"label": ('say "hi"',)}), "")          # no search can say it
+        self.assertEqual(github.pull_search({"authored": (True,), "review": ("changes", "yours"), "checks": ("failed",),
+                                             "label": ("api",)}),
+                         'author:@me (review-requested:@me OR review:changes_requested) label:"api"')
+
+    def test_a_pull_requests_groups(self):
+        pull = github.Pull(58, "Keep a page", author="you", draft=True, checks=(2, 1, 0), labels=("api",),
+                           assignees=("ada",))
+        self.assertEqual(github.pull_facets(pull, "you"), {"assigned": (), "authored": (True,), "review": ("draft",),
+                                                           "checks": ("running",), "label": ("api",)})
+        merged = github.Pull(1, "x", state="MERGED")
+        self.assertEqual(github.pull_facets(merged, "you")["review"], ())             # no Review value of its own
 
 
 class Words(unittest.TestCase):
@@ -348,7 +525,9 @@ THREAD = {"id": "PRRT_1", "isResolved": False, "path": "src/lumen/routes/shelves
                                   "body": "This loads every shelf at once; page it like /books?"},
                                  {"fullDatabaseId": "902", "author": {"login": "ada"}, "body": "Will do.",
                                   "createdAt": ""}]}}
-THREADS = {"data": {"viewer": {"login": "dev"}, "repository": {"pullRequest": {"viewerDidAuthor": False,
+THREADS = {"data": {"viewer": {"login": "dev"}, "repository": {"open": {"totalCount": 4},
+                                                               "closed": {"totalCount": 9},
+                                                               "pullRequest": {"viewerDidAuthor": False,
            "reviewThreads": {"nodes": [THREAD, {**THREAD, "id": "PRRT_2", "line": 30, "diffSide": "LEFT"},
                                        {**THREAD, "id": "PRRT_3", "line": None}]}}}}}
 
@@ -374,6 +553,7 @@ class PullRequests(unittest.TestCase):
     def test_the_open_ones_their_checks_and_who_their_review_waits_on(self):
         found = github.pulls("lumenworks/lumen-api")
         self.assertEqual((found.error, found.me), (None, "dev"))
+        self.assertEqual(found.totals, {"open": 4, "closed": 9})                  # closed and merged, as gh's closed
         self.assertEqual([(p.number, p.checks, p.yours) for p in found.pulls],
                          [(57, (3, 0, 0), True), (58, (2, 1, 0), False), (55, (1, 0, 1), False),
                           (53, (0, 0, 0), False)])
@@ -384,10 +564,12 @@ class PullRequests(unittest.TestCase):
         self.assertIn("#57 group books by shelf feat/shelves @ada", listed[0]["said"])
         calls = logged(self.log)
         self.assertTrue(calls[0].startswith("pr list -R lumenworks/lumen-api --state open --limit 100 --json "))
+        self.assertTrue(calls[0].endswith(",labels,assignees"))
+        self.assertTrue(any("closed: pullRequests(states: [CLOSED, MERGED])" in call for call in calls))
         self.assertIn("pr list -R lumenworks/lumen-api --search review-requested:@me --limit 100 --json number", calls)
 
     def test_closed_ones_wait_on_no_review(self):
-        found = github.pulls("lumenworks/lumen-api", "closed")
+        found = github.pulls("lumenworks/lumen-api", github.Query("closed"))
         self.assertIn("--state closed", logged(self.log)[0])
         self.assertFalse(any("review-requested" in call for call in logged(self.log)))
         merged = github.Pull(1, "x", state="MERGED", draft=True)
@@ -475,6 +657,8 @@ class PullRequests(unittest.TestCase):
 
         code, answer = cli("pulls", "lumenworks/lumen-api", "open")
         self.assertEqual((code, answer["error"], answer["pulls"][1]["author"]), (0, None, "you"))
+        code, answer = cli("pulls", "lumenworks/lumen-api", json.dumps({"state": "closed", "search": "draft:true"}))
+        self.assertEqual((code, answer["narrowed"], answer["limit"]), (0, None, github.LIMIT))     # fewer: no search
         self.assertEqual(cli("branch", "lumenworks/lumen-api", "feat/shelves")[1]["base"], "main")
         asked = {"base": "main", "branch": "fix/page-past-end", "title": "Keep a page", "body": "", "draft": True}
         self.assertEqual(cli("open-pull", "lumenworks/lumen-api", json.dumps(asked))[1]["error"], None)

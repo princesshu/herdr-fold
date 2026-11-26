@@ -65,14 +65,26 @@ the issue it fixes and the Graph, Issues by priority](../../../assets/screenshot
   list: a commit, sync, pull or push running spins in the sync glyph's place, its tip naming the step, and a failure
   stands on the sidebar's last row, red, until a key.
 - **Pull requests**, the Issues view's other list (`p`, or its switch on top): each one's checks' mark, number,
-  title and review's state (your review yellow), its branch, author and age; Enter shows its review in the preview tab,
-  read only: each file's diff, each thread under its line. In Changes, under the repository row, the branch's own, or
+  title and review's state (your review yellow), its branch, author and age, filtered as the issues (Assigned to me,
+  Created by me, Review, Checks, Label); Enter shows its review in the preview tab, read only: each file's diff, each
+  thread under its line. In Changes, under the repository row, the branch's own, or
   Create pull request…, whose form takes the message's place: Into, the Title and Body Claude or Codex writes from the
   branch's commits, Draft or Ready; Commit is not lit while nothing is to commit.
-- **Issues** (for a repository on GitHub), laid out and keyed as GitHub's own issue list: the search field with the
-  filters button (assigned to me, created by me, a label, the priority), Open and Closed, the refresh button at their
-  right (`R` too): while gh runs over the issues shown it spins and the list stays where it is; the first ask, a failure
-  or none found is said on the first issue's row. While shown, the list is asked for every minute; while it holds any,
+- **Issues** (for a repository on GitHub), laid out and keyed as GitHub's own issue list: the filter field with its
+  funnel, Open and Closed each with the repository's count (GitHub's, not the filters'; the word alone till it is
+  known), the refresh button at their right (`R` too): while gh runs over the issues shown it spins and
+  the list stays where it is; the first ask, a failure or none found is said on the first issue's row. The funnel's menu
+  (`a`, `u`, `l` open it there too) holds Assigned to me and Created by me, then a group for each of Priority, Type and
+  Label the list holds, each value with how many issues would stay with it on, counting the other groups' filters
+  (a zero dim, in its place); any of a group's values, every group; the menu stays open while values are pressed, and
+  past six labels the six most used show, the rest behind `N more` and a find field. What is on stands under the field
+  as one chip a group (× takes it off, Clear all, Backspace in the empty field the last), the funnel in the accent. The
+  latest 100 are counted (the menu says so when the list is that full); then GitHub's search is asked for the types,
+  labels and the two of yours as well, so the list loses none past them, and narrowed exactly here. Each issue's type
+  stands before its number, a muted icon (Bug, Feature, Task: GitHub's own issue type, else a `bug`, `enhancement` or
+  `feature` label, which then leaves the labels; an organization's own type its word under the title; without icons
+  the type's word after the priority's); the column is there only when an issue listed has one, so the numbers line
+  up. A closed one's marks are all muted. While shown, the list is asked for every minute; while it holds any,
   behind another view too, so an issue made on GitHub or in another tab shows up and the chosen one stays chosen. Open
   ones with a priority come first, the most pressing at the top: GitHub's own Priority field where the repository's
   organization uses it (Urgent, High, Medium, Low), else a priority label (`priority: high`, `P1`, `prio:3-low`, Jira's
@@ -82,7 +94,9 @@ the issue it fixes and the Graph, Issues by priority](../../../assets/screenshot
   opens in the preview tab with its comments; handed to the agent, it becomes a prompt in the tab's agent's pane
   (Claude, Codex, OpenCode or Copilot; with none there, in the one started last, in a new tab of the space), and the
   next written commit message fixes it (`Fixes #42`), until a commit from anywhere closes it. A new issue, a reply,
-  closing, reopening, assigning to you (the right click's menu).
+  closing, reopening, assigning to you, and where the organization has the Priority field or issue types and you a role
+  that sets them, Priority… and Type…, each a second menu in the first one's place (the right click's menu): the row
+  shows the choice at once, the last row says `✓ Set #42 to High`, or why not.
 - **Chats** (the list over the sidebar): the Claude Code, Codex, OpenCode and Copilot chats of herdr's spaces, each
   space with a chat a group in the Spaces list's order, its chats under it, a running one's mark in its state's color
   and the closed ones faint, their agent and age at the right (an OpenCode or Copilot chat is archived, never deleted
@@ -126,7 +140,7 @@ a pane taller than wide, the status row's turn, `v` or the right click turning t
 | Files | ↑ ↓ ← → or `j` `k` `h` `l`, PgUp PgDn, Home End or `g` `G`, Enter or Space opens, `n` new file, `N` new folder, `r` rename, Delete to the Trash, `m` the menu, `.` hides or shows hidden files (shown by default), `i` plain icons, `R` refresh |
 | Search | type to search; a click or Alt + C, Alt + W, Alt + R the switches; Esc or the field's × clears the text and the folder or file; Tab or ↓ to the hits (PgUp PgDn Home End too), Enter opens a hit or folds a file's, Esc, Tab or another letter goes back to the field |
 | Changes | `c` or typing writes the message (Enter a new line; Esc, then Enter commits), `A` or the star beside the message has it written, Enter stages or unstages, Space shows the diff, `d` discards, `S` syncs, `P` the branch's pull request (its review, or with none the form: Tab and Shift + Tab its parts, ← → Into and Draft or Ready, Enter on the button opens it, `A` there writes it again, Esc gives it up) |
-| Issues | `p` switches to Pull requests and back (there: `/` `s` filter, `c` a new one in Changes, `o` or Enter its review, `t` to the agent, `b` the browser, `R`, ← →); GitHub's: `/` `s` or Ctrl + / search, `c` a new issue, `a` `u` `l` the assignee, author and label filters, `o` or Enter opens it; herdr-fold's: `t` hands it to the agent, `r` replies, `b` opens it in the browser, `x` closes or reopens it, `R` asks again; ↑ ↓ PgUp PgDn Home End, ← → Open and Closed; a right click: all of it, Assign to me too |
+| Issues | `p` switches to Pull requests and back (there: `/` `s` filter, `c` a new one in Changes, `o` or Enter its review, `t` to the agent, `b` the browser, `R`, ← →); GitHub's: `/` `s` or Ctrl + / search (Backspace in the empty field takes the last filter's chip off), `c` a new issue, `a` `u` `l` the filters' menu at Assigned to me, Created by me or the labels (Pull requests' too), `o` or Enter opens it; herdr-fold's: `t` hands it to the agent, `r` replies, `b` opens it in the browser, `x` closes or reopens it, `R` asks again; ↑ ↓ PgUp PgDn Home End, ← → Open and Closed; a right click: all of it, Assign to me too |
 | Chats | every key goes to the list while it is open: type to filter; ↑ ↓ PgUp PgDn Home End; ← closes a group, → or Enter opens it; on a chat → lists its plan's done steps, ← folds them again; on a Claude chat → once more (or its right click's Checkpoints…) shows its checkpoints: Enter asks Claude what `Restore files to here…` would change, Enter again restores, Esc gives it up, `u` undoes the last restore, ← goes back; Enter goes to a running chat or reopens a closed one in a new tab; Space or Shift + ↑ ↓ marks closed ones (closing the list unmarks them); a right click: Open, Copy chat, Rename (Enter keeps the new name, Esc the old one), Archive, or with several marked, all of them at once, and Delete… for a closed one; Delete (fn + ⌫ on a Mac's own keyboard), while nothing is typed, asks the same of the chosen closed chat: Move the chat to the Trash? ← → or Tab choose, Enter presses the chosen button (Cancel at first), y moves it, n or Esc keeps it; its lit button, Esc or a click outside closes it |
 | Settings | herdr's popup, from More: ↑ ↓ choose the section; in General ← → or Tab switch the icons; in About Tab or ← → choose a button or a link, Enter presses it, Space switches Check for updates automatically; Esc or `q` closes it |
 | Agent | ↑ ↓ PgUp PgDn Home End choose a section or a row; → opens a section (on an open one, to its first row), ← folds it (on a row, up to its section); Enter opens or folds a section, opens "N more", or does the row's first action (Open, Retry, Connect, Open Usage; with none, into its form); → on a row, the head's line or Hooks puts the keys in its form: ↑ ↓ step through it, ← → or Space choose, Tab changes the layer, Enter saves, Esc leaves; `a` on Permissions adds a rule, `x` on a rule removes it (it asks once), `u` undoes the last save while the foot shows it; `U` opens the Usage view (Tab steps the periods, `a` the agents, Enter edits the budget, Esc closes), `g` shows the graph as a tree; `a` adds a connector by URL (Tab or ↓ steps through the form, ← → choose For, Enter adds, Esc leaves); a click chooses, on a section opens or folds it, on Usage's ↗ opens its view, on a problem at the top chooses its server; a right click on a row: its actions |

@@ -1,6 +1,6 @@
-"""Tests for core/usage.py in a temporary HOME: the agents' limits from herdr-fold's own readings, Claude's cache and
-Codex's newest chat, the newest per agent, a limit past its reset 0% or not known, an agent with none left out; nothing
-of the agents' files written; both status lines keep the same shape."""
+"""Tests for core/usage.py in a temporary HOME: the agents' limits from herdr-fold's own readings, Claude's cache (a
+model's own week too) and Codex's newest chat, the newest per agent, a limit past its reset 0% or not known, an agent
+with none left out; nothing of the agents' files written; both status lines keep the same shape."""
 import contextlib
 import io
 import json
@@ -23,14 +23,22 @@ NOW = 1794571200                # Friday, 13 November 2026, 12:00 UTC
 HOUR, DAY = 3600, 86400
 FIVE = NOW + 2 * HOUR + 46 * 60                         # the 5-hour window's reset: 14:46 UTC
 WEEK = NOW + 3 * DAY + 5 * HOUR                         # the weekly one's: Monday, 16 November, 17:00 UTC
+FABLE = NOW + 3 * DAY + 21 * HOUR                       # Fable's own week's: Tuesday, 17 November, 09:00 UTC
 ACCOUNT = "00000000-0000-4000-8000-00000000c1a0"        # an invented account id, never answered
 STATUSLINE = os.path.join(PACKAGE, "src", "statusline.py")
 
 
-def windows(five=None, week=None):
-    """A reading's windows: FIVE and WEEK each (used, resets) or None."""
-    return {name: None if one is None else {"used": one[0], "resets": one[1]}
-            for name, one in (("five_hour", five), ("week", week))}
+def windows(five=None, week=None, models=()):
+    """A reading's windows: FIVE and WEEK each (used, resets) or None; MODELS each (name, used, resets)."""
+    return {**{name: None if one is None else {"used": one[0], "resets": one[1]}
+               for name, one in (("five_hour", five), ("week", week))},
+            "models": [{"name": name, "used": used, "resets": resets} for name, used, resets in models]}
+
+
+def scoped(name, percent, resets, active=False, scope="model"):
+    """A row of Claude's cached usage meters (limits[]) for NAME's own week, as Claude 2.1.332 keeps them."""
+    return {"kind": "weekly_scoped", "group": "weekly", "percent": percent, "severity": "normal", "resets_at": resets,
+            "scope": {scope: {"display_name": name}}, "is_active": active}
 
 
 class Home(unittest.TestCase):
@@ -48,12 +56,15 @@ class Home(unittest.TestCase):
             os.utime(path, (mtime, mtime))
         return path
 
-    def claude(self, five=None, week=None, fetched=NOW, folder="", signed=ACCOUNT):
+    def claude(self, five=None, week=None, fetched=NOW, folder="", signed=ACCOUNT, meters=None):
         """Claude's .claude.json in FOLDER (the home's, or a CLAUDE_CONFIG_DIR's) with its cached limits, as Claude
-        2.1.325 keeps them (FIVE and WEEK each (percent, reset text)), fetched at FETCHED, SIGNED in now."""
+        2.1.325 keeps them (FIVE and WEEK each (percent, reset text)), METERS its usage rows (limits[], none before
+        2.1.332), fetched at FETCHED, SIGNED in now."""
         used = {name: None if one is None else {"utilization": one[0], "resets_at": one[1], "limit_dollars": None,
                                                 "used_dollars": None, "locked_reason": None}
                 for name, one in (("five_hour", five), ("seven_day", week))}
+        if meters is not None:
+            used["limits"] = meters
         self.write(os.path.join(folder, ".claude.json"), json.dumps({
             "numStartups": 12, "oauthAccount": {"accountUuid": signed, "emailAddress": "dev@example.com"},
             "cachedUsageUtilization": {"fetchedAtMs": fetched * 1000 + 250, "accountUuid": ACCOUNT,
@@ -357,6 +368,7 @@ class Section(unittest.TestCase):
                      "resets": {"at": FIVE, "words": "5h resets {time}"}},
             "week": {"label": "wk", "used": 16, "text": "16%", "level": "ok",
                      "resets": {"at": WEEK, "words": "Week resets {day} {time}"}},       # days away: its day
+            "models": [],
             "tight": {"label": "5h", "used": 72, "text": "72%", "level": "warn",
                       "resets": {"at": FIVE, "words": "5h resets {time}"}},
             # the reset under the row only while its window is yellow or red
@@ -428,8 +440,9 @@ class Section(unittest.TestCase):
         rows = self.rows([self.reading("claude", (72, FIVE))], "codex")
         self.assertEqual([(row["key"], row["current"], (row["untold"] or {}).get("text")) for row in rows],
                          [("codex", True, "limits not told"), ("claude", False, None)])
-        self.assertEqual((rows[0]["name"], rows[0]["plan"], rows[0]["five"], rows[0]["week"], rows[0]["tight"],
-                          rows[0]["reset"], rows[0]["age"]), ("Codex", "Plus", None, None, None, None, None))
+        self.assertEqual((rows[0]["name"], rows[0]["plan"], rows[0]["five"], rows[0]["week"], rows[0]["models"],
+                          rows[0]["tight"], rows[0]["reset"], rows[0]["age"]),
+                         ("Codex", "Plus", None, None, [], None, None, None))
         self.assertEqual(rows[0]["untold"]["why"], "Codex tells its limits in a chat's token counts: none of its "
                                                    "newest chats holds one yet.")
         self.assertIn("status line", self.rows([], "claude")[0]["untold"]["why"])
@@ -438,6 +451,79 @@ class Section(unittest.TestCase):
         on_key = [{"key": "codex", "name": "Codex", "plan": usage.API_KEY}]
         self.assertEqual(self.rows([], "codex", on_key), [])
         self.assertEqual(self.rows([], "aider"), [])
+
+
+class Models(Home):
+    """A model's own weekly allowance (Fable's), which Claude's status JSON never tells: its cache's usage rows alone,
+    kept by the rules of the others, a row each, in Usage as a third window labelled with the model's name."""
+
+    def test_claudes_cache_tells_each_models_own_week_whether_or_not_it_is_the_headline(self):
+        # is_active is the server's headline pick for a one-figure indicator: Claude's /usage lists every row
+        self.claude(five=(43, "2026-11-13T14:46:00Z"), week=(9, "2026-11-16T17:00:00Z"), fetched=NOW - 60, meters=[
+            {"kind": "session", "group": "session", "percent": 43, "severity": "normal",
+             "resets_at": "2026-11-13T14:46:00Z", "scope": None, "is_active": True},
+            {"kind": "weekly_all", "group": "weekly", "percent": 9, "severity": "normal",
+             "resets_at": "2026-11-16T17:00:00Z", "scope": None, "is_active": False},
+            scoped("Fable", 37.6, "2026-11-17T09:00:00Z"),
+            scoped("Sonnet 5.1", 12, "2026-11-17T10:00:00+01:00", active=True)])
+        self.assertEqual(self.limits(), [{"agent": "claude", **windows((43, FIVE), (9, WEEK), [
+            ("Fable", 38, FABLE), ("Sonnet 5.1", 12, FABLE)]), "at": NOW - 60, "source": "claude"}])
+
+    def test_only_a_models_named_row_counts_the_first_of_a_name_and_damaged_ones_none(self):
+        for meters, found in (
+                ([scoped("Fable", 38, FABLE), scoped("Fable", 90, FABLE)], [("Fable", 38, FABLE)]),
+                ([scoped("Code", 20, FABLE, scope="surface"), scoped("ada@lumen.example", 5, FABLE),
+                  scoped("", 5, FABLE), scoped(7, 5, FABLE), {**scoped("Fable", 38, FABLE), "percent": "38"},
+                  {**scoped("Fable", 38, FABLE), "kind": "weekly_all"}, None, 7], []),
+                ({"Fable": scoped("Fable", 38, FABLE)}, []), (7, [])):
+            with self.subTest(meters=meters):
+                self.claude(five=(43, FIVE), meters=meters)
+                self.assertEqual(self.limits()[0]["models"], windows(models=found)["models"])
+        self.claude(five=(43, FIVE), meters=[{**scoped("Fable", 38, None), "resets_at": "soon"}])
+        self.assertEqual(self.limits()[0]["models"], [{"name": "Fable", "used": 38, "resets": None}])
+
+    def test_the_status_line_keeps_the_caches_beside_what_it_was_told_and_draws_them(self):
+        self.claude(five=(43, "2026-11-13T14:46:00Z"), fetched=NOW - HOUR, meters=[scoped("Fable", 38, FABLE)])
+        self.assertEqual(usage.keep("claude", windows((47, FIVE)), NOW),
+                         windows((47, FIVE), models=[("Fable", 38, FABLE)]))
+        self.assertEqual(self.limits()[0], {"agent": "claude", **windows((47, FIVE), models=[("Fable", 38, FABLE)]),
+                                            "at": NOW, "source": "status"})
+        # the cache gone (another account signed in): the ones kept stand; the cache with none: none
+        os.remove(os.path.join(self.home, ".claude.json"))
+        self.assertEqual(usage.keep("claude", windows((48, FIVE)), NOW + 60)["models"], [
+            {"name": "Fable", "used": 38, "resets": FABLE}])
+        self.claude(five=(43, "2026-11-13T14:46:00Z"), fetched=NOW, meters=[])
+        self.assertEqual(usage.keep("claude", windows((49, FIVE)), NOW + 120)["models"], [])
+
+    def test_a_second_accounts_model_weeks_are_its_own(self):
+        self.claude(five=(10, FIVE), fetched=NOW - HOUR, meters=[scoped("Fable", 38, FABLE)])
+        self.claude(five=(65, FIVE), fetched=NOW - HOUR, folder=".claude-work", meters=[scoped("Fable", 81, FABLE)])
+        set_env(self, CLAUDE_CONFIG_DIR=os.path.join(self.home, ".claude-work"))
+        self.assertEqual(usage.keep("claude", windows((70, FIVE)), NOW)["models"][0]["used"], 81)
+        set_env(self, CLAUDE_CONFIG_DIR=None)
+        self.assertEqual(usage.keep("claude", windows((12, FIVE)), NOW)["models"][0]["used"], 38)
+        self.assertEqual(self.limits()[0]["models"][0]["used"], 38)
+
+    def test_one_past_its_reset_is_0_with_nothing_run_since_else_not_known(self):
+        self.claude(five=(43, FIVE), fetched=NOW - 2 * DAY, meters=[scoped("Fable", 38, NOW - HOUR)])
+        self.assertEqual(self.limits()[0]["models"], [{"name": "Fable", "used": 0, "resets": None}])
+        self.write(".claude/projects/-work-lumen-api/a0.jsonl", "{}\n", NOW - 10)
+        self.assertEqual(self.limits()[0]["models"], [{"name": "Fable", "used": None, "resets": None}])
+
+    def test_usage_draws_each_as_a_window_of_its_own_labelled_with_its_name(self):
+        def row_of(five, week, models):
+            reading = {"agent": "claude", **windows(five, week, models), "at": NOW - 60, "source": "status"}
+            return usage.section([reading], Section.AGENTS, "claude", NOW)["rows"][0]
+        row = row_of((32, FIVE), (16, WEEK), [("Fable", 86, FABLE), ("Sonnet 5.1", 4, NOW + 6 * HOUR)])
+        self.assertEqual(row["models"], [
+            {"label": "Fable", "used": 86, "text": "86%", "level": "bad",
+             "resets": {"at": FABLE, "words": "Fable resets {day} {time}"}},
+            # its words' first word stays its whole name, the clients' label
+            {"label": "Sonnet 5.1", "used": 4, "text": "4%", "level": "ok",
+             "resets": {"at": NOW + 6 * HOUR, "words": "Sonnet\u00a05.1 resets {time}"}}])
+        # the tightest of all three: its reset under the row
+        self.assertEqual((row["tight"]["label"], row["reset"]["words"]), ("Fable", "Fable resets {day} {time}"))
+        self.assertEqual(row_of((40, FIVE), (16, WEEK), [("Fable", 40, FABLE)])["tight"]["label"], "5h")   # a tie
 
 
 class Clock(Home):
@@ -546,7 +632,7 @@ class Writers(unittest.TestCase):
     def test_one_window_alone(self):
         data = {**self.STATUS, "rate_limits": {"seven_day": {"used_percentage": 15.6, "resets_at": WEEK}}}
         found = [json.loads(self.kept(writer, data)) for writer in ("hook", "line")]
-        self.assertEqual([{key: one[key] for key in ("five_hour", "week")} for one in found],
+        self.assertEqual([{key: one[key] for key in ("five_hour", "week", "models")} for one in found],
                          [windows(None, (16, WEEK))] * 2)
 
 

@@ -186,13 +186,13 @@ class Status(unittest.TestCase):
         self.assertIsInstance(kept.pop("at"), int)
         self.assertEqual(kept, {"context": 42, "window": 200000, "model": "Opus", "effort": "xhigh",
                                 "limits": {"five_hour": {"used": 12, "resets": 1762621200},
-                                           "week": {"used": 41, "resets": 1763000000}}})
+                                           "week": {"used": 41, "resets": 1763000000}, "models": []}})
         with open(chat.status_path(SESSION), encoding="utf-8") as f:
             self.assertNotIn("/repo", f.read())
 
     def test_a_status_without_numbers_keeps_them_empty(self):
         self.assertEqual(chat_hook.write_status({"session_id": SESSION}), "Claude")
-        self.assertEqual(chat.status(SESSION)["limits"], {"five_hour": None, "week": None})
+        self.assertEqual(chat.status(SESSION)["limits"], {"five_hour": None, "week": None, "models": []})
         self.assertFalse(os.path.exists(os.path.join(self.home, ".local", "state", "herdr-fold", "limits")))
 
     def test_a_chats_limits_are_the_freshest_any_chat_told(self):
@@ -201,7 +201,7 @@ class Status(unittest.TestCase):
         chat_hook.write_status({"session_id": SESSION, "rate_limits": {
             "five_hour": {"used_percentage": 12, "resets_at": 1794581160}}})
         self.assertEqual(chat.status(SESSION)["limits"], {"five_hour": {"used": 30, "resets": 1794581160},
-                                                          "week": None})
+                                                          "week": None, "models": []})
 
     def test_the_limits_are_kept_for_usage_too(self):
         data = {"session_id": SESSION, "rate_limits": {"five_hour": {"used_percentage": 12, "resets_at": 1794581160},
@@ -210,7 +210,7 @@ class Status(unittest.TestCase):
         kept = statefile.read(os.path.join(self.home, ".local", "state", "herdr-fold", "limits", "claude.json"))
         self.assertEqual(kept.pop("at"), chat.status(SESSION)["at"])
         self.assertEqual(kept, {"five_hour": {"used": 12, "resets": 1794581160},
-                                "week": {"used": 41, "resets": 1794848400}})
+                                "week": {"used": 41, "resets": 1794848400}, "models": []})
 
     def test_the_line_and_the_bar_without_a_place_for_the_limits(self):
         os.makedirs(os.path.join(self.home, ".local", "state", "herdr-fold"))

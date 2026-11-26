@@ -563,8 +563,9 @@ class Frame(Popup):
             tables = f.read().split("[[panes]]")[1:]
         tables = [table.split("\n[[", 1)[0] for table in tables]
         popups = [table for table in tables if 'placement = "popup"' in table]
-        self.assertEqual(len(popups), 1)                                # the one popup: no About of its own
-        table = popups[0]
+        ids = sorted(re.search(r'^id = "([^"]+)"$', table, re.M).group(1) for table in popups)
+        self.assertEqual(ids, ["add-machine", "settings"])          # Settings and Add a machine: no About of its own
+        table = next(table for table in popups if 'id = "settings"' in table)
         size = {key: int(value) for key, value in re.findall(r"^(width|height) = (\d+)$", table, re.M)}
         self.assertEqual((size["width"] - 3, size["height"] - 2), (WIDE, HIGH))
         for words in ('id = "settings"', 'title = "herdr-fold Settings"',

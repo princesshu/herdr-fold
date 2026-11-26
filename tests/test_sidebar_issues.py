@@ -1,6 +1,6 @@
-"""Tests for the sidebar's Issues view (src/plugins/sidebar/issues.py), laid out and keyed like GitHub's issue list,
-with the priority from GitHub's Priority field, else a label or a word; its Pull requests (pulls.py); and its own part
-(issue_work.py): the latest answer kept for the repository's other sidebars, and what a tab of its opens."""
+"""Tests for the sidebar's Issues view (issues.py), keyed like GitHub's list, by priority, each one's type before its
+number; its filters (filters.py), Priority… and Type…; its Pull requests (pulls.py); its own part (issue_work.py): the
+latest answer kept for the repository's other sidebars, and what a tab of its opens."""
 import json
 import os
 import re
@@ -8,6 +8,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 
 from support import SRC, text
 
@@ -20,12 +21,12 @@ from issues import TEXT, Issues  # noqa: E402
 from icons import glyphs  # noqa: E402
 from screen import PAD, SPINNER, Canvas  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
-from widgets import Action  # noqa: E402
+from widgets import Action, Heading, Row  # noqa: E402
 
-CARET = glyphs(True)["open"]                  # a menu's caret: the folds' chevron
+FUNNEL = glyphs(True)["funnel"]               # the filters' funnel at the field's end
 
 NOW = github.parse_time("2026-10-24T12:00:00Z")
-SAFARI = Issue(42, "Login fails on Safari", ("bug", "ui"), ("dev",), "2026-10-22T10:00:00Z", "OPEN",
+SAFARI = Issue(42, "Login fails on Safari", ("auth", "ui"), ("dev",), "2026-10-22T10:00:00Z", "OPEN",
                "https://github.com/acme/app/issues/42")
 DARK = Issue(38, "Add a dark mode toggle", (), (), "2026-10-19T09:00:00Z", "OPEN",
              "https://github.com/acme/app/issues/38")
@@ -73,12 +74,11 @@ class View(unittest.TestCase):
         urgent = Issue(51, "Payments are down", ("P0",), (), "2026-10-18T10:00:00Z", "OPEN", "")
         high = Issue(52, "Slow search", ("high priority", "perf"), (), "2026-10-17T10:00:00Z", "OPEN", "")
         medium = Issue(53, "Old logo", ("Priority/Medium",), (), "2026-10-16T10:00:00Z", "OPEN", "")
-        for query in (Query(), Query(assigned=True)):
-            self.view.ask(query)
-            self.view.show(Listing((SAFARI, low, urgent, DARK, high, medium)), query)   # gh's: latest change first
-            self.draw(height=20)
-            order = sorted((self.row_of(f"#{n} "), n) for n in (42, 38, 50, 51, 52, 53))
-            self.assertEqual([n for _, n in order], [51, 52, 53, 50, 42, 38], query)
+        self.view.ask(Query())
+        self.view.show(Listing((SAFARI, low, urgent, DARK, high, medium)), Query())   # gh's: latest change first
+        self.draw(height=20)
+        order = sorted((self.row_of(f"#{n} "), n) for n in (42, 38, 50, 51, 52, 53))
+        self.assertEqual([n for _, n in order], [51, 52, 53, 50, 42, 38])
 
     def test_a_new_answer_keeps_the_chosen_issue_chosen(self):
         # the list asked for again in the background: an issue new above the chosen one does not move the choice onto
@@ -96,7 +96,7 @@ class View(unittest.TestCase):
         self.assertLess(self.row_of("#61 "), self.row_of("#60 "))
 
     def test_a_priority_marks_its_issue_and_its_label_in_its_color(self):
-        urgent = Issue(51, "Payments are down", ("bug", "urgent"), (), "2026-10-18T10:00:00Z", "OPEN", "")
+        urgent = Issue(51, "Payments are down", ("ui", "urgent"), (), "2026-10-18T10:00:00Z", "OPEN", "")
         self.shown(Listing((urgent, DARK)))
         y = self.row_of("#51 ")
         # the bar inside the pane's margin, a cell of air beside it, then the number
@@ -105,7 +105,7 @@ class View(unittest.TestCase):
         self.assertEqual((text(self.canvas, y).index("#51"), self.canvas.rows[y][3][1].fg), (3, "deleted"))
         details = text(self.canvas, y + 1)
         self.assertEqual(self.canvas.rows[y + 1][details.index("urgent")][1].fg, "deleted")
-        self.assertEqual(self.canvas.rows[y + 1][details.index("bug")][1].fg, "muted")
+        self.assertEqual(self.canvas.rows[y + 1][details.index("ui")][1].fg, "muted")
         dark = self.row_of("#38 ")
         self.assertEqual(self.canvas.rows[dark][1][0], " ")                        # no priority: no mark
         self.assertEqual(self.canvas.rows[dark][3][1].fg, "accent")                # its number where the others are
@@ -121,16 +121,17 @@ class View(unittest.TestCase):
 
     def test_githubs_priority_field_shows_first_in_its_color(self):
         # an organization's Priority field (Urgent, High, Medium, Low) is GitHub's own: before the labels
-        self.shown(Listing((Issue(71, "Payments down", ("bug",), (), "2026-10-18T10:00:00Z", "OPEN", "", "Urgent"),)))
+        self.shown(Listing((Issue(71, "Payments down", ("ui",), (), "2026-10-18T10:00:00Z", "OPEN", "", "Urgent"),)))
         y = self.row_of("#71 ")
         details = text(self.canvas, y + 1)
-        self.assertTrue(details[3 + len("#71 "):].startswith("Urgent, bug"), details)
+        self.assertTrue(details[3 + len("#71 "):].startswith("Urgent  ui"), details)        # two cells apart
         self.assertEqual(self.canvas.rows[y + 1][details.index("Urgent")][1].fg, "deleted")
 
-    def test_the_search_field_and_its_filters_button_then_open_and_closed(self):
+    def test_the_filter_field_and_its_funnel_then_open_and_closed(self):
         self.draw()
-        field = self.row_of("Search issues")
-        self.assertTrue(text(self.canvas, field).rstrip().endswith(f"Filters {CARET}"))
+        field = self.row_of("Filter issues")
+        row = text(self.canvas, field)
+        self.assertEqual((row.index(FUNNEL), self.canvas.rows[field][row.index(FUNNEL)][1].fg), (45 - 3, "muted"))
         states = text(self.canvas, self.row_of("Open"))
         self.assertGreater(self.row_of("Open"), field)
         self.assertLess(states.index("Open"), states.index("Closed"))
@@ -183,6 +184,29 @@ class View(unittest.TestCase):
         self.assertIsNone(self.press("right"))                         # the last one stays
         self.assertEqual(self.press("left"), Action("load_issues", (Query(),)))
 
+    def test_open_and_closed_each_with_the_repositorys_count_the_word_alone_till_it_is_known(self):
+        # as GitHub's list: both sides counted (a list left on Closed still says how many are open); the chosen one
+        # filled, the other's words and number muted; each chip a cell of air round its words, whatever the count
+        self.draw()
+        self.assertEqual(text(self.canvas, self.row_of("Open")).split()[:2], ["Open", "Closed"])
+        for totals in ({"open": 2, "closed": 1}, {"open": 12, "closed": 340}, {"open": 0, "closed": 7}):
+            self.view.ask()
+            self.view.show(replace(TWO, totals=totals), Query())
+            self.draw()
+            y = self.row_of("Open")
+            line = text(self.canvas, y)
+            self.assertIn(f"Open {totals['open']}   Closed {totals['closed']}", line)
+            row = self.canvas.rows[y]
+            filled = [x for x, (_, style) in enumerate(row) if style.bg == "button"]
+            self.assertEqual((row[filled[0]][0], row[filled[-1]][0], row[filled[0] + 1][0], row[filled[-1] - 1][0]),
+                             (" ", " ", "O", str(totals["open"])[-1]), totals)
+            closed = line.index("Closed")
+            self.assertEqual({row[x][1].fg for x in range(closed, closed + len(f"Closed {totals['closed']}"))},
+                             {"muted"})
+        self.view.ask(Query("closed"))                                       # the other side: its counts kept
+        self.draw()
+        self.assertIn("Open 0   Closed 7", text(self.canvas, self.row_of("Open")))
+
     def test_a_state_under_the_mouse_lights_up(self):
         self.draw()
         y = self.row_of("Closed")
@@ -202,7 +226,7 @@ class View(unittest.TestCase):
         self.shown()
         y = self.row_of("#42 Login fails on Safari")
         below = text(self.canvas, y + 1)
-        for part in ("bug, ui", "@dev", "2d"):
+        for part in ("auth, ui", "@dev", "2d"):
             self.assertIn(part, below)
         y = self.row_of("#38 Add a dark mode toggle")
         self.assertEqual(text(self.canvas, y + 1).split(), ["5d"])
@@ -214,10 +238,13 @@ class View(unittest.TestCase):
         self.assertFalse(any("#42" in text(self.canvas, y) for y in range(16)))
 
     def test_empty_and_failed_answers_in_one_line(self):
-        for query, said in ((Query(), "No open issues"), (Query("closed"), "No closed issues"),
-                            (Query(assigned=True), "No issues match")):
+        for query, said in ((Query(), "No open issues"), (Query("closed"), "No closed issues")):
             self.shown(Listing(()), query)
             self.row_of(said)
+        self.view.filters.chosen["assigned"] = (True,)
+        self.shown(Listing(()))
+        self.row_of("No issues match")
+        self.view.filters.chosen["assigned"] = ()
         self.shown(Listing(error=github.SIGNED_OUT))
         self.row_of(github.SIGNED_OUT[:30])
 
@@ -243,7 +270,7 @@ class View(unittest.TestCase):
             self.view.searching = False
             self.view.handle(key)
             self.assertTrue(self.view.editing, key)
-        for word, found in (("dark", [38]), ("#42", [42]), ("ui", [42]), ("@dev", [42]), ("safari bug", [42])):
+        for word, found in (("dark", [38]), ("#42", [42]), ("ui", [42]), ("@dev", [42]), ("safari auth", [42])):
             self.view.field.clear()
             self.type(word)
             self.draw()
@@ -259,52 +286,26 @@ class View(unittest.TestCase):
         self.draw()
         self.assertEqual((self.view.editing, self.numbers()), (False, [42, 38]))
 
-    def test_the_filters_menu_asks_github_and_narrows_by_priority(self):
-        urgent = Issue(51, "Payments are down", ("bug",), (), "2026-10-18T10:00:00Z", "OPEN", "", "Urgent")
-        high = Issue(52, "Slow search", ("priority: high",), (), "2026-10-17T10:00:00Z", "OPEN", "")
-        self.shown(Listing((urgent, SAFARI, high)))
-        self.assertIsNone(self.press("char", "a"))                          # GitHub's a: the assignee filter
-        self.assertEqual(self.view.menu.menu.choices,
-                         ["  Assigned to me", "  Created by me", "✓ Any priority", "  ● Urgent", "  ● High",
-                          "  ● Medium", "  ● Low", "✓ Any label", "  bug", "  priority: high", "  ui"])
-        self.assertEqual(self.press("enter"), Action("load_issues", (Query(assigned=True),)))
-        self.view.show(Listing((urgent, SAFARI, high)), Query(assigned=True))
-        self.press("char", "u")                                             # the author filter
-        self.assertEqual(self.view.menu.menu.choices[self.view.menu.menu.index], "  Created by me")
-        self.press("esc")
-        self.press("char", "l")                                             # the labels
-        self.assertEqual(self.view.menu.menu.choices[self.view.menu.menu.index], "✓ Any label")
-        self.press("down")
-        self.assertEqual(self.press("enter"), Action("load_issues", (Query(assigned=True, label="bug"),)))
-        self.view.show(Listing((urgent, SAFARI, high)), Query(assigned=True, label="bug"))
-        self.draw()
-        self.view.open_filters("priority")
-        for _ in range(2):
-            self.press("down")
-        self.assertIsNone(self.press("enter"))                              # High: shown at once, not asked
-        self.draw()
-        self.assertEqual(self.numbers(), [52])
-        field = text(self.canvas, self.row_of("Search issues"))
-        self.assertIn(f"● High · me · bug {CARET}", field)
-        self.assertEqual(self.canvas.rows[self.row_of("Search issues")][field.index("●")][1].fg, "deleted")
-
-    def test_a_click_on_the_field_and_on_the_filters_button(self):
+    def test_the_funnel_and_its_menu_assigned_and_created_first_a_click_turns_one_and_it_stays_open(self):
         self.shown()
-        self.assertIsNone(self.click("Search issues"))
+        self.assertIsNone(self.click("Filter issues"))
         self.assertTrue(self.view.searching)
-        self.assertIsNone(self.click("Filters"))
+        self.assertIsNone(self.click(FUNNEL))
         self.assertFalse(self.view.searching)
-        self.assertIsNotNone(self.view.menu)
         self.draw()
-        y = self.row_of("Created by me")
-        self.assertEqual(self.click("Created by me", y), Action("load_issues", (Query(authored=True),)))
+        self.assertEqual(self.view.menu.menu.choices[:2], ["Assigned to me", "Created by me"])
+        self.assertIsNone(self.click("Created by me", self.row_of("Created by me")))      # narrowed here, not asked
+        self.draw()
+        self.assertIsNotNone(self.view.menu)
+        self.assertEqual(self.view.filters.chosen["authored"], (True,))
+        self.assertEqual(self.view.menu.menu.choices[1].on, True)
 
     def test_the_filters_menu_opens_under_the_field_their_right_edges_in_one_line(self):
         for roomy in (False, True):                                         # a tall field has a border row below
             self.draw(roomy=roomy)
             self.view.open_filters()
             self.draw(roomy=roomy)
-            field = self.row_of("Search issues")
+            field = self.row_of("Filter issues")
             last = field + (1 if roomy else 0)                              # the field's last row
             edge = max(x for x, (_, style) in enumerate(self.canvas.rows[field]) if style.bg == "input")
             top = next(y for y in range(self.canvas.height) if "┌" in text(self.canvas, y))
@@ -381,6 +382,322 @@ class View(unittest.TestCase):
         self.assertFalse(any("#1 " in text(self.canvas, y) for y in range(16)))
 
 
+# issue-types.html's list: #42 Urgent Bug (GitHub's type), #47 High Feature (its enhancement label), #39 Medium Task,
+# #51 Low Bug (its bug label), #53 none; the organization's Priority field and types, which the user may set
+TYPED = Listing((Issue(42, "Page past the last one answers an empty list", ("api",), ("you",), "2026-10-24T10:00:00Z",
+                       "OPEN", "", "Urgent", "Bug", "I_42"),
+                 Issue(47, "Group books by shelf", ("shelves", "enhancement"), ("ada",), "2026-10-23T12:00:00Z",
+                       "OPEN", "", "High", "", "I_47", "you"),
+                 Issue(39, "Describe the routes in the README", ("docs",), (), "2026-10-21T12:00:00Z", "OPEN", "",
+                       "Medium", "Task", "I_39"),
+                 Issue(51, "Export dates in UTC", ("export", "bug"), ("tomas",), "2026-10-19T12:00:00Z", "OPEN", "",
+                       "Low", "", "I_51"),
+                 Issue(53, "Page size from the config?", ("question",), (), "2026-10-18T12:00:00Z")),
+                settable={"field": "PF_1", "options": [["PO_1", "Urgent"], ["PO_2", "High"], ["PO_3", "Medium"],
+                                                       ["PO_4", "Low"]],
+                          "types": [["IT_1", "Bug"], ["IT_2", "Feature"], ["IT_3", "Task"]]}, me="you")
+
+
+class Types(unittest.TestCase):
+    """Each issue's type a mono, muted icon before its number (its column there while any issue listed has one), its
+    word under the title where no icon says it; a closed one's marks all muted; the row's highlight a cell in."""
+    setUp, draw, row_of, lines, click, press = View.setUp, View.draw, View.row_of, View.lines, View.click, View.press
+
+    def shown(self, listing=TYPED, icons=True):
+        self.view = Issues(icons=icons, now=lambda: NOW)
+        self.view.ask()
+        self.view.show(listing, Query())
+        return self.draw(width=44, height=20)
+
+    def test_each_ones_icon_before_its_number_the_numbers_in_one_column(self):
+        self.shown()
+        for number, kind in ((42, "Bug"), (47, "Feature"), (39, "Task"), (51, "Bug"), (53, None)):
+            y = self.row_of(f"#{number} ")
+            line = text(self.canvas, y)
+            self.assertEqual(line.index(f"#{number}"), TEXT + 2, number)            # the icon and a cell of air
+            self.assertEqual(line[TEXT], glyphs(True)[kind] if kind else " ", number)
+            if kind:
+                self.assertEqual(self.canvas.rows[y][TEXT][1].fg, "muted")
+            under = text(self.canvas, y + 1)                                    # under the title
+            self.assertEqual(len(under) - len(under.lstrip(" ▌")), TEXT + 2 + len(f"#{number} "), number)
+        self.assertNotIn("enhancement", text(self.canvas, self.row_of("#47 ") + 1))      # its type now: one signal
+        self.assertNotIn("bug", text(self.canvas, self.row_of("#51 ") + 1))
+
+    def test_no_type_listed_no_column(self):
+        self.shown(Listing((SAFARI, DARK)))
+        self.assertEqual(text(self.canvas, self.row_of("#42 ")).index("#42"), TEXT)
+
+    def test_without_icons_the_types_word_after_the_priority(self):
+        self.shown(icons=False)
+        y = self.row_of("#42 ")
+        self.assertEqual(text(self.canvas, y).index("#42"), TEXT)                           # no column
+        under = text(self.canvas, y + 1)
+        self.assertIn("Urgent  Bug  api  @you", under)
+        self.assertEqual(self.canvas.rows[y + 1][under.index("Bug")][1].fg, "muted")
+        self.assertIn("High  Feature  shelves", text(self.canvas, self.row_of("#47 ") + 1))
+
+    def test_an_organizations_own_type_its_word_no_icon(self):
+        epic = Issue(60, "Search across shelves", ("search",), (), "2026-10-24T10:00:00Z", issue_type="Epic")
+        self.shown(Listing(TYPED.issues + (epic,)))
+        y = self.row_of("#60 ")
+        self.assertEqual(text(self.canvas, y)[TEXT], " ")
+        self.assertIn("Epic  search", text(self.canvas, y + 1))
+
+    def test_a_closed_ones_marks_all_muted(self):
+        closed = replace(TYPED.issues[0], state="CLOSED")
+        self.shown(Listing((closed,)))
+        y = self.row_of("#42 ")
+        under = text(self.canvas, y + 1)
+        for row, x in ((y, 1), (y + 1, 1), (y, TEXT), (y, TEXT + 2), (y + 1, under.index("Urgent"))):
+            self.assertEqual(self.canvas.rows[row][x][1].fg, "muted", (row, x))
+
+    def test_the_rows_highlight_a_cell_in_from_each_side_its_content_a_cell_inside_it(self):
+        # as Changes' field and button stand: the bar (or the room for one) at the highlight's edge, the age a cell
+        # inside its end
+        self.shown()
+        for number in (42, 53):                                                      # with a bar, without one
+            index = next(n for n, issue in enumerate(self.view.list.items) if issue.number == number)
+            self.view.list.index = index
+            self.draw(width=44, height=20)
+            for y in (self.row_of(f"#{number} "), self.row_of(f"#{number} ") + 1):
+                row = self.canvas.rows[y]
+                self.assertEqual((row[0][1].bg, row[43][1].bg), (None, None), number)
+                self.assertTrue(all(row[x][1].bg == "selection" for x in range(1, 43)), number)
+            age = text(self.canvas, self.row_of(f"#{number} ") + 1)
+            self.assertEqual(len(age.rstrip()), 44 - 2, number)                     # ends at width - 3
+
+    def test_a_hovered_ones_buttons_inside_the_highlight(self):
+        self.shown()
+        y = self.row_of("#47 ")
+        self.view.handle(Mouse("move", 5, y, 3))
+        self.draw(width=44, height=20)
+        line = text(self.canvas, y)
+        self.assertEqual(len(line.rstrip()) - 1, line.index(glyphs(True)["web"]))
+        self.assertLessEqual(line.index(glyphs(True)["web"]), 44 - 3)
+
+
+class Filtering(unittest.TestCase):
+    """The funnel's menu: Assigned to me and Created by me, then the groups the list holds, each value with how many
+    would stay (the other groups' filters counted, not its own); several values of a group, every group; it stays open
+    while values are pressed; what is on as chips under the field."""
+    setUp, draw, row_of, lines, click, press, type = (View.setUp, View.draw, View.row_of, View.lines, View.click,
+                                                      View.press, View.type)
+
+    def shown(self, listing=TYPED):
+        self.view.ask()
+        self.view.show(listing, Query())
+        return self.draw(width=44, height=30)
+
+    def menu(self):
+        return self.view.menu.menu.choices
+
+    def counts(self, group):
+        """GROUP's rows in the menu: [(words, count, on, faint)]."""
+        choices = self.menu()
+        start = choices.index(group) + 1
+        rows = []
+        for choice in choices[start:]:
+            if not isinstance(choice, Row):
+                break
+            rows.append((str(choice), choice.count, choice.on, choice.faint))
+        return rows
+
+    def pick(self, words):
+        return self.view.pick(next(choice for choice in self.menu() if choice == words))
+
+    def test_the_groups_only_as_the_list_holds_them(self):
+        self.shown()
+        self.press("char", "a")
+        self.assertEqual([str(c) for c in self.menu() if isinstance(c, Heading)], ["Priority", "Type", "Label"])
+        self.assertEqual(self.counts("Priority"), [("Urgent", 1, False, False), ("High", 1, False, False),
+                                                   ("Medium", 1, False, False), ("Low", 1, False, False)])
+        self.assertEqual(self.counts("Type"), [("Bug", 2, False, False), ("Feature", 1, False, False),
+                                               ("Task", 1, False, False)])
+        self.view.close_menu()
+        self.shown(Listing((SAFARI, DARK)))                         # no priority, no type: no group for them
+        self.press("char", "a")
+        self.assertEqual([str(c) for c in self.menu() if isinstance(c, Heading)], ["Label"])
+
+    def test_urgent_or_high_and_bug_the_menu_open_throughout(self):
+        self.shown()
+        self.press("char", "a")
+        for words in ("Urgent", "High", "Bug"):
+            self.assertIsNone(self.pick(words))
+            self.assertIsNotNone(self.view.menu)                     # it stays open
+        self.assertEqual(self.counts("Priority"), [("Urgent", 1, True, False), ("High", 0, True, True),
+                                                   ("Medium", 0, False, True), ("Low", 1, False, False)])
+        self.assertEqual(self.counts("Type"), [("Bug", 1, True, False), ("Feature", 1, False, False),
+                                               ("Task", 0, False, True)])
+        self.assertEqual([issue.number for issue in self.view.list.items], [42])
+        self.assertIsNone(self.pick("Bug"))                          # pressed again: off
+        self.assertEqual([issue.number for issue in self.view.list.items], [42, 47])
+
+    def test_every_values_words_on_one_column_its_count_at_the_end(self):
+        self.shown()
+        self.press("char", "a")
+        self.pick("Urgent")
+        self.draw(width=44, height=30)
+        inside = [line[line.index("│"):] for line in self.lines() if "│" in line]       # the menu's rows alone
+        columns = {line.index(words) for words in ("Assigned to me", "Urgent", "Bug", "api") for line in inside
+                   if words in line}
+        self.assertEqual(len(columns), 1, columns)
+        urgent = next(line for line in inside if "Urgent" in line)
+        self.assertEqual(urgent[urgent.index("Urgent") - 4], "✓")               # the check, then the dot's slot
+        self.assertTrue(urgent.rstrip().endswith("1 │"), urgent)
+
+    def test_chips_one_a_group_x_takes_one_off_clear_all_backspace_the_last(self):
+        self.shown()
+        self.press("char", "a")
+        for words in ("Created by me", "Urgent", "High", "Bug"):
+            self.pick(words)
+        self.press("esc")
+        self.draw(width=44, height=30)
+        first = self.row_of("Created by me ×")                                  # a cell between two chips, each
+        self.assertIn("Created by me ×   ● Urgent, High ×", text(self.canvas, first))      # one's air its own
+        self.assertIn(glyphs(True)["Bug"] + " Bug ×", text(self.canvas, first + 1))     # no room: the next row
+        self.assertTrue(text(self.canvas, first + 1).rstrip().endswith("Clear"))
+        self.assertEqual(text(self.canvas, first + 2).split()[:2], ["Open", "Closed"])
+        field = self.row_of("Filter issues")
+        self.assertEqual(self.canvas.rows[field][44 - 3][1].fg, "accent")         # the funnel: a filter is on
+        y = self.row_of("Created by me ×")
+        self.click("×", y)                                                       # the first chip's ×
+        self.assertEqual(self.view.filters.chosen["authored"], ())
+        self.press("char", "/")
+        self.press("backspace")                                                  # the empty field: the last chip
+        self.assertEqual(self.view.filters.chosen["type"], ())
+        self.press("esc")
+        self.draw(width=44, height=30)
+        self.click("Clear", self.row_of("Clear"))
+        self.assertFalse(self.view.filters.on())
+        self.draw(width=44, height=30)
+        self.assertEqual(self.canvas.rows[field][44 - 3][1].fg, "muted")
+
+    def test_a_chip_holds_its_words_between_a_cell_of_air_each_side(self):
+        # each label's length, with a mark and without: the chip's first and last cells air on its fill, its
+        # content between them (the TUI centres nothing else in it)
+        for words in ("a", "ab", "api", "docs", "shelves", "good first issue"):
+            for group in ("label", "level"):
+                self.view = Issues(now=lambda: NOW)
+                self.view.filters.chosen[group] = (words,) if group == "label" else (1,)
+                canvas = Canvas(60, 4)
+                self.view.filters.draw_chips(canvas, 0, True, None)
+                row = canvas.rows[0]
+                painted = [x for x, (_, style) in enumerate(row) if style.bg == "input"]
+                start, end = painted[0], painted[-1]
+                self.assertEqual((row[start][0], row[end][0], row[end - 1][0]), (" ", " ", "×"), (words, group))
+                self.assertNotEqual(row[start + 1][0], " ", (words, group))
+                self.assertEqual(row[end - 2][0], " ", (words, group))
+
+    def test_past_six_labels_the_six_most_used_n_more_and_a_find_field(self):
+        many = Listing(tuple(Issue(n, f"Issue {n}", (label, "api") if n < 66 else (label,))
+                             for n, label in enumerate(("docs", "export", "question", "shelves", "search", "auth",
+                                                        "perf", "ui"), 60)))
+        self.shown(many)
+        self.press("char", "l")
+        labels = self.counts("Label")
+        self.assertEqual([words for words, *_ in labels], ["api", "auth", "docs", "export", "perf", "question",
+                                                           "3 more"])
+        self.assertIsNotNone(self.view.menu.menu.find)
+        self.pick("3 more")
+        self.assertEqual(len(self.counts("Label")), 9)
+        for ch in "per":
+            self.press("char", ch)                                               # typed into its find field
+        self.assertEqual([str(c) for c in self.menu() if isinstance(c, Row)], ["perf"])
+
+    def test_counts_from_the_latest_hundred_then_its_search_asked(self):
+        full = Listing(tuple(Issue(n, f"Issue {n}", ("docs",) if n % 2 else ("api",)) for n in range(1, 101)))
+        self.view.ask()
+        asked = self.view.show(full, Query())
+        self.assertIsNone(asked)                                                 # nothing on: no search
+        self.press("char", "l")
+        self.assertEqual(self.menu()[-1], "Counts from the latest 100")
+        asked = self.pick("docs")
+        self.assertEqual(asked, Action("load_issues", (Query(search='label:"docs"'),)))
+        self.assertEqual(len(self.view.list.items), 50)                          # the loaded list narrowed meanwhile
+        more = Listing(full.issues, narrowed=tuple(Issue(n, f"Issue {n}", ("docs",)) for n in range(101, 181)))
+        self.assertIsNone(self.view.show(more, Query(search='label:"docs"')))
+        self.assertEqual(len(self.view.list.items), 80)                          # the search's, narrowed exactly
+
+    def test_the_filters_come_back_and_older_single_values_become_one(self):
+        self.view.filters.chosen.update(level=(0, 1), label=("api",), authored=(True,))
+        kept = self.view.kept()
+        again = Issues(now=lambda: NOW)
+        again.take(json.loads(json.dumps(kept)))
+        self.assertEqual(again.filters.chosen, {**self.view.filters.chosen})
+        older = Issues(now=lambda: NOW)
+        older.take({"state": "closed", "assigned": True, "authored": False, "label": "bug", "level": 2,
+                    "board": "pulls"})
+        self.assertEqual((older.query, older.board), (Query("closed"), "pulls"))
+        self.assertEqual(older.filters.chosen, {"assigned": (True,), "authored": (), "level": (2,), "type": (),
+                                                "label": ("bug",)})
+        older.take({"chosen": {"level": [True, 9, "x"], "label": ["", 3, "ok"], "assigned": [1]}})
+        self.assertEqual(older.filters.chosen["level"] + older.filters.chosen["label"] + older.filters.chosen[
+            "assigned"], ("ok",))
+
+
+class Setting(unittest.TestCase):
+    """The right click's Priority… and Type…, where the organization has them: a second menu in the first one's place,
+    its head the issue's number with what it sets, none first, a check on the one it has; the row set at once."""
+    setUp, draw, row_of, lines, click, press = View.setUp, View.draw, View.row_of, View.lines, View.click, View.press
+
+    def shown(self, listing=TYPED):
+        self.view.ask()
+        self.view.show(listing, Query())
+        return self.draw(width=44, height=30)
+
+    def right_click(self, number):
+        y = self.row_of(f"#{number} ")
+        self.view.handle(Mouse("press", 9, y, 2))
+        self.draw(width=44, height=30)
+        return self.view.menu.menu.choices
+
+    def test_priority_and_type_between_assign_and_close_only_where_they_can_be_set(self):
+        self.shown()
+        self.assertEqual(self.right_click(42), ["Open", "Open in the browser", "To the agent", "Reply", "Assign to me",
+                                                "Priority…", "Type…", "Close…"])
+        self.view.close_menu()
+        self.shown(replace(TYPED, settable={"field": "", "options": [], "types": [["IT_1", "Bug"]]}))
+        self.assertNotIn("Priority…", self.right_click(42))
+        self.view.close_menu()
+        self.shown(replace(TYPED, settable=None))                               # a personal repository, or a reader
+        self.assertEqual(self.right_click(42)[-3:], ["Reply", "Assign to me", "Close…"])
+
+    def test_priority_opens_where_the_first_menu_was_none_first_a_check_on_its_own(self):
+        self.shown()
+        self.right_click(42)
+        first = next(y for y in range(30) if "┌" in text(self.canvas, y))
+        corner = text(self.canvas, first).index("┌")
+        self.view.pick("Priority…")
+        self.draw(width=44, height=30)
+        self.assertEqual((next(y for y in range(30) if "┌" in text(self.canvas, y)),
+                          text(self.canvas, first).index("┌")), (first, corner))
+        choices = self.view.menu.menu.choices
+        self.assertEqual([str(c) for c in choices if c is not None], ["#42 · Priority", "No priority", "Urgent", "High",
+                                                                       "Medium", "Low"])
+        self.assertEqual([c.on for c in choices if isinstance(c, Row)], [False, True, False, False, False])
+        inside = [line[line.index("│"):] for line in self.lines() if "│" in line]       # the menu's rows alone
+        none = next(line for line in inside if "No priority" in line)
+        urgent = next(line for line in inside if "Urgent" in line)
+        self.assertEqual(none.index("No priority"), urgent.index("●"))            # none where the dots stand
+
+    def test_a_choice_sets_the_row_at_once_and_asks_github(self):
+        self.shown()
+        self.right_click(42)
+        self.view.pick("Priority…")
+        asked = self.view.pick(next(c for c in self.view.menu.menu.choices if c == "Medium"))
+        changed = replace(TYPED.issues[0], priority="Medium")
+        self.assertEqual(asked, Action("issue_set", (changed, "priority", "PO_3", "Medium", "PF_1")))
+        self.assertIsNone(self.view.menu)
+        self.draw(width=44, height=30)
+        y = self.row_of("#42 ")
+        self.assertEqual(self.canvas.rows[y][1][1].fg, "modified")                  # its new color, at once
+        self.right_click(42)
+        self.view.pick("Type…")
+        asked = self.view.pick(next(c for c in self.view.menu.menu.choices if c == "No type"))
+        self.assertEqual(asked.args[1:], ("type", None, "no type", ""))
+        self.assertEqual(asked.args[0].issue_type, "")
+
+
 class Shared(unittest.TestCase):
     """One question a minute for every sidebar of a repository: the latest answer kept in the state folder."""
 
@@ -451,14 +768,14 @@ class PullRequests(unittest.TestCase):
                                                       View.press, View.type)
 
     def pulls(self, found=(SHELVES, PAGE, ERRORS), error=None):
-        self.assertEqual(self.press("char", "p"), Action("load_pulls", ("open",)))
-        self.view.pulls.show(Pulls(found, "dev", error), "open")
+        self.assertEqual(self.press("char", "p"), Action("load_pulls", (Query(),)))
+        self.view.pulls.show(Pulls(found, "dev", error), Query())
         return self.draw(width=50)
 
     def test_p_or_a_press_on_the_switch_shows_them_asked_for_once(self):
         self.draw()
         self.assertIn("Issues   Pull requests", self.lines()[0])
-        self.assertEqual(self.click("Pull requests", 0), Action("load_pulls", ("open",)))
+        self.assertEqual(self.click("Pull requests", 0), Action("load_pulls", (Query(),)))
         self.assertEqual(self.view.board, "pulls")
         self.draw()
         self.assertIn("Filter pull requests", "".join(self.lines()))
@@ -483,7 +800,7 @@ class PullRequests(unittest.TestCase):
         self.assertEqual(self.press("char", "t"), Action("pull_to_agent", (PAGE,)))
         self.assertEqual(self.press("char", "b"), Action("pull_web", (PAGE,)))
         self.assertEqual(self.press("char", "c"), Action("new_pull", ()))
-        self.assertEqual(self.press("right"), Action("load_pulls", ("closed",)))
+        self.assertEqual(self.press("right"), Action("load_pulls", (Query("closed"),)))
         self.assertEqual(self.click("+"), Action("new_pull", ()))
 
     def test_the_filter_finds_them_by_number_title_branch_and_author(self):
@@ -497,12 +814,37 @@ class PullRequests(unittest.TestCase):
         self.press("char", "p")
         self.draw()
         self.row_of("Loading pull requests…")
-        self.view.pulls.show(Pulls(error=github.SIGNED_OUT), "open")
+        self.view.pulls.show(Pulls(error=github.SIGNED_OUT), Query())
         self.draw()
         self.row_of(github.SIGNED_OUT[:30])
-        self.view.pulls.show(Pulls(), "open")
+        self.view.pulls.show(Pulls(), Query())
         self.draw()
         self.row_of("No open pull requests")
+
+    def test_filtered_as_the_issues_review_in_its_colors_checks_with_their_marks(self):
+        self.pulls()
+        self.press("char", "a")
+        choices = self.view.pulls.menu.menu.choices
+        self.assertEqual([str(c) for c in choices if isinstance(c, Heading)], ["Review", "Checks"])
+        rows = {str(c): c for c in choices if isinstance(c, Row)}
+        self.assertEqual([(w, rows[w].role, rows[w].count) for w in ("Draft", "Your review", "Changes requested")],
+                         [("Draft", None, 1), ("Your review", "modified", 1), ("Changes requested", "deleted", 1)])
+        self.assertEqual([(w, rows[w].mark) for w in ("Passing", "Running", "Failing")],
+                         [("Passing", ("✓", "added")), ("Running", ("●", "modified")), ("Failing", ("✕", "deleted"))])
+        for words in ("Created by me", "Running"):                       # PAGE: yours (dev's), its checks running
+            self.view.pulls.pick(next(c for c in self.view.pulls.menu.menu.choices if c == words))
+        self.assertEqual([pull.number for pull in self.view.pulls.list.items], [58])
+        self.press("esc")
+        self.draw(width=50)
+        self.assertIn("Created by me ×   ● Running ×", text(self.canvas, self.row_of("Clear")))
+
+    def test_its_rows_highlight_a_cell_in_from_each_side(self):
+        self.pulls()
+        y = self.row_of("#57 ")
+        for row in (self.canvas.rows[y], self.canvas.rows[y + 1]):
+            self.assertEqual((row[0][1].bg, row[49][1].bg), (None, None))
+            self.assertTrue(all(row[x][1].bg == "selection" for x in range(1, 49)))
+        self.assertEqual(len(self.lines()[y].rstrip()), 50 - 2)                  # its review's word a cell inside
 
     def test_its_review_in_the_preview_tab_read_only_with_each_thread_on_its_line(self):
         thread = {"id": "t1", "resolved": False, "path": "src/a.py", "line": 30, "side": "RIGHT",

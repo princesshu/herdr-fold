@@ -1081,7 +1081,8 @@ test("what was done or went wrong stands under the list, never over its rows: Is
       source.indexOf("\n  }\n", source.indexOf(name)));
     // Issues: its head, its list, then the foot's line; nothing of it beside Open and Closed
     assert.match(body(issues, "  render(t) {"), new RegExp(String.raw`\.children\(shown\.map\(\(issue\) => `
-      + String.raw`this\.row\(t, issue\)\)\)\)\s*\.when\(Boolean\(foot\), \(e\) => e\.child\(footNote\(t, foot\)\)\)`));
+      + String.raw`this\.row\(t, issue, slot\)\)\)\)\s*`
+      + String.raw`\.when\(Boolean\(foot\), \(e\) => e\.child\(footNote\(t, foot\)\)\)`));
     assert.doesNotMatch(body(issues, "  states(t, parts) {"), /this\.busy|this\.note/);
     // Chats: the filter right over the list, the line after it; the list's own failure in its first row's place
     const list = body(chats, "  list(t, rows) {");
@@ -1089,8 +1090,10 @@ test("what was done or went wrong stands under the list, never over its rows: Is
     assert.match(list, /\.when\(Boolean\(this\.note\), \(e\) => e\.child\(footNote\(t, this\.note\)\)\)/);
     assert.match(list, /this\.failed \? `Couldn't read the chats: \$\{this\.failed\}` : "Loading chats…"/);
     // one line for both, as Files' and Changes' problems: PAD in, PAD / 2 over it, 11, dim or ansi1; done things go
-    assert.match(parts, new RegExp(String.raw`export const footNote = \(t, note\) => div\(\)\.flex_none\(\)`
-      + String.raw`\.px\(PAD\)\.pt\(PAD / 2\)\.pb\(PAD\)`));
+    // (a change made: the same line, its check before its words)
+    assert.match(parts, new RegExp(String.raw`export const footNote = \(t, note\) => note\.done && !note\.error\s+`
+      + String.raw`\? h_flex\(\)\.flex_none\(\)\.px\(PAD\)\.pt\(PAD / 2\)\.pb\(PAD\)[^]*?`
+      + String.raw`: div\(\)\.flex_none\(\)\.px\(PAD\)\.pt\(PAD / 2\)\.pb\(PAD\)`));
     assert.match(body(parts, "export function keepNote"), /!note\.error[^]*cx\.timer\.after\(NOTE_MS/);
     for (const [name, source] of [["issues.js", issues], ["chats.js", chats]]) {
       assert.doesNotMatch(source, /this\.note = (?!null)/, `${name}: its notes through keepNote()`);
@@ -1114,12 +1117,14 @@ test("Issues loading moves nothing: the list's first row stays put, the head's r
   assert.deepEqual(parts({ listing: { issues: [], error: null } }).say, ["No open issues", "dim"]);
   assert.deepEqual(parts({ listing: one, filtered: true }).say, ["No issues match", "dim"]);
   // drawn so: the head (the field, then Open and Closed with the refresh at their end) right over the list, no row
-  // that comes and goes between them; what there is to say first in the list; the spinner as big as the button
+  // that comes and goes between them but the chips of the filters on (issue-types.html); what there is to say first
+  // in the list; the spinner as big as the button
   const issues = readFileSync(new URL("../mods/herdr-fold/issues.js", import.meta.url), "utf8");
   const body = (/** @type {string} */ name) => issues.slice(issues.indexOf(name), issues.indexOf("\n  }\n",
     issues.indexOf(name)));
   const render = body("  render(t) {");
-  assert.match(render, new RegExp(String.raw`\.child\(this\.field\(t\)\)\s*\.child\(this\.states\(t, parts\)\)\s*`
+  assert.match(render, new RegExp(String.raw`\.child\(this\.field\(t, filtered\)\)\s*\.when\(filtered, \(e\) => `
+    + String.raw`e\.child\(filterChips\([^\n]*\)\)\)\s*\.child\(this\.states\(t, parts\)\)\s*`
     + String.raw`\.child\(v_flex\(\)\.id\("issues"\)`));
   assert.match(render, new RegExp(String.raw`\.when\(Boolean\(parts\.say\), \(e\) => e\.child\(this\.say\(t, `
     + String.raw`parts\.say\)\)\)\s*\.children\(`));
@@ -1522,7 +1527,8 @@ test("a press outside a float closes it, never one in a menu it opened nor on it
   assert.match(sidebar, /\.on_mouse_down_out\(\(e\) => \{\s+if \(pressCloses\(panel, e\.position, layout\(\)/);
   assert.match(sidebar, /menusOpen\(\)\.length > 0 \|\| settingsOpen\(\)/);
   // a menu marked up as it opens, forgotten however it closes (its choice, Esc, a press beside); none after a start
-  assert.match(menus, /setShared\(MENUS, \[\.\.\.menusOpen\(\), openOverlay\(/);
+  assert.match(menus,
+    /this\.overlay = openOverlay\([^]*?\);\n {4}setShared\(MENUS, \[\.\.\.menusOpen\(\), this\.overlay\]\);/);
   assert.match(main.slice(main.indexOf("  async close() {")), /if \(this\.popup\) menuGone\(this\.popup\.overlay\);/);
   assert.match(main, /forgetFloats\(\);\s+forgetMenus\(\);/);
 });
@@ -2483,3 +2489,138 @@ test("the Start tab offers the chats' projects, newest first, never the home or 
     "/Users/dev/workshop"]);
 });
 
+
+// --- Issues' and Pull requests' filters, core/github.py's groups (tests/test_core_github.py's Filters, the same list)
+import { CENTRED, chipGroups, counted, filterGroups, ISSUE_GROUPS, issueFacets, issueKind, issueSearch, issueSet,
+  listStale, menuAt, offered, ordered, passes, PULL_GROUPS, pullFacets, pullSearch, toggled, TOP_LABELS }
+  from "../mods/herdr-fold/logic.js";
+import { ISSUES_STALE } from "../mods/herdr-fold/helper.js";
+
+// issue-types.html's list as core/github.py's listed gives it: #42 Urgent Bug, #47 High Feature (its enhancement
+// label), #39 Medium Task, #51 Low Bug (its bug label), #53 none
+const TYPED = [[42, ["api"], ["you"], "ada", 0, "Bug"], [47, ["shelves", "enhancement"], ["ada"], "you", 1, ""],
+  [39, ["docs"], [], "ada", 2, "Task"], [51, ["export", "bug"], ["tomas"], "ada", 3, ""],
+  [53, ["question"], [], "ada", null, ""]].map(([number, labels, assignees, author, level, type]) => issueSet({
+  number, title: `Issue ${number}`, labels, assignees, author, level, ranked_by: level === null ? null : "p",
+  priority: "", issue_type: type, said: "", ago: "1d" }, {}));
+
+test("an issue's type: GitHub's own, else a bug, enhancement or feature label, which then leaves its labels", () => {
+  assert.deepEqual(issueKind("Feature", ["bug"]), { type: "Feature", by: null });
+  assert.deepEqual(issueKind("", ["question", "Bug"]), { type: "Bug", by: "Bug" });
+  assert.deepEqual(issueKind("", ["type: bug", "docs"]), { type: "", by: null });
+  assert.deepEqual(TYPED.map((issue) => [issue.type, issue.shown]), [["Bug", ["api"]], ["Feature", ["shelves"]],
+    ["Task", ["docs"]], ["Bug", ["export"]], ["", ["question"]]]);
+});
+
+test("a priority or type set shows on the row at once", () => {
+  const set = issueSet({ ...TYPED[3], priority: "", ranked_by: null, level: null }, { priority: "High" });
+  assert.deepEqual([set.level, set.ranked_by], [1, "High"]);
+  const typed = issueSet(TYPED[3], { issue_type: "Feature" });
+  assert.deepEqual([typed.type, typed.typed_by, typed.shown], ["Feature", null, ["export", "bug"]]);   // bug's back
+  const cleared = issueSet({ ...TYPED[0], priority: "Urgent", ranked_by: "Urgent" }, { priority: "" });
+  assert.deepEqual([cleared.level, cleared.ranked_by], [null, null]);
+});
+
+test("each value counts how many would stay with it on: the other groups' filters, not its own", () => {
+  const items = TYPED.map((issue) => issueFacets(issue, "you"));
+  assert.deepEqual(items[1], { assigned: [], authored: [true], level: [1], type: ["Feature"], label: ["shelves"] });
+  assert.deepEqual(offered(items, {}, "type").map(({ value, count }) => [value, count]),
+    [["Bug", 2], ["Feature", 1], ["Task", 1]]);
+  const chosen = { level: [0, 1], type: ["Bug"] };                     // Urgent or High, and Bug: issue-types.html's
+  assert.deepEqual(offered(items, chosen, "level").map(({ value, count }) => [value, count]),
+    [[0, 1], [1, 0], [2, 0], [3, 1]]);
+  assert.deepEqual(offered(items, chosen, "type").map(({ count }) => count), [1, 1, 0]);
+  assert.deepEqual(TYPED.filter((_, n) => passes(items[n], chosen)).map((issue) => issue.number), [42]);
+  assert.deepEqual(offered(items, { label: ["gone"] }, "label").at(-1), { value: "gone", count: 0, uses: 0 });
+});
+
+test("the menu's groups as the list holds them, labels past six behind N more", () => {
+  const items = TYPED.map((issue) => issueFacets(issue, "you"));
+  const shown = filterGroups(items, {}, ISSUE_GROUPS);
+  assert.deepEqual(shown.mine, [{ group: "assigned", on: false }, { group: "authored", on: false }]);
+  assert.deepEqual(shown.groups.map(({ group }) => group), ["level", "type", "label"]);
+  assert.equal(shown.find, false);
+  assert.deepEqual(filterGroups([{ label: ["x"] }], {}, ISSUE_GROUPS).groups.map(({ group }) => group), ["label"]);
+  const many = ["api", "docs", "export", "question", "shelves", "search", "auth", "perf"]
+    .map((label, n) => ({ label: n < TOP_LABELS ? [label, "api"] : [label] }));
+  const labels = filterGroups(many, { label: ["shelves"] }, ISSUE_GROUPS).groups[0];
+  assert.deepEqual(labels.values.filter((one) => !one.hidden).map(({ value }) => value),
+    ["api", "auth", "docs", "export", "perf", "question", "shelves"]);        // the six most used, and one on
+  assert.equal(labels.hidden, 1);
+  assert.equal(filterGroups(many, {}, ISSUE_GROUPS, true).groups[0].hidden, 0);
+  assert.equal(filterGroups(many, {}, ISSUE_GROUPS).find, true);
+});
+
+test("what is on, a chip a group in its order; a value turned on, then off", () => {
+  assert.deepEqual(chipGroups({ authored: [true], type: ["Task", "Bug"], level: [1, 0], label: [] }, ISSUE_GROUPS),
+    [{ group: "authored", values: [true] }, { group: "level", values: [0, 1] }, { group: "type",
+      values: ["Bug", "Task"] }]);
+  assert.deepEqual(toggled(toggled({ level: [] }, "level", 1), "level", 0), { level: [1, 0] });
+  assert.deepEqual(toggled({ level: [1, 0] }, "level", 1), { level: [0] });
+  assert.deepEqual(ordered("type", ["Epic", "Task", "Bug"]), ["Bug", "Task", "Epic"]);
+});
+
+test("GitHub's search for the filters on, wider than they are, as core/github.py's", () => {
+  assert.equal(issueSearch({ assigned: [true], level: [0], type: ["Bug", "Epic"], label: ["good first issue"] }),
+    'assignee:@me (type:"Bug" OR type:"Epic" OR label:"bug") label:"good first issue"');
+  assert.equal(issueSearch({ type: ["Feature"] }), '(type:"Feature" OR label:"enhancement" OR label:"feature")');
+  assert.equal(issueSearch({ label: ['say "hi"'] }), "");
+  assert.equal(pullSearch({ authored: [true], review: ["changes", "yours"], checks: ["failed"], label: ["api"] }),
+    'author:@me (review-requested:@me OR review:changes_requested) label:"api"');
+  const pull = { review: "draft", mark: "running", labels: ["api"], assignees: [], authored: true };
+  assert.deepEqual(pullFacets(pull, "you"), { assigned: [], authored: [true], review: ["draft"], checks: ["running"],
+    label: ["api"] });
+  assert.deepEqual(PULL_GROUPS, ["assigned", "authored", "review", "checks", "label"]);
+});
+
+test("a list shown is asked again a minute on, as the TUI's: core's one number, never while one is on its way", () => {
+  const core = readFileSync(new URL("../../core/github.py", import.meta.url), "utf8");
+  assert.equal(ISSUES_STALE, Number(/^STALE = (\d+)/m.exec(core)?.[1]));
+  assert.equal(listStale(1000, 1000 + ISSUES_STALE * 1000, false, ISSUES_STALE), true);
+  assert.equal(listStale(1000, 1000 + ISSUES_STALE * 1000 - 1, false, ISSUES_STALE), false);
+  assert.equal(listStale(1000, 1000 + ISSUES_STALE * 1000, true, ISSUES_STALE), false);
+  assert.equal(listStale(null, 5, false, ISSUES_STALE), false);
+  const main = readFileSync(new URL("../mods/herdr-fold/main.js", import.meta.url), "utf8");
+  assert.match(main, /\(!board\.listing && !board\.asked \|\| board\.stale\(\)\)\) board\.load\(cx\)/);
+  for (const name of ["issues.js", "pulls.js"]) {
+    const view = readFileSync(new URL(`../mods/herdr-fold/${name}`, import.meta.url), "utf8");
+    assert.match(view,
+      /stale\(\) \{\n {4}return listStale\(this\.at, Date\.now\(\), Boolean\(this\.asked\), ISSUES_STALE\)/, name);
+  }
+});
+
+test("a right click's menu opens with its corner at the pointer, a chained one at the first one's", () => {
+  const room = { width: 1000, height: 800 };
+  assert.deepEqual(menuAt({ x: 300, y: 200 }, 250, room, 200), { x: 300, y: 200 });
+  assert.deepEqual(menuAt({ x: 950, y: 700 }, 250, room, 200), { x: 792, y: 450 });     // in, and above it
+  assert.deepEqual(menuAt({ x: 3, y: 100 }, 900, room, 200), { x: 8, y: 8 });
+});
+
+test("the filters' parts centre to the pixel: each room and part differ by an even number", () => {
+  for (const [name, [room, part]] of Object.entries(CENTRED)) {
+    assert.ok(part <= room, name);
+    assert.equal((room - part) % 2, 0, `${name}: ${room} round ${part}`);
+  }
+  const issues = readFileSync(new URL("../mods/herdr-fold/issues.js", import.meta.url), "utf8");
+  for (const part of ["funnel[1]", "funnelIcon[1]", "chip[0]", "chipX[0]", "chipX[1]", "chipMark[1]"]) {
+    assert.ok(issues.includes(`CENTRED.${part}`), part);
+  }
+});
+
+test("a menu's group names and its hidden rows in its height", () => {
+  assert.equal(menuHeight([{ label: "a" }, { label: "Priority", group: true }]), 30 + 24 + 8);
+  assert.equal(menuHeight([{ label: "a" }, { label: "b", hidden: true }]), 30 + 8);
+});
+
+test("Open and Closed each with the repository's count, the word alone till it is known, never a 0 that is no count",
+  () => {
+    assert.deepEqual(counted({ open: 2, closed: 1 }), [["open", "Open 2"], ["closed", "Closed 1"]]);
+    assert.deepEqual(counted({ open: 0, closed: 340 }), [["open", "Open 0"], ["closed", "Closed 340"]]);
+    assert.deepEqual(counted(null), [["open", "Open"], ["closed", "Closed"]]);
+    assert.deepEqual(counted({ open: "2" }), [["open", "Open"], ["closed", "Closed"]]);
+    for (const name of ["issues.js", "pulls.js"]) {             // both lists, from the answer's totals, kept meanwhile
+      const view = readFileSync(new URL(`../mods/herdr-fold/${name}`, import.meta.url), "utf8");
+      assert.match(view, /choices\(t, "(issues|pulls)", counted\(this\.totals\)/, name);
+      assert.match(view, /totals: answer\.totals \?\? this\.totals/, name);
+    }
+  });

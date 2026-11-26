@@ -151,7 +151,8 @@ def js_note():
     """helper.js's opening comment: where it comes from, and what it is for."""
     return ["// @ts-check",
             "// Generated from core/ by tools/build.py: each export a module's source, run with Python's -c on the",
-            "// space's machine (MEDIA_*, OUTPUT_LINES, THEME_NAMES: core's tables, the TUI's). Change them there."]
+            "// space's machine; MEDIA_*, OUTPUT_LINES, ISSUES_STALE and THEME_NAMES core's tables, the TUI's. "
+            "Change them there."]
 
 
 def literal(text):
@@ -299,6 +300,7 @@ def outputs():
         lines.append(f"export const MEDIA_WEB = {json.dumps(module('media').WEB, indent=2)};")
         lines.append(f"export const MEDIA_SERVICES = {json.dumps(module('calls').MEDIA, indent=2)};")
         lines.append(f"export const OUTPUT_LINES = {module('named_files').LINES};")
+        lines.append(f"export const ISSUES_STALE = {module('github').STALE};")       # seconds: a list asked again
         # the app's herdr-fold themes by the TUI's names, in its order (Cmd+Shift+T's list)
         names = {f"herdr-fold-{theme['id']}": theme["name"] for theme in themes}
         lines.append(f"export const THEME_NAMES = {json.dumps(names, indent=2)};")

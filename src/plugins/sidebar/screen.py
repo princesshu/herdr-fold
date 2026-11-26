@@ -14,6 +14,7 @@ COUNT = 4           # a count's cells at most (short_count()), as a tip or a vie
 SPINNER, SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏", 0.1     # something running: a frame every SPIN seconds (✦ writing, gh asked)
 
 ELLIPSIS = "…"
+DONE = "✓"          # a note's mark of something done (Set #42 to High), in the added role: the one check of done
 
 # git's change codes' color roles (the letters shown for them are core/icons.py's)
 GIT_ROLE = {"M": "modified", "A": "added", "R": "added", "?": "added", "D": "deleted", "U": "conflict"}
@@ -151,10 +152,10 @@ class Canvas:
             self.put(y, x, "▐", Style(fg=color, bg=under))
             self.put(y, x + cells - 1, "▌", Style(fg=color, bg=under))
 
-    def band(self, y, bg):
+    def band(self, y, bg, inset=0):
         """Row Y's background as a chosen or hovered row (none: a plain row): the view's whole width, the pane's from
-        edge to edge (MARGIN)."""
-        self.put(y, 0, " " * self.width, Style(bg=bg))
+        edge to edge (MARGIN); INSET cells in from each side (Issues' rows: as Changes' field and button stand)."""
+        self.put(y, inset, " " * max(0, self.width - 2 * inset), Style(bg=bg))
 
     def tint(self, y, x0, x1, bg):
         """Columns X0..X1-1 of row Y on the background BG, their characters and colors as they are."""

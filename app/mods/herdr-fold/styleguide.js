@@ -8,19 +8,20 @@ import { BY_EXTENSION, BY_NAME, FILE, ICONS } from "./icons.js";
 import { agentsSaid, commitRows, chatRows, diffRows, fieldWidth, findAll, FLOAT_GRIP, floatHeight, foldedSections,
   listHeight, menuHeight, paletteEntries, paletteKey, PALETTE_NAMED, panelChoices, pushOffer, RAIL,
   searchRows, SETTINGS, shortCount, TABS_H, updateReady, VIEWS_APP } from "./logic.js";
+import { ISSUE_GROUPS, issueSet, PULL_GROUPS } from "./logic.js";
 import { AgentView } from "./agent.js";
 import { AgentsView } from "./agentstab.js";
 import { Answer } from "./card.js";
 import { Chat } from "./chat.js";
 import { Checkpoints } from "./checkpoint.js";
 import { ChatsView } from "./chats.js";
-import { IssuesView } from "./issues.js";
+import { IssuesView, setItems } from "./issues.js";
 import { BranchPull, PullsView } from "./pulls.js";
 import { Review } from "./review.js";
 import { contrast } from "./agents.js";
 import { button, chip, CODE_FONT, fileMark, icon, listName, noteToast, PAD, scopeTag, small, SPACE } from "./parts.js";
 import { dockTabs, floatGrip, FloatSize, rail } from "./panel.js";
-import { Menus, menuPopup } from "./menus.js";
+import { menuFind, Menus, menuPopup } from "./menus.js";
 import { Preview } from "./preview.js";
 import { Editing } from "./editor.js";
 import { UsageView } from "./usageview.js";
@@ -70,8 +71,10 @@ const PAGE = "mods/herdr-fold/styleguide-page.svg";      // a PDF's page, as the
 // what the views' clicks would do: nothing, here
 const INERT = ["act", "change", "choose", "commit", "fold", "later", "pick", "refresh", "reveal", "search", "show",
   "submit", "sync", "unask", "unlink", "watch", "write"];
-const INERT_ISSUES = ["act", "change", "filter", "load", "open", "terminal", "toAgent", "unask"];
-const INERT_PULLS = ["cancel", "create", "load", "look", "open", "start", "toAgent", "write"];
+const INERT_ISSUES = ["act", "change", "clear", "drop", "load", "open", "openFilters", "set", "setMenu", "showMore",
+  "terminal", "toAgent", "toggle", "unask"];
+const INERT_PULLS = ["cancel", "clear", "create", "drop", "load", "look", "open", "openFilters", "start", "toAgent",
+  "toggle", "write"];
 const INERT_CHATS = ["ask", "close", "copy", "delete", "load", "look", "open", "pick", "rename", "unask", "watch"];
 const INERT_TABS = { pick: () => {} };       // the dock tabs' clicks
 const INERT_END = { chats: () => {}, more: () => {}, press: () => {}, away: () => {}, fold: () => {} };  // bar end's
@@ -121,8 +124,20 @@ const LISTED = [
   [39, "Shelf names are case-sensitive", ["priority: low", "bug"], [], 3, "3d"],
   [37, "Document the error format", ["docs"], ["mira-quillon"], null, "5d"]].map(([number, title, labels, assignees,
   level, ago]) => ({ number, title, labels, assignees, state: "OPEN", url: `https://example.com/issues/${number}`,
-  level, ranked_by: level === null ? null : labels[0], said: String(title).toLowerCase(), ago }));
-const LISTING = { issues: LISTED, error: null };
+  level, ranked_by: level === null ? null : labels[0], said: String(title).toLowerCase(), ago }))
+  .map((issue) => issueSet({ ...issue, priority: "", issue_type: "", author: "noa-berg", node: `I_${issue.number}` },
+    {}));             // each one's type read from its labels (bug, enhancement), as core/github.py's kind
+// what the user may set on them: the organization's Priority field and its options, its issue types
+const SETTABLE = { field: "PF_1", options: [["PO_1", "Urgent"], ["PO_2", "High"], ["PO_3", "Medium"], ["PO_4", "Low"]],
+  types: [["IT_1", "Bug"], ["IT_2", "Feature"], ["IT_3", "Task"]] };
+const LISTING = { issues: LISTED, error: null, settable: SETTABLE, me: "mira-quillon", limit: 100 };
+const TOTALS = { open: 5, closed: 12 };          // the repository's, both sides of Open and Closed counted
+// a Task (GitHub's own type) and an organization's own type (no icon: its word under the title)
+const TYPED = [issueSet({ ...LISTED[4], number: 36, title: "Move the docs to the new site", issue_type: "Task" }, {}),
+  issueSet({ ...LISTED[4], number: 34, title: "Search across shelves", issue_type: "Epic" }, {})];
+// a list with more than six labels: the six most used, the rest behind "N more" and the menu's find field
+const MANY = ["api", "docs", "export", "question", "shelves", "search", "auth", "perf", "ui"].map((label, n) =>
+  issueSet({ ...LISTED[4], number: 60 + n, labels: n < 6 ? [label, "api"] : [label] }, {}));
 // the repository's pull requests, as core/github.py's pull_listed gives them: one waiting on your review, your draft
 // with its checks running, one with changes asked for, one approved
 const PULLED = [
@@ -132,7 +147,9 @@ const PULLED = [
   [53, "Describe the routes", "docs/routes", "you", "passed", "3 checks passed", "approved", "2d"]]
   .map(([number, title, branch, author, mark, checks, review, ago]) => ({ number, title, branch, author, mark,
     checks_said: checks, review, ago, state: "OPEN", url: `https://example.com/pull/${number}`,
-    said: String(title).toLowerCase() }));
+    said: String(title).toLowerCase() }))
+  .map((pull) => ({ ...pull, labels: { 57: ["api", "shelves"], 58: ["api"], 53: ["docs"] }[pull.number] ?? [],
+    assignees: [], authored: pull.author === "you" }));      // its labels, and whether you wrote it (pull_listed's)
 const BRANCH = { ...STATUS, branch: "fix/page-past-end", upstream: "origin/fix/page-past-end", ahead: 0, behind: 0,
   staged: [], changes: [] };
 const PR_BODY = "Past the last page, /books answered an empty list; now it answers the last page, and a page below "
@@ -315,7 +332,8 @@ const BARS = [["This computer, its branch, two agents", bar(null, "main", ["idle
   ["A newer herdr-fold out: a press opens Settings at About", bar(null, "main", ["idle", "idle"], {},
     { version: "0.4.0", latest: "0.5.0", newer: true })]];
 const ISSUE = { ago: ["1d", "4h"], issue: { number: 42, title: LISTED[0].title, state: "OPEN", author: "noa-berg",
-  labels: ["priority: high", "bug"], body: "Steps:\n\n1. Ask `GET /books?page=99`\n2. The answer is an empty page" +
+  labels: ["priority: high", "bug", "api"], type: "Bug", typed_by: "bug",
+  body: "Steps:\n\n1. Ask `GET /books?page=99`\n2. The answer is an empty page" +
     "\n\nExpected: the last page, as `pages` says.",
   comments: [{ author: "tomasz-kowal", body: "Same with `page=0`." }] } };
 const HITS = [
@@ -344,13 +362,16 @@ function made(proto, fields = {}) {
   for (const name of INERT) state[name] = () => {};
   if (state.message) state.input.set_value(state.message);
   state.issues = issuesOf(state, fields.issues ?? {});
-  state.pulls = inert(Object.assign(new PullsView(state), { listing: { pulls: PULLED, error: null } },
-    fields.pulls ?? {}));
+  state.pulls = inert(Object.assign(new PullsView(state), { listing: { pulls: PULLED, error: null, me: "you" },
+    state: "open", filters: none(PULL_GROUPS), totals: { open: 4, closed: 9 } }, fields.pulls ?? {}));
   state.pull = inert(Object.assign(new BranchPull(state, async () => ({})), { answer: { pull: null, base: "main",
     error: null } }, fields.pull ?? {}));
   state.board = fields.board ?? "issues";
   return state;
 }
+
+/** GROUPS with no value on: a list's filters, all off. @param {string[]} groups */
+const none = (groups) => Object.fromEntries(groups.map((group) => [group, []]));
 
 /** VIEW with what its clicks would do left out (INERT_PULLS). @template T @param {T} view @returns {T} */
 function inert(view) {
@@ -430,7 +451,8 @@ function chatsOf(fields = {}) {
 
 /** STATE's Issues view, listing LISTED, with FIELDS (filters, a row asked about, a menu open). */
 function issuesOf(state, fields) {
-  const issues = Object.assign(new IssuesView(state), { listing: LISTING }, fields);
+  const issues = Object.assign(new IssuesView(state), { listing: LISTING, query: { state: "open", search: "" },
+    filters: none(ISSUE_GROUPS), totals: TOTALS }, fields);       // none of the filters a person kept
   for (const name of INERT_ISSUES) issues[name] = () => {};
   return issues;
 }
@@ -835,17 +857,20 @@ const SECTIONS = ["subagents", "rules", "skills", "permissions", "connectors"]; 
 // Usage as core words it (usage.py's section()), as usage-agents.html's frames: Claude on Max at 72% of its 5 hours,
 // Codex on an API key from the report's month; a window is [used, level], used null: "–"
 const RESETS = new Date(2026, 10, 13, 14, 46).getTime() / 1000, WEEK_RESETS = new Date(2026, 10, 16, 9, 0).getTime()
-  / 1000;
+  / 1000, FABLE_RESETS = new Date(2026, 10, 17, 9, 0).getTime() / 1000;
 /** @param {string} label @param {[number | null, string] | null} one @param {number} at */
 const windowOf = (label, one, at) => one && { label, used: one[0], text: one[0] === null ? "–" : `${one[0]}%`,
   level: one[0] === null ? null : one[1], resets: one[0] === null ? null : { at, words: label === "5h"
     ? "5h resets {time}" : "Week resets {day} {time}" } };
-/** An agent's row: its windows, the tighter, the reset shown under it while that one is yellow or red.
+/** Fable's own week as core words it: [used, level], its reset a day after the week's. @param {[number, string]} one */
+const fableOf = (one) => ({ label: "Fable", used: one[0], text: `${one[0]}%`, level: one[1],
+  resets: { at: FABLE_RESETS, words: "Fable resets {day} {time}" } });
+/** An agent's row: its windows (OVER's models: its models' own), the tighter, its reset while yellow or red.
  * @param {string} key @param {string} name @param {string | null} plan @param {[number | null, string] | null} five
  * @param {[number | null, string] | null} week @param {Record<string, any>} [over] */
 const meter = (key, name, plan, five, week, over = {}) => {
-  const told = { five: windowOf("5h", five, RESETS), week: windowOf("wk", week, WEEK_RESETS) };
-  const known = [told.five, told.week].filter((one) => one && one.used !== null);
+  const told = { five: windowOf("5h", five, RESETS), week: windowOf("wk", week, WEEK_RESETS), models: [] };
+  const known = [told.five, told.week, ...over.models ?? []].filter((one) => one && one.used !== null);
   const tight = known.reduce((most, one) => (!most || Number(one?.used) > Number(most.used) ? one : most), null);
   return { key, name, plan, current: key === "claude", ...told, tight,
     reset: tight && ["warn", "bad"].includes(String(tight.level)) ? tight.resets : null, age: "Read 3 min ago",
@@ -856,6 +881,11 @@ const UNTOLD = { text: "limits not told", why: "Codex tells its limits in a chat
 const CLAUDE_USE = meter("claude", "Claude", "Max", [72, "warn"], [16, "ok"]);
 const usageOf = (/** @type {any[]} */ ...rows) => ({ id: "usage", title: "Usage", none: "Not known yet", rows });
 const USAGE = usageOf(CLAUDE_USE);
+// an account with Fable's own week beside Codex on its plan: their windows' columns under each other
+const FABLE_USE = usageOf(meter("claude", "Claude", "Max", [32, "ok"], [16, "ok"], { models: [fableOf([38, "ok"])] }),
+  meter("codex", "Codex", "Plus", [8, "ok"], [3, "ok"]));
+const FABLE_HIGH = usageOf(meter("claude", "Claude", "Max", [32, "ok"], [61, "warn"],
+  { models: [fableOf([86, "bad"])] }));
 const INERT_AGENT = ["act", "add", "answer", "cancel", "change", "check", "choose", "connect", "drop", "dropForm",
   "focusField", "follow", "list", "listKey", "offer", "open", "pick", "plan", "read", "readAgents", "readUsage",
   "readMonths", "reopen", "reveal", "run", "save", "search", "settle", "showWays", "signOut", "start", "submit",
@@ -1137,12 +1167,25 @@ export function guide(proto, cx) {
     issueRows: [["Default", at(), LISTED[0]], ["Hover", at({ hovered: "issue-42" }), LISTED[0]],
       ["Selected", at({ issues: { chosen: 42 } }), LISTED[0]],
       ["Asking", at({ issues: { confirm: { number: 42, what: "close" } } }), LISTED[0]],
-      ["Closed", at(), { ...LISTED[0], state: "CLOSED" }], ["No priority", at(), LISTED[4]]],
+      ["Closed: every mark muted, the icon too", at(), { ...LISTED[0], state: "CLOSED" }],
+      ["No priority, no type: the icon's column kept", at(), LISTED[4]],
+      ["Feature, read from its enhancement label", at(), LISTED[2]], ["Task, GitHub's own type", at(), TYPED[0]],
+      ["An organization's own type: its word, no icon", at(), TYPED[1]],
+      ["No type in the list: no column, as before", at({ issues: { listing: { ...LISTING, issues: [LISTED[4]] } } }),
+        LISTED[4]]],
     // the head as it always is, what there is to say in the first row's place, a refresh's spinner in the button's
     issueList: [["Loading", at({ issues: { listing: null, asked: "styleguide" } }), 140],
     ["Refreshing", at({ issues: { asked: "styleguide" } }), 140], ["Busy", at({ issues: { busy: "Sending…" } }), 140],
-    ["Closed, none", at({ issues: { listing: { issues: [], error: null },
-      query: { state: "closed", assigned: false, authored: false, label: "" } } }), 140],
+    ["Closed, none", at({ issues: { listing: { issues: [], error: null }, query: { state: "closed", search: "" } } }),
+      140],
+    ["High and Bug on: a chip each, the funnel in the accent", at({ issues: { filters: { assigned: [], authored: [],
+      level: [1], type: ["Bug"], label: [] } } }), 190],
+    ["Assigned to me on", at({ issues: { filters: { assigned: [true], authored: [], level: [], type: [],
+      label: [] } } }), 230],
+    ["A priority set: the row at once, its note", at({ issues: { note: { text: "Set #42 to High", error: false,
+      done: true } } }), 190],
+    ["Not set: why, in ansi1", at({ issues: { note: { text: "Resource not accessible by integration",
+      error: true } } }), 190],
     ["Error", at({ issues: { listing: { issues: [], error: "gh is not signed in: run gh auth login" } } }), 140]],
     pullRows: [["Waiting on your review", at(), PULLED[0]], ["Your draft, its checks running", at(), PULLED[1]],
       ["Changes requested", at(), PULLED[2]], ["Approved", at(), PULLED[3]],
@@ -1150,6 +1193,8 @@ export function guide(proto, cx) {
       ["Selected", at({ pulls: { chosen: 57 } }), PULLED[0]]],
     pullList: [["Loading", at({ pulls: { listing: null, asked: "styleguide" } }), 140],
       ["Closed, none", at({ pulls: { listing: { pulls: [], error: null }, state: "closed" } }), 140],
+      ["Created by me and Running on: their chips", at({ pulls: { filters: { assigned: [], authored: [true],
+        review: [], checks: ["running"], label: [] } } }), 170],
       ["Error", at({ pulls: { listing: { pulls: [], error: "gh is not signed in: run gh auth login" } } }), 140]],
     reviews: [["Waiting on your review: a thread, a comment added, Request changes", previewOf({ review: reviewOf(
       REVIEWED, { summary: "Page the shelves as the books", event: "request", pending: [{ path: THREAD.path,
@@ -1434,6 +1479,16 @@ export function guide(proto, cx) {
       [16, "ok"], { current: false })) }, "codex").limits, 96],
     ["A narrow panel: the bars left out, the percents kept", agentOf(LAYERS, { usage: USAGE, report: REPORT,
       agents: ON_KEY, px: 280 }).limits, 116, 280],
+    ["Fable's own week, Claude's third window; Codex keeps its room, the columns under each other; the plans' words "
+      + "give it theirs", agentOf(LAYERS, { usage: FABLE_USE }).limits, 96],
+    ["A wider panel: the plans' words beside the three", agentOf(LAYERS, { usage: FABLE_USE, px: 420 }).limits, 96,
+      420],
+    ["Narrower, under 364 px: Fable's window goes first, the plans' words come back", agentOf(LAYERS, {
+      usage: FABLE_USE, px: 340 }).limits, 96, 340],
+    ["Fable used most: red, its reset under the row", agentOf(LAYERS, { usage: FABLE_HIGH }).limits, 88],
+    ["Its row pressed: Fable's reset after the week's", agentOf(LAYERS, { usage: FABLE_HIGH, chosen: "usage:claude",
+      folded: SECTIONS }).draw, 440],
+    ["Folded: Fable's figure, the tightest", agentOf(LAYERS, { usage: FABLE_HIGH, folded: ["usage"] }).limits, 40],
     ["No agent with limits", agentOf(LAYERS, { usage: usageOf() }).limits, 64],
     ["Codex shown, no reading of its limits: said in its row's place", agentOf(LAYERS, { usage: usageOf(
       meter("codex", "Codex", "Plus", null, null, { current: true, age: null, untold: UNTOLD }), meter("claude",
@@ -1979,6 +2034,30 @@ function halves(id, make) {
   }]);
 }
 
+/** The filters' menus as specimens: [name, items, width, whether its find field shows]. @param {any} g
+ * @returns {[string, any[], number, boolean][]} */
+function filterMenus(t, g) {
+  const named = (/** @type {any[]} */ list, /** @type {string} */ start) => list
+    .find(([name]) => name.startsWith(start));
+  const issues = g.base.issues, on = named(g.issueList, "High and Bug")[1].issues, pulls = g.base.pulls;
+  const many = Object.assign(Object.create(Object.getPrototypeOf(issues)), issues,
+    { listing: { ...LISTING, issues: MANY } });
+  const created = named(g.pullList, "Created by me")[1].pulls;
+  return [["Issues': nothing on yet", issues.filterItems(t), 220, false],
+    ["High and Bug on: the counts with the other groups' filters, a zero faint", on.filterItems(t), 220, false],
+    ["Many labels: the six most used, the rest behind N more, a find field on top", many.filterItems(t), 220, true],
+    ["Pull requests': Review in the rows' colors, Checks with their marks", pulls.filterItems(t), 228, false],
+    ["Created by me and Running on", created.filterItems(t), 228, false]];
+}
+
+/** Priority… and Type… as specimens: [name, items, head]. @returns {[string, any[], any][]} */
+function setMenus(t) {
+  const head = (/** @type {string} */ note) => ({ label: `#42 ${LISTED[0].title}`, note });
+  const issue = { ...LISTED[0], priority: "High", issue_type: "Bug" };
+  return [["Priority…: a dot in each one's color, High checked", setItems(t, issue, "priority", SETTABLE, () => {}),
+    head("Priority")], ["Type…: Bug checked", setItems(t, issue, "type", SETTABLE, () => {}), head("Type")]];
+}
+
 /** CONTENT in a popover WIDE and HIGH, framed as the app frames its popups, on a stage round it. @param {number} wide
  * @param {number} high @param {any} content @param {number} [pad] the stage round it */
 function popover(t, wide, high, content, pad = 20) {
@@ -2128,7 +2207,7 @@ function sections(g, t) {
     ["graph", () => [group(t, "Graph", g.graph.map(([name, state], i) => specimen(t, `graph-${i}`, name,
         fixed(state.folded.has("graph") ? 26 : 32 + COMMITS.length * 24, state.graph(t)))))]],
     ["menus", () => [group(t, "Menus", [["Commit's arrow", b.modes], ["The repository's ⋯", b.remote],
-      ["Issues' filters", g.issues.issues.filters(t)], ["An issue's right click", b.issues.picks(LISTED[0])],
+      ["An issue's right click: Priority… and Type… where they can be set", b.issues.picks(t, LISTED[0])],
       ["A file's right click, a preview open", g.files[0][1].items({ path: "docs/pagination.html", dir: false })],
       ["The preview's right click", g.page.items()],
       ["More: Search hidden", [...panelChoices(DOCKED, true), null, { label: "About herdr-fold" }]],
@@ -2216,10 +2295,12 @@ function sections(g, t) {
           + "folded, the figure before Open Usage: icon 14, 6, its words 11 muted, the figure semibold in its level · "
           + "a row h 26, 10 in: its mark's room 12, the agent's icon 14, its name 12, the plan 11 muted; at its end "
           + "each window in 74: 5h or wk 11 muted, its bar 22 × 4 on raised (3:1), the percent 11 semibold in its "
-          + "level's color (under 50 green, from 50 yellow, from 80 red), 4.5:1, – muted; on an API key its month's "
-          + "figure in its level, of $150 muted · under a row only while yellow or red, h 20, 11 muted: its reset, or "
-          + "the pace · the agent shown with no reading: limits not told 11 muted at its end, why in its properties "
-          + "· a press chooses it, its properties under the layers · under 300 px the bars go · Open Usage 22 square"
+          + "level's color (under 50 green, from 50 yellow, from 80 red), 4.5:1, – muted; a model's own week (Fable) "
+          + "in 90 after them, the first part to go: from 364 px, the plans' words beside it from 392; on an API key "
+          + "its month's figure in its level, of $150 muted · under a row only while yellow or red, h 20, 11 muted: "
+          + "its reset, or the pace · the agent shown with no reading: limits not told 11 muted at its end, why in "
+          + "its properties · a press chooses it, its properties under the layers · under 300 px the bars go · Open "
+          + "Usage 22 square"
       })))]],
     ...halves("agent-editing", (keep) => [group(t, "The Agent panel: a row's form in its properties", keep(
       g.agentEditing.map(([name, draw, h, width = PANEL], i) => specimen(t, `agent-editing-${i}`, String(name),
@@ -2250,8 +2331,20 @@ function sections(g, t) {
           + "with Copy, Sign in h 26 on the accent, the last line 11 dim" })))]],
     ["issues", () => [
       group(t, "Issue row", g.issueRows.map(([name, state, issue], i) => specimen(t, `issue-row-${i}`, name,
-        div().p(6).child(state.issues.row(t, issue)),
-        { spec: i ? "" : "h 48 · priority bar 3 · number in its color" })))]],
+        div().p(6).child(state.issues.row(t, issue, state.issues.slotted())),
+        { spec: i ? "" : "h 48 · priority bar 3 × 36 · the type's icon 16 muted in a 16 column, centred on the "
+          + "title's 18 line (1 over, 1 under), where any issue listed has a type · number in its priority's color · "
+          + "under it on a 16 line: the priority's word, an organization's type's word, labels, @assignee, age" })))]],
+    ["issue-menus", () => [group(t, "The filters' menu", filterMenus(t, g).map(([name, items, wide, find], i) =>
+      specimen(t, `issue-filters-${i}`, name, popover(t, wide, menuHeight(items, undefined, find),
+        menuPopup(t, "", items, undefined, find ? menuFind("Find", "No match", items, "") : null)),
+      { width: wide + 40, spec: i ? "" : "under the funnel, right edges in one line · groups as the list holds them, "
+        + "a name 11 dim on a 14 line (6 over, 2 under) · the check 14, the mark 14 (a dot 11, an icon 14), the words "
+        + "on one column · a count 11 dim at the end, a zero faint in its place · stays open while pressed" }))),
+    group(t, "Priority… and Type…: a second menu in the right click's place", setMenus(t).map(([name, items, head],
+      i) => specimen(t, `issue-set-${i}`, name, popover(t, 236, menuHeight(items, head), menuPopup(t, "", items,
+      head)), { width: 276, spec: i ? "" : "236 wide · head: #N and its title, what it sets at its right · a rule · "
+        + "none first, at the marks' column · a check on the one it has" })))]],
     ["issue-list", () => [group(t, "Issue list", g.issueList.map(([name, state, h], i) => specimen(t, `issue-list-${i}`,
       name, fixed(h, state.issues.render(t)))))]],
     ["pulls", () => [group(t, "Pull request row", g.pullRows.map(([name, state, pull], i) => specimen(t,

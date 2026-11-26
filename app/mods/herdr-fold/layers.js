@@ -37,6 +37,9 @@ export const NARROW = 300;        // px: a panel under it drops its tags; the st
 // sprung open (bodyHeight)
 export const HEAD_H = 28, ROW_H = 26, WARN_H = 40, MORE_H = 24, GROUP_H = 22;
 export const USAGE_LINE = 20;     // px: a line under a Usage row (a yellow or red window's reset, a pace too high)
+export const MODEL_W = 90;        // px: a model's own week's column in a Usage row ("Fable", its bar, "100%")
+// px: a panel whose Usage rows hold a model's column beside the agents' names, and beside their plans' words too
+const MODELS_AT = 364, PLANS_AT = 392;
 const RANK = /** @type {Record<string, number>} */ ({ ok: 1, warn: 2, bad: 3 });   // how near its end a level is
 export const LABEL = 64;          // px: the properties' labels' column ("Imported by"), connectors.html's .ikv.w
 // under the home folder, what each agent's setup is read from: a change there is a new read
@@ -539,9 +542,9 @@ export function signInTab(agent, { space, folder = null }) {
  * past or heading past it. @typedef {{ figure: string, of: string, level: string | null, used: number | null,
  * pace: { text: string, narrow: string } | null, budget: number | null }} Month */
 /** A Usage row with no reading: core's words in its place, and why. @typedef {{ text: string, why: string }} Untold */
-/** A row of Usage: a plan's (section(): windows, the tighter, RESET while yellow or red, age) or an API key's (MONTH).
- * @typedef {{ key: string, name: string, plan: string | null, current: boolean, five: Meter | null, week: Meter |
- * null, tight: Meter | null, reset: Resets | null, age: string | null, month: Month | null, untold?: Untold }} Usage */
+/** A Usage row: a plan's (section()) or an API key's (MONTH). @typedef {{ key: string, name: string, plan: string |
+ * null, current: boolean, five: Meter | null, week: Meter | null, models: Meter[], tight: Meter | null, reset: Resets |
+ * null, age: string | null, month: Month | null, untold?: Untold }} Usage */
 
 /** Usage's rows: SECTION's (core's), then each agent on an API key with a month in REPORT (core's report, in the
  * place of a row with no reading), named as AGENTS tell it; the CURRENT agent's first. @param {any} section
@@ -553,7 +556,7 @@ export function usageRows(section, report, agents, current) {
     .map((/** @type {any} */ one) => {
     const known = told.find((agent) => agent?.key === one.agent);
     return { key: String(one.agent), name: String(known?.name ?? one.name), plan: known?.plan ?? null,
-      current: one.agent === current, five: null, week: null, tight: null, reset: null, age: null,
+      current: one.agent === current, five: null, week: null, models: [], tight: null, reset: null, age: null,
       month: { figure: String(one.words?.spent ?? ""), of: String(one.words?.of ?? ""), level: one.level ?? null,
         used: one.budget ? one.today / one.budget * 100 : null, pace: one.pace_line ?? null,
         budget: one.budget ?? null } };
@@ -561,6 +564,16 @@ export function usageRows(section, report, agents, current) {
   const rows = [...plans.filter((/** @type {any} */ row) => !months.some((/** @type {any} */ one) =>
     one.key === row.key)).map((/** @type {any} */ row) => ({ ...row, month: null })), ...months];
   return [...rows.filter((row) => row.current), ...rows.filter((row) => !row.current)];
+}
+
+/** How Usage's ROWS lie in a panel PX wide: the models' own weeks' columns that fit, the first parts to go (a row
+ * with fewer keeps their room, so the columns stand under each other), and whether the plans' words fit beside them.
+ * @param {Usage[]} rows @param {number} px @returns {{ models: number, plans: boolean }} */
+export function usageColumns(rows, px) {
+  const most = Math.max(0, ...rows.filter((row) => row.five || row.week).map((row) => row.models.length));
+  const room = MODEL_W + 6;                     // a column and the row's gap before it
+  const models = px < MODELS_AT ? 0 : Math.min(most, 1 + Math.floor((px - MODELS_AT) / room));
+  return { models, plans: !models || px >= PLANS_AT + (models - 1) * room };
 }
 
 /** Whether ROW has a line under it: a yellow or red window's reset, or its month's pace past its budget.
@@ -605,7 +618,8 @@ export function usageRow(row, said) {
     const [label, ...rest] = words.split(" ");
     return /** @type {[string, string, null]} */ ([label, rest.join(" "), null]);
   };
-  const budget = row.month?.budget, resets = [row.five?.resets, row.week?.resets].filter((one) => one != null);
+  const budget = row.month?.budget;
+  const resets = [row.five, row.week, ...row.models].map((one) => one?.resets).filter((one) => one != null);
   const lines = [...(row.plan ? [/** @type {[string, string, null]} */ (["Plan", row.plan, null])] : []),
     ...resets.map((one) => parted(said(/** @type {{ at: number, words: string }} */ (one)))),
     ...(row.month ? [/** @type {[string, string, null]} */ (["Budget", !budget ? "none" : Number.isInteger(budget)

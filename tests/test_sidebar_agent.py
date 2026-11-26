@@ -729,15 +729,17 @@ class View(unittest.TestCase):
 
 NOW = 1794571200                # Friday, 13 November 2026, 12:00 UTC
 FIVE, WEEK = NOW + 2 * 3600 + 46 * 60, NOW + 3 * 86400 + 5 * 3600       # 14:46 UTC; Monday, 17:00 UTC
+FABLE = NOW + 3 * 86400 + 21 * 3600                                       # Fable's own week's: Tuesday, 09:00 UTC
 SHUT = f" {NERD['closed']}  "
 
 
-def reading(agent, five=None, week=None, at=NOW - 60):
+def reading(agent, five=None, week=None, at=NOW - 60, fable=None):
     """AGENT's limits as core's limits() tells them: FIVE and WEEK each a percent used, or None; "–" for one read
-    before something ran."""
+    before something ran; FABLE that model's own week's percent, where the account has one."""
     def window(used, resets):
         return {"used": None if used == "–" else used, "resets": resets} if used is not None else None
-    return {"agent": agent, "five_hour": window(five, FIVE), "week": window(week, WEEK), "at": at, "source": "status"}
+    return {"agent": agent, "five_hour": window(five, FIVE), "week": window(week, WEEK), "at": at, "source": "status",
+            "models": [] if fable is None else [{"name": "Fable", **window(fable, FABLE)}]}
 
 
 def metered(*readings, current="claude", twelve=False, agents=MACHINE):
@@ -814,6 +816,31 @@ class Usage(unittest.TestCase):
         narrow, narrower = self.lines(self.draw(sidebar.column.FEWEST))[4], self.lines(self.draw(30))[4]
         self.assertEqual(narrow, "      Claude Max" + "5h 72%  wk 16%".rjust(sidebar.column.FEWEST - 1 - 16))
         self.assertEqual(narrower, "      Claude Max" + "5h 72%".rjust(30 - 1 - 16))
+
+    def test_a_models_own_week_is_a_third_window_the_first_to_go_where_all_do_not_fit(self):
+        self.view.set(metered(reading("claude", 32, 16, fable=24), reading("codex", 8, 3)))
+        roomy = 62                                                  # the name, the plan and the three, 2 apart
+        canvas = self.draw(roomy)
+        figures = "5h ▰▰▱▱▱ 32%  wk ▰▱▱▱▱ 16%  Fable ▰▱▱▱▱ 24%"
+        self.assertEqual(self.lines(canvas)[4], "      Claude Max" + figures.rjust(roomy - 1 - 16))
+        self.assertEqual([self.look(canvas, words) for words in ("Fable ▰", "▰▱▱▱▱ 24%")],
+                         [Style(fg="muted"), Style(fg="added")])
+        self.assertEqual(self.lines(canvas)[5], "      Codex Plus" + "5h ▰▱▱▱▱ 8%  wk ▰▱▱▱▱ 3%".rjust(roomy - 1 - 16))
+        narrower = self.lines(self.draw(roomy - 1))[4]
+        self.assertEqual(narrower, "      Claude Max" + "5h ▰▰▱▱▱ 32%  wk ▰▱▱▱▱ 16%".rjust(roomy - 2 - 16))
+
+    def test_a_models_own_week_used_most_stays_its_reset_under_the_row_its_figure_folded(self):
+        self.view.set(metered(reading("claude", 32, 61, fable=86)))
+        lines = self.lines(self.draw())                             # the bars go before the red one does
+        self.assertEqual(lines[4], "      Claude Max" + "5h 32%  wk 61%  Fable 86%".rjust(WIDE - 1 - 16))
+        self.assertEqual(lines[5], "        Fable resets Tue 09:00")
+        self.choose(("usage", "claude"))
+        self.assertEqual(self.lines(self.draw())[5:9], ["        5h     resets 14:46",
+                                                        "        Week   resets Mon 17:00",
+                                                        "        Fable  resets Tue 09:00", "        Read   1 min ago"])
+        self.view.folded.add("usage")
+        self.view.chosen = layers.HEAD
+        self.assertEqual(self.lines(self.draw())[3], SHUT + "Usage" + "Claude Fable 86%  ↗".rjust(WIDE - 1 - 9))
 
     def test_an_api_key_is_its_month_spent_of_its_budget_in_its_levels_color(self):
         self.keyed(month())

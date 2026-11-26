@@ -13,10 +13,10 @@ from family import Family
 from fileops import Ops
 from issues import Issues
 from pulls import PullForm
+from github import STALE
 from scm import Scm
-from screen import SPIN, SPINNER
+from screen import DONE, SPIN, SPINNER
 
-STALE = 60.0                  # seconds: the issues shown or listed here asked for again (a new one shows up)
 TAB_NAME = 24                 # characters of a new agent's tab name (an issue's number and title), as a chat's
 BUSY = {"commit": "Committing…", "sync": "Syncing…", "pull": "Pulling…", "push": "Pushing…"}   # the first running shows
 EMPTY = git.Status()
@@ -102,7 +102,8 @@ class Changes(Family):
         issues = self.views["issues"]
         if issues.board == "pulls":
             pulls = issues.pulls
-            if self.host.clock() - self.issues_asked.get(pulls.state, float("-inf")) > after and not pulls.asked:
+            if self.host.clock() - self.issues_asked.get(("pulls", pulls.query), float("-inf")) > after \
+                    and not pulls.asked:
                 self.do_load_pulls(pulls.ask().args[0])
         elif self.host.clock() - self.issues_asked.get(issues.query, float("-inf")) > after and not issues.asked:
             issues.ask()
@@ -256,7 +257,7 @@ class Changes(Family):
 
         def then(listing):
             self.issues_asked[query] = self.host.clock()
-            self.views["issues"].show(listing, query)
+            self.host.act(self.views["issues"].show(listing, query), "issues")      # its search, once it is full
 
         self.host.job("issues", work, then)
 
@@ -283,10 +284,22 @@ class Changes(Family):
         def then(error):
             self.host.error = error
             if not error:
-                self.host.note = f"{done} #{issue.number}"
+                self.host.note = f"{DONE} {done} #{issue.number}"
             self.host.act(self.views["issues"].ask(), "issues")
 
         self.host.job("issue", lambda: github.change(name, issue.number, what), then)
+
+    def do_issue_set(self, issue, what, value, words, field):
+        """ISSUE's priority or type (WHAT) set to VALUE on GitHub (WORDS its name), its row set already: the note says
+        so; a failure says why, and the list is asked again, as it is."""
+        def then(error):
+            self.host.error = error
+            if error:
+                self.host.act(self.views["issues"].ask(), "issues")
+            else:
+                self.host.note = f"{DONE} Set #{issue.number} to {words}"
+
+        self.host.job("issue", lambda: github.set_field(issue.node, what, value, field), then)
 
     def do_issue_to_agent(self, issue):
         """The tab's Claude or Codex gets the issue as a prompt, not sent yet, and the focus; with none there, the agent
@@ -353,16 +366,16 @@ class Changes(Family):
 
     # --- the pull requests: the repository's (Issues' other list), the branch's (Changes' row), a new one's form
 
-    def do_load_pulls(self, state):
+    def do_load_pulls(self, query):
         name = self.host.github
         if not name:
             return
 
         def then(found):
-            self.issues_asked[state] = self.host.clock()
-            self.views["issues"].pulls.show(found, state)
+            self.issues_asked[("pulls", query)] = self.host.clock()
+            self.host.act(self.views["issues"].pulls.show(found, query), "issues")
 
-        self.host.job("pulls", lambda: github.pulls(name, state), then)
+        self.host.job("pulls", lambda: github.pulls(name, query), then)
 
     def fresh_branch_pull(self):
         """The pushed branch's pull request asked for again once the branch or its last commit changed, or STALE

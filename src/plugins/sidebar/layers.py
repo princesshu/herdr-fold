@@ -169,17 +169,18 @@ def usage_rows(rows, report, agents, current):
     return found
 
 
-def figures(row, bars=True, short=False):
+def figures(row, bars=True, short=False, models=True):
     """ROW's figures at its line's end, [(words, role)]: a plan's windows, each its bar (with BARS) and percent in its
-    level's color ("5h ▰▰▰▱▱ 64%  wk ▰▱▱▱▱ 16%"; SHORT: the tighter alone); an API key's month spent in its level's
-    color, of its budget (SHORT: the spent alone). [] for none."""
+    level's color ("5h ▰▰▰▱▱ 64%  wk ▰▱▱▱▱ 16%  Fable ▰▰▱▱▱ 38%"; no MODELS: a model's own week only as the tightest;
+    SHORT: the tightest alone); an API key's month spent in its level's color, of its budget (SHORT: the spent)."""
     month = row.get("month")
     if month:
         words = month["words"]
         return [(words["spent"], LEVEL_ROLE.get(month["level"], "text"))] + (
             [(f" {words['of']}", "muted")] if words["of"] and not short else [])
     found = []
-    for one in [row["tight"]] if short and row["tight"] else [one for one in (row["five"], row["week"]) if one]:
+    windows = [row["five"], row["week"], *(one for one in row["models"] if models or one == row["tight"])]
+    for one in [row["tight"]] if short and row["tight"] else [one for one in windows if one]:
         role = LEVEL_ROLE.get(one["level"], "muted")
         found += [("  ", "muted")] * bool(found) + [(f"{one['label']} ", "muted")]
         found += [(bar(one["used"] or 0) + " ", role)] * bars + [(one["text"], role)]
@@ -206,7 +207,8 @@ def headline(rows, current):
 def usage_lines(row, twelve):
     """A Usage row's properties: each window's reset and the reading's age, label and value from core's words
     ("5h", "resets 14:46"; "Read", "3 min ago"), hours as TWELVE says."""
-    said = [usage.reset_said(one["resets"], twelve) for one in (row.get("five"), row.get("week")) if one]
+    windows = (row.get("five"), row.get("week"), *row.get("models", ()))
+    said = [usage.reset_said(one["resets"], twelve) for one in windows if one]
     return [words.split(" ", 1) + [None] for words in said + [row.get("age") or ""] if words]
 
 
@@ -967,14 +969,16 @@ class Layers:
             canvas.put(y, at + 1, truncate(note, room - (at - name_x) - 1), Style(fg=faint, bg=bg))
 
     def usage_line(self, canvas, y, row, bg):
-        """An agent of Usage: its name bold, its plan's word dim, at the right its figures (figures()): the bars go
-        first where all do not fit, then the looser window, an API key's budget; with no reading, core's words."""
+        """An agent of Usage: its name bold, its plan's word dim, at the right its figures (figures()): a model's own
+        week goes first where all do not fit (but the tightest), then the bars, the looser windows, an API key's
+        budget; with no reading, core's words."""
         x, end = self.columns()["name"], canvas.width - INSET
         at = canvas.put(y, x, truncate(row["name"], max(1, end - x)), Style(fg="text", bold=True, bg=bg))
         if row["plan"] and end - at > 1 + width(row["plan"]):
             at = canvas.put(y, at + 1, row["plan"], Style(fg=grey(bg), bg=bg))
         untold = [(row["untold"]["text"], "muted")] if row.get("untold") else []
-        parts = next((one for one in (figures(row), figures(row, bars=False), figures(row, bars=False, short=True))
+        parts = next((one for one in (figures(row), figures(row, models=False), figures(row, bars=False, models=False),
+                                      figures(row, bars=False, short=True))
                       if sum(width(words) for words, _ in one) <= end - at - 2), []) or untold
         self.right(canvas, y, end, parts, bg)
 

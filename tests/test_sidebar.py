@@ -867,7 +867,7 @@ class IssuesTab(Harness):
         self.term.type(Key("f12"))
         self.until(lambda s: "#42 Login fails on Safari" in s)
         canvas, y = self.app.canvas, self.at("#42")
-        field = self.at("Search issues")
+        field = self.at("Filter issues")
         self.assertEqual(strays(canvas), [], self.screen())
         edges = (INSET, self.NAMED - INSET)
         self.assertEqual([reach(canvas, row) for row in (field - 1, field, field + 1)], [edges] * 3)

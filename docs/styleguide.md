@@ -270,8 +270,8 @@ short](../assets/styleguide/sections.webp)
 
 ### Menus
 
-![The mod's menus: Commit's modes, the repository's ⋯, the issues' filters, an issue's, a file's (a preview open) and
-the preview's right click, the dock's More, and a chat's right click](../assets/styleguide/menus.webp)
+![The mod's menus: Commit's modes, the repository's ⋯, an issue's, a file's (a preview open) and the preview's right
+click, the dock's More, and a chat's right click](../assets/styleguide/menus.webp)
 
 Every menu is a popup (`Menus` in menus.js), as the app's own: under the button that opened it, its right edge with
 the button's, above the button where it does not fit under it (the chat's bar), or at the pointer for a right
@@ -282,6 +282,12 @@ parts a menu's kinds of line, as the dock's More its views from About herdr-fold
 …, but About.
 A line's note stands at its end, 11 in `muted`, or in its tone's color (a new chat's agent to `sign in`: `ansi3`).
 A line that cannot be chosen now stays in its place in `muted`, its tip saying why (a running chat's Delete…).
+A filter's menu (Issues', Pull requests') is in groups: a group's name 11 `dim` on a 14 line, 6 over and 2 under it,
+where the checks stand; each value's words on one column after its check (14) and its mark's slot (14: a dot 11, an
+icon 14, centred), its count 11 `dim` at its end, a zero `dim` all through and in its place; it stays open while values
+are pressed, its rows made anew (`MENU_LIVE`), opened again where it stands when it needs another height. A right
+click's Priority… and Type… open a second menu in its place: its head the issue's number and title, what it sets at its
+right, a rule, `No priority` at the marks' column.
 
 ### Problems and empty states
 
@@ -323,7 +329,7 @@ The dock's fifth view, as center-chat.html's Agent panel: an agent's setup as la
 | Row | 26 high, 10 in, 12: its mark in a column 12 (✕ 12 in `ansi1` failed, a 6 dot in `ansi3` to sign in or a conflict, in `ansi2` used), a connector's logo 16 (no other row an icon), its name (one that does not run here in `muted`), its note 11 in `muted` (a subagent's model and tools in the states' column), both agents' icons 12; then its state 11 in its tone, its tag (`scopeTag`: 11, 16 high, 6 in, rounded 4, `muted` on `raised`, never a hue) in the section's one column, its cost 11 in `muted`, right-aligned in 52; a group's head (Hooks) 22 high, 11 in `muted`, from the names' column, rounded 6, its state (`off here`) at its end; Claude's a press choosing it, as a row |
 | Conflict | 40 high: its yellow dot, the rule, and its sentence under it, 11 in `ansi3` |
 | `11 more` | 24 high, 11 in `muted`, from the names' column (28 in); the hover fill, rounded 6 |
-| Usage | the first section, its head a section's with no count; folded, its figure before Open Usage, 4 apart: the agent's icon 14, 6, then its words 11 in `muted` and its figure semibold in its level's color; a row 26 high, 10 in, a press choosing it: its mark's room 12, the agent's icon 14, its name, its plan 11 in `muted`; at its end each window in a column 74 wide, right-aligned: `5h` or `wk` 11 in `muted`, its bar 22 × 4 on `raised` in its level (`levelFill`, 3:1), its percent 11 semibold in its level's color (`levelInk`, 4.5:1), `–` in `muted`; an API key its month's figure semibold in its level, `of $150` in `muted`; under a row only while yellow or red, 20 high, 11 in `muted` from the names' column: its reset, or the pace; under 300 px the bars go |
+| Usage | the first section, its head a section's with no count; folded, its figure before Open Usage, 4 apart: the agent's icon 14, 6, then its words 11 in `muted` and its figure semibold in its level's color; a row 26 high, 10 in, a press choosing it: its mark's room 12, the agent's icon 14, its name, its plan 11 in `muted`; at its end each window in a column 74 wide, right-aligned: `5h` or `wk` 11 in `muted`, its bar 22 × 4 on `raised` in its level (`levelFill`, 3:1), its percent 11 semibold in its level's color (`levelInk`, 4.5:1), `–` in `muted`; a model's own week after them in a column 90 wide, its name in the label's place, the first part to go: from 364 px, the plans' words beside it from 392, a row without one keeping its room so the columns stand under each other; an API key its month's figure semibold in its level, `of $150` in `muted`; under a row only while yellow or red, 20 high, 11 in `muted` from the names' column: its reset, or the pace; under 300 px the bars go |
 | Open Usage | at Usage's head's end: 22 square, rounded 6, Lucide's external-link 14 in `muted`, `raised` under the pointer, its tip `Open Usage` |
 | Chosen row | a press chooses a row: the hover fill under the pointer, the chosen one on the accent's 14% of the card (`chosenFill`), its state's word read on that |
 | Properties | under the layers, on the side's level (`chrome`) with a hairline over it, 12 in, its parts 6 apart, 12: the title 20 high (a connector's logo 16, its name semibold, its state 11 at the end, 8 apart); a line 20 high: its label in `muted` in a column 64 wide, cut, 8, its value in the code font 11 (a phrase, `Used`, `On`, `Plan`, `Read`, in the text's), a third column in `muted` at the end; the built-in subagents' a list, each name and its model and tools in `muted`; the error 8 and 6 in, rounded 6, the code font 11, `ansi1` on its 8% of the level (`errorColors`), the files it named its tip; a rule's first lines in the code font 11, `muted`, a line 16, each cut; a description 11, `muted`, three lines at most |
@@ -483,8 +489,15 @@ node follows the pointer while it drags.
 ![The list loading, refreshing, busy (under the list), with none and with an
 error](../assets/styleguide/issue-list.webp)
 
-An issue's number takes its priority's color, as the TUI's traffic light: urgent and high red, medium yellow, low
-green; without one, the accent. Closing or reopening asks on the row first. Loading moves nothing and says so once:
+An issue's number takes its priority's color, as the TUI's traffic light: urgent and high red, medium yellow, low green;
+without one, the accent. Its type is a shape, never a color: Lucide's bug, lightbulb or clipboard-list, 16 in `muted`,
+in a column 16 wide centred on the title's 18 line (1 over, 1 under), the column there only while an issue listed has
+one; a closed issue's marks all `muted`. The funnel at the field's end is 24 square in the field's 30 (3 over and
+under), its icon 14 (5 round), in the accent while a filter is on, on the hover fill while its menu is up. A chip of
+what is on is 22 high on `raised`, rounded 6, its words 12, 8 in and 6 after its mark (14); its × 12 in a 16 square (3
+over and under), 6 after the words, 4 from its end; Clear 12 `muted` at the row's end. A change made says so under the
+list with a check in `ansi2` before its words (12, centred on their line), in the text's color. Closing or reopening
+asks on the row first. Loading moves nothing and says so once:
 the head stays as it is, a refresh of a list shown turns Refresh into a spinner of its size, and the first load, a
 failure or none found is said in the first row's place (48 high, the words 12 in, dim, a failure ansi1), which the
 rows then take.
@@ -492,8 +505,9 @@ rows then take.
 ### Pull requests
 
 The Issues tab's switch (Issues | Pull requests) is a choice of two, never the accent: Open and Closed below it keep
-the screen's one. A pull request's row is an issue's, 48 high: its checks' mark in a column of 14 (✓ `ansi2`, ●
-`ansi3` while they run, ✕ `ansi1`), its number in `muted`, its title; its review's state one word at its end (your
+the screen's one. A pull request's row is an issue's, 48 high: its checks' mark in a column of 14 (Lucide's check
+in `ansi2`, a dot in `ansi3` while they run, Lucide's x in `ansi1`; the check and the x 12, centred), its number in
+`muted`, its title; its review's state one word at its end (your
 review `ansi3`, as it waits on you; changes requested `ansi1`; approved `ansi2`; Draft a neutral tag, 18 high,
 `raised`, 11 `muted`); its branch, author and age 11 `dim` under them, the checks too unless they passed. Changes'
 row of the branch's pull request is 32 high under the repository, a hairline round it on `chrome`, rounded 8; its

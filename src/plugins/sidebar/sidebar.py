@@ -29,7 +29,7 @@ from files_panel import Files  # noqa: E402
 from loop import CODE, Loop  # noqa: E402
 from dock import GROUPS, PANELS  # noqa: E402
 from layers import FOLDED, STATE_ROLE as LAYER_ROLE  # noqa: E402
-from screen import GIT_ROLE, INSET, MARGIN, ROOMY, Canvas, Style, short_count, truncate, width  # noqa: E402
+from screen import DONE, GIT_ROLE, INSET, MARGIN, ROOMY, Canvas, Style, short_count, truncate, width  # noqa: E402
 from tree import git_marks  # noqa: E402
 from vt import Focus, Key, Mouse, Resize  # noqa: E402
 from widgets import Menu, wrap  # noqa: E402
@@ -1043,6 +1043,8 @@ class App(Loop):
             canvas.put(rows - 1, 0, " " * cells)
             canvas.put(rows - 1, INSET, truncate(line, cells - 2 * INSET),
                        Style(fg="deleted" if self.error else "muted"))
+            if not self.error and line.startswith(DONE + " ") and cells - 2 * INSET > 2:
+                canvas.put(rows - 1, INSET, DONE, Style(fg="added"))           # done: its mark in the added role
 
     def draw_row(self, canvas):
         """The row (stack.button_row()): the ✦, the views' buttons and More, each icon over its name, a blank row above

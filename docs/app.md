@@ -356,13 +356,17 @@ For a repository on GitHub, its issues, as the TUI sidebar's Issues view lists t
 
 | Part | What it does |
 |---|---|
-| Field | the words an issue must hold, in its title, labels or assignee; + opens gh's own prompts for a new issue in a tab of its own; Filters: assigned to you, created by you, a priority, a label |
-| Open, Closed | which issues are listed; open ones by priority (GitHub's Priority field, else a label such as `priority: high` or `P1`), its color on each; at their row's end Refresh, a spinner of its size in its place while a list shown is asked for again, the list staying where it is; the first load (`Loading issues…`), a failure or none found is said, faint (a failure red), where the first issue will be, and what is under way or was done (`Closing…`, `Closed #42`) under the list |
-| An issue | its number in its priority's color, its title; its priority, labels, assignee and how long ago it changed; a click opens it in the preview tab; with the mouse on it, To agent and Open in browser |
-| Its right click | Open, Open in the browser, To the agent, Reply (gh's prompts in a tab of its own), Assign to me, and Close… or Reopen…, asked again on the row before it is done |
+| Field | the words an issue must hold, in its title, labels, assignee, priority or type; + opens gh's own prompts for a new issue in a tab of its own; the funnel at its end opens the filters (in the accent while one is on) |
+| Filters | Assigned to me and Created by me, then Priority, Type and Label as the list holds them, each value with how many would stay with it on (the other groups' filters counted, a zero faint in its place); any of a group's values, every group; the menu stays open while values are pressed; past six labels the six most used, `N more` and a find field; `Counts from the latest 100` once the list is that full, GitHub's search then asked for the rest (as the TUI's) |
+| Chips | what is on, one chip a group under the field (`● Urgent, High`), × takes one off, Clear all, Backspace in the empty field the last |
+| Open, Closed | which issues are listed, each with the repository's count (`Open 5`, `Closed 12`: GitHub's own, not the filters'; the other side's muted, the word alone till it is known); open ones by priority (GitHub's Priority field, else a label such as `priority: high` or `P1`), its color on each; at their row's end Refresh, a spinner of its size in its place while a list shown is asked for again, the list staying where it is; the first load (`Loading issues…`), a failure or none found is said, faint (a failure red), where the first issue will be, and what is under way or was done (`Closing…`, `Closed #42`) under the list |
+| An issue | its type's icon (Bug, Feature, Task; a column only while an issue listed has one), its number in its priority's color, its title; its priority, an organization's own type's word, labels, assignee and how long ago it changed; a click opens it in the preview tab; with the mouse on it, To agent and Open in browser; a closed one's marks muted |
+| Its right click | Open, Open in the browser, To the agent, Reply (gh's prompts in a tab of its own), Assign to me, Priority… and Type… (where the organization has them and you a role that sets them: a second menu in its place, `No priority` and each option, a check on the one it has; the row at once, `Set #42 to High` under the list), and Close… or Reopen…, asked again on the row before it is done |
 
-On its top, Issues and Pull requests switch the list (the one shown last opens again). Pull requests has the same field
-(its + opens Changes' form, the one way to open one), Open and Closed (closed and merged ones) and Refresh; each row its
+On its top, Issues and Pull requests switch the list (the one shown last opens again); each is asked again once its
+answer is a minute old while it shows, as the TUI's, the rows staying where they are. Pull requests has the same field
+and filters (Review in the rows' colors and Checks with their marks in place of Priority and Type; its + opens Changes'
+form, the one way to open one), Open and Closed (closed and merged ones) and Refresh; each row its
 checks' mark, number and title, its review's state as one word (your review in yellow, as it waits on you, changes
 requested red, approved green, Draft a neutral tag), its branch, author (you) and age, the checks unless they passed; a
 click opens its review in the preview tab, with the mouse on it To agent (the agent reviews it: `gh pr view` and `gh pr
@@ -464,16 +468,16 @@ for the next fold, and the dock opened again takes it back to its foot.
 
 A space has one, as in the TUI: the first file, diff, commit or issue opened makes it, named after what it shows
 (`preview: docs/api.md`, `preview: #42 Pagination retur…`), and the next one shows there again. A diff is numbered
-once, a removed line by the old file and the others by the new one, a thin
-rule where lines are left out; a commit shows its author, message and each file's diff; an issue its text and comments
-as markdown. A pull request shows its review, as GitHub's Files changed: its title, state, branches and checks, each
-file's diff numbered, a long line wrapped, each thread under its line (Reply, Resolve, and on your own pull request To
-agent, which sends the
-agent where the comment is and how to read it, never its words, and says under the thread where it went); a press on a
-line's number writes a comment, added to the review; at the foot the summary, Comment, Approve (never on your own) or
-Request changes, and Submit review, which sends it all in one request (Comment and Request changes need a summary) and
-says above the summary what went (Review sent, Approved, Changes requested). A comment's or a reply's button is lit only
-with words in it.
+once, a removed line by the old file and the others by the new one, a thin rule where lines are left out; a commit shows
+its author, message and each file's diff; an issue its state, its priority's word in its color and its type (its icon
+and word), read only (the list's right click sets them), then its text and comments as markdown. A pull request shows
+its review, as GitHub's Files changed: its title, state, branches and checks, each file's diff numbered, a long line
+wrapped, each thread under its line (Reply, Resolve, and on your own pull request To agent, which sends the agent where
+the comment is and how to read it, never its words, and says under the thread where it went); a press on a line's number
+writes a comment, added to the review; at the foot the summary, Comment, Approve (never on your own) or Request changes,
+and Submit review, which sends it all in one request (Comment and Request changes need a summary) and says above the
+summary what went (Review sent, Approved, Changes requested). A comment's or a reply's button is lit only with words in
+it.
 An image on this Mac (any macOS reads, HEIC, AVIF, PSD, EXR and a camera's raw file too) is drawn, fitted
 to the tab and never larger than it is; a PDF's pages one under another at their own size (smaller in a narrower tab), a
 gap apart and clear of the scrollbar, scrolled, each drawn as it comes into view, the page in view and Open in Browser

@@ -103,15 +103,18 @@ every tab; in the app every section is open but Subagents, kept per space.
 The panel's first section: a row an agent, the agent shown first.
 
 - On a plan: the plan's word and each window's bar and percent in its level's color, green under 50, yellow from 50,
-  red from 80 (`Claude Max   5h ▰▰▰▰▱ 72%  wk ▰▱▱▱▱ 16%`). `0%` is a window that reset with nothing run since, `–`
+  red from 80 (`Claude Max   5h ▰▰▰▰▱ 72%  wk ▰▱▱▱▱ 16%`); where the account has a model's own weekly limit, a third
+  window labelled with the model's name (`Fable ▰▰▱▱▱ 38%`). `0%` is a window that reset with nothing run since, `–`
   one run in since with no reading yet. The reset stands under the row only while a window is yellow or red (`5h
   resets 14:46`, in this machine's time).
 - On an API key: the month spent against the budget you set (`Codex  API key   ~$56.60 of $150`), yellow on pace
   past it, red once spent; the pace under it only then (`on pace for ~$58 by November 30`).
-- The chosen row's properties say both resets, the reading's age and Open Usage.
+- The chosen row's properties say each window's reset, the reading's age and Open Usage.
 - Folded, the head shows one figure: the agent shown's tighter limit (`Claude 5h 72%`) or its month, or another
   agent's where that one is yellow or red and stands worse.
-- A narrow panel drops the bars (the app under 300 px), then the looser window. Before any reading: `Not known yet`.
+- A narrow panel drops a model's own week first (the app under 364 px, the plans' words making room for it under 392;
+  the TUI keeps it while it is the tightest), then the bars (the app under 300 px), then the looser windows. Before
+  any reading: `Not known yet`.
 - The agent shown always has its row: with no reading of its limits it says `limits not told`, and its properties
   say why (an agent on an API key has no such limit, so no such row).
 - What could not be read is said in its place, never left out: where Codex gives no list of its servers
@@ -123,9 +126,10 @@ budget you set wears none.
 The limits are Claude's and Codex's own numbers. For Claude the windows are the ones its `/usage` reading names
 (cached in `~/.claude.json`, and read only while it is the signed-in account's), each at the highest use it or any
 chat's status line told since: use only grows in a window, so an idle chat's older reading never takes it back, and
-another weekly limit one chat tells is left out. Without that reading (a remote machine, before Claude's first look) a
-chat's own reading stands. Codex's are its newest chat's. A limit past its reset is left out. What the status line
-keeps for this is in [The status line](usage.md#the-status-line). A second Claude account in its own
+another weekly limit one chat tells is left out. Without that reading (a remote machine, before Claude's first look)
+a chat's own reading stands. A model's own week is Claude's reading's alone (its `weekly_scoped` rows, every one it
+lists), as no chat's status line tells it. Codex's are its newest chat's. A limit past its reset is left out. What
+the status line keeps for this is in [The status line](usage.md#the-status-line). A second Claude account in its own
 `CLAUDE_CONFIG_DIR` keeps its own reading, for its own status lines; Usage shows the account the app runs with.
 
 ### A row and its properties

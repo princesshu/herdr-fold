@@ -338,6 +338,7 @@ status.effort = effort next to the model
 status.context = context usage and window size
 status.five_hour = 5-hour limit
 status.weekly = weekly limit
+status.model_weekly = a model's own weekly limit
 status.cost = this session's cost
 status.title_claude = Claude Code
 status.title_codex = Codex

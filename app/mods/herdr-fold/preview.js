@@ -9,8 +9,8 @@ import { Editing, openEditor } from "./editor.js";
 import { CONNECTORS, GIT, GITHUB, MEDIA, MEDIA_SERVICES, NAMED_FILES, OUTPUT_LINES, RUNS } from "./helper.js";
 import { BRANDS } from "./icons.js";
 import { browsable, CHAT_LABEL, CHAT_TAB, changeSides, clipTime, commitRows, diffRows, editsInTab, lastLine,
-  markdownFile, mediaKind, opener, previewName, previewTab, priorityColor, said, safeMarkdown, stacks }
-  from "./logic.js";
+  markdownFile, mediaKind, opener, previewName, previewTab, priorityColor, said, safeMarkdown, stacks, TYPE_ICON,
+  TYPES } from "./logic.js";
 import { Menus } from "./menus.js";
 import { Review } from "./review.js";
 import { actButton, chip, choices, icon, iconButton, keepNote, small, viewId } from "./parts.js";
@@ -625,21 +625,28 @@ export class Preview {
       .child(Scrollbar.vertical("diff").viewport_from_layout().absolute().inset_0());
   }
 
-  /** The issue as gh shows it: its number in its priority's color and its title, its state, who wrote it and when, its
-   * labels; its text and comments as markdown (safe: no image fetched, no HTML). */
+  /** The issue as gh shows it: its number in its priority's color and its title, its state, its priority's word in its
+   * color and its type (its icon and word), read only (the list's right click sets them), who wrote it and when, its
+   * other labels; its text and comments as markdown (safe: no image fetched, no HTML). */
   issueView(t) {
     const { issue, ago } = /** @type {{ issue: any, ago: string[] }} */ (this.issue), what = this.what;
     const closed = issue.state === "CLOSED", color = closed ? t.muted : priorityColor(t, what.level);
     const text = (markdown, n) => TextView.markdown(`issue-${what.n}-${n}`, safeMarkdown(markdown)).selectable();
+    const typed = issue.type ?? "", iconed = TYPES.includes(typed);
     return v_flex().id("issue").flex_1().min_h(0).overflow_y_scrollbar().child(v_flex().w_full().max_w(860).px(24)
       .py(20).gap(16)
       .child(h_flex().gap(12).items_start().text_size(20)
         .child(div().flex_none().font_bold().text_color(color).child(`#${issue.number}`))
         .child(div().flex_1().min_w(0).font_semibold().child(issue.title)))
       .child(h_flex().flex_wrap().gap(8).items_center().text_size(12).text_color(t.dim)
-        .child(chip(t, closed ? "Closed" : "Open")).child([issue.author, ago[0]].filter(Boolean).join(" · "))
-        .children(issue.labels.map((label) => div().text_color(label === what.ranked_by ? color : t.muted)
-          .child(label))))
+        .child(chip(t, closed ? "Closed" : "Open"))
+        .when(Boolean(what.ranked_by), (e) => e.child(div().text_color(color).child(`● ${what.ranked_by}`)))
+        .when(Boolean(typed), (e) => e.child(h_flex().gap(4).items_center().text_color(t.muted)
+          .when(iconed, (e) => e.child(icon(TYPE_ICON[/** @type {keyof typeof TYPE_ICON} */ (typed)], 12)))
+          .child(typed)))
+        .child([issue.author, ago[0]].filter(Boolean).join(" · "))
+        .children(issue.labels.filter((label) => label !== what.ranked_by && label !== issue.typed_by)
+          .map((label) => div().text_color(t.muted).child(label))))
       .child(issue.body.trim() ? text(issue.body, 0) : div().text_color(t.dim).child("No description"))
       .children(issue.comments.map((c, n) => v_flex().gap(6).pt(16).border_t(1).border_color(t.border)
         .child(div().text_size(12).text_color(t.dim).child([c.author, ago[n + 1]].filter(Boolean).join(" · ")))

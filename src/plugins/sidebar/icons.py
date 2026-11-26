@@ -3,19 +3,22 @@
 the Herdr app mod's own for it (Catppuccin Icons'). tools/build.py copies it into the sidebar and the mod's icons.js."""
 import os
 
-# Nerd Fonts 3 glyphs (all Codicons, one line weight), and plain ones for a font without them. Ghostty draws each a bit
-# wider than its cell, so the views' icons are equally wide and Issues' is GitHub's mark (the symmetric issue icon would
-# look off-center). The file types' marks below are the languages' own, and Catppuccin Icons' name for each, the app's
+# Nerd Fonts 3 glyphs (Codicons, one line weight; Task's clipboard Material Design's: Codicons have none), and plain
+# ones for a font without them; a check is ✓ in both, the one mark of done. Ghostty draws each a bit wider than its
+# cell, so the views' icons are equally wide and Issues' is GitHub's mark (the symmetric issue icon looks off-center).
 NERD_GLYPHS = {"closed": "\ueab6", "open": "\ueab4", "folder": "\uea83", "folder_open": "\ueaf7", "file": "\uea7b",
                "new_file": "\uea7f", "new_folder": "\uea80", "refresh": "\ueb37", "collapse": "\ueac5",
-               "check": "\ueab2", "more": "\ueab4", "stage": "\uea60", "unstage": "\ueb3b", "discard": "\ueae2",
+               "check": "✓", "more": "\ueab4", "stage": "\uea60", "unstage": "\ueb3b", "discard": "\ueae2",
                "diff": "\ueae1", "files": "\ueaf0", "search": "\uea6d", "git": "\uea68", "ai": "\uec10",
                "issues": "\ueb00", "agent": "\uec0f", "robot": "\uec20", "web": "\ueb14", "repo": "\uea62",
-               "terminal": "\uea85", "close": "\uea76"}
+               "terminal": "\uea85", "close": "\uea76", "funnel": "\ueb83", "Bug": "\ueaaf", "Feature": "\uea61",
+               "Task": "\U000f0a38"}
+# an issue type has no plain mark: without icons its word says it
 PLAIN_GLYPHS = {"closed": "›", "open": "⌄", "new_file": "+", "new_folder": "⊞", "refresh": "↻", "collapse": "⊟",
                 "check": "✓", "more": "⌄", "stage": "+", "unstage": "−", "discard": "↺", "diff": "⇄", "files": "▤",
                 "search": "⌕", "git": "⎇", "ai": "✦", "issues": "#", "agent": "»", "robot": "◇", "web": "↗",
-                "repo": "▣", "terminal": "$", "close": "×"}
+                "repo": "▣", "terminal": "$", "close": "×", "funnel": "▽"}
+# the file types' marks: the languages' own, and Catppuccin Icons' name for each, the app's
 FILE_TYPES = (("\ue73c", "python", "py pyi"), ("\ue74e", "javascript", "js mjs cjs"), ("\ue628", "typescript", "ts"),
               ("\ue7ba", "javascript-react", "jsx"), ("\ue7ba", "typescript-react", "tsx"),
               ("\ue60b", "json", "json jsonc"), ("\uf48a", "markdown", "md markdown"), ("\ue736", "html", "html htm"),

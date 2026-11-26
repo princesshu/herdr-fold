@@ -4,7 +4,7 @@
 import { div, image, svg } from "gpui-kit";
 import { h_flex, InputState, v_flex } from "gpui-base";
 import { closeOverlay, openOverlay, setShared, shared, run as command } from "herdr";
-import { keyMenuBounds, menuHeight, menuPlace } from "./logic.js";
+import { CENTRED, keyMenuBounds, MENU_GROUP, menuAt, menuHeight, menuPlace } from "./logic.js";
 import { toneInk } from "./layers.js";
 import { checked, field, icon, listName, scopeTag } from "./parts.js";
 import { RHYTHM as R } from "./timeline.js";
@@ -12,6 +12,9 @@ import { RHYTHM as R } from "./timeline.js";
 const MENU = 180;                  // a menu's width: its longest choice, Commit & Sync, with its check
 const ROW = 28;
 const MENUS = "herdr-fold.menus-open";     // shared: the mod's menus up now, by their popups' ids (a float keeps them)
+// shared: the rows of a menu that stays open while its choices are pressed (a filter's), by its token, as they are now
+export const MENU_LIVE = "herdr-fold.menu-live";
+const SLOT = CENTRED.menuMark[1];  // px: a choice's mark (a priority's dot, a type's icon, the checks' mark)
 
 /** The mod's menus up now (their popups' ids). @returns {string[]} */
 export const menusOpen = () => {
@@ -27,12 +30,14 @@ export function menuGone(overlay) {
 /** The menus a last run left marked are gone (the tab bar's copy says so once, as it starts). */
 export const forgetMenus = () => void (menusOpen().length && setShared(MENUS, []));
 
+/** @typedef {{ group?: boolean, mark?: { text?: string, icon?: import("./icons.js").IconName, color: string },
+ *   faint?: boolean, keep?: boolean, wide?: boolean, hidden?: boolean, more?: boolean }} Filtering */
 /** @typedef {{ label: string, act?: (cx: any) => void, url?: string, on?: boolean, color?: string, off?: boolean,
  *   dim?: boolean, icon?: { path: string, tint: boolean, dim?: boolean }, note?: string, tone?: string,
- *   tip?: string }} Item */
-// a choice (null among them: a rule): its ACT (run where the menu opened) or URL, a check when ON can be set, its
-// COLOR, OFF shown not chosen (its TIP saying why, the mouse resting on it), DIM muted and still chosen; an ICON
-// (picture or tinted glyph, DIM: muted) before it, a NOTE (in its TONE's color)
+ *   tip?: string } & Filtering} Item */
+// a choice (null: a rule): its ACT (run where the menu opened) or URL, a check when ON can be set, its COLOR, OFF not
+// chosen (TIP: why), DIM muted, an ICON before it, a NOTE (its TONE's color); a filter's: GROUP a group's name, a MARK
+// in a slot (WIDE: its words from there), FAINT all dim, KEEP open, HIDDEN till its filter is typed in (MORE: shown)
 /** A menu's own filter: its field, what is typed in it, what it says when nothing matches. @typedef {{ input: any,
  * typed: string, none: string }} Find */
 
@@ -42,23 +47,57 @@ export class Menus {
     this.token = null;
     /** @type {((cx: any) => void)[]} */
     this.acts = [];
+    /** @type {boolean[]} which choices leave it open */
+    this.keeps = [];
+    /** @type {string | null} its popup */
+    this.overlay = null;
+    /** @type {any} how it was opened: where (BOUNDS, AT its corner), its HEAD, HOW, its HEIGHT */
+    this.shown = null;
   }
 
-  /** @typedef {{ width?: number, find?: string, none?: string }} How WIDTH its longest choice's; FIND, a filter's words
-   * on top (typed into at once), NONE what it says when nothing matches */
-  /** ITEMS opened as a menu under BOUNDS (the pressed button's; above, where it does not fit), else at the pointer,
-   * HEAD (what they act on, its NOTE at its right) above them. @param {(Item | null)[]} items @param {any} [bounds]
-   * @param {{ label: string, note?: string }} [head] @param {How} [how] */
-  open(items, bounds, head, { width = MENU, find = undefined, none = "No match" } = {}) {
+  /** @typedef {{ width?: number, find?: string, none?: string, point?: { x: number, y: number } }} How WIDTH its
+   * longest choice's; FIND, a filter's words on top (typed into at once), NONE what it says when nothing matches;
+   * POINT, a right click's (window px): its corner there */
+  /** ITEMS opened as a menu under BOUNDS (the pressed button's; above, where it does not fit), else at POINT or the
+   * pointer, HEAD (what they act on, its NOTE at its right) above them. @param {(Item | null)[]} items
+   * @param {any} [bounds] @param {{ label: string, note?: string }} [head] @param {How} [how] */
+  open(items, bounds, head, { width = MENU, find = undefined, none = "No match", point = undefined } = {}) {
     const token = (this.token = Math.random().toString(36).slice(2, 10));
     this.acts = items.map((item) => item?.act ?? (() => {}));
-    const rows = items.map((item, n) => item && { label: item.label, url: item.url, on: item.on, color: item.color,
-      off: item.off, dim: item.dim, icon: item.icon, note: item.note, tone: item.tone, tip: item.tip,
-      command: `menu-${token}-${n}` });
-    const height = menuHeight(items, head, Boolean(find));
-    setShared(MENUS, [...menusOpen(), openOverlay({ mod: "herdr-fold", kind: "popup", props: { part: "menu",
-      items: rows, head, find, none }, width, height,
-    ...(bounds ? { at: menuPlace(bounds, height, window.viewport_size(), width) } : {}) })]);
+    this.keeps = items.map((item) => Boolean(item?.keep));
+    const height = menuHeight(items, head, Boolean(find)), room = window.viewport_size();
+    const at = point ? menuAt(point, height, room, width) : bounds ? menuPlace(bounds, height, room, width) : null;
+    this.shown = { bounds, at, head, how: { width, find, none }, height };
+    this.overlay = openOverlay({ mod: "herdr-fold", kind: "popup", props: { part: "menu", items: rows(items, token),
+      head, find, none, token }, width, height, ...(at ? { at } : {}) });
+    setShared(MENUS, [...menusOpen(), this.overlay]);
+  }
+
+  /** Whether the menu this copy opened last is up still. */
+  get up() {
+    return Boolean(this.overlay && menusOpen().includes(this.overlay));
+  }
+
+  /** ITEMS in the open menu's place (a filter's, as its values turn or its list's answer comes): its rows anew, as
+   * many as there were; else it opens again where it stands. @param {(Item | null)[]} items */
+  update(items) {
+    if (!this.up || !this.token) return;
+    const { bounds, at, head, how, height } = this.shown;
+    if (menuHeight(items, head, Boolean(how.find)) !== height) {
+      closeOverlay(/** @type {string} */ (this.overlay));
+      menuGone(/** @type {string} */ (this.overlay));
+      return this.open(items, bounds, head, { ...how, point: bounds ? undefined : at ?? undefined });
+    }
+    this.acts = items.map((item) => item?.act ?? (() => {}));
+    this.keeps = items.map((item) => Boolean(item?.keep));
+    setShared(MENU_LIVE, { token: this.token, items: rows(items, this.token) });
+  }
+
+  /** ITEMS as a second menu in the place of the one just chosen in (a right click's Priority…), HEAD above them.
+   * @param {(Item | null)[]} items @param {{ label: string, note?: string }} head @param {How} [how] */
+  chain(items, head, how = {}) {
+    const at = this.shown?.at;
+    this.open(items, undefined, head, { ...how, point: at ?? undefined });
   }
 
   /** ITEMS a key opens (Cmd+Shift+L's files, Cmd+K Cmd+T's themes) where the palette stands, at the window's top.
@@ -71,31 +110,51 @@ export class Menus {
   answer(asked, cx) {
     const chosen = /^menu-(\w+)-(\d+)$/.exec(asked);
     if (!chosen || chosen[1] !== this.token) return false;
-    this.token = null;
+    if (!this.keeps[Number(chosen[2])]) this.token = null;
     this.acts[Number(chosen[2])]?.(cx);
     cx.notify();
     return true;
   }
 }
 
-/** The ITEMS a menu's filter shows for TYPED: those whose label holds it, no rule; all of them while nothing is.
- * @template T @param {(T & { label: string } | null)[]} items @param {string} typed */
-export const filtered = (items, typed) => (typed ? items.filter((item) => item?.label.toLowerCase()
-  .includes(typed.toLowerCase())) : items);
+/** ITEMS as a popup's props hold them, each one's command back to the copy that opened it (TOKEN's).
+ * @param {(Item | null)[]} items @param {string} token */
+const rows = (items, token) => items.map((item, n) => item && { label: item.label, url: item.url, on: item.on,
+  color: item.color, off: item.off, dim: item.dim, icon: item.icon, note: item.note, tone: item.tone, tip: item.tip,
+  group: item.group, mark: item.mark, faint: item.faint, keep: item.keep, wide: item.wide, hidden: item.hidden,
+  more: item.more, command: `menu-${token}-${n}` });
+
+/** The ITEMS a menu's filter shows for TYPED: those whose label holds it (a hidden one too), no rule, each under its
+ * group's name; all but the hidden while nothing is. @template T @param {string} typed
+ * @param {(T & { label: string, group?: boolean, hidden?: boolean, more?: boolean } | null)[]} items */
+export function filtered(items, typed) {
+  if (!typed) return items.filter((item) => !item?.hidden);
+  const found = [];
+  let group = null;
+  for (const item of items) {
+    if (item?.group) group = item;
+    else if (item && !item.more && item.label.toLowerCase().includes(typed.toLowerCase())) {
+      if (group && !found.includes(group)) found.push(group);
+      found.push(item);
+    }
+  }
+  return found;
+}
 
 /** ITEM's choice made in the menu OVERLAY: its command sent back, or its URL opened; the menu closed.
  * @param {Item & { command?: string }} item @param {string} overlay */
 function choose(item, overlay, cx) {
   if (item.url) cx.open_url(item.url);
   else command(`herdr-fold.${item.command}`);
-  closeOverlay(overlay);
+  if (!item.keep) closeOverlay(overlay);
 }
 
-/** The menu (OVERLAY, its popup): FIND's filter (Enter its first choice, Esc closes), its HEAD, ITEMS a row each (null:
- * a rule; a check before the ones on when any can be): a choice sends its command back or opens its URL, and closes.
- * @param {string} overlay @param {any[]} items @param {any} [head] @param {any} [find] */
+/** The menu (OVERLAY): FIND's filter (Enter its first choice, Esc closes), its HEAD, ITEMS a row each (a rule, a
+ * group's name; a check, a mark's slot where any has one): a choice sends its command back or opens its URL and closes,
+ * but one that KEEPs it open. @param {string} overlay @param {any[]} items @param {any} [head] @param {any} [find] */
 export function menuPopup(t, overlay, items, head, find = null) {
   const checks = items.some((item) => item?.on !== undefined), shown = filtered(items, find?.typed ?? "");
+  const slots = items.some((item) => item?.mark);
   return v_flex().size_full().p(4).gap(2).text_size(12).text_color(t.foreground)
     .on_key_down((e, cx) => {
       if (e.key !== "escape") return;
@@ -104,33 +163,53 @@ export function menuPopup(t, overlay, items, head, find = null) {
     })
     .when(Boolean(find), (e) => e.child(field(t, "menu-find", find?.input).flex_none()))
     .when(Boolean(head), (e) => e.child(h_flex().h(ROW).flex_none().px(8).gap(8).items_center()
-      .child(div().font_semibold().child(head?.label ?? "")).child(div().flex_1())
-      .child(div().text_color(t.muted).child(head?.note ?? ""))))
+      .child(div().min_w(0).truncate().font_semibold().child(head?.label ?? "")).child(div().flex_1())
+      .child(div().flex_none().text_color(t.muted).child(head?.note ?? ""))))
     .when(Boolean(find) && !shown.some(Boolean), (e) => e.child(h_flex().h(ROW).flex_none().px(8).items_center()
       .text_color(t.dim).child(find?.none ?? "")))
-    .children(shown.map((item) => !item ? rule(t) : h_flex().id(`menu-${items.indexOf(item)}`).h(ROW).flex_none()
-      .px(8).gap(8).items_center().rounded(6).when(Boolean(item.off), (e) => e.text_color(t.dim))
-      .when(Boolean(item.tip), (e) => e.tooltip(item.tip))
-      .when(!item.off, (e) => e.cursor_pointer().hover((s) => s.bg(t.hover))
-        .on_click((_e, cx) => choose(item, overlay, cx)))
-      .when(checks, (e) => e.child(checked(t, Boolean(item.on))))
-      .when(Boolean(item.icon), (e) => e.child((item.icon?.tint
-        ? svg(item.icon.path).size(14).flex_none().text_color(item.off ? t.dim : item.icon.dim ? t.muted
-          : t.foreground)
-        : image(String(item.icon?.path)).size(14).flex_none()).when(Boolean(item.dim), (e) => e.opacity(0.6))))
-      .child(div().truncate().when(Boolean(item.color), (e) => e.text_color(item.color))
-        .when(Boolean(item.dim), (e) => e.text_color(t.muted)).child(item.label))
-      .when(Boolean(item.note), (e) => e.child(div().flex_1()).child(div().flex_none().text_size(11)
-        .text_color(item.tone ? toneInk(t, item.tone, t.popover ?? t.raised) : t.dim).child(item.note ?? "")))));
+    .child(v_flex().id("menu-rows").flex_1().min_h(0).overflow_y_scroll().gap(2)
+      .children(shown.map((item) => !item ? rule(t) : item.group ? groupName(t, item.label)
+        : choice(t, overlay, item, `menu-${items.indexOf(item)}`, checks, slots))));
+}
+
+/** A group's name in a menu (issue-types.html's .gh): 11 dim on a 14 px line, 6 over it and 2 under it, where the
+ * checks stand. @param {string} label */
+const groupName = (t, label) => div().h(MENU_GROUP).flex_none().px(8).pt(6).pb(2).text_size(11)
+  .line_height("14px").text_color(t.dim).child(label);
+
+/** ITEM's row (ID) in the menu OVERLAY: its check (CHECKS: a column of them), its mark's slot (SLOTS), its icon, its
+ * words, its note; all dim while FAINT. @param {string} overlay @param {any} item @param {string} id
+ * @param {boolean} checks @param {boolean} slots */
+function choice(t, overlay, item, id, checks, slots) {
+  const ink = (/** @type {string | undefined} */ color) => (item.faint ? t.dim : color);
+  return h_flex().id(id).h(ROW).flex_none().px(8).gap(8).items_center().rounded(6)
+    .when(Boolean(item.off), (e) => e.text_color(t.dim))
+    .when(Boolean(item.tip), (e) => e.tooltip(item.tip))
+    .when(!item.off, (e) => e.cursor_pointer().hover((s) => s.bg(t.hover))
+      .on_click((_e, cx) => choose(item, overlay, cx)))
+    .when(checks, (e) => e.child(checked(t, Boolean(item.on))))
+    .when(slots && !item.wide, (e) => e.child(div().size(SLOT).flex_none().flex().items_center().justify_center()
+      .when(Boolean(item.mark?.icon), (e) => e.child(icon(item.mark.icon, SLOT).text_color(ink(item.mark.color))))
+      .when(Boolean(item.mark?.text), (e) => e.text_size(11).text_color(ink(item.mark.color)).child(item.mark.text))))
+    .when(Boolean(item.icon), (e) => e.child((item.icon?.tint
+      ? svg(item.icon.path).size(14).flex_none().text_color(item.off ? t.dim : item.icon.dim ? t.muted
+        : t.foreground)
+      : image(String(item.icon?.path)).size(14).flex_none()).when(Boolean(item.dim), (e) => e.opacity(0.6))))
+    .child(div().truncate().when(Boolean(item.color), (e) => e.text_color(ink(item.color)))
+      .when(Boolean(item.dim), (e) => e.text_color(t.muted)).when(Boolean(item.faint), (e) => e.text_color(t.dim))
+      .child(item.label))
+    .when(Boolean(item.note), (e) => e.child(div().flex_1()).child(div().flex_none().text_size(11)
+      .text_color(item.tone ? toneInk(t, item.tone, t.popover ?? t.raised) : t.dim).child(item.note ?? "")));
 }
 
 /** The first choice FIND's filter shows in ITEMS, the one Enter picks; null for none. @param {Find} find
  * @param {((Item & { command?: string }) | null)[]} items */
-export const firstChoice = (find, items) => filtered(items, find.typed).find((item) => item && !item.off) ?? null;
+export const firstChoice = (find, items) => filtered(items, find.typed).find((item) => item && !item.off
+  && !item.group) ?? null;
 
-/** A filter for the menu OVERLAY of ITEMS, its words WORDS, saying NONE when nothing matches: what is typed shown at
- * once, Enter its first choice. @param {string} words @param {string} none
- * @param {((Item & { command?: string }) | null)[]} items @param {string} overlay @returns {Find} */
+/** A filter for the menu OVERLAY of ITEMS (or what gives them as they are now: a menu that stays open), its words
+ * WORDS, saying NONE when nothing matches: what is typed shown at once, Enter its first choice. @param {string} words
+ * @param {string} none @param {any[] | (() => any[])} items @param {string} overlay @returns {Find} */
 export function menuFind(words, none, items, overlay) {
   const find = { input: InputState.new({ placeholder: words }), typed: "", none };
   find.input.on("change", (_e, cx) => {
@@ -138,7 +217,7 @@ export function menuFind(words, none, items, overlay) {
     cx.notify();
   });
   find.input.on("submit", (_e, cx) => {
-    const first = firstChoice(find, items);
+    const first = firstChoice(find, typeof items === "function" ? items() : items);
     if (first) choose(first, overlay, cx);
   });
   return find;

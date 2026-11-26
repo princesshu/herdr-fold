@@ -11,7 +11,7 @@ from screen import Canvas, Style  # noqa: E402
 from vt import Key  # noqa: E402
 import widgets  # noqa: E402
 from icons import glyphs  # noqa: E402
-from widgets import Confirm, ListView, Menu, TextInput, Turns  # noqa: E402
+from widgets import TYPED, Confirm, Heading, ListView, Menu, Row, TextInput, Turns  # noqa: E402
 
 
 def typed(field, text):
@@ -343,6 +343,36 @@ class Menus(unittest.TestCase):
         self.assertEqual(menu.at(5, 0, 40, 0, 20), (5, 0, 21))                      # room under: there
         self.assertEqual(menu.at(18, 0, 40, 0, 20), (14, 0, 21))                    # none: above the row
         self.assertEqual(menu.at(3, 0, 40, 0, 6), (2, 0, 21))                       # neither: moved in
+
+
+    def test_rows_in_columns_a_check_a_mark_the_words_on_one_column_a_count_at_the_end(self):
+        # a filter's menu: each column there when one row has it, a group's name where the checks stand, never chosen
+        menu = Menu([Row("Assigned to me", on=False), Heading("Priority"),
+                     Row("Urgent", on=True, mark=("●", "deleted"), count=3),
+                     Row("Low", on=False, mark=("●", "added"), count=0, faint=True), Row("No priority", on=False,
+                                                                                         wide=True)])
+        self.assertEqual(menu.index, 0)
+        canvas = Canvas(40, 8)
+        menu.draw(canvas, 0, 0, menu.width())
+        rows = ["".join(ch for ch, _ in row)[:menu.width()] for row in canvas.rows[:7]]
+        self.assertEqual(rows[1:6], ["│     Assigned to me │", "│ Priority           │", "│ ✓ ● Urgent       3 │",
+                                     "│   ● Low          0 │", "│   No priority      │"])
+        self.assertEqual(canvas.rows[2][2][1].fg, "dim")                             # a group's name
+        self.assertEqual((canvas.rows[3][4][1].fg, canvas.rows[3][6][1].fg, canvas.rows[3][19][1].fg),
+                         ("deleted", "text", "dim"))                                  # the mark, the words, the count
+        self.assertEqual({canvas.rows[4][x][1].fg for x in (4, 6, 19)}, {"dim"})       # nothing would stay: all dim
+        self.assertIsNone(canvas.hit(5, 2))                                           # a group's name: no choice
+        menu.handle(Key("down"))
+        self.assertEqual(menu.choices[menu.index], "Urgent")                          # stepped over the name
+
+    def test_a_find_field_on_its_first_row_takes_what_is_typed(self):
+        find = TextInput(placeholder="Find")
+        menu = Menu([Row("api", on=False)], find)
+        self.assertEqual(menu.height(), 4)
+        self.assertIs(menu.handle(Key("char", "a")), TYPED)
+        self.assertEqual(find.text, "a")
+        self.assertIsNone(menu.handle(Key("left")))                                   # moved, nothing typed
+        self.assertEqual(menu.handle(Key("enter")), "api")
 
 
 class Confirmations(unittest.TestCase):

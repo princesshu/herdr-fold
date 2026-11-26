@@ -32,6 +32,7 @@ ITEMS = {
                ("context", t("status.context"), "context: 22%/1M"),
                ("five_hour", t("status.five_hour"), "current: 18%/4hr 18m"),
                ("weekly", t("status.weekly"), "weekly: 46%/Monday 1pm"),
+               ("model_weekly", t("status.model_weekly"), "Fable: 38%"),
                ("cost", t("status.cost"), "~$4.12")],
     "codex": [("effort", t("status.effort"), "gpt-… medium"),
               ("context", t("status.context"), "context-used, context-window-size"),

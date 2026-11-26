@@ -13,7 +13,7 @@ import { activeTerminal, afterCommit, background, branchLabel, changeColor, chan
   from "./logic.js";
 import { button, chip, codeFont, END, field, fileMark, fold, footNote, GAP, icon, iconButton, INDENT, noteToast, PAD,
   segmented, small, SPINNER, SPRING } from "./parts.js";
-import { forgetMenus, menuGone, Menus, menuFind, menuPopup } from "./menus.js";
+import { forgetMenus, MENU_LIVE, menuGone, Menus, menuFind, menuPopup } from "./menus.js";
 import { askChats, bottomChoice, checkUpdates, chosenView, FloatSize, followFolder, keepBottom, liveDockTabs, liveRail,
   foldDock, openAgents, RepoLook, restDock, restFollow, restorePanels, sizedFloat, summon, tell, toggleChats,
   toggleColumn, SUMMON, tabsState } from "./panel.js";
@@ -184,8 +184,9 @@ export default class HerdrFold extends View {
     if ((this.blank = part === "none")) return;
     if ((this.dock = part === "dock-head")) return;      // the right dock's tabs, its views' stack's header
     if (part === "menu") {                        // a menu; its filter, the keys in it (a new chat's agent list)
-      const { overlay, items, head, find, none } = props();
-      this.popup = { overlay, items, head, find: find ? menuFind(find, none, items, overlay) : null };
+      const { overlay, items, head, find, none, token } = props();
+      this.popup = { overlay, items, head, token, find: find ? menuFind(find, none, () => this.menuItems(), overlay)
+        : null };
       return void cx.timer.after(0, () => this.popup.find?.input.focus());
     }
     if (part === "settings") return void (this.settings = new SettingsView(python, cx));   // the one Settings
@@ -405,8 +406,8 @@ export default class HerdrFold extends View {
         if (key !== this.key) return;
         Object.assign(this, { root, on: here.on, status, commits, github, linked: settled.linked,
           head: settled.head ?? this.head, offer: this.offer && pushOffer(status) });   // asked anew: pushed, changed
-        const board = this.board === "pulls" ? this.pulls : this.issues;
-        if (this.view === "issues" && github && !board.listing && !board.asked) board.load(cx);
+        const board = this.board === "pulls" ? this.pulls : this.issues;      // asked once, then each minute
+        if (this.view === "issues" && github && (!board.listing && !board.asked || board.stale())) board.load(cx);
         if (changes) this.pull.look(cx, commits[0]?.hash ?? null);
         followFolder(this, (cx) => this.refresh(cx), cx);   // another machine's space waits for REFRESH
       } catch (e) {
@@ -682,6 +683,12 @@ export default class HerdrFold extends View {
     cx.notify();
   }
 
+  /** The menu's rows as they are now: a menu that stays open (a filter's) takes its opener's anew (MENU_LIVE). */
+  menuItems() {
+    const live = /** @type {any} */ (shared(MENU_LIVE));
+    return live && live.token === this.popup.token ? live.items : this.popup.items;
+  }
+
   /** Its block or popup gone: the palette's, however it closed (the app's Esc, a press beside), unlights the field;
    * Settings' lets the next ask open it again. */
   async close() {
@@ -701,7 +708,7 @@ export default class HerdrFold extends View {
     if (this.note) return noteToast(t, this.note);
     if (this.blank) return standIn(t);
     if (this.dock) return liveDockTabs(t, cx);
-    if (this.popup) return menuPopup(t, this.popup.overlay, this.popup.items, this.popup.head, this.popup.find);
+    if (this.popup) return menuPopup(t, this.popup.overlay, this.menuItems(), this.popup.head, this.popup.find);
     if (this.settings) return this.settings.render(t, codeFont());
     if (this.rail) return liveRail(t, activeTerminal(layout()));
     if (this.guide) return styleguide(this.guide, t, this.only, this.from);

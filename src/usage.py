@@ -1,7 +1,7 @@
 # Generated from core/usage.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
-"""The agents' limits for the Agent panel's Usage, the 5-hour and the weekly one: herdr-fold's own readings and Claude's
-cached ones (each Claude account its own), Codex's newest chat's, the newest per agent, a window just reset told as
-such. Nothing of the agents' is written. Usage (in JSON): usage.py limits | section AGENT [AGENTS]."""
+"""The agents' limits for the Agent panel's Usage, the 5-hour, the weekly and a model's own week (Fable's): herdr-fold's
+own readings and Claude's cached ones (each Claude account its own), Codex's newest chat's, the newest per agent, one
+just reset told as such. Nothing of the agents' is written. Usage (JSON): usage.py limits | section AGENT [AGENTS]."""
 import calendar
 import errno
 import glob
@@ -28,6 +28,9 @@ NEWEST = 5                      # Codex chats looked through, the newest first, 
 NAMES = {"claude": "Claude", "codex": "Codex"}         # an agent's name where the agents' list does not tell it
 SAID = {"five_hour": ("five", "5h", "5h"), "week": ("week", "wk", "Week")}   # a window's key, label and name
 PLAN = re.compile(r"[A-Za-z][A-Za-z ]{0,23}")           # a plan's word: letters alone, so never an e-mail or an id
+MODEL = re.compile(r"[A-Za-z][A-Za-z0-9 .-]{0,23}")     # a model's name, as Claude's cache names its own week's
+# a model's name in its reset's words: no space in it, as the clients take the words' first word for their label
+NBSP = "\u00a0"
 API_KEY = "API key"             # agent_state.py's word for a plan on an API key: it has no window to tell
 UNTOLD = "limits not told"      # the current agent's row with no reading: said in its place, why in its properties
 WHY = {"claude": "Claude tells its limits to herdr-fold's status line and to its own cache: neither holds a reading "
@@ -76,6 +79,17 @@ def window(value):
     return {"used": round(value["used"]), "resets": epoch(value.get("resets"))}
 
 
+def model_windows(values):
+    """The models' own weekly windows in VALUES (a list of {"name", "used", "resets"}), as kept and answered, each a
+    window() with its model's name; one a name, the first kept; [] for none."""
+    found = {}
+    for value in values if isinstance(values, list) else ():
+        one, name = window(value), obj(value).get("name")
+        if one and isinstance(name, str) and MODEL.fullmatch(name) and name not in found:
+            found[name] = {"name": name, **one}
+    return list(found.values())
+
+
 def opened(path):
     """PATH opened to read in binary, a regular file only (OSError otherwise): a pipe in its place would hold the
     reader for good."""
@@ -114,11 +128,12 @@ def kept_path(home, agent):
 
 
 def told(data):
-    """The windows Claude's status-line JSON DATA tells ({"five_hour", "week"}): its rate_limits as last answered."""
+    """The windows Claude's status-line JSON DATA tells ({"five_hour", "week", "models"}): its rate_limits as last
+    answered; no model's own week, which it never tells."""
     limits = obj(obj(data).get("rate_limits"))
-    return {name: window({"used": obj(limits.get(key)).get("used_percentage"),
-                          "resets": obj(limits.get(key)).get("resets_at")})
-            for name, key in (("five_hour", "five_hour"), ("week", "seven_day"))}
+    return {**{name: window({"used": obj(limits.get(key)).get("used_percentage"),
+                             "resets": obj(limits.get(key)).get("resets_at")})
+               for name, key in (("five_hour", "five_hour"), ("week", "seven_day"))}, "models": []}
 
 
 def fresher(mine, kept, now, own=None):
@@ -136,9 +151,9 @@ def fresher(mine, kept, now, own=None):
 
 
 def keep(agent, windows, at):
-    """WINDOWS ({"five_hour", "week"}, each a window or None) read at AT kept as AGENT's newest reading, each the
-    fresher() of it, the one kept (another chat's may be newer) and Claude's own; its owner's only. The windows kept;
-    None for a reading that tells neither (before a chat's first answer, an API key's), which is not kept."""
+    """WINDOWS ({"five_hour", "week"}) read at AT kept as AGENT's newest reading, each the fresher() of it, the one kept
+    and Claude's own, the models' weeks Claude's cache's (no chat tells them), else the ones kept; its owner's only. The
+    windows kept; None for a reading that tells neither week nor 5 hours (an API key's), which is not kept."""
     if agent not in AGENTS:
         raise ValueError(f"not an agent: {agent!r}")
     found = {name: window(obj(windows).get(name)) for name in WINDOWS}
@@ -147,6 +162,7 @@ def keep(agent, windows, at):
     home = os.path.expanduser("~")
     before, own = kept(home, agent) or {}, (claude_cached(home) if agent == "claude" else None) or {}
     found = {name: fresher(found[name], before.get(name), int(at), own.get(name)) for name in WINDOWS}
+    found["models"] = own["models"] if own else before.get("models", [])
     statefile.write(kept_path(home, agent), {**found, "at": int(at)})
     return found
 
@@ -154,21 +170,27 @@ def keep(agent, windows, at):
 def kept(home, agent):
     """AGENT's reading as herdr-fold's status lines kept it, or None."""
     found = read_json(kept_path(home, agent))
-    return {**{name: window(found.get(name)) for name in WINDOWS}, "at": int(found["at"]), "source": "status"} \
-        if number(found.get("at")) else None
+    return {**{name: window(found.get(name)) for name in WINDOWS}, "models": model_windows(found.get("models")),
+            "at": int(found["at"]), "source": "status"} if number(found.get("at")) else None
 
 
 def claude_cached(home):
     """Claude's own reading, kept in its account's .claude.json at its own pace (cachedUsageUtilization, when it was
-    fetched), or None; one fetched for another account than the one signed in is not its. Ids compared, never told."""
+    fetched), or None; one fetched for another account than the one signed in is not its. Ids compared, never told.
+    A model's own week is a usage row of its (limits[], kind weekly_scoped), shown as Claude's /usage lists them all."""
     found = read_json(os.path.join(claude_folder(home) or home, ".claude.json"))
     cached, signed = obj(found.get("cachedUsageUtilization")), obj(found.get("oauthAccount")).get("accountUuid")
     if not number(cached.get("fetchedAtMs")) or cached.get("accountUuid") not in (None, signed):
         return None
     used = obj(cached.get("utilization"))
     found = {name: obj(used.get(key)) for name, key in (("five_hour", "five_hour"), ("week", "seven_day"))}
+    meters = used.get("limits") if isinstance(used.get("limits"), list) else []
+    scoped = [obj(one) for one in meters if obj(one).get("kind") == "weekly_scoped"]
     return {**{name: window({"used": one.get("utilization"), "resets": one.get("resets_at")})
-               for name, one in found.items()}, "at": int(cached["fetchedAtMs"] // 1000), "source": "claude"}
+               for name, one in found.items()},
+            "models": model_windows([{"name": obj(obj(one.get("scope")).get("model")).get("display_name"),
+                                      "used": one.get("percent"), "resets": one.get("resets_at")} for one in scoped]),
+            "at": int(cached["fetchedAtMs"] // 1000), "source": "claude"}
 
 
 def codex_windows(limits, at):
@@ -202,7 +224,7 @@ def codex_readings(path):
         payload = obj(entry.get("payload"))
         if entry.get("type") == "event_msg" and payload.get("type") == "token_count":
             at = epoch(entry.get("timestamp")) or changed
-            yield {**codex_windows(payload.get("rate_limits"), at), "at": at, "source": "codex"}
+            yield {**codex_windows(payload.get("rate_limits"), at), "models": [], "at": at, "source": "codex"}
 
 
 def codex_newest(home):
@@ -224,16 +246,18 @@ def codex_newest(home):
     return None
 
 
+def held(one, ends, now, used):
+    """ONE, a window, at NOW: as it is while it holds; past its reset (one with no reset time, past ENDS) used 0 where
+    nothing ran since it (USED: when the agent last wrote a chat), else not known (None), with no reset."""
+    ends = one and (one["resets"] if one["resets"] is not None else ends)
+    return one if not one or now < ends else {**one, "used": 0 if used < ends else None, "resets": None}
+
+
 def current(reading, now, used):
-    """READING's windows at NOW: one still holding as it is; one past its reset (one with no reset time, past its
-    length from the reading) used 0 where nothing ran since it (USED: when the agent last wrote a chat), else not
-    known (None), with no reset."""
-    found = {}
-    for name in WINDOWS:
-        one = reading[name]
-        ends = one and (one["resets"] if one["resets"] is not None else reading["at"] + WINDOWS[name])
-        found[name] = one if not one or now < ends else {"used": 0 if used < ends else None, "resets": None}
-    return found
+    """READING's windows at NOW, each held(): one with no reset time ends its length after the reading, a model's
+    own a week after."""
+    return {**{name: held(reading[name], reading["at"] + WINDOWS[name], now, used) for name in WINDOWS},
+            "models": [held(one, reading["at"] + WINDOWS["week"], now, used) for one in reading["models"]]}
 
 
 def last_used(agent, home):
@@ -251,8 +275,8 @@ def last_used(agent, home):
 
 def limits(home, now):
     """Each agent's limits at NOW for the user whose home is HOME, the newest reading first: [{"agent", "five_hour",
-    "week", "at", "source": status, claude or codex}], from each agent's newest reading (current()'s windows); one
-    with no window left out."""
+    "week", "models", "at", "source": status, claude or codex}], from each agent's newest reading (current()'s
+    windows); one with neither week nor 5 hours left out."""
     found = []
     for agent, own in (("claude", claude_cached), ("codex", codex_newest)):
         readings = [one for one in (kept(home, agent), own(home)) if one and any(one[name] for name in WINDOWS)]
@@ -277,10 +301,19 @@ def ago(seconds):
     return f"{seconds // 3600} h ago" if seconds < 2 * 86400 else f"{seconds // 86400} d ago"
 
 
+def meter(one, label, said, now):
+    """ONE, a window at NOW, as a Usage row draws it: LABEL, its percent ("0%" just reset, "–" not known), level and
+    reset in SAID's words ({time}, {day}: the client's); None for none."""
+    when = "{day} {time}" if one and one["resets"] is not None and one["resets"] - now >= SOON else "{time}"
+    return one and {"label": label, "used": one["used"], "text": "–" if one["used"] is None else f"{one['used']}%",
+                    "level": None if one["used"] is None else level(one["used"]),
+                    "resets": one["resets"] and {"at": one["resets"], "words": f"{said} resets {when}"}}
+
+
 def section(limits, agents, current, now):
     """The Agent panel's Usage from LIMITS at NOW: a row an agent (CURRENT first; with no reading "untold", its words
-    and why, but on an API key), its name and plan as AGENTS tell, each window's percent ("0%" just reset, "–" not
-    known), level and reset ({time}, {day}: the client's), the tightest, "reset" (while yellow or red), the age."""
+    and why, but on an API key), its name and plan as AGENTS tell, each window's meter() (a model's own week labelled
+    with its name), the tightest, "reset" (while yellow or red), the age."""
     told = {one["key"]: one for one in (agents if isinstance(agents, list) else []) if isinstance(obj(one).get("key"),
                                                                                                  str)}
     rows = []
@@ -291,14 +324,9 @@ def section(limits, agents, current, now):
                "plan": plan if isinstance(plan, str) and PLAN.fullmatch(plan) else None, "current": key == current,
                "age": f"Read {ago(now - reading['at'])}", "untold": None}
         for window, (part, label, said) in SAID.items():
-            one, when = reading[window], "{time}"
-            if one and one["resets"] is not None and one["resets"] - now >= SOON:
-                when = "{day} {time}"
-            row[part] = one and {"label": label, "used": one["used"],
-                                 "text": "–" if one["used"] is None else f"{one['used']}%",
-                                 "level": None if one["used"] is None else level(one["used"]),
-                                 "resets": one["resets"] and {"at": one["resets"], "words": f"{said} resets {when}"}}
-        known = [row[part] for part in ("five", "week") if row[part] and row[part]["used"] is not None]
+            row[part] = meter(reading[window], label, said, now)
+        row["models"] = [meter(one, one["name"], one["name"].replace(" ", NBSP), now) for one in reading["models"]]
+        known = [one for one in (row["five"], row["week"], *row["models"]) if one and one["used"] is not None]
         row["tight"] = max(known, key=lambda one: one["used"]) if known else None
         row["reset"] = row["tight"]["resets"] if row["tight"] and row["tight"]["level"] in ("warn", "bad") else None
         rows.append(row)
@@ -307,8 +335,8 @@ def section(limits, agents, current, now):
         plan, name = mine.get("plan"), mine.get("name") if isinstance(mine.get("name"), str) else None
         name = name or NAMES.get(current, current)
         rows.insert(0, {"key": current, "name": name, "current": True, "age": None, "five": None, "week": None,
-                        "plan": plan if isinstance(plan, str) and PLAN.fullmatch(plan) else None, "tight": None,
-                        "reset": None, "untold": {"text": UNTOLD, "why": WHY.get(
+                        "models": [], "plan": plan if isinstance(plan, str) and PLAN.fullmatch(plan) else None,
+                        "tight": None, "reset": None, "untold": {"text": UNTOLD, "why": WHY.get(
                             current, f"{name} does not tell herdr-fold its limits.")}})
     return {"id": "usage", "title": "Usage", "none": "Not known yet", "rows": rows}
 
