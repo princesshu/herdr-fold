@@ -99,7 +99,9 @@ lines off with the file ([Uninstalling](uninstall.md#what-goes-and-what-stays)).
 
 A machine Tailscale knows a host key for is checked before anything of it goes on the list: when the key it shows
 differs, the questions say `studio's key does not match the one Tailscale knows: not added`, and that key is never
-trusted. A key read that takes over a second shows a waiting line, `checking studio's key`.
+trusted. Tailscale's record is what a machine says of itself, so a second route needs more: the machine must show
+the listed machine's own key when asked; one that shows another, is offline or does not answer is not added as its
+route, and the questions say why. A key read that takes over a second shows a waiting line, `checking studio's key`.
 
 The list, `~/.config/herdr-fold/machines.txt`, has a line per machine: `name | target | os | key | routes`. The target
 is the address herdr connects with; the key the fingerprint; the routes each way to it, `<network> user@address` (the

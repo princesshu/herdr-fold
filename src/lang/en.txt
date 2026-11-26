@@ -295,6 +295,8 @@ machines.also_on = also %s: %s
 machines.also_at = also %s
 machines.checking_key = checking %s's key
 machines.key_mismatch = %s's key does not match the one Tailscale knows: not added
+machines.route_key_mismatch = %s shows another key than %s: not added as its route
+machines.route_unchecked = %s did not answer, so it could not show %s's key: not added as its route
 
 # machines.sh: preparing and connecting a machine (the lines printed on the machine itself come from here too)
 machines.prepare_failed = preparing the machine failed

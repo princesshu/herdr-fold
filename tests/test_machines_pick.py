@@ -320,12 +320,13 @@ cat <<'JSON'
 }}
 JSON
 """ % STUDIO_KEY
-# studio's other address shows its key; nothing else answers a key scan
+# studio shows its key at its tailnet name and its other address; nothing else answers a key scan
 TWO_ROUTES_KEYSCAN = """#!/bin/sh
 for host; do :; done
-[ "$host" = 192.0.2.20 ] && echo "$host %s"
+case "$host" in 192.0.2.20|studio.tail0000.ts.net) echo "$host %s" ;; esac
 exit 0
 """ % STUDIO_KEY
+SILENT_KEYSCAN = "#!/bin/sh\nexit 0\n"             # no machine answers a key scan
 # a machine answering with another key than the one Tailscale knows (someone between, or the wrong machine)
 OTHER_KEY, _ = host_key("FakeHostKeyOfSomeoneElse")
 HARBOR_KEY, _ = host_key("FakeHostKeyOfHarborWeb")
@@ -438,8 +439,23 @@ class TwoRoutes(unittest.TestCase):
         prompts = self.run_questions(["y", ""])
         self.assertEqual(prompts, ["Import machines from your Tailscale network? [y/N]",
                                    "Add a machine by hand? [y/N]"])
-        for name in ("harbor-web", "studio"):
-            self.assertIn("[!] " + catalog_text("machines.key_mismatch", name) + "\n", self.shown)
+        self.assertIn("[!] " + catalog_text("machines.key_mismatch", "harbor-web") + "\n", self.shown)
+        self.assertIn("[!] " + catalog_text("machines.route_key_mismatch", "studio.tail0000.ts.net", "studio") + "\n",
+                      self.shown)                           # studio's route: it must show studio's own key
+        self.assertEqual(self.read(".config/herdr-fold/machines.txt"), self.line)
+        self.assertEqual(self.read(".ssh/known_hosts"), f"studio.local {STUDIO_KEY}\n")
+        self.assertIsNone(self.read(".ssh/config"))
+
+    def test_a_route_needs_the_machine_to_show_the_listed_key_now(self):
+        # Tailscale's record is what a peer says of itself: studio's key there is not enough; no answer, no route
+        stubs(self.stubs, {"ssh-keyscan": SILENT_KEYSCAN})
+        prompts = self.run_questions(["y", "", ""])
+        self.assertEqual(prompts, ["Import machines from your Tailscale network? [y/N]",
+                                   "Import harbor-web (linux, harbor-web.tail0000.ts.net)? [y/N]",
+                                   "Add a machine by hand? [y/N]"])
+        unchecked = catalog_text("machines.route_unchecked", "studio.tail0000.ts.net", "studio")
+        self.assertIn(f"[-] {unchecked}\n", self.shown)
+        self.assertNotIn(self.SAID, self.shown)
         self.assertEqual(self.read(".config/herdr-fold/machines.txt"), self.line)
         self.assertEqual(self.read(".ssh/known_hosts"), f"studio.local {STUDIO_KEY}\n")
         self.assertIsNone(self.read(".ssh/config"))

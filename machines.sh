@@ -299,7 +299,7 @@ cmd_tailscale() {
   esac
   [ -n "$peers" ] || { skip "$(t machines.tailscale_empty)"; tailnet_left_out "$left"; return 0; }
   hosts=$(ssh_config_hosts); known=$(machine_keys)
-  local added=0 kept=() short dns os state ips given keys alias name user found listed_as shown
+  local added=0 kept=() short dns os state ips given keys alias name user found listed_as shown mine shows
   while IFS='|' read -r short dns os state ips given <&3; do
     # its ~/.ssh/config Host, if it has one: then it goes on the list under that name (with that file's user and key).
     # The Host's name or its HostName is the machine's name or address here, as cmd_sshconfig leaves such a Host to
@@ -322,11 +322,18 @@ cmd_tailscale() {
         remove_from_list "$listed_as"; note "$(t machines.removed_from_list "$listed_as")"; continue ;;
       known\|*) kept+=("$listed_as"); continue ;;
     esac
-    # before a route or a machine goes on the list: the key it shows must be one Tailscale's record has
-    [ -z "$given" ] || [ "$state" = offline ] || tailscale_key_ok "$name" "$dns" "$given" || continue
+    # another way to a listed machine only when it answers with that very key now: Tailscale's list is what a peer says
+    # of itself, so an offline peer, or one that does not answer, is never taken for it
     case $found in
-      route\|*) also_route "$listed_as" tailscale "$dns" "${keys%%,*}"; kept+=("$listed_as"); continue ;;
+      route\|*)
+        mine=$(printf '%s\n' "$known" | awk -F'|' -v n="$listed_as" '$1 == n { print $2; exit }'); shows=
+        [ "$state" = offline ] || shows=$(fingerprint_of "$(scanned_key "$name" "$dns")")
+        if [ -z "$shows" ]; then skip "$(t machines.route_unchecked "$dns" "$listed_as")"; continue; fi
+        if [ "$shows" != "$mine" ]; then warn "$(t machines.route_key_mismatch "$dns" "$listed_as")"; continue; fi
+        also_route "$listed_as" tailscale "$dns" "$mine"; kept+=("$listed_as"); continue ;;
     esac
+    # before a machine goes on the list: the key it shows must be one Tailscale's record has
+    [ -z "$given" ] || [ "$state" = offline ] || tailscale_key_ok "$name" "$dns" "$given" || continue
     name=$listed_as                       # its own, or with -tailscale where a machine of that name is another one
     ask "$(t machines.select_ask "$name" "$os" "$shown" \
       "$([ "$state" = offline ] && echo " $(t machines.select_offline)")")" n || continue

@@ -47,7 +47,7 @@ of it, never a second one. What each source of a machine proves, and how its key
 | Source | What it proves | Its host key |
 |---|---|---|
 | `~/.ssh/config` | your own Host | ssh trusts it on the first connection (`accept-new`) and checks it against that key from then on |
-| Tailscale | its coordination server signed the machine into your network | trusted on the first connection, as above; where Tailscale has a record of the key, it tells a machine already on the list, and a machine that shows another key is refused before anything of it is added, its key never trusted |
+| Tailscale | its coordination server signed the machine into your network | trusted on the first connection, as above; where Tailscale has a record of the key, it tells a machine already on the list, and a machine that shows another key is refused before anything of it is added, its key never trusted; a route to a listed machine only when it shows that machine's own key now (offline or silent: none) |
 | by address | nothing: whatever answers there | its fingerprint is shown and asked about first (the default is no): compare it with the machine's own before you answer; only that key is trusted, and a machine that shows none is not added |
 
 A machine with several routes has a Host of herdr-fold's own (`~/.config/herdr-fold/ssh_config`, which one Include line
