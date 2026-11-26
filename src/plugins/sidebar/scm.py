@@ -9,8 +9,8 @@ from commit_message import secret_looking
 from git import Change, Commit, taken
 from github import checks_said
 from icons import GIT_LETTER, glyphs, icon
-from screen import BAND, CONTENT, GIT_ROLE, PAD, PLAIN, Canvas, Style, after, centered, short_count, truncate, \
-    width
+from screen import AIR, BAND, CONTENT, GIT_ROLE, PAD, PLAIN, Canvas, Style, after, centered, short_count, \
+    truncate, width
 from pulls import mark, review_word
 from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, TextInput
@@ -226,7 +226,7 @@ class Scm:
         for line, role in lines:
             y += 1
             if self.linked and line.startswith(f"Fixes #{self.linked[0]} "):
-                canvas.put(y, 1, truncate(line, cells - 5), Style(fg=role))
+                canvas.put(y, 1, truncate(line, cells - 3 - AIR), Style(fg=role))     # AIR before its ×
                 canvas.put(y, cells - 2, "×", Style(fg="muted"))
                 canvas.region(y, cells - 3, cells, "unlink")
                 continue
@@ -235,7 +235,7 @@ class Scm:
 
     def repository(self, canvas, y, status, roomy):
         """On top, as VS Code's Repositories: its heading (its chevron folds it), then the repository's name, ⎇ its
-        branch (* with changes), ↻ the sync (when it is behind or ahead) and ⋯ pull, push or its page on GitHub.
+        branch (* with changes), ↻ the sync (behind or ahead) and ⋯ pull, push or its page on GitHub, AIR before each.
         Returns the row the message starts on: right under them in a ROOMY pane (its edge their air), else one below."""
         cells, marks = canvas.width, glyphs(self.icons)
         if not self.repo:
@@ -257,18 +257,19 @@ class Scm:
         canvas.region(y, end - 1, cells, "remote")
         counts = f" {status.behind}↓ {status.ahead}↑" if status.upstream and (status.behind or status.ahead) else ""
         sync = (self.frame if self.working and self.frame else marks["refresh"]) + counts    # a run: its spinner
-        end -= width(sync) + 2
+        end -= width(sync) + AIR
         canvas.put(y, end, sync, Style(fg="muted"))
         canvas.region(y, end - 1, end + width(sync) + 1, "sync")
         x = CONTENT + 1 + len(after(self.icons))          # under the heading's name, as a change's row (entry())
         x = canvas.put(y, x, marks["repo"] + after(self.icons), Style(fg="muted"))
         name = os.path.basename(self.repo.rstrip(os.sep))
-        room = end - 2 - (x + width(name) + 1)            # the branch's: what the name leaves before the sync
+        room = end - AIR - (x + width(name) + 1)          # the branch's: what the name leaves before the sync
+        gap = AIR                                         # the name's before the sync, or a cell before the branch
         if room >= BRANCH_LEAST:
             branch = truncate(f"⎇ {status.branch or 'detached'}{'*' if status.staged or status.changes else ''}", room)
-            end -= width(branch) + 2
+            end, gap = end - width(branch) - AIR, 1
             canvas.put(y, end, branch, Style(fg="muted"))
-        canvas.put(y, x, truncate(name, max(1, end - x - 1)), Style(fg="text"))
+        canvas.put(y, x, truncate(name, max(1, end - x - gap)), Style(fg="text"))
         return y + air
 
     def side(self, canvas, top, rows, roomy):
@@ -339,7 +340,7 @@ class Scm:
 
     def section(self, canvas, y, index, item, bg, hovered):
         """A section's row on its highlight, a cell inside it each side (CONTENT): its chevron and title, its count on
-        a chip at the end, its hover icons before it."""
+        a chip at the end, its hover icons before it, AIR cells after the title."""
         cells = canvas.width
         mark = widgets.TURNS.mark(self.icons, ("section", item.kind), item.kind not in self.folded)
         x = canvas.put(y, CONTENT, mark + after(self.icons), Style(fg="muted", bg=bg))
@@ -350,11 +351,14 @@ class Scm:
             canvas.chip(y, end, width(count) + 2, "badge")
             canvas.put(y, end + 1, count, Style(fg="badge_text", bg="badge"))
         kinds = {"staged": ("unstage",), "changes": ("discard", "stage")}.get(item.kind, ())
+        air = 1                                          # a cell before the count's chip, or the content's end
         if hovered and kinds and item.count:
-            end = self.icons_at(canvas, y, end - 1, index, kinds, bg)
-        canvas.put(y, x, truncate(item.title, end - x - 1), Style(fg="text", bg=bg, bold=True))
+            end, air = self.icons_at(canvas, y, end - 1, index, kinds, bg), AIR
+        canvas.put(y, x, truncate(item.title, end - x - air), Style(fg="text", bg=bg, bold=True))
 
     def entry(self, canvas, y, index, item, bg, hovered):
+        """A change's row under its section's name: its icon, name and folder, a cell of air before git's letter at the
+        end; hovered, its icons before the letter, AIR cells after the words."""
         change, cells = item.change, canvas.width
         x = CONTENT + 1 + len(after(self.icons))          # under the section's name
         folder, name = os.path.split(change.path.rstrip("/"))          # a nested repository is "inner/"
@@ -362,10 +366,10 @@ class Scm:
             x = canvas.put(y, x, icon(name) + after(True), Style(fg="muted", bg=bg))
         letter = cells - CONTENT - 2                      # under the last digit of its section's count
         canvas.put(y, letter, GIT_LETTER.get(change.code, change.code), Style(fg=GIT_ROLE[change.code], bg=bg))
-        end = letter
+        end = letter - 1                                  # the column after the words' last
         if hovered:
             kinds = ("diff", "unstage") if item.staged else ("diff", "discard", "stage")
-            end = self.icons_at(canvas, y, end, index, kinds, bg) - 1
+            end = self.icons_at(canvas, y, letter, index, kinds, bg) - AIR
         x = canvas.put(y, x, truncate(name, end - x), Style(fg="text", bg=bg, strike=change.code == "D"))
         if folder and end - x - 1 > 1:
             canvas.put(y, x + 1, truncate(folder, end - x - 1), Style(fg="muted", bg=bg))

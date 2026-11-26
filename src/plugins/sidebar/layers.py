@@ -11,7 +11,7 @@ from agent_setup import READ
 from agent_state import HERE
 from connectors import BRANDS
 from icons import glyphs
-from screen import CONTENT, INSET, PAD, SPINNER, Style, after, truncate, width
+from screen import AIR, CONTENT, INSET, PAD, SPINNER, Style, after, truncate, width
 from vt import Key, Mouse
 from widgets import MENU_WIDEST, Action, Keyed, Menu, Popup, TextInput, wrap
 
@@ -773,9 +773,9 @@ class Layers:
         self.top = max(0, min(self.top, len(lines) - rows))
 
     def head(self, canvas, y):
-        """The agent's name bold, "in <folder>" dim and ⌄ (Enter or a press opens the agents' list), its problems at the
-        right in their colors, a click choosing its row; where a setup shows, core's line dim and the start-up rule
-        (rule()), else a blank row. The rows it takes."""
+        """The agent's name bold, "in <folder>" dim and ⌄ AIR after them (Enter or a press opens the agents' list), its
+        problems at the right in their colors, a click choosing its row; where a setup shows, core's line dim and the
+        start-up rule (rule()), else a blank row; the words give way first. The rows it takes."""
         cells, head, agent = canvas.width, self.answer["head"], self.agent_of(self.looking)
         name = agent["name"] if agent else head["name"]
         standing = self.standing()
@@ -783,8 +783,10 @@ class Layers:
         bg = "selection" if self.chosen == HEAD else "hover" if self.hover == HEAD else None
         if bg:
             canvas.band(y, bg)
+        more = glyphs(self.icons)["more"]
+        tail = AIR + width(more) + 1                        # ⌄ after the words: AIR, it, the cell it spills into
         x = cells - CONTENT
-        name_room = x - CONTENT - (sum(width(one["text"]) + 2 for one in problems))
+        name_room = x - CONTENT - tail - (sum(width(one["text"]) + 2 for one in problems))
         if name_room < width(name):                         # no room for both: the name
             problems = []
         canvas.region(y, 0, cells, ("layer", HEAD))
@@ -793,13 +795,11 @@ class Layers:
             canvas.put(y, x, one["text"], Style(fg=STATE_ROLE[one["tone"]], bg=bg))
             canvas.region(y, x, x + width(one["text"]), ("problem", one["row"]))
             x -= 2
-        end = x if problems else cells - CONTENT
-        at = canvas.put(y, CONTENT, truncate(name, end - CONTENT), Style(fg="text", bg=bg, bold=True))
-        more = glyphs(self.icons)["more"]
+        end = (x if problems else cells - CONTENT) - tail   # the column after the words' last
+        at = canvas.put(y, CONTENT, truncate(name, max(1, end - CONTENT)), Style(fg="text", bg=bg, bold=True))
         if end - at > 2:
             at = canvas.put(y, at + 1, truncate(head["where"], end - at - 1), Style(fg=grey(bg), bg=bg))
-        if end - at > 1 + width(more):
-            canvas.put(y, at + 1, more, Style(fg=grey(bg), bg=bg))
+        canvas.put(y, at + AIR, more, Style(fg=grey(bg), bg=bg))
         if standing or "bar" not in self.answer:
             return 2
         line = 1 if head["line"] else 0
@@ -901,36 +901,35 @@ class Layers:
     def section(self, canvas, y, what, bg):
         """A section's head: its chevron dim (none on an empty one), its title bold and count; at the right Usage's ↗
         (folded, the figure that matters first: headline()'s), Permissions' summary in its tones' colors, else the
-        start-up rule's swatch before what it loads always."""
+        start-up rule's swatch before what it loads always; words AIR before a button (↗, +), cut first."""
         cells, x, faint = canvas.width, self.columns(), grey(bg)
         if what["id"] == USAGE or what["rows"] or what["groups"]:       # Usage's line says when it has none
             mark = widgets.TURNS.mark(self.icons, ("agent", what["id"]), what["id"] not in self.folded)
             canvas.put(y, x["chevron"], mark, Style(fg=faint, bg=bg))
-        at = canvas.put(y, x["title"], truncate(what["title"], cells - CONTENT - x["title"]), Style(fg="text", bg=bg,
-                                                                                                      bold=True))
-        if what["count"] is not None and at + 1 + width(str(what["count"])) <= cells - CONTENT:
+        end = cells - CONTENT                           # the column after the words' last: a button's AIR before it
+        if what["id"] == RULES and self.agent() == "claude":       # a rule added from its head
+            end -= width(PLUS) + AIR
+            canvas.put(y, end + AIR, PLUS, Style(fg="text" if self.hover == ("add", None) else faint, bg=bg))
+            canvas.region(y, end + AIR - 1, cells, ("add", None))
+        elif what["id"] == USAGE:                       # the way to the Usage view
+            end -= width(OPENS) + AIR
+            canvas.put(y, end + AIR, OPENS, Style(fg=faint, bg=bg))
+            canvas.region(y, end + AIR, end + AIR + width(OPENS), ("opens", None))
+        at = canvas.put(y, x["title"], truncate(what["title"], max(1, end - x["title"])), Style(fg="text", bg=bg,
+                                                                                                bold=True))
+        if what["count"] is not None and at + 1 + width(str(what["count"])) <= end:
             at = canvas.put(y, at + 1, str(what["count"]), Style(fg=faint, bg=bg))
-        end, room = cells - CONTENT, cells - CONTENT - at - 2
+        room = end - at - 2
         if what["id"] == USAGE:
             row = headline(what["rows"], self.agent()) if USAGE in self.folded else None
             parts = [(f"{row['name']} ", "muted")] + figures(row, bars=False, short=True) if row else []
-            parts = parts + [("  ", "muted"), (OPENS, "muted")] if parts else [(OPENS, "muted")]
-            if sum(width(words) for words, _ in parts) > room:
-                parts = [(OPENS, "muted")]
         elif what["summary"]:
             parts = [part for n, one in enumerate(what["summary"])
                      for part in [("  ", "muted")] * bool(n) + [(one["text"], STATE_ROLE[one["tone"]])]]
         else:
             parts = [(SWATCH, PART_ROLE[what["swatch"]]), (f" {what['cost']}", "muted")] if what["cost"] else []
-        if what["id"] == RULES and self.agent() == "claude":       # a rule added from its head
-            end -= width(PLUS) + 2
-            room -= width(PLUS) + 2
-            canvas.put(y, end + 2, PLUS, Style(fg="text" if self.hover == ("add", None) else faint, bg=bg))
-            canvas.region(y, end + 1, cells, ("add", None))
         if sum(width(words) for words, _ in parts) <= room:
             self.right(canvas, y, end, parts, bg)
-            if what["id"] == USAGE:
-                canvas.region(y, end - width(OPENS), end, ("opens", None))
 
     def row(self, canvas, y, key, row, column, bg):
         """A row: its mark under its section's title (one being checked or signing in spins there), its name (dim

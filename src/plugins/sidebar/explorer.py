@@ -8,7 +8,7 @@ import filekinds
 import media
 import widgets
 from icons import GIT_LETTER, glyphs, icon
-from screen import BAND, CONTENT, GIT_ROLE, PAD, PLAIN, Canvas, Style, after, truncate
+from screen import AIR, BAND, CONTENT, GIT_ROLE, PAD, PLAIN, Canvas, Style, after, truncate
 from git import Status
 from tree import Node
 from vt import Key, Mouse
@@ -129,7 +129,7 @@ class Explorer:
         buttons = ("new_file", "new_folder", "refresh", "collapse")
         x = canvas.width - 3 * len(buttons) + 1               # each icon with two columns of room after it
         name = os.path.basename(self.tree.root.rstrip(os.sep)) or self.tree.root
-        canvas.put(y, 1, truncate(name, x - 2), Style(fg="text", bold=True))
+        canvas.put(y, 1, truncate(name, x - 1 - AIR), Style(fg="text", bold=True))     # AIR before the buttons
         for target in buttons:
             canvas.put(y, x, marks[target], Style(fg="text" if target == self.pointed else "muted"))
             canvas.region(y, x, x + 2, target)

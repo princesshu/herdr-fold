@@ -175,7 +175,7 @@ class AgentsList(unittest.TestCase):
         self.press("home")
         self.assertEqual(self.view.chosen, ("head", None))
         canvas = self.draw()
-        self.assertTrue(text(canvas, 0).startswith("  Claude in lumen-api ⌄ "), text(canvas, 0))   # inside its band
+        self.assertTrue(text(canvas, 0).startswith("  Claude in lumen-api  ⌄ "), text(canvas, 0))   # inside its band
         self.assertEqual(canvas.rows[0][2][1], Style(fg="text", bg="selection", bold=True))
         self.assertTrue(text(canvas, 0).rstrip().endswith("1 failed  1 sign in"))
 
@@ -237,7 +237,7 @@ class AgentsList(unittest.TestCase):
         self.press("up")                                                        # round to the last line, past the rule
         self.assertIsNone(self.press("enter"))
         lines = self.lines(self.draw())
-        self.assertEqual(lines[0], "  Aider in lumen-api ⌄")
+        self.assertEqual(lines[0], "  Aider in lumen-api  ⌄")
         self.assertEqual(lines[2], " Aider is not installed")
         self.assertIn(" npm install -g aider", lines)
         self.assertIn("  Copy    Open its page ↗", lines)
@@ -251,7 +251,7 @@ class AgentsList(unittest.TestCase):
         self.assertEqual(self.listed(self.draw(), 10)[2:8], ["Claude Max", "Codex Plus", "Gemini CLI sign in",
                                                              "─" * 21, "Not installed", "✓ Aider"])
         self.assertEqual(self.press("enter"), None)                             # the keys start on it: looked at still
-        self.assertEqual(self.lines(self.draw())[0], "  Aider in lumen-api ⌄")
+        self.assertEqual(self.lines(self.draw())[0], "  Aider in lumen-api  ⌄")
 
     def test_an_agent_not_signed_in_shows_sign_in_in_its_setups_place(self):
         self.view.set({"agent": "gemini", "folder": "/work/lumen-api", "agents": MACHINE,
@@ -259,7 +259,7 @@ class AgentsList(unittest.TestCase):
         canvas = self.draw(48)
         lines = self.lines(canvas)
         self.assertEqual(lines[:8], [
-            "  Gemini CLI in lumen-api ⌄", "", " Gemini CLI is not signed in",
+            "  Gemini CLI in lumen-api  ⌄", "", " Gemini CLI is not signed in",
             " It signs in its own way: Sign in opens it in a", " terminal tab, and you finish there, or in the",
             " browser if it asks.", "", "  Sign in"])
         self.assertEqual(lines[9], " herdr-fold keeps no token.")
@@ -275,7 +275,7 @@ class AgentsList(unittest.TestCase):
         self.view.set({"agent": "gemini", "folder": "/work/lumen-api", "agents": [
             *MACHINE[:2], machine("gemini", "Gemini CLI")], "head": {"name": "Gemini CLI", "where": "in lumen-api"}})
         lines = self.lines(self.draw(48))
-        self.assertEqual([line for line in lines if line.strip()], ["  Gemini CLI in lumen-api ⌄"])
+        self.assertEqual([line for line in lines if line.strip()], ["  Gemini CLI in lumen-api  ⌄"])
         self.assertEqual(self.view.chosen, layers.HEAD)                         # the agents' list, a key away
         self.assertIsNone(self.view.tone())
 

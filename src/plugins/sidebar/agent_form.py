@@ -2,7 +2,7 @@
 harness-editing.html's TUI frames: its controls, the layer, the lines it changes, when and what overrides it, all in
 core's words; its keys and presses. It only asks: the family plans and saves."""
 from harness_edit import MANAGED
-from screen import INSET, Style, truncate, width
+from screen import AIR, INSET, Style, truncate, width
 from widgets import Action, TextInput, wrap
 
 SWITCH = ((True, "on"), (False, "off"))      # a switch's two chips, as the frames draw them
@@ -360,20 +360,20 @@ class Form:
             x += width(words) + 2
 
     def item(self, canvas, y, x, one, n, hover):
-        """A host of the list: its name, its layer dim, × where it can be taken out."""
+        """A host of the list: its name, its layer dim, × AIR after it where it can be taken out."""
         end, at, item = canvas.width - INSET, x + self.column(one), one["items"][n]
         if not n:
             canvas.put(y, x, one["label"], Style(fg="muted"))
         goes = n in self.hosts(one)
-        room = end - at - width(item["layer"]) - 2 - (3 if goes else 0)
+        room = end - at - width(item["layer"]) - 2 - (AIR + 1 if goes else 0)
         at = canvas.put(y, at, truncate(item["host"], max(1, room)), Style(fg="text"))
         at = canvas.put(y, at + 2, item["layer"], Style(fg="muted"))
         if goes:
-            target = ("edit", ("host", n))
-            canvas.put(y, at + 2, "×", Style(fg="text" if hover == target else "subtext"))
-            canvas.region(y, at + 1, at + 4, target)
+            target, cross = ("edit", ("host", n)), at + AIR
+            canvas.put(y, cross, "×", Style(fg="text" if hover == target else "subtext"))
+            canvas.region(y, cross - 1, cross + 2, target)
             if self.entered and self.at == ("host", n):
-                canvas.cursor = (y, at + 2)
+                canvas.cursor = (y, cross)
 
     def button_row(self, canvas, y, x, row, hover):
         """The buttons: the primary one the accent's block, the others quiet, Remove plain words after its key."""

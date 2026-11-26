@@ -244,6 +244,9 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
   account's status line shows the other's, and a cached reading of an account no longer signed in is not read.
 - A folder that has a space is switched to, never made a second space: the TUI's New space finds a space with no agent
   in it too, and the Herdr app's Spaces +, Ctrl + B then Shift + N and Files' New space switch as Start's Recent did.
+- The TUI sidebar's words no longer crowd the icon after them: a title cut with … stands two cells before a row's hover
+  buttons, and so do Files' header, the fields' funnel and ×, the Agent view's ⌄, + and ↗ and the
+  Chats plan's chevron; in a narrow pane the words are cut sooner, and no button is left out.
 
 ## [0.3.0] - 2026-11-08
 

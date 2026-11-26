@@ -8,7 +8,7 @@ import widgets
 from agent_setup import KNOWN
 from chats import TRASHED
 from checkpoint_list import CheckpointList
-from screen import CONTENT, PAD, PLAIN, Canvas, Style, truncate, width
+from screen import AIR, CONTENT, PAD, PLAIN, Canvas, Style, truncate, width
 from vt import Key, Mouse
 from widgets import Action, Confirm, ListView, Menu, Popup, TextInput, wrap
 from words import since
@@ -245,8 +245,9 @@ class ChatList:
         elif kind == "fold":
             canvas.region(y, 0, cells, "plan:done")
             canvas.put(y, TITLE, STEP_MARK["done"][0], Style(fg=STEP_MARK["done"][1]))
-            canvas.put(y, TITLE + 2, truncate(words, room), Style(fg="muted"))
-            canvas.put(y, TITLE + 3 + width(truncate(words, room)),
+            shown = truncate(words, max(1, room - AIR - 2))  # its chevron AIR after them, the cell it spills into
+            canvas.put(y, TITLE + 2, shown, Style(fg="muted"))
+            canvas.put(y, TITLE + 2 + width(shown) + AIR,
                        widgets.TURNS.mark(self.icons, ("plan", self.plan[0]), line["open"]), Style(fg="muted"))
         else:
             mark, role = STEP_MARK[kind]

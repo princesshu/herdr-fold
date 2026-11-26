@@ -792,10 +792,9 @@ class App(Loop):
     # --- the dock folded to its rail: the same in every tab, as the column's width
 
     def fold_dock(self, rail, wide=False):
-        """The dock folded to its RAIL, or opened again, in every tab: kept in column.json first (another tab's sidebar
-        takes it at its next look), then each tab's column and terminal set (shape()). Opened, the rail stays drawn
-        until its column has widened (reshaped()), never the dock squeezed into the rail's cells; WIDE: dragged open,
-        already as wide."""
+        """The dock folded to its RAIL, or opened again, in every tab: kept in column.json, then each tab's column set
+        (shape()). Opened, the rail stays drawn until its column has widened (reshaped()), never the dock squeezed
+        into the rail's cells; WIDE: dragged open, already as wide."""
         self.railed, self.opening = rail, not rail and not wide
         if not column.keep(self.state_dir, {"rail": rail}):
             self.error = "settings not saved"

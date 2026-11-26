@@ -53,16 +53,17 @@ first version's tabs: each its name in the very middle, as much air left of it a
 length, 10 for an even one), its icon over the name's middle, a blank row above and below: Files, Search, Changes,
 Issues, Agent, then Chats and More. The chosen one, in the accent, fills the rest of the pane, and each folder keeps
 which one it is. A chosen row's highlight stands a cell in from each side, its content a cell inside it; », fields,
-buttons, headers, menus and the line at the foot keep to its edges. Changes and Chats show a dot beside their icons
-while there is something to count, in the changes' color and the waiting chats', the number in the button's tip, and
-Agent while its setup has a problem, red for a server that failed over yellow for one to sign in to, the problems in its
-tip; nothing moves when a dot comes or goes. The button under the mouse stands whole on the hover background a list's
-row has under it, half a row of it above and below; so does a rail's icon, its five cells, and a menu's line from frame
-to frame, its text a cell in. Chats, under the AI sparkle, opens the Chats list over the sidebar, under its button, on
-the views' own background, with the keys; its lit button, Esc, a click outside it or another pane closes it, and a
-press on another of the dock's buttons (a view's, ») closes it and does its own at once, as a flyout switches; the
-chosen chat's task list stands under its row ([Chats](usage.md#chats)). More, the row's last button, opens the pane's
-own menu under it (over the list while it is open, Show archived first there).
+buttons, headers, menus and the line at the foot keep to its edges. Words stand two cells before an icon or a glyph
+button after them on their row (a row's hover buttons, a field's ×), cut sooner where the row is narrow, never the
+button. Changes and Chats show a dot beside their icons while there is something to count, in the changes' color and the
+waiting chats', the number in the button's tip, and Agent while its setup has a problem, red for a server that failed
+over yellow for one to sign in to, the problems in its tip; nothing moves when a dot comes or goes. The button under the
+mouse stands whole on the hover background a list's row has under it, half a row of it above and below; so does a rail's
+icon, its five cells, and a menu's line from frame to frame, its text a cell in. Chats, under the AI sparkle, opens the
+Chats list over the sidebar, under its button, on the views' own background, with the keys; its lit button, Esc, a click
+outside it or another pane closes it, and a press on another of the dock's buttons (a view's, ») closes it and does its
+own at once, as a flyout switches; the chosen chat's task list stands under its row ([Chats](usage.md#chats)). More, the
+row's last button, opens the pane's own menu under it (over the list while it is open, Show archived first there).
 
 The column keeps one width everywhere, in cells: it first opens as wide as the names need (80 cells inside herdr's
 frame); drag it wider or narrower in one tab, and every other tab's column, in every space and window, gets that

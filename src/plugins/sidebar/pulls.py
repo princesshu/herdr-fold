@@ -8,7 +8,7 @@ from filters import Filtered, Filters, counted
 from github import ME, PULL_GROUPS, PULL_STATES, Query, ago, checks_mark, checks_said, pull_facets, pull_search, \
     review_state
 from icons import glyphs
-from screen import BAND, PAD, SPIN, SPINNER, Style, truncate, width
+from screen import AIR, BAND, PAD, SPIN, SPINNER, Style, truncate, width
 from vt import Key, Mouse
 from widgets import TYPED, Action, ListView, Popup, TextInput
 
@@ -146,13 +146,13 @@ class Pulls(Filtered):
         self.filters.funnel(canvas, row, funnel, self.icons, self.pointed == "filters" or self.menu is not None)
         canvas.put(row, cells - 3, "+", Style(fg="text" if self.pointed == "new" else "muted", bg="input"))
         canvas.region(row, cells - 4, cells - 1, "new")
-        self.field.draw(canvas, row, 3, max(1, funnel - 4), 1, Style(bg="input"), focused=self.searching)
+        self.field.draw(canvas, row, 3, max(1, funnel - AIR - 3), 1, Style(bg="input"), focused=self.searching)
         y = top + taken
         if self.filters.on():
             y += self.filters.draw_chips(canvas, y, self.icons, self.pointed)
         elif not roomy:
             y += 1
-        x = 1
+        x, refresh = 1, cells - 2                         # the refresh button's column: AIR before it, as Issues'
         for name, label in PULL_STATES.items():           # Open and Closed with their counts, as Issues has them
             label = counted(label, self.totals, name)
             chosen, pointed = name == self.state, self.pointed == ("state", name)
@@ -160,13 +160,13 @@ class Pulls(Filtered):
                 canvas.chip(y, x, width(label) + 2, "button" if chosen else "hover")
             style = (Style(fg="button_text", bg="button", bold=True) if chosen
                      else Style(fg="text", bg="hover") if pointed else Style(fg="muted"))
-            end = canvas.put(y, x + 1, truncate(label, max(1, cells - x - 2)), style)
+            end = canvas.put(y, x + 1, truncate(label, max(1, refresh - AIR - x - 1)), style)
             canvas.region(y, x, end + 1, ("state", name))
             x = end + 2
         running = self.asked and self.list.items
         spin = SPINNER[int(self.now() / SPIN) % len(SPINNER)] if running else glyphs(self.icons)["refresh"]
-        canvas.put(y, cells - 2, spin, Style(fg="text" if self.pointed == "refresh" else "muted"))
-        canvas.region(y, cells - 2, cells, "refresh")
+        canvas.put(y, refresh, spin, Style(fg="text" if self.pointed == "refresh" else "muted"))
+        canvas.region(y, refresh, cells, "refresh")
         y += 2
         line = self.line()
         if line:
@@ -202,7 +202,7 @@ class Pulls(Filtered):
     def row(self, canvas, y, index):
         """A pull request's two rows on its highlight (BAND in from each side): its checks' mark at the highlight's
         edge, its number and title, its review's state at the end; its branch, author, age and (unless they passed)
-        checks under them; the hover buttons on its first row; each a cell inside the highlight's end."""
+        checks under them; the hover buttons on its first row, AIR after the title; each a cell inside its end."""
         pull, cells = self.list.items[index], canvas.width
         hovered = index == self.hover
         bg = "selection" if index == self.list.index else ("hover" if hovered else None)
@@ -211,8 +211,9 @@ class Pulls(Filtered):
                 canvas.band(r, bg)
                 canvas.region(r, 0, cells, ("pull", index))
         end = cells - 1 - BAND
+        air = 1                                         # before the review's word, or a cell short of the content's end
         if hovered:
-            end -= 2 * len(HOVER)
+            end, air = end - 2 * len(HOVER), AIR
             for i, kind in enumerate(HOVER):
                 canvas.put(y, end + 2 * i, glyphs(self.icons)[kind], Style(fg="text", bg=bg))
                 canvas.region(y, end + 2 * i, end + 2 * i + 2, (kind, index))
@@ -223,7 +224,7 @@ class Pulls(Filtered):
                 canvas.put(y, end, word[0], Style(fg=word[1], bg=bg))
         mark(canvas, y, 1, pull, bg)
         x = canvas.put(y, TEXT, f"#{pull.number}", Style(fg="muted", bg=bg))
-        canvas.put(y, x + 1, truncate(pull.title, max(1, end - x - 2)), Style(fg="text", bg=bg))
+        canvas.put(y, x + 1, truncate(pull.title, max(1, end - x - 1 - air)), Style(fg="text", bg=bg))
         if y + 1 < canvas.height:
             under = [pull.branch, self.author(pull), ago(pull.updated, self.now()),
                      "" if checks_mark(pull.checks) == "passed" else checks_said(pull.checks)]
@@ -391,10 +392,11 @@ class PullForm:
             x = end + 1
         y += 1
         note, role = (self.writing, "muted") if self.writing else self.note or ("", "muted")
-        x = canvas.put(y, 1, truncate(note, max(1, cells - 12)), Style(fg=role))
+        again = f"{glyphs(self.icons)['ai']} again"     # AIR after the note, ending three cells in from the side
+        x = canvas.put(y, 1, truncate(note, max(1, cells - 4 - AIR - width(again))), Style(fg=role))
         if not self.writing:
-            end = canvas.put(y, x + 1, f"{glyphs(self.icons)['ai']} again", Style(fg="muted"))
-            canvas.region(y, x + 1, end, "again")
+            end = canvas.put(y, x + AIR, again, Style(fg="muted"))
+            canvas.region(y, x + AIR, end, "again")
         y += 1
         lit = bool(self.title.text.strip()) and not self.writing
         x = max(1, cells - 1 - width(f" {self.label} "))           # the one button at the row's right end

@@ -12,6 +12,7 @@ BAND = 1            # the cells between a view's side and a chosen row's highlig
 PAD = 1             # the cells between a highlight's side and the row's content
 INSET = MARGIN + BAND   # the pane's side to a highlight, and to what lines up with it: », fields, buttons, menus
 CONTENT = INSET + PAD   # the pane's side to a row's content, a cell inside its highlight (right: up to cells - CONTENT)
+AIR = 2             # cells between a row's text and an icon button after it (Ghostty draws a glyph wider than its cell)
 COUNT = 4           # a count's cells at most (short_count()), as a tip or a view shows it
 SPINNER, SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏", 0.1     # something running: a frame every SPIN seconds (✦ writing, gh asked)
 

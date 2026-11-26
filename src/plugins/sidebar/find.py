@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 
 from icons import glyphs, icon
-from screen import CONTENT, Style, after, char_width, truncate, width
+from screen import AIR, CONTENT, Style, after, char_width, truncate, width
 from search import Hit, Query, Result, pattern
 from vt import Key, Mouse
 from widgets import Action, ListView, TextInput
@@ -146,8 +146,9 @@ class Find:
         for y in range(top, top + taken):
             canvas.region(y, 1, cells - 1, "input")
         x = cells - 3 - slot * len(SWITCHES) - gap * (len(SWITCHES) - 1)
-        clear = 2 if self.field.text or self.place else 0    # its ×: the text and the place gone
-        self.field.draw(canvas, row, 3, max(1, x - 4 - clear), 1, Style(bg="input"), focused=self.editing)
+        clear = self.field.text or self.place             # its × (the text and the place gone), AIR after the words
+        end = x - 3 - AIR if clear else x - 1             # the column after the words' last
+        self.field.draw(canvas, row, 3, max(1, end - 3), 1, Style(bg="input"), focused=self.editing)
         if clear:
             canvas.put(row, x - 3, "×", Style(fg="text" if self.pointed == "clear" else "muted", bg="input"))
             canvas.region(row, x - 3, x - 2, "clear")

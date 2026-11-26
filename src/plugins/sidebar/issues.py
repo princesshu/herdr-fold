@@ -9,7 +9,7 @@ from github import (ISSUE_GROUPS, LEVELS, ME, STATES, TYPES, Query, ago, issue_f
                     matches, priority, rank, ranked, shown_labels)
 from icons import glyphs
 from pulls import Pulls
-from screen import BAND, PAD, PLAIN, SPIN, SPINNER, Canvas, Style, truncate, width
+from screen import AIR, BAND, PAD, PLAIN, SPIN, SPINNER, Canvas, Style, truncate, width
 from vt import Key, Mouse
 from widgets import TYPED, Action, Confirm, Heading, ListView, Menu, Popup, Row, TextInput
 
@@ -163,7 +163,7 @@ class Issues(Filtered):
         self.drop = (top + taken, cells - 1)            # the filters menu: under the field, its right edge with it
         funnel = cells - 3                              # a cell of air after it, as the field's words have two before
         self.filters.funnel(canvas, row, funnel, self.icons, self.pointed == "filters" or self.kind == "filters")
-        self.field.draw(canvas, row, 3, max(1, funnel - 4), 1, Style(bg="input"), focused=self.searching)
+        self.field.draw(canvas, row, 3, max(1, funnel - AIR - 3), 1, Style(bg="input"), focused=self.searching)
         y = top + taken
         if self.filters.on():                           # in a low pane its first row where the blank one stood
             y += self.filters.draw_chips(canvas, y, self.icons, self.pointed)
@@ -193,8 +193,9 @@ class Issues(Filtered):
 
     def states(self, canvas, y, cells):
         """Open and Closed, as GitHub's list has them, each with the repository's count (the word alone till it is
-        known): the chosen one filled, one under the mouse lit; a cell of air each side of its words."""
-        x = 1
+        known): the chosen one filled, one under the mouse lit; a cell of air each side of its words, AIR before the
+        refresh button in a narrow pane (its words cut first)."""
+        x, refresh = 1, cells - 2                       # refresh()'s column
         for name, label in STATES.items():
             label = counted(label, self.totals, name)
             chosen, pointed = name == self.query.state, self.pointed == ("state", name)
@@ -202,7 +203,7 @@ class Issues(Filtered):
                 canvas.chip(y, x, width(label) + 2, "button" if chosen else "hover")
             style = (Style(fg="button_text", bg="button", bold=True) if chosen
                      else Style(fg="text", bg="hover") if pointed else Style(fg="muted"))
-            end = canvas.put(y, x + 1, truncate(label, max(1, cells - x - 2)), style)
+            end = canvas.put(y, x + 1, truncate(label, max(1, refresh - AIR - x - 1)), style)
             canvas.region(y, x, end + 1, ("state", name))
             x = end + 2
 
@@ -238,7 +239,7 @@ class Issues(Filtered):
     def row(self, canvas, y, index, slot):
         """An issue's two rows on its highlight (BAND in from each side): its priority's bar at the highlight's edge,
         its type's icon in the SLOT (where the list keeps one), its number in its priority's color and its title; the
-        hover buttons at its end. A closed one's marks all muted."""
+        hover buttons at its end, AIR cells after its title. A closed one's marks all muted."""
         issue, cells = self.list.items[index], canvas.width
         hovered = index == self.hover
         bg = "selection" if index == self.list.index else ("hover" if hovered else None)
@@ -264,7 +265,8 @@ class Issues(Filtered):
             x += SLOT
         number, color = f"#{issue.number}", PRIORITY_ROLE[level] if ranked else "text"
         x = canvas.put(y, x, number, Style(fg="muted" if closed else color, bg=bg, bold=True))
-        canvas.put(y, x + 1, truncate(issue.title, max(1, end - x - 2)), Style(fg="text", bg=bg))
+        air = AIR if hovered else 1                     # before the buttons; else a cell short of the content's end
+        canvas.put(y, x + 1, truncate(issue.title, max(1, end - x - 1 - air)), Style(fg="text", bg=bg))
         if y + 1 < canvas.height:
             self.details(canvas, y + 1, x + 1, issue, bg)
 
