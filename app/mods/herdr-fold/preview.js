@@ -13,7 +13,7 @@ import { browsable, CHAT_LABEL, CHAT_TAB, changeSides, clipTime, commitRows, dif
   from "./logic.js";
 import { Menus } from "./menus.js";
 import { Review } from "./review.js";
-import { actButton, chip, choices, icon, iconButton, keepNote, small } from "./parts.js";
+import { actButton, chip, choices, icon, iconButton, keepNote, small, viewId } from "./parts.js";
 
 const PREVIEWS = "herdr-fold.previews";   // what each space's preview tab shows, by the space's id (shared)
 const LINES = 1500;                       // a diff's or a commit's lines shown at most
@@ -540,7 +540,7 @@ export class Preview {
     };
     return v_flex().size_full().min_h(0)
       .child(this.bar(t))
-      .child(div().id(`${list}-room`).flex_1().min_h(0).relative().bg(t.canvas)
+      .child(div().id(`${list}-room-${viewId(this)}`).flex_1().min_h(0).relative().bg(t.canvas)
         .on_size_change((size, cx) => {
           if (size.width === pdf.room) return;
           pdf.room = size.width;
@@ -567,7 +567,8 @@ export class Preview {
     return v_flex().size_full().min_h(0)
       .child(this.bar(t))
       .child(this.shown === "split"
-        ? div().id("preview-room").flex_1().min_h(0).on_size_change((size, cx) => this.measure(size, cx))
+        ? div().id(`preview-room-${viewId(this)}`).flex_1().min_h(0)
+          .on_size_change((size, cx) => this.measure(size, cx))
           .child(parts.size_full().child(resizable_panel().child(lines)).child(resizable_panel().child(board)))
         : v_flex().flex_1().min_h(0).child(this.shown === "code" ? lines : board));
   }
@@ -589,7 +590,7 @@ export class Preview {
   /** The picture on the board, as a design tool's artboard: as large as the room allows and never larger than it is,
    * centered, the room round it the canvas's color. */
   canvas(t) {
-    return artboard(t, "board", this.picture).on_size_change((room, cx) => this.fit(room, cx));
+    return artboard(t, `board-${viewId(this)}`, this.picture).on_size_change((room, cx) => this.fit(room, cx));
   }
 
   /** A changed picture, as VS Code's image diff: its before and after side by side, or one above the other where the
@@ -598,7 +599,8 @@ export class Preview {
     const sides = changeSides(/** @type {any} */ (this.change)), down = stacks(this.stacked, this.room);
     return v_flex().size_full().min_h(0)
       .child(this.bar(t))
-      .child(div().id("preview-room").flex_1().min_h(0).on_size_change((size, cx) => this.measure(size, cx))
+      .child(div().id(`preview-room-${viewId(this)}`).flex_1().min_h(0)
+        .on_size_change((size, cx) => this.measure(size, cx))
         .child((down ? v_flex() : h_flex()).size_full().children(sides.map(([caption, side], i) =>
           v_flex().flex_1().min_w(0).min_h(0).when(i > 0, (e) => (down ? e.border_t(1) : e.border_l(1))
             .border_color(t.border))

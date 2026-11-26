@@ -37,7 +37,7 @@ class Home(unittest.TestCase):
     def setUp(self):
         self.home = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.home)
-        set_env(self, HOME=self.home)
+        set_env(self, HOME=self.home, CLAUDE_CONFIG_DIR=None)
 
     def write(self, rel, text, mtime=None):
         path = os.path.join(self.home, rel)
@@ -48,15 +48,17 @@ class Home(unittest.TestCase):
             os.utime(path, (mtime, mtime))
         return path
 
-    def claude(self, five=None, week=None, fetched=NOW):
-        """Claude's ~/.claude.json with its cached limits, as Claude 2.1.325 keeps them (FIVE and WEEK each (percent,
-        reset text)), fetched at FETCHED."""
+    def claude(self, five=None, week=None, fetched=NOW, folder="", signed=ACCOUNT):
+        """Claude's .claude.json in FOLDER (the home's, or a CLAUDE_CONFIG_DIR's) with its cached limits, as Claude
+        2.1.325 keeps them (FIVE and WEEK each (percent, reset text)), fetched at FETCHED, SIGNED in now."""
         used = {name: None if one is None else {"utilization": one[0], "resets_at": one[1], "limit_dollars": None,
                                                 "used_dollars": None, "locked_reason": None}
                 for name, one in (("five_hour", five), ("seven_day", week))}
-        self.write(".claude.json", json.dumps({"numStartups": 12, "cachedUsageUtilization": {
-            "fetchedAtMs": fetched * 1000 + 250, "accountUuid": ACCOUNT,
-            "utilization": {**used, "seven_day_opus": None, "extra_usage": {"is_enabled": False}}}}))
+        self.write(os.path.join(folder, ".claude.json"), json.dumps({
+            "numStartups": 12, "oauthAccount": {"accountUuid": signed, "emailAddress": "dev@example.com"},
+            "cachedUsageUtilization": {"fetchedAtMs": fetched * 1000 + 250, "accountUuid": ACCOUNT,
+                                       "utilization": {**used, "seven_day_opus": None,
+                                                       "extra_usage": {"is_enabled": False}}}}))
 
     def codex(self, name, entries, mtime):
         """A Codex chat (rollout) with ENTRIES after its first line, changed at MTIME."""
@@ -191,6 +193,36 @@ class Freshest(Home):
                                 "seven_day": {"used_percentage": 40.6, "resets_at": WEEK}}}
         self.assertEqual(usage.told(data), windows((12, FIVE), (41, WEEK)))
         self.assertEqual(usage.told(None), windows())
+
+
+class Accounts(Home):
+    """Two Claude accounts on one machine, the second in its own CLAUDE_CONFIG_DIR as Claude takes it: each keeps its
+    own reading and reads its own cache, so one's limits are never drawn for the other."""
+
+    def test_a_second_accounts_readings_are_its_own(self):
+        self.claude(five=(10, "2026-11-13T14:46:00Z"), week=(30, "2026-11-16T17:00:00Z"), fetched=NOW - HOUR)
+        usage.keep("claude", windows((12, FIVE), (31, WEEK)), NOW - 60)
+        later = WEEK + 18 * HOUR
+        self.claude(five=(65, FIVE + HOUR), week=(78, later), fetched=NOW - HOUR, folder=".claude-work")
+        set_env(self, CLAUDE_CONFIG_DIR=os.path.join(self.home, ".claude-work"))
+        self.assertEqual(usage.keep("claude", windows((70, FIVE + HOUR), (80, later)), NOW),
+                         windows((70, FIVE + HOUR), (80, later)))
+        set_env(self, CLAUDE_CONFIG_DIR=None)
+        self.assertEqual(usage.keep("claude", windows((12, FIVE), (31, WEEK)), NOW), windows((12, FIVE), (31, WEEK)))
+        self.assertEqual(self.limits(), [{"agent": "claude", **windows((12, FIVE), (31, WEEK)), "at": NOW,
+                                          "source": "status"}])
+
+    def test_the_default_folder_named_is_the_default_account(self):
+        set_env(self, CLAUDE_CONFIG_DIR=os.path.join(self.home, ".claude") + "/")
+        usage.keep("claude", windows((12, FIVE), (31, WEEK)), NOW)
+        set_env(self, CLAUDE_CONFIG_DIR=None)
+        self.assertEqual(self.limits()[0]["five_hour"], {"used": 12, "resets": FIVE})
+
+    def test_a_cache_of_another_account_than_the_one_signed_in_is_not_read(self):
+        self.claude(five=(43, "2026-11-13T14:46:00Z"), fetched=NOW - HOUR,
+                    signed="00000000-0000-4000-8000-0000000b0b00")
+        self.assertEqual(self.limits(), [])
+        self.assertIsNone(usage.claude_cached(self.home))
 
 
 class Current(Home):

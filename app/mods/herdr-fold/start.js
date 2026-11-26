@@ -42,11 +42,10 @@ export class StartView {
     });
   }
 
-  /** FOLDER shown: its space where one has it, else a new one there (its first tab a chat). @param {string} folder */
+  /** FOLDER shown: its space where one has it, else a new one there (its first tab a chat): newSpace's.
+   * @param {string} folder */
   open(folder) {
-    const space = spaces().find((s) => !s.machine && s.folder === folder);
-    if (space) command("space.select", { id: space.id });
-    else void newSpace({ machine: "", folder }).catch(() => {});
+    void newSpace({ machine: "", folder }).catch(() => {});
   }
 
   render(t) {

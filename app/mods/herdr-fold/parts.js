@@ -133,6 +133,12 @@ export function keepNote(holder, note, cx) {
   cx.notify();
 }
 
+// views drawn: each one's measured elements an id of its own, as the app keeps an element's last size by its id and
+// tells a second one of that id and size none (two chats or previews side by side, the styleguide's specimens)
+let views = 0;
+/** VIEW's own number, taken on its first draw (a specimen is made without its constructor). @param {any} view */
+export const viewId = (view) => (view.uid ??= views++);
+
 export const SPINNER = [..."⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"];     // a request under way, as the TUI's: ✦ writing, Issues loading
 export const SPRING = { response: 240, damping: 1 };   // a fold opening or shutting, sprung by the app, no overshoot
 

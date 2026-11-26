@@ -3,9 +3,10 @@
 // runs working (runs.html's), at its end the one update there is (Herdr's, herdr-core's, else a newer herdr-fold).
 import { div } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { agents, home, shared, spaces, updates, run as command } from "herdr";
+import { agents, home, shared, spaces, terminals, updates, run as command } from "herdr";
+import { chatWaits } from "./chat.js";
 import { RUNS } from "./helper.js";
-import { agentsSaid, updateReady } from "./logic.js";
+import { agentsSaid, barStatuses, updateReady } from "./logic.js";
 import { openAgents } from "./panel.js";
 import { SPINNER } from "./parts.js";
 import { runsWorking } from "./runs.js";
@@ -34,12 +35,13 @@ export function watchRuns(core, cx) {
   cx.timer.every(RUNS_EVERY, count);
 }
 
-/** The bar as the shown space, the agents, the runs, Herdr's updates and herdr-fold's own check have it now. */
+/** The bar as the shown space, the agents (in panes and chat tabs), the runs, Herdr's updates and herdr-fold's own
+ * check have it now. */
 export function liveStatus(t) {
   const space = spaces().find((s) => s.active);
   return statusBar(t, { machine: space?.machine ?? null, branch: space?.branch ?? null,
-    agents: agentsSaid(agents().map((a) => a.status)), update: updateReady(updates(), shared(UPDATES)),
-    runs: working });
+    agents: agentsSaid(barStatuses(agents(), terminals(), chatWaits().agents)),
+    update: updateReady(updates(), shared(UPDATES)), runs: working });
 }
 
 /** The status bar (STATUS), on the side's level (chrome) under a hairline, 16 in and its items 16 apart, 12 in the

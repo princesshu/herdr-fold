@@ -191,7 +191,7 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 
 ### Fixed
 
-- A New space or Add machine left before it is done no longer leaves an empty "new" space in the list.
+- A New space or Add machine left before it is done no longer leaves an empty space in the list.
 - Shift + Enter starts a new line in Claude Code in every pane of the TUI and every terminal of the Herdr app; it sent
   the message where the agent had not asked the terminal for the extended keys.
 - In the Herdr app, the terminal at the dock's foot can be made taller or lower: the boundary drags, as the TUI's.
@@ -202,6 +202,8 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 - Chats no longer lists one chat as many rows: a project folder linked to another's listed its chats twice, and a
   program's runs through Claude's Agent SDK were rows. Copy chat no longer repeats a compacted chat.
 - The home folder stays the first row of Spaces in both clients, though its last tab is closed.
+- While its folder is picked, the TUI's new space is named `New space…` in Spaces, not `new`: a step under way, never
+  read as a space of that name.
 - In the TUI, a space whose only tab is closed with herdr's own close is made again in its place; one closed on purpose
   stays closed.
 - Issues, Chats and Changes no longer jump, in both clients: a refresh keeps the list where it is, a spinner in its
@@ -225,6 +227,12 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 - The TUI sidebar's last row says what herdr refused in herdr's own sentence, not its JSON answer.
 - The Herdr app's sides, dragged and let go, settle as the TUI sidebar does: under 160 px a side is its rail, and a rail
   dragged more than 24 px wider opens as wide as it was.
+- The Herdr app's status bar counts a chat's agent: it said "No agents" while a chat's Claude worked.
+- In the Herdr app, a second chat or preview the size of the first fits its own bar and room, as the first does.
+- A second Claude account on the machine (its own `CLAUDE_CONFIG_DIR`) keeps its own 5-hour and weekly limits: neither
+  account's status line shows the other's, and a cached reading of an account no longer signed in is not read.
+- A folder that has a space is switched to, never made a second space: the TUI's New space finds a space with no agent
+  in it too, and the Herdr app's Spaces +, Ctrl + B then Shift + N and Files' New space switch as Start's Recent did.
 
 ## [0.3.0] - 2026-11-08
 

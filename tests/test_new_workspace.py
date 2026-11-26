@@ -295,9 +295,9 @@ class Screen(unittest.TestCase):
 
     def test_its_close_button_goes_back_as_esc_does_whatever_was_typed(self):
         went, keys = [], ["a", new_workspace.CLOSED]
-        set_attrs(self, new_workspace, repositories=lambda: [], open_workspaces=lambda: [], mouse=lambda *a, **k: None,
-                  close_button=lambda: mock.Mock(overlay=lambda width: ""), read_key=lambda *a, **k: keys.pop(0),
-                  close_placeholder=lambda *a, **k: went.append((a, k)))
+        set_attrs(self, new_workspace, repositories=lambda: [], open_workspaces=lambda ws: [],
+                  mouse=lambda *a, **k: None, close_button=lambda: mock.Mock(overlay=lambda width: ""),
+                  read_key=lambda *a, **k: keys.pop(0), close_placeholder=lambda *a, **k: went.append((a, k)))
         set_env(self, HERDR_NEW_WORKSPACE="w9", HERDR_NEW_WORKSPACE_FOLDER=os.path.join(self.tmp, "projects"))
         with mock.patch.object(new_workspace.os, "get_terminal_size", return_value=os.terminal_size((80, 24))), \
                 mock.patch("builtins.print"):
@@ -318,6 +318,37 @@ class Screen(unittest.TestCase):
         calls.clear()
         new_workspace.close_placeholder("w9")                                   # a folder chosen: it is in front
         self.assertEqual([c for c in calls if c[0] == "workspace" and c[1] != "list"], [("workspace", "close", "w9")])
+
+
+class Existing(unittest.TestCase):
+    """A folder that has a space is switched to, never made a second time: every space's folder (herdr's, its first
+    pane's), an agent in it or not; the "new" button's own placeholder is none."""
+
+    PANES = [{"pane_id": "p1", "workspace_id": "w1", "cwd": "/work/lumen-api", "label": "claude"},
+             {"pane_id": "p2", "workspace_id": "w1", "cwd": "/work/lumen-api/docs", "label": "sidebar"},
+             {"pane_id": "p3", "workspace_id": "w2", "cwd": "/work/tidepool", "label": "sidebar"},
+             {"pane_id": "p4", "workspace_id": "w2", "cwd": "/tmp", "label": "terminal"},
+             {"pane_id": "p9", "workspace_id": "w9", "cwd": "/work/harbor-web"}]
+
+    def setUp(self):
+        self.calls = []
+
+        def herdr(*args, **kwargs):
+            self.calls.append(args)
+            if args[:2] == ("pane", "list"):
+                return {"panes": self.PANES}
+            return {"workspaces": [{"workspace_id": ws, "label": ws} for ws in ("w1", "w2", "w9")]}
+        set_attrs(self, new_workspace, herdr=herdr, remember_agent=lambda *a: None)
+
+    def test_every_spaces_folder_an_agent_in_it_or_not_the_placeholder_none(self):
+        self.assertEqual(new_workspace.open_workspaces("w9"), {"/work/lumen-api": "w1", "/work/tidepool": "w2"})
+
+    def test_a_folder_with_a_space_and_no_agent_is_switched_to(self):
+        with mock.patch.object(new_workspace, "build") as built:
+            new_workspace.open_folder("/work/tidepool", "claude", "w9")
+        built.assert_not_called()
+        self.assertEqual([c for c in self.calls if c[:1] == ("workspace",) and c[1] != "list"],
+                         [("workspace", "focus", "w2"), ("workspace", "close", "w9")])
 
 
 class Projects(unittest.TestCase):

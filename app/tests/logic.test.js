@@ -26,7 +26,8 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   sidebarRail, SIDEBAR_PX, sidebarFollow, sidebarToggle, floatStale, floating, floatX, floatTop, FLOAT_GAP, restAt,
   pressCloses, foldCommands, fitFloatPx,
   terminalsAt, bottomPx, bottomShown, placeTerminals, bottomToggle, find, CHAT_LABEL, chatWait, keepWait, WAY_OUT,
-  waiting, chatAgents, updateNotice, ABOUT, aboutHeight, licenseOf, aboutTargets, agentsSaid, updateReady, SETTINGS,
+  waiting, chatAgents, updateNotice, ABOUT, aboutHeight, licenseOf, aboutTargets, agentsSaid, barStatuses, spaceAt,
+  updateReady, SETTINGS,
   SECTIONS, APP_SECTIONS, settingsSection, sectionStep, settingsTargets, columnToggle, restoreCommands, keyMenuBounds,
   themeChoices, layoutToast, soundsFor, noteShown, modTab, unsavedKey, unsavedTabs, editsInTab, markdownFile,
   editorLanguage, indentOf, withEnds, findAll, nextMatch, findCount, FOUND_MOST, draftName, commentAt, reviewReady,
@@ -2277,6 +2278,45 @@ test("the status bar says the agents as the mockups' bar does: those waiting fir
     assert.deepEqual(agentsSaid(["working", "blocked", "idle"]),
       { words: "1 of 3 agents waiting for you", role: "waiting" });
   });
+
+test("every element a view measures has an id of that view's own: the app keeps a size by its id alone", () => {
+  // two chats or previews side by side, or the styleguide's specimens: a second element of one id and size is told
+  // no size, so its bar never fits and its room is never known
+  for (const name of ["agentstab.js", "chat.js", "editor.js", "preview.js"]) {
+    const source = readFileSync(new URL(`../mods/herdr-fold/${name}`, import.meta.url), "utf8");
+    for (const found of source.matchAll(/\.on_size_change\(/g)) {
+      const before = source.slice(0, found.index);
+      const from = Math.max(before.lastIndexOf(".id("), before.lastIndexOf("artboard(t, "));
+      assert.match(before.slice(from), /\$\{viewId\(this\)\}/, `${name}: ${before.slice(from, from + 40)}`);
+    }
+  }
+});
+
+test("a folder that has a space on its machine is that space: every way of opening one switches to it", () => {
+  const all = [{ id: "s1", machine: null, folder: "/Users/dev/lumen-api" }, { id: "s2", machine: "lab",
+    folder: "/home/dev/lumen-api" }, { id: "s3", machine: null, folder: "/Users/dev" }];
+  assert.equal(spaceAt(all, "", "/Users/dev/lumen-api")?.id, "s1");
+  assert.equal(spaceAt(all, null, "/Users/dev/lumen-api/")?.id, "s1");          // its trailing slash aside
+  assert.equal(spaceAt(all, "lab", "/home/dev/lumen-api")?.id, "s2");
+  assert.equal(spaceAt(all, "lab", "/Users/dev/lumen-api"), null);              // another machine's: a new one
+  assert.equal(spaceAt(all, "", "/Users/dev/lumen-api/docs"), null);            // a folder inside: a new one
+  assert.equal(spaceAt(all, "", ""), null);
+  const chat = readFileSync(new URL("../mods/herdr-fold/chat.js", import.meta.url), "utf8");
+  const start = readFileSync(new URL("../mods/herdr-fold/start.js", import.meta.url), "utf8");
+  assert.match(chat, /spaceAt\(spaces\(\), machine, where\.folder\)/);       // Spaces' +, Shift+N, Files' New space
+  assert.doesNotMatch(start, /space\.select/);                                    // Start's Recent: the same one rule
+});
+
+test("the status bar counts the chat tabs' agents with those in panes: a chat's Claude at work is one working", () => {
+  const chat = { address: "t7", state: "live", status: "working", program: { key: "claude" },
+    labels: { [CHAT_TAB]: "tab-2", [CHAT_LABEL]: "aaaa-1" } };
+  const pane = { address: "t1", status: "idle" };
+  assert.deepEqual(agentsSaid(barStatuses([], [chat], new Set())), { words: "1 agent working", role: "working" });
+  assert.deepEqual(agentsSaid(barStatuses([pane], [chat], new Set(["t7"]))),
+    { words: "1 of 2 agents waiting for you", role: "waiting" });                // its card asks: it waits on you
+  assert.deepEqual(agentsSaid(barStatuses([], [{ ...chat, state: "dead" }], new Set())),
+    { words: "No agents", role: null });                                         // ended: none left
+});
 
 test("an update Herdr has ready is one item: the app's a restart (its core along), the core's an update, none managed",
   () => {

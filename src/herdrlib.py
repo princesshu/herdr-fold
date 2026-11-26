@@ -10,7 +10,8 @@ import sys
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "plugins", "sidebar"))   # the column's place
 import panes  # noqa: E402
-from panes import AGENTS, on_windows  # noqa: E402  (the dock's own: the agents herdr-fold starts, a folder's system)
+# the dock's own: the agents herdr-fold starts, the "new" button's workspace's name, a folder's system
+from panes import AGENTS, PLACEHOLDER, on_windows  # noqa: E402
 
 HERDR = os.environ.get("HERDR_BIN_PATH") or shutil.which("herdr") or next(
     (p for p in ("/opt/homebrew/bin/herdr", "/usr/local/bin/herdr") if os.path.exists(p)), "herdr")
@@ -104,6 +105,14 @@ def own_name(label):
 
 def free_label(path, taken, home=None):
     return next(label for label in space_labels(path, home) if label not in taken)
+
+
+def first_folders(panes):
+    """Each workspace's folder as herdr has it: its first pane's."""
+    first = {}
+    for pane in panes:
+        first.setdefault(pane.get("workspace_id"), pane.get("cwd"))
+    return first
 
 
 def agent_name(label, role):

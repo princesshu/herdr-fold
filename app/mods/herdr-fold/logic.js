@@ -1561,6 +1561,15 @@ export function activeTerminal(root) {
 /** A terminal's machine, from its address (`lab/t7`): null for this computer's. @param {string} address */
 export const machineOf = (address) => (address.includes("/") ? address.split("/")[0] : null);
 
+/** The space among SPACES (the app's) whose folder is FOLDER on MACHINE ("" or null: this computer), or null: a
+ * folder has one space on a machine, so opening it again switches there. @param {any[]} spaces
+ * @param {string | null | undefined} machine @param {string} folder */
+export function spaceAt(spaces, machine, folder) {
+  const bare = (/** @type {string} */ path) => path.replace(/(.)\/+$/, "$1");
+  return (folder && spaces.find((s) => (s.machine ?? null) === (machine || null) && s.folder
+    && bare(s.folder) === bare(folder))) || null;
+}
+
 /** TREE (a layout) with TAB's terminal, at ADDRESS, in the TERMINALS stack (which draws its frame): a copy, and
  * whether it differs from TREE (else nothing to write).
  * @param {any} tree @param {string} tab @param {string} address */
@@ -1639,6 +1648,12 @@ export const chatAgents = (terminals, waiting) => terminals
   .map((t) => ({ agent: t.program?.key === "codex" ? "codex" : "claude",
     agent_status: waiting.has(t.address) ? "blocked" : t.status ?? "idle",
     pane_id: t.address, agent_session: { value: t.labels[CHAT_LABEL] } }));
+
+/** The statuses the status bar counts: the agents in panes (AGENTS, the app's) and the chat tabs' among TERMINALS
+ * (chatAgents', WAITING: their addresses while their chat waits on you). @param {any[]} agents
+ * @param {any[]} terminals @param {Set<string>} waiting */
+export const barStatuses = (agents, terminals, waiting) => [...agents.map((a) => a.status),
+  ...chatAgents(terminals, waiting).map((a) => a.agent_status)];
 
 /** The live chat agents among TERMINALS (the app's) whose tab is no longer among TABS (ids), to end.
  * @param {any[]} terminals @param {string[]} tabs */

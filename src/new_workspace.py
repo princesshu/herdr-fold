@@ -12,7 +12,7 @@ import time
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from herdr_layout import LayoutError, build  # noqa: E402
-from herdrlib import AGENTS, PLUGIN_STATE, agent_pane_ids, free_label, herdr  # noqa: E402
+from herdrlib import AGENTS, PLUGIN_STATE, first_folders, free_label, herdr  # noqa: E402
 from panes import last_agent, remember_agent  # noqa: E402  the sidebar's, on the path herdrlib gives
 from i18n import line, t  # noqa: E402
 from projects import repositories, start  # noqa: E402
@@ -218,11 +218,11 @@ class Picker:
         return None
 
 
-def open_workspaces():
-    """folder → workspace, based on the folder of each workspace's agent pane."""
-    panes = herdr("pane", "list")["panes"]
-    agents = agent_pane_ids(panes)
-    return {p["cwd"]: p["workspace_id"] for p in panes if p["pane_id"] in agents and p.get("cwd")}
+def open_workspaces(placeholder):
+    """folder → workspace: every workspace's folder (herdr's, first_folders()), an agent in it or not; the "new"
+    button's PLACEHOLDER is none."""
+    folders = first_folders(herdr("pane", "list")["panes"])
+    return {folder: ws for ws, folder in folders.items() if folder and ws != placeholder}
 
 
 def is_repo(path):
@@ -244,7 +244,7 @@ def open_folder(path, agent, placeholder):
         remember_agent(PLUGIN_STATE, agent)              # the next picker's, and a new agent's (Issues' To agent)
     except OSError:
         pass                                            # the toggle starts on the first one next time
-    ws = open_workspaces().get(path)
+    ws = open_workspaces(placeholder).get(path)
     if not ws:
         workspaces = herdr("workspace", "list")["workspaces"]
         label = printable(free_label(path, {w["label"] for w in workspaces if w["workspace_id"] != placeholder}, HOME))
@@ -288,7 +288,7 @@ def main():
     for ended in (signal.SIGHUP, signal.SIGTERM):   # the popup closed from outside: the empty space goes too
         signal.signal(ended, lambda *_: (close_placeholder(placeholder, back=True), os._exit(0)))
     picker = Picker(start(repositories()), os.environ.get("HERDR_NEW_WORKSPACE_FOLDER"), last_agent(PLUGIN_STATE))
-    opened, close = set(open_workspaces()), close_button()
+    opened, close = set(open_workspaces(placeholder)), close_button()
     mouse(True, moves=True)
     while True:
         height, width = max(3, os.get_terminal_size().lines - 6), shutil.get_terminal_size().columns

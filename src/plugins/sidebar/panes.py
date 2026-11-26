@@ -19,9 +19,9 @@ from preview import Herdr, quote_powershell  # noqa: E402
 SETTLE = 2.0                  # seconds a pane the plugin closes itself on the way takes to be back
 SIDEBAR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sidebar.py")
 NEW_TAB = 1.5                 # seconds a new tab is left to whatever made it: a builder names its pane or runs in it
-# Spaces' name for the "new" button's workspace while its folder is chosen: the picker builds the chosen folder's
-# workspace and closes this one
-PLACEHOLDER = "new"
+# Spaces' name for the "new" button's workspace while its folder is chosen, its picker's popup's title as a step under
+# way (no folder gives a space this name): the picker builds the chosen folder's workspace and closes this one
+PLACEHOLDER = "New space…"
 # the agents herdr-fold starts (`herdr agent start`), beside a right column
 AGENTS = ("claude", "codex", "opencode", "copilot")
 # The shells a pane can run with nothing else in its foreground (Unix and Windows)

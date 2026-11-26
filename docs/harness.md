@@ -121,11 +121,12 @@ Every dollar figure herdr-fold computes wears `~`: an estimate from the chats' t
 budget you set wears none.
 
 The limits are Claude's and Codex's own numbers. For Claude the windows are the ones its `/usage` reading names
-(cached in `~/.claude.json`), each at the highest use it or any chat's status line told since: use only grows in a
-window, so an idle chat's older reading never takes it back, and another weekly limit one chat tells is left out.
-Without that reading (a remote machine, before Claude's first look) a chat's own reading stands. Codex's are its
-newest chat's. A limit past its reset is left out. What the status line keeps for this is in
-[The status line](usage.md#the-status-line). Two accounts of one agent on one machine share one reading.
+(cached in `~/.claude.json`, and read only while it is the signed-in account's), each at the highest use it or any
+chat's status line told since: use only grows in a window, so an idle chat's older reading never takes it back, and
+another weekly limit one chat tells is left out. Without that reading (a remote machine, before Claude's first look) a
+chat's own reading stands. Codex's are its newest chat's. A limit past its reset is left out. What the status line
+keeps for this is in [The status line](usage.md#the-status-line). A second Claude account in its own
+`CLAUDE_CONFIG_DIR` keeps its own reading, for its own status lines; Usage shows the account the app runs with.
 
 ### A row and its properties
 

@@ -9,7 +9,7 @@ import { MEDIA, STATEFILE } from "./helper.js";
 import { draftName, editorLanguage, findAll, findCount, indentOf, modTab, nextMatch, said, unsavedKey, unsavedTabs,
   withEnds } from "./logic.js";
 import { openAgentPanel } from "./panel.js";
-import { actButton, codeFont, icon, iconButton } from "./parts.js";
+import { actButton, codeFont, icon, iconButton, viewId } from "./parts.js";
 
 /** shared: each editor tab's file by its slot ({ space, root, path, on, line, n }) */
 const EDITORS = "herdr-fold.editors";
@@ -455,7 +455,8 @@ export class Editing {
         .child(WHY.binary)))
       .when(Boolean(this.note), (e) => e.child(div().px(16).py(12).text_size(12).text_color(t.ansi1)
         .child(this.note ?? "")))
-      .when(Boolean(this.state), (e) => e.child(div().id("edit-room").flex_1().min_h(0).min_w(0).relative()
+      .when(Boolean(this.state), (e) => e.child(div().id(`edit-room-${viewId(this)}`).flex_1().min_h(0).min_w(0)
+        .relative()
         .font_family(code).on_size_change((size, cx) => {
           if (Math.abs(size.width - this.width) < 1) return;
           this.width = size.width;

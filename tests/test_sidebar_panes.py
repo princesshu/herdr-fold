@@ -436,8 +436,8 @@ class NewTab(unittest.TestCase):
         self.assertEqual(self.columns, [])
 
     def test_the_new_buttons_workspace_is_left_to_the_folder_picker(self):
-        # Spaces names it new and builds the chosen folder's workspace, then closes this one
-        self.label = "new"
+        # Spaces names it PLACEHOLDER, builds the chosen folder's workspace, then closes this one
+        self.label = panes.PLACEHOLDER
         self.new_tab()
         self.assertEqual(self.columns, [])
 

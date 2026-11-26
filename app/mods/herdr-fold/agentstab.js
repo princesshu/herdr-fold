@@ -16,7 +16,7 @@ import { AGENT_CHOSEN, agentList, errorColors, GRAPHED, graphAgent, keepAgent, N
 import { said } from "./logic.js";
 import { listNote, panelRow, panelSurface } from "./menus.js";
 import { openAgentPanel } from "./panel.js";
-import { actButton, brandMark, BUTTON, codeFont, icon, PAD, propertyLine, scopeTag, segmented, swatch }
+import { actButton, brandMark, BUTTON, codeFont, icon, PAD, propertyLine, scopeTag, segmented, swatch, viewId }
   from "./parts.js";
 import { showPreview } from "./preview.js";
 import { RunsView } from "./runsview.js";
@@ -55,11 +55,6 @@ const zoom = () => Number(settings().zoom ?? 1);
 
 /** PATH (a PathBuilder's) painted over the whole canvas in COLOR. @param {any} path @param {string} color */
 const painted = (path, color) => window.paint_path(path.build(), color).absolute().top_0().left_0().size_full();
-
-// AgentsView instances drawn: each one's measured elements an id of its own, as the app keeps an element's last size
-// by its id and tells a second canvas of the same size none (the styleguide's specimens, made without the
-// constructor, drew empty); taken on its first canvas
-let views = 0;
 
 export class AgentsView {
   /** SPACE's Agents tab; CORE runs core/'s code (main.js's python), TEXT the same for what it prints (a CSV).
@@ -457,7 +452,6 @@ export class AgentsView {
    * foot. A node drags, a double click beside them lays them out again. @param {any} graph @param {Look} look */
   canvas(t, graph, look) {
     /** @type {Node[]} */
-    this.uid ??= views++;
     const nodes = graph.nodes, size = this.size, apart = gatesRoom(graph.edges), near = gatesRoom(graph.edges, true);
     const at = placed(this.still ? null : shared(GRAPH_LAYOUT), this.kept(), nodes, size, this.sizes, apart, near);
     if (this.drag?.to) at[this.drag.id] = this.drag.to;
@@ -483,7 +477,7 @@ export class AgentsView {
         .on_mouse_move((/** @type {any} */ e, /** @type {any} */ cx) => this.moved(e, cx))
         .on_mouse_up("left", (/** @type {any} */ _e, /** @type {any} */ cx) => this.drop(true, cx))
         .on_hover((/** @type {boolean} */ over, /** @type {any} */ cx) => void (!over && this.drop(false, cx))))
-      .child(div().id(`agents-canvas-${this.uid}`).size_full().overflow_scrollbar()
+      .child(div().id(`agents-canvas-${viewId(this)}`).size_full().overflow_scrollbar()
         .on_size_change((/** @type {{ width: number, height: number }} */ now, /** @type {any} */ cx) => {
           const width = unzoomed(now.width, zoom()), height = unzoomed(now.height, zoom());
           if (width === size.width && height === size.height) return;
@@ -593,7 +587,7 @@ export class AgentsView {
     const shown = nodeShown(node, view);
     const ground = agent ? mixColor(t.chrome, t.accent, AGENT_TINT) : t.chrome, code = codeFont();
     const edge = color ? `${t[color]}${alpha}` : agent ? `${t.accent}${AGENT_EDGE}` : wireColor(t, "always");
-    const card = v_flex().id(`agents-node-${this.uid}-${node.id}`).min_w(sizeOf(node).w).max_w(MOST).py(8).px(PAD)
+    const card = v_flex().id(`agents-node-${viewId(this)}-${node.id}`).min_w(sizeOf(node).w).max_w(MOST).py(8).px(PAD)
       .rounded(10).border_1().border_color(edge).bg(ground).shadow_md()
       .on_size_change((/** @type {{ width: number, height: number }} */ size, /** @type {any} */ cx) => {
         const { w, h } = measured(size, zoom()), was = this.sizes[node.id];

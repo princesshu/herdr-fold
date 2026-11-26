@@ -24,7 +24,7 @@ import { checkedOver, chipColors, loginRun, overdue, partColor, plusMenu, signIn
   usageAgents } from "./layers.js";
 import { askChats, openAgentPanel, openAgents } from "./panel.js";
 import { brandMark, button, BUTTON, fileMark, fold, icon, iconButton, keyCap, ring, savePanel, SAVING, spinner,
-  swatch, systemForms, toggle } from "./parts.js";
+  swatch, systemForms, toggle, viewId } from "./parts.js";
 import { showPreview } from "./preview.js";
 import { firstStart } from "./start.js";
 import { notesOn } from "./settings.js";
@@ -32,7 +32,7 @@ import { tokens } from "./report.js";
 import { bottomLayout, callWords, CARD_HEAD, clock, connectorRow, planStrip, planWords, RHYTHM as R, setForms,
   signinRow, stepLayout, timeline, timelineMarkdown, userLayout } from "./timeline.js";
 import { CHAT_LABEL, CHAT_TAB, CHAT_WAITS, chatWait, diffRows, fileIcon, folderGroup, folderSpaces, keepWait,
-  lastLine, said, waiting } from "./logic.js";
+  lastLine, said, spaceAt, waiting } from "./logic.js";
 
 const WORKING = 500, IDLE = 2000;     // ms between two reads of the session file, while the agent works and not
 const COLUMN = 680;                   // px: the timeline's and the prompt's width at most, mid-tab (connectors.html's)
@@ -145,10 +145,12 @@ export async function newAgentIn(space, prompt = "", folder = null) {
 }
 
 /** A new space as WHERE makes it (space.new's machine and folder; none: as the app makes one), its agent started as
- * + starts one (nextAgent's): the agent's own CLI its first tab; a chat, firstChat's as it shows, as for one the app
- * makes. @param {{ machine?: string, folder?: string }} [where] */
+ * + starts one (nextAgent's), as for one the app makes; a folder's own space there (spaceAt's) shown instead.
+ * @param {{ machine?: string, folder?: string }} [where] */
 export async function newSpace(where = {}) {
   const machine = where.machine ?? spaces().find((s) => s.active)?.machine ?? null;
+  const there = where.folder ? spaceAt(spaces(), machine, where.folder) : null;
+  if (there) return void command("space.select", { id: there.id });
   const { agent, as } = nextAgent(machine || null);
   const choice = as === "terminal" ? await choiceOf(agent, machine || null) : null;
   command("space.new", choice ? terminalSpace(choice, where) : where);
@@ -1642,10 +1644,11 @@ export class Chat {
   timeline(t, code) {
     const from = Math.max(0, this.rows.length - this.shown);
     const place = bottomLayout(this.carded());
-    return div().id("timeline").flex_1().min_h(0).relative().overflow_hidden()
+    return div().id(`timeline-${viewId(this)}`).flex_1().min_h(0).relative().overflow_hidden()
       .on_size_change((size, cx) => this.measured(size.height, this.content, cx))
       .on_scroll_wheel((event, cx) => this.scrolled(event.delta.y, cx))
-      .child(v_flex().id("timeline-rows").absolute().left_0().right_0().bottom(-this.back).pb(place.rows)
+      .child(v_flex().id(`timeline-rows-${viewId(this)}`).absolute().left_0().right_0().bottom(-this.back)
+        .pb(place.rows)
         .on_size_change((size, cx) => this.measured(this.view, size.height, cx))
         .when(from > 0, (e) => e.child(div().w_full().flex().justify_center().py(R.gap)
           .child(div().id("earlier").px(R.inset).py(R.pad).rounded(10).border(1).border_color(t.border).text_size(12)
@@ -1867,7 +1870,8 @@ export class Chat {
       .child(iconButton(t, "chat-history", "clock", "This folder's chats", () => this.history(),
         { size: 16 }));
     return h_flex().px(R.gap).pb(R.gap).pt(R.pad).gap(R.pad).items_center().child(tools)
-      .child(div().id("bar-room").flex_1().on_size_change((size, cx) => this.fit({ spare: size.width }, cx)))
+      .child(div().id(`bar-room-${viewId(this)}`).flex_1()
+        .on_size_change((size, cx) => this.fit({ spare: size.width }, cx)))
       // the empty chat's agent: a chip as the model's, its caret, its list upward from it (decisions.html's)
       .when(!started, (e) => e.child(pressable("agent", () => this.menus.open(this.agentList(), this.pressed,
         undefined, { width: LIST, find: "Search agents", none: "No agent matches" })).bg(t.raised)
@@ -1889,13 +1893,13 @@ export class Chat {
    * panel. @param {number} context */
   meter(t, context) {
     const tone = { green: t.ansi2, yellow: t.ansi3, red: t.ansi1 }[contextColor(context)], words = this.folded < 1;
-    return h_flex().id("context").h(28).flex_none().px(R.gap).gap(CHIP_GAP).items_center().text_size(12)
+    return h_flex().id(`context-${viewId(this)}`).h(28).flex_none().px(R.gap).gap(CHIP_GAP).items_center().text_size(12)
       .text_color(this.lit("context") ? t.foreground : t.dim)
       .when(!words, (e) => e.tooltip(`Context ${contextLine(this.status ?? { context })}`))
       // its words gone or back, the bar's room is looked at again (it may say nothing new: fit's)
       .on_size_change((_size, cx) => cx.timer.after(0, (cx) => this.fit({}, cx)))
       .child(ring(t, context, tone))
-      .when(words, (e) => e.child(h_flex().id("context-words").flex_none().gap(R.pad).items_center()
+      .when(words, (e) => e.child(h_flex().id(`context-words-${viewId(this)}`).flex_none().gap(R.pad).items_center()
         .on_size_change((size, cx) => this.fit({ label: size.width }, cx))
         .child("context").child(div().font_semibold().text_color(tone).child(`${Math.round(context)}%`))));
   }
@@ -1910,7 +1914,8 @@ export class Chat {
     const chip = h_flex().id("model").h(28).min_w(0).px(R.gap).gap(CHIP_GAP).items_center().text_size(12)
       .when(out && Boolean(words), (e) => e.tooltip(`Effort: ${words}`))
       .child(div().min_w(0).truncate().text_color(t.foreground).child(model?.label ?? ""))
-      .when(Boolean(words) && !out, (e) => e.child(div().id("model-level").flex_none().text_color(t.muted)
+      .when(Boolean(words) && !out, (e) => e.child(div().id(`model-level-${viewId(this)}`).flex_none()
+        .text_color(t.muted)
         .on_size_change((size, cx) => this.fit({ level: size.width }, cx)).child(words ?? "")));
     return this.adapter.models.length || model?.id === null ? this.panelChip(t, "model", chip, true) : chip;
   }

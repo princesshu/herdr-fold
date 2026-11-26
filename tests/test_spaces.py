@@ -15,6 +15,7 @@ from support import set_attrs, set_env
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "plugins", "spaces"))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 import spaces  # noqa: E402
+import panes  # noqa: E402  the sidebar's, on the path herdrlib gives
 
 
 def manifest_events(on):
@@ -41,11 +42,16 @@ class NewTab(unittest.TestCase):
         set_env(self, HERDR_PLUGIN_EVENT=None, HERDR_PLUGIN_STATE_DIR=None,
                 HERDR_PLUGIN_EVENT_JSON=json.dumps({"data": {"tab": {"tab_id": "w2:t1"}}}))
 
-    def test_the_new_buttons_workspace_is_called_new_while_its_folder_is_chosen(self):
-        # herdr names it after the folder it inherits: ~, or the active workspace's own name a second time
+    def test_the_new_buttons_workspace_reads_as_the_step_under_way_while_its_folder_is_chosen(self):
+        # herdr names it after the folder it inherits (~, or the active workspace's own name a second time): it is
+        # named as its picker's popup, a step under way, never as a space a folder could give its name
         spaces.main()
         opened = next(n for n, call in enumerate(self.calls) if call[:3] == ("plugin", "pane", "open"))
-        self.assertIn(("workspace", "rename", "w2", "new"), self.calls[:opened])
+        self.assertIn(("workspace", "rename", "w2", "New space…"), self.calls[:opened])
+        with open(os.path.join(os.path.dirname(os.path.abspath(spaces.__file__)), "herdr-plugin.toml"),
+                  encoding="utf-8") as f:
+            popup = re.search(r'id = "new-workspace"\n.*?title = "(.*?)"', f.read(), re.S).group(1)
+        self.assertEqual(spaces.PLACEHOLDER, f"{popup}…")
         self.assertEqual(self.calls[opened][:7], ("plugin", "pane", "open", "--plugin", "herdr-fold.spaces",
                                                   "--entrypoint", "new-workspace"))
 
@@ -88,6 +94,14 @@ class Leftovers(unittest.TestCase):
         panes = [{"workspace_id": "w1"}, {"workspace_id": "w2"}, {"workspace_id": "w3"},
                  {"workspace_id": "w4", "agent": "claude"}, {"workspace_id": "w5"}, {"workspace_id": "w5"}]
         self.assertEqual(spaces.leftovers(workspaces, panes), ["w2"])
+
+    def test_a_space_of_a_folder_named_new_is_never_taken_for_it(self):
+        workspaces = [{"workspace_id": "w1", "label": "lumen-api", "focused": True},
+                      {"workspace_id": "w2", "label": "new"}]                                 # ~/projects/new's
+        self.assertEqual(spaces.leftovers(workspaces, [{"workspace_id": "w1"}, {"workspace_id": "w2"}]), [])
+        self.assertFalse(panes.picking(lambda *a: {"workspaces": [{"workspace_id": "w2", "label": "new",
+                                                                   "tab_count": 1, "pane_count": 1}]}, "w2"))
+        self.assertIs(spaces.PLACEHOLDER, panes.PLACEHOLDER)                  # one name, the sidebar's and Spaces'
 
 
 class SpacesFollowTheirFolder(unittest.TestCase):

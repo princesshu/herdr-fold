@@ -1,10 +1,11 @@
 # Generated from core/usage.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
-"""The agents' limits for the Agent panel's Usage, the 5-hour and the weekly one: herdr-fold's own readings, Claude's
-cached ones, Codex's newest chat's, the newest per agent, a window just reset told as such. Nothing of the agents' is
-written. Usage (in JSON): usage.py limits | section AGENT [AGENTS]."""
+"""The agents' limits for the Agent panel's Usage, the 5-hour and the weekly one: herdr-fold's own readings and Claude's
+cached ones (each Claude account its own), Codex's newest chat's, the newest per agent, a window just reset told as
+such. Nothing of the agents' is written. Usage (in JSON): usage.py limits | section AGENT [AGENTS]."""
 import calendar
 import errno
 import glob
+import hashlib
 import json
 import math
 import os
@@ -98,8 +99,18 @@ def read_json(path):
     return obj(found)
 
 
+def claude_folder(home):
+    """The folder of the Claude account this process runs for: its CLAUDE_CONFIG_DIR, as Claude takes it; None for
+    HOME's own .claude, the default one."""
+    folder = os.environ.get("CLAUDE_CONFIG_DIR", "").strip()
+    return folder if folder and os.path.realpath(folder) != os.path.realpath(os.path.join(home, ".claude")) else None
+
+
 def kept_path(home, agent):
-    return os.path.join(home, *LIMITS, f"{agent}.json")
+    """AGENT's readings kept in HOME: a second Claude account's (claude_folder()) in a file of its own."""
+    folder = claude_folder(home) if agent == "claude" else None
+    name = f"claude-{hashlib.sha256(os.path.realpath(folder).encode()).hexdigest()[:12]}" if folder else agent
+    return os.path.join(home, *LIMITS, f"{name}.json")
 
 
 def told(data):
@@ -136,7 +147,7 @@ def keep(agent, windows, at):
     home = os.path.expanduser("~")
     before, own = kept(home, agent) or {}, (claude_cached(home) if agent == "claude" else None) or {}
     found = {name: fresher(found[name], before.get(name), int(at), own.get(name)) for name in WINDOWS}
-    statefile.write(kept_path(os.path.expanduser("~"), agent), {**found, "at": int(at)})
+    statefile.write(kept_path(home, agent), {**found, "at": int(at)})
     return found
 
 
@@ -148,10 +159,11 @@ def kept(home, agent):
 
 
 def claude_cached(home):
-    """Claude's own reading, kept in ~/.claude.json at its own pace (cachedUsageUtilization, when it was fetched), or
-    None. Its account is never read."""
-    cached = obj(read_json(os.path.join(home, ".claude.json")).get("cachedUsageUtilization"))
-    if not number(cached.get("fetchedAtMs")):
+    """Claude's own reading, kept in its account's .claude.json at its own pace (cachedUsageUtilization, when it was
+    fetched), or None; one fetched for another account than the one signed in is not its. Ids compared, never told."""
+    found = read_json(os.path.join(claude_folder(home) or home, ".claude.json"))
+    cached, signed = obj(found.get("cachedUsageUtilization")), obj(found.get("oauthAccount")).get("accountUuid")
+    if not number(cached.get("fetchedAtMs")) or cached.get("accountUuid") not in (None, signed):
         return None
     used = obj(cached.get("utilization"))
     found = {name: obj(used.get(key)) for name, key in (("five_hour", "five_hour"), ("week", "seven_day"))}

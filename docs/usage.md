@@ -17,7 +17,8 @@ A space is a row of the Spaces list in herdr's sidebar; herdr's own commands and
    Tab, or a click on Claude, Codex, OpenCode or Copilot at the top right, switches between them; it starts on the
    agent herdr-fold started last. A long folder's name gives way to them, cut with "…"; in a narrow window the toggle
    shows the chosen agent alone, and a click on it steps to the next.
-3. Enter, **Open** or a double click opens the space, or jumps to the one the folder already has. Esc or
+3. Enter, **Open** or a double click opens the space, or jumps to the one the folder already has, an agent in it or
+   not. While the picker is open the new space is named `New space…` in the list. Esc or
    **Cancel** goes back to the space you came from. **Add machine…**, left of them, opens Add a machine instead
    (Ctrl + B, then Shift + M's): a space on another machine starts with the machine
    ([Remote machines](remote-machines.md)).
@@ -153,9 +154,11 @@ Language & Region, Windows' short time, else the locale's). The line asks once a
 
 On every answer Claude's line, and a chat's in the Herdr app, keeps the 5-hour and weekly limits it was told, with
 their reset times and when, in `~/.local/state/herdr-fold/limits/claude.json`, readable by you alone: nothing else of
-the session, its folder or its model. It writes neither agent's files, and without a subscription's limits (an API
-key) nothing is kept. Every status line and the Agent panel's Usage show the same reading, whichever chat answered
-last: how it is put together is in [Usage](harness.md#usage).
+the session, its folder or its model. A second Claude account on the machine (its own `CLAUDE_CONFIG_DIR`) keeps its
+own beside it and reads its own `.claude.json`, so neither account's limits show on the other's line. It writes
+neither agent's files, and without a subscription's limits (an API key) nothing is kept. Every status line and the
+Agent panel's Usage show the same reading, whichever chat answered last: how it is put together is in
+[Usage](harness.md#usage).
 
 Your own status line: Space on the group's title (Claude Code or Codex) turns herdr-fold's off. Claude gets back the
 status line it had before, or none; Codex keeps your own items, or shows its default line. No install or update puts

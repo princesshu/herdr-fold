@@ -19,16 +19,16 @@ import time
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.normpath(os.path.join(HERE, "..", "..")))
-from herdrlib import HOME_SPACE, free_label, herdr, own_name, request, space_labels  # noqa: E402
+# PLACEHOLDER: the "new" button's workspace while its folder is chosen (herdr names it after the folder it inherits:
+# ~, or the active workspace's own name a second time); the picker builds the chosen folder's and closes this one
+from herdrlib import (HOME_SPACE, PLACEHOLDER, first_folders, free_label, herdr, own_name, request,  # noqa: E402
+                      space_labels)
 
 # its own copy of core/git.py (tools/build.py's), by its path: herdrlib's sidebar modules bring the sidebar's as git
 SPEC = importlib.util.spec_from_file_location("spaces_git", os.path.join(HERE, "git.py"))
 git = sys.modules[SPEC.name] = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(git)
 
-# the "new" button's workspace while its folder is chosen: herdr names it after the folder it inherits (~, or the
-# active workspace's own name a second time); the picker builds the chosen folder's and closes this one
-PLACEHOLDER = "new"
 # in the state folder: each followed workspace's name, folder and the folder's identity (a renamed folder keeps it);
 # the workspace in front and the one before it (Esc in the folder picker goes back there), with the repository each
 # workspace's pane was last in and each repository's branch as last read
@@ -202,14 +202,6 @@ def repo_rows(workspaces, panes, kept, home):
 
 def same_folder(one, other):
     return bool(one and other) and os.path.realpath(one) == os.path.realpath(other)
-
-
-def first_folders(panes):
-    """Each workspace's folder as herdr has it: its first pane's."""
-    first = {}
-    for pane in panes:
-        first.setdefault(pane.get("workspace_id"), pane.get("cwd"))
-    return first
 
 
 def home_space(workspaces, panes, home):

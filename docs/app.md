@@ -137,11 +137,11 @@ every way in alike (+, a closed chat reopened from Chats, Issues' To the agent, 
 - Terminal: the agent used last, its own CLI in a terminal tab of the space.
 
 A new space (Spaces' +, a machine's, New space there, Files' New space on a folder, the palette's New space) starts its
-agent so too: with Terminal, the agent's CLI as its first tab. With Chat, any space this layout shows on this Mac that
-holds shells alone (one the app made, its own picker's + New space too, or an older one) gets an empty chat as its
-first tab, shown, the first time it shows: once, so a chat closed stays closed and a space worked in terminals is left
-alone. A home space, home's stand-in (a plain terminal in the home folder) and a space on another machine get none:
-nothing starts there unasked.
+agent so too (a folder that has a space on that machine already shows that one, never a second): with Terminal, the
+agent's CLI as its first tab. With Chat, any space this layout shows on this Mac that holds shells alone (one the app
+made, its own picker's + New space too, or an older one) gets an empty chat as its first tab, shown, the first time it
+shows: once, so a chat closed stays closed and a space worked in terminals is left alone. A home space, home's
+stand-in (a plain terminal in the home folder) and a space on another machine get none: nothing starts there unasked.
 
 A space on another machine starts its agents in a terminal there: a chat runs on this Mac for now. A running chat keeps
 the way it opened when the setting changes; Chats lists both kinds as one list, each opening the way it runs. The
