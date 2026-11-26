@@ -145,6 +145,8 @@ test("a section's tags stand in one column as wide as its widest tag; a change t
   assert.ok(touches([`${folder}/docs/CLAUDE.md`], folder, folder));
   assert.ok(touches([`${folder}/.mcp.json`], folder, folder));
   assert.ok(touches([`${folder}/opencode.json`], folder, folder));                // OpenCode's project config
+  assert.ok(touches([`${folder}/.github/copilot-instructions.md`], folder, folder));          // Copilot's
+  assert.ok(touches([`${folder}/.github/copilot/settings.json`, `${folder}/GEMINI.md`], folder, folder));
   assert.ok(touches([folder], folder, folder));                       // too many changes to name: everything
   assert.ok(!touches([`${folder}/src/lumen/routes/books.py`, `${folder}/.git/index`], folder, folder));
   assert.ok(touches(["/home/dev/.claude/projects/-work-lumen-api/a1.jsonl"], "/home/dev/.claude", folder));
@@ -171,7 +173,8 @@ test("a tone's small words and a problem's chip read 4.5:1 in every theme; the f
 });
 
 test("the agent shown: the one kept for the space, else the focused tab's, else the one used last, else Claude", () => {
-  assert.deepEqual(READ, ["claude", "codex", "opencode"]);
+  assert.deepEqual(READ, ["claude", "codex", "opencode", "copilot"]);
+  assert.equal(chosenAgent({ kept: { sp1: "copilot" }, space: "sp1", focused: "claude", recent: [] }), "copilot");
   assert.equal(chosenAgent({ kept: {}, space: "sp1", focused: "opencode", recent: ["claude"] }), "opencode");
   assert.equal(chosenAgent({ kept: { sp1: "codex" }, space: "sp1", focused: "claude", recent: ["claude"] }), "codex");
   assert.equal(chosenAgent({ kept: { sp2: "codex" }, space: "sp1", focused: "claude", recent: ["codex"] }), "claude");
@@ -187,6 +190,7 @@ test("the Agents tab draws an agent graph.py draws: the space's where it is one,
   // OpenCode's setup is read for the panel, but no graph is drawn of it
   assert.equal(graphAgent({ kept: { s1: "opencode" }, space: "s1", recent: ["opencode", "codex"] }), "codex");
   assert.equal(graphAgent({ kept: {}, space: "s1", recent: ["opencode"] }), "claude");
+  assert.equal(graphAgent({ kept: { s1: "copilot" }, space: "s1", recent: ["copilot", "opencode"] }), "claude");
   assert.equal(graphAgent({ kept: { s1: "gemini" }, space: "s1", recent: ["gemini", "codex"] }), "codex");
   assert.equal(graphAgent({ kept: { s1: "gemini" }, space: "s1", recent: [] }), "claude");
   assert.equal(graphAgent({ kept: null, space: "s1", recent: null }), "claude");
@@ -694,6 +698,7 @@ test("each row opens its own form, as core's interface lists them; a row with no
   assert.deepEqual(formAsk("claude", RULE, null, HEAD), { action: "rule" });
   assert.deepEqual(formAsk("claude", HOOKS, null, HEAD), { action: "hooks" });
   assert.equal(formAsk("opencode", MODEL, null, HEAD), null);          // core changes nothing of OpenCode's
+  assert.equal(formAsk("copilot", MODEL, null, HEAD), null);           // nor of Copilot's
   assert.equal(ask("connector:docs", {}, "opencode"), null);
   // a rule's own text may hold colons: the id's first two parts alone are its kind and its behavior
   assert.deepEqual(ask("permission:allow:Bash(git push:*)", { tag: "Global" }), { action: "rule",

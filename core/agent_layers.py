@@ -32,7 +32,8 @@ PROBLEMS = ((FAILED, "failed", "bad"), (SIGN_IN, "sign in", "warn"))    # first 
 FIRST_LINES = 3                 # lines of a rule its properties show
 NAMED = 3                       # Claude's own subagents their folded row names before "N more"
 PATH_IN = re.compile(r"""['"]?((?:~|\.{1,2})?/[^\s'":,;()]+)['"]?""")      # a file named in an error
-LISTS = {"codex": "codex mcp list", "opencode": "opencode debug config"}     # the command each lists its servers by
+# the command each agent but Claude lists its servers by
+LISTS = {"codex": "codex mcp list", "opencode": "opencode debug config", "copilot": "copilot mcp list"}
 
 
 def tag(one):

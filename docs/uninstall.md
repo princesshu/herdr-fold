@@ -49,8 +49,8 @@ One part goes and the other keeps working: what both use goes with the last.
 - Claude's earlier status line comes back (or herdr-fold's just goes);
 - Ghostty's own app icon comes back: the icons the themes drew go.
 
-It never touches your chats (Claude's, Codex's and OpenCode's sessions and their names), herdr's own data, or the
-programs: it prints the `brew uninstall` line for those. Codex keeps the status line items it was given (`[tui]
+It never touches your chats (Claude's, Codex's, OpenCode's and Copilot's sessions and their names), herdr's own data, or
+the programs: it prints the `brew uninstall` line for those. Codex keeps the status line items it was given (`[tui]
 status_line` in `~/.codex/config.toml`).
 
 These stay too, because they are yours to keep: the SSH key and the `Host *` block in `~/.ssh/config`, the machines'

@@ -56,7 +56,7 @@ GENERAL = "general-purpose"     # the subagent Claude starts for an Agent call t
 TOLD = (b'"deferred_tools_delta"', b'"mcp_instructions_delta"', b'"compact_boundary"')
 # the agents herdr-fold knows, in its order (agent_state.py's HOW: each one's program, sign-in and install)
 KNOWN = {"claude": {"name": "Claude"}, "codex": {"name": "Codex"}, "opencode": {"name": "OpenCode"},
-         "gemini": {"name": "Gemini CLI"}}
+         "copilot": {"name": "Copilot"}, "gemini": {"name": "Gemini CLI"}}
 # a mode in the chat's words
 MODE_WORDS = {"default": "Manual", "manual": "Manual", "acceptEdits": "Edit automatically", "plan": "Plan",
               "auto": "Auto", "dontAsk": "Don't ask", "bypassPermissions": "Bypass permissions"}

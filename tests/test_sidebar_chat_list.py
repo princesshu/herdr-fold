@@ -25,6 +25,7 @@ OLD = Chat("claude", "s3", "Old notes", "/notes", NOW - 30 * 86400)
 STRAY = Chat("claude", "s4", "Somewhere else", "/tmp/other", NOW)
 DRAFT = Chat("claude", "s5", "Draft the README", "/repo/shop", NOW - 9000)
 PROBE = Chat("opencode", "ses_b2", "Readiness probe", "/repo/shop", NOW - 5000)     # a row of OpenCode's database
+TILES = Chat("copilot", "0cb916db", "Tile cache", "/repo/shop", NOW - 6000)       # a folder of Copilot's store
 PLACES = {"/repo/shop": "shop", "/repo/api": "api", "/notes": "notes"}
 SPACES = ["notes", "shop", "api", "empty"]                   # as the Spaces list has them
 HEADER = 3                                                   # the filter, tall as the dock's other fields
@@ -441,6 +442,19 @@ class List(unittest.TestCase):
         self.draw()
         self.view.list.index = self.row_of("Readiness probe") - HEADER
         self.assertEqual(self.press("delete"), Action("no_delete", (PROBE,)))
+        self.assertIsNone(self.view.confirm)
+
+    def test_a_copilot_chat_is_archived_never_deleted_here(self):
+        # Copilot keeps each chat in its session store, which its own /session delete keeps in order
+        self.view.set([LOGIN, TILES, PRICES], SPACES, PLACES.get, "shop")
+        self.draw()
+        self.assertTrue(text(self.canvas, self.row_of("Tile cache")).rstrip().endswith("Copilot  1h"))
+        _, shown = self.menu_of("Tile cache")
+        self.assertEqual(shown, ["Open", "Copy chat", "Rename", "Archive"])
+        self.press("esc")
+        self.draw()
+        self.view.list.index = self.row_of("Tile cache") - HEADER
+        self.assertEqual(self.press("delete"), Action("no_delete", (TILES,)))
         self.assertIsNone(self.view.confirm)
 
     def test_once_something_is_typed_delete_edits_the_filter(self):

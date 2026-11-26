@@ -169,6 +169,8 @@ const TALKS = [
     ago: "1d" },
   { agent: "opencode", id: "ses_9a1b2c3d", title: "Shelves as tags, a spike", folder: "/work/lumen-api", time: 1,
     state: "", pane: "", ago: "3w" },
+  { agent: "copilot", id: "0cb916db-26aa-40f2-86b5-1ba81b225fd2", title: "Tile cache headers",
+    folder: "/work/harbor-web", time: 1, state: "", pane: "", ago: "4d" },
   { agent: "codex", id: "s5", title: "Harbor map tiles", folder: "/work/harbor-web", time: 2, state: "idle",
     pane: "t5", ago: "5m" }];
 const PLACES = { "/work/lumen-api": "lumen-api", "/work/harbor-web": "harbor-web" };
@@ -587,10 +589,12 @@ const USED = [{ kind: "skill", id: "s1", name: "api-routes", ok: true, open: fal
 
 /** The chat drawn by its own code: its ROWS, the CONTEXT used (%), what is TYPED (the cursor in the prompt), its
  * agent's STATE, the usage LIMITS near their end, what it WAITS on ([request, choices]; its card made with CX). */
-// the app's agents (knownAgents), as a new chat's list offers them: Claude and Codex used last, Aider not installed
+// the app's agents (knownAgents), as a new chat's list offers them: Claude and Codex used last, Aider not installed;
+// each mark a neutral stand-in for the app's own icon
 const KNOWN_AGENTS = [{ key: "claude", name: "Claude", icon: ICONS.sparkle, tint: true, run: ["claude"],
   installed: true }, { key: "codex", name: "Codex", icon: ICONS.bot, tint: true, run: ["codex"], installed: true },
   { key: "opencode", name: "OpenCode", icon: ICONS["square-terminal"], tint: true, run: ["opencode"], installed: true },
+  { key: "copilot", name: "Copilot", icon: ICONS.zap, tint: true, run: ["copilot"], installed: true },
   { key: "gemini", name: "Gemini", icon: ICONS.sparkles, tint: true, run: ["gemini"], installed: true },
   { key: "aider", name: "Aider", icon: ICONS.code, tint: true, run: ["aider"], installed: false }];
 // the Agent panel's layers as core words them (agent_layers.py's layers()): Claude in lumen-api as connectors.html's
@@ -750,6 +754,25 @@ const OPENCODE_LAYERS = { head: headOf("OpenCode", "in tidepool", "Sonnet 5.5 ·
           "/work/tidepool/opencode.json"]) } }),
       layer("plug", "notion", { tag: "Global", state: said("off", "off"), dim: true, brand: "notion",
         agents: ["opencode"] })])] };
+// Copilot in harbor-web, as core reads it: its instructions (one for the API's files alone, by its applyTo), the model
+// its settings set, its servers not checked and one off; no Permissions, no + and no Show in graph
+const COPILOT_LAYERS = { head: headOf("Copilot", "in harbor-web", "Sonnet 5.5 · Medium · starts at ~1.5k of 1M", []),
+  bar: barOf(1500, 0, 0), error: null, connect: { ...CONNECT, add: null },
+  sections: [
+    sectionOf("rules", "Rules", 3, "1.5k", [
+      layer("file", "~/.copilot/copilot-instructions.md", { tag: "Global", tokens: 300, cost: "300",
+        agents: ["copilot"] }),
+      layer("file", "copilot-instructions.md", { tag: "Project", tokens: 500, cost: "500", agents: ["copilot"] }),
+      layer("file", "AGENTS.md", { tag: "Project", tokens: 700, cost: "700", agents: ["copilot"] }),
+      layer("file", "api.instructions.md", { tag: "Project", tokens: 400, cost: "400", agents: ["copilot"],
+        note: "when src/api/** is read", dim: true })]),
+    sectionOf("connectors", "Connectors", 2, null, [
+      layer("plug", "tiles", { tag: "Project", state: said("not checked", "off"), agents: ["copilot"],
+        id: "connector:tiles", properties: { lines: [["From", ".mcp.json", "Project"],
+          ["Runs", "node tools/tiles-mcp.js", null]], actions: acts(["open", "Open .mcp.json",
+          "/work/harbor-web/.mcp.json"]) } }),
+      layer("plug", "linear", { tag: "Global", state: said("off", "off"), dim: true, brand: "linear",
+        agents: ["copilot"] })])] };
 // Codex where `codex mcp list` gave no list, as core says it: Connectors one dim row, not read, no count
 const UNLISTED = layer("plug", "Codex's servers", { id: "unread:connectors", state: said("not read", "off"),
   dim: true, agents: ["codex"], properties: { title: "Connectors", text: "`codex mcp list` gave no list, so which "
@@ -921,7 +944,7 @@ const NOT_PERMS = ["rules", "skills", "connectors", "subagents"];
 const LOCAL_SKILL = { layers: savedIn("Local", ["Project", "Local"]), when: "From the next session",
   submit: "Save" };
 // the agents on this Mac as core tells them (agent_state.py agents), as agent-picker.html's list: Claude on Max,
-// Codex on Plus, OpenCode with no plan to tell, Gemini CLI to sign in, Aider not installed; OVER changes one
+// Codex on Plus, OpenCode and Copilot with nothing to tell, Gemini CLI to sign in, Aider not installed; OVER one
 /** @param {string} key @param {string} name @param {Record<string, any>} [over] */
 const machine = (key, name, over = {}) => {
   const one = { key, name, installed: true, signed_in: true, plan: null, login: [key, "login"],
@@ -938,8 +961,8 @@ const NOT_HERE = { kind: "install", title: "Codex is not installed", words: "It 
   foot: "herdr-fold runs no installer.", actions: [{ id: "copy", label: "Copy" },
     { id: "page", label: "Open its page" }] };
 const MACHINE = [machine("claude", "Claude", { plan: "Max" }), machine("codex", "Codex", { plan: "Plus" }),
-  machine("opencode", "OpenCode", { signed_in: null }), machine("gemini", "Gemini CLI", { signed_in: false,
-    empty: SIGN_IN })];
+  machine("opencode", "OpenCode", { signed_in: null }), machine("copilot", "Copilot", { signed_in: null }),
+  machine("gemini", "Gemini CLI", { signed_in: false, empty: SIGN_IN })];
 const KNOWN_MACHINE = [...MACHINE, machine("aider", "Aider", { installed: false })];    // and one not installed
 const PROBLEMS = { tone: "bad", said: "1 failed, 1 sign in" };       // the Agent tab's and the rail's dot
 let agentViews = 0;                   // each drawn panel's own slides (AgentView.slides)
@@ -1302,6 +1325,8 @@ export function guide(proto, cx) {
       { folded: ["permissions", "skills", "subagents"], px: 280 }), 356, 280],
     ["Codex: its own rules, approval and sandbox, servers", agentOf(CODEX_LAYERS, {}, "codex"), 356],
     ["OpenCode: its own instructions and servers, read alone", agentOf(OPENCODE_LAYERS, {}, "opencode"), 264],
+    ["Copilot: its instructions, one for some files alone, and its servers", agentOf(COPILOT_LAYERS, {}, "copilot"),
+      320],
     ["A file it could not read: why on the head's line, the file its tip", agentOf({ ...LAYERS,
       error: { text: "Couldn't read Claude's setup: permission denied", tip: "~/.claude/settings.json" } },
     { folded: SECTIONS }), 240],

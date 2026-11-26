@@ -24,11 +24,11 @@ export const MODEL = "model", RULE = "rule", HOOKS = "hooks";    // the forms no
 const OWN = ["Global", "Project", "Local", "Managed"];  // core's layers: a subagent from one is no plugin's
 const UNAPPROVED = "not approved";                      // core's state of a project's server nobody answered for yet
 export const DEFAULT = "Default";                       // core's tag of what no file sets
-export const READ = ["claude", "codex", "opencode"];    // the agents core reads a setup of (the panel's layers)
+export const READ = ["claude", "codex", "opencode", "copilot"];   // the agents core reads a setup of (their layers)
 export const GRAPHED = ["claude", "codex"];             // those graph.py draws (agent_setup.py's READ)
 const EDITED = ["claude", "codex"];                     // those whose harness core changes (harness.py)
 export const NAMES = /** @type {Record<string, string>} */ ({ claude: "Claude", codex: "Codex",
-  opencode: "OpenCode" });                              // as core's
+  opencode: "OpenCode", copilot: "Copilot" });          // as core's
 export const FOLDED = ["subagents"];                    // folded till opened, as center-chat.html's Agent panel
 export const FIRST = 5;           // rows a section shows before "N more": its problems and used ones always
 export const TAG = 12;            // characters of a tag at most (a plugin's name may be long), as the TUI's cells
@@ -41,10 +41,11 @@ const RANK = /** @type {Record<string, number>} */ ({ ok: 1, warn: 2, bad: 3 });
 export const LABEL = 64;          // px: the properties' labels' column ("Imported by"), connectors.html's .ikv.w
 // under the home folder, what each agent's setup is read from: a change there is a new read
 export const WATCHED = /** @type {Record<string, string>} */ ({ claude: ".claude", codex: ".codex",
-  opencode: ".config/opencode" });
-// in the space's folder, what a setup is read from: these folders, and files so named at any depth
-const SETUP_DIRS = [".claude", ".codex", ".opencode"];
-const SETUP_FILES = ["CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", ".mcp.json", "opencode.json", "opencode.jsonc"];
+  opencode: ".config/opencode", copilot: ".copilot" });
+// in the space's folder, what a setup is read from: these folders (.github: Copilot's), and files so named at any depth
+const SETUP_DIRS = [".claude", ".codex", ".opencode", ".github"];
+const SETUP_FILES = ["CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", "GEMINI.md", ".mcp.json", "opencode.json",
+  "opencode.jsonc"];
 const TAG_CHAR = 6, TAG_PAD = 12;     // px: a tag's character at 11 at most, and its padding (parts.js's scopeTag)
 
 /** A row's action, as core offers it: open PATH, or Claude's command on SERVER. @typedef {{ id: string, label: string,
@@ -239,8 +240,8 @@ export const doable = (row, agent = "claude") => (row.properties?.actions ?? [])
   [...WORKS, ...WAITS].includes(one.id) && (agent === "claude" || !CLAUDES.includes(one.id)));
 
 /** What ROW's form (by its ID, as core makes it; MODEL, RULE and HOOKS have none) asks core for as it opens, or null;
- * NAME: the built-in subagent picked. Codex has its model, approval and sandbox alone, OpenCode none (EDITED). @param
- * {string} agent @param {string | null} id @param {Row | null} row @param {any} head @param {string | null} [name] */
+ * NAME: the built-in subagent picked. Codex: its model, approval and sandbox; the others none (EDITED). @param {string}
+ * agent @param {string | null} id @param {Row | null} row @param {any} head @param {string | null} [name] */
 export function formAsk(agent, id, row, head, name = null) {
   if (!EDITED.includes(agent)) return null;
   if (id === MODEL) return { action: "model", ...(head?.runs ? { runs: head.runs } : {}) };

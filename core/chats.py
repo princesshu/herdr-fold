@@ -1,6 +1,6 @@
-"""This machine's Claude Code, Codex and OpenCode chats for Chats and the formatted copy: nothing of the agents' or
-herdr's is written, and only a closed chat's own file leaves, for the Trash, on Delete… (delete). Each file is read
-once, then only where it grew (INDEX); OpenCode's database is asked as it is. One unreadable is left out."""
+"""This machine's Claude Code, Codex, OpenCode and Copilot chats for Chats and the formatted copy: nothing of the
+agents' or herdr's is written, and only a closed chat's own file leaves, for the Trash, on Delete… (delete). Each file
+is read once, then only where it grew (INDEX); OpenCode's database is asked as it is. One unreadable is left out."""
 import contextlib
 import errno
 import glob
@@ -32,9 +32,14 @@ TAIL = 8 << 20                        # bytes from a chat's end the formatted co
 # a text that is not the user's own prompt: the agent's system text or a command (<…>), the project's notes, a note
 # that a reply was cut off
 NOT_A_PROMPT = ("<", "# AGENTS.md", "[Request interrupted")
-NAMES = {"claude": "Claude", "codex": "Codex", "opencode": "OpenCode"}    # the agents whose chats are listed
-RESUME = {"claude": "--resume", "codex": "resume", "opencode": "--session"}  # the word before an id their CLI reopens
+# the agents whose chats are listed, and the word before an id each one's CLI reopens
+NAMES = {"claude": "Claude", "codex": "Codex", "opencode": "OpenCode", "copilot": "Copilot"}
+RESUME = {"claude": "--resume", "codex": "resume", "opencode": "--session", "copilot": "--resume"}
 TRASHED = ("claude", "codex")         # those whose chat is a file of its own, which Delete… moves to the Trash
+# why the others' are not: each keeps its chats its own way, its own command deletes one
+KEPT = {"opencode": "OpenCode keeps its chats in its own database", "copilot": "Copilot keeps its chats in its own "
+        "session store"}
+WORKSPACE = 64 << 10                  # bytes of a Copilot chat's workspace.yaml read (some 400 in use)
 # OpenCode's chats in its database (its V2 tables), each with its first prompt: its subagents' and those it archived
 # left out (a scripted `opencode run --archived` too)
 OPENCODE_CHATS = ("select id, title, directory, time_updated, (select data from session_message where session_id = "
@@ -48,8 +53,8 @@ OPENCODE_TURNS = ("select m.id, m.type, m.data, p.data from session_message m le
 
 @dataclass(frozen=True)
 class Chat:
-    agent: str              # claude, codex or opencode
-    id: str                 # its session: claude --resume ID, codex resume ID, opencode --session ID
+    agent: str              # claude, codex, opencode or copilot
+    id: str                 # its session, as its agent's CLI reopens it (RESUME's word, then this)
     title: str
     folder: str             # where it was started
     time: float             # when it last changed
@@ -99,13 +104,26 @@ def codex_session_files():
     return glob.glob(os.path.join(os.path.expanduser("~"), ".codex", "sessions", "*", "*", "*", "rollout-*.jsonl"))
 
 
+def copilot_home():
+    """Copilot's own folder: COPILOT_HOME, as Copilot takes it, else ~/.copilot."""
+    return os.environ.get("COPILOT_HOME") or os.path.join(os.path.expanduser("~"), ".copilot")
+
+
+def copilot_files():
+    """Every Copilot chat's event log (session-state/<id>/events.jsonl)."""
+    return glob.glob(os.path.join(glob.escape(copilot_home()), "session-state", "*", "events.jsonl"))
+
+
 def session_files(kind, session):
-    """The files of one chat: KIND is claude or codex, SESSION its id."""
+    """The files of one chat: KIND is claude, codex or copilot, SESSION its id."""
     home = os.path.expanduser("~")
     if kind == "claude":
         return once(glob.glob(os.path.join(home, ".claude", "projects", "*", f"{session}.jsonl")))
     if kind == "codex":
         return glob.glob(os.path.join(home, ".codex", "sessions", "*", "*", "*", f"*{session}.jsonl"))
+    if kind == "copilot" and fileops.CHAT_ID.fullmatch(session):
+        path = os.path.join(copilot_home(), "session-state", session, "events.jsonl")
+        return [path] if os.path.isfile(path) else []
     return []
 
 
@@ -153,9 +171,9 @@ def parts(content, kind):
 
 
 def messages(kind, path, tail=None):
-    """The chat in PATH (KIND claude or codex) as (role, text), in order: "user" for the user's own prompts, "assistant"
-    for each part of a reply; no tool call, result, system text or helper's line, nor what a compacted Claude chat
-    holds again (its summary in the user's place, the messages kept and written anew). TAIL: read_jsonl's."""
+    """The chat in PATH (KIND claude, codex or copilot) as (role, text), in order: "user" for the user's own prompts,
+    "assistant" for each part of a reply; no tool call, result, system text, helper's or subagent's line, nor what a
+    compacted Claude chat holds again (its summary in the user's place, the messages anew). TAIL: read_jsonl's."""
     seen = set()
     for entry in read_jsonl(path, tail):
         if kind == "claude":
@@ -169,6 +187,10 @@ def messages(kind, path, tail=None):
                 seen.add(again)
             role, content = entry["type"], obj(entry.get("message")).get("content")
             texts = parts(content, "text") if role == "assistant" else texts_of(content)
+        elif kind == "copilot":
+            if entry.get("type") not in ("user.message", "assistant.message") or "agentId" in entry:
+                continue
+            role, texts = entry["type"].split(".")[0], texts_of(obj(entry.get("data")).get("content"))
         else:
             payload = obj(entry.get("payload"))
             role = payload.get("role")
@@ -239,6 +261,46 @@ def read_codex(entry, raw):
                 entry.update(prompt=prompt, done=True)
 
 
+def read_copilot(entry, raw):
+    """What a line of a Copilot chat's event log adds: its folder (session.start's), then the first prompt of the user's
+    (a subagent's lines, with their agentId, left out), after which nothing more is needed (its name: workspace())."""
+    if "folder" not in entry and b'"type":"session.start"' in raw:
+        entry["folder"] = text(obj(obj(parse(raw).get("data")).get("context")).get("cwd")) or ""
+    elif b'"type":"user.message"' in raw:
+        event = parse(raw)
+        if event.get("type") == "user.message" and "agentId" not in event:
+            prompt = first_prompt([text(obj(event.get("data")).get("content")) or ""])[:PROMPT]
+            if prompt:
+                entry.update(prompt=prompt, done=True)
+
+
+def workspace(path):
+    """What a Copilot chat's workspace.yaml beside its event log PATH tells, its flat keys as Copilot writes them: its
+    name (yours, else the one Copilot gave it) and its folder, where it resumes; {} where it cannot be read."""
+    try:
+        with open_regular(os.path.join(os.path.dirname(path), "workspace.yaml"), encoding="utf-8",
+                          errors="replace") as f:
+            lines = f.read(WORKSPACE).split("\n")
+    except OSError:
+        return {}
+    found, key = {}, None
+    for line in lines:
+        if key and line[:1] in (" ", "\t") and line.strip():          # a long value folded onto the next line
+            found[key] += " " + line.strip()
+            continue
+        name, colon, value = line.partition(":")
+        key = name if colon and name in ("name", "cwd") else None
+        if key:
+            found[key] = value.strip()
+    for key, value in found.items():
+        try:
+            found[key] = json.loads(value) if value[:1] == '"' else value[1:-1].replace("''", "'") \
+                if value[:1] == "'" else value
+        except ValueError:
+            found[key] = ""
+    return {key: value for key, value in found.items() if isinstance(value, str) and value}
+
+
 def update(path, kind, entry):
     """ENTRY, what INDEX has of PATH, brought up to date: read from where it stopped, whole lines only (one still being
     written waits for the next time); from the start again when the file got shorter. None if PATH is gone or cannot be
@@ -254,7 +316,7 @@ def update(path, kind, entry):
     entry = dict(entry) if entry.get("offset", 0) <= info.st_size else {}
     offset = entry.get("offset", 0)
     if not entry.get("done"):
-        read = read_claude if kind == "claude" else read_codex
+        read = {"claude": read_claude, "codex": read_codex, "copilot": read_copilot}[kind]
         try:
             with open_regular(path, "rb") as f:
                 f.seek(offset)
@@ -434,6 +496,10 @@ def chat(kind, path, entry, names, threads, runs=frozenset()):
         if session in runs:
             return None
         title = names.get(session) or entry.get("custom") or entry.get("ai") or entry["prompt"]
+    elif kind == "copilot":                             # its folder its id, as Copilot names it
+        session, own = os.path.basename(os.path.dirname(path)), workspace(path)
+        return Chat(kind, session, names.get(session) or own.get("name") or entry["prompt"],
+                    own.get("cwd") or entry.get("folder") or "", entry["mtime"])
     else:
         session = entry.get("id")
         if not session:
@@ -466,7 +532,7 @@ def running(found, agents, resumed=None):
 def indexed(state_dir):
     """Every chat file's entry, {path: (kind, entry)}, the index brought up to date and kept."""
     index, fresh, found = load_index(state_dir), {}, {}
-    for kind, paths in (("claude", claude_files()), ("codex", codex_session_files())):
+    for kind, paths in (("claude", claude_files()), ("codex", codex_session_files()), ("copilot", copilot_files())):
         for path in paths:
             entry = update(path, kind, index.get(path, {}))
             if entry is not None:

@@ -200,11 +200,11 @@ export const safeMarkdown = (markdown) => markdown.replace(/!\[/g, "!⁠[").repl
 export const priorityColor = (t, level) => (level === null || level === undefined ? t.accent
   : [t.ansi1, t.ansi1, t.ansi3, t.ansi2][level]);
 
-/** The focused TAB's own Claude, Codex or OpenCode to hand an issue to: one in a pane among AGENTS (agents()), else a
- * chat tab's agent among TERMINALS; or null. @param {{ tab: string, program?: { key: string } }[]} agents
+/** The focused TAB's own Claude, Codex, OpenCode or Copilot to hand an issue to: one in a pane among AGENTS (agents()),
+ * else a chat tab's agent among TERMINALS; or null. @param {{ tab: string, program?: { key: string } }[]} agents
  * @param {string | undefined} tab @param {any[]} [terminals] @returns {any} */
 export const issueAgent = (agents, tab, terminals = []) =>
-  agents.find((a) => a.tab === tab && ["claude", "codex", "opencode"].includes(a.program?.key ?? ""))
+  agents.find((a) => a.tab === tab && ["claude", "codex", "opencode", "copilot"].includes(a.program?.key ?? ""))
   ?? (tab ? terminals.filter((c) => c.state === "live" && c.labels?.[CHAT_TAB] === tab)
     .map((c) => ({ ...c, chat: true }))[0] : null) ?? null;
 
@@ -295,7 +295,8 @@ export function groupPlace(rows, name) {
  * control code. */
 const SESSION = /^[0-9A-Za-z][0-9A-Za-z._-]*$/;
 /** The agents whose chats core lists, each with the word its CLI takes before the id it reopens (core's RESUME). */
-const RESUME = /** @type {Record<string, string>} */ ({ claude: "--resume", codex: "resume", opencode: "--session" });
+const RESUME = /** @type {Record<string, string>} */ ({ claude: "--resume", codex: "resume", opencode: "--session",
+  copilot: "--resume" });
 
 /** The command that reopens ITEM, a closed chat: its agent resuming it. @param {Chat} item */
 export function resumeArgv(item) {
@@ -314,10 +315,14 @@ export function chatChoices(item, archived, showArchived) {
   return [...CHOICES, ...tidy, "Delete…"];
 }
 
-/** Why ITEM's Delete… is off, its tip: a running chat's file is its agent's, an OpenCode chat is no file of its own
- * (core's TRASHED); null for a closed one. @param {Chat} item */
+/** Why the agents whose chat is no file of its own keep it (core's KEPT): their own command deletes one. */
+const KEPT = /** @type {Record<string, string>} */ ({ opencode: "OpenCode keeps its chats in its own database",
+  copilot: "Copilot keeps its chats in its own session store" });
+
+/** Why ITEM's Delete… is off, its tip: a running chat's file is its agent's, an OpenCode or Copilot chat is no file of
+ * its own (KEPT); null for a closed one. @param {Chat} item */
 export const deleteOff = (item) => (item.state ? "A running chat is not deleted: close it first"
-  : item.agent === "opencode" ? "OpenCode keeps its chats in its own database: delete it there" : null);
+  : Object.hasOwn(KEPT, item.agent) ? `${KEPT[item.agent]}: delete it there` : null);
 
 /** ITEMS without the chats on their way to the Trash (LEAVING: archiveKey's): a deleted one's row leaves at once.
  * @template {Chat} T @param {T[]} items @param {Set<string>} leaving */

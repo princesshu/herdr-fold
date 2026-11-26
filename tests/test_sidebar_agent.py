@@ -1266,6 +1266,33 @@ class Reading(unittest.TestCase):
         self.assertEqual(answer["usage"]["rows"][0]["untold"]["why"], usage.WHY["opencode"])
         self.assertFalse(app.views["agent"].graphs())
 
+    def test_copilot_picked_shows_its_instructions_and_servers_and_no_graph(self):
+        # a stand-in copilot prints its servers as Copilot CLI 1.0's `mcp list --json` does
+        bin_dir = os.path.join(self.home, "bin")
+        listed = {"mcpServers": {"tracker": {"type": "http", "url": "https://tracker.lumen.example/mcp",
+                                             "source": "user", "enabled": True}}}
+        self.put(os.path.join(bin_dir, "copilot"), f"#!/bin/sh\necho '{json.dumps(listed)}'\n")
+        os.chmod(os.path.join(bin_dir, "copilot"), 0o755)
+        self.put(os.path.join(self.folder, ".github", "copilot-instructions.md"), "Use TypeScript strict mode.\n")
+        set_attrs(self, agent_setup, find=lambda name: shutil.which(name, path=bin_dir))
+        set_env(self, COPILOT_HOME=None)
+        self.machine.append({key: value for key, value in machine("copilot", "Copilot", signed_in=None).items()
+                             if key != "empty"})
+        app = self.app()
+        self.read(app)
+        app.act(Action("choose_agent", ("copilot",)), "agent")
+        end_jobs()
+        app.collect()
+        answer = app.views["agent"].answer
+        self.assertEqual((answer["agent"], answer["head"]["name"], [s["id"] for s in answer["sections"]]),
+                         ("copilot", "Copilot", ["rules", "connectors"]))
+        self.assertEqual([r["name"] for r in answer["sections"][0]["rows"]],          # the project's CLAUDE.md too
+                         ["copilot-instructions.md", "CLAUDE.md"])
+        self.assertEqual([r["name"] for r in answer["sections"][1]["rows"]],          # the project's .mcp.json too
+                         ["Sentry", "tracker"])
+        self.assertEqual(answer["usage"]["rows"][0]["untold"]["why"], usage.WHY["copilot"])
+        self.assertFalse(app.views["agent"].graphs())
+
     def test_sign_in_runs_the_agents_own_login_in_a_tab_and_asks_again_till_it_is_in(self):
         now, opened = [100.0], []
         app = sidebar.App(self.folder, FakeTerminal(WIDE, 40), mock.Mock(call=lambda *args: {}), self.state,

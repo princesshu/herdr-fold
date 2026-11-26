@@ -29,7 +29,7 @@ DOUBLE = 0.4               # seconds within which a second click on a row opens 
 ADD_MACHINE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "add_machine.py")    # Add machine…'s popup
 NAME_CELLS = 48            # a row's cells before its tags, fewer in a narrower window (a wrapped row moves the clicks)
 TAGS_CELLS = 8             # "git open"
-TOGGLE = len(" │ ".join(f" {a} " for a in AGENTS))     # the agent toggle's cells, at the title row's right
+TITLE_LEAST = 12           # a title's cells the whole agent toggle leaves at least: in less, it shows the chosen one
 
 Row = collections.namedtuple("Row", "path name depth open")
 
@@ -63,15 +63,27 @@ def indent(depth):
     return "" if not depth else "  " + "│ " * (depth - 1)
 
 
-def title_of(folder, width):
-    """FOLDER as the title row names it in WIDTH cells: from ~, cut with "…" where the toggle needs the room."""
-    return truncate(printable(folder.replace(HOME, "~", 1)), width - MARGIN - RIGHT - CLOSE_ROOM - TOGGLE - 1)
+def cells(agents):
+    """The cells of a toggle of AGENTS."""
+    return len(" │ ".join(f" {a} " for a in agents))
 
 
-def toggle_start(title, width):
+def toggled(agent, width):
+    """The agents the toggle shows on a title row of WIDTH cells: all of AGENTS where they leave the title TITLE_LEAST
+    cells, else the chosen AGENT alone (a click on it, as Tab, steps to the next)."""
+    return AGENTS if width - MARGIN - RIGHT - CLOSE_ROOM - cells(AGENTS) - 1 >= TITLE_LEAST else (agent,)
+
+
+def title_of(folder, width, agents):
+    """FOLDER as the title row names it in WIDTH cells: from ~, cut with "…" where the toggle of AGENTS needs the
+    room."""
+    return truncate(printable(folder.replace(HOME, "~", 1)), width - MARGIN - RIGHT - CLOSE_ROOM - cells(agents) - 1)
+
+
+def toggle_start(title, width, agents):
     """The toggle's first column (0-based) on the title row: at its right end, before the close button, a cell from
     the title at least."""
-    return MARGIN + len(title) + max(1, width - MARGIN - RIGHT - CLOSE_ROOM - len(title) - TOGGLE)
+    return MARGIN + len(title) + max(1, width - MARGIN - RIGHT - CLOSE_ROOM - len(title) - cells(agents))
 
 
 def picker_buttons(width):
@@ -129,7 +141,7 @@ class Picker:
         elif key in ("\x7f", "\x08"):
             self.filt, self.chosen = self.filt[:-1], 0
         elif key == "\t":
-            self.agent = AGENTS[(AGENTS.index(self.agent) + 1) % len(AGENTS)]
+            self.step()
         elif key in ("\r", "\n") and row:
             return "open"
         elif key == "\x1b" and self.filt:
@@ -163,6 +175,10 @@ class Picker:
             self.opened.add(below)
             self.choose(below)
 
+    def step(self):
+        """The toggle on the next agent, the first after the last."""
+        self.agent = AGENTS[(AGENTS.index(self.agent) + 1) % len(AGENTS)]
+
     def click(self, event, now, width, height):
         """A mouse EVENT (tui.clicked()): a click chooses a row, the same one again within DOUBLE seconds opens it, a
         click on its mark opens or closes it, the toggle chooses the agent, a button opens or cancels, the wheel moves.
@@ -175,10 +191,13 @@ class Picker:
             return None
         shown = self.fit(height)
         if at == 1:
-            x, start = column - 1 - toggle_start(title_of(self.root, width), width), 0
-            for agent in AGENTS:
+            agents = toggled(self.agent, width)
+            x, start = column - 1 - toggle_start(title_of(self.root, width, agents), width, agents), 0
+            for agent in agents:
                 if start <= x < start + len(agent) + 2:
                     self.agent = agent
+                    if len(agents) == 1:
+                        self.step()
                 start += len(agent) + 2 + len(" │ ")
             return None
         if at == FIRST_ROW + len(shown) + 1:
@@ -247,9 +266,11 @@ def screen(picker, opened, height, width):
     the tree, and the keys that are not obvious with Cancel and Open."""
     rows, icons = picker.fit(height), icons_on(PLUGIN_STATE)
     cells = max(1, min(NAME_CELLS, width - TAGS_CELLS - 3))
-    toggle = " │ ".join(f"{INVERT} {a} {RESET}" if a == picker.agent else f" {a} " for a in AGENTS)
-    title = title_of(picker.root, width)
-    lines = [" " * MARGIN + f"{BOLD}{title}{RESET}" + " " * (toggle_start(title, width) - MARGIN - len(title)) + toggle
+    agents = toggled(picker.agent, width)
+    toggle = " │ ".join(f"{INVERT} {a} {RESET}" if a == picker.agent else f" {a} " for a in agents)
+    title = title_of(picker.root, width, agents)
+    lines = [" " * MARGIN + f"{BOLD}{title}{RESET}" + " " * (toggle_start(title, width, agents) - MARGIN - len(title))
+             + toggle
              + " " * (CLOSE_ROOM + RIGHT), " " * MARGIN + f"{picker.filt}▏" if picker.filt else ""]
     for n, row in enumerate(rows, picker.top):
         mark = widgets.TURNS.mark(icons, ("folder", row.path), row.open) + after(icons)

@@ -20,7 +20,7 @@ const KEPT = "herdr-fold.chats";
 export const OPENED = "herdr-fold.chats-opened";
 const PENDING = 120000;            // ms a reopened chat's agent may take to start before it is given up
 // under the home folder, where the agents write them (OpenCode its database)
-const WATCHED = [".claude/projects", ".codex/sessions", ".local/share/opencode"];
+const WATCHED = [".claude/projects", ".codex/sessions", ".local/share/opencode", ".copilot/session-state"];
 const ACTIONS = { Open: "open", "Copy chat": "copy", Rename: "rename", Archive: "archive",
   Unarchive: "unarchive", "Delete…": "delete" };
 const STATES = { working: "Working", blocked: "Blocked", done: "Done", idle: "Idle" };   // a mark's, in words

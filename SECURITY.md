@@ -94,9 +94,11 @@ The sidebar treats the folder it shows as a stranger's, a download or a clone:
   signed in or not, the way, the plan's id as a word; never the e-mail or the organization) and `codex login status`
   (its exit code, and whether its words start as an API key's do: what follows that start may hold a masked key and is
   neither looked at nor kept) and `opencode auth list --format json --standalone` (whether it names any provider; its
-  names and secrets never kept). Sign in, on your press, runs the agent's own login (`claude auth login`, `codex
-  login`, `opencode auth login`, `gemini`: fixed words, one argument each) in a terminal tab; herdr-fold
-  reads nothing of it and keeps no token. An agent's install line is only shown and copied, never run;
+  names and secrets never kept). Copilot CLI has no such command, and its token (the keychain, else its own
+  `config.json`) is never read, so it is never said to be signed in or out. Sign in, on your press, runs the agent's own
+  login (`claude auth login`, `codex login`, `opencode auth login`, `copilot login`, `gemini`: fixed words, one argument
+  each) in a terminal tab; herdr-fold reads nothing of it and keeps no token. An agent's install line is only shown and
+  copied, never run;
 - an issue handed to the agent goes as its number only, as anyone can write an issue.
 
 A repository's filters and hooks still run when you stage, show a diff, commit or sync, as with git in a terminal:

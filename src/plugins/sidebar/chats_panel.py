@@ -235,8 +235,7 @@ class Chats(Family):
             self.host.note = "Moved to the Trash"
 
     def do_no_delete(self, item):
-        self.host.note = "A running chat is not deleted" if item.state else \
-            f"{chats.NAMES[item.agent]} keeps its chats in its own database: delete it there"
+        self.host.note = "A running chat is not deleted" if item.state else f"{chats.KEPT[item.agent]}: delete it there"
 
     def do_rename(self, item, name):
         """ITEM named NAME by hand, as herdr's Rename pane names one: AI Sessions keeps it and shows it too, a

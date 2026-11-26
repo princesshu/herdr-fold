@@ -115,15 +115,17 @@ class Layout(unittest.TestCase):
         with self.assertRaises(herdr_layout.LayoutError):
             herdr_layout.build("nowhere", "claude", "/srv/app", "app")
 
-    def test_opencode_starts_as_the_others_and_an_unknown_agent_is_a_usage_error(self):
-        herdr_layout.build(None, "opencode", self.folder, "My App")
-        start = self.named("agent", "start")[0]
-        self.assertEqual(start[start.index("--kind") + 1], "opencode")
-        self.assertIn(("pane", "rename", "w9:p1", "opencode"), self.calls)
-        for args in (["--agent", "aider", self.folder], ["--agent", "opencode"]):
+    def test_opencode_and_copilot_start_as_the_others_and_an_unknown_agent_is_a_usage_error(self):
+        for agent in ("opencode", "copilot"):
+            self.calls.clear()
+            herdr_layout.build(None, agent, self.folder, "My App")
+            start = self.named("agent", "start")[0]
+            self.assertEqual(start[start.index("--kind") + 1], agent)         # herdr's own kind for it
+            self.assertIn(("pane", "rename", "w9:p1", agent), self.calls)
+        for args in (["--agent", "aider", self.folder], ["--agent", "copilot"]):
             with self.assertRaises(SystemExit) as stopped:
                 herdr_layout.main(args)
-            self.assertIn("--agent claude|codex|opencode", str(stopped.exception))
+            self.assertIn("--agent claude|codex|opencode|copilot", str(stopped.exception))
 
     def test_an_agent_that_does_not_start_is_said(self):
         self.agent_fails = True

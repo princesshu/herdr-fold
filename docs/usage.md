@@ -14,8 +14,9 @@ A space is a row of the Spaces list in herdr's sidebar; herdr's own commands and
    holding most of your git repositories as a tree, as the sidebar's Files view does: the folder on top, open.
 2. Type to filter; ↑ ↓ or the wheel move, a click chooses. → opens a folder (or steps into an open one), ← closes it
    (or steps to its parent), and ← on the top row goes up a folder; a click on a folder's chevron opens or closes it.
-   Tab, or a click on Claude, Codex or OpenCode at the top right, switches between them; it starts on the agent
-   herdr-fold started last. A long folder's name gives way to them, cut with "…".
+   Tab, or a click on Claude, Codex, OpenCode or Copilot at the top right, switches between them; it starts on the
+   agent herdr-fold started last. A long folder's name gives way to them, cut with "…"; in a narrow window the toggle
+   shows the chosen agent alone, and a click on it steps to the next.
 3. Enter, **Open** or a double click opens the space, or jumps to the one the folder already has. Esc or
    **Cancel** goes back to the space you came from. **Add machine…**, left of them, opens Add a machine instead
    (Ctrl + B, then Shift + M's): a space on another machine starts with the machine
@@ -58,7 +59,7 @@ python3 ~/.config/herdr-fold/herdr_layout.py --machine alpha /srv/app app       
 python3 ~/.config/herdr-fold/herdr_layout.py --machine win1 'C:\projects\app' app  # on a Windows machine
 ```
 
-Add `--agent codex` or `--agent opencode` for another agent.
+Add `--agent codex`, `--agent opencode` or `--agent copilot` for another agent.
 
 ## Sessions
 
@@ -233,10 +234,10 @@ For a repository on GitHub:
    else a priority label, then a severity label, then a word alone such as `urgent` (the ones it reads:
    [the sidebar's README](../src/plugins/sidebar/README.md)).
 2. `t` hands the chosen one to the agent: a prompt typed into its pane, for you to send with Enter. With no agent in the
-   tab (Claude, Codex or OpenCode), the one herdr-fold started last starts in a new tab of the space, named after the
-   issue, the sidebar beside it as in every tab, and gets the prompt there. The prompt holds the issue's number, not its
-   words: anyone can write an issue, so the agent reads it with gh and is told to take it as a description of the
-   problem, not as instructions. The Changes view shows `Fixes #42` from then on.
+   tab (Claude, Codex, OpenCode or Copilot), the one herdr-fold started last starts in a new tab of the space, named
+   after the issue, the sidebar beside it as in every tab, and gets the prompt there. The prompt holds the issue's
+   number, not its words: anyone can write an issue, so the agent reads it with gh and is told to take it as a
+   description of the problem, not as instructions. The Changes view shows `Fixes #42` from then on.
 3. When the agent is done, the ✦ beside the message has Claude or Codex write it, ending with that line (Cmd + Shift +
    C adds it too); meanwhile the field says who writes it. Once the commit is pushed, GitHub closes the issue.
 
@@ -275,7 +276,8 @@ Archive is the everyday way to tidy the list. Delete…, under it in a closed ch
 rarer one: it asks first, by the chat's name, then moves the chat's file to the system's Trash (on a Mac the Finder's
 Put Back brings it back) and drops its archive mark and the name you gave it. With the filter empty the Delete key (fn +
 ⌫ on a Mac's own keyboard) asks the same for the chosen chat. A running chat has no Delete…: close it first. An OpenCode
-chat has none either: OpenCode keeps its chats in its own database, so Archive is its way off the list.
+or Copilot chat has none either: OpenCode keeps its chats in its own database and Copilot in its own session store
+(`/session delete` in Copilot), so Archive is their way off the list.
 
 A chat is one row however long it runs: Claude Code compacts and resumes it in its own file, under its id, so its
 name and its archive hold. Not listed: the agents' own helpers (subagents, Codex's reviewer) and what a program ran

@@ -366,6 +366,15 @@ class Panel(AppScreen, unittest.TestCase):
         self.app.work["chats"].do_no_delete(chats.Chat("opencode", "ses_2150a9850001", "Health check", "/repo/app", 0))
         self.assertEqual(self.app.note, "OpenCode keeps its chats in its own database: delete it there")
 
+    def test_a_copilot_chat_reopens_in_copilot_by_its_session(self):
+        self.start()
+        tiles = chats.Chat("copilot", "0cb916db-26aa-40f2", "Tile cache headers", "/repo/app", 0)
+        self.app.work["chats"].reopen(tiles)
+        self.assertIn("agent start copilot-0cb916db --kind copilot --pane w1:p9 --timeout 60000 -- --resume "
+                      "0cb916db-26aa-40f2", self.calls_after("tab create"))
+        self.app.work["chats"].do_no_delete(tiles)
+        self.assertEqual(self.app.note, "Copilot keeps its chats in its own session store: delete it there")
+
     def test_a_reopened_ones_pane_is_forgotten_once_herdr_knows_its_session(self):
         panes.resume(self.state, "w1:p1", "s1")                # herdr knows w1:p1's session
         panes.resume(self.state, "w1:p7", "s2")                # no agent there any more

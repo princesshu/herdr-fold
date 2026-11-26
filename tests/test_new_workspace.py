@@ -1,6 +1,6 @@
 """Tests for new_workspace.py's folder picker: a tree as the sidebar's Files view shows it, under the folder as title
-and a claude │ codex │ opencode toggle; the filter only while typing; the keys, the mouse, Cancel and Open; and where
-it starts (projects.py): unasked, at the folder holding the most git repositories, under a temporary home."""
+and a claude │ codex │ opencode │ copilot toggle; the filter only while typing; the keys, the mouse, Cancel and
+Open; and where it starts (projects.py): unasked, at the folder holding the most git repositories, a temporary home."""
 import os
 import shutil
 import tempfile
@@ -74,6 +74,10 @@ class Tree(unittest.TestCase):
     def test_tab_switches_the_agent(self):
         self.press("\t")
         self.assertEqual(self.picker.agent, "codex")
+        self.press("\t", "\t")
+        self.assertEqual(self.picker.agent, "copilot")
+        self.press("\t")
+        self.assertEqual(self.picker.agent, "claude")                         # round again
 
     def test_the_toggle_starts_on_the_agent_started_last_in_its_place(self):
         # the toggle's order stays (nothing moves): the agent used last is the one marked
@@ -99,10 +103,10 @@ class Mouse(unittest.TestCase):
         set_attrs(self, new_workspace, icons_on=lambda state_dir: False)
 
     def lines(self):
-        return ANSI.sub("", new_workspace.screen(self.picker, set(), 10, 60)).split("\n")
+        return ANSI.sub("", new_workspace.screen(self.picker, set(), 10, 70)).split("\n")
 
     def click(self, column, row, now=10.0, button=0):
-        return self.picker.click((button, column, row, True), now, 60, 10)
+        return self.picker.click((button, column, row, True), now, 70, 10)
 
     def row_of(self, name):
         return next(n for n, line in enumerate(self.lines(), 1) if f" {name}" in line and n > 2)
@@ -229,9 +233,10 @@ class Screen(unittest.TestCase):
         self.assertIn(new_workspace.INVERT + " claude " + new_workspace.RESET, first)
         self.assertNotIn(new_workspace.INVERT + " codex ", first)
         self.assertIn(new_workspace.INVERT + " codex " + new_workspace.RESET, self.screen(agent="codex").split("\n")[0])
-        self.assertTrue(self.lines()[0].rstrip().endswith("codex  │  opencode"))  # on the right of the title row
-        self.assertIn(new_workspace.INVERT + " opencode " + new_workspace.RESET,
-                      self.screen(agent="opencode").split("\n")[0])
+        self.assertTrue(self.lines()[0].rstrip().endswith("opencode  │  copilot"))  # on the right of the title row
+        for agent in ("opencode", "copilot"):
+            self.assertIn(new_workspace.INVERT + f" {agent} " + new_workspace.RESET,
+                          self.screen(agent=agent).split("\n")[0])
 
     def test_the_filter_shows_only_while_typing(self):
         self.assertNotIn("filter", " ".join(self.lines()).lower())
@@ -249,7 +254,7 @@ class Screen(unittest.TestCase):
         # the toggle a cell before the close button, which takes the row's last three cells (herdr's column after)
         first = self.lines()[0]
         self.assertEqual(len(first), 80)
-        self.assertTrue(first.startswith(" ~/projects") and first.endswith(" opencode     "), first)
+        self.assertTrue(first.startswith(" ~/projects") and first.endswith(" copilot     "), first)
         self.assertTrue(self.lines(filt="no")[1].startswith(" no"))
 
     def test_every_row_fits_a_narrow_window(self):
@@ -261,11 +266,18 @@ class Screen(unittest.TestCase):
         deep = os.path.join(self.tmp, "projects", "lumen-api-gateway", "services", "billing-reconciliation")
         os.makedirs(deep)
         self.picker = new_workspace.Picker(deep)
+        first = ANSI.sub("", new_workspace.screen(self.picker, set(), 10, 70)).split("\n")[0]
+        self.assertEqual(len(first), 70)
+        self.assertTrue(first.startswith(" ~/projects/") and "… " in first and "copilot" in first, first)
+        self.assertIsNone(self.picker.click((0, first.index("copilot") + 1, 1, True), 0, 70, 10))
+        self.assertEqual(self.picker.agent, "copilot")
+        # narrower, the toggle is the chosen agent alone, the title still named: a click on it steps to the next
         first = ANSI.sub("", new_workspace.screen(self.picker, set(), 10, 50)).split("\n")[0]
         self.assertEqual(len(first), 50)
-        self.assertTrue(first.startswith(" ~/projects/") and "… " in first and "opencode" in first, first)
-        self.assertIsNone(self.picker.click((0, first.index("opencode") + 1, 1, True), 0, 50, 10))
-        self.assertEqual(self.picker.agent, "opencode")
+        self.assertTrue(first.startswith(" ~/projects/") and first.rstrip().endswith("copilot"), first)
+        self.assertNotIn("claude", first)
+        self.assertIsNone(self.picker.click((0, first.index("copilot") + 1, 1, True), 0, 50, 10))
+        self.assertEqual(self.picker.agent, "claude")
 
     def test_no_helper_text_and_no_dot_row(self):
         text = " ".join(self.lines())

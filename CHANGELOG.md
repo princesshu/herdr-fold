@@ -52,6 +52,12 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
   `opencode --session`, copied and archived, never deleted here), and in the Agent panel the instructions it reads,
   its model and its MCP servers, a project's config read as text and never run. It has no form, graph or run here, and
   Usage says its limits are not told.
+- GitHub Copilot CLI as a coding agent, in both clients, the same way: in the agents' lists (never said to be signed
+  out: it has no command that tells), its CLI in a terminal tab from New chat and a new space (the TUI's picker gains
+  `copilot`, the chosen agent alone in a narrow window), its chats in Chats from `~/.copilot/session-state` (named as
+  Copilot names them, reopened with `copilot --resume`, copied and archived, never deleted here), and in the Agent
+  panel the instructions it reads in its own order, its model and its MCP servers, `copilot mcp list` run in the home
+  folder alone and a project's files read as text. Usage says its limits are not told.
 - A chat's task list and its approved plan, in both clients: Claude's tasks and Codex's plan in one place, a strip over
   the app's prompt (`3 of 5 done`) and under the chosen chat in the TUI's Chats; a plan approved in plan mode opens with
   Open the plan. The app's timeline tells only the changes (`Tasks 5 added`, a ticked line for each step done).

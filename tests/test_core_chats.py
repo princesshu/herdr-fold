@@ -1,4 +1,4 @@
-"""Tests for core/chats.py in a temporary HOME: the Claude Code, Codex and OpenCode chats with title, folder,
+"""Tests for core/chats.py in a temporary HOME: the Claude Code, Codex, OpenCode and Copilot chats with title, folder,
 time and state; a file read again only where it grew, unreadable files and damaged lines skipped, none of their files
 written."""
 import contextlib
@@ -773,6 +773,126 @@ class OpenCode(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             self.assertEqual(chats.main(["chats.py", "markdown", "opencode", "ses_a1"]), 0)
         self.assertIn("**OpenCode**\n\nIn src/health.py.", json.loads(out.getvalue())["markdown"])
+
+
+class Copilot(unittest.TestCase):
+    """Copilot CLI's chats as it keeps them (1.0's session-state/<id>/: events.jsonl and workspace.yaml, invented), only
+    read: named, listed with the others, marked running, copied; never deleted from here."""
+
+    def setUp(self):
+        self.home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.home)
+        set_env(self, HOME=self.home, COPILOT_HOME=None)
+        self.state = os.path.join(self.home, ".local", "state", "herdr", "plugins", "herdr-fold.sidebar")
+
+    def session(self, id, changed, *turns, name=None, folder="/Users/dev/lumen-api", base=None):
+        """A chat in Copilot's session state changed at CHANGED: its start, then TURNS (role, text, or with a third
+        part, the subagent whose line it is), each event as Copilot writes it; its workspace.yaml with NAME. Its log."""
+        place = os.path.join(base or os.path.join(self.home, ".copilot"), "session-state", id)
+        os.makedirs(place, exist_ok=True)
+        events = [{"type": "session.start", "data": {"sessionId": id, "version": 1, "producer": "copilot-agent",
+                                                       "copilotVersion": "1.0.116", "context": {"cwd": folder}},
+                   "id": "e0", "timestamp": "2026-11-20T09:00:00.000Z", "parentId": None}]
+        for n, (role, said, *agent) in enumerate(turns, 1):
+            events.append({"type": f"{role}.message", "data": {"content": said, "messageId": f"m{n}"},
+                           "id": f"e{n}", "timestamp": "2026-11-20T09:00:01.000Z", "parentId": f"e{n - 1}",
+                           **({"agentId": agent[0]} if agent else {})})
+        log = os.path.join(place, "events.jsonl")
+        with open(log, "w", encoding="utf-8") as f:
+            f.write("".join(json.dumps(one, separators=(",", ":")) + "\n" for one in events))
+        with open(os.path.join(place, "workspace.yaml"), "w", encoding="utf-8") as f:
+            f.write(f"id: {id}\ncwd: {folder}\nbranch: main\nclient_name: github/cli\n" + (f"name: {name}\n" if name
+                    else "") + "user_named: false\nsummary_count: 0\ncreated_at: 2026-11-20T09:00:00.000Z\n")
+        os.utime(log, (changed, changed))
+        return log
+
+    def listed(self, agents=()):
+        return {c.id: c for c in chats.local(self.state, agents) if c.agent == "copilot"}
+
+    def test_a_chat_goes_by_a_name_given_in_herdr_its_own_name_or_its_first_prompt(self):
+        self.session("0cb916db-0001", 1795600000, ("user", "Where is the health check?"),
+                     ("assistant", "In src/health.py."), name="Health check endpoint")
+        self.session("0cb916db-0002", 1795600100, ("user", "Add a readiness probe\nthen test it"))
+        self.session("0cb916db-0003", 1795600200, ("user", "Rate limits"), name="'Rate limits: the public routes'")
+        self.session("0cb916db-0004", 1795600300, ("user", "Throttle"), name="Throttle the uploads")
+        chats.name_session("0cb916db-0004", "Upload limits")
+        found = self.listed()
+        self.assertEqual({k: (c.title, c.folder, c.time) for k, c in found.items()},
+                         {"0cb916db-0001": ("Health check endpoint", "/Users/dev/lumen-api", 1795600000),
+                          "0cb916db-0002": ("Add a readiness probe", "/Users/dev/lumen-api", 1795600100),
+                          "0cb916db-0003": ("Rate limits: the public routes", "/Users/dev/lumen-api", 1795600200),
+                          "0cb916db-0004": ("Upload limits", "/Users/dev/lumen-api", 1795600300)})
+
+    def test_a_long_name_folded_onto_the_next_line_and_a_quoted_one_read_whole(self):
+        log = self.session("0cb916db-0001", 1795600000, ("user", "x"))
+        with open(os.path.join(os.path.dirname(log), "workspace.yaml"), "w", encoding="utf-8") as f:
+            f.write('id: 0cb916db-0001\nname: "Fix the page past the last one \\"and\\" the empty\n  one"\n'
+                    "cwd: /Users/dev/harbor web\n")
+        self.assertEqual((self.listed()["0cb916db-0001"].title, self.listed()["0cb916db-0001"].folder),
+                         ('Fix the page past the last one "and" the empty one', "/Users/dev/harbor web"))
+
+    def test_a_subagents_lines_and_an_empty_chat_are_no_prompt(self):
+        self.session("0cb916db-0001", 1795600000, ("user", "Search the code", "explore"), ("user", "Fix the login"))
+        self.session("0cb916db-0002", 1795600100)                                   # nothing asked yet
+        self.session("0cb916db-0003", 1795600200, ("user", "Only a subagent's", "explore"))
+        self.assertEqual({k: c.title for k, c in self.listed().items()}, {"0cb916db-0001": "Fix the login"})
+
+    def test_it_is_listed_with_the_others_the_newest_first_and_marked_running(self):
+        self.session("0cb916db-0001", 1795600100, ("user", "Health check"))
+        self.session("0cb916db-0002", 1795600000, ("user", "Readiness probe"))
+        agents = [{"agent": "copilot", "agent_status": "working", "pane_id": "p1", "cwd": "/Users/dev/lumen-api"}]
+        self.assertEqual([(c.agent, c.id, c.state, c.pane) for c in chats.local(self.state, agents)],
+                         [("copilot", "0cb916db-0001", "working", "p1"), ("copilot", "0cb916db-0002", "", "")])
+        told = [{"agent": "copilot", "agent_status": "blocked", "pane_id": "p2",
+                 "agent_session": {"value": "0cb916db-0002"}}]
+        self.assertEqual([(c.id, c.state) for c in chats.local(self.state, told) if c.state],
+                         [("0cb916db-0002", "blocked")])
+        self.assertEqual(chats.RESUME["copilot"], "--resume")                  # copilot --resume ID reopens it
+
+    def test_copy_chat_is_its_prompts_and_replies_in_order(self):
+        self.session("0cb916db-0001", 1795600000, ("user", "Where is the health check?"),
+                     ("assistant", "In src/health.py."), ("assistant", "", ), ("user", "Search it", "explore"),
+                     ("assistant", "Found it", "explore"), ("user", "And the readiness probe?"),
+                     ("assistant", "Not there yet."), name="Health check")
+        item = self.listed()["0cb916db-0001"]
+        self.assertEqual(chats.markdown(item), "# Health check\n\n**You**\n\nWhere is the health check?\n\n"
+                         "**Copilot**\n\nIn src/health.py.\n\n**You**\n\nAnd the readiness probe?\n\n"
+                         "**Copilot**\n\nNot there yet.\n")
+        for gone in ("0cb916db-gone", "../0cb916db-0001", "-x"):
+            self.assertIsNone(chats.markdown(chats.Chat("copilot", gone, "Gone", "/Users/dev/lumen-api", 0)), gone)
+
+    def test_its_files_are_only_read(self):
+        log = self.session("0cb916db-0001", 1795600000, ("user", "Health check"), name="Health check")
+        place = os.path.dirname(log)
+        before = {name: read(os.path.join(place, name)) for name in os.listdir(place)}
+        chats.markdown(self.listed()["0cb916db-0001"])
+        self.assertEqual({name: read(os.path.join(place, name)) for name in os.listdir(place)}, before)
+
+    def test_it_is_found_where_copilot_home_says(self):
+        set_env(self, COPILOT_HOME=os.path.join(self.home, "elsewhere"))
+        self.session("0cb916db-0001", 1795600000, ("user", "Health check"), base=os.path.join(self.home, "elsewhere"))
+        self.session("0cb916db-0002", 1795600000, ("user", "not where Copilot looks now"))
+        self.assertEqual(list(self.listed()), ["0cb916db-0001"])
+        self.assertIn("Health check", chats.markdown(self.listed()["0cb916db-0001"]))
+
+    def test_one_is_never_deleted_from_here(self):
+        log = self.session("0cb916db-0001", 1795600000, ("user", "Health check"))
+        with self.assertRaises(fileops.Refused):
+            chats.delete(self.state, "copilot", "0cb916db-0001")
+        self.assertTrue(os.path.isfile(log))
+        self.assertEqual(chats.KEPT["copilot"], "Copilot keeps its chats in its own session store")
+
+    def test_the_cli_lists_and_copies_it(self):
+        self.session("0cb916db-0001", 1795600000, ("user", "Health check"), ("assistant", "In src/health.py."))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(chats.main(["chats.py", "list", "[]", "{}"]), 0)
+        self.assertEqual([(c["agent"], c["id"]) for c in json.loads(out.getvalue())["chats"]],
+                         [("copilot", "0cb916db-0001")])
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(chats.main(["chats.py", "markdown", "copilot", "0cb916db-0001"]), 0)
+        self.assertIn("**Copilot**\n\nIn src/health.py.", json.loads(out.getvalue())["markdown"])
 
 
 if __name__ == "__main__":

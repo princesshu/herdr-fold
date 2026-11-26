@@ -553,6 +553,13 @@ test("an agent in a terminal tab: as the app starts it, in the space's folder, t
   assert.deepEqual(terminalTab(opencode, { space: "s1", folder: "/work/lumen-api" }),
     { name: "OpenCode", space: "s1", folder: "/work/lumen-api", argv: ["opencode"] });
   assert.deepEqual(terminalSpace(opencode, { machine: "" }), { machine: "", tab: "OpenCode", argv: ["opencode"] });
+  // Copilot the same way, as the app's own programs list has it
+  const copilot = agentChoices([...known, { key: "copilot", name: "Copilot", icon: "icons/copilot.svg", tint: true,
+    run: ["copilot"], installed: true }], DRAWABLE, ["copilot"])[0];
+  assert.deepEqual([copilot.key, copilot.terminal], ["copilot", true]);
+  assert.deepEqual(terminalTab(copilot, { space: "s1", folder: "/work/lumen-api" }),
+    { name: "Copilot", space: "s1", folder: "/work/lumen-api", argv: ["copilot"] });
+  assert.deepEqual(terminalSpace(copilot, { machine: "lab" }), { machine: "lab", tab: "Copilot", argv: ["copilot"] });
 });
 
 test("the / menu follows what is typed after a \"/\" at the prompt's start, till a space or a new line", () => {

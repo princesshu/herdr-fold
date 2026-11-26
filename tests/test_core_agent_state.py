@@ -185,7 +185,7 @@ class AgentState(unittest.TestCase):
         found = agent_state.machine_agents(self.home)
         self.assertEqual([(a["key"], a["name"], a["installed"]) for a in found],
                          [("claude", "Claude", True), ("codex", "Codex", False), ("opencode", "OpenCode", False),
-                          ("gemini", "Gemini CLI", False)])
+                          ("copilot", "Copilot", False), ("gemini", "Gemini CLI", False)])
         self.assertEqual(found[1], {"key": "codex", "name": "Codex", "installed": False, "signed_in": None,
                                     "plan": None, "login": ["codex", "login"],
                                     "install": "npm install -g @openai/codex",
@@ -193,6 +193,7 @@ class AgentState(unittest.TestCase):
         self.assertEqual([(a["login"], a["install"]) for a in found if a["key"] != "codex"], [
             (["claude", "auth", "login"], "npm install -g @anthropic-ai/claude-code"),
             (["opencode", "auth", "login"], "npm install -g @opencode/cli"),
+            (["copilot", "login"], "npm install -g @github/copilot"),
             (["gemini"], "npm install -g @google/gemini-cli")])
         self.assertTrue(all(a["page"].startswith("https://") for a in found))
         # where the caller looks: Gemini CLI alone is there
@@ -292,9 +293,23 @@ class AgentState(unittest.TestCase):
                 self.assertEqual((found["signed_in"], found["plan"]), (signed, None))
         self.assertIsNone(agent_state.standing(agent_state.machine_agents(self.home, fresh=True)[2]))
 
+    def test_copilot_tells_no_sign_in_so_it_is_never_said_to_be_signed_out(self):
+        # Copilot CLI 1.0 has no command that says whether it is signed in (its /user is asked inside it), and its
+        # token is its own (the keychain, else its config.json): nothing is run or read, it is installed alone
+        log = self.programs({"copilot": {}})
+        copilot = agent_state.machine_agents(self.home)[3]
+        self.assertEqual(copilot, {"key": "copilot", "name": "Copilot", "installed": True, "signed_in": None,
+                                   "plan": None, "login": ["copilot", "login"],
+                                   "install": "npm install -g @github/copilot",
+                                   "page": "https://docs.github.com/copilot/how-tos/copilot-cli"})
+        self.assertEqual(self.calls(log), [])
+        self.assertIsNone(agent_state.standing(copilot))                      # its setup shows, never "sign in"
+        self.assertEqual(agent_state.listed(copilot), {"group": "Agents on this Mac", "dim": False, "word": None,
+                                                       "tone": None})
+
     def test_gemini_has_no_state(self):
         log = self.programs({"gemini": {}})
-        self.assertEqual(agent_state.machine_agents(self.home)[3], {
+        self.assertEqual(agent_state.machine_agents(self.home)[4], {
             "key": "gemini", "name": "Gemini CLI", "installed": True, "signed_in": None, "plan": None,
             "login": ["gemini"], "install": "npm install -g @google/gemini-cli",
             "page": "https://github.com/google-gemini/gemini-cli"})
@@ -329,8 +344,9 @@ class AgentState(unittest.TestCase):
             self.assertEqual(agent_state.main(["agent_state.py", "agents"]), 0)
         agents = json.loads(out.getvalue())
         self.assertEqual([(a["key"], (a["empty"] or {}).get("kind")) for a in agents],
-                         [("claude", "sign-in"), ("codex", "install"), ("opencode", "install"), ("gemini", "install")])
-        self.assertEqual([a["listed"]["group"] for a in agents], ["Agents on this Mac"] + ["Not installed"] * 3)
+                         [("claude", "sign-in"), ("codex", "install"), ("opencode", "install"), ("copilot", "install"),
+                          ("gemini", "install")])
+        self.assertEqual([a["listed"]["group"] for a in agents], ["Agents on this Mac"] + ["Not installed"] * 4)
 
     def test_an_agents_row_in_the_heads_list(self):
         agent = {"key": "codex", "name": "Codex", "installed": True, "signed_in": True, "plan": "Plus"}
@@ -348,13 +364,13 @@ class AgentState(unittest.TestCase):
         log = self.programs({"claude": {"auth status --json": [json.dumps(SIGNED_IN), "", 0]},
                              "codex": {"login status": ["", "", 0]}})
         for _ in range(2):
-            self.assertEqual([a["signed_in"] for a in agent_state.machine_agents(self.home)], [True, True, None, None])
+            self.assertEqual([a["signed_in"] for a in agent_state.machine_agents(self.home)], [True, True] + [None] * 3)
         self.assertEqual([c["program"] for c in self.calls(log)], ["claude", "codex"])
         self.answer({"claude": {"auth status --json": [json.dumps({"loggedIn": False, "authMethod": "none"}), "", 1]},
                      "codex": {"login status": ["", "", 1]}})
         # asked fresh (as after a sign-in), or a minute on: asked again
         self.assertEqual([a["signed_in"] for a in agent_state.machine_agents(self.home, fresh=True)],
-                         [False, False, None, None])
+                         [False, False] + [None] * 3)
         with mock.patch.object(agent_state, "KEEP", 0):
             agent_state.machine_agents(self.home)
         self.assertEqual([c["program"] for c in self.calls(log)], ["claude", "codex"] * 3)
@@ -375,7 +391,7 @@ class AgentState(unittest.TestCase):
             self.assertEqual(agent_state.main(["agent_state.py", "agents"]), 0)
         self.assertEqual([(a["key"], a["installed"], a["signed_in"], a["plan"]) for a in json.loads(out.getvalue())],
                          [("claude", True, True, "Max"), ("codex", True, True, None), ("opencode", False, None, None),
-                          ("gemini", False, None, None)])
+                          ("copilot", False, None, None), ("gemini", False, None, None)])
         os.remove(os.path.join(self.bin, "claude"))
         self.stand_in({"sentry": ["sentry:\n  Status: ✓ Connected\n", "", 0]})
         out = io.StringIO()

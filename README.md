@@ -24,8 +24,8 @@ Codex's month against its budget and what each space cost, above a terminal](ass
 
 In the workspace's own order, the TUI's (herdr in Ghostty) and the Herdr app's alike unless a line says otherwise:
 
-- **Spaces and sessions**: a space per repository, Claude, Codex or OpenCode on the left; how long an agent has waited
-  on you, AI Sessions with each chat's state, Cmd + D / Cmd + E through them: [Spaces](docs/usage.md#spaces).
+- **Spaces and sessions**: a space per repository, Claude, Codex, OpenCode or Copilot on the left; how long an agent
+  has waited on you, AI Sessions with each chat's state, Cmd + D / Cmd + E through them: [Spaces](docs/usage.md#spaces).
 - **The chat** (the Herdr app): Claude as a timeline, its questions answered in the prompt's place, its agent, model,
   mode, effort, context and cost in its bar; Start in a home space: [The chat](docs/app.md#the-chat).
 - **Checkpoints**: a Claude chat's files back to how they were at one of its prompts, Claude saying first what changes,
@@ -40,8 +40,8 @@ In the workspace's own order, the TUI's (herdr in Ghostty) and the Herdr app's a
 - **Pull requests**: the branch's own under Changes, a new one's title and body written by the agent, the repository's
   list beside Issues, and in the app a review with comments on its lines: [Pull requests](docs/usage.md#pull-requests).
 - **Issues to the agent** in one key; the next commit closes the issue: [GitHub issues](docs/usage.md#github-issues).
-- **Chats**: every space's Claude, Codex and OpenCode chats, running and closed, a click or Cmd + Shift + R away, the
-  chosen one's task list under it: [Chats](docs/usage.md#chats).
+- **Chats**: every space's Claude, Codex, OpenCode and Copilot chats, running and closed, a click or Cmd + Shift + R
+  away, the chosen one's task list under it: [Chats](docs/usage.md#chats).
 - **The Agent panel**: the agent's rules, skills, subagents, permissions, hooks, connectors and limits, each part
   changed from a form that shows the line it writes, with Undo: [The agent's harness](docs/harness.md).
 - **Media connectors**: image, voice and video services (fal, ElevenLabs, FLUX, Runway…) added from the Agent panel;
@@ -66,7 +66,7 @@ issue](assets/screenshots/tui-issue-to-agent.webp)
 
 - a Mac with Apple silicon and macOS 15 or later (what Homebrew supports; on an Intel Mac the install may get
   through, but it is not supported or tested);
-- a coding agent, signed in: Claude Code, Codex or OpenCode;
+- a coding agent, signed in: Claude Code, Codex, OpenCode or GitHub Copilot CLI (with a Copilot plan);
 - Homebrew (the installer offers to install it). herdr 0.9.5 or newer, Ghostty and the rest come from the `Brewfile`.
 
 ## Install

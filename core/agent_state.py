@@ -40,6 +40,8 @@ HOW = {"claude": {"program": "claude", "login": ["claude", "auth", "login"],
                  "page": "https://developers.openai.com/codex/cli"},
        "opencode": {"program": "opencode", "login": ["opencode", "auth", "login"],
                     "install": "npm install -g @opencode/cli", "page": "https://opencode.ai/docs/"},
+       "copilot": {"program": "copilot", "login": ["copilot", "login"], "install": "npm install -g @github/copilot",
+                   "page": "https://docs.github.com/copilot/how-tos/copilot-cli"},
        "gemini": {"program": "gemini", "login": ["gemini"], "install": "npm install -g @google/gemini-cli",
                   "page": "https://github.com/google-gemini/gemini-cli"}}
 # the head's list in both clients' words: its two groups' heads (beside one signed out: agent_setup.py's sign in)
@@ -109,8 +111,8 @@ def opencode_state(binary):
 
 def machine_agents(home, which=None, fresh=False):
     """The agents herdr-fold knows, in its order: installed (WHICH finds its program; else the usual places), signed in
-    and on which plan (None where it does not tell: Gemini CLI's never does), how it signs in and is installed. An
-    answer is kept KEEP seconds; FRESH asks again (after a sign-in)."""
+    and on which plan (None where it does not tell: Copilot and Gemini CLI never do), how it signs in and is installed.
+    An answer is kept KEEP seconds; FRESH asks again (after a sign-in)."""
     found = []
     for key, known in setup.KNOWN.items():
         how = HOW[key]

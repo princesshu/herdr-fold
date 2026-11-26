@@ -26,7 +26,7 @@ What is the machine's own is saved first, in `~/.local/state/herdr-fold/` there 
 
 No copy of herdr-fold's own files is kept: the package has them.
 
-It installs no coding agent (Claude Code, Codex, OpenCode) and signs none in: do that once on each machine.
+It installs no coding agent (Claude Code, Codex, OpenCode, Copilot CLI) and signs none in: do that once on each machine.
 
 For a machine you add by hand that `~/.ssh/known_hosts` does not know yet, it shows the fingerprint of the machine's
 ED25519 key and asks whether to trust it: type `y` once it matches the machine's own (on a Linux or Mac machine:

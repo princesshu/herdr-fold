@@ -1,6 +1,6 @@
 """Tests for core/agent_layers.py in a temporary home, folder and managed folder: the Agent panel's layers of what
-agent_setup.py and opencode_setup.py read, in both clients' words: the head, the sections with their rows, properties
-and actions, the command the app runs; nothing of the agents' written."""
+agent_setup.py, opencode_setup.py and copilot_setup.py read, in both clients' words: the head, the sections with their
+rows, properties and actions, the command the app runs; nothing of the agents' written."""
 import contextlib
 import io
 import json
@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import agent_layers    # noqa: E402
 import agent_layers_cli    # noqa: E402
 import agent_setup    # noqa: E402
+import copilot_setup    # noqa: E402
 import opencode_setup    # noqa: E402
 
 # a row the graph draws ends with its way there, the first only where it is the row's one action
@@ -912,6 +913,145 @@ class OpenCodeLayers(AgentHome, unittest.TestCase):
             self.assertEqual(agent_layers_cli.main(["agent_layers_cli.py", "opencode", self.folder]), 0)
         told = json.loads(out.getvalue())
         self.assertEqual((told["agent"], told["head"]["name"], told["states"]), ("opencode", "OpenCode", {}))
+
+
+class CopilotLayers(AgentHome, unittest.TestCase):
+    """Copilot CLI's setup in the rows Claude's and Codex's take: its instructions as `copilot instruction list` gives
+    them (1.0's), its model from its settings, the repository's over the user's, its servers as `copilot mcp list`
+    gives them in the home folder (a stand-in's) and a project's read as text; no graph, no form, no + of its own."""
+
+    ASK = "mcp list --json"
+
+    def setUp(self):
+        super().setUp()
+        set_env(self, COPILOT_HOME=None)
+        self.own = os.path.join(self.home, ".copilot")
+        self.put(os.path.join(self.folder, ".git", "HEAD"), "ref: refs/heads/main\n")      # lumen-api: its top
+
+    def layers(self, folder=None):
+        folder = folder or self.folder
+        return agent_layers.layers(copilot_setup.setup(folder, self.home), "copilot", folder, self.home)
+
+    def listed(self, **servers):
+        """What `copilot mcp list --json` prints for SERVERS ({name: config})."""
+        return json.dumps({"mcpServers": servers}, indent=2)
+
+    def test_its_instructions_in_its_order_one_for_some_files_alone(self):
+        self.programs({"copilot": {self.ASK: [self.listed(), "", 0]}})
+        mine = self.put(os.path.join(self.own, "copilot-instructions.md"), "Answer briefly.")
+        self.put(os.path.join(self.own, "instructions", "style.instructions.md"),
+                 '---\napplyTo: "**/*.ts, **/*.tsx"\n---\nPrefer named exports.\n')
+        self.put(os.path.join(self.folder, "GEMINI.md"), "Gemini's notes")
+        self.put(os.path.join(self.folder, "AGENTS.md"), "Keep handlers small.")
+        self.put(os.path.join(self.folder, ".github", "copilot-instructions.md"), "Use TypeScript strict mode.")
+        self.put(os.path.join(self.folder, ".github", "instructions", "api.instructions.md"),
+                 "---\napplyTo:\n  - src/api/**\n---\nValidate every request body.\n")
+        self.put(os.path.join(self.folder, ".claude", "rules", "tests.md"), "Tests next to the code.")
+        self.put(os.path.join(self.home, ".claude", "CLAUDE.md"), "Claude's own: Copilot reads none of the home's")
+        self.put(os.path.join(os.path.dirname(self.folder), "AGENTS.md"), "above the repository")
+        rows = AgentLayers.section(self.layers(), "rules")["rows"]
+        self.assertEqual([(r["name"], r["tag"], r["note"], r["dim"], r["agents"]) for r in rows], [
+            ("~/.copilot/copilot-instructions.md", "Global", None, False, ["copilot"]),
+            ("~/.copilot/instructions/style.instructions.md", "Global", "when **/*.ts or **/*.tsx is read", True,
+             ["copilot"]),
+            ("copilot-instructions.md", "Project", None, False, ["copilot"]),
+            ("AGENTS.md", "Project", None, False, ["copilot"]),
+            ("GEMINI.md", "Project", None, False, ["copilot"]),
+            ("api.instructions.md", "Project", "when src/api/** is read", True, ["copilot"]),
+            ("tests.md", "Project", None, False, ["copilot"])])
+        self.assertEqual(rows[0]["properties"]["actions"], [opened(mine, "copilot-instructions.md", True)])
+
+    def test_in_a_folder_below_the_top_its_own_files_follow_the_tops(self):
+        self.programs({"copilot": {self.ASK: [self.listed(), "", 0]}})
+        below = os.path.join(self.folder, "services", "billing")
+        self.put(os.path.join(self.folder, "AGENTS.md"), "top")
+        self.put(os.path.join(self.folder, "services", "AGENTS.md"), "between: not read")
+        self.put(os.path.join(below, "AGENTS.md"), "here")
+        self.put(os.path.join(below, ".github", "copilot-instructions.md"), "here's Copilot notes")
+        self.put(os.path.join(self.folder, ".github", "copilot-instructions.md"), "the top's Copilot notes")
+        self.assertEqual([r["name"] for r in AgentLayers.section(self.layers(below), "rules")["rows"]], [
+            "../../.github/copilot-instructions.md", "copilot-instructions.md", "../../AGENTS.md", "AGENTS.md"])
+
+    def test_its_model_and_servers_its_list_asked_in_the_home_folder_alone(self):
+        set_env(self, COPILOT_MODEL="gpt-6-luna")         # an environment's: not what its settings start it with
+        user_mcp = self.put(os.path.join(self.own, "mcp-config.json"), "{}")
+        self.put(os.path.join(self.own, "settings.json"), '{\n  // mine\n  "model": "gpt-6.2-sol", '
+                 '"effortLevel": "high",\n  "disabledMcpServers": ["docs"],\n}\n')
+        self.put(os.path.join(self.folder, ".github", "copilot", "settings.json"), json.dumps(
+            {"model": "claude-sonnet-5.5", "disabledMcpServers": ["tiles"]}))
+        self.put(os.path.join(self.folder, ".github", "copilot", "settings.local.json"), '{"effortLevel": "low"}')
+        project = self.put(os.path.join(self.folder, ".mcp.json"), '{"mcpServers": {\n'
+                           '  "tracker": {"type": "http", "url": "https://tracker.lumen.example/v2/mcp?key=k1"},\n'
+                           '  "db": {"command": "node", "args": ["tools/db-mcp.js"], "env": {"DB_URL": "pg://x"}},}}')
+        self.put(os.path.join(self.folder, ".github", "mcp.json"),
+                 '{"mcpServers": {"ignored": {"command": "x"}}}')         # beside a .mcp.json: not read
+        log = self.programs({"copilot": {self.ASK: [self.listed(
+            tracker={"type": "local", "command": "npx", "args": ["-y", "@lumen/tracker-mcp"], "source": "user",
+                     "env": {"TRACKER_TOKEN": "trk_0000"}, "enabled": True},
+            docs={"type": "http", "url": "https://docs.lumen.example/mcp", "source": "user", "enabled": False},
+            tiles={"url": "https://tiles.lumen.example/mcp", "source": "plugin", "sourcePlugin": "harbor",
+                   "enabled": True},
+            **{"computer-use": {"command": "/opt/copilot/computer-use-mcp", "source": "builtin",
+                                "sourcePlugin": "computer-use", "enabled": False},
+               "github-mcp-server": {"type": "http", "url": "https://api.githubcopilot.com/mcp/",
+                                     "source": "builtin"}}), "", 0]}})
+        before = self.files()
+        found = self.layers()
+        self.assertEqual({k: v for k, v in self.files().items() if k != log}, before)
+        self.assertEqual([(c["argv"], c["cwd"]) for c in map(json.loads, logged(log))],     # never in the project:
+                         [(self.ASK.split(), os.path.realpath(self.home))])                # its plugins are code
+        head = found["head"]
+        self.assertEqual((head["name"], head["runs"], head["effort"]), ("Copilot", "claude-sonnet-5.5", "Low"))
+        self.assertEqual([s["id"] for s in found["sections"]], ["connectors"])            # no rule here; nothing else
+        self.assertEqual([(r["name"], r["tag"], r["state"]["text"], r["properties"]["lines"],
+                           r["properties"]["actions"]) for r in AgentLayers.section(found, "connectors")["rows"]], [
+            ("computer-use", "computer-use", "off", [["From", "computer-use", "Plugin"],
+                                                     ["Runs", "/opt/copilot/computer-use-mcp", None]], []),
+            ("db", "Project", "not checked", [["From", ".mcp.json", "Project"], ["Runs", "node tools/db-mcp.js", None]],
+             [opened(project, ".mcp.json", True)]),
+            ("docs", "Global", "off", [["From", "~/.copilot/mcp-config.json", "Global"],
+                                       ["URL", "docs.lumen.example/mcp", None]],
+             [opened(user_mcp, "mcp-config.json", True)]),
+            ("tiles", "harbor", "off", [["From", "harbor", "Plugin"], ["URL", "tiles.lumen.example/mcp", None]], []),
+            ("tracker", "Project", "not checked", [["From", ".mcp.json", "Project"],    # the project's over yours
+                                                   ["URL", "tracker.lumen.example/v2/mcp", None]],
+             [opened(project, ".mcp.json", True)])])
+        said = json.dumps(found)
+        for secret in ("trk_0000", "pg://x", "key=k1", "ignored", "github-mcp-server"):
+            self.assertNotIn(secret, said)
+        self.assertIsNone(found["connect"]["add"])                                # herdr-fold adds none to it
+        self.assertNotIn(SHOW, [a for s in found["sections"] for r in s["rows"] for a in r["properties"]["actions"]])
+
+    def test_servers_it_could_not_list_are_not_read_never_none(self):
+        self.programs({"copilot": {self.ASK: ["", "Error: mcp-config.json: invalid JSON", 1]}})
+        self.put(os.path.join(self.folder, "AGENTS.md"), "lumen-api")
+        found = self.layers()
+        self.assertEqual(len(AgentLayers.section(found, "rules")["rows"]), 1)       # its instructions read all the same
+        section = AgentLayers.section(found, "connectors")
+        self.assertIsNone(section["count"])
+        self.assertEqual(section["rows"][0]["properties"]["text"],
+                         "`copilot mcp list` gave no list, so which servers Copilot has is not known here.")
+
+    def test_copilot_home_moves_its_own_files(self):
+        moved = os.path.join(self.home, "elsewhere")
+        set_env(self, COPILOT_HOME=moved)
+        self.programs({"copilot": {self.ASK: [self.listed(), "", 0]}})
+        self.put(os.path.join(moved, "copilot-instructions.md"), "Mine, moved")
+        self.put(os.path.join(self.own, "copilot-instructions.md"), "not read where COPILOT_HOME moves it")
+        self.assertEqual([r["name"] for r in AgentLayers.section(self.layers(), "rules")["rows"]],
+                         ["~/elsewhere/copilot-instructions.md"])
+
+    def test_not_here_none_and_the_cli_prints_it(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(agent_layers_cli.main(["agent_layers_cli.py", "copilot", self.folder]), 0)
+        self.assertIsNone(json.loads(out.getvalue()))
+        self.programs({"copilot": {self.ASK: [self.listed(), "", 0]}})
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(agent_layers_cli.main(["agent_layers_cli.py", "copilot", self.folder]), 0)
+        told = json.loads(out.getvalue())
+        self.assertEqual((told["agent"], told["head"]["name"], told["states"]), ("copilot", "Copilot", {}))
 
 
 def opened(path, name, primary):

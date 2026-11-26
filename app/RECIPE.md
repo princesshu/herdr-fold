@@ -65,10 +65,10 @@ diff, a commit or an issue opens in the space's preview tab. Twelve themes come 
   another machine known, a head per machine that folds its spaces.
 - Chats: Chats at the tab bar's end shows them in the view's place, its filter taking the keys, as the TUI sidebar's
   does: by space (a folder with no space open under its name), the running ones marked; a click goes to a running one or
-  reopens a closed one in a new tab (a Claude chat as a chat tab; with Open agents in: Terminal, and Codex's and
-  OpenCode's always, `claude --resume`, `codex resume`, `opencode --session`) and the view comes back, as with Chats
-  again, Esc or a tab; right click: Open, Copy chat, Rename, Archive, Delete… (asked in its row, then its file to the
-  Trash; never an OpenCode chat's, kept in OpenCode's own database).
+  reopens a closed one in a new tab (a Claude chat as a chat tab; with Open agents in: Terminal, and Codex's,
+  OpenCode's and Copilot's always, `claude --resume`, `codex resume`, `opencode --session`, `copilot --resume`) and the
+  view comes back, as with Chats again, Esc or a tab; right click: Open, Copy chat, Rename, Archive, Delete… (asked in
+  its row, then its file to the Trash; never an OpenCode or Copilot chat's, kept in the agent's own store).
 - New agents: + after the tabs (Cmd + N) opens a new chat with the agent used last that a chat draws: New chat and
   `in <space> · <branch>` in its middle, the prompt with the agent's chip; the chip's list (a filter, the recent first,
   not installed dim, `terminal` for one no chat draws) picks another, one marked terminal opening in a terminal tab in
@@ -100,15 +100,15 @@ diff, a commit or an issue opens in the space's preview tab. Twelve themes come 
 - Search: ripgrep (else git grep) as you type, with case, word and regex switches. Issues: by priority, filters, hand
   one to the tab's agent (none there: a new one, as + starts it), reply, assign, close; Pull requests beside them, a
   press opening one's review in the preview tab (comments on a line, Approve, Request changes).
-- Agent: what the space's agent (Claude, Codex or OpenCode) starts with in the folder: a head line (`Opus 5.5 · High ·
-  starts at 34.2k of 1M`) and a bar of what loads, then Usage, Subagents, Rules, Skills, Permissions (with its Hooks)
-  and Connectors as layers with their counts and costs, a failed server or one to sign in to first and as a chip on the
-  head line (a press chooses its row; a dot on the Agent tab and the rail meanwhile), a filter from the head's search. A
-  press chooses a row: its properties under the layers, the label left and the value right, with Open (its file in the
-  preview tab), Show in graph and, on a failed server, Retry (`claude mcp get`). A row that can be changed holds its
-  form there (the mode, the model and effort, the sandbox, a permission rule, a switch for a skill, a subagent, a
-  connector or every hook): the layer to save in, the line the save writes, Save, then Undo at the panel's foot;
-  `helper.js`'s `HARNESS` plans and writes it. A chat's Context panel leads here (Show all in Agent).
+- Agent: what the space's agent (Claude, Codex, OpenCode or Copilot) starts with in the folder: a head line (`Opus 5.5 ·
+  High · starts at 34.2k of 1M`) and a bar of what loads, then Usage, Subagents, Rules, Skills, Permissions (with its
+  Hooks) and Connectors as layers with their counts and costs, a failed server or one to sign in to first and as a chip
+  on the head line (a press chooses its row; a dot on the Agent tab and the rail meanwhile), a filter from the head's
+  search. A press chooses a row: its properties under the layers, the label left and the value right, with Open (its
+  file in the preview tab), Show in graph and, on a failed server, Retry (`claude mcp get`). A row that can be changed
+  holds its form there (the mode, the model and effort, the sandbox, a permission rule, a switch for a skill, a
+  subagent, a connector or every hook): the layer to save in, the line the save writes, Save, then Undo at the panel's
+  foot; `helper.js`'s `HARNESS` plans and writes it. A chat's Context panel leads here (Show all in Agent).
 - Agents: a tab of the main area, one a space, with the agent's graph: three columns (what goes in, the agent with its
   subagents, what they use), an edge solid, dashed, waiting or failed, the permission and the hook as gates on it. A
   press chooses a node (its properties at the canvas's foot), a node drags and stays where it is let go, a double click
@@ -166,8 +166,8 @@ diff, a commit or an issue opens in the space's preview tab. Twelve themes come 
 ## Watch out
 
 - It runs programs (`exec`, `hc`): git, gh, ripgrep and Python 3 on the space's machine; a commit message sends the
-  staged diff to Claude Code or Codex there. It reads the repository, this Mac's Claude and Codex chat files and
-  OpenCode's database (read-only), and gh's GitHub sign-in.
+  staged diff to Claude Code or Codex there. It reads the repository, this Mac's Claude, Codex and Copilot chat files
+  and OpenCode's database (read-only), and gh's GitHub sign-in.
 - `image()` takes a path from the app's home: pictures are made in `herdr-fold-pictures/` there, a day at most.
 - `image()` takes the picture's own size where its box has none: `size_full()` in a `flex_1()` box grows past it.
   The preview puts the picture `absolute()` at 100% of a `relative()` box, and the app fits it there.

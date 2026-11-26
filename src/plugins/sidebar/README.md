@@ -1,10 +1,10 @@
 # Sidebar
 
-A herdr plugin: AI agents' harnesses in one pane, the same on macOS, Linux and Windows: every space's Claude Code, Codex
-and OpenCode chats and the Agent view (each agent's rules, skills, subagents, permissions and connectors, its limits and
-costs, a Usage view, its graph as a tree), with Files, Search, Changes (git) and Issues (GitHub). Every new empty tab
-gets it on the right, above a terminal, beside the tab's own shell, as wide as in every other tab; when herdr starts, it
-comes back in every tab, but where a pane was closed by hand.
+A herdr plugin: AI agents' harnesses in one pane, the same on macOS, Linux and Windows: every space's Claude Code,
+Codex, OpenCode and Copilot chats and the Agent view (each agent's rules, skills, subagents, permissions and connectors,
+its limits and costs, a Usage view, its graph as a tree), with Files, Search, Changes (git) and Issues (GitHub). Every
+new empty tab gets it on the right, above a terminal, beside the tab's own shell, as wide as in every other tab; when
+herdr starts, it comes back in every tab, but where a pane was closed by hand.
 
 The views are buttons in one row at the top, each its icon over its name: Files, Search, Changes, Issues, Agent,
 then Chats and More. One view shows under the row, the whole height; a click on a button, or its key, shows its view,
@@ -80,24 +80,25 @@ the issue it fixes and the Graph, Issues by priority](../../../assets/screenshot
   a word alone (`urgent`, `blocker`, `low`…; `minor`, `major`, `normal`, `moderate` and `backlog` only in a named label;
   `P4` on: low); critical, urgent and high red, medium yellow, low green, on the mark, the number and the priority. One
   opens in the preview tab with its comments; handed to the agent, it becomes a prompt in the tab's agent's pane
-  (Claude, Codex or OpenCode; with none there, in the one started last, in a new tab of the space), and the next written
-  commit message fixes it (`Fixes #42`), until a commit from anywhere closes it. A new issue, a reply, closing,
-  reopening, assigning to you (the right click's menu).
-- **Chats** (the list over the sidebar): the Claude Code, Codex and OpenCode chats of herdr's spaces, each space with a
-  chat a group in the Spaces list's order, its chats under it, a running one's mark in its state's color and the closed
-  ones faint, their agent and age at the right (an OpenCode chat is archived, never deleted here: OpenCode keeps its
-  chats in its own database); under the chosen one its task list (Claude's tasks, Codex's plan: the done steps in one
-  row, the step at work, the ones to do; `plan.py`), with Open the plan where a plan mode's plan was approved, in your
-  editor; a Claude chat's Checkpoints… (or → on its row) takes its files back to how they were at one of its prompts
-  ([Checkpoints](../../../docs/usage.md#checkpoints)). Typing filters; Enter or a click goes to a running one, or
-  reopens a closed one in a new tab of its space with the right column beside it; a right click offers Open, Copy chat
-  (the whole of it, formatted on a Mac), Rename (the name AI Sessions, a running one's pane and the tab it has to itself
-  show too) and, for a closed one, Archive (off the list, its file as it was), several at once when marked (Space,
-  Shift + ↑ ↓, or the box at a closed row's start); More (⋯) and a right click beside them, while any is archived, Show
-  archived (the archived ones back in sight, a shade fainter; Unarchive puts one back). Delete…, last in a closed chat's
-  menu, is the rarer one: asked first at the list's foot, by the chat's name, then its row leaves and its file is moved
-  to the system's Trash; never a running chat's. The action **Chats: find** (`actions.py find-chat`) opens the list, its
-  filter empty and the keys going to it, in the tab's sidebar (one closed by hand comes back) or the space's first.
+  (Claude, Codex, OpenCode or Copilot; with none there, in the one started last, in a new tab of the space), and the
+  next written commit message fixes it (`Fixes #42`), until a commit from anywhere closes it. A new issue, a reply,
+  closing, reopening, assigning to you (the right click's menu).
+- **Chats** (the list over the sidebar): the Claude Code, Codex, OpenCode and Copilot chats of herdr's spaces, each
+  space with a chat a group in the Spaces list's order, its chats under it, a running one's mark in its state's color
+  and the closed ones faint, their agent and age at the right (an OpenCode or Copilot chat is archived, never deleted
+  here: OpenCode keeps its chats in its own database, Copilot in its own session store); under the chosen one its task
+  list (Claude's tasks, Codex's plan: the done steps in one row, the step at work, the ones to do; `plan.py`), with Open
+  the plan where a plan mode's plan was approved, in your editor; a Claude chat's Checkpoints… (or → on its row) takes
+  its files back to how they were at one of its prompts ([Checkpoints](../../../docs/usage.md#checkpoints)). Typing
+  filters; Enter or a click goes to a running one, or reopens a closed one in a new tab of its space with the right
+  column beside it; a right click offers Open, Copy chat (the whole of it, formatted on a Mac), Rename (the name AI
+  Sessions, a running one's pane and the tab it has to itself show too) and, for a closed one, Archive (off the list,
+  its file as it was), several at once when marked (Space, Shift + ↑ ↓, or the box at a closed row's start); More (⋯)
+  and a right click beside them, while any is archived, Show archived (the archived ones back in sight, a shade fainter;
+  Unarchive puts one back). Delete…, last in a closed chat's menu, is the rarer one: asked first at the list's foot, by
+  the chat's name, then its row leaves and its file is moved to the system's Trash; never a running chat's. The action
+  **Chats: find** (`actions.py find-chat`) opens the list, its filter empty and the keys going to it, in the tab's
+  sidebar (one closed by hand comes back) or the space's first.
 
   ![Chats open in the sidebar beside Claude: each space's chats, lumen-api's open with Claude's two and Codex's
   four, a running one's mark in its state's color, the closed ones faint](../../../assets/screenshots/tui-chats.webp)
@@ -188,30 +189,32 @@ Alt + Enter commits from the message there too.
   files. The AI runs with no tools, memories or plugins, and Claude with none of your instructions (Codex still reads
   its own `~/.codex/AGENTS.md`), so a diff cannot make it read or send anything else. The AI tool sends what it gets to
   its own service; the sidebar itself sends nothing anywhere but the look for a newer herdr-fold (below).
-- Chats reads Claude's and Codex's chat files (`~/.claude/projects/`, `~/.codex/sessions/`,
-  `~/.codex/session_index.jsonl`), OpenCode's database (`~/.local/share/opencode/opencode.db`, read-only, asked
-  whole each time) and AI Sessions' names (`names.json` of `herdr-fold.sessions-view`), never
-  writing the chat files (Rename writes the name you give into that `names.json`, under AI Sessions' own
-  lock; Delete…, once you answer its question, moves a closed chat's own file to the system's Trash and nothing
-  else, as [A chat you delete](../../../SECURITY.md#a-chat-you-delete) lists); each file is read through once, then
-  only where it grew, kept in `chat-index.json` in its state folder; the chosen chat's file is read on for its task
-  list, and Open the plan copies the plan it approved into `plans/<id>/plan.md` there and opens it in your editor.
-  The archived chats, whether they are shown, the chat a pane reopens (until herdr knows its
-  session), and whether the one-time note on a pane closed by hand was shown are in `chats.json` there. What
-  each tab has had is in `panels.json` there: a pane closed by hand stays closed until it is brought back: its key,
-  Restore panels (`panes.py --restore`, Cmd+Shift+O in herdr-fold), or the sidebar's ⋯ menu (a right click on the
-  row too: the terminal closed or shown back, Restore panels). Copy chat puts one on the
-  clipboard (`pbcopy` and, on a Mac, `osascript` for the formatted version). herdr's command line lists the running
-  agents, goes to one (`herdr agent focus`), and reopens a closed chat (`herdr tab create`, `herdr pane split`,
-  `herdr agent start` with the agent's own resume: `--resume`, `resume`, `--session`), and names a running one's pane
-  and its own tab on Rename (`herdr pane rename`, `herdr tab rename`).
+- Chats reads Claude's, Codex's and Copilot's chat files (`~/.claude/projects/`, `~/.codex/sessions/`,
+  `~/.codex/session_index.jsonl`, `~/.copilot/session-state/`: a chat's `events.jsonl` and `workspace.yaml`), OpenCode's
+  database (`~/.local/share/opencode/opencode.db`, read-only, asked whole each time) and AI Sessions' names
+  (`names.json` of `herdr-fold.sessions-view`), never writing the chat files (Rename writes the name you give into that
+  `names.json`, under AI Sessions' own lock; Delete…, once you answer its question, moves a closed chat's own file to
+  the system's Trash and nothing else, as [A chat you delete](../../../SECURITY.md#a-chat-you-delete) lists); each file
+  is read through once, then only where it grew, kept in `chat-index.json` in its state folder; the chosen chat's file
+  is read on for its task list, and Open the plan copies the plan it approved into `plans/<id>/plan.md` there and opens
+  it in your editor. The archived chats, whether they are shown, the chat a pane reopens (until herdr knows its
+  session), and whether the one-time note on a pane closed by hand was shown are in `chats.json` there. What each tab
+  has had is in `panels.json` there: a pane closed by hand stays closed until it is brought back: its key, Restore
+  panels (`panes.py --restore`, Cmd+Shift+O in herdr-fold), or the sidebar's ⋯ menu (a right click on the row too: the
+  terminal closed or shown back, Restore panels). Copy chat puts one on the clipboard (`pbcopy` and, on a Mac,
+  `osascript` for the formatted version). herdr's command line lists the running agents, goes to one (`herdr agent
+  focus`), and reopens a closed chat (`herdr tab create`, `herdr pane split`, `herdr agent start` with the agent's own
+  resume: `--resume`, `resume`, `--session`, Copilot's `--resume`), and names a running one's pane and its own tab on
+  Rename (`herdr pane rename`, `herdr tab rename`).
 - For Agent, what the agent reads in the folder and in your home, as text: Claude's `CLAUDE.md` files and rules, its
   settings files (the organization's too), skills, subagents, `.mcp.json`, `~/.claude.json` (the servers and this
   folder's settings, never the account), the enabled plugins' own, and the lines of its newest sessions that tell the
   servers' state and what the open chat used; Codex's `AGENTS.md` files, rules and skills, and its servers
   through `codex mcp list --json` (in a tab with Codex); OpenCode's `AGENTS.md` or `CLAUDE.md` files, and its config
   files and servers through `opencode debug config --standalone` in the home folder (a private server, never its
-  background service), a project's `opencode.json` read as text, never run (its plugins are code).
+  background service), a project's `opencode.json` read as text, never run (its plugins are code); Copilot's
+  instructions and settings files, and its servers through `copilot mcp list --json` in the home folder, a project's
+  `.mcp.json` read as text.
   herdr's command line names the tab's agent (`herdr pane list`,
   `herdr agent list`). Retry runs `claude mcp get <name>` in the folder, which checks only a server Claude approved.
   On your press it runs the agent's own commands, each one argv with the server's name as one argument: `claude mcp

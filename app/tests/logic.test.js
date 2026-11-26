@@ -688,13 +688,15 @@ test("an issue's text has no image to fetch and no HTML, in code or not, and rea
   assert.equal(safeMarkdown(plain), plain);
 });
 
-test("an issue goes to the focused tab's own Claude, Codex or OpenCode, not another tab's nor another program", () => {
+test("an issue goes to the focused tab's own coding agent, not another tab's nor another program", () => {
   const agents = [{ tab: "t1", address: "t3", program: { key: "claude" } },
     { tab: "t2", address: "t4", program: { key: "codex" } }, { tab: "t2", address: "t5", program: { key: "pi" } },
-    { tab: "t10", address: "t11", program: { key: "opencode" } }];
+    { tab: "t10", address: "t11", program: { key: "opencode" } },
+    { tab: "t12", address: "t13", program: { key: "copilot" } }];
   assert.equal(issueAgent(agents, "t1")?.address, "t3");
   assert.equal(issueAgent(agents, "t2")?.address, "t4");
   assert.equal(issueAgent(agents, "t10")?.address, "t11");              // as the TUI hands it to OpenCode
+  assert.equal(issueAgent(agents, "t12")?.address, "t13");              // and to Copilot
   assert.equal(issueAgent(agents, "t9"), null);
   // a chat tab's agent, a terminal with no pane: the tab's own when no pane's agent is there; an ended one is not
   const chats = [{ address: "t8", state: "live", labels: { [CHAT_TAB]: "t9" } },
@@ -1866,16 +1868,19 @@ const talk = (id, folder, time, state = "", pane = "") =>
 const shown = (rows) => rows.map((r) => (r.kind === "group" ? `${r.name} ${r.items.length} ${r.open}` : r.item.id));
 const PLACE = { "/repo/shop": "shop", "/repo/api": "api" };
 
-test("the app's agents as core/chats.py takes herdr's: Claude, Codex and OpenCode on this Mac, with their folder",
+test("the app's agents as core/chats.py takes herdr's: those whose chats it lists on this Mac, with their folder",
   () => {
     const agents = [{ address: "t1", pane: "p1", space: "s1", status: "working", program: { key: "claude" } },
       { address: "t2", pane: "p2", space: "s1", status: "idle", program: { key: "pi" } },
       { address: "t4", pane: "p4", space: "s1", status: "blocked", program: { key: "opencode" } },
+      { address: "t5", pane: "p5", space: "s1", status: "done", program: { key: "copilot" } },
       { address: "box/t3", pane: "p3", space: "s2", status: "blocked", program: { key: "codex" } }];
-    const panes = [{ pane: "p1", cwd: "/repo/app" }, { pane: "p3", cwd: "/srv" }, { pane: "p4", cwd: "/repo/api" }];
+    const panes = [{ pane: "p1", cwd: "/repo/app" }, { pane: "p3", cwd: "/srv" }, { pane: "p4", cwd: "/repo/api" },
+      { pane: "p5", cwd: "/repo/web" }];
     assert.deepEqual(coreAgents(agents, panes, new Set(["s1"])),
       [{ agent: "claude", agent_status: "working", pane_id: "t1", cwd: "/repo/app" },
-        { agent: "opencode", agent_status: "blocked", pane_id: "t4", cwd: "/repo/api" }]);
+        { agent: "opencode", agent_status: "blocked", pane_id: "t4", cwd: "/repo/api" },
+        { agent: "copilot", agent_status: "done", pane_id: "t5", cwd: "/repo/web" }]);
   });
 
 test("a folder is the first of this Mac's spaces with a pane there, as the TUI's column reads it", () => {
@@ -1928,6 +1933,8 @@ test("a closed one reopens with its agent's resume, its id never an option, a sp
   assert.deepEqual(resumeArgv({ agent: "codex", id: "019a.x_y" }), ["codex", "resume", "019a.x_y"]);
   assert.deepEqual(resumeArgv({ agent: "opencode", id: "ses_2150a9850001ZJ5z" }),
     ["opencode", "--session", "ses_2150a9850001ZJ5z"]);
+  assert.deepEqual(resumeArgv({ agent: "copilot", id: "0cb916db-26aa-40f2-86b5-1ba81b225fd2" }),
+    ["copilot", "--resume", "0cb916db-26aa-40f2-86b5-1ba81b225fd2"]);
   for (const id of ["--help", "-x", "a b", "a\u001b[2J", ""]) {
     assert.throws(() => resumeArgv({ agent: "claude", id }), id);
   }
@@ -1954,6 +1961,9 @@ test("Delete… is off for a running chat, its tip saying why; a closed or an ar
     "OpenCode keeps its chats in its own database: delete it there");
   assert.equal(deleteOff({ ...talk("s", "/x", 1, "working"), agent: "opencode" }),
     "A running chat is not deleted: close it first");
+  // a Copilot chat is a folder of its session store, which Copilot's own /session delete keeps in order
+  assert.equal(deleteOff({ ...talk("s", "/x", 1), agent: "copilot" }),
+    "Copilot keeps its chats in its own session store: delete it there");
 });
 
 test("a chat on its way to the Trash is no row, its space counting one fewer", () => {

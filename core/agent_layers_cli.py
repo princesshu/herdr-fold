@@ -1,6 +1,6 @@
 """The command the Herdr app mod runs for the Agent panel's layers (agent_layers.py's, with Claude's own looks over
 its servers), a module of its own: graph.py's helper, which draws from those layers, does not carry it. Usage (in
-JSON): agent_layers_cli.py claude FOLDER [SESSION] [--checked JSON] | codex FOLDER | opencode FOLDER."""
+JSON): agent_layers_cli.py claude FOLDER [SESSION] [--checked JSON] | codex|opencode|copilot FOLDER."""
 import json
 import os
 import sys
@@ -10,7 +10,10 @@ from agent_layers import SAID_AS, layers  # noqa: E402
 from agent_setup import clean, conversation, setup  # noqa: E402
 from calls import counted  # noqa: E402
 from jsonl import obj  # noqa: E402
+import copilot_setup  # noqa: E402
 import opencode_setup  # noqa: E402
+
+OWN = {"opencode": opencode_setup.setup, "copilot": copilot_setup.setup}     # the agents read by a module of their own
 
 
 def checked_over(servers, checked):
@@ -24,25 +27,25 @@ def checked_over(servers, checked):
 
 
 def main(argv):
-    """The Herdr app mod runs this on the space's machine, answering in JSON: claude FOLDER [SESSION], codex FOLDER and
-    opencode FOLDER (the Agent panel's layers, "states" each server's own; SESSION a file or an id, else the newest;
-    Claude's may end with --checked JSON)."""
+    """The Herdr app mod runs this on the space's machine, answering in JSON: claude FOLDER [SESSION], and codex,
+    opencode or copilot FOLDER (the Agent panel's layers, "states" each server's own; SESSION a file or an id, else the
+    newest; Claude's may end with --checked JSON)."""
     home, checked = os.path.expanduser("~"), {}
     if argv[1:2] == ["claude"] and argv[-2:-1] == ["--checked"] and len(argv) in (5, 6):
         try:
             argv, checked = argv[:-2], json.loads(argv[-1])
         except ValueError:
             argv = argv[:1]                         # not JSON: the usage
-    if argv[1:2] == ["claude"] and len(argv) in (3, 4) or argv[1:2] in (["codex"], ["opencode"]) and len(argv) == 3:
+    if argv[1:2] == ["claude"] and len(argv) in (3, 4) or len(argv) == 3 and argv[1] in ("codex", *OWN):
         session = conversation(argv[2], argv[3] if len(argv) == 4 else None, home) if argv[1] == "claude" else None
-        found = opencode_setup.setup(argv[2], home) if argv[1] == "opencode" else setup(argv[1], argv[2], home, session)
+        found = OWN[argv[1]](argv[2], home) if argv[1] in OWN else setup(argv[1], argv[2], home, session)
         states = {one["name"]: one["state"] for one in found["servers"]} if found else {}
         if found:
             counted(checked_over(found["servers"], checked), home)
         print(json.dumps(found and {"agent": argv[1], "folder": argv[2], "states": states,
                                     **layers(found, argv[1], argv[2], home)}))
         return 0
-    print("usage: agent_layers_cli.py claude FOLDER [SESSION] [--checked JSON] | codex FOLDER | opencode FOLDER",
+    print("usage: agent_layers_cli.py claude FOLDER [SESSION] [--checked JSON] | codex|opencode|copilot FOLDER",
           file=sys.stderr)
     return 2
 

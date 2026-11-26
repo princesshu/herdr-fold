@@ -1,10 +1,10 @@
 # The agent's harness
 
-An agent's harness is what Claude Code, Codex or OpenCode starts with in a folder: its model and effort, its rules,
-skills, subagents, permissions, hooks and connectors, and what all of that costs. herdr-fold shows it, changes a part of
-it from a form, and draws it as a graph, for Claude and Codex in full and for OpenCode as far as it tells
-([below](#the-agent-panel)). Both clients have it, in the same words: `core/` reads the files, words the rows, plans
-each change and writes it.
+An agent's harness is what Claude Code, Codex, OpenCode or Copilot CLI starts with in a folder: its model and effort,
+its rules, skills, subagents, permissions, hooks and connectors, and what all of that costs. herdr-fold shows it,
+changes a part of it from a form, and draws it as a graph, for Claude and Codex in full and for OpenCode and Copilot as
+far as they tell ([below](#the-agent-panel)). Both clients have it, in the same words: `core/` reads the files, words
+the rows, plans each change and writes it.
 
 | | The TUI sidebar | The Herdr app |
 |---|---|---|
@@ -19,10 +19,10 @@ This page calls the first one the Agent panel in both. The TUI's keys inside the
 ## The Agent panel
 
 It shows the agent picked for the folder, kept until another is picked (the TUI: per folder, in every tab; the app:
-per space). With none picked it is the tab's Claude, Codex or OpenCode, else the one herdr-fold started last. The
-setup is read when the panel shows, when the folder's rules and settings or the agent's own folder change (the app),
-and every 30 s while it shows; behind another view it is looked at every 5 minutes, for the dot on its button. A space
-on another machine says `On <machine>: with a later version` in the app.
+per space). With none picked it is the tab's Claude, Codex, OpenCode or Copilot, else the one herdr-fold started last.
+The setup is read when the panel shows, when the folder's rules and settings or the agent's own folder change (the
+app), and every 30 s while it shows; behind another view it is looked at every 5 minutes, for the dot on its button. A
+space on another machine says `On <machine>: with a later version` in the app.
 
 ### The head
 
@@ -47,7 +47,8 @@ An agent with no setup to show says why in its place, in core's words:
 - not signed in: Sign in runs the agent's own login (`claude auth login`, `codex login`, `gemini`) in a terminal tab.
   The panel asks the agents again every 5 s, 10 minutes at most. herdr-fold keeps no token. OpenCode is never said to
   be signed out: with no provider it runs its free models. `opencode auth login`, in a terminal, connects one, and once
-  `opencode auth list` names it, OpenCode is signed in.
+  `opencode auth list` names it, OpenCode is signed in. Copilot is never said to be signed out either: it has no
+  command that tells, and its token is its own (`copilot login` signs in, `/user` in Copilot shows the account).
 - not installed: its vendor's install line with Copy, and a link to its page. herdr-fold runs no installer.
 
 An agent whose setup herdr-fold does not read (Gemini CLI, signed in) has its head alone.
@@ -60,6 +61,20 @@ read as text and never run: a project's config can load its plugins, code. Each 
 `not checked`; the head's model
 and effort are its config's. It has no Subagents, Skills or Permissions here, nothing of it is changed from the panel
 (no form, no +), it has no graph, and Usage says its limits are not told: it keeps no plan's limits on the machine.
+
+Copilot's setup is read the same way (`core/copilot_setup.py`, Copilot CLI 1.0's): Rules, the instructions it reads in
+the order `copilot instruction list` gives them (your `~/.copilot/copilot-instructions.md` and
+`~/.copilot/instructions/`; then in the repository's top, and in the folder below it, `.github/copilot-instructions.md`,
+then `AGENTS.md`, `CLAUDE.md`, `.claude/CLAUDE.md` and `GEMINI.md`, then `.github/instructions/` and `.claude/rules/`),
+an `.instructions.md` file's `applyTo` read as the files it is for; and Connectors, your servers as `copilot mcp list`
+gives them, run in the home folder (yours, your plugins', its built-in plugins'), and the project's `.mcp.json` (else
+`.github/mcp.json`), read as text from the folder up to the repository's top, the nearest winning, as Copilot merges
+them. Each `off` where Copilot or a settings file's `disabledMcpServers` says so, else `not checked`: Copilot starts a
+project's servers only in a folder you trusted, which herdr-fold does not read. The head's model and effort are its
+settings' (`~/.copilot/settings.json`, then the repository's `.github/copilot/settings.json` and `settings.local.json`
+over it). The rest is as OpenCode's: no Subagents, Skills, Permissions, form, + or graph, and Usage says its limits
+are not told: Copilot asks GitHub for its plan's use when its `/usage` shows it, and keeps none of it on the machine.
+`COPILOT_HOME` moves its own folder, as it does Copilot's.
 
 ### The sections
 
@@ -392,10 +407,11 @@ seconds while open, every 5 while a run works.
 
 - It reads the agent's own files as text: the folder's and the home's rules, settings, skills and subagents
   (`CLAUDE.md`, `AGENTS.md`, `.claude/`, `.mcp.json`, `~/.claude`, `~/.claude.json`, `~/.codex`), and the agent's
-  session files for the servers' state, what a chat used and its token counts. OpenCode's config is what
-  `opencode debug config` lists, run in the home folder, and a project's `opencode.json` and `.opencode/` read as text,
-  never run. A server's command line and address show; its environment, its headers' values and an address's query
-  never leave the reader.
+  session files for the servers' state, what a chat used and its token counts. OpenCode's config is what `opencode debug
+  config` lists, run in the home folder, and a project's `opencode.json` and `.opencode/` read as text, never run.
+  Copilot's servers are what `copilot mcp list` lists, run in the home folder, and a project's `.mcp.json` read as text;
+  its settings and instructions are read as text. A server's command line and address show; its environment, its
+  headers' values and an address's query never leave the reader.
 - It writes an agent's settings file only on a form's Save, one key of the list above.
 - Every other change is the agent's own command, run on your press: a server checked, a sign-in, a sign-out, a
   connector added, `/mcp enable`, a run started, stopped, removed or applied.
