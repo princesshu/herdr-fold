@@ -33,7 +33,8 @@ ED25519 key and asks whether to trust it: type `y` once it matches the machine's
 `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`; on Windows: `ssh-keygen -lf
 C:\ProgramData\ssh\ssh_host_ed25519_key.pub`). Only that key is trusted, so ssh refuses the machine if it later shows
 another; a machine that shows no ED25519 key is not added. Machines from `~/.ssh/config` and your Tailscale network are
-not asked about: ssh trusts their key on the first connection and checks it from then on.
+not asked about: ssh trusts their key on the first connection and checks it from then on. The list keeps each machine's
+key, the machine itself ([One machine, several routes](#one-machine-several-routes)).
 
 ## Adding a machine later
 
@@ -51,6 +52,60 @@ Shift + M, or `./machines.sh status`), unasked: its address on the list becomes 
 takes that file's key and options. The machine's name stays, and so does the address herdr connects it with: the same
 machine. A Host with its own `Port`, `ProxyJump`, `ProxyCommand` or `HostKeyAlias` is left alone: that is another
 endpoint, whose key ssh would take unasked.
+
+## One machine, several routes
+
+A machine is its SSH host key, its ED25519 key's fingerprint on the list: a network is only a way to it, a route. The
+same Mac on the local network and on Tailscale is one machine with two routes, and two machines of the same name on
+two networks stay two machines.
+
+A machine offered again under another address, from `~/.ssh/config`, a Tailscale network or typed in, that shows the
+key of one on the list is that machine. The questions say so, and offer the route instead of a second machine:
+
+```text
+  studio.tail0000.ts.net is studio, already on the list: also reachable on Tailscale.
+  Add this route? [Y/n]
+```
+
+Its key is known from Tailscale's own record of it, where Tailscale gives one, or read from the machine before the
+question (`ssh-keyscan`, 5 seconds at most), and only when a machine on the list could be it. A machine offered with
+the name of one on the list and another key is another machine: it is offered as `<name>-<network>`
+(`studio-tailscale`), or `<name>-2` by address. Where neither key is known, a machine of that name is still taken for
+the listed one, as before.
+
+A yes puts the route on the machine's line. herdr keeps the address it connects a machine with, so for one it has
+connected already the route is recorded and shown, and the connection stays as it is. One herdr has not connected yet
+is reached through a Host of herdr-fold's own from then on, `herdr-fold.<name>` in `~/.config/herdr-fold/ssh_config`,
+which herdr-fold writes whole from the list (edits there are lost): its first route is the one ssh connects by (the
+local network's first, then the virtual networks, then a public address), and every route looks the key up under that
+one name (`HostKeyAlias`), so a route that answers with another key, a café's `studio.local`, is refused on every
+route. Its key is trusted under that name only from the key `~/.ssh/known_hosts` already trusts for it, and the Host
+forwards no agent. `./machines.sh` names a machine's other routes under its heading (`also Tailscale:
+studio.tail0000.ts.net`).
+
+herdr and the Herdr app reach those Hosts through one line at the top of `~/.ssh/config`, asked for at the first route:
+
+```text
+      herdr-fold reaches a machine by several routes, or through another one, with a Host of its own.
+  Add one line at the top of ~/.ssh/config to include them (Include ~/.config/herdr-fold/ssh_config)? [Y/n]
+```
+
+A yes puts two lines there, a comment naming herdr-fold and `Include ~/.config/herdr-fold/ssh_config`, above every
+Host line of yours, which stay as they are; every ssh on this Mac then knows `herdr-fold.<name>` too. A no is kept:
+each machine keeps one route, and only `./machines.sh include` asks again. To take the line off, delete those two
+lines (a machine whose address on the list is `herdr-fold.<name>` then needs its route back as its address);
+`./uninstall.sh` sets each such machine back to its first route's address, in herdr and on the list, then takes the
+lines off with the file ([Uninstalling](uninstall.md#what-goes-and-what-stays)).
+
+A machine Tailscale knows a host key for is checked before anything of it goes on the list: when the key it shows
+differs, the questions say `studio's key does not match the one Tailscale knows: not added`, and that key is never
+trusted. A key read that takes over a second shows a waiting line, `checking studio's key`.
+
+The list, `~/.config/herdr-fold/machines.txt`, has a line per machine: `name | target | os | key | routes`. The target
+is the address herdr connects with; the key the fingerprint; the routes each way to it, `<network> user@address` (the
+network `local`, `tailscale`, another word or none), the one in use first, and `through:<machine> user@address` for one
+reached through another machine on the list (`ProxyJump`). A line of an earlier version has the first three fields,
+and is read as it is: the list is written again only when a machine is added or changed.
 
 ## Networks
 
@@ -102,6 +157,7 @@ In the `herdr-fold` folder:
 ./machines.sh add alpha         # set one machine up again
 ./machines.sh prepare           # push changed settings out to the machines
 ./machines.sh remove alpha      # take a machine off the list and the package off the machine
+./machines.sh include           # the line in ~/.ssh/config for herdr-fold's Hosts, asked again after a no
 herdr machine list              # the connected machines
 ```
 

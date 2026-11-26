@@ -206,6 +206,7 @@ machines.help = Remote machines (Linux, macOS, Windows) in herdr — on the cent
   \n  ./machines.sh add [name…]     prepare + connect to herdr (herdr asks before it installs anything)\
   \n  ./machines.sh prepare [name…] update only (apps, settings, plugins)\
   \n  ./machines.sh remove <name>   takes herdr-fold off the machine, disconnects it, takes it off the list\
+  \n  ./machines.sh include         the line in ~/.ssh/config that lets herdr reach a machine by its other routes\
   \nWithout names it applies to every machine on the list (~/.config/herdr-fold/machines.txt; machines connected in\
   \nherdr are taken over onto it). Any network works: all it needs is key-based SSH login to the machines.
 add_machine.no_package = Adding a machine needs the herdr-fold folder, and it isn't where the installer left it (%s).\
@@ -278,6 +279,22 @@ machines.new_failed = the new machine isn't connected yet — try again: Ctrl+B,
 machines.manual_user = user
 machines.manual_host = IP address or host name
 machines.manual_more = Add another machine?
+machines.also_route = %s is %s, already on the list: also reachable %s.
+machines.also_route_ask = Add this route?
+machines.route_on_tailscale = on Tailscale
+machines.route_on_local = on the local network
+machines.route_at = at that address
+machines.include_line = herdr-fold reaches a machine by several routes, or through another one, with a Host of its own.
+machines.include_ask = Add one line at the top of ~/.ssh/config to include them \
+  (Include ~/.config/herdr-fold/ssh_config)?
+machines.include_refused = %s keeps one route: more need the line in ~/.ssh/config (./machines.sh include)
+machines.include_done = ~/.ssh/config includes herdr-fold's Hosts (~/.config/herdr-fold/ssh_config)
+machines.network_tailscale = Tailscale
+machines.network_local = Local network
+machines.also_on = also %s: %s
+machines.also_at = also %s
+machines.checking_key = checking %s's key
+machines.key_mismatch = %s's key does not match the one Tailscale knows: not added
 
 # machines.sh: preparing and connecting a machine (the lines printed on the machine itself come from here too)
 machines.prepare_failed = preparing the machine failed
@@ -414,6 +431,14 @@ uninstall.kept_machine_list = kept: %s, the machine list
 uninstall.kept_private_words = kept: %s, the private word list
 uninstall.kept_ssh_key = kept: ~/.ssh/id_ed25519, the SSH key the installer made, and its Host * block in ~/.ssh/config
 uninstall.kept_host_keys = kept: the host keys of %s in ~/.ssh/known_hosts (ssh-keygen -R <host> takes one out)
+uninstall.include_removed = ~/.ssh/config no longer includes herdr-fold's Hosts: its two lines are off, and \
+  ~/.config/herdr-fold/ssh_config
+uninstall.target_back = %s is back at %s, its address before herdr-fold's own Host for it
+uninstall.target_off = %s is off herdr: it did not take it again at %s — add it: herdr machine add %s --label %s
+uninstall.target_kept = %s stays at herdr-fold.%s in herdr, so its Host and the Include line in ~/.ssh/config stay — \
+  to move it: herdr machine remove %s, then herdr machine add %s --label %s, then delete those two lines
+uninstall.target_behind = %s is reached through another machine: herdr keeps it at herdr-fold.%s, so its Host and the \
+  Include line in ~/.ssh/config stay
 uninstall.kept_github = kept: gh's GitHub sign-in (gh auth logout signs out)
 uninstall.kept_github_git = kept: git pushing to GitHub through gh, the credential lines in ~/.gitconfig
 uninstall.kept_git_author = kept: git's commit author, user.name and user.email in ~/.gitconfig

@@ -11,6 +11,10 @@ trim() { sed 's/^[[:space:]]*//; s/[[:space:]]*$//'; }
 MACHINE_LIST="$HOME/.config/herdr-fold/machines.txt"
 # The machines herdr-fold added to the Herdr app's core (hc); only these come off it again
 APP_MACHINES="$HOME/.local/state/herdr-fold/app-machines.txt"
+# herdr-fold's own ssh file, written from the list (core/machines.py): a Host for a machine with several routes, which
+# one Include line at the top of ~/.ssh/config lets herdr and the app reach; a no to that line is kept in the state
+SSH_HOSTS="$HOME/.config/herdr-fold/ssh_config"
+INCLUDE_REFUSED="$HOME/.local/state/herdr-fold/include-refused"
 
 # The Herdr app's core, hc (herdr-core): on PATH, else beside the app's command line
 hc_bin() {

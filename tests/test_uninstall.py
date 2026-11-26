@@ -20,6 +20,8 @@ case "$*" in
     [ -n "${STUB_NO_SERVER:-}" ] && { echo '{"error":{"code":"server_not_running"}}'; exit 1; }
     """ + FORGET_PLUGIN + """ "$STUB_PLUGINS" "$3" 2>/dev/null ;;
   "integration uninstall "*) [ -n "${STUB_INTEGRATION_FAILS:-}" ] && exit 1 ;;
+  "machine list --json") cat "$STUB_MACHINES" 2>/dev/null ;;
+  "machine remove "*) [ -n "${STUB_MACHINE_STAYS:-}" ] && exit 1 ;;
 esac
 exit 0
 """
@@ -27,6 +29,10 @@ CHATS = [".claude/projects/-Users-dev-app/s1.jsonl", ".codex/sessions/2026/10/22
                  ".local/state/herdr/plugins/herdr-fold.sessions-view/names.json"]
 THEIRS = {"type": "command", "command": "printf mine"}
 THEIR_CONFIG = '# mine\n[keys]\nnext_agent = ["ctrl+n"]\n'
+AT = "@"                        # a user before a host: put together here, never an e-mail's look
+THEIR_SSH = "Host *\n  AddKeysToAgent yes\n"
+INCLUDE = ("# herdr-fold: its machines' own Hosts (./uninstall.sh takes these two lines off)\n"
+           "Include ~/.config/herdr-fold/ssh_config\n\n")
 
 
 class Uninstall(PackageHome, unittest.TestCase):
@@ -361,6 +367,56 @@ class Uninstall(PackageHome, unittest.TestCase):
         self.assertNotIn(catalog_text("uninstall.kept", "~/.config/herdr-fold"),           # each file said instead
                          [line.strip() for line in out.splitlines()])
         self.assertFalse(os.path.exists(self.path(".local/state/herdr-fold/outside.txt")), out)
+
+    def test_the_include_line_and_herdr_folds_ssh_file_go(self):
+        # the line machines.sh put at the top of ~/.ssh/config on a yes, with its comment line, and the file it names
+        def used():
+            self.write(".ssh/config", INCLUDE + THEIR_SSH)
+            self.write(".config/herdr-fold/ssh_config", "# Written by herdr-fold from machines.txt\n")
+            self.write(".local/state/herdr-fold/include-refused", "")
+            self.outside("ssh-include")
+        _, out = self.install_and_uninstall(between=used)
+        self.assertEqual(self.read(".ssh/config"), THEIR_SSH)
+        self.assertIn(catalog_text("uninstall.include_removed"), out)
+        for rel in (".config/herdr-fold", ".local/state/herdr-fold/include-refused"):
+            self.assertFalse(os.path.exists(self.path(rel)), rel)
+
+    def moved(self, **env):
+        """studio moved to herdr-fold's own Host (the local network its first route), herdr connected at it; ENV the
+        fake herdr's for the uninstall."""
+        def used():
+            self.write(".ssh/config", INCLUDE + THEIR_SSH)
+            self.write(".config/herdr-fold/ssh_config", "Host herdr-fold.studio\n  HostName studio.local\n")
+            self.write(".config/herdr-fold/machines.txt", f"studio | herdr-fold.studio | macos | | local dev{AT}"
+                                                          f"studio.local, tailscale dev{AT}studio.tail0000.ts.net\n")
+            saved = [{"id": "m1", "label": "studio", "target": "herdr-fold.studio"}]
+            self.write("herdr-machines.json", json.dumps(saved))
+            self.env.update(STUB_MACHINES=self.path("herdr-machines.json"), **env)
+        return used
+
+    def studio_target(self):
+        return [cell.strip() for cell in self.read(".config/herdr-fold/machines.txt").splitlines()[-1].split("|")][1]
+
+    def test_a_moved_machine_goes_back_to_its_address_before_its_host_goes(self):
+        # herdr has no command that changes a saved machine's address: machines.sh's own remove, then add
+        _, out = self.install_and_uninstall(between=self.moved())
+        calls = logged(self.log)
+        added = f"herdr machine add dev{AT}studio.local --label studio"
+        self.assertLess(calls.index("herdr machine remove m1"), calls.index(added))
+        self.assertIn(catalog_text("uninstall.target_back", "studio", f"dev{AT}studio.local"), out)
+        self.assertEqual(self.studio_target(), f"dev{AT}studio.local")          # on the list too, its routes kept
+        self.assertEqual(self.read(".ssh/config"), THEIR_SSH)
+        self.assertFalse(os.path.exists(self.path(".config/herdr-fold/ssh_config")))
+
+    def test_a_machine_herdr_keeps_at_its_host_keeps_the_include_line(self):
+        # herdr did not let it go (not running, say): its Host and the line stay, named with how to move it
+        _, out = self.install_and_uninstall(between=self.moved(STUB_MACHINE_STAYS="1"))
+        self.assertIn(catalog_text("uninstall.target_kept", "studio", "studio", "m1", f"dev{AT}studio.local", "studio"),
+                      out)
+        self.assertNotIn(catalog_text("uninstall.include_removed"), out)
+        self.assertEqual(self.read(".ssh/config"), INCLUDE + THEIR_SSH)
+        self.assertTrue(os.path.isfile(self.path(".config/herdr-fold/ssh_config")))
+        self.assertEqual(self.studio_target(), "herdr-fold.studio")
 
     def test_only_what_the_installer_did_outside_its_folders_is_named(self):
         _, out = self.install_and_uninstall()

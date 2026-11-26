@@ -11,7 +11,7 @@ import tempfile
 import time
 import unittest
 
-from support import end_child
+from support import catalog_text, end_child
 
 PACKAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 LIB = os.path.join(PACKAGE, "lib/common.sh")
@@ -158,6 +158,19 @@ class Loading(unittest.TestCase):
                        PATH=f"{tmp}:/usr/bin:/bin", HOME=tmp)
         self.assertIn("REACHED", out)
         self.assertIn("dev@box", out)                                       # its line, while it waits
+        self.assertNotIn(SCENE, out)
+
+    def test_a_key_scan_says_it_is_running(self):
+        # ssh-keyscan's own 5 s end it: a plain line while it waits, then the key it read
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp)
+        with open(os.path.join(tmp, "ssh-keyscan"), "w") as f:
+            f.write('#!/bin/sh\nsleep 1.2\nfor host; do :; done\necho "$host ssh-ed25519 AAAAC3NzaC1lZDI1NTE5Key"\n')
+        os.chmod(os.path.join(tmp, "ssh-keyscan"), 0o755)
+        out = terminal(f'cd "{PACKAGE}" && . ./machines.sh && scanned_key studio studio.tail0000.ts.net',
+                       PATH=f"{tmp}:/usr/bin:/bin", HOME=tmp)
+        self.assertIn(catalog_text("machines.checking_key", "studio"), out)
+        self.assertIn("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5Key", out)
         self.assertNotIn(SCENE, out)
 
     def test_a_plain_line_has_no_sheep(self):

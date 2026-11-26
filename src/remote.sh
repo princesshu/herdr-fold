@@ -1,7 +1,9 @@
 # Shared helpers for remote machines (machines.sh, herdr_layout.py), over OpenSSH and the herdr CLI. A Windows SSH
 # shell can be cmd or PowerShell, so commands go as -EncodedCommand, which gets through either unchanged.
 
-SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
+# herdr-fold's own ssh forwards nothing: no port, no agent (a machine never gets to use this Mac's key)
+SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -o ClearAllForwardings=yes
+  -o ForwardAgent=no)
 
 # A text as a single-quoted literal for the machine's shell (sh_quote) or for PowerShell (ps_quote): nothing in it is
 # expanded. PowerShell ends a single-quoted string at the typographic quotes ‘ ’ ‚ ‛ too, so each of them is doubled.

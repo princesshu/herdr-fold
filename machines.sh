@@ -8,36 +8,32 @@ DOT=$(pwd)
 . "$DOT/lib/common.sh"
 . "$DOT/src/remote.sh"
 
-# remove_from_list NAME — takes NAME's line off the machine list
+core_list() { python3 "$DOT/core/machines.py" "$@"; }    # the list's own reader and writer (core/machines.py)
+
+# remove_from_list NAME — takes NAME's line off the machine list (herdr-fold's ssh file follows it)
 remove_from_list() {
   local tmp; tmp=$(mktemp)
   awk -F'|' -v n="$1" '{ name = $1; gsub(/^[ \t]+|[ \t]+$/, "", name) } name != n' "$MACHINE_LIST" > "$tmp" \
-    && mv "$tmp" "$MACHINE_LIST"
+    && mv "$tmp" "$MACHINE_LIST" && core_list hosts "$MACHINE_LIST"
 }
 
-# "name|target|os" lines from the machine list (filtered to the given names)
+# "name|target|os|key|routes" lines from the machine list (filtered to the given names); an older line has no key or
+# routes yet
 machines() {
   [ -f "$MACHINE_LIST" ] || return 0
-  grep -vE '^[[:space:]]*(#|$)' "$MACHINE_LIST" | while IFS='|' read -r name target os; do
+  grep -vE '^[[:space:]]*(#|$)' "$MACHINE_LIST" | while IFS='|' read -r name target os key routes; do
     name=$(echo "$name" | trim); target=$(echo "$target" | trim); os=$(echo "$os" | trim)
+    key=$(echo "${key:-}" | trim); routes=$(echo "${routes:-}" | trim)
     if [ $# -gt 0 ]; then
       case " $* " in *" $name "*) ;; *) continue ;; esac
     fi
-    echo "$name|$target|$os"
+    echo "$name|$target|$os|$key|$routes"
   done
 }
 
-add_line() {
-  if [ ! -f "$MACHINE_LIST" ]; then
-    mkdir -p "$(dirname "$MACHINE_LIST")"
-    cat > "$MACHINE_LIST" <<'LIST'
-# Remote machines in herdr (herdr-fold), filled in by the installer; edit by hand if you like. No passwords or keys
-# here: login uses this Mac's SSH key. Lines:  name | user@machine | os (linux / macos / windows)
-#   name: shown in herdr's sidebar (--machine <name>); machine: a DNS name, IP address or Tailscale name
-LIST
-  fi
-  printf '%-16s | %s | %s\n' "$1" "$2" "$3" >> "$MACHINE_LIST"
-}
+# add_line NAME TARGET OS [KEY] — a machine onto the list with its host key's fingerprint, else the one known_hosts
+# trusts where TARGET leads; a new list starts with the header that explains its fields
+add_line() { core_list add "$MACHINE_LIST" "$@"; }
 
 # Without a machine list yet (e.g. machines connected in herdr by hand), the machines connected in herdr go onto it,
 # with their OS; an unreachable one waits for the next run. An existing list is left as it is, so a machine taken off it
@@ -67,10 +63,10 @@ for m in machines:
 # ssh would take unasked, while the listed address had its fingerprint confirmed.
 use_config_hosts() {
   [ -f "$MACHINE_LIST" ] && [ -f "$HOME/.ssh/config" ] || return 0
-  local hosts name target os alias tmp
+  local hosts name target alias tmp
   hosts=$(ssh_config_hosts plain)
   [ -n "$hosts" ] || return 0
-  while IFS='|' read -r name target os <&3; do
+  while IFS='|' read -r name target _ <&3; do
     alias=$(printf '%s\n' "$hosts" | awk -F'|' -v t="$target" '$2 == t { print $1; exit }')
     [ -n "$alias" ] && [ "$alias" != "$target" ] || continue
     tmp=$(mktemp)
@@ -115,13 +111,109 @@ $out -join " "'
   fi
 }
 
+said() { _line "  " "$@"; }        # a line at the questions' own indent, saying what the next one is about
+
+# route_on NETWORK — a route's network in a sentence ("on Tailscale"; "at that address" for one not known)
+route_on() {
+  case $1 in
+    tailscale) printf '%s' "$(t machines.route_on_tailscale)" ;;
+    local) printf '%s' "$(t machines.route_on_local)" ;;
+    *) printf '%s' "$(t machines.route_at)" ;;
+  esac
+}
+
+# other_routes NAME — NAME's routes besides the one in use, a line each under its heading ("also Tailscale: …")
+other_routes() {
+  local network address
+  while IFS='|' read -r network address; do
+    case $network in
+      tailscale) note "$(t machines.also_on "$(t machines.network_tailscale)" "$address")" ;;
+      local) note "$(t machines.also_on "$(t machines.network_local)" "$address")" ;;
+      *) note "$(t machines.also_at "$address")" ;;
+    esac
+  done < <(core_list routes "$MACHINE_LIST" "$1")
+}
+
+# The listed machines' host keys, "name|fingerprint" a line: the one on the list, else the one known_hosts trusts
+machine_keys() { [ ! -f "$MACHINE_LIST" ] || core_list keys "$MACHINE_LIST"; }
+
+# identify KNOWN KEYS NETWORK NAME [ADDRESS…] — what a machine offered is, KNOWN machine_keys' lines: "listed|NAME" at
+# a listed machine's own name or address, "known|NAME" at another of its routes, "route|NAME|NETWORK" when its key is
+# NAME's (another way to it), else "new|the name it gets|NETWORK"
+identify() { local known=$1; shift; core_list identify "$MACHINE_LIST" "$@" <<< "$known"; }
+
+# keyscan LABEL HOST [PORT] — what ssh-keyscan reads of HOST's ED25519 key in 5 s at most, its lines as known_hosts has
+# them, under the waiting line "checking LABEL's key" (a line, as reaching one: its own timeout ends it soon)
+keyscan() {
+  LOADING_PLAIN=1 loading "$(t machines.checking_key "$1")" ssh-keyscan -T 5 -t ed25519 ${3:+-p "$3"} -- "$2" \
+    2>/dev/null | awk '!/^#/ && $2 == "ssh-ed25519"'
+}
+# scanned_key LABEL HOST [PORT] — the ED25519 key HOST shows now, "ssh-ed25519 AAAA…"
+scanned_key() { keyscan "$@" | awk '{ print $2, $3; exit }'; }
+# fingerprint_of KEYS — the fingerprint of the first of KEYS (key or known_hosts lines), as ssh-keygen -l prints it
+fingerprint_of() { [ -z "$1" ] || printf '%s\n' "$1" | ssh-keygen -lf - 2>/dev/null | awk '{ print $2; exit }'; }
+
+# tailscale_key_ok NAME DNS KEYS — false, said, when the machine at DNS shows another ED25519 key than those Tailscale
+# knows for it (KEYS): nothing of it is added, and the key it showed is never trusted. No answer: as before
+tailscale_key_ok() {
+  local shows; shows=$(fingerprint_of "$(scanned_key "$1" "$2")")
+  [ -z "$shows" ] || printf ',%s,' "$3" | grep -qF ",$shows," && return 0
+  warn "$(t machines.key_mismatch "$1")"
+  return 1
+}
+
+# connected NAME — herdr (with the TUI) or the Herdr app (with its part) has NAME already: it keeps the target it has
+connected() {
+  { of_parts tui $(installed_parts) && [ -n "$(machine_field "$1" id)" ]; } \
+    || grep -qxF "$1" "$APP_MACHINES" 2>/dev/null
+}
+
+# include_hosts — whether ~/.ssh/config includes herdr-fold's own Hosts: already, or after its question, asked once (a
+# no is kept and asked again only by ./machines.sh include)
+include_hosts() {
+  core_list included "$HOME/.ssh/config" && return 0
+  [ ! -f "$INCLUDE_REFUSED" ] || return 1
+  note "$(t machines.include_line)"
+  if ! ask "$(t machines.include_ask)" y; then
+    mkdir -p "$(dirname "$INCLUDE_REFUSED")" && : > "$INCLUDE_REFUSED"
+    return 1
+  fi
+  core_list include "$HOME/.ssh/config" && record_outside ssh-include
+}
+
+# also_route NAME NETWORK ADDRESS KEY — a machine offered whose host key KEY is NAME's: the same machine, at ADDRESS.
+# A yes makes that a route of NAME's (the Include line first); one herdr has not connected yet is then reached through
+# its own Host, its key trusted under that Host's name. Without the Include line it keeps one route.
+also_route() {
+  local name=$1 network=$2 address=$3 key=$4 move= alias
+  said "$(t machines.also_route "${address#*@}" "$name" "$(route_on "$network")")"
+  if [ -f "$INCLUDE_REFUSED" ] && ! core_list included "$HOME/.ssh/config"; then
+    skip "$(t machines.include_refused "$name")"; return 0
+  fi
+  ask "$(t machines.also_route_ask)" y || return 0
+  include_hosts || { skip "$(t machines.include_refused "$name")"; return 0; }
+  connected "$name" || move=move
+  alias=$(core_list route "$MACHINE_LIST" "$name" "$key" "$network" "$address" $move) && [ -n "$alias" ] || return 0
+  mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+  printf '%s\n' "$alias" >> "$HOME/.ssh/known_hosts"
+  record_outside "known-host herdr-fold.$name"
+}
+
+# include: the Include line of herdr-fold's Hosts at the top of ~/.ssh/config, asked again after a no
+cmd_include() {
+  if core_list included "$HOME/.ssh/config"; then have "$(t machines.include_done)"; return 0; fi
+  rm -f "$INCLUDE_REFUSED"
+  include_hosts && core_list hosts "$MACHINE_LIST" && ok "$(t machines.include_done)"
+}
+
 # The per-machine loops read the list from file descriptor 3, not from standard input: that way the ssh and herdr
 # commands inside the loop cannot swallow the rest of the list (otherwise only the first machine would get a turn).
 cmd_status() {
   local any=
-  while IFS='|' read -r name target os <&3; do
+  while IFS='|' read -r name target os _ routes <&3; do
     any=1
     echo "== $(t machines.heading "$name" "$target" "$os")"
+    [ -z "$routes" ] || other_routes "$name"
     reachable "$target" || continue
     if ! of_parts tui $(installed_parts); then :
     elif [ -n "$(machine_field "$name" id)" ]; then ok "$(t machines.connected)"
@@ -198,7 +290,7 @@ tailnet_left_out() {
 
 # Pick from the machines on the Tailscale network, one question each
 cmd_tailscale() {
-  local peers status hosts left_file left; left_file=$(mktemp)
+  local peers status hosts known left_file left; left_file=$(mktemp)
   peers=$(tailnet_peers "$left_file"); status=$?
   left=$(cat "$left_file"); rm -f "$left_file"
   case $status in
@@ -206,9 +298,9 @@ cmd_tailscale() {
     2) warn "$(t machines.tailscale_failed)"; return 0 ;;
   esac
   [ -n "$peers" ] || { skip "$(t machines.tailscale_empty)"; tailnet_left_out "$left"; return 0; }
-  hosts=$(ssh_config_hosts)
-  local added=0 kept=() short dns os state ips alias name user listed_as shown
-  while IFS='|' read -r short dns os state ips _ <&3; do        # (its host keys' fingerprints: not used yet)
+  hosts=$(ssh_config_hosts); known=$(machine_keys)
+  local added=0 kept=() short dns os state ips given keys alias name user found listed_as shown
+  while IFS='|' read -r short dns os state ips given <&3; do
     # its ~/.ssh/config Host, if it has one: then it goes on the list under that name (with that file's user and key).
     # The Host's name or its HostName is the machine's name or address here, as cmd_sshconfig leaves such a Host to
     # this step (its HostName may be another address of it, such as a public name)
@@ -218,34 +310,49 @@ cmd_tailscale() {
     # where it would connect: for a Host, that file's address (a device named like it may not be that machine)
     shown=$(printf '%s\n' "$hosts" | awk -F'|' -v a="$alias" 'a != "" && $1 == a { print $2; exit }')
     shown=${shown:-$dns}
-    listed_as=$(listed_name_for "$name" "$short" "$dns" ${ips//,/ })
-    if [ -n "$listed_as" ]; then
-      ask "$(t machines.select_ask_listed "$name" "$os" "$shown")" y && { kept+=("$listed_as"); continue; }
-      remove_from_list "$listed_as"; note "$(t machines.removed_from_list "$listed_as")"; continue
-    fi
+    # its host key: Tailscale's record of it, else, when a listed machine's could be it, the one it shows now
+    keys=$given
+    [ -n "$keys" ] || [ -z "$known" ] || [ "$state" = offline ] \
+      || keys=$(fingerprint_of "$(scanned_key "$name" "$dns")")
+    found=$(identify "$known" "$keys" tailscale "$name" "$short" "$dns" ${ips//,/ })
+    listed_as=$(cut -d'|' -f2 <<< "$found")
+    case $found in
+      listed\|*)
+        ask "$(t machines.select_ask_listed "$name" "$os" "$shown")" y && { kept+=("$listed_as"); continue; }
+        remove_from_list "$listed_as"; note "$(t machines.removed_from_list "$listed_as")"; continue ;;
+      known\|*) kept+=("$listed_as"); continue ;;
+    esac
+    # before a route or a machine goes on the list: the key it shows must be one Tailscale's record has
+    [ -z "$given" ] || [ "$state" = offline ] || tailscale_key_ok "$name" "$dns" "$given" || continue
+    case $found in
+      route\|*) also_route "$listed_as" tailscale "$dns" "${keys%%,*}"; kept+=("$listed_as"); continue ;;
+    esac
+    name=$listed_as                       # its own, or with -tailscale where a machine of that name is another one
     ask "$(t machines.select_ask "$name" "$os" "$shown" \
       "$([ "$state" = offline ] && echo " $(t machines.select_offline)")")" n || continue
     if [ -n "$alias" ]; then
-      add_line "$name" "$alias" "$os"
+      add_line "$name" "$alias" "$os" "${keys%%,*}"
     else
       # the suggested user: root on Linux, elsewhere the same user name as on this Mac
       [ "$os" = linux ] && user=root || user=${USER:-$(id -un)}
       user=$(prompt "$(t machines.select_user)" "$user")
-      add_line "$name" "$user@$dns" "$os"
+      add_line "$name" "$user@$dns" "$os" "${keys%%,*}"
     fi
-    added=$((added + 1))
+    added=$((added + 1)); known=$(machine_keys)
   done 3<<< "$peers"
   added_summary "$added" ${kept[@]+"${kept[@]}"}        # (bash 3.2 + set -u: an empty array is unset)
   tailnet_left_out "$left"
 }
 
-# The machines of ~/.ssh/config (Include-d files too), one "alias|user@host" line each — no patterns or git hosts
+# The machines of ~/.ssh/config (Include-d files too, but herdr-fold's own Hosts), one "alias|user@host" line each —
+# no patterns or git hosts
 ssh_config_hosts() {   # [plain]: only the Hosts that change nothing but the name (see use_config_hosts)
   [ -f "$HOME/.ssh/config" ] || return 0
-  python3 - "$HOME/.ssh/config" "${1:-}" <<'PY'
+  python3 - "$HOME/.ssh/config" "${1:-}" "$SSH_HOSTS" <<'PY'
 import glob, os, re, sys
 GIT = re.compile(r"(^|\.)(github\.com|gitlab\.com|bitbucket\.org|ssh\.dev\.azure\.com|vs-ssh\.visualstudio\.com)$",
                  re.I)
+OWN = os.path.realpath(sys.argv[3])     # herdr-fold's ssh file: its Hosts are routes of the list's machines
 
 def entries(path, depth=0):
     """(key, value) pairs from the file, including Include-d files (relative to ~/.ssh, glob patterns too)."""
@@ -264,7 +371,8 @@ def entries(path, depth=0):
                     pattern = os.path.expanduser(pattern)
                     pattern = pattern if os.path.isabs(pattern) else os.path.join(os.path.expanduser("~/.ssh"), pattern)
                     for inc in sorted(glob.glob(pattern)):
-                        yield from entries(inc, depth + 1)
+                        if os.path.realpath(inc) != OWN:
+                            yield from entries(inc, depth + 1)
             else:
                 yield key, value
 
@@ -281,7 +389,8 @@ for key, value in entries(sys.argv[1]):
 for alias in order:
     c = conf[alias]
     host = c.get("hostname", alias)
-    if any(ch in alias for ch in "*?!") or c.get("user") == "git" or GIT.search(host) or GIT.search(alias):
+    if any(ch in alias for ch in "*?!") or c.get("user") == "git" or GIT.search(host) or GIT.search(alias) \
+            or alias.startswith("herdr-fold."):
         continue
     if sys.argv[2] == "plain" and (c.get("port", "22") != "22" or
                                    any(c.get(key) for key in ("proxyjump", "proxycommand", "hostkeyalias"))):
@@ -297,17 +406,6 @@ added_summary() {
   ok "$(t machines.added_count "$count" "$#" "${names:+: $names}")"
 }
 
-# listed_name_for CANDIDATE… — the name of the first machine on the list whose name, address or host is a CANDIDATE
-listed_name_for() {
-  local name target os c
-  while IFS='|' read -r name target os; do
-    for c in "$@"; do
-      [ -n "$c" ] && { [ "$c" = "$name" ] || [ "$c" = "$target" ] || [ "$c" = "${target#*@}" ]; } \
-        && { echo "$name"; return; }
-    done
-  done <<< "$(machines)"            # read whole, as returning early would break a pipe from machines
-}
-
 # Pick from the machines in ~/.ssh/config, one question each, no unless said yes (a Host line may name a machine not
 # meant for this: a jump host, a client's server) — those on the Tailscale network are left to its own step
 # (cmd_tailscale), asked after it. One imported earlier is asked too: no takes it off the list.
@@ -317,31 +415,42 @@ cmd_sshconfig() {
   [ -n "$hosts" ] || { skip "$(t machines.ssh_config_empty)"; return 0; }
   tailnet=$(tailnet_peers 2>/dev/null \
     | awk -F'|' '{ print $1; print $2; n = split($5, ip, ","); for (i = 1; i <= n; i++) print ip[i] }')
-  local added=0 kept=() alias where os listed_as
+  local added=0 kept=() alias where os known key reach found listed_as
+  known=$(machine_keys)
   while IFS='|' read -r alias where <&3; do
     printf '%s\n' "$alias" "${where#*@}" | grep -qxF -f <(printf '%s\n' "$tailnet" | grep .) && continue
-    listed_as=$(listed_name_for "$alias" "${where#*@}")
-    if [ -n "$listed_as" ]; then
-      ask "$(t machines.sshconfig_ask_listed "$alias" "$where")" y && { kept+=("$listed_as"); continue; }
-      remove_from_list "$listed_as"; note "$(t machines.removed_from_list "$listed_as")"; continue
-    fi
+    # its host key, when a listed machine's could be it: what answers where the Host leads (none past a jump or proxy)
+    key= reach=
+    [ -z "$known" ] || reach=$(core_list resolve "$alias")
+    [ -z "$reach" ] || key=$(fingerprint_of "$(scanned_key "$alias" "$(cut -d'|' -f1 <<< "$reach")" \
+      "$(cut -d'|' -f2 <<< "$reach")")")
+    found=$(identify "$known" "$key" "" "$alias" "${where#*@}")
+    listed_as=$(cut -d'|' -f2 <<< "$found")
+    case $found in
+      listed\|*)
+        ask "$(t machines.sshconfig_ask_listed "$alias" "$where")" y && { kept+=("$listed_as"); continue; }
+        remove_from_list "$listed_as"; note "$(t machines.removed_from_list "$listed_as")"; continue ;;
+      known\|*) kept+=("$listed_as"); continue ;;
+      route\|*) also_route "$listed_as" "$(cut -d'|' -f3 <<< "$found")" "$(cut -d'|' -f3 <<< "$reach")" "$key"
+        kept+=("$listed_as"); continue ;;
+    esac
     ask "$(t machines.sshconfig_ask "$alias" "$where")" n || continue
     reachable "$alias" || continue
     os=$(remote_os "$alias")
-    add_line "$alias" "$alias" "$os"
-    ok "$(t machines.added "$alias" "$os")"
-    added=$((added + 1))
+    add_line "$listed_as" "$alias" "$os" "$key"
+    ok "$(t machines.added "$listed_as" "$os")"
+    added=$((added + 1)); known=$(machine_keys)
   done 3<<< "$hosts"
   added_summary "$added" ${kept[@]+"${kept[@]}"}        # (bash 3.2 + set -u: an empty array is unset)
 }
 
-# confirm_host_key HOST — a machine typed in by hand that ssh does not know yet: its ED25519 fingerprint (the one the
-# docs have you compare) is confirmed first, and exactly that key goes into ~/.ssh/known_hosts, so ssh refuses any
-# other. No ED25519 key (or no answer): not added, as ssh would trust whatever answered then.
+# confirm_host_key HOST [KEYS] — a machine typed in by hand that ssh does not know yet: its ED25519 fingerprint (the
+# one the docs have you compare) is confirmed first, and exactly that key (KEYS, ssh-keyscan's lines, read here
+# without) goes into ~/.ssh/known_hosts, so ssh refuses any other. No ED25519 key (or no answer): not added.
 confirm_host_key() {
-  local keys fp
+  local keys=${2:-} fp
   ssh-keygen -F "$1" >/dev/null 2>&1 && return 0
-  keys=$(ssh-keyscan -T 5 -t ed25519 -- "$1" 2>/dev/null)
+  [ $# -ge 2 ] || keys=$(keyscan "$1" "$1")
   fp=$(printf '%s\n' "$keys" | ssh-keygen -lf - 2>/dev/null)
   if [ -z "$fp" ]; then warn "$(t machines.hostkey_unreadable "$1")"; return 1; fi
   note "$fp"                              # the fingerprint (data, not a text)
@@ -354,30 +463,39 @@ confirm_host_key() {
 # listed_target TARGET — the machine list already has a machine at TARGET (user@host)
 listed_target() { machines | cut -d'|' -f2 | grep -qxF "$1"; }
 
-# unique_name NAME — NAME, or NAME-2, NAME-3… when the machine list already has a machine called NAME
-unique_name() {
-  local name=$1 n=2
-  while machines | cut -d'|' -f1 | grep -qxF "$name"; do name="$1-$n"; n=$((n + 1)); done
-  printf '%s' "$name"
+# unique_name NAME [NETWORK] — NAME, else NAME-NETWORK, else NAME-2, NAME-3… when the list has a machine called so
+unique_name() { core_list name "$MACHINE_LIST" "$1" "${2:-}"; }
+
+# host_keys HOST — HOST's ED25519 key: the one known_hosts trusts for it, else what it shows now (ssh-keyscan's lines)
+host_keys() {
+  local trusted; trusted=$(ssh-keygen -F "$1" 2>/dev/null | awk '!/^#/ && $2 == "ssh-ed25519"')
+  if [ -n "$trusted" ]; then printf '%s\n' "$trusted"; else keyscan "$1" "$1"; fi
 }
 
-# Add a machine by SSH address; the OS (Linux / macOS / Windows) is detected by logging in
+# Add a machine by SSH address; the OS (Linux / macOS / Windows) is detected by logging in. One that shows the key of
+# a machine on the list is that machine, at another address: a route of it, not a second machine
 cmd_manual() {
-  local user host target name os
+  local user host target name os keys key found
   while :; do
     user=$(prompt "$(t machines.manual_user)" root)
     host=$(prompt "$(t machines.manual_host)")
     if [ -n "$host" ] && listed_target "$user@$host"; then
       note "$(t machines.already_listed "$user@$host")"
-    elif [ -n "$host" ] && confirm_host_key "$host"; then
-      target="$user@$host"
-      if reachable "$target"; then
-        os=$(remote_os "$target")
-        # the name in herdr's sidebar: an IP address as it is, a host name up to its first dot (made unique)
-        case "$host" in *[!0-9.]*) name=${host%%.*} ;; *) name=$host ;; esac
-        name=$(unique_name "$name")
-        add_line "$name" "$target" "$os"
-        ok "$(t machines.added "$name" "$os")"
+    elif [ -n "$host" ]; then
+      keys=$(host_keys "$host"); key=$(fingerprint_of "$keys")
+      found=$(identify "$(machine_keys)" "$key" "" "$host" "$host")
+      if [ "${found%%|*}" = route ]; then
+        also_route "$(cut -d'|' -f2 <<< "$found")" "$(cut -d'|' -f3 <<< "$found")" "$user@$host" "$key"
+      elif confirm_host_key "$host" "$keys"; then
+        target="$user@$host"
+        if reachable "$target"; then
+          os=$(remote_os "$target")
+          # the name in herdr's sidebar: an IP address as it is, a host name up to its first dot (made unique)
+          case "$host" in *[!0-9.]*) name=${host%%.*} ;; *) name=$host ;; esac
+          name=$(unique_name "$name" "$(cut -d'|' -f3 <<< "$found")")
+          add_line "$name" "$target" "$os" "$key"
+          ok "$(t machines.added "$name" "$os")"
+        fi
       fi
     fi
     ask "$(t machines.manual_more)" n || break
@@ -643,7 +761,7 @@ sys.exit(0 if any(isinstance(m, dict) and m.get("name") == sys.argv[1] for m in 
 
 cmd_add() {
   local failed=0 parts; parts=$(installed_parts | xargs)
-  while IFS='|' read -r name target os <&3; do
+  while IFS='|' read -r name target os _ <&3; do
     step "$(t machines.heading "$name" "$target" "$os")"
     reachable "$target" || { failed=1; continue; }
     prepare_files "$target" "$os" || { failed=1; continue; }
@@ -663,7 +781,7 @@ cmd_add() {
 }
 
 cmd_prepare() {
-  while IFS='|' read -r name target os <&3; do
+  while IFS='|' read -r name target os _ <&3; do
     step "$(t machines.heading "$name" "$target" "$os")"
     reachable "$target" || continue
     prepare_files "$target" "$os" || continue
@@ -675,7 +793,7 @@ cmd_prepare() {
 # is disconnected in herdr and taken off the machine list
 cmd_remove() {
   local name=${1:-} target os id
-  IFS='|' read -r _ target os < <(machines "$name")
+  IFS='|' read -r _ target os _ < <(machines "$name")
   if [ -z "$name" ] || [ -z "${target:-}" ]; then fail "$(t machines.not_listed "$name")"; return 1; fi
   step "$(t machines.heading "$name" "$target" "$os")"
   reachable "$target" || return 1
@@ -704,6 +822,7 @@ case "${1:-status}" in
   add)     shift; cmd_add "$@" ;;
   prepare) shift; cmd_prepare "$@" ;;
   remove)  shift; cmd_remove "$@" ;;
+  include) cmd_include ;;
   -h|--help|help) echo "$(t machines.help)" ;;
   *) echo "$(t machines.unknown_command "$1")" >&2; exit 1 ;;
 esac

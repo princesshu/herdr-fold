@@ -6,6 +6,7 @@ set -u
 cd "$(dirname "$0")" || exit 1
 DOT=$(pwd)
 . "$DOT/lib/common.sh"
+. "$DOT/src/remote.sh"                  # machine_field: a machine herdr has, as machines.sh asks for it
 state="$HOME/.local/state/herdr-fold"; record="$state/installed.txt"
 changed="$state/changed-$(date +%Y%m%d-%H%M%S)"
 
@@ -31,6 +32,17 @@ off=$(for part in $off; do ! of_parts "$part" $had || echo "$part"; done | xargs
 [ -n "$off" ] || { note "$(t uninstall.part_not_there "$HERDR_FOLD_PARTS")"; exit 0; }
 left=$(for part in $had; do of_parts "$part" $off || echo "$part"; done | xargs)
 last=; [ -n "$left" ] || last=1
+
+# readd_machine ADDRESS NAME — herdr connects NAME at ADDRESS again, as machines.sh connects a machine (herdr asks its
+# own questions in a terminal)
+readd_machine() {
+  if interactive; then
+    note "$(t machines.herdr_asks_install)"; note "$(t machines.herdr_asks_stop)"
+    herdr machine add "$1" --label "$2" </dev/tty
+  else
+    herdr machine add "$1" --label "$2" </dev/null >/dev/null 2>&1
+  fi
+}
 
 step "$(t uninstall.step_herdr)"
 # herdr-fold in the Herdr app: a running app leaves its layout, the terminals the mod started for tabs end (its core
@@ -181,6 +193,27 @@ if [ -n "$last" ]; then
     "$state/prices.json" "$state/prices.json.lock" "$state"/.prices.json.*.tmp \
     "$state/usage.json" "$state/usage.json.lock" "$state"/.usage.json.*.tmp   # Usage's counts, prices and budgets
   [ -d "$state/original" ] && find "$state/original" -depth -type d -empty -delete
+  # herdr-fold's own Hosts: a machine moved to one goes back to its first route's address first, on the list and in
+  # herdr (machines.sh's own remove, then add: herdr has no command that changes a saved machine's address); then the
+  # Include line at the top of ~/.ssh/config, with its comment line, and the file go, unless herdr keeps one at its Host
+  hosts_kept=
+  while IFS='|' read -r name address <&3; do
+    id=$(machine_field "$name" id)
+    if [ -z "$address" ]; then
+      warn "$(t uninstall.target_behind "$name" "$name")"; hosts_kept=1; continue
+    elif [ -n "$id" ] && ! herdr machine remove "$id" </dev/null >/dev/null 2>&1; then
+      warn "$(t uninstall.target_kept "$name" "$name" "$id" "$address" "$name")"; hosts_kept=1; continue
+    fi
+    python3 "$DOT/core/machines.py" unmove "$MACHINE_LIST" "$name"
+    if [ -z "$id" ] || readd_machine "$address" "$name"; then ok "$(t uninstall.target_back "$name" "$address")"
+    else warn "$(t uninstall.target_off "$name" "$address" "$address" "$name")"; fi
+  done 3< <(python3 "$DOT/core/machines.py" moved "$MACHINE_LIST")
+  if [ -z "$hosts_kept" ]; then
+    python3 "$DOT/core/machines.py" uninclude "$HOME/.ssh/config" && ok "$(t uninstall.include_removed)"
+    rm -f "$SSH_HOSTS"
+  fi
+  rm -f "$INCLUDE_REFUSED"
+  remove_empty_dirs "$HOME/.config/herdr-fold"
   names="$HOME/.local/state/herdr/plugins/herdr-fold.sessions-view/names.json"
   [ -f "$names" ] && note "$(t uninstall.kept_names "$(shown "$names")")"
   fold="$HOME/.config/herdr-fold"

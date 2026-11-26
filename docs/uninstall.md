@@ -47,6 +47,13 @@ One part goes and the other keeps working: what both use goes with the last.
   herdr-fold's settings back (your terminals keep running). Your own mods, layouts, themes, keys, settings, machines and
   terminals stay;
 - Claude's earlier status line comes back (or herdr-fold's just goes);
+- with the last part, herdr-fold's own Hosts go: first each machine that reaches herdr through one of them
+  (`herdr-fold.<name>`) goes back to its first route's address, on the machine list and in herdr, a line each (herdr
+  has no command that changes a machine's address, so it is removed and added again, as `./machines.sh` adds it; its
+  questions come in a terminal); then the `Include ~/.config/herdr-fold/ssh_config` line at the top of `~/.ssh/config`
+  and its comment line come out, and `~/.config/herdr-fold/ssh_config` goes. A machine herdr does not let go (herdr not
+  running, say) or one reached through another machine keeps both, named with how to move it; one herdr does not take
+  back at its address is named with the `herdr machine add` line that adds it again;
 - Ghostty's own app icon comes back: the icons the themes drew go.
 
 It never touches your chats (Claude's, Codex's, OpenCode's and Copilot's sessions and their names), herdr's own data, or

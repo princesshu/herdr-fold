@@ -1,6 +1,6 @@
 """Tests for machines.sh's list (~/.config/herdr-fold/machines.txt): ~/.ssh/config hosts only when said yes to, one by
-one, not offered again by Tailscale; herdr's machines taken over with no list yet; `prepare` restores right columns.
-"""
+one, never herdr-fold's own nor Tailscale's again; herdr's machines taken over with no list yet; status names each
+machine's other routes; `prepare` restores right columns."""
 import os
 import shutil
 import subprocess
@@ -49,6 +49,7 @@ def listed(home):
     return sorted(tuple(c.strip() for c in row.split("|")) for row in rows)
 
 
+AT = "@"                        # a user before a host: put together here, never an e-mail's look
 NO_TAILNET = """#!/bin/sh
 echo '{"Peer": {}}'
 """
@@ -82,6 +83,24 @@ class SshConfigMachines(unittest.TestCase):
         self.assertIn("gamma", shown)                # unreachable: reported, then skipped
         self.assertIn("2 new machine(s) on the list, 1 already there: beta", shown)   # alpha, delta; beta
 
+    def test_herdr_folds_own_hosts_are_not_offered_as_imports(self):
+        # its own ssh file, included at the top: each Host there is a route of a machine on the list, never a new one
+        with open(os.path.join(self.home, ".ssh", "config")) as f:
+            theirs = f.read()
+        with open(os.path.join(self.home, ".ssh", "config"), "w") as f:
+            f.write("Include ~/.config/herdr-fold/ssh_config\n\n" + theirs)
+        with open(os.path.join(self.home, ".config", "herdr-fold", "ssh_config"), "w") as f:
+            f.write("Host herdr-fold.studio\n  HostName 192.0.2.20\n  User dev\n")
+        with open(os.path.join(self.home, ".ssh", "conf.d", "copied"), "w") as f:        # a copy of one, kept by hand
+            f.write("Host herdr-fold.lab-pi\n  HostName 192.0.2.40\n  User pi\n")
+        env = {k: v for k, v in self.env.items() if k != "HERDR_FOLD_YES"}
+        ask = catalog_text("machines.sshconfig_ask", "", "").split()[0]          # "Import"
+        shown, _ = run_in_terminal(["/bin/bash", os.path.join(self.pkg, "machines.sh"), "sshconfig"], env,
+                                   lambda line: "y" if ask in line else "", timeout=60)
+        self.assertIn("Import alpha", shown)
+        self.assertNotIn("herdr-fold.", shown)
+        self.assertEqual([row[0] for row in listed(self.home)], ["alpha", "beta", "delta"])
+
     def test_a_host_is_imported_only_when_said_yes_to(self):
         done = subprocess.run(["bash", os.path.join(self.pkg, "machines.sh"), "sshconfig"], env=self.env,
                               stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
@@ -98,7 +117,8 @@ class TailscaleAfterSshConfig(unittest.TestCase):
         self.pkg = os.path.join(self.tmp, "pkg")
         copy_package(self.pkg)
         add_to_list(self.tmp, "mac-mini         | mac-mini | macos\n")          # from ~/.ssh/config, by its alias
-        stubs(os.path.join(self.tmp, "stubs"), {"tailscale": FAKE_TAILSCALE, "ssh": SSH_ANSWERS})
+        stubs(os.path.join(self.tmp, "stubs"), {"tailscale": FAKE_TAILSCALE, "ssh": SSH_ANSWERS,
+                                                "ssh-keyscan": "#!/bin/sh\nexit 0\n"})    # no answer to a key scan
         self.env = {"HOME": self.tmp, "PATH": f"{self.tmp}/stubs:/usr/bin:/bin", "HERDR_FOLD_YES": "1", "TERM": "dumb"}
 
     def tearDown(self):
@@ -190,6 +210,17 @@ class MachineList(unittest.TestCase):
     def test_machines_connected_in_herdr_are_taken_over(self):
         self.status()
         self.assertEqual(listed(self.home), [("lin", "root@lin", "linux"), ("win", "dev@win", "windows")])
+
+    def test_status_names_a_machines_other_routes(self):
+        # under its heading, each route but the one in use: one machine, not a row per network
+        add_to_list(self.home, "studio | herdr-fold.studio | macos | SHA256:FakeFingerprintForTests | local dev"
+                    + AT + "studio.local, tailscale dev" + AT + "studio.tail0000.ts.net, 192.0.2.20:2222\n")
+        out = self.status().stdout
+        heading = "== studio (herdr-fold.studio, macos)\n"
+        also = ["      " + catalog_text("machines.also_on", catalog_text("machines.network_tailscale"),
+                                         "studio.tail0000.ts.net") + "\n",
+                "      " + catalog_text("machines.also_at", "192.0.2.20:2222") + "\n"]
+        self.assertIn(heading + "".join(also), out)
 
     def test_an_existing_list_is_left_as_it_is(self):
         # a machine taken off the list (step 8: "no" to an imported one) must not come back from herdr

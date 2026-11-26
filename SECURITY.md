@@ -40,11 +40,25 @@ argument.
 
 ## Remote machines
 
-herdr-fold reaches remote machines over SSH with keys. For a machine you add by hand that `~/.ssh/known_hosts` does not
-know yet, it shows the fingerprint of the machine's ED25519 key and asks whether to trust it (the default is no):
-compare it with the machine's own before you answer. Only that key is trusted, and a machine that shows none is not
-added. Machines from `~/.ssh/config` and your Tailscale network are trusted on the first
-connection (ssh's `accept-new`) and checked against that key from then on.
+herdr-fold reaches remote machines over SSH with keys. A machine is its ED25519 host key: the machine list keeps each
+one's fingerprint, and a machine offered again under another address that shows a listed key is that machine, a route
+of it, never a second one. What each source of a machine proves, and how its key comes to be trusted:
+
+| Source | What it proves | Its host key |
+|---|---|---|
+| `~/.ssh/config` | your own Host | ssh trusts it on the first connection (`accept-new`) and checks it against that key from then on |
+| Tailscale | its coordination server signed the machine into your network | trusted on the first connection, as above; where Tailscale has a record of the key, it tells a machine already on the list, and a machine that shows another key is refused before anything of it is added, its key never trusted |
+| by address | nothing: whatever answers there | its fingerprint is shown and asked about first (the default is no): compare it with the machine's own before you answer; only that key is trusted, and a machine that shows none is not added |
+
+A machine with several routes has a Host of herdr-fold's own (`~/.config/herdr-fold/ssh_config`, which one Include line
+at the top of `~/.ssh/config` brings in, on a yes): every route looks its key up under that Host's name, so a route that
+answers with another key is refused on every route, and that name's entry in `~/.ssh/known_hosts` is made only from the
+key already trusted there. Nothing a network says reaches that file or a command unchecked: a host name, an address, a
+user and a port each against a strict pattern, never as an option. herdr-fold's Hosts forward no agent, and its own ssh
+forwards nothing (`ClearAllForwardings`, `ForwardAgent no`): a machine never gets to use this Mac's key. A machine
+reached through another one (`ProxyJump`) keeps this Mac's key on this Mac: the machine in between sees that a
+connection goes to an address and port, when, and how much passes; never what passes (the connection is end to end,
+checked against the key of the machine behind it), this Mac's key or its agent.
 
 ## A folder you open
 

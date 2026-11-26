@@ -146,11 +146,24 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
   field; Open and Closed each count the repository's, as GitHub's list does; where the organization has the Priority
   field or issue types, the right click sets them (Priority…, Type…), and the app's preview shows both. See
   [GitHub issues](docs/usage.md#github-issues).
+- One machine, several routes: a machine is its SSH host key, which the machine list now keeps. A machine offered
+  again under another address (from `~/.ssh/config`, Tailscale or by hand) that shows a listed machine's key is that
+  machine: `Add this route?` records the address as its route, never a second machine, and `./machines.sh` names its
+  other routes. One herdr has not connected yet is reached through a Host of herdr-fold's own, `herdr-fold.<name>` in
+  `~/.config/herdr-fold/ssh_config`, its key looked up under that one name on every route; herdr and the Herdr app
+  reach it through one `Include` line at the top of `~/.ssh/config`, asked once (`./machines.sh include` asks again),
+  which the uninstaller takes off, after setting each such machine back to its first route's address in herdr and on
+  the list. A Tailscale machine that shows another key than the one Tailscale knows is refused, its key never
+  trusted. The list gains two fields, `key` and `routes`: an earlier version's list reads as it is, but an earlier
+  herdr-fold cannot read a line with them. See
+  [One machine, several routes](docs/remote-machines.md#one-machine-several-routes).
 
 ### Changed
 
 - The machine questions (the installer's step 8, Add a machine) start with a line saying any network works: a
   machine is added by its address or name, and Tailscale's machines are also offered by name.
+- herdr-fold's own ssh connections to a machine forward no agent and no port (`ClearAllForwardings`, `ForwardAgent
+  no`), whatever `~/.ssh/config` says.
 - Tab Layout (`herdr-fold.tab-layout`) is gone, its work split: the sidebar lays out every new empty tab and comes back
   in every tab when herdr starts, and Spaces (`herdr-fold.spaces`) keeps the rest (the **new** button's folder picker,
   a space following its folder, the question before a tab with a chat closes, the agents started again after a
@@ -207,6 +220,8 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 - Importing from Tailscale offers only the machines that can be yours: never a Mullvad exit node, the node of
   someone one of your machines is shared with or an expired node, which a line after the questions counts; tagged
   servers and machines shared in from another tailnet are still offered.
+- A machine offered with the name of one on the list and another host key is no longer taken for that one (where a
+  no would take the listed machine off the list): it is offered as `<name>-<network>`, `studio-tailscale`.
 - A New space or Add machine left before it is done no longer leaves an empty space in the list.
 - Shift + Enter starts a new line in Claude Code in every pane of the TUI and every terminal of the Herdr app; it sent
   the message where the agent had not asked the terminal for the extended keys.

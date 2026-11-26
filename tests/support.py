@@ -151,6 +151,16 @@ JSON
 """ % (TAILNET_HOST_KEY, MULLVAD_NODE)
 
 
+def host_key(seed):
+    """An invented ED25519 host key ("ssh-ed25519 AAAA…", SEED its 32 bytes) and its fingerprint as ssh-keygen -l
+    prints it: a machine's identity in a test, distinct for each SEED."""
+    import base64
+    import hashlib
+    blob = b"\0\0\0\x0bssh-ed25519\0\0\0\x20" + seed.encode().ljust(32, b"0")[:32]
+    return ("ssh-ed25519 " + base64.b64encode(blob).decode(),
+            "SHA256:" + base64.b64encode(hashlib.sha256(blob).digest()).decode().rstrip("="))
+
+
 def catalog_text(key, *args):
     """A text of the catalog (src/lang/en.txt), as the scripts show it — a key it does not have fails the test, so an
     assertion never quietly matches an empty text."""
