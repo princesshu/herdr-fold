@@ -117,6 +117,7 @@ said() { _line "  " "$@"; }        # a line at the questions' own indent, saying
 route_on() {
   case $1 in
     tailscale) printf '%s' "$(t machines.route_on_tailscale)" ;;
+    netbird) printf '%s' "$(t machines.route_on_netbird)" ;;
     local) printf '%s' "$(t machines.route_on_local)" ;;
     *) printf '%s' "$(t machines.route_at)" ;;
   esac
@@ -128,6 +129,7 @@ other_routes() {
   while IFS='|' read -r network address; do
     case $network in
       tailscale) note "$(t machines.also_on "$(t machines.network_tailscale)" "$address")" ;;
+      netbird) note "$(t machines.also_on "$(t machines.network_netbird)" "$address")" ;;
       local) note "$(t machines.also_on "$(t machines.network_local)" "$address")" ;;
       *) note "$(t machines.also_at "$address")" ;;
     esac
@@ -351,6 +353,69 @@ cmd_tailscale() {
   tailnet_left_out "$left"
 }
 
+# The machines on the NetBird network, as core/networks.py reads NetBird's own status (5 s at most, under a waiting
+# line): a "state|this Mac's address" line, then a "name|fqdn|ip|status|path|latency_ms" line each. Nothing without it
+netbird_peers() {
+  local nb; nb=$(netbird_bin) || return 1
+  LOADING_PLAIN=1 loading "$(t machines.asking_netbird)" python3 "$DOT/core/networks.py" netbird "$nb"
+}
+
+# Pick from the machines on the NetBird network, one question each. NetBird tells no OS (it is read by logging in, so
+# a phone that answers no SSH is not added) and keeps no host key: a machine's is the one it shows now
+cmd_netbird() {
+  local said state peers
+  said=$(netbird_peers) || { skip "$(t machines.no_netbird)"; return 0; }
+  state=$(head -n 1 <<< "$said" | cut -d'|' -f1); peers=$(tail -n +2 <<< "$said")
+  case $state in
+    signed_out) warn "$(t machines.netbird_signed_out)"; return 0 ;;
+    expired) warn "$(t machines.netbird_expired)"; return 0 ;;
+    on|no_management) ;;                  # out of its management server's reach: the machines it was told of last
+    *) warn "$(t machines.netbird_failed)"; return 0 ;;
+  esac
+  if [ -z "$peers" ]; then
+    if [ "$state" = on ]; then skip "$(t machines.netbird_empty)"; else warn "$(t machines.netbird_failed)"; fi
+    return 0
+  fi
+  local hosts known added=0 kept=() short fqdn ip alias name shown key found listed_as user target os
+  hosts=$(ssh_config_hosts); known=$(machine_keys)
+  while IFS='|' read -r short fqdn ip _ <&3; do
+    # its ~/.ssh/config Host by its name or address, as in cmd_tailscale: then under that name, with that file's user
+    alias=$(printf '%s\n' "$hosts" | awk -F'|' -v d="$fqdn" -v s="$short" -v i="$ip" '{ h = $2; sub(/.*@/, "", h) }
+      $1 == d || $1 == s || h == d || h == s || (i != "" && h == i) { print $1; exit }')
+    name=${alias:-$short}
+    shown=$(printf '%s\n' "$hosts" | awk -F'|' -v a="$alias" 'a != "" && $1 == a { print $2; exit }')
+    shown=${shown:-$fqdn}
+    # its host key, when a listed machine's could be it: the one it shows now. NetBird's list is what a peer says of
+    # itself, so one that shows none (off, silent) is never another way to a listed machine
+    key=
+    [ -z "$known" ] || key=$(fingerprint_of "$(scanned_key "$name" "$fqdn")")
+    found=$(identify "$known" "$key" netbird "$name" "$short" "$fqdn" ${ip:+"$ip"})
+    listed_as=$(cut -d'|' -f2 <<< "$found")
+    case $found in
+      listed\|*)
+        os=$(machines "$listed_as" | cut -d'|' -f3)
+        ask "$(t machines.select_ask_listed "$name" "$os" "$shown")" y && { kept+=("$listed_as"); continue; }
+        remove_from_list "$listed_as"; note "$(t machines.removed_from_list "$listed_as")"; continue ;;
+      known\|*) kept+=("$listed_as"); continue ;;
+      route\|*) also_route "$listed_as" netbird "$fqdn" "$key"; kept+=("$listed_as"); continue ;;   # its key, just now
+    esac
+    name=$listed_as                         # its own, or with -netbird where a machine of that name is another one
+    ask "$(t machines.select_ask_netbird "$name" "$shown")" n || continue
+    if [ -n "$alias" ]; then
+      target=$alias
+    else
+      user=$(prompt "$(t machines.select_user)" root)              # no OS to go by: root, as by hand
+      target="$user@$fqdn"
+    fi
+    reachable "$target" || continue
+    os=$(remote_os "$target")
+    add_line "$name" "$target" "$os" "$key"
+    ok "$(t machines.added "$name" "$os")"
+    added=$((added + 1)); known=$(machine_keys)
+  done 3<<< "$peers"
+  added_summary "$added" ${kept[@]+"${kept[@]}"}        # (bash 3.2 + set -u: an empty array is unset)
+}
+
 # The machines of ~/.ssh/config (Include-d files too, but herdr-fold's own Hosts), one "alias|user@host" line each —
 # no patterns or git hosts
 ssh_config_hosts() {   # [plain]: only the Hosts that change nothing but the name (see use_config_hosts)
@@ -414,18 +479,19 @@ added_summary() {
 }
 
 # Pick from the machines in ~/.ssh/config, one question each, no unless said yes (a Host line may name a machine not
-# meant for this: a jump host, a client's server) — those on the Tailscale network are left to its own step
-# (cmd_tailscale), asked after it. One imported earlier is asked too: no takes it off the list.
+# meant for this: a jump host, a client's server) — those on the Tailscale or NetBird network are left to its own step
+# (cmd_tailscale, cmd_netbird), asked after it. One imported earlier is asked too: no takes it off the list.
 cmd_sshconfig() {
   [ -f "$HOME/.ssh/config" ] || { skip "$(t machines.no_ssh_config)"; return 0; }
-  local hosts tailnet; hosts=$(ssh_config_hosts)
+  local hosts peers; hosts=$(ssh_config_hosts)
   [ -n "$hosts" ] || { skip "$(t machines.ssh_config_empty)"; return 0; }
-  tailnet=$(tailnet_peers 2>/dev/null \
-    | awk -F'|' '{ print $1; print $2; n = split($5, ip, ","); for (i = 1; i <= n; i++) print ip[i] }')
+  peers=$(tailnet_peers 2>/dev/null \
+    | awk -F'|' '{ print $1; print $2; n = split($5, ip, ","); for (i = 1; i <= n; i++) print ip[i] }'
+    netbird_peers 2>/dev/null | awk -F'|' 'NR > 1 { print $1; print $2; if ($3 != "") print $3 }')
   local added=0 kept=() alias where os known key reach found listed_as
   known=$(machine_keys)
   while IFS='|' read -r alias where <&3; do
-    printf '%s\n' "$alias" "${where#*@}" | grep -qxF -f <(printf '%s\n' "$tailnet" | grep .) && continue
+    printf '%s\n' "$alias" "${where#*@}" | grep -qxF -f <(printf '%s\n' "$peers" | grep .) && continue
     # its host key, when a listed machine's could be it: what answers where the Host leads (none past a jump or proxy)
     key= reach=
     [ -z "$known" ] || reach=$(core_list resolve "$alias")
@@ -510,8 +576,8 @@ cmd_manual() {
 }
 
 # The installer's step 8, and Ctrl+B, Shift+M: a line saying any network works, then where to read new machines from —
-# each source on its own question, its machines then one by one: ~/.ssh/config, the Tailscale network (it skips the
-# machines already on the list), an address typed in. Exit status 1 if none was asked for.
+# each source on its own question, its machines then one by one: ~/.ssh/config, the Tailscale and NetBird networks
+# (each skips the machines already on the list), an address typed in. Exit status 1 if none was asked for.
 cmd_pick() {
   local picked=1
   note "$(t machines.any_network)"
@@ -520,6 +586,9 @@ cmd_pick() {
   fi
   if [ -n "$(tailscale_bin)" ] && ask "$(t machines.pick_tailscale)" n; then
     has_ssh_key || make_ssh_key; cmd_tailscale; picked=0
+  fi
+  if [ -n "$(netbird_bin)" ] && ask "$(t machines.pick_netbird)" n; then
+    has_ssh_key || make_ssh_key; cmd_netbird; picked=0
   fi
   if ask "$(t machines.pick_manual)" n; then
     has_ssh_key || make_ssh_key; cmd_manual; picked=0
@@ -817,11 +886,12 @@ cmd_remove() {
 # sourced (the tests): only the functions above
 [ "${BASH_SOURCE[0]}" = "$0" ] || return 0
 case "${1:-status}" in
-  status|tailscale|sshconfig|manual|pick|new|add|prepare) take_over_connected; use_config_hosts ;;
+  status|tailscale|netbird|sshconfig|manual|pick|new|add|prepare) take_over_connected; use_config_hosts ;;
 esac
 case "${1:-status}" in
   status)  shift $(( $# > 0 )); cmd_status "$@" ;;
   tailscale) cmd_tailscale ;;
+  netbird) cmd_netbird ;;
   sshconfig) cmd_sshconfig ;;
   manual)  cmd_manual ;;
   pick)    cmd_pick ;;

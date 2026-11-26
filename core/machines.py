@@ -33,6 +33,7 @@ INCLUDE = ("# herdr-fold: its machines' own Hosts (./uninstall.sh takes these tw
 SOURCES = (
     ("~/.ssh/config", "your own Host", "ssh trusts it on the first connection (`accept-new`)"),
     ("Tailscale", "its coordination server signed the machine into your network", "trusted on the first connection"),
+    ("NetBird", "its management server signed the machine into your network", "trusted on the first connection"),
     ("by address", "nothing: whatever answers there", "its fingerprint is shown and asked about first"),
 )
 KEY = re.compile(r"SHA256:[A-Za-z0-9+/]{1,64}")                 # a host key's fingerprint, as ssh-keygen -l prints it
@@ -371,8 +372,9 @@ def place(machine, seen):
 
 
 def identify(machines, known, keys, network, name, addresses=()):
-    """What a candidate is: (listed, name) at a listed machine's own name or address, (known, name) at another of its
-    routes, (route, name) another way to the listed machine whose host key it shows, else (new, the name it gets)."""
+    """What a candidate is: (listed, name) at a listed machine's own address (its target, a Host so named), (known,
+    name) at another of its routes, (route, name) another way to the listed machine whose host key it shows, else (new,
+    the name it gets): a name alone, its key not compared, is never taken for a listed machine (it may be another)."""
     seen, keys = {one for one in (name, *addresses) if one}, set(keys)
     for machine in machines:
         if keys and known.get(machine["name"]) in keys:
@@ -381,9 +383,6 @@ def identify(machines, known, keys, network, name, addresses=()):
         where = place(machine, seen)
         if where:
             return where, machine["name"]
-        other = keys and known.get(machine["name"]) and known[machine["name"]] not in keys
-        if machine["name"] in seen and not other:       # with another key it is another machine of that name
-            return "listed", machine["name"]
     return "new", unique_name(machines, name, network)
 
 

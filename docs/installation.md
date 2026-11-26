@@ -125,22 +125,25 @@ the default: the capital letter in `[Y/n]` (yes) or `[y/N]` (no). Each line it p
 
 Step 8 connects remote machines, for the parts set up (with the Herdr app chosen and not installed, none is, and
 the step is skipped). It starts with a line: `Any network works: a machine is added by its address or name. Tailscale's
-machines are also offered by name.` ([Networks](remote-machines.md#networks)). Every question there is optional:
+and NetBird's machines are also offered by name.` ([Networks](remote-machines.md#networks)). Every question there is
+optional:
 
 | Question | When | Default |
 |---|---|---|
 | `Import machines from ~/.ssh/config?` | `~/.ssh/config` exists | no |
-| `Import alpha (root@alpha.example)?` | for each machine in it, but one on your Tailscale network by its name or address: that one is asked about only after a yes to the Tailscale question (or with `./machines.sh tailscale`) | no |
+| `Import alpha (root@alpha.example)?` | for each machine in it, but one on your Tailscale or NetBird network by its name or address: that one is asked about only after a yes to that network's question (or with `./machines.sh tailscale`, `./machines.sh netbird`) | no |
 | `Import alpha (root@alpha.example)? — already imported` | for a machine imported earlier: no takes it off the list | yes |
 | `Import machines from your Tailscale network?` | Tailscale is installed | no |
 | `Import mac-mini (macos, mac-mini.tail0000.ts.net)?` | for each Linux, macOS or Windows machine there that is not on the list, tagged servers and machines shared in from another tailnet too; never a Mullvad exit node, the node of someone one of your machines is shared with or an expired node (a line after the questions counts those); for one `~/.ssh/config` names, the address that file connects to | no |
-| `Import mac-mini (macos, mac-mini.tail0000.ts.net)? — already imported` | for a machine imported earlier | yes |
-| `user` | the user to log in with over SSH, for a machine on your Tailscale network that `~/.ssh/config` does not name (by its name or address); one it names goes on under that name, with that file's user and key | `root` on Linux, your Mac's user name elsewhere |
+| `Import mac-mini (macos, mac-mini.tail0000.ts.net)? — already imported` | for a machine imported earlier, from Tailscale or NetBird | yes |
+| `user` | the user to log in with over SSH, for a machine on your Tailscale or NetBird network that `~/.ssh/config` does not name (by its name or address); one it names goes on under that name, with that file's user and key | `root` on Linux and for a NetBird machine, your Mac's user name elsewhere |
+| `Import machines from your NetBird network?` | NetBird is installed; signed out, its sign-in expired or not connected, a line says so and none of its machines is offered | no |
+| `Import tidepool (tidepool.netbird.cloud)?` | for each machine there that is not on the list, by its NetBird name; for one `~/.ssh/config` names, the address that file connects to. NetBird tells no system: after a yes (and the `user`) the machine is reached and its system read, and one that answers no SSH, such as a phone, is not added | no |
 | `Add a machine by hand?` | always | no |
 | `user`, `IP address or host name` | for a machine you add by hand | `root`, none |
 | `Add another machine?` | after each one | no |
 | `Trust this ED25519 key of alpha (compare it with the machine's own)?` | a machine you add by hand that `~/.ssh/known_hosts` does not know yet: its ED25519 key's fingerprint is shown first; one that shows none is not added | no |
-| `Add this route?` | a machine offered (from `~/.ssh/config`, Tailscale or by hand) shows the host key of one on the list: the line before it names which (`studio.tail0000.ts.net is studio, already on the list: also reachable on Tailscale.`); yes makes it a route of that machine, never a second one ([One machine, several routes](remote-machines.md#one-machine-several-routes)) | yes |
+| `Add this route?` | a machine offered (from `~/.ssh/config`, Tailscale, NetBird or by hand) shows the host key of one on the list: the line before it names which (`studio.tail0000.ts.net is studio, already on the list: also reachable on Tailscale.`); yes makes it a route of that machine, never a second one ([One machine, several routes](remote-machines.md#one-machine-several-routes)) | yes |
 | `Add one line at the top of ~/.ssh/config to include them (Include ~/.config/herdr-fold/ssh_config)?` | after the first yes to a route, never asked before; no keeps each machine to one route, and only `./machines.sh include` asks again | yes |
 | `Create an SSH key for this Mac?` | before the first machine, when the Mac has no SSH key | yes |
 | `Press Enter once it is on every machine` | after it shows the new public key, to put on each machine | Enter |

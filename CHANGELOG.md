@@ -157,11 +157,18 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
   trusted. The list gains two fields, `key` and `routes`: an earlier version's list reads as it is, but an earlier
   herdr-fold cannot read a line with them. See
   [One machine, several routes](docs/remote-machines.md#one-machine-several-routes).
+- NetBird's machines by name: the machine questions (the installer's step 8, Add a machine) ask `Import machines from
+  your NetBird network?` where NetBird is installed, after Tailscale's, and offer each machine NetBird lists by its
+  NetBird name (`./machines.sh netbird` asks alone). NetBird tells no system, so a machine is reached after a yes and
+  its system read; one that answers no SSH, such as a phone, is not added. NetBird's status is read for 5 seconds at
+  most, and signed out, an expired sign-in or not connected is said in one line. A NetBird machine that shows the key
+  of one on the list is a route of it, by the key it shows when asked, never by NetBird's word alone. See
+  [Networks](docs/remote-machines.md#networks).
 
 ### Changed
 
 - The machine questions (the installer's step 8, Add a machine) start with a line saying any network works: a
-  machine is added by its address or name, and Tailscale's machines are also offered by name.
+  machine is added by its address or name, and Tailscale's and NetBird's machines are also offered by name.
 - herdr-fold's own ssh connections to a machine forward no agent and no port (`ClearAllForwardings`, `ForwardAgent
   no`), whatever `~/.ssh/config` says.
 - Tab Layout (`herdr-fold.tab-layout`) is gone, its work split: the sidebar lays out every new empty tab and comes back

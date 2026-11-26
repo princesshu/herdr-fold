@@ -1,14 +1,14 @@
-"""Tests for machines.sh pick (installer step 8) and new (Ctrl+B, Shift+M) in a pty with fake ssh, Tailscale and herdr:
-any network works, then ~/.ssh/config, Tailscale (only what can be yours), by hand; `new` sets up only what it added; a
-Host's own address goes through that Host; a machine offered with a listed machine's host key is a route of that one."""
+"""Tests for machines.sh pick (installer step 8) and new (Ctrl+B, Shift+M) in a pty with fake ssh, Tailscale, NetBird
+and herdr: any network works, then ~/.ssh/config, Tailscale (only what can be yours), NetBird, by hand; `new` sets up
+only what it added; a Host's own address goes through that Host; a listed machine's host key makes a route of it."""
 import os
 import shutil
 import subprocess
 import tempfile
 import unittest
 
-from support import (FAKE_TAILSCALE, TAILNET_HOST_KEY_FINGERPRINT, catalog_text, copy_package, host_key,
-                     run_in_terminal, stubs)
+from support import (FAKE_NETBIRD, FAKE_TAILSCALE, TAILNET_HOST_KEY_FINGERPRINT, catalog_text, copy_package,
+                     fake_netbird, host_key, run_in_terminal, stubs)
 
 SSH_CONFIG = """Host alpha
   HostName alpha.example
@@ -24,6 +24,7 @@ Host srv
 FAKE_SSH = """#!/bin/sh
 while [ $# -gt 0 ]; do case "$1" in -o) shift 2 ;; -*) shift ;; *) break ;; esac; done
 case "$*" in
+  *dev-phone*) echo "ssh: connect to host dev-phone.netbird.cloud port 22: Connection refused" >&2; exit 255 ;;
   *"uname -s"*) case "$*" in *mac-mini*) echo Darwin ;; *) echo Linux ;; esac ;;
 esac
 exit 0
@@ -205,6 +206,32 @@ class Step8(unittest.TestCase):
                                         "Import vps-edge (linux, vps-edge.tail0000.ts.net)? [y/N]",
                                         "Add a machine by hand? [y/N]"])
 
+    def test_netbird_is_asked_after_tailscale_and_offers_its_peers(self):
+        # NetBird tells no OS: it is read by logging in, so the phone, which answers no SSH, is not added
+        stubs(self.stubs, {"netbird": FAKE_NETBIRD})
+        prompts = self.run_questions(["", "", "y",                 # not ~/.ssh/config nor Tailscale; NetBird
+                                      "y", "", "", "", "y", "",    # dev-phone and its user; tidepool and its user
+                                      ""])                         # not by hand
+        self.assertEqual(prompts, ["Import machines from ~/.ssh/config? [y/N]",
+                                   "Import machines from your Tailscale network? [y/N]",
+                                   "Import machines from your NetBird network? [y/N]",
+                                   "Import dev-phone (dev-phone.netbird.cloud)? [y/N]",
+                                   "user [root]:",
+                                   "Import harbor-web (harbor-web.netbird.cloud)? [y/N]",
+                                   "Import kelp-ci (kelp-ci.netbird.cloud)? [y/N]",
+                                   "Import tidepool (tidepool.netbird.cloud)? [y/N]",
+                                   "user [root]:",
+                                   "Add a machine by hand? [y/N]"])
+        self.assertIn(catalog_text("machines.ssh_refused", "root" + AT + "dev-phone.netbird.cloud"), self.shown)
+        self.assertEqual(self.listed(), [("beta", "beta", "linux"),
+                                         ("tidepool", "root" + AT + "tidepool.netbird.cloud", "linux")])
+
+    def test_netbird_signed_out_says_so_and_offers_nothing(self):
+        stubs(self.stubs, {"netbird": FAKE_NETBIRD.replace('"${NETBIRD_STATE:-connected}"', "signed_out")})
+        prompts = self.run_questions(["", "", "y", ""])
+        self.assertEqual(prompts[3:], ["Add a machine by hand? [y/N]"])
+        self.assertIn("[!] " + catalog_text("machines.netbird_signed_out") + "\n", self.shown)
+
     def test_a_tailnet_machine_comes_with_its_host_key_fingerprint(self):
         # Tailscale's sshHostKeys, when it gives them: the ED25519 one (a machine's key), as ssh-keygen -l prints it
         done = subprocess.run(["bash", "-c", ". ./machines.sh; tailnet_peers"], cwd=self.pkg, capture_output=True,
@@ -320,12 +347,15 @@ cat <<'JSON'
 }}
 JSON
 """ % STUDIO_KEY
-# studio shows its key at its tailnet name and its other address; nothing else answers a key scan
+# studio shows its key at its tailnet name, its NetBird name and its other address; nothing else answers a key scan
 TWO_ROUTES_KEYSCAN = """#!/bin/sh
 for host; do :; done
-case "$host" in 192.0.2.20|studio.tail0000.ts.net) echo "$host %s" ;; esac
+case "$host" in 192.0.2.20|studio.tail0000.ts.net|studio.netbird.cloud) echo "$host %s" ;; esac
 exit 0
 """ % STUDIO_KEY
+# NetBird with studio and tidepool (NetBird keeps no host key: a machine's is read from it)
+TWO_ROUTES_NETBIRD = fake_netbird((("studio", "100.115.93.21", "Connected", "P2P", 3000000),
+                                   ("tidepool", "100.115.93.10", "Idle", "-", 0)))
 SILENT_KEYSCAN = "#!/bin/sh\nexit 0\n"             # no machine answers a key scan
 # a machine answering with another key than the one Tailscale knows (someone between, or the wrong machine)
 OTHER_KEY, _ = host_key("FakeHostKeyOfSomeoneElse")
@@ -475,6 +505,31 @@ class TwoRoutes(unittest.TestCase):
                                    "Add a machine by hand? [y/N]"])
         self.assertIn(self.SAID, self.shown)
         self.assertIn(f"[-] {refused}\n", self.shown)
+
+    def test_a_netbird_peer_already_listed_by_key_is_a_route(self):
+        stubs(self.stubs, {"netbird": TWO_ROUTES_NETBIRD})
+        prompts = self.run_questions(["", "y", "", "", "", ""])  # NetBird; the route; the Include; not tidepool
+        self.assertEqual(prompts, [
+            "Import machines from your Tailscale network? [y/N]",
+            "Import machines from your NetBird network? [y/N]",
+            "Add this route? [Y/n]",
+            "Add one line at the top of ~/.ssh/config to include them (Include ~/.config/herdr-fold/ssh_config)? [Y/n]",
+            "Import tidepool (tidepool.netbird.cloud)? [y/N]",
+            "Add a machine by hand? [y/N]"])
+        self.assertIn("  studio.netbird.cloud is studio, already on the list: also reachable on NetBird.\n", self.shown)
+        self.assertEqual(self.studio(), [["studio", "herdr-fold.studio", "macos", STUDIO,
+                                          f"local dev{AT}studio.local, netbird dev{AT}studio.netbird.cloud"]])
+        self.assertEqual(self.read(".ssh/known_hosts").splitlines()[-1], f"herdr-fold.studio {STUDIO_KEY}")
+
+    def test_a_netbird_peer_that_shows_no_key_is_never_a_route(self):
+        # NetBird's list is what a peer says of itself: studio's name there is no proof; no key shown, no route
+        stubs(self.stubs, {"netbird": TWO_ROUTES_NETBIRD, "ssh-keyscan": SILENT_KEYSCAN})
+        prompts = self.run_questions(["", "y", "", "", ""])
+        self.assertNotIn("Add this route? [Y/n]", prompts)
+        self.assertEqual(prompts[-1], "Add a machine by hand? [y/N]")
+        self.assertEqual(self.read(".config/herdr-fold/machines.txt"), self.line)
+        self.assertEqual(self.read(".ssh/known_hosts"), f"studio.local {STUDIO_KEY}\n")
+        self.assertIsNone(self.read(".ssh/config"))
 
 
 if __name__ == "__main__":

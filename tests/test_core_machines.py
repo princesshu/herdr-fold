@@ -180,12 +180,14 @@ class Keys(Base):
         self.assertEqual(machines.unique_name(listed + [machine("alpha-netbird", "x")], "alpha", "netbird"),
                          "alpha-netbird-2")
         self.assertEqual(machines.unique_name(listed, "gamma", "netbird"), "gamma")
-        # a machine of the same name with another key is another machine; with no key to tell, the listed one
+        # a machine of the same name with another key is another machine; with no key to tell, a name alone is no
+        # proof either: offered as its own machine, so a no to it never takes the listed one off; its address is one
         known = {"alpha": STUDIO}
         self.assertEqual(machines.identify(listed, known, [OTHER], "netbird", "alpha", ["alpha.netbird.cloud"]),
                          ("new", "alpha-netbird"))
         self.assertEqual(machines.identify(listed, known, [], "netbird", "alpha", ["alpha.netbird.cloud"]),
-                         ("listed", "alpha"))
+                         ("new", "alpha-netbird"))
+        self.assertEqual(machines.identify(listed, {}, [], "netbird", "beta", ["192.0.2.11"]), ("listed", "beta"))
 
 
 class SetBack(Base):

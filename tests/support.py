@@ -149,6 +149,45 @@ cat <<'JSON'
 }}
 JSON
 """ % (TAILNET_HOST_KEY, MULLVAD_NODE)
+# NetBird's peers: (name, address, status, connection type, latency in ns): two machines connected, directly and through
+# a relay, a server and a phone idle
+NETBIRD_PEERS = (("tidepool", "100.115.93.10", "Connected", "P2P", 12400000),
+                 ("kelp-ci", "100.115.93.11", "Connected", "Relayed", 48100000),
+                 ("harbor-web", "100.115.93.12", "Idle", "-", 0),
+                 ("dev-phone", "100.115.93.13", "Idle", "-", 0))
+
+
+def netbird_status(peers=NETBIRD_PEERS, daemon="Connected", management=True):
+    """`netbird status --json` as v0.83 writes it (the fields read and a few more), this Mac on 100.115.93.1."""
+    details = [{"fqdn": f"{name}.netbird.cloud", "netbirdIp": ip, "status": status,
+                "lastStatusUpdate": "2026-11-20T09:00:00Z", "connectionType": kind, "relayAddress": "",
+                "lastWireguardHandshake": "0001-01-01T00:00:00Z", "latency": latency}
+               for name, ip, status, kind, latency in peers]
+    return json.dumps({"peers": {"total": len(details), "connected": sum(p[2] == "Connected" for p in peers),
+                                 "details": details},
+                       "cliVersion": "0.83.1", "daemonVersion": "0.83.1",
+                       "management": {"url": "https://api.netbird.io:443", "connected": management, "error": ""},
+                       "signal": {"url": "https://signal.netbird.io:443", "connected": management, "error": ""},
+                       "netbirdIp": "100.115.93.1/16", "fqdn": "this-mac.netbird.cloud", "daemonStatus": daemon},
+                      indent=2)
+
+
+def fake_netbird(peers=NETBIRD_PEERS):
+    """A stand-in netbird, its status with PEERS; NETBIRD_STATE picks another answer: signed_out, expired, plain (before
+    v0.70: a text even with --json), down (no daemon), slow (it never answers; its child's pid in NETBIRD_PIDS)."""
+    def json_of(text):
+        return "cat <<'JSON'\n" + text + "\nJSON\n  ;;\n"
+    return ("#!/bin/sh\ncase \"${NETBIRD_STATE:-connected}\" in\n"
+            "  signed_out) " + json_of(netbird_status((), "NeedsLogin", False))
+            + "  expired) " + json_of(netbird_status((), "SessionExpired", False))
+            + "  plain) printf 'Daemon status: NeedsLogin\\n\\nRun UP command to log in with SSO (interactive login):"
+              "\\n\\n netbird up \\n\\n' ;;\n"
+            "  down) echo 'Error: failed to connect to daemon error: context deadline exceeded' >&2; exit 1 ;;\n"
+            "  slow) sleep 30 & echo $! > \"${NETBIRD_PIDS:-/dev/null}\"; wait ;;\n"
+            "  *) " + json_of(netbird_status(peers)) + "esac\n")
+
+
+FAKE_NETBIRD = fake_netbird()
 
 
 def host_key(seed):

@@ -200,8 +200,9 @@ machines.help = Remote machines (Linux, macOS, Windows) in herdr — on the cent
   \n  ./machines.sh                 status per machine: SSH, connection, apps\
   \n  ./machines.sh sshconfig       pick from the machines in ~/.ssh/config, one question each → the list\
   \n  ./machines.sh tailscale       pick from the machines on the Tailscale network, one question each → the list\
+  \n  ./machines.sh netbird         pick from the machines on the NetBird network, one question each → the list\
   \n  ./machines.sh manual          add a machine by its SSH address or name → the list\
-  \n  ./machines.sh pick            the installer's questions: ~/.ssh/config, Tailscale, by address → the list\
+  \n  ./machines.sh pick            the installer's questions: ~/.ssh/config, Tailscale, NetBird, by address → the list\
   \n  ./machines.sh new             the same questions, then prepare + connect only the new machines (Ctrl+B, Shift+M)\
   \n  ./machines.sh add [name…]     prepare + connect to herdr (herdr asks before it installs anything)\
   \n  ./machines.sh prepare [name…] update only (apps, settings, plugins)\
@@ -233,8 +234,8 @@ machines.taken_over = %s: taken over from herdr onto the machine list (%s)
 machines.take_over_unreachable = %s is connected in herdr but not reachable now — it goes onto the machine list when \
   it is
 machines.not_connected = not connected yet — ./machines.sh add %s
-machines.none_listed = No machines on the list yet — add one: ./machines.sh sshconfig, ./machines.sh tailscale or \
-  ./machines.sh manual
+machines.none_listed = No machines on the list yet — add one: ./machines.sh sshconfig, ./machines.sh tailscale, \
+  ./machines.sh netbird or ./machines.sh manual
 machines.no_tailscale = no Tailscale on this machine
 machines.tailscale_failed = Tailscale is not responding — are you signed in?
 machines.tailscale_empty = no other computers on the Tailscale network
@@ -245,6 +246,13 @@ machines.left_out_shared_node = a node of someone a machine is shared with
 machines.left_out_shared_nodes = %s nodes of people a machine is shared with
 machines.left_out_expired_node = an expired node
 machines.left_out_expired_nodes = %s expired nodes
+machines.no_netbird = no NetBird on this machine
+machines.asking_netbird = asking NetBird
+machines.netbird_failed = NetBird is not connected or not responding — netbird status says why
+machines.netbird_signed_out = NetBird is signed out — sign in first: netbird up
+machines.netbird_expired = NetBird's sign-in has expired — sign in again: netbird up
+machines.netbird_empty = no other machines on the NetBird network
+machines.select_ask_netbird = Import %s (%s)?
 machines.select_ask = Import %s (%s, %s)%s?
 machines.select_ask_listed = Import %s (%s, %s)? — already imported
 machines.select_offline = (offline now)
@@ -269,10 +277,11 @@ machines.app_remove_failed = %s could not leave the Herdr app — later: hc mach
 machines.removed_from_list = %s is off the list (herdr still has it: herdr machine list, then herdr machine remove <id>)
 machines.added = %s added (%s)
 machines.through_config = %s: through its ~/.ssh/config entry from now on
-machines.any_network = Any network works: a machine is added by its address or name. Tailscale's machines are also \
-  offered by name.
+machines.any_network = Any network works: a machine is added by its address or name. Tailscale's and NetBird's \
+  machines are also offered by name.
 machines.pick_sshconfig = Import machines from ~/.ssh/config?
 machines.pick_tailscale = Import machines from your Tailscale network?
+machines.pick_netbird = Import machines from your NetBird network?
 machines.pick_manual = Add a machine by hand?
 machines.none_picked = no new machine
 machines.new_failed = the new machine isn't connected yet — try again: Ctrl+B, Shift+M
@@ -282,6 +291,7 @@ machines.manual_more = Add another machine?
 machines.also_route = %s is %s, already on the list: also reachable %s.
 machines.also_route_ask = Add this route?
 machines.route_on_tailscale = on Tailscale
+machines.route_on_netbird = on NetBird
 machines.route_on_local = on the local network
 machines.route_at = at that address
 machines.include_line = herdr-fold reaches a machine by several routes, or through another one, with a Host of its own.
@@ -290,6 +300,7 @@ machines.include_ask = Add one line at the top of ~/.ssh/config to include them 
 machines.include_refused = %s keeps one route: more need the line in ~/.ssh/config (./machines.sh include)
 machines.include_done = ~/.ssh/config includes herdr-fold's Hosts (~/.config/herdr-fold/ssh_config)
 machines.network_tailscale = Tailscale
+machines.network_netbird = NetBird
 machines.network_local = Local network
 machines.also_on = also %s: %s
 machines.also_at = also %s

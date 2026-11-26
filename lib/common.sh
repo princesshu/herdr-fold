@@ -133,12 +133,21 @@ brew_env() {
   return 1
 }
 
-# Remote machines need an SSH key (step 8, Ctrl+B Shift+M: machines.sh pick); Tailscale is one place to find them
+# Remote machines need an SSH key (step 8, Ctrl+B Shift+M: machines.sh pick); Tailscale and NetBird are places to find
+# them, each by its command line: on PATH, else where its app or Homebrew puts it
 has_ssh_key() { ls "$HOME"/.ssh/id_* 2>/dev/null | grep -qv '\.pub$' || ssh-add -l >/dev/null 2>&1; }
 tailscale_bin() {
   command -v tailscale 2>/dev/null \
     || { [ -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ] \
            && echo /Applications/Tailscale.app/Contents/MacOS/Tailscale; }
+}
+netbird_bin() {
+  local place
+  command -v netbird 2>/dev/null && return 0
+  for place in /usr/local/bin/netbird /opt/homebrew/bin/netbird /Applications/NetBird.app/Contents/MacOS/netbird; do
+    [ -x "$place" ] && { echo "$place"; return 0; }
+  done
+  return 1
 }
 # The Host * block for the new key, written once; IgnoreUnknown comes first: Homebrew's OpenSSH does not
 # know UseKeychain

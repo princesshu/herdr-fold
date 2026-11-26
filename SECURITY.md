@@ -48,13 +48,15 @@ of it, never a second one. What each source of a machine proves, and how its key
 |---|---|---|
 | `~/.ssh/config` | your own Host | ssh trusts it on the first connection (`accept-new`) and checks it against that key from then on |
 | Tailscale | its coordination server signed the machine into your network | trusted on the first connection, as above; where Tailscale has a record of the key, it tells a machine already on the list, and a machine that shows another key is refused before anything of it is added, its key never trusted; a route to a listed machine only when it shows that machine's own key now (offline or silent: none) |
+| NetBird | its management server signed the machine into your network | trusted on the first connection, as above; NetBird keeps no record of the key, so a route to a listed machine only when it shows that machine's own key now (silent: none), never on NetBird's word alone |
 | by address | nothing: whatever answers there | its fingerprint is shown and asked about first (the default is no): compare it with the machine's own before you answer; only that key is trusted, and a machine that shows none is not added |
 
 A machine with several routes has a Host of herdr-fold's own (`~/.config/herdr-fold/ssh_config`, which one Include line
 at the top of `~/.ssh/config` brings in, on a yes): every route looks its key up under that Host's name, so a route that
 answers with another key is refused on every route, and that name's entry in `~/.ssh/known_hosts` is made only from the
 key already trusted there. Nothing a network says reaches that file or a command unchecked: a host name, an address, a
-user and a port each against a strict pattern, never as an option. herdr-fold's Hosts forward no agent, and its own ssh
+user and a port each against a strict pattern, never as an option, and a network's own command (`netbird status`) is
+read for 5 seconds at most, then stopped with all it started. herdr-fold's Hosts forward no agent, and its own ssh
 forwards nothing (`ClearAllForwardings`, `ForwardAgent no`): a machine never gets to use this Mac's key. A machine
 reached through another one (`ProxyJump`) keeps this Mac's key on this Mac: the machine in between sees that a
 connection goes to an address and port, when, and how much passes; never what passes (the connection is end to end,

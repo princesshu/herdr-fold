@@ -1,13 +1,13 @@
 """Tests for machines.sh's list (~/.config/herdr-fold/machines.txt): ~/.ssh/config hosts only when said yes to, one by
-one, never herdr-fold's own nor Tailscale's again; herdr's machines taken over with no list yet; status names each
-machine's other routes; `prepare` restores right columns."""
+one, never herdr-fold's own nor Tailscale's or NetBird's again; herdr's machines taken over with no list yet; status
+names each machine's other routes; `prepare` restores right columns."""
 import os
 import shutil
 import subprocess
 import tempfile
 import unittest
 
-from support import FAKE_TAILSCALE, PACKAGE, catalog_text, copy_package, run_in_terminal, stubs
+from support import FAKE_NETBIRD, FAKE_TAILSCALE, PACKAGE, catalog_text, copy_package, run_in_terminal, stubs
 SSH_CONFIG = """Host *
   AddKeysToAgent yes
 
@@ -169,6 +169,19 @@ class SshConfigLeavesTailnetMachinesToTheTailscaleStep(unittest.TestCase):
                                    lambda line: "y" if ask in line else "", timeout=60)
         self.assertEqual(listed(self.home), [("office", "office", "linux")])
         self.assertIn("1 new machine(s) on the list, 0 already there\n", shown)    # none already there: no names
+
+    def test_netbird_machines_are_left_to_the_netbird_step(self):
+        # by its NetBird name or address, as the Tailscale step's; asked in NetBird's own step
+        with open(os.path.join(self.home, ".ssh", "config"), "w") as f:
+            f.write("Host office\n  HostName office.example\n\nHost pool\n  HostName tidepool.netbird.cloud\n\n"
+                    "Host kelp\n  HostName 100.115.93.11\n")
+        stubs(os.path.join(self.tmp, "stubs"), {"netbird": FAKE_NETBIRD})
+        env = {k: v for k, v in self.env.items() if k != "HERDR_FOLD_YES"}
+        shown, _ = run_in_terminal(["/bin/bash", os.path.join(self.pkg, "machines.sh"), "sshconfig"], env,
+                                   lambda line: "y" if "Import" in line else "", timeout=60)
+        self.assertNotIn("Import pool", shown)
+        self.assertNotIn("Import kelp", shown)
+        self.assertEqual(listed(self.home), [("office", "office", "linux")])
 
 
 # herdr with two connected machines; ssh: `uname -s` answers Linux on lin and fails on win (as on Windows)

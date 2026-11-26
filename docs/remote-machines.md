@@ -32,15 +32,15 @@ For a machine you add by hand that `~/.ssh/known_hosts` does not know yet, it sh
 ED25519 key and asks whether to trust it: type `y` once it matches the machine's own (on a Linux or Mac machine:
 `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`; on Windows: `ssh-keygen -lf
 C:\ProgramData\ssh\ssh_host_ed25519_key.pub`). Only that key is trusted, so ssh refuses the machine if it later shows
-another; a machine that shows no ED25519 key is not added. Machines from `~/.ssh/config` and your Tailscale network are
-not asked about: ssh trusts their key on the first connection and checks it from then on. The list keeps each machine's
-key, the machine itself ([One machine, several routes](#one-machine-several-routes)).
+another; a machine that shows no ED25519 key is not added. Machines from `~/.ssh/config` and your Tailscale or NetBird
+network are not asked about: ssh trusts their key on the first connection and checks it from then on. The list keeps
+each machine's key, the machine itself ([One machine, several routes](#one-machine-several-routes)).
 
 ## Adding a machine later
 
 Ctrl + B, then Shift + M (or New space's Add machine…) opens Add a machine, a window framed as Settings whose close
 button, Esc or Ctrl + C end it at any question. It asks the installer's machine questions (from `~/.ssh/config`, by
-address, or from a Tailscale network where Tailscale is installed) and sets up only the new machine. It runs
+address, or from a Tailscale or NetBird network where that one is installed) and sets up only the new machine. It runs
 `machines.sh` from the `herdr-fold` folder, so keep that folder on the Mac: moved or deleted, Add a machine says the
 folder `isn't where the installer left it`, and `./install.sh` run once in its new place records it again. In the Herdr
 app, Add machine… (the sidebar's foot, the palette, Ctrl + B, then Shift + M) is the app's own: a machine added there
@@ -59,8 +59,8 @@ A machine is its SSH host key, its ED25519 key's fingerprint on the list: a netw
 same Mac on the local network and on Tailscale is one machine with two routes, and two machines of the same name on
 two networks stay two machines.
 
-A machine offered again under another address, from `~/.ssh/config`, a Tailscale network or typed in, that shows the
-key of one on the list is that machine. The questions say so, and offer the route instead of a second machine:
+A machine offered again under another address, from `~/.ssh/config`, a Tailscale or NetBird network or typed in, that
+shows the key of one on the list is that machine. The questions say so, and offer the route instead of a second machine:
 
 ```text
   studio.tail0000.ts.net is studio, already on the list: also reachable on Tailscale.
@@ -68,10 +68,11 @@ key of one on the list is that machine. The questions say so, and offer the rout
 ```
 
 Its key is known from Tailscale's own record of it, where Tailscale gives one, or read from the machine before the
-question (`ssh-keyscan`, 5 seconds at most), and only when a machine on the list could be it. A machine offered with
-the name of one on the list and another key is another machine: it is offered as `<name>-<network>`
-(`studio-tailscale`), or `<name>-2` by address. Where neither key is known, a machine of that name is still taken for
-the listed one, as before.
+question (`ssh-keyscan`, 5 seconds at most), and only when a machine on the list could be it; NetBird keeps no key, so
+a NetBird machine's is always read. A machine offered with the name of one on the list and another key is another
+machine: it is offered as `<name>-<network>` (`studio-tailscale`, `studio-netbird`), or `<name>-2` by address. So is
+one whose key cannot be compared (it did not answer): a name alone tells nothing, so a no to it never takes the
+listed machine off the list. At the listed machine's own address it is that machine.
 
 A yes puts the route on the machine's line. herdr keeps the address it connects a machine with, so for one it has
 connected already the route is recorded and shown, and the connection stays as it is. One herdr has not connected yet
@@ -101,22 +102,25 @@ A machine Tailscale knows a host key for is checked before anything of it goes o
 differs, the questions say `studio's key does not match the one Tailscale knows: not added`, and that key is never
 trusted. Tailscale's record is what a machine says of itself, so a second route needs more: the machine must show
 the listed machine's own key when asked; one that shows another, is offline or does not answer is not added as its
-route, and the questions say why. A key read that takes over a second shows a waiting line, `checking studio's key`.
+route, and the questions say why. A NetBird machine is a route of a listed one the same way, only by the key it shows
+when asked, never by NetBird's word alone. A key read that takes over a second shows a waiting line, as reading
+NetBird's status does: `checking studio's key`, `asking NetBird`.
 
 The list, `~/.config/herdr-fold/machines.txt`, has a line per machine: `name | target | os | key | routes`. The target
 is the address herdr connects with; the key the fingerprint; the routes each way to it, `<network> user@address` (the
-network `local`, `tailscale`, another word or none), the one in use first, and `through:<machine> user@address` for one
-reached through another machine on the list (`ProxyJump`). A line of an earlier version has the first three fields,
-and is read as it is: the list is written again only when a machine is added or changed.
+network `local`, `tailscale`, `netbird`, another word or none), the one in use first, and
+`through:<machine> user@address` for one reached through another machine on the list (`ProxyJump`). A line of an
+earlier version has the first three fields, and is read as it is: the list is written again only when a machine is
+added or changed.
 
 ## Networks
 
 herdr-fold reaches every machine over SSH, on any network on which the Mac reaches the machine's SSH port: the local
 network, a public address, or a virtual network that joins your machines. The machine questions (the installer's step 8,
-Add a machine) start by saying so: "Any network works: a machine is added by its address or name. Tailscale's machines
-are also offered by name." Add one by its address or name (`./machines.sh new`), or give it a Host in
-`~/.ssh/config` and import it from there (`./machines.sh sshconfig`); `./machines.sh tailscale` offers a Tailscale
-network's.
+Add a machine) start by saying so: "Any network works: a machine is added by its address or name. Tailscale's and
+NetBird's machines are also offered by name." Add one by its address or name (`./machines.sh new`), or give it a Host
+in `~/.ssh/config` and import it from there (`./machines.sh sshconfig`); `./machines.sh tailscale` offers a Tailscale
+network's, `./machines.sh netbird` a NetBird network's.
 
 Of a Tailscale network, its Linux, macOS and Windows machines are offered, tagged servers and machines shared in from
 another tailnet among them. Left out, and counted in a line after the questions: Mullvad's exit nodes, the node of
@@ -125,10 +129,16 @@ expired. A subnet router's machines are on no list of the network: each is reach
 that address. Tailscale SSH in check mode asks for a sign-in in the browser now and then, which herdr's connection in
 the background cannot answer: give the machines herdr-fold connects to `accept` in the tailnet's SSH rules.
 
+Of a NetBird network, each machine NetBird lists is offered by its NetBird name (`tidepool.netbird.cloud`, or your own
+server's domain). NetBird tells no system, so after a yes the machine is reached and its system read, the user offered
+`root` (change it as you like); one that answers no SSH, such as a phone, is not added. NetBird's own status is read for
+5 seconds at most; when it is signed out, its sign-in expired, or it is not connected, the questions say so in one line
+(`NetBird is signed out — sign in first: netbird up`) and offer none of its machines.
+
 | Network | What it is | How a machine is added |
 |---|---|---|
 | Tailscale, Headscale | WireGuard-based, joins your own machines (Headscale: Tailscale's coordination server, run by yourself) | offered from the Tailscale network |
-| NetBird | WireGuard-based, open source, joins your own machines | by its address or name |
+| NetBird | WireGuard-based, open source, joins your own machines | offered from the NetBird network |
 | ZeroTier | a virtual network of your own machines | by its address |
 | WireGuard | a tunnel you set up yourself | by its address |
 | Cloudflare Zero Trust | the machine reached through Cloudflare's `cloudflared` | a `~/.ssh/config` Host with its `ProxyCommand`, imported from there |
@@ -154,8 +164,9 @@ In the `herdr-fold` folder:
 ```bash
 ./machines.sh                   # each machine's state: SSH, connection, programs
 ./machines.sh new               # add a machine: the installer's questions, then only the new one is set up
-./machines.sh sshconfig         # add machines from the Host lines of ~/.ssh/config (not those on your tailnet)
+./machines.sh sshconfig         # add machines from the Host lines of ~/.ssh/config (not those on Tailscale or NetBird)
 ./machines.sh tailscale         # add machines from your Tailscale network
+./machines.sh netbird           # add machines from your NetBird network
 ./machines.sh add alpha         # set one machine up again
 ./machines.sh prepare           # push changed settings out to the machines
 ./machines.sh remove alpha      # take a machine off the list and the package off the machine
