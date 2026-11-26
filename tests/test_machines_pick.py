@@ -1,12 +1,14 @@
 """Tests for machines.sh pick (installer step 8) and new (Ctrl+B, Shift+M) in a pty with fake ssh, Tailscale and herdr:
-~/.ssh/config, Tailscale, then by hand; `new` sets up only what it added; a Host's own address goes through that Host.
-"""
+any network works, then ~/.ssh/config, Tailscale (only what can be yours), by hand; `new` sets up only what it added; a
+Host's own address goes through that Host."""
 import os
 import shutil
+import subprocess
 import tempfile
 import unittest
 
-from support import FAKE_TAILSCALE, copy_package, run_in_terminal, stubs
+from support import (FAKE_TAILSCALE, TAILNET_HOST_KEY_FINGERPRINT, catalog_text, copy_package, run_in_terminal,
+                     stubs)
 
 SSH_CONFIG = """Host alpha
   HostName alpha.example
@@ -87,7 +89,7 @@ class Step8(unittest.TestCase):
 
     def test_the_questions_come_in_order(self):
         prompts = self.run_questions(["y", "y", "n",               # ~/.ssh/config: yes; alpha, beta (drop it)
-                                      "y", "y", "", "y",           # Tailscale: yes; mac-mini, its user; srv
+                                      "y", "y", "", "y", "",       # Tailscale: mac-mini, its user; srv; not vps-edge
                                       "y", "", "192.0.2.9", "y", "n"])  # by hand: user, address, its key; another
         self.assertEqual(prompts, [
             "Import machines from ~/.ssh/config? [y/N]",
@@ -97,6 +99,7 @@ class Step8(unittest.TestCase):
             "Import mac-mini (macos, mac-mini.tail0000.ts.net)? [y/N]",
             "user [dev]:",                                     # this Mac's own user name
             "Import srv (linux, server.tail0000.ts.net)? [y/N]",
+            "Import vps-edge (linux, vps-edge.tail0000.ts.net)? [y/N]",
             "Add a machine by hand? [y/N]",
             "user [root]:",
             "IP address or host name:",
@@ -113,11 +116,12 @@ class Step8(unittest.TestCase):
         # address
         with open(os.path.join(self.home, ".ssh", "config"), "w") as f:
             f.write("Host server\n  HostName server.example\n  User dev\n")
-        prompts = self.run_questions(["y", "y", "", "y", ""])     # ~/.ssh/config; Tailscale: mac-mini no, server
+        prompts = self.run_questions(["y", "y", "", "y", "", ""])  # ~/.ssh/config; Tailscale: server alone
         self.assertEqual(prompts, ["Import machines from ~/.ssh/config? [y/N]",
                                    "Import machines from your Tailscale network? [y/N]",
                                    "Import mac-mini (macos, mac-mini.tail0000.ts.net)? [y/N]",
                                    "Import server (linux, dev@server.example)? [y/N]",       # where it connects
+                                   "Import vps-edge (linux, vps-edge.tail0000.ts.net)? [y/N]",
                                    "Add a machine by hand? [y/N]"])
         self.assertEqual(self.listed(), [("beta", "beta", "linux"), ("server", "server", "linux")])
 
@@ -155,6 +159,57 @@ class Step8(unittest.TestCase):
                                    "Import machines from your Tailscale network? [y/N]",
                                    "Add a machine by hand? [y/N]"])
         self.assertEqual(self.listed(), [("beta", "beta", "linux")])
+
+    def test_the_questions_start_with_the_line_any_network_works(self):
+        # no network is needed above another: said once, as a note, before the first question
+        prompts = self.run_questions(["", "", ""])
+        line = "      " + catalog_text("machines.any_network") + "\n"
+        self.assertEqual(self.shown.count(line), 1)
+        self.assertEqual(prompts[0], "Import machines from ~/.ssh/config? [y/N]")
+        self.assertLess(self.shown.index(line), self.shown.index(prompts[0]))
+
+    def tailscale_prompts(self):
+        """The questions with a yes to the Tailscale network alone, and no to each machine it offers."""
+        return self.run_questions(["", "y"] + [""] * 6)
+
+    def test_an_exit_node_of_mullvad_is_not_offered(self):
+        # Mullvad's exit nodes (their Location, their domain) are Mullvad's servers, never a machine to add
+        prompts = self.tailscale_prompts()
+        self.assertEqual([p for p in prompts if "zz-tst-wg-001" in p], [])
+        self.assertIn(catalog_text("machines.left_out_exit_node"), self.shown)
+
+    def test_a_node_of_someone_the_tailnet_is_shared_to_is_not_offered(self):
+        # in the list only because it may connect to the machine of yours shared with its owner
+        prompts = self.tailscale_prompts()
+        self.assertEqual([p for p in prompts if "guest-laptop" in p], [])
+        self.assertIn(catalog_text("machines.left_out_shared_node"), self.shown)
+
+    def test_an_expired_node_is_not_offered_and_counted(self):
+        # a line after the questions counts what was left out; never the phone, which no computer was offered from
+        prompts = self.tailscale_prompts()
+        self.assertEqual([p for p in prompts if "kelp-ci" in p], [])
+        left_out = catalog_text("machines.tailscale_skipped", "3", ", ".join(
+            [catalog_text("machines.left_out_exit_node"), catalog_text("machines.left_out_shared_node"),
+             catalog_text("machines.left_out_expired_node")]))
+        self.assertIn("[-] " + left_out + "\n", self.shown)
+        self.assertLess(self.shown.index("new machine(s) on the list"), self.shown.index(left_out))
+
+    def test_a_tagged_server_is_offered(self):
+        # servers are often tagged (the tailnet's, not a person's): a machine of yours as any other
+        prompts = self.tailscale_prompts()
+        self.assertEqual(prompts[2:6], ["Import mac-mini (macos, mac-mini.tail0000.ts.net)? [y/N]",
+                                        "Import srv (linux, server.tail0000.ts.net)? [y/N]",
+                                        "Import vps-edge (linux, vps-edge.tail0000.ts.net)? [y/N]",
+                                        "Add a machine by hand? [y/N]"])
+
+    def test_a_tailnet_machine_comes_with_its_host_key_fingerprint(self):
+        # Tailscale's sshHostKeys, when it gives them: the ED25519 one (a machine's key), as ssh-keygen -l prints it
+        done = subprocess.run(["bash", "-c", ". ./machines.sh; tailnet_peers"], cwd=self.pkg, capture_output=True,
+                              text=True, env={"PATH": f"{self.stubs}:/usr/bin:/bin", "HOME": self.home}, timeout=20)
+        self.assertEqual(done.stdout.splitlines(), [
+            "mac-mini|mac-mini.tail0000.ts.net|macos|online|100.115.92.5|",
+            "server|server.tail0000.ts.net|linux|online|100.115.92.6|",
+            "vps-edge|vps-edge.tail0000.ts.net|linux|online|100.115.92.7|" + TAILNET_HOST_KEY_FINGERPRINT], done.stderr)
 
     def herdr_calls(self):
         try:

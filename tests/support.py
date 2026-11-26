@@ -126,15 +126,29 @@ case "$*" in
 esac
 exit 0
 """
-# Tailscale's status: two machines of the tailnet, online
+# Tailscale's status: two machines of the tailnet and a tagged server with its host keys, online; then none of yours: a
+# Mullvad exit node, a node of someone a machine is shared with, an expired node and a phone. Mullvad's name is written
+# in parts: the privacy check takes any other *.ts.net name for a real tailnet's
+TAILNET_HOST_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEZha2VUYWlsbmV0SG9zdEtleU9mVnBzRWRnZTAwMDAh"
+TAILNET_HOST_KEY_FINGERPRINT = "SHA256:2VCKZFW6wd21XCt8E3K2ps1Qxw4OwhPevlMKOPkLik8"           # ssh-keygen -lf's
+MULLVAD_NODE = ".".join(["zz-tst-wg-001", "mullvad", "ts", "net"])
 FAKE_TAILSCALE = """#!/bin/sh
 cat <<'JSON'
 {"Peer": {
   "a": {"DNSName": "mac-mini.tail0000.ts.net.", "OS": "macOS", "Online": true, "TailscaleIPs": ["100.115.92.5"]},
-  "b": {"DNSName": "server.tail0000.ts.net.", "OS": "linux", "Online": true, "TailscaleIPs": ["100.115.92.6"]}
+  "b": {"DNSName": "server.tail0000.ts.net.", "OS": "linux", "Online": true, "TailscaleIPs": ["100.115.92.6"]},
+  "c": {"DNSName": "vps-edge.tail0000.ts.net.", "OS": "linux", "Online": true, "TailscaleIPs": ["100.115.92.7"],
+        "Tags": ["tag:server"], "sshHostKeys": ["%s", "ssh-rsa AAAAB3NzaC1yc2EFakeRsaKeyForTests"]},
+  "d": {"DNSName": "%s.", "OS": "linux", "Online": true, "TailscaleIPs": ["100.115.92.8"], "ExitNodeOption": true,
+        "Location": {"Country": "Nowhere", "CountryCode": "ZZ", "City": "Test", "CityCode": "TST"}},
+  "e": {"DNSName": "guest-laptop.tail0000.ts.net.", "OS": "macOS", "Online": true, "TailscaleIPs": ["100.115.92.9"],
+        "ShareeNode": true},
+  "f": {"DNSName": "kelp-ci.tail0000.ts.net.", "OS": "linux", "Online": false, "TailscaleIPs": ["100.115.92.10"],
+        "Expired": true, "KeyExpiry": "2026-10-01T00:00:00Z"},
+  "g": {"DNSName": "dev-phone.tail0000.ts.net.", "OS": "iOS", "Online": true, "TailscaleIPs": ["100.115.92.11"]}
 }}
 JSON
-"""
+""" % (TAILNET_HOST_KEY, MULLVAD_NODE)
 
 
 def catalog_text(key, *args):

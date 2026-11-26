@@ -124,7 +124,8 @@ the default: the capital letter in `[Y/n]` (yes) or `[y/N]` (no). Each line it p
 | 7 GitHub | `Commit author name`, `Commit author email` | git has no author yet | signed in to GitHub: your login and its noreply address (`ID+login@users.noreply.github.com`), so a commit shows no real address; else none |
 
 Step 8 connects remote machines, for the parts set up (with the Herdr app chosen and not installed, none is, and
-the step is skipped). Every question there is optional:
+the step is skipped). It starts with a line: `Any network works: a machine is added by its address or name. Tailscale's
+machines are also offered by name.` ([Networks](remote-machines.md#networks)). Every question there is optional:
 
 | Question | When | Default |
 |---|---|---|
@@ -132,7 +133,7 @@ the step is skipped). Every question there is optional:
 | `Import alpha (root@alpha.example)?` | for each machine in it, but one on your Tailscale network by its name or address: that one is asked about only after a yes to the Tailscale question (or with `./machines.sh tailscale`) | no |
 | `Import alpha (root@alpha.example)? — already imported` | for a machine imported earlier: no takes it off the list | yes |
 | `Import machines from your Tailscale network?` | Tailscale is installed | no |
-| `Import mac-mini (macos, mac-mini.tail0000.ts.net)?` | for each machine there that is not on the list; for one `~/.ssh/config` names, the address that file connects to | no |
+| `Import mac-mini (macos, mac-mini.tail0000.ts.net)?` | for each Linux, macOS or Windows machine there that is not on the list, tagged servers and machines shared in from another tailnet too; never a Mullvad exit node, the node of someone one of your machines is shared with or an expired node (a line after the questions counts those); for one `~/.ssh/config` names, the address that file connects to | no |
 | `Import mac-mini (macos, mac-mini.tail0000.ts.net)? — already imported` | for a machine imported earlier | yes |
 | `user` | the user to log in with over SSH, for a machine on your Tailscale network that `~/.ssh/config` does not name (by its name or address); one it names goes on under that name, with that file's user and key | `root` on Linux, your Mac's user name elsewhere |
 | `Add a machine by hand?` | always | no |

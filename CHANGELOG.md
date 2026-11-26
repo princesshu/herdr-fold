@@ -149,6 +149,8 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 
 ### Changed
 
+- The machine questions (the installer's step 8, Add a machine) start with a line saying any network works: a
+  machine is added by its address or name, and Tailscale's machines are also offered by name.
 - Tab Layout (`herdr-fold.tab-layout`) is gone, its work split: the sidebar lays out every new empty tab and comes back
   in every tab when herdr starts, and Spaces (`herdr-fold.spaces`) keeps the rest (the **new** button's folder picker,
   a space following its folder, the question before a tab with a chat closes, the agents started again after a
@@ -202,6 +204,9 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 
 ### Fixed
 
+- Importing from Tailscale offers only the machines that can be yours: never a Mullvad exit node, the node of
+  someone one of your machines is shared with or an expired node, which a line after the questions counts; tagged
+  servers and machines shared in from another tailnet are still offered.
 - A New space or Add machine left before it is done no longer leaves an empty space in the list.
 - Shift + Enter starts a new line in Claude Code in every pane of the TUI and every terminal of the Herdr app; it sent
   the message where the agent had not asked the terminal for the extended keys.

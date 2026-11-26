@@ -54,10 +54,19 @@ endpoint, whose key ssh would take unasked.
 
 ## Networks
 
-herdr-fold reaches every machine over SSH, so any network works on which the Mac reaches the machine's SSH port: the
-local network, a public address, or a virtual network that joins your machines. The machines of a Tailscale network are
-offered by name (`./machines.sh tailscale`); on any other network add a machine by its address or name
-(`./machines.sh new`), or give it a Host in `~/.ssh/config` and import it from there (`./machines.sh sshconfig`).
+herdr-fold reaches every machine over SSH, on any network on which the Mac reaches the machine's SSH port: the local
+network, a public address, or a virtual network that joins your machines. The machine questions (the installer's step 8,
+Add a machine) start by saying so: "Any network works: a machine is added by its address or name. Tailscale's machines
+are also offered by name." Add one by its address or name (`./machines.sh new`), or give it a Host in
+`~/.ssh/config` and import it from there (`./machines.sh sshconfig`); `./machines.sh tailscale` offers a Tailscale
+network's.
+
+Of a Tailscale network, its Linux, macOS and Windows machines are offered, tagged servers and machines shared in from
+another tailnet among them. Left out, and counted in a line after the questions: Mullvad's exit nodes, the node of
+someone one of your machines is shared with (it is on the network only to reach that machine), and a node whose key
+expired. A subnet router's machines are on no list of the network: each is reached by its own address, so add it by
+that address. Tailscale SSH in check mode asks for a sign-in in the browser now and then, which herdr's connection in
+the background cannot answer: give the machines herdr-fold connects to `accept` in the tailnet's SSH rules.
 
 | Network | What it is | How a machine is added |
 |---|---|---|

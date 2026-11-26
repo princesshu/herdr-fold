@@ -9,6 +9,7 @@ sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from close_tab import close  # noqa: E402
 from herdrlib import agents, herdr  # noqa: E402
+from i18n import t  # noqa: E402
 
 KEYS = ("a", "c", "x", "z", "shift+z", "s", "f", "w")   # Cmd + A, C, X, Z, Shift + Z, S, F and W
 # each editor's own select all, copy, cut, undo, redo, save, find and quit, by the program in front; macOS's nano is
@@ -54,5 +55,5 @@ def main(key):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2 or sys.argv[1] not in KEYS:
-        sys.exit("usage: cmd_keys.py " + "|".join(KEYS))
+        sys.exit(t("cmd_keys.usage", "|".join(KEYS)))
     main(sys.argv[1])

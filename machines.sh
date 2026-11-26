@@ -131,32 +131,84 @@ cmd_status() {
   [ -n "$any" ] || skip "$(t machines.none_listed)"
 }
 
-# The machines on the Tailscale network (Linux, macOS, Windows), one "short|dns|os|online/offline|ips" line each.
-# Exit status 1 without Tailscale, 2 if it does not answer.
+# The machines on the Tailscale network that can be yours (Linux, macOS, Windows; tagged and shared-in ones too), one
+# "short|dns|os|online/offline|ips|ED25519 host key fingerprints" line each; [FILE] gets a word for each one left out
+# (exit, shared, expired). Exit status 1 without Tailscale, 2 if it does not answer.
 tailnet_peers() {
   local ts; ts=$(tailscale_bin) || return 1
   "$ts" status --json 2>/dev/null | python3 -c '
-import sys, json
-d = json.load(sys.stdin)
+import base64, binascii, hashlib, json, sys
+
+def left_out(peer, dns):
+    """Why a peer is none of yours: a Mullvad exit node, a node of someone a machine is shared with, an expired key."""
+    if peer.get("Location") or dns.lower().split(".")[-3:] == ["mullvad", "ts", "net"]:
+        return "exit"
+    if peer.get("ShareeNode"):
+        return "shared"
+    if peer.get("Expired"):
+        return "expired"
+    return None
+
+def fingerprints(keys):
+    """Its ED25519 host keys (sshHostKeys) as ssh-keygen -l prints them; a malformed one is passed over."""
+    found = []
+    for key in keys if isinstance(keys, list) else []:
+        parts = str(key).split()
+        try:
+            blob = base64.b64decode(parts[1], validate=True)
+        except (IndexError, binascii.Error):
+            continue
+        if parts[0] == "ssh-ed25519" and blob.startswith(b"\0\0\0\x0bssh-ed25519"):
+            found.append("SHA256:" + base64.b64encode(hashlib.sha256(blob).digest()).decode().rstrip("="))
+    return ",".join(found)
+
+d, skipped = json.load(sys.stdin), []
 for p in sorted((d.get("Peer") or {}).values(), key=lambda p: p.get("DNSName", "")):
     os_ = {"linux": "linux", "windows": "windows", "macOS": "macos"}.get(p.get("OS"))
-    if os_:
-        dns = p.get("DNSName", "").rstrip(".")
+    dns = p.get("DNSName", "").rstrip(".")
+    why = left_out(p, dns)
+    if os_ and why:                                    # a phone or a TV is neither offered nor counted
+        skipped.append(why)
+    elif os_:
         print("|".join([dns.split(".")[0], dns, os_, "online" if p.get("Online") else "offline",
-                        ",".join(p.get("TailscaleIPs") or [])]))' || return 2
+                        ",".join(p.get("TailscaleIPs") or []), fingerprints(p.get("sshHostKeys"))]))
+if len(sys.argv) > 1:
+    with open(sys.argv[1], "w") as f:
+        f.write("".join(word + "\n" for word in skipped))' "$@" || return 2
+}
+
+# tailnet_left_out WORDS — the line counting the machines tailnet_peers left out (WORDS: its words, a line each)
+tailnet_left_out() {
+  local word n said=()
+  for word in exit shared expired; do
+    n=$(printf '%s\n' "$1" | grep -cx "$word")
+    case "$word:$n" in
+      *:0) ;;
+      exit:1) said+=("$(t machines.left_out_exit_node)") ;;
+      exit:*) said+=("$(t machines.left_out_exit_nodes "$n")") ;;
+      shared:1) said+=("$(t machines.left_out_shared_node)") ;;
+      shared:*) said+=("$(t machines.left_out_shared_nodes "$n")") ;;
+      expired:1) said+=("$(t machines.left_out_expired_node)") ;;
+      expired:*) said+=("$(t machines.left_out_expired_nodes "$n")") ;;
+    esac
+  done
+  [ ${#said[@]} = 0 ] && return 0
+  skip "$(t machines.tailscale_skipped "$(printf '%s\n' "$1" | grep -c .)" "$(joined "${said[@]}")")"
 }
 
 # Pick from the machines on the Tailscale network, one question each
 cmd_tailscale() {
-  local peers hosts; peers=$(tailnet_peers)
-  case $? in
+  local peers status hosts left_file left; left_file=$(mktemp)
+  peers=$(tailnet_peers "$left_file"); status=$?
+  left=$(cat "$left_file"); rm -f "$left_file"
+  case $status in
     1) skip "$(t machines.no_tailscale)"; return 0 ;;
     2) warn "$(t machines.tailscale_failed)"; return 0 ;;
   esac
-  [ -n "$peers" ] || { skip "$(t machines.tailscale_empty)"; return 0; }
+  [ -n "$peers" ] || { skip "$(t machines.tailscale_empty)"; tailnet_left_out "$left"; return 0; }
   hosts=$(ssh_config_hosts)
   local added=0 kept=() short dns os state ips alias name user listed_as shown
-  while IFS='|' read -r short dns os state ips <&3; do
+  while IFS='|' read -r short dns os state ips _ <&3; do        # (its host keys' fingerprints: not used yet)
     # its ~/.ssh/config Host, if it has one: then it goes on the list under that name (with that file's user and key).
     # The Host's name or its HostName is the machine's name or address here, as cmd_sshconfig leaves such a Host to
     # this step (its HostName may be another address of it, such as a public name)
@@ -184,6 +236,7 @@ cmd_tailscale() {
     added=$((added + 1))
   done 3<<< "$peers"
   added_summary "$added" ${kept[@]+"${kept[@]}"}        # (bash 3.2 + set -u: an empty array is unset)
+  tailnet_left_out "$left"
 }
 
 # The machines of ~/.ssh/config (Include-d files too), one "alias|user@host" line each — no patterns or git hosts
@@ -331,11 +384,12 @@ cmd_manual() {
   done
 }
 
-# The installer's step 8, and Ctrl+B, Shift+M: where to read new machines from — each source on its own question, its
-# machines then one by one: ~/.ssh/config, the Tailscale network (it skips the machines already on the list), an
-# address typed in. Exit status 1 if none was asked for.
+# The installer's step 8, and Ctrl+B, Shift+M: a line saying any network works, then where to read new machines from —
+# each source on its own question, its machines then one by one: ~/.ssh/config, the Tailscale network (it skips the
+# machines already on the list), an address typed in. Exit status 1 if none was asked for.
 cmd_pick() {
   local picked=1
+  note "$(t machines.any_network)"
   if [ -f "$HOME/.ssh/config" ] && ask "$(t machines.pick_sshconfig)" n; then
     has_ssh_key || make_ssh_key; cmd_sshconfig; picked=0
   fi
