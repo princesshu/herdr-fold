@@ -183,7 +183,7 @@ def module(name):
 def icons_js():
     """The mod's icons.js, by the path the app loads each: the views' (ICONS, the lucide/ folder's) and a file's by
     its extension, by its name's start, and any other's (core/icons.py's), a change's letter, and a connector's brand
-    (core/connectors.py's: its name, its logo, whether that is drawn in the text's color)."""
+    (core/connectors.py's: its name, its logo or null, whether that is drawn in the text's color)."""
     icons, brands = module("icons"), module("connectors").BRANDS
     file = lambda name: f"{SVGS}/catppuccin/{name}.svg"                                  # noqa: E731
     views = sorted(name[:-len(".svg")] for name in os.listdir(os.path.join(ROOT, "app", SVGS, "lucide")))
@@ -192,8 +192,8 @@ def icons_js():
               "BY_NAME": [[file(name), list(starts)] for _glyph, name, starts in icons.BY_NAME],
               "FILE": file(icons.FILE), "FOLDER": {state: file(name) for state, name in icons.FOLDER.items()},
               "LETTER": icons.GIT_LETTER,
-              "BRANDS": {key: {"name": one["name"], "logo": f"{SVGS}/logos/{one['logo']}.svg", "mono": one["mono"]}
-                         for key, one in brands.items()}}
+              "BRANDS": {key: {"name": one["name"], "logo": one["logo"] and f"{SVGS}/logos/{one['logo']}.svg",
+                               "mono": one["mono"]} for key, one in brands.items()}}
     lines = ["// @ts-check",
              "// Generated from core/icons.py, core/connectors.py and the icons/ folder by tools/build.py: change",
              "// them there, then run /usr/bin/python3 tools/build.py. Each icon by the path the app loads it."]
@@ -290,8 +290,9 @@ def outputs():
     for path, sources in HELPERS.items():
         lines = js_note()
         lines += [f"export const {const} = {literal(runnable(name))};" for const, name in sources.items()]
-        lines.append(f"export const MEDIA_KINDS = {json.dumps(module('media').KINDS, indent=2)};")
+        lines.append(f"export const MEDIA_KINDS = {json.dumps(module('filekinds').KINDS, indent=2)};")
         lines.append(f"export const MEDIA_WEB = {json.dumps(module('media').WEB, indent=2)};")
+        lines.append(f"export const MEDIA_SERVICES = {json.dumps(module('calls').MEDIA, indent=2)};")
         lines.append(f"export const OUTPUT_LINES = {module('named_files').LINES};")
         # the app's herdr-fold themes by the TUI's names, in its order (Cmd+Shift+T's list)
         names = {f"herdr-fold-{theme['id']}": theme["name"] for theme in themes}

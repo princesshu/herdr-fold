@@ -855,12 +855,17 @@ export class AgentView {
   }
 
   /** A way to add a connector picked (core's: its page in the browser, or the form in the properties' place, the keys
-   * in its first field). @param {{ id: string, url: string | null }} way */
+   * in its first field; an offered service's name and address in it). @param {{ id: string, url: string | null,
+   * name?: string, address?: string }} way */
   add(way, cx) {
     this.addMenu = false;
     if (way.url) cx.open_url(way.url);
     else {
       const [name, url] = [InputState.new({ placeholder: "" }), InputState.new({ placeholder: "" })];
+      if (way.name) {
+        name.set_value(way.name);
+        url.set_value(way.address ?? "");
+      }
       const form = (this.form = { name, url, scope: "local", focus: "name", error: null, busy: false });
       for (const [field, input] of /** @type {["name" | "url", any][]} */ ([["name", name], ["url", url]])) {
         input.on("submit", (/** @type {any} */ _e, /** @type {any} */ cx) => this.submit(cx));
@@ -1323,7 +1328,8 @@ export class AgentView {
   }
 
   /** The ways to add a connector (connectors.html's .addm, the agents' list's form): Claude's page for claude.ai's
-   * under Lucide's external-link, the form under its link. A press or Enter picks; ↑ ↓ step. @param {any} add */
+   * under Lucide's external-link, the form under its link, an offered service by its logo. A press or Enter picks;
+   * ↑ ↓ step. @param {any} add */
   ways(t, add) {
     /** @type {Record<string, import("./icons.js").IconName>} */
     const marks = { "claude-ai": "external-link", url: "link" };
@@ -1333,7 +1339,8 @@ export class AgentView {
       .children(add.menu.map((/** @type {any} */ way, /** @type {number} */ n) => panelRow(t, this.addList, n, true)
         .id(`agent-add-way-${this.slides}${way.id}`).line_height("16px").cursor_pointer()
         .on_click((/** @type {any} */ _e, /** @type {any} */ cx) => this.add(way, cx))
-        .child(icon(marks[way.id] ?? "plus", 16).text_color(t.muted)).child(way.label)));
+        .child(way.brand ? brandMark(t, way.brand, way.label) : icon(marks[way.id] ?? "plus", 16).text_color(t.muted))
+        .child(way.label)));
   }
 
   /** A key in the open menu: ↑ ↓ step its rows, Enter or Space picks, Esc shuts it. @param {any[]} ways */

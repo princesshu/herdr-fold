@@ -22,7 +22,7 @@ UI = ("arrow-up", "arrow-up-from-line", "at-sign", "audio-lines", "book-marked",
       "chevron-right", "chevron-up", "chevrons-down-up", "chevrons-left", "chevrons-right", "circle-dot", "clock",
       "code", "columns-2", "command", "copy", "download", "ellipsis", "external-link", "eye", "eye-off", "file",
       "file-plus", "files", "folder-plus", "git-branch", "hand", "layers", "leaf", "link", "list-checks",
-      "loader-circle", "minus", "monitor", "notebook", "panel-left", "plug", "plus", "refresh-cw", "rows-2",
+      "loader-circle", "minus", "monitor", "notebook", "panel-left", "play", "plug", "plus", "refresh-cw", "rows-2",
       "scroll-text", "search", "server", "settings", "share-2", "sparkle", "sparkles", "square", "square-slash",
       "square-terminal", "terminal", "undo-2", "wrench", "x", "zap")
 
@@ -43,8 +43,8 @@ def file_types():
 
 
 def logos():
-    """SVG Logos' names of the brands core/connectors.py knows a connector by."""
-    return tuple(sorted(one["logo"] for one in core("connectors").BRANDS.values()))
+    """SVG Logos' names of the brands core/connectors.py knows a connector by (one with none drawn by its letter)."""
+    return tuple(sorted(one["logo"] for one in core("connectors").BRANDS.values() if one["logo"]))
 
 
 def sets():
@@ -76,12 +76,14 @@ def fetch(prefix, names):
 
 
 def svg(body, width, height):
-    """BODY (Iconify's) as an SVG file, an element a line, none longer than WIDTH: a long tag's attributes one a line,
-    a long path's data broken before its commands. A DTD or an entity (the answer is someone else's) stops it."""
+    """BODY (Iconify's) as an SVG file, square (a tall or wide mark centered in it, so a one-color one drawn in a square
+    never runs out of it), an element a line, none longer than WIDTH, a long path's data broken before its commands. A
+    DTD or an entity (the answer is someone else's) stops it."""
     if "<!" in body:
         raise ValueError("a DTD or an entity: not an icon this writes")
-    root = ET.fromstring(f'<svg xmlns="{SVG}" width="{width}" height="{height}" viewBox="0 0 {width} {height}">'
-                         f"{body}</svg>")
+    side = max(width, height)
+    box = " ".join(f"{n:g}" for n in ((width - side) / 2, (height - side) / 2, side, side))
+    root = ET.fromstring(f'<svg xmlns="{SVG}" width="{side}" height="{side}" viewBox="{box}">{body}</svg>')
     return "\n".join(element(root, 0, top=True)) + "\n"
 
 

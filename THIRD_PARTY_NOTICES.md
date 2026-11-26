@@ -76,9 +76,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-A connector's brand (`app/mods/herdr-fold/icons/logos/`: Box, Dropbox, Figma, Google Drive, Linear, Notion, OneDrive
-and Sentry) is from [SVG Logos](https://github.com/gilbarbara/logos), which its author, Gil Barbara, gave to the public
-domain (CC0 1.0 Universal). Each mark is its owner's trademark, used only to name that service beside its connector.
+A connector's brand (`app/mods/herdr-fold/icons/logos/`: Box, Cartesia, Dropbox, ElevenLabs, fal, Figma, Google
+Drive, Higgsfield, Linear, Luma, Notion, OneDrive, Runway and Sentry) is from
+[SVG Logos](https://github.com/gilbarbara/logos), which its author, Gil Barbara, gave to the public domain (CC0 1.0
+Universal). Each mark is its owner's trademark, used only to name that service beside its connector. FLUX (Black
+Forest Labs) and Meshy are drawn by their letter: their makers give no logo to take.
 
 ## The font
 
@@ -170,9 +172,10 @@ Mac's own app icons. None of Ghostty's artwork is in it or in this repository.
 
 ## Trademarks
 
-Claude Code, Codex, VS Code, GitHub, Tailscale, herdr and Ghostty, and Box, Dropbox, Figma, Google Drive, Linear,
-Notion, OneDrive and Sentry with their logos, are trademarks of their respective owners. herdr-fold is an independent
-project, not affiliated with or endorsed by them.
+Claude Code, Codex, VS Code, GitHub, Tailscale, herdr and Ghostty, and Box, Cartesia, Dropbox, ElevenLabs, fal,
+Figma, FLUX and Black Forest Labs, Google Drive, Higgsfield, Linear, Luma, Meshy, Notion, OneDrive, Runway and Sentry
+with their logos, are trademarks of their respective owners. herdr-fold is an independent project, not affiliated with
+or endorsed by them.
 
 herdr-fold's name and its logo, the sheep (`src/themes/logo.svg`, and the app icon in each theme's colors made from
 it), identify this project. The MIT license covers the code and the files, but gives no right to use the name or the

@@ -11,6 +11,12 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 
 ### Added
 
+- Media generation, the agent's own: image, voice and video services as connectors, named and drawn as their makers
+  do (fal, ElevenLabs, FLUX, Runway, Higgsfield, Luma, Cartesia, Meshy), each media one saying what it makes and its
+  calls today in place of tokens (they bill in credits), and the hosted ones offered by name in the add form, signed in
+  to in the browser, never a key. What a chat made shows in the preview tab, audio and video too (a frame and a
+  waveform; an MP3 plays in the app, `o` opens the player in the TUI), with where it came from under it: the model,
+  the prompt, the skill and the calls, as the chat tells it; Ask for another asks that chat. Runs counts the same files
 - OpenCode (V2) as a coding agent, through the agents' adapters: installed and signed in in the agents' lists, its CLI
   in a terminal tab from New chat and a new space (the TUI's picker: `claude │ codex │ opencode`), its chats in Chats
   from its own database, reopened with `opencode --session` and copied, never deleted here, and in the Agent panel the

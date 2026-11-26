@@ -1212,7 +1212,7 @@ class Reading(unittest.TestCase):
         plain = [re.sub(r"\x1b\[[0-9;]*m", "", line) for line in spec["views"][0]["lines"]]
         self.assertEqual(plain[:2], ["Claude  Manual", "in"])
         self.assertTrue(any(re.fullmatch(r"  CLAUDE\.md +Project +always · \d+", line) for line in plain), plain)
-        self.assertTrue(any(line.startswith("  sentry ") and "failed" in line for line in plain), plain)
+        self.assertTrue(any(line.startswith("  Sentry ") and "failed" in line for line in plain), plain)
 
     def test_its_answer_tells_the_agents_on_this_machine_each_with_where_it_stands(self):
         app = self.app()
@@ -1325,7 +1325,7 @@ class Reading(unittest.TestCase):
                 app.collect()
         view = app.views["agent"]
         self.assertEqual((view.checking, view.problems()), (set(), []))
-        sentry = next(row for section in view.answer["sections"] for row in section["rows"] if row["name"] == "sentry")
+        sentry = next(row for section in view.answer["sections"] for row in section["rows"] if row["name"] == "Sentry")
         self.assertEqual(sentry["state"]["text"], "on")
         with open(self.session, "a", encoding="utf-8") as f:                    # a new session line: Claude's word
             f.write(json.dumps({"type": "attachment", "isSidechain": False, "attachment": {
@@ -1485,9 +1485,10 @@ class Connectors(unittest.TestCase):
     def test_the_more_menu_opens_usage_runs_and_the_graph_adds_a_connector_two_ways_and_reads_again(self):
         self.view.set(metered())
         lines = self.view.menu_lines()
+        offered = [f"Add {name}…" for name in ("fal", "ElevenLabs", "FLUX", "Runway", "Figma")]
         self.assertEqual(lines, ["Open Usage", "Open Runs", "Show graph", "Add from claude.ai…", "Add by URL…",
-                                 "Refresh"])
-        self.assertEqual([getattr(line, "key", None) for line in lines], ["U", "r", "g", None, "a", None])
+                                 *offered, "Refresh"])
+        self.assertEqual([getattr(line, "key", None) for line in lines], ["U", "r", "g", None, "a"] + [None] * 6)
         self.assertEqual(self.view.menu_pick("Open Usage"), Action("open_usage", ()))
         self.assertEqual(self.view.menu_pick("Open Runs"), Action("open_runs", ()))
         self.assertEqual(self.view.menu_pick("Show graph"), Action("show_graph", ()))
@@ -1497,7 +1498,7 @@ class Connectors(unittest.TestCase):
         self.assertTrue(self.view.form and self.view.editing)
         codex = layers.Layers(icons=True)
         codex.set({**lumen(), "agent": "codex", "connect": A.connecting("codex", "/work/lumen-api")})
-        self.assertEqual(codex.menu_lines(), ["Open Runs", "Show graph", "Add by URL…", "Refresh"])  # no claude.ai
+        self.assertEqual(codex.menu_lines(), ["Open Runs", "Show graph", "Add by URL…", *offered, "Refresh"])
         # OpenCode: its setup read, no graph drawn of it, nothing added to it from here
         opencode = layers.Layers(icons=True)
         opencode.set({**lumen(), "agent": "opencode", "connect": A.connecting("opencode", "/work/lumen-api")})
@@ -1512,6 +1513,16 @@ class Connectors(unittest.TestCase):
     def type(self, words):
         for ch in words:
             self.press(ch)
+
+    def test_an_offered_service_fills_the_form_the_keys_on_add(self):
+        # its maker's hosted MCP: Connect signs in to it in the browser once it is added, never a key
+        self.view.set(metered())
+        self.assertIsNone(self.view.menu_pick("Add ElevenLabs…"))
+        form = self.view.form
+        self.assertEqual((form["name"].text, form["url"].text, form["at"]),
+                         ("elevenlabs", "https://api.elevenlabs.io/v1/mcp", "add"))
+        self.assertEqual(self.press("enter"), Action("add_connector", ("elevenlabs", "https://api.elevenlabs.io/v1/mcp",
+                                                                       "local")))
 
     def test_a_opens_the_form_from_the_keys_where_a_connector_can_be_added(self):
         self.press("a")
@@ -1622,7 +1633,7 @@ class Commands(unittest.TestCase):
         with mock.patch.object(agent_state, "check", lambda folder, name: (
                 checks.append(name), {"state": agent_setup.ON, "error": None, "url": None})[1]):
             app.act(Action("connect_server", ("sentry",)), "agent")
-            self.assertEqual(self.opened, [("Sign in to sentry", ["claude", "mcp", "login", "sentry"])])
+            self.assertEqual(self.opened, [("Sign in to Sentry", ["claude", "mcp", "login", "sentry"])])
             self.assertEqual(view.signing, {"sentry"})
             app.act(Action("connect_server", ("sentry",)), "agent")             # one per server
             self.assertEqual(len(self.opened), 1)
@@ -1758,8 +1769,9 @@ class Commands(unittest.TestCase):
     def test_more_lists_the_agent_views_own_lines_first_while_it_shows(self):
         app = self.started()
         app.open_menu(0, 0)
-        self.assertEqual(app.menu[0].choices[:7], ["Open Usage", "Open Runs", "Show graph", "Add from claude.ai…",
-                                                   "Add by URL…", "Refresh", None])
+        self.assertEqual(app.menu[0].choices[:12], ["Open Usage", "Open Runs", "Show graph", "Add from claude.ai…",
+                                                    "Add by URL…", "Add fal…", "Add ElevenLabs…", "Add FLUX…",
+                                                    "Add Runway…", "Add Figma…", "Refresh", None])
         for _ in range(4):
             app.handle(Key("down"))
         app.handle(Key("enter"))

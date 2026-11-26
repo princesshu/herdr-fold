@@ -4,6 +4,7 @@ as an Action for the app."""
 import os
 from dataclasses import dataclass
 
+import filekinds
 import media
 import widgets
 from icons import GIT_LETTER, glyphs, icon
@@ -379,8 +380,8 @@ class Explorer:
             choices = (("New space",) if node.is_dir and self.opens_workspace else ()) + MENU
         if self.preview and os.path.exists(self.preview):
             choices = ("Close Preview",) + choices
-        if node is not None and node.path is not None and not node.is_dir and media.kind_of(node.path) \
-                and media.browsable():                                         # a page, a PDF, an image
+        if node is not None and node.path is not None and not node.is_dir and filekinds.kind_of(node.path) \
+                and media.browsable():                                         # a page, a PDF, an image, a clip
             choices = (f"Open in {media.opener(node.path)}",) + choices      # Preview for a PSD, an EXR
         self.menu = Popup(Menu(choices), node, y, x)
 

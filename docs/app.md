@@ -15,7 +15,8 @@ terminals and code are in the TUI's font, herdr-fold Mono (the mod brings it in 
 font menus change them.
 
 Its icons are Lucide's, a file's Catppuccin Icons' for its type, as the TUI sidebar tells the types apart
-(`core/icons.py`), and a connector's its service's own logo, SVG Logos' (`core/connectors.py` knows eight);
+(`core/icons.py`), and a connector's its service's own logo, SVG Logos' (`core/connectors.py` knows sixteen, two
+of them by their letter: their makers give no logo to take);
 `tools/icons.py` fetches the three sets from Iconify into `app/mods/herdr-fold/icons/`, and `icons.js` names each once,
 which every view draws them from. Nothing is fetched while the app runs, and no Nerd Font is needed.
 
@@ -81,8 +82,8 @@ The space's folder, read on the space's machine, as the TUI sidebar's Files show
 | The tree | folders first, then files, by name; a folder read only once opened, a very full one ending in `… N more`; what git ignores faint and never read |
 | Icons | Catppuccin Icons' for each file type and for a folder, closed or open, as the Changes view's |
 | Marks | git's letter on each changed file and a dot on a folder holding changes, in git's colors, as in the TUI |
-| A click | a text file opens in an editor tab ([Editing files](#editing-files)); an image, a PDF, a page, an SVG or Markdown in the space's preview tab; a folder opens or closes |
-| Right click | Open in Browser (a page, a PDF or an image on this Mac, in the default browser; Open in Preview for a picture no browser shows, as a PSD or an EXR), Close Preview (while the space has a preview tab), New File, New Folder, Rename (the name typed in its row; Enter makes it, Esc gives it up), Copy Path (the path on its machine, onto this computer's clipboard), Move to Trash (asked on its row first), and on a folder New Space there |
+| A click | a text file opens in an editor tab ([Editing files](#editing-files)); an image, audio, a video, a PDF, a page, an SVG or Markdown in the space's preview tab; a folder opens or closes |
+| Right click | Open in Browser (a page, a PDF or an image on this Mac, in the default browser; Open in Preview for a picture no browser shows, as a PSD or an EXR; Open in Player for audio or a video), Close Preview (while the space has a preview tab), New File, New Folder, Rename (the name typed in its row; Enter makes it, Esc gives it up), Copy Path (the path on its machine, onto this computer's clipboard), Move to Trash (asked on its row first), and on a folder New Space there |
 | The toolbar | New File and New Folder at the top, Refresh, Collapse Folders, and hidden files shown (the default) or not, kept for the next start |
 
 It follows the folder as it changes; a folder on another machine is looked at again every ten seconds.
@@ -167,6 +168,19 @@ the other. WebKit draws it offline, as in the TUI. Markdown is drawn the same wa
 is (no image fetched, no HTML). Their code is the editor ([Editing files](#editing-files)): a page or an SVG saved is
 drawn again, Markdown as you type. A right click in the tab offers those, Open in Browser and Close Preview.
 Herdr-fold's panel stays beside it.
+
+An image, audio or a video on this Mac shows under a bar with its path, its pixels or length (`1920×1080 · 0:05`) and,
+where an agent made it, the chat it came from (`from the chat “Landing hero”`). A video shows a frame a tenth in, and
+audio its waveform with its length; an MP3 plays in the app (Play, its waveform lit in the accent as far as it has
+played, the time beside it), as the app's sounds do, which no button stops. Under it, where an agent made it, is where
+it came from, as that chat tells it (`core/runs.py`): the model and the service, the prompt the agent gave it, the skill
+in use and the calls of that service in that turn (a media service bills in credits). It is a file the chat names: one
+a connector's result names, or one a command downloads from an address a result gave, a job's poll counted with the
+call that asked for it. Its buttons: Show in Finder, Ask for another (lit while that chat runs here as a chat: it sends
+the chat a request for another take with the same prompt, model and skill, and shows its tab; the agent makes it, not
+herdr-fold) and Open in Browser, Preview or Player at the end (QuickTime Player, given only a real clip: a file named
+like one that is none stays shut, and says so), what each did said at their left. Runs counts the same
+files as its media.
 
 ![A PDF's pages one under another in the preview tab, its first page in view under the page count and Open in
 Browser; beside it Files](../assets/screenshots/app-pdf.webp)

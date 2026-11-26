@@ -58,9 +58,16 @@ def documents(binary, home):
             if one.get("type") == "document" and isinstance(one.get("path"), str) and os.path.isabs(one["path"])]
 
 
+def next_char(text, at):
+    """Where TEXT's next character from AT that is not white space stands (its length where none is): one walk."""
+    while at < len(text) and text[at] in " \t\r\n":
+        at += 1
+    return at
+
+
 def jsonc(text):
     """TEXT, a .json or .jsonc config, as JSON reads it: its // and /* */ comments and trailing commas left out, its
-    strings kept as written. ValueError where it is no JSON then."""
+    strings kept as written, in one pass (a large file stays quick). ValueError where it is no JSON then."""
     out, at, end = [], 0, len(text)
     while at < end:
         if text[at] == '"':                             # a string whole, its escapes with it
@@ -70,11 +77,16 @@ def jsonc(text):
             out.append(text[at:close + 1])
             at = close + 1
         elif text.startswith("//", at):
-            at = text.find("\n", at) if "\n" in text[at:] else end
+            newline = text.find("\n", at)
+            at = end if newline < 0 else newline
         elif text.startswith("/*", at):
-            at = text.find("*/", at + 2) + 2 if "*/" in text[at + 2:] else end
-        elif text[at] == "," and text[at + 1:].lstrip()[:1] in ("}", "]"):
-            at += 1                                     # a trailing comma
+            close = text.find("*/", at + 2)
+            at = end if close < 0 else close + 2
+        elif text[at] == ",":
+            ahead = next_char(text, at + 1)
+            if text[ahead:ahead + 1] not in ("}", "]"):
+                out.append(",")                         # a trailing comma left out
+            at += 1
         else:
             out.append(text[at])
             at += 1

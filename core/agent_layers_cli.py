@@ -8,6 +8,7 @@ import sys
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 from agent_layers import SAID_AS, layers  # noqa: E402
 from agent_setup import clean, conversation, setup  # noqa: E402
+from calls import counted  # noqa: E402
 from jsonl import obj  # noqa: E402
 import opencode_setup  # noqa: E402
 
@@ -37,7 +38,7 @@ def main(argv):
         found = opencode_setup.setup(argv[2], home) if argv[1] == "opencode" else setup(argv[1], argv[2], home, session)
         states = {one["name"]: one["state"] for one in found["servers"]} if found else {}
         if found:
-            checked_over(found["servers"], checked)
+            counted(checked_over(found["servers"], checked), home)
         print(json.dumps(found and {"agent": argv[1], "folder": argv[2], "states": states,
                                     **layers(found, argv[1], argv[2], home)}))
         return 0

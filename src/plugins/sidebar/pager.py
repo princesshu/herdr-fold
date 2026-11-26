@@ -15,9 +15,12 @@ import threading
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import connectors  # noqa: E402
+import filekinds  # noqa: E402
 import git  # noqa: E402
 import media  # noqa: E402
 import preview  # noqa: E402
+import runs  # noqa: E402
 from preview import Herdr  # noqa: E402
 from screen import char_width, width  # noqa: E402
 from vt import Key, Mouse  # noqa: E402
@@ -38,6 +41,12 @@ WAIT = 30                     # seconds a pipeline may run (gh asking GitHub, a 
 PICTURE = 4271                # the picture's id in the Kitty graphics protocol: one at a time
 CELL, CELL_PX = 2.1, 16       # a cell's height by its width, and its width in pixels, where the terminal says neither
 GAP = 1                       # rows between two of a PDF's pages
+TOLD = 0.4                    # seconds a first draw waits for where a picture came from, so it is not drawn twice
+WAVE = 5                      # rows of audio's waveform
+BLOCKS = " ▁▂▃▄▅▆▇█"          # a cell's eighths, filled from its foot
+RATIOS = ((1, 1), (4, 3), (3, 2), (16, 9), (21, 9), (5, 4), (2, 3), (3, 4), (9, 16), (4, 5))
+FINDER = "Show in Finder"
+AGAIN = "Ask for Another"
 
 
 def stop(proc):
@@ -137,6 +146,43 @@ def browse(path):
 def browse_hint(path):
     """o's part of a status row, for PATH."""
     return f"  o: open in {media.opener(path).lower()}"
+
+
+def shut(path):
+    """PATH opened as o opens it: None, else what kept it shut (a file named like a clip that is none, media.clip())."""
+    if media.open_in_browser(path):
+        return None
+    return "Not opened: it is not a clip a player plays" if media.opener(path) == "Player" else \
+        "No browser to open it in"
+
+
+def ratio(pixels):
+    """A picture's shape: its aspect as people say it (16:9) where it is a usual one, else its pixels."""
+    wide, tall = pixels
+    return next((f"{a}:{b}" for a, b in RATIOS if tall and abs(wide / tall - a / b) < 0.02), f"{wide}×{tall}")
+
+
+def length(seconds):
+    """A clip's length: 5 s, 1:05."""
+    seconds = round(seconds)
+    return f"{seconds} s" if seconds < 60 else f"{seconds // 60}:{seconds % 60:02d}"
+
+
+def ask_again(origin):
+    """ORIGIN's request for another typed into the chat that made it (not sent: the TUI's way), that chat shown; what
+    happened, in herdr's words where it refused."""
+    herdr = Herdr()
+    try:
+        agents = herdr.call("agent", "list").get("agents") or []
+        pane = next((one.get("pane_id") for one in agents
+                     if (one.get("agent_session") or {}).get("value") == origin["session"]), None)
+        if not pane:
+            return f"“{origin['title']}” is not open: Chats opens it"
+        herdr.call("pane", "send-text", pane, origin["again"])
+        herdr.call("agent", "focus", pane)
+    except RuntimeError as err:
+        return str(err)
+    return "Typed into its chat: Enter sends it"
 
 
 def bar(status, cells, lead=""):
@@ -451,18 +497,44 @@ def width_px(columns, cw=CELL_PX):
 
 class Picture:
     """An image, an SVG or a page drawn in the pane, fitted and centered: o opening it in the browser, q or Esc closing
-    the tab. Its PNG is made in a folder of its own, gone at close()."""
+    the tab; an image an agent made (TOLD) with where it came from under it. Its PNG is made in a folder of its own,
+    gone at close()."""
 
-    def __init__(self, path, title, image=PICTURE):
+    def __init__(self, path, title, image=PICTURE, told=False):
         self.path, self.title, self.note, self.image = path, title, None, image      # IMAGE: its id, one of two
         self.work = tempfile.mkdtemp(prefix="herdr-fold-picture.")
         self.opens, self.lead = media.browsable(), ""
-        self.drawn = media.kind_of(path) in ("svg", "html")      # WebKit draws it, sharp at any width
+        self.drawn = filekinds.kind_of(path) in ("svg", "html")  # WebKit draws it, sharp at any width
         self.ready = not self.drawn                              # its helper compiled at its first draw
         self.cell = (CELL_PX, CELL_PX * CELL)                    # the pane's, as its terminal says at each draw
+        self.origin = self.pixels = None                         # where it came from, asked on a thread (runs.py's)
+        self.asking = threading.Thread(target=self.ask, daemon=True) if told else None
+        if self.asking:
+            self.asking.start()
+
+    def ask(self):
+        self.pixels = media.pixels(self.path)
+        self.origin = runs.origin(self.path)
+
+    def lines(self):
+        """What is told under it: its model, shape, server, calls and skill on a line, then its prompt; none where no
+        chat tells where it came from."""
+        told = self.origin or {}
+        calls, brand = told.get("calls"), connectors.BRANDS.get(connectors.brand(told.get("server")) or "", {})
+        facts = [told.get("model"), *self.measures(), brand.get("name") or told.get("server"),
+                 calls and f"{calls} call{'s' * (calls != 1)}", told.get("skill")]
+        said = " · ".join(plain(one) for one in facts if one) if told or self.measured() else ""
+        return [one for one in (said, plain(told.get("prompt") or "")) if one]
+
+    def measures(self):
+        return [ratio(self.pixels)] if self.pixels else []
+
+    def measured(self):
+        """Whether its shape is worth a line alone, where no chat tells more (a clip's length is)."""
+        return False
 
     def shown(self):
-        return self.note
+        return self.note, self.origin
 
     def status(self):
         if self.note:
@@ -481,7 +553,14 @@ class Picture:
         columns, height = term.size()
         self.prepare(term, columns, height)
         self.cell = cell(term)
-        out = [self.taken(), "\x1b[0m\x1b[2J", self.place(columns, max(1, height - 1))]
+        if self.asking:                                          # its first draw: where it came from, if quickly told
+            self.asking.join(TOLD)
+            self.asking = None
+        lines = self.lines()
+        room = max(1, height - 1 - (len(lines) + 1 if lines else 0))
+        out = [self.taken(), "\x1b[0m\x1b[2J", self.place(columns, room)]
+        out += [f"\x1b[{room + 2 + n};3H\x1b[2m{visible(line, max(1, columns - 4))}\x1b[0m"
+                for n, line in enumerate(lines)]
         out.append(f"\x1b[{height};1H\x1b[0;7m{bar(self.status(), columns, self.lead)}\x1b[0m")
         term.write("".join(out))
         term.flush()
@@ -518,15 +597,22 @@ class Picture:
         if key in ("q", "esc") or (event.name == "char" and event.ctrl and event.char == "c"):
             return False
         if key == "o" and self.opens:
-            self.note = None if media.open_in_browser(self.path) else "No browser to open it in"
+            self.note = shut(self.path)
         return True
 
     def choices(self):
-        return [(browse(self.path), None)] * bool(self.opens) + [(CLOSE, None)]
+        """A right click's menu: where o opens it; an agent's picture in the Finder and another asked of its chat."""
+        made = filekinds.kind_of(self.path) in ("image", "audio", "video") and self.opens
+        return [(browse(self.path), None)] * bool(self.opens) + [(FINDER, None)] * bool(
+            made and sys.platform == "darwin") + [(AGAIN, None)] * bool(self.origin) + [(CLOSE, None)]
 
     def choose(self, choice):
         if self.opens and choice == browse(self.path):
-            self.note = None if media.open_in_browser(self.path) else "No browser to open it in"
+            self.note = shut(self.path)
+        elif choice == FINDER:
+            self.note = None if media.reveal(self.path) else "The Finder is not on this machine"
+        elif choice == AGAIN and self.origin:
+            self.note = ask_again(self.origin)
         return choice != CLOSE
 
     def close(self, term):
@@ -537,6 +623,52 @@ class Picture:
         except OSError:
             pass
         shutil.rmtree(self.work, ignore_errors=True)
+
+
+class Clip(Picture):
+    """Audio or a video an agent may have made: a video's frame drawn as a picture is, audio's waveform in the
+    accent's color, its shape and length under it with where it came from; o opens it in the player."""
+
+    def __init__(self, path, title):
+        super().__init__(path, title, told=True)
+        self.clip, self.ready = None, False                      # media.still()'s, read at its first draw
+
+    def read(self, columns):
+        if self.clip is None:
+            self.clip = media.still(self.path, self.work, width_px(columns, self.cell[0])) or {}
+        return self.clip
+
+    def measures(self):
+        clip = self.clip or {}
+        return ([ratio(clip["pixels"])] if clip.get("pixels") else []) + (
+            [length(clip["seconds"])] if clip.get("seconds") else [])
+
+    def measured(self):
+        return bool(self.measures())
+
+    def prepare(self, term, columns, height):
+        """The first draw's wait, said in the pane: its helper compiled the first time, then the clip read."""
+        if not self.ready:
+            opening(term, columns, height, filekinds.kind_of(self.path))
+            self.read(columns)
+            self.ready = True
+
+    def png(self, columns, rows):
+        return self.read(columns).get("png")
+
+    def place(self, columns, rows, left=0, made_for=None, top=0):
+        """A video as a picture is placed; audio's waveform WAVE rows high (its loudest step the whole height),
+        centered in COLUMNS x ROWS cells."""
+        levels = self.read(columns).get("levels")
+        if not levels:
+            return super().place(columns, rows, left, made_for, top)
+        wide, tall, loudest = max(1, columns - 4), max(1, min(WAVE, rows)), max(levels) or 1
+        bars = [max(levels[n * len(levels) // wide:max(n * len(levels) // wide + 1, (n + 1) * len(levels) // wide)])
+                for n in range(wide)]
+        first = top + (rows - tall) // 2 + 1
+        return "".join(f"\x1b[{first + row};{left + 3}H\x1b[35m" + "".join(
+            BLOCKS[min(8, max(0, max(1, round(level / loudest * tall * 8)) - (tall - 1 - row) * 8))] for level in bars)
+            + "\x1b[0m" for row in range(tall))
 
 
 def layout(sizes, columns, ratio=CELL):
@@ -883,19 +1015,21 @@ class Popup:
 
 
 def viewer(spec):
-    """SPEC's view: a changed picture's before and after, an SVG or a page as its code and its picture, an image or a
-    PDF drawn, else the pager over its lines."""
+    """SPEC's view: a changed picture's before and after, an SVG or a page as its code and its picture, an image, a
+    PDF, audio or a video drawn, else the pager over its lines."""
     if spec.get("change"):
         return PictureChange(spec)
     if isinstance(spec.get("views"), list) and any(isinstance(view, dict) and isinstance(view.get("lines"), list)
                                                    for view in spec["views"]):
         return Views(spec)
-    if spec.get("picture") and media.kind_of(spec["picture"]) in ("svg", "html"):
+    if spec.get("picture") and filekinds.kind_of(spec["picture"]) in ("svg", "html"):
         return PictureAndCode(spec)
-    if spec.get("picture") and media.kind_of(spec["picture"]) == "pdf":
+    if spec.get("picture") and filekinds.kind_of(spec["picture"]) == "pdf":
         return Pdf(spec["picture"], spec.get("title") or "")
+    if spec.get("picture") and filekinds.kind_of(spec["picture"]) in ("audio", "video"):
+        return Clip(spec["picture"], spec.get("title") or "")
     if spec.get("picture"):
-        return Picture(spec["picture"], spec.get("title") or "")
+        return Picture(spec["picture"], spec.get("title") or "", told=True)
     return Pager(load(spec), spec.get("title") or "", spec.get("line"), spec.get("open"))
 
 

@@ -1,17 +1,19 @@
 // @ts-check
-// The preview tab, as the TUI sidebar's: one a space, showing a picture, a PDF, a page, an SVG or Markdown (its code
-// the editor), a diff, a commit, an issue or a pull request's review (review.js); a text file opens in an editor tab.
+// The preview tab, as the TUI sidebar's: one a space, showing a picture, a clip (an agent's with where it came from), a
+// PDF, a page, an SVG or Markdown, a diff, a commit, an issue or a review (review.js); a text file opens in the editor.
 import { div, image } from "gpui-kit";
 import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, TextView, v_resizable, v_virtual_list }
   from "gpui-base";
-import { hc, home, panes, setShared, shared, spaces, window, run as command } from "herdr";
+import { hc, home, panes, playSound, setShared, shared, spaces, terminals, window, run as command } from "herdr";
 import { Editing, openEditor } from "./editor.js";
-import { GIT, GITHUB, MEDIA, NAMED_FILES, OUTPUT_LINES } from "./helper.js";
-import { browsable, changeSides, commitRows, diffRows, editsInTab, markdownFile, mediaKind, opener, previewName,
-  previewTab, priorityColor, said, safeMarkdown, stacks } from "./logic.js";
+import { CONNECTORS, GIT, GITHUB, MEDIA, MEDIA_SERVICES, NAMED_FILES, OUTPUT_LINES, RUNS } from "./helper.js";
+import { BRANDS } from "./icons.js";
+import { browsable, CHAT_LABEL, CHAT_TAB, changeSides, clipTime, commitRows, diffRows, editsInTab, lastLine,
+  markdownFile, mediaKind, opener, previewName, previewTab, priorityColor, said, safeMarkdown, stacks }
+  from "./logic.js";
 import { Menus } from "./menus.js";
 import { Review } from "./review.js";
-import { chip, choices, iconButton } from "./parts.js";
+import { actButton, chip, choices, icon, iconButton, keepNote, small } from "./parts.js";
 
 const PREVIEWS = "herdr-fold.previews";   // what each space's preview tab shows, by the space's id (shared)
 const LINES = 1500;                       // a diff's or a commit's lines shown at most
@@ -22,6 +24,8 @@ const INSET = 24;                         // px of the board round a picture
 const FIT = 250;                          // ms the board's size stays before an SVG or a page is drawn for it
 const TICK = 200;                         // ms between two looks at the PDF's pages in view
 const NAMED = 360;                        // px: Cmd+Shift+L's list of files, a path and its line
+const LABEL = 72;                         // px: the label column of where a picture or a clip came from
+const BARS = 80;                          // audio's waveform's bars, each its steps' loudest
 /** @type {[string, string][]} a page's, an SVG's or Markdown's views: its code, both side by side, its picture */
 const VIEWS = [["code", "Code"], ["split", "Split"], ["picture", "Picture"]];
 
@@ -93,6 +97,17 @@ export class Preview {
     this.picture = null;
     /** @type {{ before: any, after: any } | null} a changed picture's last commit and file, each core/media.py's */
     this.change = null;
+    /** @type {{ png: string | null, size: number[] | null, pixels: number[] | null, seconds: number | null,
+     * levels: number[] | null } | null} audio's or a video's (core/media.py's): a video's frame, audio's levels */
+    this.clip = null;
+    /** @type {any} where an agent's picture or clip came from (core/runs.py's origin), its "brand" (connectors.py's) */
+    this.origin = null;
+    /** @type {number | null} when its audio began to play (ms), while it plays */
+    this.played = null;
+    /** @type {any} the ticks that light its waveform meanwhile */
+    this.playing = null;
+    /** @type {{ note: import("./parts.js").Note | null }} what a button under a picture or a clip did */
+    this.done = { note: null };
     /** @type {{ sizes: number[][], count: number | null, made: (string | undefined)[], range: any, making: boolean,
      * page: number, room: number | null } | null} a PDF's pages: each one's size in points, its PNG once made ("" where
      * it cannot be); the list's width (logical px) once it is known */
@@ -138,14 +153,20 @@ export class Preview {
     this.ticking?.cancel();
     this.fitting?.cancel();
     this.editing?.release();
+    this.playing?.cancel();
     Object.assign(this, { what, rows: [], issue: null, review: null, picture: null, change: null, pdf: null,
       ticking: null, editing: null, drawing: false, markdown: false, drawnFor: null, fitting: null, loading: true,
-      note: null });
+      note: null, clip: null, origin: null, played: null, playing: null, done: { note: null } });
     cx.spawn(async (cx) => {
       try {
-        if (what.kind === "file" && ["image", "pdf"].includes(mediaKind(what.path) ?? "")) {
-          if (what.on) return void (this.note = "A picture on another machine: only those on this Mac are shown");
-          return void (await this.paint(what));
+        const kind = what.kind === "file" ? mediaKind(what.path) ?? "" : "";
+        if (["image", "pdf", "audio", "video"].includes(kind)) {
+          const clip = kind === "audio" || kind === "video";
+          if (what.on) return void (this.note = `${clip ? "A clip" : "A picture"} on another machine: only those `
+            + "on this Mac are shown");
+          await this.paint(what);
+          if (kind !== "pdf") this.trace(what, cx);
+          return;
         }
         if (what.kind === "file") {                // a page, an SVG or Markdown: its code in the editor, drawn beside
           const editing = (this.editing = new Editing(what, this.core, { space: this.space, tab: previewName(what),
@@ -199,12 +220,33 @@ export class Preview {
     const answer = await this.core(MEDIA, ["picture", `${what.root}/${what.path}`, "0", ...room], home(), null);
     if (what.n !== this.n) return;
     if (size) Object.assign(this, { drawnFor: size, drawing: Boolean(answer.png) });
+    if (answer.kind === "audio" || answer.kind === "video") {
+      this.clip = answer.png || answer.levels ? answer : null;
+      return void (this.note = this.clip ? null : "This clip cannot be read here");
+    }
     const [w, h] = answer.size ?? [1, 1];                 // no helper: the first page alone, through sips
     if (answer.kind === "pdf" && answer.png) {
       this.pdf = { sizes: answer.pages ?? [[612, Math.round((612 * h) / w)]], count: answer.pages?.length ?? null,
         made: [answer.png], range: null, making: false, page: 0, room: null };
-    } else this.picture = answer.png ? { png: answer.png, size: answer.size } : null;
+    } else this.picture = answer.png ? { png: answer.png, size: answer.size, pixels: answer.pixels } : null;
     this.note = answer.png || this.editing ? null : "This picture cannot be shown";
+  }
+
+  /** Where WHAT, a picture or a clip, came from, as the chat that made it tells it (core/runs.py), with its brand
+   * (core/connectors.py); nothing where none tells it. */
+  trace(what, cx) {
+    cx.spawn(async (cx) => {
+      try {
+        const told = await this.core(RUNS, ["origin", `${what.root}/${what.path}`], home(), null);
+        if (!told || what.n !== this.n) return;
+        const brand = await this.core(CONNECTORS, ["brand", told.server], home(), null);
+        if (what.n === this.n) this.origin = { ...told, brand };
+      } catch {
+        // none told: the file alone
+      } finally {
+        cx.notify();
+      }
+    });
   }
 
   /** A changed picture's before (its last commit's) and after (the file's), as VS Code's image diff: either may be
@@ -271,19 +313,62 @@ export class Preview {
     return Boolean(this.editing?.command(asked, cx));
   }
 
-  /** The picture's file opened in the default browser (core/media.py). */
+  /** The file opened where opener() says (core/media.py): the browser, Preview, the player. */
   browse(cx) {
-    const { what } = this;
+    const { what } = this, where = opener(what.path, window()?.platform);
     cx.spawn(async (cx) => {
       try {
         const done = await this.core(MEDIA, ["open", `${what.root}/${what.path}`], home(), null);
-        this.note = done.opened ? null : "No browser to open it in";
+        keepNote(this.done, done.opened ? { text: `Opened in ${where}`, error: false } : { text: where === "Player"
+          ? "Not opened: it is not a clip a player plays" : `No ${where.toLowerCase()} to open it in`, error: true },
+        cx);
       } catch (e) {
-        this.note = said(e);
-      } finally {
-        cx.notify();
+        keepNote(this.done, { text: said(e), error: true }, cx);
       }
     });
+  }
+
+  /** The file shown in the Finder, chosen in its folder (core/media.py). */
+  reveal(cx) {
+    const { what } = this;
+    cx.spawn(async (cx) => {
+      try {
+        const done = await this.core(MEDIA, ["reveal", `${what.root}/${what.path}`], home(), null);
+        keepNote(this.done, done.shown ? { text: "Shown in the Finder", error: false }
+          : { text: "The Finder is not on this machine", error: true }, cx);
+      } catch (e) {
+        keepNote(this.done, { text: said(e), error: true }, cx);
+      }
+    });
+  }
+
+  /** Ask for another: core's request sent to the chat that made it (CHAT, its live terminal), its tab shown. */
+  again(chat, cx) {
+    const origin = this.origin;
+    cx.spawn(async (cx) => {
+      try {
+        const sent = await hc(["send", chat.address, origin.again]);
+        if (sent.code !== 0) throw new Error(lastLine(sent));
+        command("tab.select", { id: chat.labels[CHAT_TAB] });
+        keepNote(this.done, { text: `Asked in “${origin.title}”`, error: false }, cx);
+      } catch (e) {
+        keepNote(this.done, { text: `Couldn't ask in “${origin.title}”: ${said(e)}`, error: true }, cx);
+      }
+    });
+  }
+
+  /** Audio played by the app (an MP3, as playSound plays), its waveform lit as far as it has played. */
+  play(cx) {
+    playSound(`${this.what.root}/${this.what.path}`);
+    this.played = Date.now();
+    this.playing = cx.timer.every(TICK, (/** @type {any} */ cx) => {
+      if (Date.now() - Number(this.played) >= (this.clip?.seconds ?? 0) * 1000) {
+        this.playing?.cancel();
+        Object.assign(this, { played: null, playing: null });
+      }
+      cx.notify();
+    });
+    cx.notify();
   }
 
   /** The issue, the picture, or the file's, diff's or commit's rows in CODE (the code's font); else what is happening
@@ -295,7 +380,7 @@ export class Preview {
     if (this.review) return frame.child(this.review.render(t, code));
     if (this.change && !this.note) return frame.child(this.changeView(t));
     if (this.editing && !this.loading) return frame.child(this.codeAndPicture(t, code));
-    if (this.picture) return frame.child(this.pictureView(t));
+    if (this.picture || this.clip) return frame.child(this.mediaView(t));
     if (this.pdf) return frame.child(this.pdfView(t));
     if (this.rows.length) return frame.child(this.diff(t, code));
     const line = this.loading ? "Loading…" : this.note ?? (this.what ? "" : "Nothing chosen to preview");
@@ -372,13 +457,72 @@ export class Preview {
     return `Open in ${opener(this.what?.path ?? "", window()?.platform)}`;
   }
 
-  /** The picture fitted to the tab, under its bar. */
-  pictureView(t) {
+  /** A picture, audio or a video (media-generation's preview): its bar (its pixels or length, the chat it came from),
+   * the picture or the frame on the board or audio's waveform, where it came from, and its buttons. */
+  mediaView(t) {
+    const { clip, origin, what } = this, shape = (clip ?? this.picture)?.pixels;
+    const facts = [shape ? `${shape[0]}×${shape[1]}` : null, clip?.seconds ? clipTime(clip.seconds) : null];
     return v_flex().size_full().min_h(0)
-      .child(this.bar(t))
-      .child(this.canvas(t))
-      .when(Boolean(this.note), (e) => e.child(div().px(16).pb(12).text_size(12).text_color(t.ansi1)
-        .child(this.note ?? "")));
+      .child(h_flex().h(40).flex_none().px(16).gap(8).items_center().border_b(1).border_color(t.border).text_size(12)
+        .child(div().min_w(0).truncate().font_semibold().child(what.path))
+        .child(div().flex_none().text_color(t.muted).child(facts.filter(Boolean).join(" · ")))
+        .child(div().flex_1())
+        .when(Boolean(origin?.title), (e) => e.child(div().min_w(0).truncate().text_color(t.muted)
+          .tooltip(origin?.title ?? "").child(`from the chat “${origin?.title}”`))))
+      .child(mediaKind(what.path) === "audio" ? this.wave(t) : artboard(t, "board", clip ?? this.picture))
+      .when(Boolean(origin), (e) => e.child(this.about(t)))
+      .child(this.buttons(t));
+  }
+
+  /** Audio's waveform on the board, as its card: Play (an MP3, which the app plays), its levels (the loudest the
+   * whole height) lit in the accent as far as it has played, its time. */
+  wave(t) {
+    const { clip, played, what } = this, levels = clip?.levels ?? [], seconds = clip?.seconds ?? 0;
+    const bars = levels.length ? Array.from({ length: BARS }, (_, n) => Math.max(...levels.slice(
+      Math.floor((n * levels.length) / BARS), Math.max(Math.floor((n * levels.length) / BARS) + 1,
+        Math.floor(((n + 1) * levels.length) / BARS))))) : [];
+    const at = played === null ? 0 : Math.min(seconds, (Date.now() - played) / 1000), lit = seconds ? at / seconds : 0;
+    const mp3 = what.path.toLowerCase().endsWith(".mp3");
+    return div().id("board").flex_1().min_h(0).flex().items_center().justify_center().p(INSET).bg(t.canvas)
+      .child(h_flex().w_full().max_w(720).h(56).px(12).gap(12).items_center().rounded(10).bg(t.surface)
+        .border_1().border_color(t.border)
+        .when(mp3, (e) => e.child(small(t, "preview-play", icon("play", 12), played === null ? "Play" : "Playing",
+          played === null, (cx) => this.play(cx))))
+        .child(h_flex().flex_1().min_w(0).h(32).gap(2).items_center().children(bars.map((level, n) =>
+          div().flex_1().min_w(0).h(Math.max(2, (level * 32) / Math.max(1, ...bars))).rounded_xs()
+            .bg(n < lit * BARS ? t.accent : t.border))))
+        .child(div().flex_none().text_size(12).text_color(t.muted)
+          .child(played === null ? clipTime(seconds) : `${clipTime(at)} / ${clipTime(seconds)}`)));
+  }
+
+  /** Where an agent's picture or clip came from, as its chat tells it: the model and service, the prompt, the skill
+   * in use, the calls (a media service bills in credits). */
+  about(t) {
+    const { origin } = this;
+    const name = /** @type {Record<string, { name: string }>} */ (BRANDS)[origin.brand ?? ""]?.name ?? origin.server;
+    const credits = Object.hasOwn(MEDIA_SERVICES, origin.brand ?? "") ? ` · ${name} bills in credits` : "";
+    const lines = [["Model", [origin.model, name].filter(Boolean).join(" · ")], ["Prompt", origin.prompt],
+      ["Skill", origin.skill], ["Calls", `${origin.calls}${credits}`]].filter(([, value]) => value);
+    return v_flex().flex_none().px(16).pt(12).gap(4).border_t(1).border_color(t.border).text_size(12)
+      .children(lines.map(([label, value], n) => h_flex().id(`preview-about-${n}`).gap(12).items_start()
+        .child(div().w(LABEL).flex_none().text_color(t.muted).child(label))
+        .child(div().flex_1().min_w(0).child(value))));
+  }
+
+  /** What a picture or a clip can be done with, what was done at the left: Show in Finder, Ask for another (lit while
+   * the chat that made it runs here as a chat), Open at the right end. */
+  buttons(t) {
+    const { origin } = this, note = this.done.note;
+    const chat = origin ? terminals().find((one) => one.labels?.[CHAT_LABEL] === origin.session
+      && one.state === "live") : null;
+    return h_flex().flex_none().px(16).py(12).gap(8).items_center()
+      .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(note?.error ? t.ansi1 : t.muted)
+        .child(note?.text ?? ""))
+      .when(window()?.platform === "macos", (e) => e.child(actButton(t, "preview-finder", "Show in Finder", "raised",
+        true, (cx) => this.reveal(cx))))
+      .when(Boolean(origin), (e) => e.child(actButton(t, "preview-again", "Ask for another", "raised", Boolean(chat),
+        (cx) => this.again(chat, cx), chat ? null : `“${origin?.title}” is not open as a chat: Chats opens it`)))
+      .child(actButton(t, "preview-open", this.opens(), "solid", true, (cx) => this.browse(cx)));
   }
 
   /** A PDF's pages one under another at their own size, GAP apart, scrolled; each drawn once it is made (a page's

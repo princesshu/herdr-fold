@@ -39,6 +39,11 @@ PLUGIN = "Plugin"             # where a plugin's subagent is from (core's origin
 OPEN_USAGE, SHOW_GRAPH, REFRESH = Keyed("Open Usage", USAGE_KEY), Keyed("Show graph", GRAPH_KEY), "Refresh"
 OPEN_RUNS = Keyed("Open Runs", RUNS_KEY)
 WAYS = {"claude-ai": "Add from claude.ai…", "url": Keyed("Add by URL…", ADD_KEY)}
+
+
+def way_line(way):
+    """A way to add a connector as More's line says it: claude.ai's, by URL, an offered service by its name."""
+    return WAYS.get(way["id"]) or f"Add {way['label']}…"
 USAGE_BUTTON = {"id": "usage", "label": "Open Usage"}   # a Usage row's one action
 CONNECTORS = "connectors"     # the section a connector is added in
 BRAND = 2                     # cells a connector's brand takes before its name: its glyph or letter, and a space
@@ -1015,7 +1020,7 @@ class Layers:
         graph, the ways to add a connector, a read of the setup; none where no setup shows."""
         if not self.shows():
             return []
-        ways = [WAYS[way["id"]] for way in (self.adds() or {}).get("menu", ()) if way["id"] in WAYS]
+        ways = [way_line(way) for way in (self.adds() or {}).get("menu", ())]
         return [OPEN_USAGE] * bool(self.usage()[0]) + [OPEN_RUNS] + [SHOW_GRAPH] * self.graphs() + ways + [REFRESH]
 
     def menu_pick(self, choice):
@@ -1029,18 +1034,22 @@ class Layers:
             return Action("show_graph", ())
         if choice == REFRESH:
             return Action("refresh_agent", ())
-        way = next((way for way in (self.adds() or {}).get("menu", ()) if WAYS.get(way["id"]) == choice), None)
+        way = next((way for way in (self.adds() or {}).get("menu", ()) if way_line(way) == choice), None)
         if way and way["url"]:
             return Action("open_url", (way["url"],))
         if way:
-            self.open_form()
+            self.open_form(way.get("name", ""), way.get("address", ""))
         return None
 
-    def open_form(self):
-        """The form under Connectors' head, the section open and in view, the keys in Name."""
-        scopes = self.adds()["scopes"]
-        self.form = {"name": TextInput(), "url": TextInput(), "scope": scopes[0]["id"] if scopes else None,
-                     "at": "name", "error": None}
+    def open_form(self, name="", url=""):
+        """The form under Connectors' head, the section open and in view, the keys in Name; an offered service's NAME
+        and URL in it, the keys on Add."""
+        scopes, fields = self.adds()["scopes"], {"name": TextInput(), "url": TextInput()}
+        for field, text in (("name", name), ("url", url)):
+            fields[field].text = text
+            fields[field].cursor = len(text)
+        self.form = {**fields, "scope": scopes[0]["id"] if scopes else None, "at": "add" if name else "name",
+                     "error": None}
         self.folded.discard(CONNECTORS)
         self.chosen, self.follow, self.menu, self.edit = ("section", CONNECTORS), True, None, None
 

@@ -196,10 +196,10 @@ export class RunsView {
     });
   }
 
-  /** The PNGs of RUN's pictures read once (media.py's, THUMB wide twice for the screen), then drawn small.
-   * @param {Run} run */
+  /** The PNGs of RUN's pictures and videos' frames read once (media.py's, THUMB wide twice for the screen), then drawn
+   * small. @param {Run} run */
   pictures(run, cx) {
-    const wanted = run.media.filter((one) => one.kind === "image" && !(one.path in this.thumbs))
+    const wanted = run.media.filter((one) => one.kind !== "audio" && !(one.path in this.thumbs))
       .map((one) => one.path);
     if (!wanted.length || this.still) return;
     for (const path of wanted) this.thumbs[path] = null;
@@ -328,7 +328,7 @@ export class RunsView {
     const code = (/** @type {string} */ words) => div().truncate().text_size(11).child(words);
     const short = (/** @type {string} */ path) => (run.folder && path.startsWith(`${run.folder}/`)
       ? path.slice(run.folder.length + 1) : path);
-    const pictures = run.media.filter((one) => one.kind === "image").map((one) => one.path);
+    const pictures = run.media.filter((one) => one.kind !== "audio").map((one) => one.path);
     const made = pictures.length ? h_flex().flex_wrap().gap(8).children(pictures.map((path, n) => v_flex()
       .id(`runs-picture-${n}`).w(THUMB).gap(4).cursor_pointer().tooltip(path)
       .when(!this.still, (e) => e.on_click(() => {

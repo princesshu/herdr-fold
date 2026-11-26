@@ -17,7 +17,7 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   placeKey, spaceColors, avatarFill, MARK, listBody, listHeight, panelRailed, railFollow, railToggle, RAIL, RAIL_BLOCK,
   PANEL_PX, activeTerminal, hovering, tabRows, titleSide, fieldWidth, FIELD, FIELD_LEAST, paletteKey, toggleRoom,
   keyNames, keyWord, paletteEntries, entryKey, palettePlace, PALETTE_NAMED, PALETTE_GROUPS, PALETTE_OWNED,
-  mediaKind, aboutState, stacks, swapDraft,
+  mediaKind, clipTime, aboutState, stacks, swapDraft,
   browsable, opener, changeSides, fileIcon, stillResumed, CHAT_TAB, orphanChats, menuPlace, menuHeight, VIEWS_APP,
   CHATS_BLOCK, BADGE, badgeSpot, DOCK, TAB_COUNT, TAB_GAP, TAB_H, TAB_IN, TABS_H, TABS_IN, TABS_PAD, TABS_SIDE,
   shownPanels, panelsFollow, pickCommands, panelChoices, hideCommands, PAD, waitingChats, shortCount, chosenFor,
@@ -2118,9 +2118,14 @@ test("an avatar's fill: the app's strong color for a theme color's name, a picke
   assert.equal(avatarFill("#123456", {}), "#123456");
 });
 
-test("a picture, a PDF or a page by its name, as core/media.py has them", () => {
-  assert.deepEqual(["docs/shot.WEBP", "a.pdf", "site/index.html", "logo.svg", "notes.md", ".bashrc", "src.png/app"]
-    .map(mediaKind), ["image", "pdf", "html", "svg", null, null, null]);
+test("a picture, a PDF, a page, audio or a video by its name, as core/filekinds.py has them", () => {
+  assert.deepEqual(["docs/shot.WEBP", "a.pdf", "site/index.html", "logo.svg", "notes.md", ".bashrc", "src.png/app",
+    "renders/voice-over.mp3", "renders/hero-shot.MP4"].map(mediaKind),
+  ["image", "pdf", "html", "svg", null, null, null, "audio", "video"]);
+});
+
+test("a clip's time as a player says it", () => {
+  assert.deepEqual([0, 7.9, 18, 65, 3909].map(clipTime), ["0:00", "0:07", "0:18", "1:05", "1:05:09"]);
 });
 
 test("the message field keeps each space's own draft, a message written for one waiting there", () => {
@@ -2145,6 +2150,7 @@ test("a picture no browser shows opens in Preview, the web's own in the browser,
     .map((path) => opener(path, "macos")),
   ["Preview", "Preview", "Preview", "Browser", "Browser", "Browser", "Browser"]);
   assert.equal(opener("art.psd", "linux"), "Browser");                     // the desktop's own opener there
+  assert.deepEqual(["voice-over.mp3", "hero-shot.mp4"].map((path) => opener(path, "macos")), ["Player", "Player"]);
 });
 
 test("a changed picture's sides: its last commit's and the file's, each with its pixels, either one missing", () => {

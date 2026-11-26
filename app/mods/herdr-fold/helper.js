@@ -150,22 +150,40 @@ export const AGENT_LAYERS = [
   "'ESCAPES = re.compile(r\"\\\\x1b\\\\][^\\\\x07\\\\x1b]*(?:\\\\x07|\\\\x1b\\\\\\\\)|\\\\x1b\\\\[[0-9;?]*[ " +
     "-/]*[@-~]\")',",
   "'BRANDS = {',",
+  "'    \"bfl\": {\"name\": \"FLUX\", \"logo\": None, \"mono\": False, \"glyph\": None, \"color\": " +
+    "\"#e6e6e6\"},',",
   "'    \"box\": {\"name\": \"Box\", \"logo\": \"box\", \"mono\": False, \"glyph\": None, \"color\": " +
     "\"#3b8fe6\"},',",
+  "'    \"cartesia\": {\"name\": \"Cartesia\", \"logo\": \"cartesia-icon\", \"mono\": False, \"glyph\": None, " +
+    "\"color\": \"#309d4b\"},',",
   "'    \"dropbox\": {\"name\": \"Dropbox\", \"logo\": \"dropbox\", \"mono\": False, \"glyph\": \"\\uf16b\", " +
     "\"color\": \"#3d8bff\"},',",
+  "'    \"elevenlabs\": {\"name\": \"ElevenLabs\", \"logo\": \"elevenlabs-icon\", \"mono\": True, \"glyph\": " +
+    "None, \"color\": \"#e6e6e6\"},',",
+  "'    \"fal\": {\"name\": \"fal\", \"logo\": \"fal-icon\", \"mono\": True, \"glyph\": None, \"color\": " +
+    "\"#8b6cf6\"},',",
   "'    \"figma\": {\"name\": \"Figma\", \"logo\": \"figma\", \"mono\": False, \"glyph\": \"\\ue7da\", " +
     "\"color\": \"#f24e1e\"},',",
+  "'    \"github\": {\"name\": \"GitHub\", \"logo\": \"github-icon\", \"mono\": True, \"glyph\": " +
+    "\"\\\\uf09b\", \"color\": \"#e6e6e6\"},',",
   "'    \"google-drive\": {\"name\": \"Google Drive\", \"logo\": \"google-drive-2020\", \"mono\": False, " +
     "\"glyph\": \"\\\\U000f02b6\",',",
   "'                     \"color\": \"#1fa463\"},',",
+  "'    \"higgsfield\": {\"name\": \"Higgsfield\", \"logo\": \"higgsfield-icon\", \"mono\": False, \"glyph\": " +
+    "None, \"color\": \"#dafd55\"},',",
   "'    \"linear\": {\"name\": \"Linear\", \"logo\": \"linear-icon\", \"mono\": True, \"glyph\": None, " +
     "\"color\": \"#7c86e6\"},',",
+  "'    \"luma\": {\"name\": \"Luma\", \"logo\": \"luma-icon\", \"mono\": True, \"glyph\": None, \"color\": " +
+    "\"#e6e6e6\"},',",
+  "'    \"meshy\": {\"name\": \"Meshy\", \"logo\": None, \"mono\": False, \"glyph\": None, \"color\": " +
+    "\"#c5f04a\"},',",
   "'    \"notion\": {\"name\": \"Notion\", \"logo\": \"notion-icon\", \"mono\": False, \"glyph\": \"\\ue848\", " +
     "\"color\": \"#e6e6e6\"},',",
   "'    \"onedrive\": {\"name\": \"OneDrive\", \"logo\": \"microsoft-onedrive\", \"mono\": False, \"glyph\": " +
     "\"\\\\U000f03ca\",',",
   "'                 \"color\": \"#28a8ea\"},',",
+  "'    \"runway\": {\"name\": \"Runway\", \"logo\": \"runway-icon\", \"mono\": True, \"glyph\": None, " +
+    "\"color\": \"#e6e6e6\"},',",
   "'    \"sentry\": {\"name\": \"Sentry\", \"logo\": \"sentry-icon\", \"mono\": True, \"glyph\": \"\\ue89f\", " +
     "\"color\": \"#e1567c\"},',",
   "'}',",
@@ -173,13 +191,29 @@ export const AGENT_LAYERS = [
     "\"google-drive\", \"gdrive\": \"google-drive\",',",
   "'         \"googledrive\": \"google-drive\", \"linear\": \"linear\", \"notion\": \"notion\", \"onedrive\": " +
     "\"onedrive\",',",
-  "'         \"microsoft onedrive\": \"onedrive\", \"sentry\": \"sentry\"}',",
+  "'         \"microsoft onedrive\": \"onedrive\", \"sentry\": \"sentry\", \"elevenlabs\": \"elevenlabs\", " +
+    "\"eleven labs\": \"elevenlabs\",',",
+  "'         \"fal\": \"fal\", \"fal ai\": \"fal\", \"flux\": \"bfl\", \"bfl\": \"bfl\", \"black forest " +
+    "labs\": \"bfl\", \"runway\": \"runway\",',",
+  "'         \"higgsfield\": \"higgsfield\", \"luma\": \"luma\", \"luma ai\": \"luma\", \"cartesia\": " +
+    "\"cartesia\", \"meshy\": \"meshy\",',",
+  "'         \"github\": \"github\"}',",
   "'HOSTS = {\"box.com\": \"box\", \"dropbox.com\": \"dropbox\", \"figma.com\": \"figma\", " +
     "\"drive.google.com\": \"google-drive\",',",
+  "'         \"githubcopilot.com\": \"github\",',",
   "'         \"linear.app\": \"linear\", \"notion.com\": \"notion\", \"notion.so\": \"notion\", " +
     "\"onedrive.com\": \"onedrive\",',",
-  "'         \"onedrive.live.com\": \"onedrive\", \"sentry.io\": \"sentry\", \"sentry.dev\": \"sentry\"}',",
+  "'         \"onedrive.live.com\": \"onedrive\", \"sentry.io\": \"sentry\", \"sentry.dev\": \"sentry\", " +
+    "\"elevenlabs.io\": \"elevenlabs\",',",
+  "'         \"fal.ai\": \"fal\", \"bfl.ai\": \"bfl\", \"runwayml.com\": \"runway\", \"higgsfield.ai\": " +
+    "\"higgsfield\",',",
+  "'         \"lumalabs.ai\": \"luma\", \"cartesia.ai\": \"cartesia\", \"meshy.ai\": \"meshy\"}',",
   "'FILLER = (\"mcp\", \"server\")',",
+  "'OFFERED = ((\"fal\", \"fal\", \"https://mcp.fal.ai/mcp-relay\"),',",
+  "'           (\"elevenlabs\", \"elevenlabs\", \"https://api.elevenlabs.io/v1/mcp\"), (\"bfl\", \"flux\", " +
+    "\"https://mcp.bfl.ai\"),',",
+  "'           (\"runway\", \"runway\", \"https://mcp.runwayml.com/mcp\"),',",
+  "'           (\"figma\", \"figma\", \"https://mcp.figma.com/mcp\"))',",
   "'ADDRESS = \"Its address, starting with https://\"',",
   "'def named(name, form=NAME):',",
   "'    if not isinstance(name, str) or not form.fullmatch(name) or name.startswith(\"-\") or name != " +
@@ -1346,7 +1380,7 @@ export const AGENT_LAYERS = [
   "'                         PENDING, PROJECT, READ, READ_ONLY, SANDBOXES, SIGN_IN, clean, inside, mode_told, " +
     "plugged,',",
   "'                         read_text, shown)',",
-  "'from connectors import AGENTS as ADDS, CLAUDE_AI as CLAUDE_PAGE, logout',",
+  "'from connectors import AGENTS as ADDS, BRANDS, CLAUDE_AI as CLAUDE_PAGE, OFFERED, logout',",
   "'from jsonl import obj',",
   "'SECTIONS = ((\"subagents\", \"Subagents\"), (\"rules\", \"Rules\"), (\"skills\", \"Skills\"), " +
     "(\"permissions\", \"Permissions\"),',",
@@ -1586,21 +1620,31 @@ export const AGENT_LAYERS = [
   "'    rank, rows = {state: n for n, (state, _, _) in enumerate(PROBLEMS)}, []',",
   "'    for one in sorted(setup[\"servers\"], key=lambda one: rank.get(one[\"state\"], len(rank))):',",
   "'        word, tone = SAID_AS[one[\"state\"]]',",
-  "'        word = f\"{one[\\'tools\\']} tool{\\'s\\' * (one[\\'tools\\'] != 1)}\" if one[\"state\"] == ON and " +
-    "one[\"tools\"] else word',",
+  "'        makes, today = one.get(\"makes\"), one.get(\"today\")',",
+  "'        name = BRANDS.get(one[\"brand\"] or \"\", {}).get(\"name\") or one[\"label\"]',",
+  "'        word = (f\"{today or \\'no\\'} call{\\'s\\' * (today != 1)} today\" if makes and today is not None " +
+    "else',",
+  "'                f\"{one[\\'tools\\']} tool{\\'s\\' * (one[\\'tools\\'] != 1)}\" if one[\"tools\"] else " +
+    "word) if one[\"state\"] == ON \\\\',",
+  "'            else word',",
   "'        state = {\"text\": word, \"tone\": tone}',",
-  "'        lines = [origin(one, folder, home)] + [[label, one[key], None] for label, key in ((\"Runs\", " +
-    "\"runs\"), (',",
-  "'            \"URL\", \"url\")) if one[key]] + signs_out(one, agent) + used_line(one[\"used\"])',",
-  "'        rows.append(layer(\"connector:\" + one[\"name\"], \"plug\", one[\"label\"], properties(',",
-  "'            one[\"label\"], state, lines, error=one[\"error\"], actions=server_actions(one, agent, folder, " +
-    "home)),',",
+  "'        lines = [origin(one, folder, home)] + [[\"Name\", one[\"label\"], None]] * (name != " +
+    "one[\"label\"]) + [',",
+  "'            [label, one[key], None] for label, key in ((\"Runs\", \"runs\"), (\"URL\", \"url\")) if " +
+    "one[key]] + (',",
+  "'            [[\"Loads\", f\"{words.tokens(one[\\'tokens\\'])} at start\", None]] if makes and " +
+    "one[\"tokens\"] else []) + \\\\',",
+  "'            signs_out(one, agent) + used_line(one[\"used\"])',",
+  "'        rows.append(layer(\"connector:\" + one[\"name\"], \"plug\", name, properties(',",
+  "'            name, state, lines, error=one[\"error\"], actions=server_actions(one, agent, folder, home)), " +
+    "note=makes,',",
   "'            mark=tone if tone in (\"bad\", \"warn\") else \"ok\" if one[\"used\"] else None, " +
     "place=tag(one), state=state,',",
   "'            tokens=one[\"tokens\"], agents=one.get(\"agents\", [agent]), dim=one[\"state\"] in DIM, " +
     "known=one[\"brand\"]))',",
+  "'        rows[-1][\"cost\"] = None if makes else rows[-1][\"cost\"]',",
   "'    return rows',",
-  "'def connecting(agent, folder):',",
+  "'def connecting(agent, folder, have=()):',",
   "'    here, claude = os.path.basename(os.path.abspath(folder)), agent == \"claude\"',",
   "'    return {\"state\": {\"text\": \"signing in\", \"tone\": \"busy\"}, \"words\": \"Finish in your " +
     "browser\",',",
@@ -1611,7 +1655,10 @@ export const AGENT_LAYERS = [
   "'            \"add\": {\"tip\": \"Add a connector\", \"title\": \"Add a connector\",',",
   "'                    \"menu\": ([{\"id\": \"claude-ai\", \"label\": \"From claude.ai\u2026\", \"url\": " +
     "CLAUDE_PAGE}] if claude else [])',",
-  "'                    + [{\"id\": \"url\", \"label\": \"By URL\u2026\", \"url\": None}],',",
+  "'                    + [{\"id\": \"url\", \"label\": \"By URL\u2026\", \"url\": None}] + [',",
+  "'                        {\"id\": \"offer:\" + key, \"label\": BRANDS[key][\"name\"], \"url\": None, " +
+    "\"brand\": key, \"name\": name,',",
+  "'                         \"address\": address} for key, name, address in OFFERED if key not in have],',",
   "'                    \"fields\": {\"name\": \"Name\", \"url\": \"URL\", \"scope\": \"For\"},',",
   "'                    \"scopes\": [{\"id\": \"local\", \"label\": here}, {\"id\": \"user\", \"label\": \"All " +
     "projects\"}] if claude',",
@@ -1681,8 +1728,78 @@ export const AGENT_LAYERS = [
   "'            \"error\": {\"text\": f\"Couldn\\'t read {KNOWN[agent][\\'name\\']}\\'s setup: permission " +
     "denied\",',",
   "'                      \"tip\": \", \".join(files)} if files else None,',",
-  "'            \"sections\": sections, \"connect\": connecting(agent, folder)}',",
+  "'            \"sections\": sections, \"connect\": connecting(agent, folder, {one[\"brand\"] for one in " +
+    "setup[\"servers\"]})}',",
   "]), _sys.modules['agent_layers'].__dict__)",
+  "_sys.modules['calls'] = _types.ModuleType('calls')",
+  "exec('\\n'.join([",
+  "'import calendar',",
+  "'import glob',",
+  "'import os',",
+  "'import re',",
+  "'import sys',",
+  "'import time',",
+  "'sys.dont_write_bytecode = True',",
+  "'from jsonl import obj, open_regular, parse',",
+  "'MEDIA = {\"bfl\": \"image\", \"cartesia\": \"voice\", \"elevenlabs\": \"voice\", \"fal\": \"image, " +
+    "video\",',",
+  "'         \"higgsfield\": \"image, video\", \"luma\": \"video\", \"meshy\": \"3D\", \"runway\": \"video\"}',",
+  "'CLAUDE = b\\'\"name\":\"mcp__\\'',",
+  "'CODEX = b\\'\"namespace\":\"mcp__\\'',",
+  "'def key(name):',",
+  "'    return re.sub(r\"[^A-Za-z0-9]\", \"_\", name)',",
+  "'def midnight(now=None):',",
+  "'    return time.mktime(time.localtime(now)[:3] + (0, 0, 0, 0, 0, -1))',",
+  "'def made_at(stamp):',",
+  "'    try:',",
+  "'        return calendar.timegm(time.strptime(stamp[:19], \"%Y-%m-%dT%H:%M:%S\")) if isinstance(stamp, str) " +
+    "else None',",
+  "'    except ValueError:',",
+  "'        return None',",
+  "'def called(entry):',",
+  "'    payload, content = obj(entry.get(\"payload\")), obj(entry.get(\"message\")).get(\"content\")',",
+  "'    if payload.get(\"type\") == \"function_call\" and str(payload.get(\"namespace\", " +
+    "\"\")).startswith(\"mcp__\"):',",
+  "'        return [(payload.get(\"call_id\"), key(payload[\"namespace\"][len(\"mcp__\"):]))]',",
+  "'    return [(block.get(\"id\"), key(block[\"name\"][len(\"mcp__\"):].partition(\"__\")[0])) for block in " +
+    "map(obj, content)',",
+  "'            if block.get(\"type\") == \"tool_use\" and str(block.get(\"name\", " +
+    "\"\")).startswith(\"mcp__\")] \\\\',",
+  "'        if isinstance(content, list) else []',",
+  "'def today(home, now=None):',",
+  "'    since, found, seen = midnight(now), {}, set()',",
+  "'    projects = os.path.join(glob.escape(home), \".claude\", \"projects\", \"*\")',",
+  "'    for path, mark in [(one, CLAUDE) for one in glob.glob(os.path.join(projects, \"*.jsonl\")) + " +
+    "glob.glob(',",
+  "'            os.path.join(projects, \"*\", \"subagents\", \"agent-*.jsonl\"))] + [(one, CODEX) for one in " +
+    "glob.glob(',",
+  "'            os.path.join(glob.escape(home), \".codex\", \"sessions\", \"*\", \"*\", \"*\", " +
+    "\"rollout-*.jsonl\"))]:',",
+  "'        try:',",
+  "'            if os.stat(path).st_mtime < since:',",
+  "'                continue',",
+  "'            with open_regular(path, \"rb\") as f:',",
+  "'                data = f.read()',",
+  "'        except OSError:',",
+  "'            continue',",
+  "'        at = data.find(mark)',",
+  "'        while at >= 0:',",
+  "'            end = data.find(b\"\\\\n\", at)',",
+  "'            end = len(data) if end < 0 else end',",
+  "'            entry = parse(data[data.rfind(b\"\\\\n\", 0, at) + 1:end])',",
+  "'            for id, server in called(entry) if (made_at(entry.get(\"timestamp\")) or 0) >= since else ():',",
+  "'                if id not in seen:',",
+  "'                    seen.add(id)',",
+  "'                    found[server] = found.get(server, 0) + 1',",
+  "'            at = data.find(mark, end + 1)',",
+  "'    return found',",
+  "'def counted(servers, home, now=None):',",
+  "'    found = today(home, now)',",
+  "'    for one in servers:',",
+  "'        if one[\"brand\"] in MEDIA:',",
+  "'            one.update(makes=MEDIA[one[\"brand\"]], today=found.get(key(one[\"name\"]), 0))',",
+  "'    return servers',",
+  "]), _sys.modules['calls'].__dict__)",
   "_sys.modules['opencode_setup'] = _types.ModuleType('opencode_setup')",
   "exec('\\n'.join([",
   "'import json',",
@@ -1727,6 +1844,10 @@ export const AGENT_LAYERS = [
   "'    return [(one[\"path\"], obj(one.get(\"info\"))) for one in map(obj, listed)',",
   "'            if one.get(\"type\") == \"document\" and isinstance(one.get(\"path\"), str) and " +
     "os.path.isabs(one[\"path\"])]',",
+  "'def next_char(text, at):',",
+  "'    while at < len(text) and text[at] in \" \\\\t\\\\r\\\\n\":',",
+  "'        at += 1',",
+  "'    return at',",
   "'def jsonc(text):',",
   "'    out, at, end = [], 0, len(text)',",
   "'    while at < end:',",
@@ -1737,10 +1858,15 @@ export const AGENT_LAYERS = [
   "'            out.append(text[at:close + 1])',",
   "'            at = close + 1',",
   "'        elif text.startswith(\"//\", at):',",
-  "'            at = text.find(\"\\\\n\", at) if \"\\\\n\" in text[at:] else end',",
+  "'            newline = text.find(\"\\\\n\", at)',",
+  "'            at = end if newline < 0 else newline',",
   "'        elif text.startswith(\"/*\", at):',",
-  "'            at = text.find(\"*/\", at + 2) + 2 if \"*/\" in text[at + 2:] else end',",
-  "'        elif text[at] == \",\" and text[at + 1:].lstrip()[:1] in (\"}\", \"]\"):',",
+  "'            close = text.find(\"*/\", at + 2)',",
+  "'            at = end if close < 0 else close + 2',",
+  "'        elif text[at] == \",\":',",
+  "'            ahead = next_char(text, at + 1)',",
+  "'            if text[ahead:ahead + 1] not in (\"}\", \"]\"):',",
+  "'                out.append(\",\")',",
   "'            at += 1',",
   "'        else:',",
   "'            out.append(text[at])',",
@@ -1815,6 +1941,7 @@ export const AGENT_LAYERS = [
   "sys.dont_write_bytecode = True  # no __pycache__ beside the installed files",
   "from agent_layers import SAID_AS, layers  # noqa: E402",
   "from agent_setup import clean, conversation, setup  # noqa: E402",
+  "from calls import counted  # noqa: E402",
   "from jsonl import obj  # noqa: E402",
   "import opencode_setup  # noqa: E402",
   "",
@@ -1851,7 +1978,7 @@ export const AGENT_LAYERS = [
     "home, session)",
   "        states = {one[\"name\"]: one[\"state\"] for one in found[\"servers\"]} if found else {}",
   "        if found:",
-  "            checked_over(found[\"servers\"], checked)",
+  "            counted(checked_over(found[\"servers\"], checked), home)",
   "        print(json.dumps(found and {\"agent\": argv[1], \"folder\": argv[2], \"states\": states,",
   "                                    **layers(found, argv[1], argv[2], home)}))",
   "        return 0",
@@ -2014,22 +2141,40 @@ export const AGENT_SETUP = [
   "'ESCAPES = re.compile(r\"\\\\x1b\\\\][^\\\\x07\\\\x1b]*(?:\\\\x07|\\\\x1b\\\\\\\\)|\\\\x1b\\\\[[0-9;?]*[ " +
     "-/]*[@-~]\")',",
   "'BRANDS = {',",
+  "'    \"bfl\": {\"name\": \"FLUX\", \"logo\": None, \"mono\": False, \"glyph\": None, \"color\": " +
+    "\"#e6e6e6\"},',",
   "'    \"box\": {\"name\": \"Box\", \"logo\": \"box\", \"mono\": False, \"glyph\": None, \"color\": " +
     "\"#3b8fe6\"},',",
+  "'    \"cartesia\": {\"name\": \"Cartesia\", \"logo\": \"cartesia-icon\", \"mono\": False, \"glyph\": None, " +
+    "\"color\": \"#309d4b\"},',",
   "'    \"dropbox\": {\"name\": \"Dropbox\", \"logo\": \"dropbox\", \"mono\": False, \"glyph\": \"\\uf16b\", " +
     "\"color\": \"#3d8bff\"},',",
+  "'    \"elevenlabs\": {\"name\": \"ElevenLabs\", \"logo\": \"elevenlabs-icon\", \"mono\": True, \"glyph\": " +
+    "None, \"color\": \"#e6e6e6\"},',",
+  "'    \"fal\": {\"name\": \"fal\", \"logo\": \"fal-icon\", \"mono\": True, \"glyph\": None, \"color\": " +
+    "\"#8b6cf6\"},',",
   "'    \"figma\": {\"name\": \"Figma\", \"logo\": \"figma\", \"mono\": False, \"glyph\": \"\\ue7da\", " +
     "\"color\": \"#f24e1e\"},',",
+  "'    \"github\": {\"name\": \"GitHub\", \"logo\": \"github-icon\", \"mono\": True, \"glyph\": " +
+    "\"\\\\uf09b\", \"color\": \"#e6e6e6\"},',",
   "'    \"google-drive\": {\"name\": \"Google Drive\", \"logo\": \"google-drive-2020\", \"mono\": False, " +
     "\"glyph\": \"\\\\U000f02b6\",',",
   "'                     \"color\": \"#1fa463\"},',",
+  "'    \"higgsfield\": {\"name\": \"Higgsfield\", \"logo\": \"higgsfield-icon\", \"mono\": False, \"glyph\": " +
+    "None, \"color\": \"#dafd55\"},',",
   "'    \"linear\": {\"name\": \"Linear\", \"logo\": \"linear-icon\", \"mono\": True, \"glyph\": None, " +
     "\"color\": \"#7c86e6\"},',",
+  "'    \"luma\": {\"name\": \"Luma\", \"logo\": \"luma-icon\", \"mono\": True, \"glyph\": None, \"color\": " +
+    "\"#e6e6e6\"},',",
+  "'    \"meshy\": {\"name\": \"Meshy\", \"logo\": None, \"mono\": False, \"glyph\": None, \"color\": " +
+    "\"#c5f04a\"},',",
   "'    \"notion\": {\"name\": \"Notion\", \"logo\": \"notion-icon\", \"mono\": False, \"glyph\": \"\\ue848\", " +
     "\"color\": \"#e6e6e6\"},',",
   "'    \"onedrive\": {\"name\": \"OneDrive\", \"logo\": \"microsoft-onedrive\", \"mono\": False, \"glyph\": " +
     "\"\\\\U000f03ca\",',",
   "'                 \"color\": \"#28a8ea\"},',",
+  "'    \"runway\": {\"name\": \"Runway\", \"logo\": \"runway-icon\", \"mono\": True, \"glyph\": None, " +
+    "\"color\": \"#e6e6e6\"},',",
   "'    \"sentry\": {\"name\": \"Sentry\", \"logo\": \"sentry-icon\", \"mono\": True, \"glyph\": \"\\ue89f\", " +
     "\"color\": \"#e1567c\"},',",
   "'}',",
@@ -2037,13 +2182,29 @@ export const AGENT_SETUP = [
     "\"google-drive\", \"gdrive\": \"google-drive\",',",
   "'         \"googledrive\": \"google-drive\", \"linear\": \"linear\", \"notion\": \"notion\", \"onedrive\": " +
     "\"onedrive\",',",
-  "'         \"microsoft onedrive\": \"onedrive\", \"sentry\": \"sentry\"}',",
+  "'         \"microsoft onedrive\": \"onedrive\", \"sentry\": \"sentry\", \"elevenlabs\": \"elevenlabs\", " +
+    "\"eleven labs\": \"elevenlabs\",',",
+  "'         \"fal\": \"fal\", \"fal ai\": \"fal\", \"flux\": \"bfl\", \"bfl\": \"bfl\", \"black forest " +
+    "labs\": \"bfl\", \"runway\": \"runway\",',",
+  "'         \"higgsfield\": \"higgsfield\", \"luma\": \"luma\", \"luma ai\": \"luma\", \"cartesia\": " +
+    "\"cartesia\", \"meshy\": \"meshy\",',",
+  "'         \"github\": \"github\"}',",
   "'HOSTS = {\"box.com\": \"box\", \"dropbox.com\": \"dropbox\", \"figma.com\": \"figma\", " +
     "\"drive.google.com\": \"google-drive\",',",
+  "'         \"githubcopilot.com\": \"github\",',",
   "'         \"linear.app\": \"linear\", \"notion.com\": \"notion\", \"notion.so\": \"notion\", " +
     "\"onedrive.com\": \"onedrive\",',",
-  "'         \"onedrive.live.com\": \"onedrive\", \"sentry.io\": \"sentry\", \"sentry.dev\": \"sentry\"}',",
+  "'         \"onedrive.live.com\": \"onedrive\", \"sentry.io\": \"sentry\", \"sentry.dev\": \"sentry\", " +
+    "\"elevenlabs.io\": \"elevenlabs\",',",
+  "'         \"fal.ai\": \"fal\", \"bfl.ai\": \"bfl\", \"runwayml.com\": \"runway\", \"higgsfield.ai\": " +
+    "\"higgsfield\",',",
+  "'         \"lumalabs.ai\": \"luma\", \"cartesia.ai\": \"cartesia\", \"meshy.ai\": \"meshy\"}',",
   "'FILLER = (\"mcp\", \"server\")',",
+  "'OFFERED = ((\"fal\", \"fal\", \"https://mcp.fal.ai/mcp-relay\"),',",
+  "'           (\"elevenlabs\", \"elevenlabs\", \"https://api.elevenlabs.io/v1/mcp\"), (\"bfl\", \"flux\", " +
+    "\"https://mcp.bfl.ai\"),',",
+  "'           (\"runway\", \"runway\", \"https://mcp.runwayml.com/mcp\"),',",
+  "'           (\"figma\", \"figma\", \"https://mcp.figma.com/mcp\"))',",
   "'ADDRESS = \"Its address, starting with https://\"',",
   "'def named(name, form=NAME):',",
   "'    if not isinstance(name, str) or not form.fullmatch(name) or name.startswith(\"-\") or name != " +
@@ -3806,22 +3967,40 @@ export const AGENT_STATE = [
   "'ESCAPES = re.compile(r\"\\\\x1b\\\\][^\\\\x07\\\\x1b]*(?:\\\\x07|\\\\x1b\\\\\\\\)|\\\\x1b\\\\[[0-9;?]*[ " +
     "-/]*[@-~]\")',",
   "'BRANDS = {',",
+  "'    \"bfl\": {\"name\": \"FLUX\", \"logo\": None, \"mono\": False, \"glyph\": None, \"color\": " +
+    "\"#e6e6e6\"},',",
   "'    \"box\": {\"name\": \"Box\", \"logo\": \"box\", \"mono\": False, \"glyph\": None, \"color\": " +
     "\"#3b8fe6\"},',",
+  "'    \"cartesia\": {\"name\": \"Cartesia\", \"logo\": \"cartesia-icon\", \"mono\": False, \"glyph\": None, " +
+    "\"color\": \"#309d4b\"},',",
   "'    \"dropbox\": {\"name\": \"Dropbox\", \"logo\": \"dropbox\", \"mono\": False, \"glyph\": \"\\uf16b\", " +
     "\"color\": \"#3d8bff\"},',",
+  "'    \"elevenlabs\": {\"name\": \"ElevenLabs\", \"logo\": \"elevenlabs-icon\", \"mono\": True, \"glyph\": " +
+    "None, \"color\": \"#e6e6e6\"},',",
+  "'    \"fal\": {\"name\": \"fal\", \"logo\": \"fal-icon\", \"mono\": True, \"glyph\": None, \"color\": " +
+    "\"#8b6cf6\"},',",
   "'    \"figma\": {\"name\": \"Figma\", \"logo\": \"figma\", \"mono\": False, \"glyph\": \"\\ue7da\", " +
     "\"color\": \"#f24e1e\"},',",
+  "'    \"github\": {\"name\": \"GitHub\", \"logo\": \"github-icon\", \"mono\": True, \"glyph\": " +
+    "\"\\\\uf09b\", \"color\": \"#e6e6e6\"},',",
   "'    \"google-drive\": {\"name\": \"Google Drive\", \"logo\": \"google-drive-2020\", \"mono\": False, " +
     "\"glyph\": \"\\\\U000f02b6\",',",
   "'                     \"color\": \"#1fa463\"},',",
+  "'    \"higgsfield\": {\"name\": \"Higgsfield\", \"logo\": \"higgsfield-icon\", \"mono\": False, \"glyph\": " +
+    "None, \"color\": \"#dafd55\"},',",
   "'    \"linear\": {\"name\": \"Linear\", \"logo\": \"linear-icon\", \"mono\": True, \"glyph\": None, " +
     "\"color\": \"#7c86e6\"},',",
+  "'    \"luma\": {\"name\": \"Luma\", \"logo\": \"luma-icon\", \"mono\": True, \"glyph\": None, \"color\": " +
+    "\"#e6e6e6\"},',",
+  "'    \"meshy\": {\"name\": \"Meshy\", \"logo\": None, \"mono\": False, \"glyph\": None, \"color\": " +
+    "\"#c5f04a\"},',",
   "'    \"notion\": {\"name\": \"Notion\", \"logo\": \"notion-icon\", \"mono\": False, \"glyph\": \"\\ue848\", " +
     "\"color\": \"#e6e6e6\"},',",
   "'    \"onedrive\": {\"name\": \"OneDrive\", \"logo\": \"microsoft-onedrive\", \"mono\": False, \"glyph\": " +
     "\"\\\\U000f03ca\",',",
   "'                 \"color\": \"#28a8ea\"},',",
+  "'    \"runway\": {\"name\": \"Runway\", \"logo\": \"runway-icon\", \"mono\": True, \"glyph\": None, " +
+    "\"color\": \"#e6e6e6\"},',",
   "'    \"sentry\": {\"name\": \"Sentry\", \"logo\": \"sentry-icon\", \"mono\": True, \"glyph\": \"\\ue89f\", " +
     "\"color\": \"#e1567c\"},',",
   "'}',",
@@ -3829,13 +4008,29 @@ export const AGENT_STATE = [
     "\"google-drive\", \"gdrive\": \"google-drive\",',",
   "'         \"googledrive\": \"google-drive\", \"linear\": \"linear\", \"notion\": \"notion\", \"onedrive\": " +
     "\"onedrive\",',",
-  "'         \"microsoft onedrive\": \"onedrive\", \"sentry\": \"sentry\"}',",
+  "'         \"microsoft onedrive\": \"onedrive\", \"sentry\": \"sentry\", \"elevenlabs\": \"elevenlabs\", " +
+    "\"eleven labs\": \"elevenlabs\",',",
+  "'         \"fal\": \"fal\", \"fal ai\": \"fal\", \"flux\": \"bfl\", \"bfl\": \"bfl\", \"black forest " +
+    "labs\": \"bfl\", \"runway\": \"runway\",',",
+  "'         \"higgsfield\": \"higgsfield\", \"luma\": \"luma\", \"luma ai\": \"luma\", \"cartesia\": " +
+    "\"cartesia\", \"meshy\": \"meshy\",',",
+  "'         \"github\": \"github\"}',",
   "'HOSTS = {\"box.com\": \"box\", \"dropbox.com\": \"dropbox\", \"figma.com\": \"figma\", " +
     "\"drive.google.com\": \"google-drive\",',",
+  "'         \"githubcopilot.com\": \"github\",',",
   "'         \"linear.app\": \"linear\", \"notion.com\": \"notion\", \"notion.so\": \"notion\", " +
     "\"onedrive.com\": \"onedrive\",',",
-  "'         \"onedrive.live.com\": \"onedrive\", \"sentry.io\": \"sentry\", \"sentry.dev\": \"sentry\"}',",
+  "'         \"onedrive.live.com\": \"onedrive\", \"sentry.io\": \"sentry\", \"sentry.dev\": \"sentry\", " +
+    "\"elevenlabs.io\": \"elevenlabs\",',",
+  "'         \"fal.ai\": \"fal\", \"bfl.ai\": \"bfl\", \"runwayml.com\": \"runway\", \"higgsfield.ai\": " +
+    "\"higgsfield\",',",
+  "'         \"lumalabs.ai\": \"luma\", \"cartesia.ai\": \"cartesia\", \"meshy.ai\": \"meshy\"}',",
   "'FILLER = (\"mcp\", \"server\")',",
+  "'OFFERED = ((\"fal\", \"fal\", \"https://mcp.fal.ai/mcp-relay\"),',",
+  "'           (\"elevenlabs\", \"elevenlabs\", \"https://api.elevenlabs.io/v1/mcp\"), (\"bfl\", \"flux\", " +
+    "\"https://mcp.bfl.ai\"),',",
+  "'           (\"runway\", \"runway\", \"https://mcp.runwayml.com/mcp\"),',",
+  "'           (\"figma\", \"figma\", \"https://mcp.figma.com/mcp\"))',",
   "'ADDRESS = \"Its address, starting with https://\"',",
   "'def named(name, form=NAME):',",
   "'    if not isinstance(name, str) or not form.fullmatch(name) or name.startswith(\"-\") or name != " +
@@ -10586,27 +10781,45 @@ export const CONNECTORS = [
   "ASKED_LARGEST = 8192            # and of the address a sign-in opens (its query carries the request)",
   "ESCAPES = re.compile(r\"\\x1b\\][^\\x07\\x1b]*(?:\\x07|\\x1b\\\\)|\\x1b\\[[0-9;?]*[ -/]*[@-~]\")    # a " +
     "link's target, a color",
-  "# A known service: its name, its logo (SVG Logos' name, the mod's icons/logos/ file), whether that is a " +
-    "one-color dark",
-  "# mark (drawn in the text's color), and for the TUI its glyph in the font's icons (None: its letter) and " +
-    "its color.",
+  "# A known service: its maker's name, its logo (SVG Logos' name, the mod's icons/logos/ file; None where its " +
+    "licence",
+  "# gives none to take: its letter), whether that is a one-color dark mark (drawn in the text's color), and " +
+    "for the TUI",
+  "# its glyph in the font's icons (None: its letter) and its color.",
   "BRANDS = {",
+  "    \"bfl\": {\"name\": \"FLUX\", \"logo\": None, \"mono\": False, \"glyph\": None, \"color\": \"#e6e6e6\"},",
   "    \"box\": {\"name\": \"Box\", \"logo\": \"box\", \"mono\": False, \"glyph\": None, \"color\": " +
     "\"#3b8fe6\"},",
+  "    \"cartesia\": {\"name\": \"Cartesia\", \"logo\": \"cartesia-icon\", \"mono\": False, \"glyph\": None, " +
+    "\"color\": \"#309d4b\"},",
   "    \"dropbox\": {\"name\": \"Dropbox\", \"logo\": \"dropbox\", \"mono\": False, \"glyph\": \"\uf16b\", " +
     "\"color\": \"#3d8bff\"},",
+  "    \"elevenlabs\": {\"name\": \"ElevenLabs\", \"logo\": \"elevenlabs-icon\", \"mono\": True, \"glyph\": " +
+    "None, \"color\": \"#e6e6e6\"},",
+  "    \"fal\": {\"name\": \"fal\", \"logo\": \"fal-icon\", \"mono\": True, \"glyph\": None, \"color\": " +
+    "\"#8b6cf6\"},",
   "    \"figma\": {\"name\": \"Figma\", \"logo\": \"figma\", \"mono\": False, \"glyph\": \"\ue7da\", " +
     "\"color\": \"#f24e1e\"},",
+  "    \"github\": {\"name\": \"GitHub\", \"logo\": \"github-icon\", \"mono\": True, \"glyph\": \"\\uf09b\", " +
+    "\"color\": \"#e6e6e6\"},",
   "    \"google-drive\": {\"name\": \"Google Drive\", \"logo\": \"google-drive-2020\", \"mono\": False, " +
     "\"glyph\": \"\\U000f02b6\",",
   "                     \"color\": \"#1fa463\"},",
+  "    \"higgsfield\": {\"name\": \"Higgsfield\", \"logo\": \"higgsfield-icon\", \"mono\": False, \"glyph\": " +
+    "None, \"color\": \"#dafd55\"},",
   "    \"linear\": {\"name\": \"Linear\", \"logo\": \"linear-icon\", \"mono\": True, \"glyph\": None, " +
     "\"color\": \"#7c86e6\"},",
+  "    \"luma\": {\"name\": \"Luma\", \"logo\": \"luma-icon\", \"mono\": True, \"glyph\": None, \"color\": " +
+    "\"#e6e6e6\"},",
+  "    \"meshy\": {\"name\": \"Meshy\", \"logo\": None, \"mono\": False, \"glyph\": None, \"color\": " +
+    "\"#c5f04a\"},",
   "    \"notion\": {\"name\": \"Notion\", \"logo\": \"notion-icon\", \"mono\": False, \"glyph\": \"\ue848\", " +
     "\"color\": \"#e6e6e6\"},",
   "    \"onedrive\": {\"name\": \"OneDrive\", \"logo\": \"microsoft-onedrive\", \"mono\": False, \"glyph\": " +
     "\"\\U000f03ca\",",
   "                 \"color\": \"#28a8ea\"},",
+  "    \"runway\": {\"name\": \"Runway\", \"logo\": \"runway-icon\", \"mono\": True, \"glyph\": None, " +
+    "\"color\": \"#e6e6e6\"},",
   "    \"sentry\": {\"name\": \"Sentry\", \"logo\": \"sentry-icon\", \"mono\": True, \"glyph\": \"\ue89f\", " +
     "\"color\": \"#e1567c\"},",
   "}",
@@ -10616,13 +10829,32 @@ export const CONNECTORS = [
     "\"google-drive\", \"gdrive\": \"google-drive\",",
   "         \"googledrive\": \"google-drive\", \"linear\": \"linear\", \"notion\": \"notion\", \"onedrive\": " +
     "\"onedrive\",",
-  "         \"microsoft onedrive\": \"onedrive\", \"sentry\": \"sentry\"}",
+  "         \"microsoft onedrive\": \"onedrive\", \"sentry\": \"sentry\", \"elevenlabs\": \"elevenlabs\", " +
+    "\"eleven labs\": \"elevenlabs\",",
+  "         \"fal\": \"fal\", \"fal ai\": \"fal\", \"flux\": \"bfl\", \"bfl\": \"bfl\", \"black forest labs\": " +
+    "\"bfl\", \"runway\": \"runway\",",
+  "         \"higgsfield\": \"higgsfield\", \"luma\": \"luma\", \"luma ai\": \"luma\", \"cartesia\": " +
+    "\"cartesia\", \"meshy\": \"meshy\",",
+  "         \"github\": \"github\"}",
   "HOSTS = {\"box.com\": \"box\", \"dropbox.com\": \"dropbox\", \"figma.com\": \"figma\", " +
     "\"drive.google.com\": \"google-drive\",",
+  "         \"githubcopilot.com\": \"github\",                  # GitHub's own MCP server: " +
+    "api.githubcopilot.com/mcp",
   "         \"linear.app\": \"linear\", \"notion.com\": \"notion\", \"notion.so\": \"notion\", " +
     "\"onedrive.com\": \"onedrive\",",
-  "         \"onedrive.live.com\": \"onedrive\", \"sentry.io\": \"sentry\", \"sentry.dev\": \"sentry\"}",
+  "         \"onedrive.live.com\": \"onedrive\", \"sentry.io\": \"sentry\", \"sentry.dev\": \"sentry\", " +
+    "\"elevenlabs.io\": \"elevenlabs\",",
+  "         \"fal.ai\": \"fal\", \"bfl.ai\": \"bfl\", \"runwayml.com\": \"runway\", \"higgsfield.ai\": " +
+    "\"higgsfield\",",
+  "         \"lumalabs.ai\": \"luma\", \"cartesia.ai\": \"cartesia\", \"meshy.ai\": \"meshy\"}",
   "FILLER = (\"mcp\", \"server\")",
+  "# the services the add form offers by name: each maker's hosted MCP, signed in to in the browser, as its " +
+    "docs add it",
+  "OFFERED = ((\"fal\", \"fal\", \"https://mcp.fal.ai/mcp-relay\"),",
+  "           (\"elevenlabs\", \"elevenlabs\", \"https://api.elevenlabs.io/v1/mcp\"), (\"bfl\", \"flux\", " +
+    "\"https://mcp.bfl.ai\"),",
+  "           (\"runway\", \"runway\", \"https://mcp.runwayml.com/mcp\"),",
+  "           (\"figma\", \"figma\", \"https://mcp.figma.com/mcp\"))",
   "ADDRESS = \"Its address, starting with https://\"         # what the add form says of an address it does " +
     "not take",
   "",
@@ -14797,22 +15029,40 @@ export const GRAPH = [
   "'ESCAPES = re.compile(r\"\\\\x1b\\\\][^\\\\x07\\\\x1b]*(?:\\\\x07|\\\\x1b\\\\\\\\)|\\\\x1b\\\\[[0-9;?]*[ " +
     "-/]*[@-~]\")',",
   "'BRANDS = {',",
+  "'    \"bfl\": {\"name\": \"FLUX\", \"logo\": None, \"mono\": False, \"glyph\": None, \"color\": " +
+    "\"#e6e6e6\"},',",
   "'    \"box\": {\"name\": \"Box\", \"logo\": \"box\", \"mono\": False, \"glyph\": None, \"color\": " +
     "\"#3b8fe6\"},',",
+  "'    \"cartesia\": {\"name\": \"Cartesia\", \"logo\": \"cartesia-icon\", \"mono\": False, \"glyph\": None, " +
+    "\"color\": \"#309d4b\"},',",
   "'    \"dropbox\": {\"name\": \"Dropbox\", \"logo\": \"dropbox\", \"mono\": False, \"glyph\": \"\\uf16b\", " +
     "\"color\": \"#3d8bff\"},',",
+  "'    \"elevenlabs\": {\"name\": \"ElevenLabs\", \"logo\": \"elevenlabs-icon\", \"mono\": True, \"glyph\": " +
+    "None, \"color\": \"#e6e6e6\"},',",
+  "'    \"fal\": {\"name\": \"fal\", \"logo\": \"fal-icon\", \"mono\": True, \"glyph\": None, \"color\": " +
+    "\"#8b6cf6\"},',",
   "'    \"figma\": {\"name\": \"Figma\", \"logo\": \"figma\", \"mono\": False, \"glyph\": \"\\ue7da\", " +
     "\"color\": \"#f24e1e\"},',",
+  "'    \"github\": {\"name\": \"GitHub\", \"logo\": \"github-icon\", \"mono\": True, \"glyph\": " +
+    "\"\\\\uf09b\", \"color\": \"#e6e6e6\"},',",
   "'    \"google-drive\": {\"name\": \"Google Drive\", \"logo\": \"google-drive-2020\", \"mono\": False, " +
     "\"glyph\": \"\\\\U000f02b6\",',",
   "'                     \"color\": \"#1fa463\"},',",
+  "'    \"higgsfield\": {\"name\": \"Higgsfield\", \"logo\": \"higgsfield-icon\", \"mono\": False, \"glyph\": " +
+    "None, \"color\": \"#dafd55\"},',",
   "'    \"linear\": {\"name\": \"Linear\", \"logo\": \"linear-icon\", \"mono\": True, \"glyph\": None, " +
     "\"color\": \"#7c86e6\"},',",
+  "'    \"luma\": {\"name\": \"Luma\", \"logo\": \"luma-icon\", \"mono\": True, \"glyph\": None, \"color\": " +
+    "\"#e6e6e6\"},',",
+  "'    \"meshy\": {\"name\": \"Meshy\", \"logo\": None, \"mono\": False, \"glyph\": None, \"color\": " +
+    "\"#c5f04a\"},',",
   "'    \"notion\": {\"name\": \"Notion\", \"logo\": \"notion-icon\", \"mono\": False, \"glyph\": \"\\ue848\", " +
     "\"color\": \"#e6e6e6\"},',",
   "'    \"onedrive\": {\"name\": \"OneDrive\", \"logo\": \"microsoft-onedrive\", \"mono\": False, \"glyph\": " +
     "\"\\\\U000f03ca\",',",
   "'                 \"color\": \"#28a8ea\"},',",
+  "'    \"runway\": {\"name\": \"Runway\", \"logo\": \"runway-icon\", \"mono\": True, \"glyph\": None, " +
+    "\"color\": \"#e6e6e6\"},',",
   "'    \"sentry\": {\"name\": \"Sentry\", \"logo\": \"sentry-icon\", \"mono\": True, \"glyph\": \"\\ue89f\", " +
     "\"color\": \"#e1567c\"},',",
   "'}',",
@@ -14820,13 +15070,29 @@ export const GRAPH = [
     "\"google-drive\", \"gdrive\": \"google-drive\",',",
   "'         \"googledrive\": \"google-drive\", \"linear\": \"linear\", \"notion\": \"notion\", \"onedrive\": " +
     "\"onedrive\",',",
-  "'         \"microsoft onedrive\": \"onedrive\", \"sentry\": \"sentry\"}',",
+  "'         \"microsoft onedrive\": \"onedrive\", \"sentry\": \"sentry\", \"elevenlabs\": \"elevenlabs\", " +
+    "\"eleven labs\": \"elevenlabs\",',",
+  "'         \"fal\": \"fal\", \"fal ai\": \"fal\", \"flux\": \"bfl\", \"bfl\": \"bfl\", \"black forest " +
+    "labs\": \"bfl\", \"runway\": \"runway\",',",
+  "'         \"higgsfield\": \"higgsfield\", \"luma\": \"luma\", \"luma ai\": \"luma\", \"cartesia\": " +
+    "\"cartesia\", \"meshy\": \"meshy\",',",
+  "'         \"github\": \"github\"}',",
   "'HOSTS = {\"box.com\": \"box\", \"dropbox.com\": \"dropbox\", \"figma.com\": \"figma\", " +
     "\"drive.google.com\": \"google-drive\",',",
+  "'         \"githubcopilot.com\": \"github\",',",
   "'         \"linear.app\": \"linear\", \"notion.com\": \"notion\", \"notion.so\": \"notion\", " +
     "\"onedrive.com\": \"onedrive\",',",
-  "'         \"onedrive.live.com\": \"onedrive\", \"sentry.io\": \"sentry\", \"sentry.dev\": \"sentry\"}',",
+  "'         \"onedrive.live.com\": \"onedrive\", \"sentry.io\": \"sentry\", \"sentry.dev\": \"sentry\", " +
+    "\"elevenlabs.io\": \"elevenlabs\",',",
+  "'         \"fal.ai\": \"fal\", \"bfl.ai\": \"bfl\", \"runwayml.com\": \"runway\", \"higgsfield.ai\": " +
+    "\"higgsfield\",',",
+  "'         \"lumalabs.ai\": \"luma\", \"cartesia.ai\": \"cartesia\", \"meshy.ai\": \"meshy\"}',",
   "'FILLER = (\"mcp\", \"server\")',",
+  "'OFFERED = ((\"fal\", \"fal\", \"https://mcp.fal.ai/mcp-relay\"),',",
+  "'           (\"elevenlabs\", \"elevenlabs\", \"https://api.elevenlabs.io/v1/mcp\"), (\"bfl\", \"flux\", " +
+    "\"https://mcp.bfl.ai\"),',",
+  "'           (\"runway\", \"runway\", \"https://mcp.runwayml.com/mcp\"),',",
+  "'           (\"figma\", \"figma\", \"https://mcp.figma.com/mcp\"))',",
   "'ADDRESS = \"Its address, starting with https://\"',",
   "'def named(name, form=NAME):',",
   "'    if not isinstance(name, str) or not form.fullmatch(name) or name.startswith(\"-\") or name != " +
@@ -15993,7 +16259,7 @@ export const GRAPH = [
   "'                         PENDING, PROJECT, READ, READ_ONLY, SANDBOXES, SIGN_IN, clean, inside, mode_told, " +
     "plugged,',",
   "'                         read_text, shown)',",
-  "'from connectors import AGENTS as ADDS, CLAUDE_AI as CLAUDE_PAGE, logout',",
+  "'from connectors import AGENTS as ADDS, BRANDS, CLAUDE_AI as CLAUDE_PAGE, OFFERED, logout',",
   "'from jsonl import obj',",
   "'SECTIONS = ((\"subagents\", \"Subagents\"), (\"rules\", \"Rules\"), (\"skills\", \"Skills\"), " +
     "(\"permissions\", \"Permissions\"),',",
@@ -16233,21 +16499,31 @@ export const GRAPH = [
   "'    rank, rows = {state: n for n, (state, _, _) in enumerate(PROBLEMS)}, []',",
   "'    for one in sorted(setup[\"servers\"], key=lambda one: rank.get(one[\"state\"], len(rank))):',",
   "'        word, tone = SAID_AS[one[\"state\"]]',",
-  "'        word = f\"{one[\\'tools\\']} tool{\\'s\\' * (one[\\'tools\\'] != 1)}\" if one[\"state\"] == ON and " +
-    "one[\"tools\"] else word',",
+  "'        makes, today = one.get(\"makes\"), one.get(\"today\")',",
+  "'        name = BRANDS.get(one[\"brand\"] or \"\", {}).get(\"name\") or one[\"label\"]',",
+  "'        word = (f\"{today or \\'no\\'} call{\\'s\\' * (today != 1)} today\" if makes and today is not None " +
+    "else',",
+  "'                f\"{one[\\'tools\\']} tool{\\'s\\' * (one[\\'tools\\'] != 1)}\" if one[\"tools\"] else " +
+    "word) if one[\"state\"] == ON \\\\',",
+  "'            else word',",
   "'        state = {\"text\": word, \"tone\": tone}',",
-  "'        lines = [origin(one, folder, home)] + [[label, one[key], None] for label, key in ((\"Runs\", " +
-    "\"runs\"), (',",
-  "'            \"URL\", \"url\")) if one[key]] + signs_out(one, agent) + used_line(one[\"used\"])',",
-  "'        rows.append(layer(\"connector:\" + one[\"name\"], \"plug\", one[\"label\"], properties(',",
-  "'            one[\"label\"], state, lines, error=one[\"error\"], actions=server_actions(one, agent, folder, " +
-    "home)),',",
+  "'        lines = [origin(one, folder, home)] + [[\"Name\", one[\"label\"], None]] * (name != " +
+    "one[\"label\"]) + [',",
+  "'            [label, one[key], None] for label, key in ((\"Runs\", \"runs\"), (\"URL\", \"url\")) if " +
+    "one[key]] + (',",
+  "'            [[\"Loads\", f\"{words.tokens(one[\\'tokens\\'])} at start\", None]] if makes and " +
+    "one[\"tokens\"] else []) + \\\\',",
+  "'            signs_out(one, agent) + used_line(one[\"used\"])',",
+  "'        rows.append(layer(\"connector:\" + one[\"name\"], \"plug\", name, properties(',",
+  "'            name, state, lines, error=one[\"error\"], actions=server_actions(one, agent, folder, home)), " +
+    "note=makes,',",
   "'            mark=tone if tone in (\"bad\", \"warn\") else \"ok\" if one[\"used\"] else None, " +
     "place=tag(one), state=state,',",
   "'            tokens=one[\"tokens\"], agents=one.get(\"agents\", [agent]), dim=one[\"state\"] in DIM, " +
     "known=one[\"brand\"]))',",
+  "'        rows[-1][\"cost\"] = None if makes else rows[-1][\"cost\"]',",
   "'    return rows',",
-  "'def connecting(agent, folder):',",
+  "'def connecting(agent, folder, have=()):',",
   "'    here, claude = os.path.basename(os.path.abspath(folder)), agent == \"claude\"',",
   "'    return {\"state\": {\"text\": \"signing in\", \"tone\": \"busy\"}, \"words\": \"Finish in your " +
     "browser\",',",
@@ -16258,7 +16534,10 @@ export const GRAPH = [
   "'            \"add\": {\"tip\": \"Add a connector\", \"title\": \"Add a connector\",',",
   "'                    \"menu\": ([{\"id\": \"claude-ai\", \"label\": \"From claude.ai\u2026\", \"url\": " +
     "CLAUDE_PAGE}] if claude else [])',",
-  "'                    + [{\"id\": \"url\", \"label\": \"By URL\u2026\", \"url\": None}],',",
+  "'                    + [{\"id\": \"url\", \"label\": \"By URL\u2026\", \"url\": None}] + [',",
+  "'                        {\"id\": \"offer:\" + key, \"label\": BRANDS[key][\"name\"], \"url\": None, " +
+    "\"brand\": key, \"name\": name,',",
+  "'                         \"address\": address} for key, name, address in OFFERED if key not in have],',",
   "'                    \"fields\": {\"name\": \"Name\", \"url\": \"URL\", \"scope\": \"For\"},',",
   "'                    \"scopes\": [{\"id\": \"local\", \"label\": here}, {\"id\": \"user\", \"label\": \"All " +
     "projects\"}] if claude',",
@@ -16328,7 +16607,8 @@ export const GRAPH = [
   "'            \"error\": {\"text\": f\"Couldn\\'t read {KNOWN[agent][\\'name\\']}\\'s setup: permission " +
     "denied\",',",
   "'                      \"tip\": \", \".join(files)} if files else None,',",
-  "'            \"sections\": sections, \"connect\": connecting(agent, folder)}',",
+  "'            \"sections\": sections, \"connect\": connecting(agent, folder, {one[\"brand\"] for one in " +
+    "setup[\"servers\"]})}',",
   "]), _sys.modules['agent_layers'].__dict__)",
   "_sys.modules['graph'] = _types.ModuleType('graph')",
   "exec('\\n'.join([",
@@ -16949,22 +17229,40 @@ export const HARNESS = [
   "'ESCAPES = re.compile(r\"\\\\x1b\\\\][^\\\\x07\\\\x1b]*(?:\\\\x07|\\\\x1b\\\\\\\\)|\\\\x1b\\\\[[0-9;?]*[ " +
     "-/]*[@-~]\")',",
   "'BRANDS = {',",
+  "'    \"bfl\": {\"name\": \"FLUX\", \"logo\": None, \"mono\": False, \"glyph\": None, \"color\": " +
+    "\"#e6e6e6\"},',",
   "'    \"box\": {\"name\": \"Box\", \"logo\": \"box\", \"mono\": False, \"glyph\": None, \"color\": " +
     "\"#3b8fe6\"},',",
+  "'    \"cartesia\": {\"name\": \"Cartesia\", \"logo\": \"cartesia-icon\", \"mono\": False, \"glyph\": None, " +
+    "\"color\": \"#309d4b\"},',",
   "'    \"dropbox\": {\"name\": \"Dropbox\", \"logo\": \"dropbox\", \"mono\": False, \"glyph\": \"\\uf16b\", " +
     "\"color\": \"#3d8bff\"},',",
+  "'    \"elevenlabs\": {\"name\": \"ElevenLabs\", \"logo\": \"elevenlabs-icon\", \"mono\": True, \"glyph\": " +
+    "None, \"color\": \"#e6e6e6\"},',",
+  "'    \"fal\": {\"name\": \"fal\", \"logo\": \"fal-icon\", \"mono\": True, \"glyph\": None, \"color\": " +
+    "\"#8b6cf6\"},',",
   "'    \"figma\": {\"name\": \"Figma\", \"logo\": \"figma\", \"mono\": False, \"glyph\": \"\\ue7da\", " +
     "\"color\": \"#f24e1e\"},',",
+  "'    \"github\": {\"name\": \"GitHub\", \"logo\": \"github-icon\", \"mono\": True, \"glyph\": " +
+    "\"\\\\uf09b\", \"color\": \"#e6e6e6\"},',",
   "'    \"google-drive\": {\"name\": \"Google Drive\", \"logo\": \"google-drive-2020\", \"mono\": False, " +
     "\"glyph\": \"\\\\U000f02b6\",',",
   "'                     \"color\": \"#1fa463\"},',",
+  "'    \"higgsfield\": {\"name\": \"Higgsfield\", \"logo\": \"higgsfield-icon\", \"mono\": False, \"glyph\": " +
+    "None, \"color\": \"#dafd55\"},',",
   "'    \"linear\": {\"name\": \"Linear\", \"logo\": \"linear-icon\", \"mono\": True, \"glyph\": None, " +
     "\"color\": \"#7c86e6\"},',",
+  "'    \"luma\": {\"name\": \"Luma\", \"logo\": \"luma-icon\", \"mono\": True, \"glyph\": None, \"color\": " +
+    "\"#e6e6e6\"},',",
+  "'    \"meshy\": {\"name\": \"Meshy\", \"logo\": None, \"mono\": False, \"glyph\": None, \"color\": " +
+    "\"#c5f04a\"},',",
   "'    \"notion\": {\"name\": \"Notion\", \"logo\": \"notion-icon\", \"mono\": False, \"glyph\": \"\\ue848\", " +
     "\"color\": \"#e6e6e6\"},',",
   "'    \"onedrive\": {\"name\": \"OneDrive\", \"logo\": \"microsoft-onedrive\", \"mono\": False, \"glyph\": " +
     "\"\\\\U000f03ca\",',",
   "'                 \"color\": \"#28a8ea\"},',",
+  "'    \"runway\": {\"name\": \"Runway\", \"logo\": \"runway-icon\", \"mono\": True, \"glyph\": None, " +
+    "\"color\": \"#e6e6e6\"},',",
   "'    \"sentry\": {\"name\": \"Sentry\", \"logo\": \"sentry-icon\", \"mono\": True, \"glyph\": \"\\ue89f\", " +
     "\"color\": \"#e1567c\"},',",
   "'}',",
@@ -16972,13 +17270,29 @@ export const HARNESS = [
     "\"google-drive\", \"gdrive\": \"google-drive\",',",
   "'         \"googledrive\": \"google-drive\", \"linear\": \"linear\", \"notion\": \"notion\", \"onedrive\": " +
     "\"onedrive\",',",
-  "'         \"microsoft onedrive\": \"onedrive\", \"sentry\": \"sentry\"}',",
+  "'         \"microsoft onedrive\": \"onedrive\", \"sentry\": \"sentry\", \"elevenlabs\": \"elevenlabs\", " +
+    "\"eleven labs\": \"elevenlabs\",',",
+  "'         \"fal\": \"fal\", \"fal ai\": \"fal\", \"flux\": \"bfl\", \"bfl\": \"bfl\", \"black forest " +
+    "labs\": \"bfl\", \"runway\": \"runway\",',",
+  "'         \"higgsfield\": \"higgsfield\", \"luma\": \"luma\", \"luma ai\": \"luma\", \"cartesia\": " +
+    "\"cartesia\", \"meshy\": \"meshy\",',",
+  "'         \"github\": \"github\"}',",
   "'HOSTS = {\"box.com\": \"box\", \"dropbox.com\": \"dropbox\", \"figma.com\": \"figma\", " +
     "\"drive.google.com\": \"google-drive\",',",
+  "'         \"githubcopilot.com\": \"github\",',",
   "'         \"linear.app\": \"linear\", \"notion.com\": \"notion\", \"notion.so\": \"notion\", " +
     "\"onedrive.com\": \"onedrive\",',",
-  "'         \"onedrive.live.com\": \"onedrive\", \"sentry.io\": \"sentry\", \"sentry.dev\": \"sentry\"}',",
+  "'         \"onedrive.live.com\": \"onedrive\", \"sentry.io\": \"sentry\", \"sentry.dev\": \"sentry\", " +
+    "\"elevenlabs.io\": \"elevenlabs\",',",
+  "'         \"fal.ai\": \"fal\", \"bfl.ai\": \"bfl\", \"runwayml.com\": \"runway\", \"higgsfield.ai\": " +
+    "\"higgsfield\",',",
+  "'         \"lumalabs.ai\": \"luma\", \"cartesia.ai\": \"cartesia\", \"meshy.ai\": \"meshy\"}',",
   "'FILLER = (\"mcp\", \"server\")',",
+  "'OFFERED = ((\"fal\", \"fal\", \"https://mcp.fal.ai/mcp-relay\"),',",
+  "'           (\"elevenlabs\", \"elevenlabs\", \"https://api.elevenlabs.io/v1/mcp\"), (\"bfl\", \"flux\", " +
+    "\"https://mcp.bfl.ai\"),',",
+  "'           (\"runway\", \"runway\", \"https://mcp.runwayml.com/mcp\"),',",
+  "'           (\"figma\", \"figma\", \"https://mcp.figma.com/mcp\"))',",
   "'ADDRESS = \"Its address, starting with https://\"',",
   "'def named(name, form=NAME):',",
   "'    if not isinstance(name, str) or not form.fullmatch(name) or name.startswith(\"-\") or name != " +
@@ -19431,12 +19745,35 @@ export const MEDIA = [
   "'if __name__ == \"__main__\":',",
   "'    sys.exit(main(sys.argv))',",
   "]), _sys.modules['git'].__dict__)",
-  "\"\"\"What the preview draws as a picture: an image (sips), a PDF's page (PDFKit), an SVG or a page " +
-    "(WebKit, offline),",
-  "through Swift helpers compiled once into the cache; what opens them; which files are text to edit. The " +
-    "Herdr app mod's,",
-  "in JSON: media.py picture PATH PAGE WIDTH [HEIGHT], committed ROOT PATH WIDTH, open PATH, text ROOT " +
-    "PATH.\"\"\"",
+  "_sys.modules['filekinds'] = _types.ModuleType('filekinds')",
+  "exec('\\n'.join([",
+  "'import os',",
+  "'IMAGES = (\".png\", \".jpg\", \".jpeg\", \".gif\", \".webp\", \".avif\", \".bmp\", \".ico\")',",
+  "'PICTURES = (\".heic\", \".heics\", \".heif\", \".hif\", \".tif\", \".tiff\", \".jxl\", \".jp2\", \".j2k\", " +
+    "\".jpf\", \".jpe\", \".mpo\", \".cur\",',",
+  "'            \".icns\", \".psd\", \".tga\", \".exr\", \".hdr\", \".sgi\", \".pict\", \".pct\", \".pbm\", " +
+    "\".pgm\", \".ppm\", \".pnm\", \".dds\",',",
+  "'            \".ktx\", \".ktx2\", \".astc\", \".pvr\", \".dcm\", \".dng\", \".cr2\", \".cr3\", \".crw\", " +
+    "\".nef\", \".nrw\", \".arw\", \".srf\",',",
+  "'            \".sr2\", \".raf\", \".orf\", \".rw2\", \".pef\", \".srw\", \".erf\", \".3fr\", \".fff\", " +
+    "\".iiq\", \".mos\", \".mrw\", \".dcr\",',",
+  "'            \".rwl\")',",
+  "'AUDIO = (\".mp3\", \".wav\", \".m4a\", \".aac\", \".flac\", \".aiff\", \".aif\", \".caf\", \".ogg\", " +
+    "\".opus\")',",
+  "'VIDEO = (\".mp4\", \".mov\", \".m4v\", \".webm\")',",
+  "'KINDS = {**{ext: \"image\" for ext in IMAGES + PICTURES}, \".pdf\": \"pdf\", \".html\": \"html\", " +
+    "\".htm\": \"html\", \".svg\": \"svg\",',",
+  "'         **{ext: \"audio\" for ext in AUDIO}, **{ext: \"video\" for ext in VIDEO}}',",
+  "'MEDIA = {\"image\": \"image\", \"svg\": \"image\", \"audio\": \"audio\", \"video\": \"video\"}',",
+  "'def kind_of(path):',",
+  "'    return KINDS.get(os.path.splitext(path)[1].lower())',",
+  "]), _sys.modules['filekinds'].__dict__)",
+  "\"\"\"What the preview draws: an image (sips), a PDF's page (PDFKit), an SVG or a page (WebKit, offline), a " +
+    "clip's frame",
+  "and waveform (AVFoundation), through Swift helpers compiled once; what opens them; which files are text to " +
+    "edit. In",
+  "JSON: media.py picture PATH PAGE WIDTH [HEIGHT], committed ROOT PATH WIDTH, open PATH, reveal PATH, text " +
+    "ROOT PATH.\"\"\"",
   "import contextlib",
   "import glob",
   "import hashlib",
@@ -19454,22 +19791,8 @@ export const MEDIA = [
   "",
   "sys.dont_write_bytecode = True  # no __pycache__ beside the installed files",
   "import git  # noqa: E402",
+  "from filekinds import IMAGES, kind_of  # noqa: E402",
   "",
-  "IMAGES = (\".png\", \".jpg\", \".jpeg\", \".gif\", \".webp\", \".avif\", \".bmp\", \".ico\")     # the " +
-    "web's: a browser shows them",
-  "# the rest macOS's ImageIO reads (sips makes a PNG of each): Apple's, Adobe's, the GPU's, a camera's raw " +
-    "file",
-  "PICTURES = (\".heic\", \".heics\", \".heif\", \".hif\", \".tif\", \".tiff\", \".jxl\", \".jp2\", \".j2k\", " +
-    "\".jpf\", \".jpe\", \".mpo\", \".cur\",",
-  "            \".icns\", \".psd\", \".tga\", \".exr\", \".hdr\", \".sgi\", \".pict\", \".pct\", \".pbm\", " +
-    "\".pgm\", \".ppm\", \".pnm\", \".dds\",",
-  "            \".ktx\", \".ktx2\", \".astc\", \".pvr\", \".dcm\", \".dng\", \".cr2\", \".cr3\", \".crw\", " +
-    "\".nef\", \".nrw\", \".arw\", \".srf\",",
-  "            \".sr2\", \".raf\", \".orf\", \".rw2\", \".pef\", \".srw\", \".erf\", \".3fr\", \".fff\", " +
-    "\".iiq\", \".mos\", \".mrw\", \".dcr\",",
-  "            \".rwl\")",
-  "KINDS = {**{ext: \"image\" for ext in IMAGES + PICTURES}, \".pdf\": \"pdf\", \".html\": \"html\", \".htm\": " +
-    "\"html\", \".svg\": \"svg\"}",
   "WEB = IMAGES + (\".svg\", \".pdf\", \".html\", \".htm\")     # what a browser shows: any other picture " +
     "opens in Preview",
   "SAFARI = \"com.apple.Safari\"",
@@ -19480,10 +19803,17 @@ export const MEDIA = [
   "APP_PICTURES = \"herdr-fold-pictures\"     # in the Herdr app's home: its image() takes a path from there",
   "TIMEOUT = 120                 # seconds a compile or a page may take",
   "DENSITY = 2                   # a drawn SVG's or page's pixels to a point: a Mac's screen",
+  "LEVELS = 160                  # an audio file's loudness steps, its waveform's bars",
+  "CLIPS = (b\"ID3\", b\"RIFF\", b\"FORM\", b\"caff\", b\"fLaC\", b\"OggS\", b\"\\x1a\\x45\\xdf\\xa3\")    # a " +
+    "clip's first bytes",
+  "BOXES = (b\"ftyp\", b\"moov\", b\"mdat\", b\"wide\", b\"free\", b\"skip\")        # an MP4's or a MOV's " +
+    "first box, at byte 4",
   "# the Swift helpers, each compiled once: pdf-pages `sizes PDF` prints each page's size in points, `render " +
     "PDF N WIDTH",
   "# OUT` writes page N (from 0) WIDTH pixels wide; page-shot `PATH WIDTH OUT RULES [HEIGHT]` draws a page or " +
-    "an SVG",
+    "an SVG;",
+  "# media-still `PATH OUT WIDTH COUNT` prints a clip's seconds, a video's pixels (writing its frame), audio's " +
+    "levels",
   "HELPERS = {\"pdf-pages\": \"\"\"import AppKit",
   "import PDFKit",
   "let a = CommandLine.arguments",
@@ -19603,12 +19933,60 @@ export const MEDIA = [
   "let end = Date(timeIntervalSinceNow: 60)",
   "while !done && Date() < end { RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05)) }",
   "exit(done && !failed ? 0 : 3)",
+  "\"\"\", \"media-still\": \"\"\"import AVFoundation",
+  "import AppKit",
+  "let a = CommandLine.arguments",
+  "guard a.count == 5, let width = Int(a[3]), let count = Int(a[4]), width > 0, count > 0 else { exit(2) }",
+  "let asset = AVURLAsset(url: URL(fileURLWithPath: a[1]))",
+  "let length = CMTimeGetSeconds(asset.duration)",
+  "let seconds = length.isFinite && length > 0 ? length : 0",
+  "print(\"seconds\", seconds)",
+  "if let track = asset.tracks(withMediaType: .video).first {          // a frame a tenth in, WIDTH at most",
+  "  let shape = track.naturalSize.applying(track.preferredTransform)",
+  "  print(\"pixels\", Int(abs(shape.width).rounded()), Int(abs(shape.height).rounded()))",
+  "  let still = AVAssetImageGenerator(asset: asset)",
+  "  still.appliesPreferredTrackTransform = true",
+  "  still.maximumSize = CGSize(width: width, height: width)",
+  "  guard let frame = try? still.copyCGImage(at: CMTime(seconds: seconds / 10, preferredTimescale: 600), " +
+    "actualTime: nil),",
+  "        let png = NSBitmapImageRep(cgImage: frame).representation(using: .png, properties: [:]),",
+  "        (try? png.write(to: URL(fileURLWithPath: a[2]))) != nil else { exit(3) }",
+  "} else if let track = asset.tracks(withMediaType: .audio).first, let reader = try? AVAssetReader(asset: " +
+    "asset) {",
+  "  let out = AVAssetReaderTrackOutput(track: track, outputSettings: [AVFormatIDKey: kAudioFormatLinearPCM,",
+  "    AVLinearPCMBitDepthKey: 16, AVLinearPCMIsFloatKey: false, AVLinearPCMIsBigEndianKey: false,",
+  "    AVLinearPCMIsNonInterleaved: false])",
+  "  reader.add(out)",
+  "  guard reader.startReading() else { exit(3) }",
+  "  var levels: [Int] = [], loudest = 0, n = 0, step = 0                // COUNT steps, each its loudest " +
+    "sample",
+  "  while let buffer = out.copyNextSampleBuffer(), let block = CMSampleBufferGetDataBuffer(buffer) {",
+  "    if step == 0, let format = CMSampleBufferGetFormatDescription(buffer),",
+  "       let basic = CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee {",
+  "      step = max(1, Int(seconds * basic.mSampleRate * Double(basic.mChannelsPerFrame) / Double(count)))",
+  "    }",
+  "    var at = 0",
+  "    let total = CMBlockBufferGetDataLength(block)",
+  "    while at < total {",
+  "      var length = 0, data: UnsafeMutablePointer<Int8>? = nil",
+  "      guard CMBlockBufferGetDataPointer(block, atOffset: at, lengthAtOffsetOut: &length, totalLengthOut: " +
+    "nil,",
+  "                                        dataPointerOut: &data) == kCMBlockBufferNoErr, let data, length > 1",
+  "      else { break }",
+  "      data.withMemoryRebound(to: Int16.self, capacity: length / 2) { samples in",
+  "        for i in 0..<(length / 2) {",
+  "          loudest = max(loudest, abs(Int(samples[i])))",
+  "          n += 1",
+  "          if n >= step { levels.append(loudest * 100 / 32768); (loudest, n) = (0, 0) }",
+  "        }",
+  "      }",
+  "      at += length",
+  "    }",
+  "  }",
+  "  if n > 0 { levels.append(loudest * 100 / 32768) }",
+  "  print(\"levels\", levels.prefix(count).map(String.init).joined(separator: \" \"))",
+  "} else { exit(3) }",
   "\"\"\"}",
-  "",
-  "",
-  "def kind_of(path):",
-  "    \"\"\"image, pdf, html or svg (a picture that is code too) by PATH's extension, else None.\"\"\"",
-  "    return KINDS.get(os.path.splitext(path)[1].lower())",
   "",
   "",
   "def text_refusal(path):",
@@ -19834,19 +20212,47 @@ export const MEDIA = [
   "",
   "",
   "def opener(path, platform=sys.platform):",
-  "    \"\"\"Where o and Open in \u2026 open PATH: the browser, or on a Mac Preview for a picture no browser " +
-    "shows.\"\"\"",
+  "    \"\"\"Where o and Open in \u2026 open PATH: audio and video in the player (on a Mac QuickTime Player), " +
+    "the browser, or on",
+  "    a Mac Preview for a picture no browser shows.\"\"\"",
+  "    if kind_of(path) in (\"audio\", \"video\"):",
+  "        return \"Player\"",
   "    return \"Preview\" if platform == \"darwin\" and os.path.splitext(path)[1].lower() not in WEB else " +
     "\"Browser\"",
   "",
   "",
+  "def clip(path):",
+  "    \"\"\"PATH's real file where it is audio or a video, a regular file whose first bytes are a clip's (an " +
+    "MP4's or a",
+  "    MOV's box, WebM's, WAV's, AIFF's, CAF's, FLAC's, Ogg's, an MP3's or AAC's frame); else None: a script, " +
+    "an app or",
+  "    a link to one, named like a clip, is never handed to a player.\"\"\"",
+  "    real = os.path.realpath(path)",
+  "    try:",
+  "        with open(real, \"rb\") as f:",
+  "            head = f.read(12) if stat.S_ISREG(os.fstat(f.fileno()).st_mode) else b\"\"",
+  "    except OSError:",
+  "        return None",
+  "    known = head.startswith(CLIPS) or head[4:8] in BOXES or len(head) > 1 and head[0] == 0xFF and head[1] " +
+    ">= 0xE0",
+  "    return real if known and kind_of(real) in (\"audio\", \"video\") else None",
+  "",
+  "",
   "def open_argv(path, platform=sys.platform):",
-  "    \"\"\"The command that opens PATH in the default browser (on a Mac Preview, as opener() says): macOS's " +
-    "open,",
-  "    Windows' Explorer (the app for its kind), else the desktop's opener; None without one.\"\"\"",
+  "    \"\"\"The command that opens PATH where opener() says (the default browser, Preview, the player, each " +
+    "named, never",
+  "    what the file's type says): macOS's open, Windows' Explorer, else the desktop's opener; a clip by its " +
+    "real file,",
+  "    clip()'s; None without one, or for what clip() refuses.\"\"\"",
+  "    played = opener(path, platform) == \"Player\"",
+  "    path = clip(path) if played else path",
+  "    if not path and played:",
+  "        return None",
   "    if platform == \"darwin\":",
-  "        return [\"open\", *([\"-a\", \"Preview\"] if opener(path, platform) == \"Preview\" else [\"-b\", " +
-    "browser()]), path]",
+  "        way = {\"Preview\": [\"-a\", \"Preview\"], \"Player\": [\"-a\", \"QuickTime " +
+    "Player\"]}.get(opener(path, platform),",
+  "                                                                                    [\"-b\", browser()])",
+  "        return [\"open\", *way, path]",
   "    if platform == \"win32\":",
   "        return [\"explorer\", path]",
   "    return [\"xdg-open\", path] if shutil.which(\"xdg-open\") else None",
@@ -19875,16 +20281,52 @@ export const MEDIA = [
   "    return made",
   "",
   "",
+  "def still(path, folder, width):",
+  "    \"\"\"A clip as the preview shows it (AVFoundation, through media-still): its seconds, a video's pixels " +
+    "and frame (a",
+  "    PNG WIDTH wide at most, made in FOLDER), audio's LEVELS loudness steps (0 to 100); None where it cannot " +
+    "be read.\"\"\"",
+  "    made = os.path.join(folder, f\"{named(path)}-still-{width}.png\")",
+  "    tool = helper(\"media-still\")",
+  "    done = run([tool, path, made, str(width), str(LEVELS)], TIMEOUT, text=True) if tool else None",
+  "    if not done or done.returncode != 0:",
+  "        return None",
+  "    told = dict(line.partition(\" \")[::2] for line in done.stdout.splitlines())",
+  "    try:",
+  "        seconds = round(float(told.get(\"seconds\", \"\")), 2)",
+  "        shape = [int(n) for n in told[\"pixels\"].split()] if \"pixels\" in told else None",
+  "        levels = [min(100, int(n)) for n in told[\"levels\"].split()] if \"levels\" in told else None",
+  "    except ValueError:",
+  "        return None",
+  "    return {\"seconds\": seconds, \"pixels\": shape, \"png\": made if size(made) else None, \"levels\": " +
+    "levels}",
+  "",
+  "",
+  "def blank(kind):",
+  "    \"\"\"What picture() says of a file it draws nothing of: its kind alone.\"\"\"",
+  "    return {\"kind\": kind, \"pages\": None, \"png\": None, \"size\": None, \"pixels\": None, \"seconds\": " +
+    "None, \"levels\": None}",
+  "",
+  "",
   "def picture(path, page, width, height=None):",
   "    \"\"\"PATH as the app's preview draws it: its kind, a PDF's pages (each one's size in points), and the " +
     "PNG of the image",
-  "    or of PAGE, WIDTH wide (an SVG or a page, HEIGHT high at most), made in the app's home (its path from " +
-    "there) with",
-  "    its size (in points, a drawn one's), or None; an image's own pixels.\"\"\"",
+  "    or of PAGE, WIDTH wide (an SVG or a page, HEIGHT high at most; a video's frame), made in the app's home " +
+    "(its path",
+  "    from there) with its size (in points, a drawn one's), or None; its own pixels; a clip's seconds, " +
+    "audio's levels.\"\"\"",
   "    kind = kind_of(path)",
-  "    if kind not in (\"image\", \"pdf\", \"svg\", \"html\"):",
-  "        return {\"kind\": kind, \"pages\": None, \"png\": None, \"size\": None, \"pixels\": None}",
-  "    folder = app_pictures()",
+  "    folder = app_pictures() if kind in (\"image\", \"pdf\", \"svg\", \"html\", \"audio\", \"video\") else " +
+    "None",
+  "    if kind in (\"audio\", \"video\"):",
+  "        clip = still(path, folder, width) or {}",
+  "        made = clip.get(\"png\")",
+  "        return {**blank(kind), \"png\": made and f\"{APP_PICTURES}/{os.path.basename(made)}\",",
+  "                \"size\": made and list(size(made)), \"pixels\": clip.get(\"pixels\"), \"seconds\": " +
+    "clip.get(\"seconds\"),",
+  "                \"levels\": clip.get(\"levels\")}",
+  "    if not folder:",
+  "        return blank(kind)",
   "    made = page_png(path, page, width, folder) if kind == \"pdf\" else drawn_png(path, width, folder, " +
     "height) \\",
   "        if kind in (\"svg\", \"html\") else as_png(path, folder, width)",
@@ -19894,7 +20336,7 @@ export const MEDIA = [
   "    density = DENSITY if made and \"-drawn-\" in os.path.basename(made) else 1     # WebKit's: drawn twice " +
     "as sharp",
   "    shape = pixels(path) if made and kind == \"image\" else None",
-  "    return {\"kind\": kind, \"pages\": pages(path) if kind == \"pdf\" else None,",
+  "    return {**blank(kind), \"pages\": pages(path) if kind == \"pdf\" else None,",
   "            \"png\": made and f\"{APP_PICTURES}/{os.path.basename(made)}\",",
   "            \"size\": made and [n // density for n in size(made)], \"pixels\": shape and list(shape)}",
   "",
@@ -19907,17 +20349,29 @@ export const MEDIA = [
   "        out = os.path.join(work, os.path.basename(path))           # its extension kept: its kind",
   "        if git.committed(root, path, out):",
   "            return picture(out, 0, width)",
-  "    return {\"kind\": kind_of(path), \"pages\": None, \"png\": None, \"size\": None, \"pixels\": None}",
+  "    return blank(kind_of(path))",
   "",
   "",
   "def open_in_browser(path):",
-  "    \"\"\"PATH opened in the default browser, not waited for; whether there was a way to.\"\"\"",
+  "    \"\"\"PATH opened where opener() says (the browser, Preview, the player), not waited for; whether there " +
+    "was a way",
+  "    to.\"\"\"",
   "    argv = open_argv(path)",
   "    if argv:",
   "        subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, " +
     "stderr=subprocess.DEVNULL,",
   "                         start_new_session=True)",
   "    return bool(argv)",
+  "",
+  "",
+  "def reveal(path, platform=sys.platform):",
+  "    \"\"\"PATH shown in the Finder, chosen in its folder (macOS's open -R), not waited for; whether there " +
+    "was a way to.\"\"\"",
+  "    if platform != \"darwin\":",
+  "        return False",
+  "    subprocess.Popen([\"open\", \"-R\", path], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,",
+  "                     stderr=subprocess.DEVNULL, start_new_session=True)",
+  "    return True",
   "",
   "",
   "def main(argv):",
@@ -19928,11 +20382,13 @@ export const MEDIA = [
   "        answer = committed_picture(args[0], args[1], int(args[2]))",
   "    elif command == \"open\" and len(args) == 1:",
   "        answer = {\"opened\": open_in_browser(args[0])}",
+  "    elif command == \"reveal\" and len(args) == 1:",
+  "        answer = {\"shown\": reveal(args[0])}",
   "    elif command == \"text\" and len(args) == 2:",
   "        answer = text(*args)",
   "    else:",
   "        print(\"usage: media.py picture PATH PAGE WIDTH [HEIGHT] | committed ROOT PATH WIDTH | open PATH\"",
-  "              \" | text ROOT PATH\", file=sys.stderr)",
+  "              \" | reveal PATH | text ROOT PATH\", file=sys.stderr)",
   "        return 2",
   "    print(json.dumps(answer))",
   "    return 0",
@@ -23802,13 +24258,37 @@ export const RUNS = [
   "'if __name__ == \"__main__\":',",
   "'    sys.exit(main(sys.argv))',",
   "]), _sys.modules['costs'].__dict__)",
-  "\"\"\"The agents' runs for the Agents tab's Runs in both clients: Claude's background sessions (`claude " +
-    "agents --json",
-  "--all`), Codex's `codex exec` runs (their rollouts) and cloud tasks (`codex cloud list --json`), each with " +
-    "what it made",
-  "and cost (tokens.py's index). A run is the agent's own command under its own sign-in; nothing is scheduled " +
+  "_sys.modules['filekinds'] = _types.ModuleType('filekinds')",
+  "exec('\\n'.join([",
+  "'import os',",
+  "'IMAGES = (\".png\", \".jpg\", \".jpeg\", \".gif\", \".webp\", \".avif\", \".bmp\", \".ico\")',",
+  "'PICTURES = (\".heic\", \".heics\", \".heif\", \".hif\", \".tif\", \".tiff\", \".jxl\", \".jp2\", \".j2k\", " +
+    "\".jpf\", \".jpe\", \".mpo\", \".cur\",',",
+  "'            \".icns\", \".psd\", \".tga\", \".exr\", \".hdr\", \".sgi\", \".pict\", \".pct\", \".pbm\", " +
+    "\".pgm\", \".ppm\", \".pnm\", \".dds\",',",
+  "'            \".ktx\", \".ktx2\", \".astc\", \".pvr\", \".dcm\", \".dng\", \".cr2\", \".cr3\", \".crw\", " +
+    "\".nef\", \".nrw\", \".arw\", \".srf\",',",
+  "'            \".sr2\", \".raf\", \".orf\", \".rw2\", \".pef\", \".srw\", \".erf\", \".3fr\", \".fff\", " +
+    "\".iiq\", \".mos\", \".mrw\", \".dcr\",',",
+  "'            \".rwl\")',",
+  "'AUDIO = (\".mp3\", \".wav\", \".m4a\", \".aac\", \".flac\", \".aiff\", \".aif\", \".caf\", \".ogg\", " +
+    "\".opus\")',",
+  "'VIDEO = (\".mp4\", \".mov\", \".m4v\", \".webm\")',",
+  "'KINDS = {**{ext: \"image\" for ext in IMAGES + PICTURES}, \".pdf\": \"pdf\", \".html\": \"html\", " +
+    "\".htm\": \"html\", \".svg\": \"svg\",',",
+  "'         **{ext: \"audio\" for ext in AUDIO}, **{ext: \"video\" for ext in VIDEO}}',",
+  "'MEDIA = {\"image\": \"image\", \"svg\": \"image\", \"audio\": \"audio\", \"video\": \"video\"}',",
+  "'def kind_of(path):',",
+  "'    return KINDS.get(os.path.splitext(path)[1].lower())',",
+  "]), _sys.modules['filekinds'].__dict__)",
+  "\"\"\"The agents' runs for Runs in both clients: Claude's background sessions (`claude agents --json " +
+    "--all`), Codex's",
+  "`codex exec` runs and cloud tasks (`codex cloud list --json`), each with what it made and cost (tokens.py's " +
+    "index); for",
+  "the preview, where a chat's media file came from. A run is the agent's own command; nothing is scheduled " +
     "here.\"\"\"",
   "import calendar",
+  "import glob",
   "import json",
   "import os",
   "import re",
@@ -23823,6 +24303,7 @@ export const RUNS = [
   "import costs  # noqa: E402",
   "import statefile  # noqa: E402",
   "import tokens  # noqa: E402",
+  "from filekinds import MEDIA, kind_of  # noqa: E402",
   "from jsonl import claude_project_dir, obj, open_regular, parse  # noqa: E402",
   "from words import model_name  # noqa: E402",
   "",
@@ -23830,6 +24311,8 @@ export const RUNS = [
   "RAN_AS = {\"background\": \"Background session\", \"exec\": \"codex exec\", \"cloud\": \"Codex cloud\"}",
   "CACHE = \"runs-index.json\"       # in herdr-fold's state: what was read of each run's file, by its size " +
     "and time",
+  "READ = 2                        # what a file's reading holds: another's is read again (2: what connectors " +
+    "made)",
   "DIFFS = \"diffs\"                 # in herdr-fold's state: a cloud task's diff, as its preview shows it",
   "KEEP = 30                       # seconds the background sessions' list is kept before claude is asked again",
   "TIMEOUT = 25                    # seconds an agent's command may take: the app's exec stops a program after " +
@@ -23858,11 +24341,14 @@ export const RUNS = [
   "OPENS_PR = \"gh pr create\"",
   "PATCHED = re.compile(r\"^\\*\\*\\* (?:Add|Update) File: (.+?)\\s*$\", re.M)    # apply_patch's files, added " +
     "or changed",
-  "# what a run made that is media, by its file's type: shown small in its properties, the preview opening it",
-  "MEDIA = {**dict.fromkeys((\".png\", \".jpg\", \".jpeg\", \".gif\", \".webp\", \".avif\", \".svg\"), " +
-    "\"image\"),",
-  "         **dict.fromkeys((\".mp3\", \".wav\", \".m4a\", \".aac\", \".flac\", \".ogg\"), \"audio\"),",
-  "         **dict.fromkeys((\".mp4\", \".mov\", \".m4v\", \".webm\"), \"video\")}",
+  "# a media connector's call as its input tells it: its model and prompt, at its top or one level in (fal's " +
+    "\"input\")",
+  "MODELS = (\"model\", \"model_id\", \"modelId\", \"endpoint_id\", \"endpointId\", \"endpoint\", \"app_id\")",
+  "PROMPTS = (\"prompt\", \"text\", \"prompt_text\", \"promptText\", \"description\")",
+  "LINK = re.compile(r\"https?://[^\\s\\\"'`<>()\\[\\]{}\\\\]+\")       # an address a result gives, a command " +
+    "downloads",
+  "WORD = re.compile(r\"[^\\s\\\"'`<>()\\[\\]{},;|&=\\\\]+\")            # a word that may name a file",
+  "SEARCHED = 12                   # chats looked through for where a file came from, the newest first",
   "LEFT = []                       # the codex exec runs started here that run on: known until they end, then " +
     "reaped",
   "COUNTED = {\"image\": (\"image\", \"images\"), \"audio\": (\"audio file\", \"audio files\"), \"video\": " +
@@ -23914,12 +24400,76 @@ export const RUNS = [
   "        files[path] = None",
   "",
   "",
+  "def given(told, keys):",
+  "    \"\"\"The first of KEYS a tool's input TOLD gives as text, at its top or one level in; None for " +
+    "none.\"\"\"",
+  "    for place in [told] + [one for one in told.values() if isinstance(one, dict)]:",
+  "        found = next((place[key].strip() for key in keys if isinstance(place.get(key), str) and " +
+    "place[key].strip()),",
+  "                     None)",
+  "        if found:",
+  "            return found[:PROMPT]",
+  "    return None",
+  "",
+  "",
+  "def named(text, folder):",
+  "    \"\"\"The media files TEXT names (a result's words, a command), each a path: from FOLDER where it is " +
+    "relative.\"\"\"",
+  "    words = (word.rstrip(\".,:;!?\") for word in WORD.findall(LINK.sub(\" \", text)))",
+  "    return [os.path.normpath(os.path.join(folder, os.path.expanduser(word))) for word in words",
+  "            if MEDIA.get(kind_of(word)) and not word.startswith(\"-\") and not set(word) & set(\"*?$\")]",
+  "",
+  "",
+  "class Made:",
+  "    \"\"\"What a chat's connectors made, read call by call: each call's server, model and prompt (a job's " +
+    "poll the asking",
+  "    call's), the skill in use and its turn's calls of that server; a media file its result names, or one a " +
+    "command",
+  "    downloads from an address its result gave.\"\"\"",
+  "",
+  "    def __init__(self, folder):",
+  "        self.folder, self.calls, self.asked, self.links, self.origins, self.skill, self.turn, self.counts = " +
+    "\\",
+  "            folder, {}, {}, {}, {}, None, 0, {}",
+  "",
+  "    def call(self, id, server, told):",
+  "        asked = {\"server\": server, \"model\": given(told, MODELS), \"prompt\": given(told, PROMPTS), " +
+    "\"skill\": self.skill}",
+  "        if asked[\"prompt\"]:",
+  "            self.asked[server] = asked",
+  "        self.calls[id] = {**(self.asked.get(server) or asked), \"turn\": self.turn}",
+  "        self.counts[self.turn, server] = self.counts.get((self.turn, server), 0) + 1",
+  "",
+  "    def result(self, id, text, files):",
+  "        if id in self.calls:",
+  "            self.links.update(dict.fromkeys((link.rstrip(\".,;:\") for link in LINK.findall(text)), id))",
+  "            for path in named(text, self.folder):",
+  "                files[path], self.origins[path] = None, id",
+  "",
+  "    def command(self, text, files):",
+  "        ids = [self.links[link.rstrip(\".,;:\")] for link in LINK.findall(text) if link.rstrip(\".,;:\") in " +
+    "self.links]",
+  "        for path in named(text, self.folder) if ids else ():",
+  "            files[path], self.origins[path] = None, ids[-1]",
+  "",
+  "    def told(self):",
+  "        \"\"\"Each media file made: its call's server, model, prompt and skill, and its turn's calls of " +
+    "that server.\"\"\"",
+  "        return {path: {**{key: self.calls[id][key] for key in (\"server\", \"model\", \"prompt\", " +
+    "\"skill\")},",
+  "                       \"calls\": self.counts[self.calls[id][\"turn\"], self.calls[id][\"server\"]]}",
+  "                for path, id in self.origins.items()}",
+  "",
+  "",
   "def claude_read(path, folder):",
-  "    \"\"\"What the Claude session in PATH (started in FOLDER) ran: its prompt, model, the files it wrote, " +
-    "the PR",
-  "    `gh pr create` opened, its last step and the times of its first and last lines.\"\"\"",
+  "    \"\"\"What the Claude session in PATH (started in FOLDER) ran: its prompt, model, the files it wrote " +
+    "and the media",
+  "    its connectors made (Made's, each with where it came from), the PR `gh pr create` opened, its last step " +
+    "and the",
+  "    times of its first and last lines.\"\"\"",
   "    found, files, opening, hours = {\"prompt\": \"\", \"model\": None, \"pr\": None, \"now\": None, " +
     "\"times\": []}, {}, set(), {}",
+  "    made = Made(folder)",
   "    with open_regular(path, \"rb\") as f:",
   "        for raw in f:",
   "            if b'\"isSidechain\":true' in raw or not (b'\"type\":\"user\"' in raw or " +
@@ -23930,37 +24480,49 @@ export const RUNS = [
   "            if at is not None:",
   "                found[\"times\"].append(at)",
   "            content = obj(entry.get(\"message\")).get(\"content\")",
-  "            if entry.get(\"type\") == \"user\" and not found[\"prompt\"]:",
-  "                texts = [one.strip() for one in chats.texts_of(content) if one.strip()",
-  "                         and not one.lstrip().startswith(chats.NOT_A_PROMPT)]",
-  "                found[\"prompt\"] = texts[0][:PROMPT] if texts else \"\"",
+  "            texts = [one.strip() for one in chats.texts_of(content) if one.strip()",
+  "                     and not one.lstrip().startswith(chats.NOT_A_PROMPT)] if entry.get(\"type\") == " +
+    "\"user\" else []",
+  "            made.turn += bool(texts)",
+  "            found[\"prompt\"] = found[\"prompt\"] or (texts[0][:PROMPT] if texts else \"\")",
   "            for block in content if isinstance(content, list) else ():",
   "                block = obj(block)",
   "                if block.get(\"type\") == \"tool_use\" and isinstance(block.get(\"name\"), str):",
-  "                    told = obj(block.get(\"input\"))",
-  "                    found[\"now\"] = step(block[\"name\"], told, folder)",
-  "                    if isinstance(told.get(WRITES.get(block[\"name\"], \"\")), str):",
-  "                        written(files, told[WRITES[block[\"name\"]]], folder)",
+  "                    name, told = block[\"name\"], obj(block.get(\"input\"))",
+  "                    found[\"now\"] = step(name, told, folder)",
+  "                    if isinstance(told.get(WRITES.get(name, \"\")), str):",
+  "                        written(files, told[WRITES[name]], folder)",
   "                    if OPENS_PR in str(told.get(\"command\", \"\")):",
   "                        opening.add(block.get(\"id\"))",
-  "                elif block.get(\"type\") == \"tool_result\" and block.get(\"tool_use_id\") in opening:",
-  "                    pr = PR.search(\" \".join(chats.texts_of(block.get(\"content\"))))",
-  "                    found[\"pr\"] = {\"number\": int(pr.group(1)), \"url\": pr.group(0)} if pr else " +
+  "                    if name.startswith(\"mcp__\"):",
+  "                        made.call(block.get(\"id\"), name[len(\"mcp__\"):].partition(\"__\")[0], told)",
+  "                    made.skill = told[\"skill\"] if name == \"Skill\" and isinstance(told.get(\"skill\"), " +
+    "str) \\",
+  "                        else made.skill",
+  "                    made.command(str(told.get(\"command\", \"\")), files)",
+  "                elif block.get(\"type\") == \"tool_result\":",
+  "                    said = \" \".join(chats.texts_of(block.get(\"content\")))",
+  "                    made.result(block.get(\"tool_use_id\"), said, files)",
+  "                    if block.get(\"tool_use_id\") in opening:",
+  "                        pr = PR.search(said)",
+  "                        found[\"pr\"] = {\"number\": int(pr.group(1)), \"url\": pr.group(0)} if pr else " +
     "found[\"pr\"]",
   "            model = obj(entry.get(\"message\")).get(\"model\")",
   "            found[\"model\"] = model if entry.get(\"type\") == \"assistant\" and isinstance(model, str) \\",
   "                and not model.startswith(\"<\") else found[\"model\"]",
-  "    return {**found, \"files\": list(files)}",
+  "    return {**found, \"files\": list(files), \"origins\": made.told()}",
   "",
   "",
   "def codex_read(path):",
-  "    \"\"\"What the Codex rollout in PATH ran: its id, folder, prompt, model, the files apply_patch wrote, " +
-    "the PR it",
-  "    opened, its last step, how its last turn ended (None while it runs) and its first and last lines' " +
-    "times.\"\"\"",
+  "    \"\"\"What the Codex rollout in PATH ran: its id, folder, prompt, model, the files apply_patch wrote " +
+    "and the media its",
+  "    connectors made (Made's), the PR it opened, its last step, how its last turn ended (None while it runs) " +
+    "and its",
+  "    first and last lines' times.\"\"\"",
   "    found, files, opening, hours = {\"id\": \"\", \"folder\": \"\", \"prompt\": \"\", \"model\": None, " +
     "\"pr\": None, \"now\": None,",
   "                                    \"ended\": None, \"times\": []}, {}, set(), {}",
+  "    made = Made(\"\")",
   "    with open_regular(path, \"rb\") as f:",
   "        for raw in f:",
   "            entry = parse(raw)",
@@ -23971,32 +24533,42 @@ export const RUNS = [
   "            if kind == \"session_meta\":",
   "                found.update(id=chats.text(told.get(\"id\")) or \"\", folder=chats.text(told.get(\"cwd\")) " +
     "or \"\")",
+  "                made.folder = found[\"folder\"]",
   "            elif kind == \"turn_context\" and isinstance(told.get(\"model\"), str):",
   "                found[\"model\"] = told[\"model\"]",
   "            elif kind == \"event_msg\":",
   "                ended = {\"task_started\": None, \"task_complete\": \"done\", \"turn_aborted\": \"failed\", " +
     "\"error\": \"failed\"}",
   "                found[\"ended\"] = ended.get(told.get(\"type\"), found[\"ended\"])",
-  "            elif told.get(\"type\") == \"message\" and told.get(\"role\") == \"user\" and not " +
-    "found[\"prompt\"]:",
+  "            elif told.get(\"type\") == \"message\" and told.get(\"role\") == \"user\":",
   "                texts = [one.strip() for one in chats.parts(told.get(\"content\"), \"input_text\") if " +
     "one.strip()",
   "                         and not one.lstrip().startswith(chats.NOT_A_PROMPT)]",
-  "                found[\"prompt\"] = texts[0][:PROMPT] if texts else \"\"",
+  "                made.turn += bool(texts)",
+  "                found[\"prompt\"] = found[\"prompt\"] or (texts[0][:PROMPT] if texts else \"\")",
   "            elif told.get(\"type\") in (\"function_call\", \"custom_tool_call\") and " +
     "isinstance(told.get(\"name\"), str):",
-  "                said = str(told.get(\"arguments\") or told.get(\"input\") or \"\")",
+  "                said, space = str(told.get(\"arguments\") or told.get(\"input\") or \"\"), " +
+    "str(told.get(\"namespace\", \"\"))",
   "                for one in PATCHED.findall(said):",
   "                    written(files, one, found[\"folder\"])",
   "                if OPENS_PR in said:",
   "                    opening.add(told.get(\"call_id\"))",
+  "                if space.startswith(\"mcp__\"):          # a server's tool: its name apart, the server in " +
+    "its namespace",
+  "                    made.call(told.get(\"call_id\"), space[len(\"mcp__\"):], parse(said))",
+  "                else:",
+  "                    made.command(said, files)",
   "                found[\"now\"] = f\"{told['name']} {said.strip().splitlines()[0][:120]}\".strip() if said " +
     "else told[\"name\"]",
-  "            elif told.get(\"type\") == \"function_call_output\" and told.get(\"call_id\") in opening:",
-  "                pr = PR.search(str(told.get(\"output\", \"\")))",
-  "                found[\"pr\"] = {\"number\": int(pr.group(1)), \"url\": pr.group(0)} if pr else " +
+  "            elif told.get(\"type\") == \"function_call_output\":",
+  "                said = str(told.get(\"output\", \"\"))",
+  "                made.result(told.get(\"call_id\"), said, files)",
+  "                if told.get(\"call_id\") in opening:",
+  "                    pr = PR.search(said)",
+  "                    found[\"pr\"] = {\"number\": int(pr.group(1)), \"url\": pr.group(0)} if pr else " +
     "found[\"pr\"]",
-  "    return {**found, \"files\": list(files)}",
+  "    return {**found, \"files\": list(files), \"origins\": made.told()}",
   "",
   "",
   "def cached(cache, path, read):",
@@ -24008,13 +24580,14 @@ export const RUNS = [
   "        return None",
   "    kept = cache.get(path)",
   "    if isinstance(kept, dict) and kept.get(\"size\") == info.st_size and kept.get(\"mtime\") == " +
-    "info.st_mtime:",
+    "info.st_mtime \\",
+  "            and kept.get(\"version\") == READ:",
   "        return kept[\"read\"]",
   "    try:",
   "        found = read()",
   "    except (OSError, TypeError):",
   "        return None",
-  "    cache[path] = {\"size\": info.st_size, \"mtime\": info.st_mtime, \"read\": found}",
+  "    cache[path] = {\"size\": info.st_size, \"mtime\": info.st_mtime, \"version\": READ, \"read\": found}",
   "    return found",
   "",
   "",
@@ -24023,7 +24596,7 @@ export const RUNS = [
   "def made(state, files, pr):",
   "    \"\"\"A run's Made: failed, the PR it opened, its media by their kind, its files, or no change (\"\" " +
     "while it runs).\"\"\"",
-  "    kinds = [MEDIA.get(os.path.splitext(one)[1].lower()) for one in files]",
+  "    kinds = [MEDIA.get(kind_of(one)) for one in files]",
   "    media = max((\"image\", \"audio\", \"video\"), key=kinds.count)",
   "    if state == \"failed\":",
   "        return \"failed\"",
@@ -24084,9 +24657,8 @@ export const RUNS = [
   "            \"state\": state, \"said\": said, \"made\": made(state, read.get(\"files\", []), " +
     "read.get(\"pr\")),",
   "            \"files\": read.get(\"files\", []),",
-  "            \"media\": [{\"path\": one, \"kind\": MEDIA[os.path.splitext(one)[1].lower()]} for one in " +
-    "read.get(\"files\", [])",
-  "                      if os.path.splitext(one)[1].lower() in MEDIA],",
+  "            \"media\": [{\"path\": one, \"kind\": MEDIA[kind_of(one)]} for one in read.get(\"files\", [])",
+  "                      if MEDIA.get(kind_of(one))],",
   "            \"pr\": read.get(\"pr\"), \"cost\": cost[0], \"cost_line\": cost[1],",
   "            \"ran_as\": \" \u00b7 \".join(filter(None, [RAN_AS[kind], NAMES[agent] if kind != \"cloud\" " +
     "else None, model])),",
@@ -24236,6 +24808,62 @@ export const RUNS = [
   "    return sum(CLAUDE_STATES.get(one.get(\"state\")) in LIVE for one in listed)",
   "",
   "",
+  "# --- where a file came from",
+  "",
+  "def title(kind, path):",
+  "    \"\"\"The chat in PATH as Chats names it: its rename, its title, else its first prompt.\"\"\"",
+  "    entry = chats.update(path, kind, {}) or {}",
+  "    one = chats.chat(kind, path, {**entry, \"run\": None, \"helper\": None}, chats.manual_names(), " +
+    "chats.codex_names())",
+  "    return one.title if one else entry.get(\"prompt\") or \"\"",
+  "",
+  "",
+  "def origin(path):",
+  "    \"\"\"Where the media file PATH came from, as the chat that made it tells it (one of its folder's or a " +
+    "folder's above",
+  "    it, written to since the file was): its agent, session and title, Made's, and \"again\", the request " +
+    "for another",
+  "    take that Ask for Another puts in that chat; None where none tells it.\"\"\"",
+  "    path = os.path.abspath(path)",
+  "    try:",
+  "        since = os.stat(path).st_mtime - 60",
+  "    except OSError:",
+  "        return None",
+  "    places, folder, seen = {}, os.path.dirname(path), set()",
+  "    while folder not in seen:                                    # its folder's chats, then each folder's " +
+    "above it",
+  "        seen.add(folder)",
+  "        places.update(dict.fromkeys(glob.glob(os.path.join(glob.escape(claude_project_dir(folder)), " +
+    "\"*.jsonl\")),",
+  "                                    (\"claude\", folder)))",
+  "        folder = os.path.dirname(folder)",
+  "    places.update(dict.fromkeys(chats.codex_session_files(), (\"codex\", None)))",
+  "    name, recent = os.path.basename(path).encode(), []",
+  "    for file in places:",
+  "        try:",
+  "            recent += [(os.stat(file).st_mtime, file)]",
+  "        except OSError:",
+  "            continue",
+  "    for _, file in sorted((one for one in recent if one[0] >= since), reverse=True)[:SEARCHED]:",
+  "        kind, folder = places[file]",
+  "        try:",
+  "            with open_regular(file, \"rb\") as f:",
+  "                if name not in f.read():",
+  "                    continue",
+  "            read = claude_read(file, folder) if kind == \"claude\" else codex_read(file)",
+  "        except (OSError, TypeError):",
+  "            continue",
+  "        told = read[\"origins\"].get(path)",
+  "        if told:",
+  "            session = os.path.basename(file)[:-len(\".jsonl\")] if kind == \"claude\" else read[\"id\"]",
+  "            folder = folder or read[\"folder\"]",
+  "            shown = os.path.relpath(path, folder) if folder and path.startswith(folder + os.sep) else path",
+  "            return {\"agent\": kind, \"session\": session, \"title\": title(kind, file), **told,",
+  "                    \"again\": f\"Another take on {shown}: the same prompt, model and skill, saved beside " +
+    "it.\"}",
+  "    return None",
+  "",
+  "",
   "# --- what is done to one",
   "",
   "def start(agent, where, folder, prompt, env=None):",
@@ -24300,7 +24928,9 @@ export const RUNS = [
   "def main(argv):",
   "    \"\"\"herdr-fold's Herdr app mod runs this, answering in JSON: list [--agents=JSON] [--fresh] " +
     "(runs()'s), working",
-  "    (the count), start AGENT WHERE FOLDER PROMPT [ENV], stop|remove ID, diff TASK, apply TASK FOLDER.\"\"\"",
+  "    (the count), start AGENT WHERE FOLDER PROMPT [ENV], stop|remove ID, diff TASK, apply TASK FOLDER, " +
+    "origin PATH",
+  "    (where a media file came from, or null).\"\"\"",
   "    options = dict(arg[2:].split(\"=\", 1) for arg in argv[1:] if arg.startswith(\"--\") and \"=\" in arg)",
   "    args = [arg for arg in argv[1:] if not arg.startswith(\"--\")]",
   "    asked, args = (args[0], args[1:]) if args else (\"\", [])",
@@ -24315,12 +24945,14 @@ export const RUNS = [
   "        elif asked in (\"stop\", \"remove\", \"diff\") and len(args) == 1 or asked == \"apply\" and " +
     "len(args) == 2:",
   "            answer = act(asked, *args)",
+  "        elif asked == \"origin\" and len(args) == 1:",
+  "            answer = origin(args[0])",
   "        else:",
   "            raise ValueError(\"unknown command\")",
   "    except ValueError:",
   "        print(\"usage: runs.py list [--agents=JSON] [--fresh] | working | start AGENT WHERE FOLDER PROMPT " +
     "[ENV] | \"",
-  "              \"stop|remove|diff ID | apply TASK FOLDER\", file=sys.stderr)",
+  "              \"stop|remove|diff ID | apply TASK FOLDER | origin PATH\", file=sys.stderr)",
   "        return 2",
   "    print(json.dumps(answer))",
   "    return 0",
@@ -26751,7 +27383,21 @@ export const MEDIA_KINDS = {
   ".pdf": "pdf",
   ".html": "html",
   ".htm": "html",
-  ".svg": "svg"
+  ".svg": "svg",
+  ".mp3": "audio",
+  ".wav": "audio",
+  ".m4a": "audio",
+  ".aac": "audio",
+  ".flac": "audio",
+  ".aiff": "audio",
+  ".aif": "audio",
+  ".caf": "audio",
+  ".ogg": "audio",
+  ".opus": "audio",
+  ".mp4": "video",
+  ".mov": "video",
+  ".m4v": "video",
+  ".webm": "video"
 };
 export const MEDIA_WEB = [
   ".png",
@@ -26767,6 +27413,16 @@ export const MEDIA_WEB = [
   ".html",
   ".htm"
 ];
+export const MEDIA_SERVICES = {
+  "bfl": "image",
+  "cartesia": "voice",
+  "elevenlabs": "voice",
+  "fal": "image, video",
+  "higgsfield": "image, video",
+  "luma": "video",
+  "meshy": "3D",
+  "runway": "video"
+};
 export const OUTPUT_LINES = 400;
 export const THEME_NAMES = {
   "herdr-fold-catppuccin": "Catppuccin Mocha",

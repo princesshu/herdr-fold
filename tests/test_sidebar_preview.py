@@ -18,7 +18,7 @@ from unittest import mock
 
 from support import SRC, FakeTerminal, end_child, finished, logged, psd_in_preview, set_attrs, set_env, sign_head, \
     stubs, trap
-from test_core_media import pdf, png
+from test_core_media import mp4, pdf, png, wav
 
 import cmd_keys
 
@@ -84,6 +84,10 @@ class Commands(unittest.TestCase):
         spec = preview.file_spec("/repo", "/repo/docs/shot.webp", None, which=tools("bat"))
         self.assertEqual((spec["picture"], spec["title"]), ("/repo/docs/shot.webp", "docs/shot.webp"))
         self.assertEqual(preview.file_spec("/repo", "/repo/a.pdf", None, which=tools("bat"))["picture"], "/repo/a.pdf")
+        for clip in ("renders/voice-over.mp3", "renders/hero-shot.mp4"):          # audio and video: drawn too
+            self.assertEqual(preview.file_spec("/repo", f"/repo/{clip}", None, which=tools("bat"))["picture"],
+                             f"/repo/{clip}")
+            self.assertFalse(preview.editable(f"/repo/{clip}", "/repo"))
         self.assertNotIn("picture", preview.file_spec("/repo", "/repo/a.py", None, which=tools("bat")))
 
     def test_an_svg_or_a_page_is_a_picture_with_its_code(self):
@@ -1169,6 +1173,105 @@ class Pictures(unittest.TestCase):
         view.handle(Key("char", "G"))
         view.draw(term)
         self.assertIn("page 3 of 3", view.status())
+
+
+class Made(unittest.TestCase):
+    """A picture, audio or a video an agent made, as the preview tab shows it: where it came from under it (the chat
+    that made it tells it), audio's waveform in the accent, a video's frame; the Finder and its chat asked again."""
+
+    def setUp(self):
+        self.tmp = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        set_env(self, HOME=self.tmp, XDG_CACHE_HOME=os.path.join(self.tmp, "cache"), SSH_CONNECTION=None,
+                SSH_CLIENT=None)
+        self.folder = os.path.join(self.tmp, "lumen-api")
+        os.makedirs(os.path.join(self.folder, "renders"))
+
+    def chat(self):
+        """The chat that made renders/: fal's picture, ElevenLabs' voice-over (test_core_runs's)."""
+        from jsonl import claude_project_dir
+        from test_core_runs import made_media
+        path = os.path.join(claude_project_dir(self.folder), "5f0c6d9e-1b2a-4c3d-8e9f-0a1b2c3d4e5f.jsonl")
+        os.makedirs(os.path.dirname(path))
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(made_media(self.folder))
+
+    def made(self, name, make, *size):
+        path = make(os.path.join(self.folder, "renders", name), *size)
+        os.utime(path, (time.time() - 30,) * 2)                     # made before its chat's last line
+        return path
+
+    def test_an_agents_picture_says_where_it_came_from_under_it(self):
+        self.chat()
+        picture = pager.viewer({"picture": self.made("hero-shot.webp", png, 320, 180), "title": "hero-shot.webp"})
+        term = Written(80, 24)
+        self.addCleanup(picture.close, term)
+        picture.draw(term)
+        self.assertEqual(picture.lines(), ["fal-ai/flux-pro/v1.1 · 16:9 · fal · 2 calls · hero-image", pager.plain(
+            "tide chart behind a calm harbour at dawn, flat colour, no text, 16:9")])
+        self.assertIn("\x1b[23;3H\x1b[2mtide chart", term.out)                # under it, above the status row
+        self.assertIn("\x1b_Ga=T", term.out)
+
+    def test_a_picture_no_chat_made_has_nothing_under_it(self):
+        picture = pager.viewer({"picture": self.made("logo.png", png, 40, 30), "title": "logo.png"})
+        self.addCleanup(picture.close, Written(80, 24))
+        picture.draw(Written(80, 24))
+        self.assertEqual(picture.lines(), [])
+        self.assertNotIn(pager.AGAIN, [label for label, _ in picture.choices()])
+
+    def test_ask_for_another_types_into_the_chat_that_made_it_never_sends(self):
+        self.chat()
+        picture = pager.viewer({"picture": self.made("hero-shot.webp", png, 320, 180), "title": "hero-shot.webp"})
+        self.addCleanup(picture.close, Written(80, 24))
+        picture.draw(Written(80, 24))
+        self.assertEqual([label for label, _ in picture.choices()],
+                         ["Open in Browser"] + [pager.FINDER] * (sys.platform == "darwin") + [pager.AGAIN,
+                                                                                               pager.CLOSE])
+        asked = []
+
+        def call(*args):
+            asked.append(args)
+            session = {"value": "5f0c6d9e-1b2a-4c3d-8e9f-0a1b2c3d4e5f"}
+            return {"agents": [{"pane_id": "w1-3", "agent_session": session}]} if args[:2] == ("agent", "list") else {}
+        with mock.patch.object(pager.Herdr, "call", side_effect=call):
+            self.assertTrue(picture.choose(pager.AGAIN))
+        self.assertEqual(asked[1:], [("pane", "send-text", "w1-3", "Another take on renders/hero-shot.webp: the same "
+                                      "prompt, model and skill, saved beside it."), ("agent", "focus", "w1-3")])
+        self.assertEqual(picture.note, "Typed into its chat: Enter sends it")
+        with mock.patch.object(pager.Herdr, "call", return_value={"agents": []}):
+            picture.choose(pager.AGAIN)
+        self.assertEqual(picture.note, "“Make the landing hero” is not open: Chats opens it")
+
+    def test_a_shape_and_a_length_as_people_say_them(self):
+        self.assertEqual([pager.ratio(one) for one in ((1920, 1080), (1080, 1920), (1024, 1024), (1000, 667),
+                                                       (1000, 600))], ["16:9", "9:16", "1:1", "3:2", "1000×600"])
+        self.assertEqual([pager.length(one) for one in (4.6, 59, 65, 600)], ["5 s", "59 s", "1:05", "10:00"])
+
+    @unittest.skipUnless(sys.platform == "darwin" and shutil.which("swiftc"), "AVFoundation and swiftc: macOS")
+    def test_audio_is_its_waveform_in_the_accent_and_opens_in_the_player(self):
+        clip = pager.viewer({"picture": self.made("voice-over.wav", wav, 2), "title": "renders/voice-over.wav"})
+        term = Written(80, 24)
+        self.addCleanup(clip.close, term)
+        clip.draw(term)
+        self.assertIsInstance(clip, pager.Clip)
+        self.assertIn("\x1b[35m", term.out)
+        self.assertIn("█", term.out)
+        self.assertNotIn("\x1b_Ga=T", term.out)                         # no picture: cells
+        self.assertEqual(clip.lines(), ["2 s"])                         # no chat made it: its length alone
+        self.assertIn("o: open in player", term.out)
+        with mock.patch.object(pager.media, "open_in_browser", return_value=True) as opened:
+            clip.handle(Key("char", "o"))
+        opened.assert_called_once_with(clip.path)
+
+    @unittest.skipUnless(sys.platform == "darwin" and shutil.which("swiftc") and shutil.which("sips"),
+                         "AVFoundation, swiftc and sips: macOS")
+    def test_a_video_is_its_frame_with_its_shape_and_length(self):
+        clip = pager.viewer({"picture": self.made("hero-shot.mp4", mp4, 64, 36), "title": "renders/hero-shot.mp4"})
+        term = Written(80, 24)
+        self.addCleanup(clip.close, term)
+        clip.draw(term)
+        self.assertIn("\x1b_Ga=T", term.out)
+        self.assertEqual(clip.lines(), ["16:9 · 2 s"])
 
 
 def run_pager(spec, keys, folder, env=None):

@@ -1,6 +1,6 @@
-"""Tests for core/runs.py in a temporary HOME: the agents' runs (Claude's background sessions, Codex's exec runs and
-cloud tasks) with what each made and cost, the Chats list leaving them out, and each started or acted on with the
-agent's own command. Stand-ins answer for claude and codex; the sessions, rollouts and tasks are invented."""
+"""Tests for core/runs.py in a temporary HOME: the agents' runs with what each made (its connectors' media too) and
+cost, where a file came from, the Chats list leaving them out, each started or acted on with the agent's own command.
+Stand-ins answer for claude and codex; the sessions, rollouts, tasks and the services' answers are invented."""
 import json
 import os
 import sys
@@ -11,11 +11,14 @@ from support import PACKAGE, set_attrs, set_env, stubs
 sys.path.insert(0, os.path.join(PACKAGE, "core"))
 import chats  # noqa: E402
 import runs  # noqa: E402
+from jsonl import claude_project_dir  # noqa: E402
 import test_core_tokens as made  # noqa: E402
 from test_core_tokens import FOLDER, SESSION, THREAD, line, stamp  # noqa: E402
 
 PROMPT = "Make a 16:9 hero image of a calm harbour at dawn; save it as WebP in renders/"
 TASK = "task_e_6a1b2c3d4e5f"
+HERO = "tide chart behind a calm harbour at dawn, flat colour, no text, 16:9"
+FAL = "https://v3.fal.media/files/koala/hero-7f3a.png"            # an invented address of the kind fal answers with
 # a stand-in for claude and codex: logs its folder and arguments, answers by its first word (codex cloud's by two)
 STAND_IN = "\n".join([
     "#!/usr/bin/python3 -B", "import json, os, sys, time",
@@ -38,6 +41,22 @@ def result(id, text, minute):
     return line({"isSidechain": False, "type": "user", "timestamp": stamp(minute), "cwd": FOLDER,
                  "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": id,
                                                           "content": [{"type": "text", "text": text}]}]}})
+
+
+def made_media(folder):
+    """A chat that asks fal for a picture (a job: asked, then its result), downloads it and makes a WebP of it, then
+    asks ElevenLabs for a voice-over, whose result names the file it saved."""
+    return (made.asked("Make the landing hero") + tool("Skill", "s1", 1, skill="hero-image")
+            + tool("mcp__fal__run_model", "t1", 2, endpoint_id="fal-ai/flux-pro/v1.1",
+                   input={"prompt": HERO, "image_size": "landscape_16_9"})
+            + result("t1", '{"status":"processing","request_id":"req-1"}', 2)
+            + tool("mcp__fal__get_job_result", "t2", 3, request_id="req-1")
+            + result("t2", json.dumps({"images": [{"url": FAL, "width": 1920, "height": 1080}]}), 3)
+            + tool("Bash", "t3", 4, command=f"curl -sL -o renders/hero-shot.png '{FAL}' && cwebp -q 90 "
+                                            "renders/hero-shot.png -o renders/hero-shot.webp")
+            + tool("mcp__elevenlabs__creative_generate_speech", "t4", 5, text="Tides, on time.",
+                   model_id="eleven_multilingual_v2")
+            + result("t4", f"Saved as {folder}/renders/voice-over.mp3.", 6))
 
 
 def event(kind, minute):
@@ -239,6 +258,75 @@ class Runs(made.Home):
                          [["stop", "7c5dcf5d"], ["agents", "--json", "--all"], ["rm", "7c5dcf5d"],
                           ["cloud", "diff", TASK], ["cloud", "apply", TASK]])
         self.assertEqual(self.calls()[-1]["cwd"], os.path.realpath(folder))
+
+    def test_what_a_chats_connectors_made_and_where_each_came_from(self):
+        # a job's poll is the asking call's; a file its result names, or a download of an address a result gave
+        read = runs.claude_read(self.session(made_media(FOLDER)), FOLDER)
+        renders = f"{FOLDER}/renders"
+        self.assertEqual(read["files"], [f"{renders}/hero-shot.png", f"{renders}/hero-shot.webp",
+                                         f"{renders}/voice-over.mp3"])
+        hero = {"server": "fal", "model": "fal-ai/flux-pro/v1.1", "prompt": HERO, "skill": "hero-image", "calls": 2}
+        self.assertEqual(read["origins"], {f"{renders}/hero-shot.png": hero, f"{renders}/hero-shot.webp": hero,
+                                           f"{renders}/voice-over.mp3": {
+                                               "server": "elevenlabs", "model": "eleven_multilingual_v2",
+                                               "prompt": "Tides, on time.", "skill": "hero-image", "calls": 1}})
+        self.assertEqual(runs.made("done", read["files"], None), "2 images")
+
+    def test_a_download_of_an_address_no_result_gave_and_a_words_mention_make_nothing(self):
+        read = runs.claude_read(self.session(
+            made.asked("Fetch the logo") + tool("Bash", "t1", 1, command="curl -o logo.png https://lumen.example/l.png")
+            + tool("mcp__fal__search_models", "t2", 2, query="video") + result("t2", "Try *.mp4 or .webm", 2)), FOLDER)
+        self.assertEqual((read["files"], read["origins"]), ([], {}))
+
+    def test_runs_counts_what_a_background_sessions_connectors_made(self):
+        self.session(made_media(FOLDER))
+        self.agents({"kind": "background", "id": "2b3c4d5e", "sessionId": SESSION, "cwd": FOLDER, "state": "done"})
+        one = self.listed()["claude:2b3c4d5e"]
+        self.assertEqual((one["made"], [media["kind"] for media in one["media"]]),
+                         ("2 images", ["image", "image", "audio"]))
+
+    def test_a_codex_chats_connector_call_by_its_namespace(self):
+        # Codex 0.166 names a server's tool by itself, the server in its namespace; its shell downloads
+        call = {"type": "function_call", "name": "run_model", "namespace": "mcp__fal", "call_id": "c1",
+                "arguments": json.dumps({"endpoint_id": "fal-ai/kling-video/v2/master",
+                                         "input": {"prompt": "the harbour wakes, slow push in"}})}
+        path = self.rollout(made.meta("exec") + asked_codex("Make the hero clip") + codex_said(call, 1)
+                            + codex_said({"type": "function_call_output", "call_id": "c1",
+                                          "output": json.dumps({"video": {"url": FAL[:-4] + ".mp4"}})}, 2)
+                            + codex_said({"type": "function_call", "name": "exec_command", "call_id": "c2",
+                                          "arguments": json.dumps({"cmd": f"curl -sLo renders/hero-shot.mp4 "
+                                                                          f"{FAL[:-4]}.mp4"})}, 3))
+        read = runs.codex_read(path)
+        self.assertEqual(read["origins"], {f"{FOLDER}/renders/hero-shot.mp4": {
+            "server": "fal", "model": "fal-ai/kling-video/v2/master", "prompt": "the harbour wakes, slow push in",
+            "skill": None, "calls": 1}})
+
+    def test_where_a_file_came_from_is_the_chat_that_made_it(self):
+        folder = os.path.join(os.path.realpath(self.home), "lumen-api")
+        os.makedirs(os.path.join(folder, "renders"))
+        self.write(os.path.relpath(os.path.join(claude_project_dir(folder), f"{SESSION}.jsonl"), self.home),
+                   made_media(folder))
+        picture = os.path.join(folder, "renders", "hero-shot.webp")
+        with open(picture, "wb") as f:
+            f.write(b"RIFF")
+        os.utime(picture, (time.time() - 30,) * 2)                  # made before its chat's last line
+        self.assertEqual(runs.origin(picture), {
+            "agent": "claude", "session": SESSION, "title": "Make the landing hero", "server": "fal",
+            "model": "fal-ai/flux-pro/v1.1", "prompt": HERO, "skill": "hero-image", "calls": 2,
+            "again": "Another take on renders/hero-shot.webp: the same prompt, model and skill, saved beside it."})
+        other = os.path.join(folder, "renders", "logo.png")
+        with open(other, "wb") as f:
+            f.write(b"PNG")
+        self.assertIsNone(runs.origin(other))                       # no chat names it
+        os.utime(picture, (time.time() + 3600,) * 2)
+        self.assertIsNone(runs.origin(picture))                     # made after its chat: another made it again
+
+    def test_a_reading_of_an_earlier_version_is_read_again(self):
+        path = self.session(made_media(FOLDER))
+        info = os.stat(path)
+        cache = {path: {"size": info.st_size, "mtime": info.st_mtime, "read": {"files": []}}}
+        self.assertEqual(len(runs.cached(cache, path, lambda: runs.claude_read(path, FOLDER))["files"]), 3)
+        self.assertEqual(cache[path]["version"], runs.READ)
 
     def test_a_runs_day_and_time(self):
         now = time.mktime((2026, 11, 25, 15, 0, 0, 0, 0, -1))

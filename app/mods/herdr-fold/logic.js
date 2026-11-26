@@ -1710,14 +1710,23 @@ function extension(path) {
   return dot > name ? path.slice(dot).toLowerCase() : "";
 }
 
-/** PATH's kind by its extension, as core/media.py has it: image, pdf or html, else null. @param {string} path */
+/** PATH's kind by its extension, as core/filekinds.py has it: image, pdf, html, svg, audio or video, else null.
+ * @param {string} path */
 export function mediaKind(path) {
   return /** @type {Record<string, string>} */ (MEDIA_KINDS)[extension(path)] ?? null;
 }
 
-/** Where Open in … opens PATH on PLATFORM (window()'s), as core/media.py's opener(): the browser, or on a Mac Preview
- * for a picture no browser shows (a browser would only download a PSD or an EXR). */
+/** A clip's time as a player says it: 0:07, 1:05:09. @param {number} seconds */
+export function clipTime(seconds) {
+  const whole = Math.max(0, Math.floor(seconds)), [h, m, s] = [Math.floor(whole / 3600), Math.floor(whole / 60) % 60,
+    whole % 60];
+  return `${h ? `${h}:${String(m).padStart(2, "0")}` : m}:${String(s).padStart(2, "0")}`;
+}
+
+/** Where Open in … opens PATH on PLATFORM (window()'s), as core/media.py's opener(): audio and video in the player,
+ * the browser, or on a Mac Preview for a picture no browser shows (a browser would only download a PSD or an EXR). */
 export function opener(path, platform) {
+  if (["audio", "video"].includes(mediaKind(path) ?? "")) return "Player";
   return platform === "macos" && !MEDIA_WEB.includes(extension(path)) ? "Preview" : "Browser";
 }
 

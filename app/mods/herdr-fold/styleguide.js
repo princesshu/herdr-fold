@@ -433,6 +433,14 @@ function issuesOf(state, fields) {
   return issues;
 }
 
+// where an agent's picture came from (core/runs.py's origin), and the file it is
+const ORIGIN = { agent: "claude", session: "s1", title: "Landing hero", server: "fal", brand: "fal",
+  model: "fal-ai/flux-pro/v1.1", prompt: "tide chart behind a calm harbour at dawn, flat colour, no text, 16:9",
+  skill: "hero-image", calls: 2, again: "Another take on renders/hero-shot.webp: the same prompt, model and skill" };
+const MADE = (/** @type {string} */ path) => ({ n: 0, kind: "file", path, root: "/work/lumen-api", on: null });
+// a voice-over's loudness, step by step (core/media.py's 160): words and the breaths between them
+const LEVELS = Array.from({ length: 160 }, (_, n) => Math.round(n % 23 < 3 ? 4 : 30 + 55 * Math.abs(Math.sin(n / 3))
+  * (0.6 + 0.4 * Math.sin(n / 11))));
 /** The preview tab with FIELDS: what it shows, loading, or why nothing; its board's size draws nothing anew here. */
 function previewOf(fields) {
   return Object.assign(new Preview("styleguide", null), { what: { n: 0, level: 1, ranked_by: "priority: high" },
@@ -601,14 +609,15 @@ const acts = (...list) => list.map(([id, label, at], n) => ({ id, label, primary
 const LUMEN = "/work/lumen-api";
 const GRAPHED = /** @type {[string, string, string]} */ (["graph", "Show in graph", ""]);
 // the rows chosen in the properties' specimens, as core words each kind
-const SENTRY = layer("plug", "sentry", { id: "connector:sentry", tag: "Project", mark: "bad",
+const SENTRY = layer("plug", "Sentry", { id: "connector:sentry", tag: "Project", mark: "bad",
   state: said("failed", "bad"), brand: "sentry",
-  properties: { lines: [["From", ".mcp.json", "Project"], ["Runs", "npx -y @sentry/mcp-server", null]],
+  properties: { lines: [["From", ".mcp.json", "Project"], ["Name", "sentry", null],
+    ["Runs", "npx -y @sentry/mcp-server", null]],
     error: "spawn npx ENOENT: npx is not on this machine's PATH",
     actions: acts(["retry", "Retry", "sentry"], ["open", "Open .mcp.json", `${LUMEN}/.mcp.json`], GRAPHED) } });
-const FIGMA = layer("plug", "figma", { id: "connector:figma", tag: "figma", mark: "warn",
+const FIGMA = layer("plug", "Figma", { id: "connector:figma", tag: "figma", mark: "warn",
   state: said("sign in", "warn"), brand: "figma",
-  properties: { lines: [["From", "figma", "Plugin"], ["URL", "mcp.figma.com", null]],
+  properties: { lines: [["From", "figma", "Plugin"], ["Name", "figma", null], ["URL", "mcp.figma.com", null]],
     actions: acts(["connect", "Connect", "figma"], ["turn-off", "Turn off in lumen-api", "figma"], GRAPHED) } });
 const API_RULE = layer("file", "api.md", { tag: "Project", tokens: 700, cost: "700", note: "when src/lumen/** is read",
   dim: true, properties: { lines: [["From", ".claude/rules/api.md", "Project"], ["Paths", "src/lumen/**", null]],
@@ -655,7 +664,11 @@ const CONNECT = { state: said("signing in", "busy"), words: "Finish in your brow
   needs: { "turn-off": "Start a chat in lumen-api to turn it off",
     "turn-on": "Start a chat in lumen-api to turn it on" },
   add: { tip: "Add a connector", title: "Add a connector", menu: [{ id: "claude-ai", label: "From claude.ai…",
-    url: "https://claude.ai/settings/connectors" }, { id: "url", label: "By URL…", url: null }],
+    url: "https://claude.ai/settings/connectors" }, { id: "url", label: "By URL…", url: null },
+  ...[["fal", "fal", "fal", "https://mcp.fal.ai/mcp-relay"], ["elevenlabs", "ElevenLabs", "elevenlabs",
+    "https://api.elevenlabs.io/v1/mcp"], ["bfl", "FLUX", "flux", "https://mcp.bfl.ai"], ["runway", "Runway", "runway",
+    "https://mcp.runwayml.com/mcp"]].map(([brand, label, name, address]) => ({ id: `offer:${brand}`, label,
+    url: null, brand, name, address }))],
   fields: { name: "Name", url: "URL", scope: "For" }, scopes: [{ id: "local", label: "lumen-api" },
     { id: "user", label: "All projects" }], submit: "Add and connect", cancel: "Cancel" } };
 const CODEX_CONNECT = { ...CONNECT, add: { ...CONNECT.add, menu: CONNECT.add.menu.slice(1), scopes: [] } };
@@ -758,6 +771,23 @@ const BOX_ON = boxOf(said("on", "ok"), [["turn-off", "Turn off in lumen-api", BO
 const NOTION = layer("plug", "Notion", { id: "connector:claude.ai Notion", tag: "claude.ai", brand: "notion",
   dim: true, state: said("off here", "off"), properties: { lines: [["From", "claude.ai", "Account"],
     ["URL", "mcp.notion.com", null]], actions: acts(["turn-on", "Turn on in lumen-api", "claude.ai Notion"]) } });
+// the media services, calls.py's: what each makes, its calls today in place of its tools and cost
+const ELEVENLABS = layer("plug", "ElevenLabs", { id: "connector:elevenlabs", tag: "Global", brand: "elevenlabs",
+  note: "voice", state: said("7 calls today", "ok"), mark: "ok", tokens: 2100, properties: { lines: [
+    ["From", "~/.claude.json", "Global"], ["Name", "elevenlabs", null], ["URL", "api.elevenlabs.io/v1/mcp", null],
+    ["Loads", "2.1k at start", null], ["Sign out", "claude mcp logout elevenlabs", null],
+    ["Used", "2 times in this chat", null]], actions: acts(["turn-off", "Turn off in lumen-api", "elevenlabs"],
+    GRAPHED) } });
+const MEDIA_ROWS = [ELEVENLABS, layer("plug", "fal", { id: "connector:fal", tag: "Project", brand: "fal",
+  note: "image, video", state: said("3 calls today", "ok"), tokens: 1800 }),
+layer("plug", "Runway", { id: "connector:runway", tag: "Project", brand: "runway", note: "video", mark: "warn",
+  state: said("sign in", "warn"), tokens: 900 }),
+layer("plug", "FLUX", { id: "connector:flux", tag: "Global", brand: "bfl", note: "image",
+  state: said("no calls today", "ok"), tokens: 700 })];
+/** The panel's layers with media services among Connectors, the other sections folded away. */
+const mediaOf = () => ({ ...LAYERS, sections: LAYERS.sections.map((section) => (section.id !== "connectors" ? section
+  : { ...section, count: 6, rows: [...MEDIA_ROWS, SENTRY, layer("plug", "github", { tag: "Global", state:
+    said("32 tools", "ok"), tokens: 6800, cost: "6.8k" })] })) });
 /** The panel's layers with BOX as given, the other sections folded away. @param {any} box */
 const connectorsOf = (box) => ({ ...LAYERS, head: { ...LAYERS.head, problems: [LAYERS.head.problems[0],
   ...(box.state.tone === "warn" ? [{ ...said("1 sign in", "warn"), row: box.id }] : [])] },
@@ -1103,7 +1133,16 @@ export function guide(proto, cx) {
         line: 31, side: "RIGHT", body: "Name the 50: PAGE_SIZE is shared with /books." }] }) }), 420],
     ["Your own: no Approve, To agent on a comment, where it went", previewOf({ review: reviewOf(OWN,
       { sent: { t2: "Sent to Claude: #58 · books.py:31" } }) }), 300]],
-    preview: [["Diff", previewOf({ rows: DIFF }), 200], ["Commit", previewOf({ rows: COMMIT }), 200],
+    preview: [["An agent's picture: its pixels, the chat it came from, where from under it; Show in Finder, Ask for "
+      + "another, Open at the end", previewOf({ picture: { png: PAGE, size: [306, 396], pixels: [1920, 1080] },
+      origin: ORIGIN, what: MADE("renders/hero-shot.webp") }), 520],
+    ["Audio: its waveform on the board, Play (an MP3, the app plays it), its length", previewOf({ clip: { png: null,
+      size: null, pixels: null, seconds: 18, levels: LEVELS }, what: MADE("renders/voice-over.mp3"),
+      origin: { ...ORIGIN, server: "elevenlabs", brand: "elevenlabs", model: "eleven_multilingual_v2",
+        prompt: "Tides, on time. Lumen keeps your harbour's schedule.", calls: 1 } }), 360],
+    ["A video: its frame, its pixels and length; no chat tells where it came from", previewOf({ clip: { png: PAGE,
+      size: [306, 396], pixels: [1280, 720], seconds: 5, levels: null }, what: MADE("renders/hero-shot.mp4") }), 360],
+    ["Diff", previewOf({ rows: DIFF }), 200], ["Commit", previewOf({ rows: COMMIT }), 200],
       ["Loading", previewOf({ loading: true }), 52], ["Error", previewOf({ note: "HTTP 404: Not Found" }), 52],
       ["A PDF, scrolled to its second page", previewOf({ pdf: { sizes: Array(12).fill([612, 792]), count: 12,
         made: Array(12).fill(PAGE), range: null, making: false, page: 1, room: null } }), 320]],
@@ -1386,6 +1425,8 @@ export function guide(proto, cx) {
       [64, "warn"])), folded: ["usage"] }).limits, 40],
     ["The read failed: why, in the rows' place", agentOf(LAYERS, { usageError: "usage.py: Permission denied" })
       .limits, 64]],
+    // the media services among Connectors, ElevenLabs chosen
+    agentMedia: agentOf(mediaOf(), { chosen: ELEVENLABS.id, folded: OTHERS }).draw,
     // Connectors as connectors.html's Agent panel, Belépés, Hozzáadás and Bekapcsolva: [name, what draws it, height]
     agentConnectors: [["Box to sign in, chosen: its switch for this folder, Connect on the accent; each known "
       + "service by its logo (one of no known brand by its letter: the Agent panel's github)",
@@ -1405,8 +1446,8 @@ export function guide(proto, cx) {
     ["A command that failed: why, in the agent's own words, over the buttons", agentOf(connectorsOf(BOX_IN),
       { chosen: BOX_IN.id, folded: OTHERS,
         failed: "Couldn't start claude.ai Box's sign-in: claude is not on this machine's PATH" }).draw, 548],
-    ["+ pressed: From claude.ai… opens its page, By URL… the form", agentOf(connectorsOf(BOX_IN),
-      { addMenu: true }).ways, 116],
+    ["+ pressed: From claude.ai… opens its page, By URL… the form, a media service by its name the form filled",
+      agentOf(connectorsOf(BOX_IN), { addMenu: true }).ways, 248],
     ["By URL…: the form in the properties' place, the keys in URL", agentOf(connectorsOf(BOX_IN), { folded: OTHERS,
       form: formOf("dropbox", "https://mcp.dropbox.com/mcp") }).draw, 580],
     ["For: All projects", agentOf(connectorsOf(BOX_IN), { folded: OTHERS, form: formOf("dropbox",
@@ -2166,6 +2207,10 @@ function sections(g, t) {
           + "muted · a warning 11 yellow, a refusal red, a note muted · Cancel plain and the one solid button at "
           + "the end, faint while nothing can be saved · the foot h 32 under a hairline: 12 muted, a line in code "
           + "11, Undo semibold" }))))]),
+    ["agent-media", () => [group(t, "The Agent panel: media services", [specimen(t, "agent-media",
+      "What each makes and its calls today in place of its tools and cost; ElevenLabs chosen",
+      fixed(620, g.agentMedia(t)), { spec: "the note what "
+        + "it makes 11 muted, its calls today the state's column 11 muted, no cost; Loads in its properties" })])]],
     ["agent-list", () => [group(t, "The Agent panel: the agents on this Mac", g.agentLists.map(
       ([name, draw, h, width = PANEL], i) => specimen(t, `agent-list-${i}`, String(name), fixed(Number(h),
         /** @type {any} */ (draw)(t)), { width: Number(width), spec: i ? "" : "the chip h 26, 6 in, radius 6, ringed "

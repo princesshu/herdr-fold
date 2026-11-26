@@ -254,9 +254,10 @@ Cmd + Shift + L lists the files the focused pane's recent output names, the newe
 `src/app.ts(12,5)`, `README.md#L3`, a Python traceback's `File "…", line 9`, or a path alone. Only files that are
 there show, a relative path found from the pane's folder or its repository's top. Type to narrow the list; Enter, a
 double click or Open opens a text file at that line in your editor ([Editing files](#editing-files)); an image, a PDF,
-a page or an SVG shows in the sidebar's preview tab (`o` opening it in the browser), and that tab's sidebar opens Files
-on it. It works on any pane: an agent's reply, a test run's failure, a compiler's errors. A remote machine's pane lists
-nothing: its files are on that machine, and the list shows only files that are on the Mac.
+a page or an SVG shows in the sidebar's preview tab (`o` opening it in the browser), audio or a video too (`o` opening
+it in the player), and that tab's sidebar opens Files on it. It works on any pane: an agent's reply, a test run's
+failure, a compiler's errors. A remote machine's pane lists nothing: its files are on that machine, and the list shows
+only files that are on the Mac.
 
 ## Editing files
 
@@ -273,6 +274,15 @@ SVG stays in the preview, drawn, and `e` (Edit in its status row) opens the same
 drawn again. A binary file or one over 1 MiB stays in the read-only preview. With an agent's settings file chosen in
 Files (`.claude/settings*.json`, `.codex/config.toml`), Files' last row says the Agent panel's forms are its checked
 way, with Show in Agent.
+
+## Pictures, audio and video an agent made
+
+An image the agent made through a connector (fal, ElevenLabs, FLUX, Runway: [The agent's
+harness](harness.md#a-row-and-its-properties)) shows in the preview tab with where it came from under it, as the chat
+tells it: `fal-ai/flux-pro/v1.1 · 16:9 · fal · 2 calls · hero-image`, then the prompt. A video shows a frame of it, its
+shape and length (`16:9 · 5 s`); audio its waveform in the accent, with its length; `o` opens either in the player. A
+right click offers Open in Player (Browser, Preview), Show in Finder on a Mac, and Ask for Another, which types the
+chat that made it a request for another take, never sent: Enter in that chat sends it. Runs counts the same files.
 
 ## The status line
 

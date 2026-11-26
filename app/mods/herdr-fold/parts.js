@@ -48,12 +48,12 @@ export function ring(t, percent, color) {
     .when(Boolean(share), (e) => e.child(layer(share, color)));
 }
 
-/** A connector's mark, SIZE square (connectors.html's .tile.xs): its BRAND's logo (icons.js's BRANDS) in its own
- * colors, a one-color mark in the text's; one of no known brand its NAME's letter on a tile, in the spaces' avatars'
- * colors. @param {string | null | undefined} brand @param {string} name @param {number} [size] */
+/** A connector's mark, SIZE square (connectors.html's .tile.xs): its BRAND's logo (icons.js's BRANDS), a one-color
+ * mark in the text's; else (no brand, or no logo its licence gives) NAME's letter on a tile in the avatars' colors.
+ * @param {string | null | undefined} brand @param {string} name @param {number} [size] */
 export function brandMark(t, brand, name, size = 16) {
-  const known = /** @type {Record<string, { logo: string, mono: boolean }>} */ (BRANDS)[brand ?? ""];
-  if (known) {
+  const known = /** @type {Record<string, { logo: string | null, mono: boolean }>} */ (BRANDS)[brand ?? ""];
+  if (known?.logo) {
     return known.mono ? svg(known.logo).size(size).flex_none().text_color(t.foreground)
       : image(known.logo).size(size).flex_none();
   }

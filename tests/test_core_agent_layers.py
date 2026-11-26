@@ -6,6 +6,7 @@ import io
 import json
 import os
 import sys
+import time
 import unittest
 
 from support import PACKAGE, AgentHome, logged, set_env
@@ -127,16 +128,19 @@ class AgentLayers(AgentHome, unittest.TestCase):
         connectors = self.section(found, "connectors")
         self.assertEqual([(r["id"], r["icon"], r["name"], r["state"], r["tag"], r["cost"], r["mark"], r["dim"])
                           for r in connectors["rows"]], [
-            ("connector:sentry", "plug", "sentry", {"text": "failed", "tone": "bad"}, "Project", None, "bad", False),
-            ("connector:plugin:figma:figma", "plug", "figma", {"text": "sign in", "tone": "warn"}, "figma", None,
+            # a known service's by its maker's name, its own in its properties
+            ("connector:sentry", "plug", "Sentry", {"text": "failed", "tone": "bad"}, "Project", None, "bad", False),
+            ("connector:plugin:figma:figma", "plug", "Figma", {"text": "sign in", "tone": "warn"}, "figma", None,
              "warn", False),
             # then Claude's own /mcp order
             ("connector:chrome-devtools", "plug", "chrome-devtools", {"text": "1 tool", "tone": "ok"}, "Global", "9",
              "ok", False),
-            ("connector:github", "plug", "github", {"text": "2 tools", "tone": "ok"}, "Global", "16.0k", None,
+            ("connector:github", "plug", "GitHub", {"text": "2 tools", "tone": "ok"}, "Global", "16.0k", None,
              False)])
         # a known service's brand, for its logo (the app) or its glyph (the TUI); a rule or a skill has none
-        self.assertEqual([r["brand"] for r in connectors["rows"]], ["sentry", "figma", None, None])
+        self.assertEqual([r["brand"] for r in connectors["rows"]], ["sentry", "figma", None, "github"])
+        self.assertEqual([r["properties"]["lines"][1] for r in connectors["rows"][:2]],
+                         [["Name", "sentry", None], ["Name", "figma", None]])
         self.assertEqual({r["brand"] for s in found["sections"] if s["id"] != "connectors" for r in s["rows"]}, {None})
         # what loads at start, by part, each one's share: the rules read always, every skill's listing, the
         # connectors' tools and instructions
@@ -190,7 +194,7 @@ class AgentLayers(AgentHome, unittest.TestCase):
             ("Box", {"text": "sign in", "tone": "warn"}, "claude.ai", "warn", False),
             # a .mcp.json server waiting for its yes, and one Claude was still connecting
             ("harbor-api", {"text": "not approved", "tone": "off"}, "Project", None, True),
-            ("sentry", {"text": "connecting", "tone": "busy"}, "Project", None, False),
+            ("Sentry", {"text": "connecting", "tone": "busy"}, "Project", None, False),
             ("tidepool-db", {"text": "1 tool", "tone": "ok"}, "Local", None, False),
             ("Dropbox", {"text": "not checked", "tone": "off"}, "Global", None, False),
             # used in this chat: its one mark; on or off has none (off is the dim name)
@@ -220,7 +224,7 @@ class AgentLayers(AgentHome, unittest.TestCase):
         self.assertEqual(rows["harbor-api"]["properties"]["actions"],
                          [action("open", "Open .mcp.json", mcp, True), SHOW])
         server = "sentry"
-        self.assertEqual(rows["sentry"]["properties"]["actions"],
+        self.assertEqual(rows["Sentry"]["properties"]["actions"],
                          [action("retry", "Retry", primary=True), action("open", "Open .mcp.json", mcp), SHOW])
         server = "Dropbox"
         self.assertEqual(rows["Dropbox"]["properties"]["actions"], [action("retry", "Retry", primary=True), SHOW])
@@ -238,7 +242,15 @@ class AgentLayers(AgentHome, unittest.TestCase):
                       "turn-on": "Start a chat in lumen-api to turn it on"},
             "add": {"tip": "Add a connector", "title": "Add a connector", "menu": [
                 {"id": "claude-ai", "label": "From claude.ai…", "url": "https://claude.ai/settings/connectors"},
-                {"id": "url", "label": "By URL…", "url": None}],
+                {"id": "url", "label": "By URL…", "url": None}] + [
+                # the media services by name (and Figma), the form filled: none of them is here yet
+                {"id": f"offer:{key}", "label": label, "url": None, "brand": key, "name": name, "address": url}
+                for key, label, name, url in (("fal", "fal", "fal", "https://mcp.fal.ai/mcp-relay"),
+                                              ("elevenlabs", "ElevenLabs", "elevenlabs",
+                                               "https://api.elevenlabs.io/v1/mcp"),
+                                              ("bfl", "FLUX", "flux", "https://mcp.bfl.ai"),
+                                              ("runway", "Runway", "runway", "https://mcp.runwayml.com/mcp"),
+                                              ("figma", "Figma", "figma", "https://mcp.figma.com/mcp"))],
                 "fields": {"name": "Name", "url": "URL", "scope": "For"},
                 "scopes": [{"id": "local", "label": "lumen-api"}, {"id": "user", "label": "All projects"}],
                 "submit": "Add and connect", "cancel": "Cancel"}})
@@ -338,15 +350,16 @@ class AgentLayers(AgentHome, unittest.TestCase):
                                    for one in row["properties"]["actions"]])
         # a server: where it is, what it runs, its error, Retry and its file
         connectors = self.section(found, "connectors")
-        self.assertEqual(self.chosen(connectors, "sentry")["properties"], {
-            "title": "sentry", "state": {"text": "failed", "tone": "bad"},
-            "lines": [["From", ".mcp.json", "Project"], ["Runs", "npx -y @sentry/mcp-server", None]],
+        self.assertEqual(self.chosen(connectors, "Sentry")["properties"], {
+            "title": "Sentry", "state": {"text": "failed", "tone": "bad"},
+            "lines": [["From", ".mcp.json", "Project"], ["Name", "sentry", None],
+                      ["Runs", "npx -y @sentry/mcp-server", None]],
             "text": None, "error": "spawn npx ENOENT: npx is not on this machine's PATH", "tip": None, "actions": [
                 {"id": "retry", "label": "Retry", "path": None, "server": "sentry", "primary": True},
                 {"id": "open", "label": "Open .mcp.json", "path": os.path.join(self.folder, ".mcp.json"),
                  "server": None, "primary": False}, SHOW]})
-        self.assertEqual(self.chosen(connectors, "figma")["properties"]["lines"],
-                         [["From", "figma", "Plugin"], ["URL", "mcp.figma.com/mcp", None]])
+        self.assertEqual(self.chosen(connectors, "Figma")["properties"]["lines"],
+                         [["From", "figma", "Plugin"], ["Name", "figma", None], ["URL", "mcp.figma.com/mcp", None]])
         self.assertEqual(self.chosen(connectors, "chrome-devtools")["properties"]["lines"], [
             ["From", "~/.claude.json", "Global"], ["Runs", "npx chrome-devtools-mcp@latest", None],
             ["Used", "once in this chat", None]])
@@ -387,24 +400,26 @@ class AgentLayers(AgentHome, unittest.TestCase):
         config = self.codex_home("config.toml")
         connectors = self.section(found, "connectors")["rows"]
         self.assertEqual([(r["name"], r["state"], r["dim"], r["properties"]["actions"]) for r in connectors], [
-            ("linear", {"text": "sign in", "tone": "warn"}, False, [
+            ("Linear", {"text": "sign in", "tone": "warn"}, False, [
                 {"id": "connect", "label": "Connect", "path": None, "server": "linear", "primary": True},
                 {"id": "open", "label": "Open config.toml", "path": config, "server": None, "primary": False},
                 SHOW]),
-            ("sentry", {"text": "on", "tone": "ok"}, False, [
+            ("Sentry", {"text": "on", "tone": "ok"}, False, [
                 {"id": "open", "label": "Open config.toml", "path": config, "server": None, "primary": True}, SHOW]),
-            ("notion", {"text": "off", "tone": "off"}, True, [
+            ("Notion", {"text": "off", "tone": "off"}, True, [
                 {"id": "open", "label": "Open config.toml", "path": config, "server": None, "primary": True}, SHOW]),
             # signed in through Codex's own OAuth: its own sign-out, never Claude's Turn off
-            ("figma", {"text": "on", "tone": "ok"}, False, [
+            ("Figma", {"text": "on", "tone": "ok"}, False, [
                 {"id": "sign-out", "label": "Sign out", "path": None, "server": "figma", "primary": True},
                 {"id": "open", "label": "Open config.toml", "path": config, "server": None, "primary": False},
                 SHOW])])
         # what a sign-in and the add form say, in both clients' words: Codex adds for every folder, by its address
-        self.assertEqual(found["connect"]["add"]["menu"], [{"id": "url", "label": "By URL…", "url": None}])
+        self.assertEqual([one["id"] for one in found["connect"]["add"]["menu"]],
+                         ["url", "offer:fal", "offer:elevenlabs", "offer:bfl", "offer:runway"])   # Figma is here
         self.assertEqual(found["connect"]["add"]["scopes"], [])
         self.assertEqual(connectors[0]["properties"]["lines"],
-                         [["From", "~/.codex/config.toml", "Global"], ["URL", "mcp.linear.app/mcp", None]])
+                         [["From", "~/.codex/config.toml", "Global"], ["Name", "linear", None],
+                          ["URL", "mcp.linear.app/mcp", None]])
         self.assertEqual(found["head"]["problems"],
                          [{"text": "1 sign in", "tone": "warn", "row": "connector:linear"}])
 
@@ -527,7 +542,7 @@ class AgentLayers(AgentHome, unittest.TestCase):
                          [("doc-checker", off, True), ("Explore", None, False)])
         self.assertEqual((agents["rows"][1]["off"], agents["rows"][1]["properties"]["lines"][1]),
                          (["Explore"], ["Explore", "read-only", "off here"]))
-        server = self.chosen(self.section(found, "connectors"), "github")
+        server = self.chosen(self.section(found, "connectors"), "GitHub")        # its maker's name
         self.assertEqual((server["state"], server["dim"], server["properties"]["actions"][0]["label"]),
                          (off, True, "Turn on in lumen-api"))
         [group] = self.section(found, "permissions")["groups"]
@@ -556,6 +571,29 @@ class AgentLayers(AgentHome, unittest.TestCase):
                          ["layers", "claude", self.folder]):
                 self.assertEqual(agent_layers_cli.main(["agent_layers_cli.py"] + argv), 2)
 
+    def test_a_media_service_says_its_calls_today_in_place_of_its_tools_and_cost(self):
+        # they bill in credits: calls.py's count and what each makes; its tools' cost in its properties
+        servers = []
+        for name, url, today in (("elevenlabs", "https://api.elevenlabs.io/v1/mcp", 7),
+                                 ("fal", "https://mcp.fal.ai/mcp-relay", 0), ("runway", "https://mcp.runwayml.com/mcp",
+                                                                              1)):
+            one = agent_setup.row(name, name, "http", agent_setup.GLOBAL, agent_setup.GLOBAL,
+                                  os.path.join(self.home, ".claude.json"), url=agent_setup.address(url))
+            one.update(state=agent_setup.ON, tools=3, tokens=2100, makes={"elevenlabs": "voice"}.get(name, "video"),
+                       today=today)
+            servers.append(one)
+        servers[2]["state"] = agent_setup.SIGN_IN
+        rows = agent_layers.connector_rows({"servers": servers}, "claude", self.folder, self.home)
+        self.assertEqual([(r["name"], r["note"], r["state"], r["tokens"], r["cost"]) for r in rows], [
+            ("Runway", "video", {"text": "sign in", "tone": "warn"}, 2100, None),
+            ("ElevenLabs", "voice", {"text": "7 calls today", "tone": "ok"}, 2100, None),
+            ("fal", "video", {"text": "no calls today", "tone": "ok"}, 2100, None)])
+        self.assertEqual(rows[1]["properties"]["lines"], [
+            ["From", "~/.claude.json", "Global"], ["Name", "elevenlabs", None],
+            ["URL", "api.elevenlabs.io/v1/mcp", None], ["Loads", "2.1k at start", None],
+            ["Sign out", "claude mcp logout elevenlabs", None]])
+        self.assertEqual(rows[2]["properties"]["lines"][1], ["URL", "mcp.fal.ai/mcp-relay", None])   # its own name
+
     def test_a_checked_server_shows_claudes_answer_until_its_state_changes(self):
         """The app keeps check()'s answer with the state the server had then: the next read shows it over that state
         alone, the server first among the problems, its own state told beside."""
@@ -575,7 +613,7 @@ class AgentLayers(AgentHome, unittest.TestCase):
         states, row, problems = read("--checked", json.dumps(said))
         self.assertEqual(states, {"sentry": "not checked"})         # its own state, what the next check starts from
         self.assertEqual((row["name"], row["state"], row["properties"]["error"]),
-                         ("sentry", {"text": "failed", "tone": "bad"}, "spawn npx ENOENT"))
+                         ("Sentry", {"text": "failed", "tone": "bad"}, "spawn npx ENOENT"))
         self.assertEqual(problems, [{"text": "1 failed", "tone": "bad", "row": "connector:sentry"}])
         for stale in ({"sentry": {**said["sentry"], "base": "on"}}, {"sentry": {**said["sentry"], "state": "great"}},
                       {"sentry": "failed"}, ["sentry"]):
@@ -859,6 +897,9 @@ class OpenCodeLayers(AgentHome, unittest.TestCase):
                          {"a": "x//y /*z*/", "c": [1, 2], "e": '"q"'})
         with self.assertRaises(ValueError):
             opencode_setup.jsonc("{oops}")
+        started = time.monotonic()                      # one pass: a large file of commas stays quick
+        self.assertEqual(len(opencode_setup.jsonc("[" + "1, " * 200000 + "1]")), 200001)
+        self.assertLess(time.monotonic() - started, 2)
 
     def test_not_here_none_and_the_cli_prints_it(self):
         out = io.StringIO()

@@ -13,7 +13,7 @@ from agent_setup import (APPROVALS, BEHAVIORS, BUILT_IN, CLAUDE, CLAUDE_AI, EFFO
                          HERDR_FOLD, KNOWN, LINE, MANAGED, MODE_WORDS, NOT_APPROVED, NOT_CHECKED, OFF, OFF_HERE, ON,
                          PENDING, PROJECT, READ, READ_ONLY, SANDBOXES, SIGN_IN, clean, inside, mode_told, plugged,
                          read_text, shown)
-from connectors import AGENTS as ADDS, CLAUDE_AI as CLAUDE_PAGE, logout  # noqa: E402
+from connectors import AGENTS as ADDS, BRANDS, CLAUDE_AI as CLAUDE_PAGE, OFFERED, logout  # noqa: E402
 from jsonl import obj  # noqa: E402
 
 # the owner's order (2026-11-20): who works (the subagents), what they read always, then on demand, what they may
@@ -275,9 +275,9 @@ def signs_out(one, agent):
 
 
 def connector_rows(setup, agent, folder, home):
-    """The servers, failed ones first, then those to sign in, then in the agent's own order: their state in words
-    ("32 tools" for one on that told its tools), what each runs or its address, its error, its actions. A list the
-    agent could not give: one row saying so."""
+    """The servers, failed ones first, then those to sign in, then in the agent's own order, a known service's by its
+    maker's name: their state in words ("32 tools", a media service's calls today in place of its tools and cost),
+    what each runs or its address, its error, its actions. A list the agent could not give: one row saying so."""
     if setup.get("unlisted"):
         return [layer("unread:connectors", "plug", f"{KNOWN[agent]['name']}'s servers", properties(
             "Connectors", NOT_READ, text=f"`{LISTS[agent]}` gave no list, so which servers {KNOWN[agent]['name']} "
@@ -285,28 +285,37 @@ def connector_rows(setup, agent, folder, home):
     rank, rows = {state: n for n, (state, _, _) in enumerate(PROBLEMS)}, []
     for one in sorted(setup["servers"], key=lambda one: rank.get(one["state"], len(rank))):
         word, tone = SAID_AS[one["state"]]
-        word = f"{one['tools']} tool{'s' * (one['tools'] != 1)}" if one["state"] == ON and one["tools"] else word
+        makes, today = one.get("makes"), one.get("today")            # a media service's (calls.py's)
+        name = BRANDS.get(one["brand"] or "", {}).get("name") or one["label"]
+        word = (f"{today or 'no'} call{'s' * (today != 1)} today" if makes and today is not None else
+                f"{one['tools']} tool{'s' * (one['tools'] != 1)}" if one["tools"] else word) if one["state"] == ON \
+            else word
         state = {"text": word, "tone": tone}
-        lines = [origin(one, folder, home)] + [[label, one[key], None] for label, key in (("Runs", "runs"), (
-            "URL", "url")) if one[key]] + signs_out(one, agent) + used_line(one["used"])
-        rows.append(layer("connector:" + one["name"], "plug", one["label"], properties(
-            one["label"], state, lines, error=one["error"], actions=server_actions(one, agent, folder, home)),
+        lines = [origin(one, folder, home)] + [["Name", one["label"], None]] * (name != one["label"]) + [
+            [label, one[key], None] for label, key in (("Runs", "runs"), ("URL", "url")) if one[key]] + (
+            [["Loads", f"{words.tokens(one['tokens'])} at start", None]] if makes and one["tokens"] else []) + \
+            signs_out(one, agent) + used_line(one["used"])
+        rows.append(layer("connector:" + one["name"], "plug", name, properties(
+            name, state, lines, error=one["error"], actions=server_actions(one, agent, folder, home)), note=makes,
             mark=tone if tone in ("bad", "warn") else "ok" if one["used"] else None, place=tag(one), state=state,
             tokens=one["tokens"], agents=one.get("agents", [agent]), dim=one["state"] in DIM, known=one["brand"]))
+        rows[-1]["cost"] = None if makes else rows[-1]["cost"]
     return rows
 
 
-def connecting(agent, folder):
+def connecting(agent, folder, have=()):
     """What a sign-in and the add form say in both clients: a row's state while its agent signs in in a terminal and
-    what can be done then; why Claude's Turn off or on waits for a chat; the form's words, Claude's two ways to add
-    and its two scopes, Codex's one (by its address, every folder's); none for an agent connectors.py adds none to."""
+    what can be done then; why Claude's Turn off or on waits for a chat; the form's words, Claude's ways to add (the
+    offered services it does not HAVE, by brand, the form filled), its two scopes, Codex's (every folder's)."""
     here, claude = os.path.basename(os.path.abspath(folder)), agent == "claude"
     return {"state": {"text": "signing in", "tone": "busy"}, "words": "Finish in your browser",
             "actions": [{"id": "reopen", "label": "Open the page again"}, {"id": "cancel", "label": "Cancel"}],
             "needs": {f"turn-{way}": f"Start a chat in {here} to turn it {way}" for way in ("off", "on")},
             "add": {"tip": "Add a connector", "title": "Add a connector",
                     "menu": ([{"id": "claude-ai", "label": "From claude.ai…", "url": CLAUDE_PAGE}] if claude else [])
-                    + [{"id": "url", "label": "By URL…", "url": None}],
+                    + [{"id": "url", "label": "By URL…", "url": None}] + [
+                        {"id": "offer:" + key, "label": BRANDS[key]["name"], "url": None, "brand": key, "name": name,
+                         "address": address} for key, name, address in OFFERED if key not in have],
                     "fields": {"name": "Name", "url": "URL", "scope": "For"},
                     "scopes": [{"id": "local", "label": here}, {"id": "user", "label": "All projects"}] if claude
                     else [], "submit": "Add and connect", "cancel": "Cancel"} if agent in ADDS else None}
@@ -375,4 +384,4 @@ def layers(setup, agent, folder, home):
                     for part, tokens in parts],
             "error": {"text": f"Couldn't read {KNOWN[agent]['name']}'s setup: permission denied",
                       "tip": ", ".join(files)} if files else None,
-            "sections": sections, "connect": connecting(agent, folder)}
+            "sections": sections, "connect": connecting(agent, folder, {one["brand"] for one in setup["servers"]})}

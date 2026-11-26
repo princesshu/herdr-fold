@@ -16,28 +16,49 @@ LOCAL = ("localhost", "127.0.0.1", "::1")               # the hosts plain http i
 LARGEST = 2048                  # characters of an added server's address
 ASKED_LARGEST = 8192            # and of the address a sign-in opens (its query carries the request)
 ESCAPES = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[ -/]*[@-~]")    # a link's target, a color
-# A known service: its name, its logo (SVG Logos' name, the mod's icons/logos/ file), whether that is a one-color dark
-# mark (drawn in the text's color), and for the TUI its glyph in the font's icons (None: its letter) and its color.
+# A known service: its maker's name, its logo (SVG Logos' name, the mod's icons/logos/ file; None where its licence
+# gives none to take: its letter), whether that is a one-color dark mark (drawn in the text's color), and for the TUI
+# its glyph in the font's icons (None: its letter) and its color.
 BRANDS = {
+    "bfl": {"name": "FLUX", "logo": None, "mono": False, "glyph": None, "color": "#e6e6e6"},
     "box": {"name": "Box", "logo": "box", "mono": False, "glyph": None, "color": "#3b8fe6"},
+    "cartesia": {"name": "Cartesia", "logo": "cartesia-icon", "mono": False, "glyph": None, "color": "#309d4b"},
     "dropbox": {"name": "Dropbox", "logo": "dropbox", "mono": False, "glyph": "", "color": "#3d8bff"},
+    "elevenlabs": {"name": "ElevenLabs", "logo": "elevenlabs-icon", "mono": True, "glyph": None, "color": "#e6e6e6"},
+    "fal": {"name": "fal", "logo": "fal-icon", "mono": True, "glyph": None, "color": "#8b6cf6"},
     "figma": {"name": "Figma", "logo": "figma", "mono": False, "glyph": "", "color": "#f24e1e"},
+    "github": {"name": "GitHub", "logo": "github-icon", "mono": True, "glyph": "\uf09b", "color": "#e6e6e6"},
     "google-drive": {"name": "Google Drive", "logo": "google-drive-2020", "mono": False, "glyph": "\U000f02b6",
                      "color": "#1fa463"},
+    "higgsfield": {"name": "Higgsfield", "logo": "higgsfield-icon", "mono": False, "glyph": None, "color": "#dafd55"},
     "linear": {"name": "Linear", "logo": "linear-icon", "mono": True, "glyph": None, "color": "#7c86e6"},
+    "luma": {"name": "Luma", "logo": "luma-icon", "mono": True, "glyph": None, "color": "#e6e6e6"},
+    "meshy": {"name": "Meshy", "logo": None, "mono": False, "glyph": None, "color": "#c5f04a"},
     "notion": {"name": "Notion", "logo": "notion-icon", "mono": False, "glyph": "", "color": "#e6e6e6"},
     "onedrive": {"name": "OneDrive", "logo": "microsoft-onedrive", "mono": False, "glyph": "\U000f03ca",
                  "color": "#28a8ea"},
+    "runway": {"name": "Runway", "logo": "runway-icon", "mono": True, "glyph": None, "color": "#e6e6e6"},
     "sentry": {"name": "Sentry", "logo": "sentry-icon", "mono": True, "glyph": "", "color": "#e1567c"},
 }
 # a server's name in lower-case words (no "mcp", no "server") and its address's host, or a host under it, to its brand
 NAMES = {"box": "box", "dropbox": "dropbox", "figma": "figma", "google drive": "google-drive", "gdrive": "google-drive",
          "googledrive": "google-drive", "linear": "linear", "notion": "notion", "onedrive": "onedrive",
-         "microsoft onedrive": "onedrive", "sentry": "sentry"}
+         "microsoft onedrive": "onedrive", "sentry": "sentry", "elevenlabs": "elevenlabs", "eleven labs": "elevenlabs",
+         "fal": "fal", "fal ai": "fal", "flux": "bfl", "bfl": "bfl", "black forest labs": "bfl", "runway": "runway",
+         "higgsfield": "higgsfield", "luma": "luma", "luma ai": "luma", "cartesia": "cartesia", "meshy": "meshy",
+         "github": "github"}
 HOSTS = {"box.com": "box", "dropbox.com": "dropbox", "figma.com": "figma", "drive.google.com": "google-drive",
+         "githubcopilot.com": "github",                  # GitHub's own MCP server: api.githubcopilot.com/mcp
          "linear.app": "linear", "notion.com": "notion", "notion.so": "notion", "onedrive.com": "onedrive",
-         "onedrive.live.com": "onedrive", "sentry.io": "sentry", "sentry.dev": "sentry"}
+         "onedrive.live.com": "onedrive", "sentry.io": "sentry", "sentry.dev": "sentry", "elevenlabs.io": "elevenlabs",
+         "fal.ai": "fal", "bfl.ai": "bfl", "runwayml.com": "runway", "higgsfield.ai": "higgsfield",
+         "lumalabs.ai": "luma", "cartesia.ai": "cartesia", "meshy.ai": "meshy"}
 FILLER = ("mcp", "server")
+# the services the add form offers by name: each maker's hosted MCP, signed in to in the browser, as its docs add it
+OFFERED = (("fal", "fal", "https://mcp.fal.ai/mcp-relay"),
+           ("elevenlabs", "elevenlabs", "https://api.elevenlabs.io/v1/mcp"), ("bfl", "flux", "https://mcp.bfl.ai"),
+           ("runway", "runway", "https://mcp.runwayml.com/mcp"),
+           ("figma", "figma", "https://mcp.figma.com/mcp"))
 ADDRESS = "Its address, starting with https://"         # what the add form says of an address it does not take
 
 

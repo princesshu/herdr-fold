@@ -86,9 +86,16 @@ every tab; in the app every section is open but Subagents, kept per space.
 One column of marks stands before the names: ✕ red for a connector that failed, a yellow dot for one to sign in to
 or for a conflict, a green dot for what the open chat used. On and off have no mark. A row ends with its state (`32
 tools`, `on`, `failed`, `sign in`, `off here`; `allow`, `ask`, `deny`) and where it comes from (Global, Project,
-Local, Managed, claude.ai, Built-in, a plugin's name), each in a column; the tags are muted, never a hue. A connector
-wears its service's logo (the TUI: its glyph or its letter). A file both agents read carries both agents' icons in
-the app.
+Local, Managed, claude.ai, Built-in, a plugin's name), each in a column; the tags are muted, never a hue. A known
+service's connector is named as its maker writes it (Sentry, ElevenLabs, fal, FLUX), its name in the agent's config
+in its properties (`Name`), and wears its logo where the maker's licence gives one (SVG Logos'; FLUX and Meshy their
+letter; the TUI: its glyph or its letter). A file both agents read carries both agents' icons in the app.
+
+A media service (ElevenLabs, fal, FLUX, Runway, Higgsfield, Luma, Cartesia, Meshy) bills in credits, not tokens: its
+row says what it makes (`voice`, `image, video`) and its calls today in place of its tools and their cost (`7 calls
+today`, `no calls today`), each MCP call of that server in today's Claude and Codex chats on the machine counted once
+(`core/calls.py`); what its tools load at start is in its properties (`Loads`). Money is never shown: no service tells
+a call's price in the chat.
 
 A conflict is a permission a deny or an ask hides: a yellow dot, the rule, and its sentence under it (`deny in
 Project hides allow in Global`).
@@ -112,7 +119,13 @@ its buttons:
 A connector is added from Connectors' + (the TUI: More's `Add from claude.ai…` and `Add by URL…`, or `a`).
 `From claude.ai…` opens claude.ai's connectors page. `By URL…` is a form: Name (letters, digits, `-`, `_`), URL
 (https, or http to this machine) and, for Claude, For: this folder (Claude's `local` scope) or `All projects`
-(`user`). `Add and connect` runs the agent's own `mcp add`. Codex adds for every folder.
+(`user`). `Add and connect` runs the agent's own `mcp add`. Codex adds for every folder. Under them, by name and logo
+(the TUI: `Add fal…`), the media services and Figma not added yet: each fills the form with its maker's hosted MCP,
+signed in to in the browser by Connect, never a key (fal `https://mcp.fal.ai/mcp-relay`, ElevenLabs
+`https://api.elevenlabs.io/v1/mcp`, FLUX `https://mcp.bfl.ai`, Runway `https://mcp.runwayml.com/mcp`, Figma
+`https://mcp.figma.com/mcp`). The prompt-writing know-how for a service (its style, ratio and what to avoid) is a
+skill of your own (`kling-video`, `hero-image`), listed under Skills with its cost like any other; herdr-fold ships
+none.
 
 ### Usage
 

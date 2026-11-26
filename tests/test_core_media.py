@@ -1,5 +1,6 @@
-"""Tests for core/media.py: which files the preview draws as pictures, an image as a PNG (sips), a PDF's pages as PNGs
-(PDFKit, through a Swift helper compiled once), and the browser that opens them (LaunchServices' https handler)."""
+"""Tests for core/media.py: an image as a PNG (sips), a PDF's pages as PNGs (PDFKit, through a Swift helper compiled
+once), a video's frame and audio's waveform (AVFoundation), and what opens them (LaunchServices' https handler, the
+player, the Finder). The clips are made here: a WAV by Python's wave, an MP4 of one JPEG frame put together by hand."""
 import http.server
 import os
 import plistlib
@@ -11,6 +12,7 @@ import tempfile
 import threading
 import time
 import unittest
+import wave
 import zlib
 from unittest import mock
 
@@ -32,6 +34,54 @@ def png(path, width, height):
     with open(path, "wb") as f:
         f.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
                 + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+    return path
+
+
+def wav(path, seconds, rate=8000):
+    """A mono WAV of SECONDS at PATH: a tone that swells from nothing to loud."""
+    count = int(seconds * rate)
+    with wave.open(path, "wb") as f:
+        f.setnchannels(1)
+        f.setsampwidth(2)
+        f.setframerate(rate)
+        f.writeframes(b"".join(struct.pack("<h", int(30000 * n / count) * (1 if n % 16 < 8 else -1))
+                               for n in range(count)))
+    return path
+
+
+def mp4(path, width, height, frames=2, scale=600):
+    """An MP4 of FRAMES one-second frames, WIDTH x HEIGHT, each the same JPEG (sips made from a PNG), at PATH."""
+    jpeg = path + ".jpg"
+    subprocess.run(["sips", "-s", "format", "jpeg", png(path + ".png", width, height), "--out", jpeg],
+                   capture_output=True, check=True)
+    with open(jpeg, "rb") as f:
+        frame = f.read()
+
+    def box(kind, *parts):
+        return struct.pack(">I", 8 + sum(map(len, parts))) + kind + b"".join(parts)
+
+    def full(kind, flags, *parts):
+        return box(kind, struct.pack(">I", flags), *parts)
+    length, matrix = frames * scale, struct.pack(">9I", 0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000)
+    head = box(b"ftyp", b"isom", struct.pack(">I", 512), b"isomiso2mp41")
+    entry = box(b"jpeg", b"\0" * 6, struct.pack(">H", 1), b"\0" * 16, struct.pack(">HHII", width, height, 0x480000,
+                                                                                0x480000),
+                struct.pack(">IH", 0, 1), b"\x0bPhoto - JPEG".ljust(32, b"\0"), struct.pack(">Hh", 24, -1))
+    table = box(b"stbl", full(b"stsd", 0, struct.pack(">I", 1), entry),
+                full(b"stts", 0, struct.pack(">III", 1, frames, scale)),
+                full(b"stsc", 0, struct.pack(">IIII", 1, 1, frames, 1)),
+                full(b"stsz", 0, struct.pack(">II", 0, frames), struct.pack(">I", len(frame)) * frames),
+                full(b"stco", 0, struct.pack(">II", 1, len(head) + 8)))         # both frames the one in mdat
+    media_box = box(b"mdia", full(b"mdhd", 0, struct.pack(">IIIIHH", 0, 0, scale, length, 0x55c4, 0)),
+                    full(b"hdlr", 0, b"\0" * 4, b"vide", b"\0" * 12, b"Video\0"),
+                    box(b"minf", full(b"vmhd", 1, b"\0" * 8),
+                        box(b"dinf", full(b"dref", 0, struct.pack(">I", 1), full(b"url ", 1))), table))
+    track = box(b"trak", full(b"tkhd", 3, struct.pack(">IIIII", 0, 0, 1, 0, length), b"\0" * 16, matrix,
+                              struct.pack(">II", width << 16, height << 16)), media_box)
+    movie = box(b"moov", full(b"mvhd", 0, struct.pack(">IIII", 0, 0, scale, length), struct.pack(">IH", 0x10000, 0x100),
+                              b"\0" * 10, matrix, b"\0" * 24, struct.pack(">I", 2)), track)
+    with open(path, "wb") as f:
+        f.write(head + box(b"mdat", frame) + movie)
     return path
 
 
@@ -70,21 +120,7 @@ def pdf(path, pages, turned=()):
     return path
 
 
-class Kinds(unittest.TestCase):
-    def test_pictures_pdfs_and_pages(self):
-        for name, kind in [("a.PNG", "image"), ("b.jpeg", "image"), ("c.webp", "image"), ("d.heic", "image"),
-                           ("e.pdf", "pdf"), ("f.html", "html"), ("g.HTM", "html"), ("h.svg", "svg"), ("i.py", None),
-                           ("Makefile", None)]:
-            with self.subTest(name=name):
-                self.assertEqual(media.kind_of(name), kind)
-
-    def test_every_picture_macos_reads(self):
-        """Whatever macOS's ImageIO reads is a picture: the web's, Apple's, Adobe's, the GPU's, a camera's raw file."""
-        for ext in (".avif", ".heif", ".jxl", ".jp2", ".ico", ".icns", ".psd", ".tga", ".exr", ".hdr", ".dds", ".ktx",
-                    ".astc", ".pbm", ".pgm", ".ppm", ".dng", ".cr2", ".cr3", ".nef", ".arw", ".raf", ".orf", ".rw2"):
-            with self.subTest(ext=ext):
-                self.assertEqual(media.kind_of("a" + ext.upper()), "image")
-
+class Sizes(unittest.TestCase):
     def test_a_png_knows_its_size(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(media.size(png(os.path.join(tmp, "a.png"), 30, 20)), (30, 20))
@@ -176,6 +212,36 @@ class Browser(unittest.TestCase):
         self.assertEqual([media.opener(name, "darwin") for name in ("a.exr", "b.PNG", "c.svg", "d.pdf")],
                          ["Preview", "Browser", "Browser", "Browser"])
         self.assertEqual(media.opener("a.exr", "linux"), "Browser")              # the desktop's own opener there
+
+    def test_audio_and_video_open_in_the_player_named_never_what_the_files_type_says(self):
+        """QuickTime Player on a Mac, given the clip's real file; a file named like a clip that is none (a script, a
+        link to one, an app's folder) is refused: macOS would run what its type says."""
+        self.assertEqual([media.opener(name, platform) for name, platform in (("a.mp3", "darwin"), ("b.MP4", "darwin"),
+                                                                               ("c.wav", "linux"))],
+                         ["Player", "Player", "Player"])
+        voice = wav(os.path.join(self.home, "voice-over.wav"), 1)
+        os.symlink(voice, os.path.join(self.home, "take.wav"))
+        for name in ("voice-over.wav", "take.wav"):
+            self.assertEqual(media.open_argv(os.path.join(self.home, name), "darwin"),
+                             ["open", "-a", "QuickTime Player", os.path.realpath(voice)])
+        script = os.path.join(self.home, "run.command")
+        with open(script, "w") as f:
+            f.write("#!/bin/sh\necho ran\n")
+        os.chmod(script, 0o755)
+        shutil.copy(script, os.path.join(self.home, "hero-clip.mp4"))       # a script named like a video
+        os.symlink(script, os.path.join(self.home, "hero-shot.mov"))        # a link to one
+        os.makedirs(os.path.join(self.home, "Lumen.app.mp4", "Contents"))   # an app's folder
+        for name in ("hero-clip.mp4", "hero-shot.mov", "Lumen.app.mp4", "gone.mp4"):
+            with self.subTest(name), mock.patch.object(media.subprocess, "Popen") as started:
+                self.assertIsNone(media.open_argv(os.path.join(self.home, name), "darwin"))
+                self.assertFalse(media.open_in_browser(os.path.join(self.home, name)))
+                started.assert_not_called()
+
+    def test_show_in_finder_is_macos_own(self):
+        with mock.patch.object(media.subprocess, "Popen") as started:
+            self.assertTrue(media.reveal("/w/renders/hero-shot.webp", "darwin"))
+            self.assertFalse(media.reveal("/w/renders/hero-shot.webp", "linux"))
+        self.assertEqual(started.call_args.args[0], ["open", "-R", "/w/renders/hero-shot.webp"])
 
     def test_elsewhere_the_desktops_own(self):
         with mock.patch.object(media.shutil, "which", lambda name: "/usr/bin/xdg-open" if name == "xdg-open" else None):
@@ -438,7 +504,49 @@ class ForTheApp(unittest.TestCase):
 
     def test_no_picture_for_anything_else(self):
         self.assertEqual(media.picture("/w/notes.md", 0, 100), {"kind": None, "pages": None, "png": None,
-                                                                 "size": None, "pixels": None})
+                                                                 "size": None, "pixels": None, "seconds": None,
+                                                                 "levels": None})
+
+
+@unittest.skipUnless(MAC and shutil.which("swiftc") and shutil.which("sips"), "AVFoundation, swiftc, sips: macOS")
+class Clips(unittest.TestCase):
+    """A video's frame for the preview, drawn as a picture is, and audio's waveform: their seconds, a video's pixels."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.cache = tempfile.mkdtemp()               # one compile for all of them
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.cache)
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        set_env(self, HERDR_APP_HOME=os.path.join(self.tmp, "app"), XDG_CACHE_HOME=self.cache)
+
+    def test_a_videos_frame_its_pixels_and_seconds(self):
+        answer = media.picture(mp4(os.path.join(self.tmp, "hero-shot.mp4"), 64, 36), 0, 400)
+        self.assertEqual({key: answer[key] for key in ("kind", "pages", "size", "pixels", "seconds", "levels")},
+                         {"kind": "video", "pages": None, "size": [64, 36], "pixels": [64, 36], "seconds": 2.0,
+                          "levels": None})
+        self.assertEqual(media.size(os.path.join(self.tmp, "app", answer["png"])), (64, 36))
+
+    def test_audios_waveform_its_loudness_step_by_step(self):
+        answer = media.picture(wav(os.path.join(self.tmp, "voice-over.wav"), 2), 0, 400)
+        self.assertEqual([answer[key] for key in ("kind", "png", "pixels", "seconds")], ["audio", None, None, 2.0])
+        levels = answer["levels"]
+        self.assertEqual(len(levels), media.LEVELS)
+        self.assertTrue(all(0 <= level <= 100 for level in levels))
+        self.assertLess(levels[0], 5)                               # it swells: quiet at its start, loud at its end
+        self.assertGreater(levels[-1], 85)
+
+    def test_what_cannot_be_read_as_a_clip_is_none(self):
+        broken = os.path.join(self.tmp, "broken.mp4")
+        with open(broken, "wb") as f:
+            f.write(b"not a movie")
+        self.assertIsNone(media.still(broken, self.tmp, 400))
+        self.assertEqual(media.picture(broken, 0, 400), media.blank("video"))
 
 
 @unittest.skipUnless(MAC and shutil.which("swiftc"), "PDFKit and swiftc: macOS")

@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass, field
 
 import column
+import filekinds
 import media
 import statefile
 
@@ -82,25 +83,26 @@ def writable(path, root):
 def editable(path, root):
     """Whether PATH opens in the user's editor: writable() under ROOT, nothing drawn here (a page or an SVG drawn stays
     in the preview, where e edits it)."""
-    kind = media.kind_of(path)
-    if kind in ("image", "pdf") or kind in ("svg", "html") and media.drawable(path):
+    kind = filekinds.kind_of(path)
+    if kind in ("image", "pdf", "audio", "video") or kind in ("svg", "html") and media.drawable(path):
         return False
     return writable(path, root)
 
 
 def file_spec(root, path, line, which=shutil.which):
-    """An image or a PDF as a picture; else bat with LINE marked (one row per line, so the pager's line N is the
-    file's), or the file itself: a pipe or a device too, which bat would wait on and the pager does not read."""
-    if media.kind_of(path) in ("image", "pdf"):
+    """An image, a PDF, audio or a video as a picture; else bat with LINE marked (one row per line, so the pager's
+    line N is the file's), or the file itself: a pipe or a device too, which bat would wait on and the pager does not
+    read."""
+    if filekinds.kind_of(path) in ("image", "pdf", "audio", "video"):
         return {"title": os.path.relpath(path, root), "line": None, "file": None, "pipeline": [], "picture": path}
     bat = which("bat") if not (os.path.exists(path) and not os.path.isfile(path)) else None
     marked = ["--highlight-line", str(line)] if line else []
     pipeline = [[bat, "--color=always", "--paging=never", "--wrap=never", "--style=numbers,changes", *marked, path]]
     pipeline = pipeline if bat else []
     spec = {"title": os.path.relpath(path, root), "line": line, "file": None if bat else path, "pipeline": pipeline}
-    if media.kind_of(path) in ("svg", "html") and media.drawable(path):     # code and a picture, side by side; e edits
+    if filekinds.kind_of(path) in ("svg", "html") and media.drawable(path):     # code and a picture beside it; e edits
         spec.update(picture=path, **({"edit": path} if writable(path, root) else {}))
-    return {**spec, "open": path} if media.kind_of(path) in ("html", "svg") and media.browsable() else spec
+    return {**spec, "open": path} if filekinds.kind_of(path) in ("html", "svg") and media.browsable() else spec
 
 
 def git_argv(git, root, command):
@@ -118,7 +120,7 @@ DELTA = ["--paging=never", "--line-numbers", "--hunk-header-decoration-style=non
 
 def diff_spec(root, path, staged, which=shutil.which):
     """The diff of PATH (pages/[id].tsx is that one file); a picture's before and after (pager.PictureChange)."""
-    if media.kind_of(path) == "image":
+    if filekinds.kind_of(path) == "image":
         return {"title": path, "change": {"root": root, "path": path, "staged": staged}}
     git, delta = which("git") or "git", which("delta")
     diff = git_argv(git, root, "diff") + (["--cached"] if staged else [])

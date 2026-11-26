@@ -72,7 +72,17 @@ The sidebar treats the folder it shows as a stranger's, a download or a clone:
   digits, `-` and `_` and the address https (or http to this machine) with no user or password in it; Turn off and Turn
   on give Claude its own `/mcp disable <name>` or `/mcp enable <name>` in a conversation of that folder (sent by the app
   to an idle Claude, typed but not sent by the sidebar). herdr-fold writes none of Claude's or Codex's files itself, and
-  no token is read, kept or printed: the sign-in is between the agent, your browser and the service;
+  no token is read, kept or printed: the sign-in is between the agent, your browser and the service. The add form's
+  offered services (fal, ElevenLabs, FLUX, Runway, Figma) only fill its fields with their makers' documented hosted
+  address; nothing is added before your press, and herdr-fold never calls a service itself;
+- a media connector's calls today are counted from today's Claude and Codex session files on this machine (the tool's
+  name alone, nothing kept); where a picture, audio or a video came from is read from the chat that made it (its
+  tool calls' model, prompt and the skill in use, shown, never kept or sent), and a clip's frame and waveform are made
+  on this Mac by AVFoundation (a Swift helper compiled into the cache, as the PDF one is). Open in Player names its
+  app (QuickTime Player on a Mac, as the browser and Preview are named), never what the file's type says, and hands it
+  only a clip's real file: a regular file of an audio or video kind whose first bytes are a clip's, so a script, an
+  app or a link to one named like a clip is refused. Ask for another sends that chat one fixed request (the app) or
+  types it there unsent (the sidebar), on your press;
 - a chat's + menu in the Herdr app: Upload from computer… opens macOS's own file chooser (`osascript`, a fixed script,
   the chat's folder its one argument) and keeps the paths you picked only until the message is sent, as `@path` in its
   words (herdr-fold reads none of the files); Add context… lists the folder's file names (`core/search.py`, as a search

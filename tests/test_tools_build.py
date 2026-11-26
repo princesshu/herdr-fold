@@ -1,6 +1,7 @@
 """Tests for tools/build.py: the shared data layer lives once, in core/, and each piece that installs on its own (the
 TUI sidebar, Spaces, the Herdr app mod) carries a copy of what it needs; a copy differing from core/ fails here."""
 import ast
+import functools
 import importlib.util
 import json
 import os
@@ -17,18 +18,24 @@ sys.path.insert(0, os.path.join(PACKAGE, "tools"))
 import build  # noqa: E402
 
 CORE = os.path.join(PACKAGE, "core")
+
+
+@functools.lru_cache(maxsize=None)
+def built():
+    """build.outputs() once for the whole run (seconds each, as the helpers grew): every test reads the same files."""
+    return build.outputs()
 HELPER_LARGEST = 120 * 1024     # bytes of a helper's source: Linux's MAX_ARG_STRLEN (128 KiB) with room to grow
 HELPER_ROOM = 8 * 1024          # bytes each helper keeps free of that: the next lines its modules gain fit
 
 
 class Copies(unittest.TestCase):
     def test_every_copy_is_what_the_core_makes_now(self):
-        for rel, content in build.outputs().items():
+        for rel, content in built().items():
             with self.subTest(rel), open(os.path.join(PACKAGE, rel), encoding="utf-8") as f:
                 self.assertEqual(f.read(), content, "out of date: /usr/bin/python3 tools/build.py")
 
     def test_a_copy_names_its_source_first(self):
-        for rel, content in build.outputs().items():
+        for rel, content in built().items():
             if rel.endswith(".json"):
                 continue                                # no comment in JSON: the app's theme, made from the TUI's
             with self.subTest(rel):
@@ -39,23 +46,24 @@ class Copies(unittest.TestCase):
         sidebar = os.path.join("src", "plugins", "sidebar")
         for name in sorted(os.listdir(CORE)):
             if name.endswith(".py"):
-                self.assertEqual(os.path.join(sidebar, name) in build.outputs(), name not in build.MOD_ONLY, name)
+                self.assertEqual(os.path.join(sidebar, name) in built(), name not in build.MOD_ONLY, name)
         in_helpers = {name for sources in build.HELPERS.values() for name in sources.values()}
         self.assertLessEqual(build.MOD_ONLY, in_helpers)
-        self.assertIn(os.path.join(sidebar, "agent_setup.py"), build.outputs())     # the TUI's Agent view reads it
+        self.assertIn(os.path.join(sidebar, "agent_setup.py"), built())     # the TUI's Agent view reads it
 
     def test_the_mod_gets_each_brand_with_its_logos_path(self):
         # icons.js's BRANDS: core/connectors.py's, a logo by the path the app loads it (tools/icons.py fetched it)
         connectors = build.module("connectors")
-        made = build.outputs()[build.ICONS]
+        made = built()[build.ICONS]
         brands = json.loads(re.search(r"^export const BRANDS = (\{.*?^\});$", made, re.M | re.S).group(1))
         self.assertEqual(sorted(brands), sorted(connectors.BRANDS))
         self.assertEqual(brands["linear"], {"name": "Linear", "logo": "mods/herdr-fold/icons/logos/linear-icon.svg",
                                             "mono": True})
         self.assertEqual(brands["google-drive"]["mono"], False)
+        self.assertEqual([key for key, one in brands.items() if not one["logo"]], ["bfl", "meshy"])     # their letter
         for key, one in brands.items():
             with self.subTest(key):
-                self.assertTrue(os.path.isfile(os.path.join(PACKAGE, "app", one["logo"])))
+                self.assertTrue(not one["logo"] or os.path.isfile(os.path.join(PACKAGE, "app", one["logo"])))
 
     def test_the_mod_runs_the_connectors_commands(self):
         helper = os.path.join("app", "mods", "herdr-fold", "helper.js")
@@ -65,7 +73,7 @@ class Copies(unittest.TestCase):
     def test_spaces_gets_core_git_and_what_it_imports(self):
         # its Spaces row's repository inside a folder is core/git.py's, as the Herdr app mod's Spaces list's is
         folder = os.path.join("src", "plugins", "spaces")
-        made = sorted(os.path.basename(rel) for rel in build.outputs() if os.path.dirname(rel) == folder)
+        made = sorted(os.path.basename(rel) for rel in built() if os.path.dirname(rel) == folder)
         self.assertEqual(made, sorted(["git.py"] + [module + ".py" for module in build.imports("git.py")]))
 
 
@@ -186,7 +194,7 @@ class AppTheme(unittest.TestCase):
         self.default = apply.current_id(os.path.join(PACKAGE, "config", "ghostty", "config"))
 
     def made(self, name):
-        return json.loads(build.outputs()[os.path.join("app", "themes", name)])
+        return json.loads(built()[os.path.join("app", "themes", name)])
 
     def test_every_tui_theme_is_one_of_the_apps_in_its_colors(self):
         for tui in self.themes:
@@ -196,7 +204,7 @@ class AppTheme(unittest.TestCase):
                                  (colors["background"], colors["foreground"], colors["cursor"], colors["palette"]))
                 self.assertEqual((made["colors"]["accent"], made["colors"]["selected"]),
                                  (frame["accent"], frame["active_row_bg"]))
-        themes = {rel for rel in build.outputs() if rel.startswith(os.path.join("app", "themes", ""))}
+        themes = {rel for rel in built() if rel.startswith(os.path.join("app", "themes", ""))}
         self.assertEqual(len(themes), len(self.themes) + 1)        # each theme, and the layout's own
 
     def test_an_agents_state_wears_the_tuis_color(self):
@@ -232,7 +240,7 @@ class AppTheme(unittest.TestCase):
 
     def every_app_theme(self):
         """Each app theme the build makes ({file name: its colors}), the layout's own among them."""
-        return {os.path.basename(rel): json.loads(content)["colors"] for rel, content in build.outputs().items()
+        return {os.path.basename(rel): json.loads(content)["colors"] for rel, content in built().items()
                 if rel.startswith(os.path.join("app", "themes", ""))}
 
     def test_each_theme_names_its_three_levels_in_its_palettes_words(self):

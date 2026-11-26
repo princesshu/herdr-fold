@@ -92,6 +92,11 @@ more than 3 cells wider, a smaller nudge going back to the rail.
 Agent, the row's fifth button, shows what the agent in the tab starts with in the folder, changes a part of it from a
 form, and leads to the Usage view (`U`), the Runs view (`r`: what the agents ran in the background) and the agent's
 graph as a tree in the preview tab (`g`). All of it, for both clients: [The agent's harness](harness.md).
+A known service's connector is named as its maker writes it, its letter or glyph before it; a media service's (fal,
+ElevenLabs, FLUX, Runway) says what it makes and its calls today (`voice`, `7 calls today`), and More's `Add fal…`,
+`Add ElevenLabs…` and the like fill the add form with its maker's hosted MCP. What such a service made shows in the
+preview tab with where it came from
+([Pictures, audio and video an agent made](usage.md#pictures-audio-and-video-an-agent-made)).
 
 The pictures below are from before the view's redesign; its sections, their order and the words are in that page.
 

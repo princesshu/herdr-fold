@@ -42,6 +42,7 @@ export const ICONS = {
   "monitor": "mods/herdr-fold/icons/lucide/monitor.svg",
   "notebook": "mods/herdr-fold/icons/lucide/notebook.svg",
   "panel-left": "mods/herdr-fold/icons/lucide/panel-left.svg",
+  "play": "mods/herdr-fold/icons/lucide/play.svg",
   "plug": "mods/herdr-fold/icons/lucide/plug.svg",
   "plus": "mods/herdr-fold/icons/lucide/plus.svg",
   "refresh-cw": "mods/herdr-fold/icons/lucide/refresh-cw.svg",
@@ -225,9 +226,19 @@ export const LETTER = {
   "U": "!"
 };
 export const BRANDS = {
+  "bfl": {
+    "name": "FLUX",
+    "logo": null,
+    "mono": false
+  },
   "box": {
     "name": "Box",
     "logo": "mods/herdr-fold/icons/logos/box.svg",
+    "mono": false
+  },
+  "cartesia": {
+    "name": "Cartesia",
+    "logo": "mods/herdr-fold/icons/logos/cartesia-icon.svg",
     "mono": false
   },
   "dropbox": {
@@ -235,20 +246,50 @@ export const BRANDS = {
     "logo": "mods/herdr-fold/icons/logos/dropbox.svg",
     "mono": false
   },
+  "elevenlabs": {
+    "name": "ElevenLabs",
+    "logo": "mods/herdr-fold/icons/logos/elevenlabs-icon.svg",
+    "mono": true
+  },
+  "fal": {
+    "name": "fal",
+    "logo": "mods/herdr-fold/icons/logos/fal-icon.svg",
+    "mono": true
+  },
   "figma": {
     "name": "Figma",
     "logo": "mods/herdr-fold/icons/logos/figma.svg",
     "mono": false
+  },
+  "github": {
+    "name": "GitHub",
+    "logo": "mods/herdr-fold/icons/logos/github-icon.svg",
+    "mono": true
   },
   "google-drive": {
     "name": "Google Drive",
     "logo": "mods/herdr-fold/icons/logos/google-drive-2020.svg",
     "mono": false
   },
+  "higgsfield": {
+    "name": "Higgsfield",
+    "logo": "mods/herdr-fold/icons/logos/higgsfield-icon.svg",
+    "mono": false
+  },
   "linear": {
     "name": "Linear",
     "logo": "mods/herdr-fold/icons/logos/linear-icon.svg",
     "mono": true
+  },
+  "luma": {
+    "name": "Luma",
+    "logo": "mods/herdr-fold/icons/logos/luma-icon.svg",
+    "mono": true
+  },
+  "meshy": {
+    "name": "Meshy",
+    "logo": null,
+    "mono": false
   },
   "notion": {
     "name": "Notion",
@@ -259,6 +300,11 @@ export const BRANDS = {
     "name": "OneDrive",
     "logo": "mods/herdr-fold/icons/logos/microsoft-onedrive.svg",
     "mono": false
+  },
+  "runway": {
+    "name": "Runway",
+    "logo": "mods/herdr-fold/icons/logos/runway-icon.svg",
+    "mono": true
   },
   "sentry": {
     "name": "Sentry",

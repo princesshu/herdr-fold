@@ -1,7 +1,7 @@
 # Generated from core/media.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
-"""What the preview draws as a picture: an image (sips), a PDF's page (PDFKit), an SVG or a page (WebKit, offline),
-through Swift helpers compiled once into the cache; what opens them; which files are text to edit. The Herdr app mod's,
-in JSON: media.py picture PATH PAGE WIDTH [HEIGHT], committed ROOT PATH WIDTH, open PATH, text ROOT PATH."""
+"""What the preview draws: an image (sips), a PDF's page (PDFKit), an SVG or a page (WebKit, offline), a clip's frame
+and waveform (AVFoundation), through Swift helpers compiled once; what opens them; which files are text to edit. In
+JSON: media.py picture PATH PAGE WIDTH [HEIGHT], committed ROOT PATH WIDTH, open PATH, reveal PATH, text ROOT PATH."""
 import contextlib
 import glob
 import hashlib
@@ -19,15 +19,8 @@ import time
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 import git  # noqa: E402
+from filekinds import IMAGES, kind_of  # noqa: E402
 
-IMAGES = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".bmp", ".ico")     # the web's: a browser shows them
-# the rest macOS's ImageIO reads (sips makes a PNG of each): Apple's, Adobe's, the GPU's, a camera's raw file
-PICTURES = (".heic", ".heics", ".heif", ".hif", ".tif", ".tiff", ".jxl", ".jp2", ".j2k", ".jpf", ".jpe", ".mpo", ".cur",
-            ".icns", ".psd", ".tga", ".exr", ".hdr", ".sgi", ".pict", ".pct", ".pbm", ".pgm", ".ppm", ".pnm", ".dds",
-            ".ktx", ".ktx2", ".astc", ".pvr", ".dcm", ".dng", ".cr2", ".cr3", ".crw", ".nef", ".nrw", ".arw", ".srf",
-            ".sr2", ".raf", ".orf", ".rw2", ".pef", ".srw", ".erf", ".3fr", ".fff", ".iiq", ".mos", ".mrw", ".dcr",
-            ".rwl")
-KINDS = {**{ext: "image" for ext in IMAGES + PICTURES}, ".pdf": "pdf", ".html": "html", ".htm": "html", ".svg": "svg"}
 WEB = IMAGES + (".svg", ".pdf", ".html", ".htm")     # what a browser shows: any other picture opens in Preview
 SAFARI = "com.apple.Safari"
 TEXT_LIMIT = 1 << 20          # bytes: the most a file opens to edit, as the Herdr app reads it (readTextFile)
@@ -36,8 +29,12 @@ AGENT_SETTINGS = re.compile(r"(?:^|/)\.(?:claude/settings(?:\.[^/]+)?\.json|code
 APP_PICTURES = "herdr-fold-pictures"     # in the Herdr app's home: its image() takes a path from there
 TIMEOUT = 120                 # seconds a compile or a page may take
 DENSITY = 2                   # a drawn SVG's or page's pixels to a point: a Mac's screen
+LEVELS = 160                  # an audio file's loudness steps, its waveform's bars
+CLIPS = (b"ID3", b"RIFF", b"FORM", b"caff", b"fLaC", b"OggS", b"\x1a\x45\xdf\xa3")    # a clip's first bytes
+BOXES = (b"ftyp", b"moov", b"mdat", b"wide", b"free", b"skip")        # an MP4's or a MOV's first box, at byte 4
 # the Swift helpers, each compiled once: pdf-pages `sizes PDF` prints each page's size in points, `render PDF N WIDTH
-# OUT` writes page N (from 0) WIDTH pixels wide; page-shot `PATH WIDTH OUT RULES [HEIGHT]` draws a page or an SVG
+# OUT` writes page N (from 0) WIDTH pixels wide; page-shot `PATH WIDTH OUT RULES [HEIGHT]` draws a page or an SVG;
+# media-still `PATH OUT WIDTH COUNT` prints a clip's seconds, a video's pixels (writing its frame), audio's levels
 HELPERS = {"pdf-pages": """import AppKit
 import PDFKit
 let a = CommandLine.arguments
@@ -143,12 +140,56 @@ WKContentRuleListStore(url: URL(fileURLWithPath: a[4]))!
 let end = Date(timeIntervalSinceNow: 60)
 while !done && Date() < end { RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05)) }
 exit(done && !failed ? 0 : 3)
+""", "media-still": """import AVFoundation
+import AppKit
+let a = CommandLine.arguments
+guard a.count == 5, let width = Int(a[3]), let count = Int(a[4]), width > 0, count > 0 else { exit(2) }
+let asset = AVURLAsset(url: URL(fileURLWithPath: a[1]))
+let length = CMTimeGetSeconds(asset.duration)
+let seconds = length.isFinite && length > 0 ? length : 0
+print("seconds", seconds)
+if let track = asset.tracks(withMediaType: .video).first {          // a frame a tenth in, WIDTH at most
+  let shape = track.naturalSize.applying(track.preferredTransform)
+  print("pixels", Int(abs(shape.width).rounded()), Int(abs(shape.height).rounded()))
+  let still = AVAssetImageGenerator(asset: asset)
+  still.appliesPreferredTrackTransform = true
+  still.maximumSize = CGSize(width: width, height: width)
+  guard let frame = try? still.copyCGImage(at: CMTime(seconds: seconds / 10, preferredTimescale: 600), actualTime: nil),
+        let png = NSBitmapImageRep(cgImage: frame).representation(using: .png, properties: [:]),
+        (try? png.write(to: URL(fileURLWithPath: a[2]))) != nil else { exit(3) }
+} else if let track = asset.tracks(withMediaType: .audio).first, let reader = try? AVAssetReader(asset: asset) {
+  let out = AVAssetReaderTrackOutput(track: track, outputSettings: [AVFormatIDKey: kAudioFormatLinearPCM,
+    AVLinearPCMBitDepthKey: 16, AVLinearPCMIsFloatKey: false, AVLinearPCMIsBigEndianKey: false,
+    AVLinearPCMIsNonInterleaved: false])
+  reader.add(out)
+  guard reader.startReading() else { exit(3) }
+  var levels: [Int] = [], loudest = 0, n = 0, step = 0                // COUNT steps, each its loudest sample
+  while let buffer = out.copyNextSampleBuffer(), let block = CMSampleBufferGetDataBuffer(buffer) {
+    if step == 0, let format = CMSampleBufferGetFormatDescription(buffer),
+       let basic = CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee {
+      step = max(1, Int(seconds * basic.mSampleRate * Double(basic.mChannelsPerFrame) / Double(count)))
+    }
+    var at = 0
+    let total = CMBlockBufferGetDataLength(block)
+    while at < total {
+      var length = 0, data: UnsafeMutablePointer<Int8>? = nil
+      guard CMBlockBufferGetDataPointer(block, atOffset: at, lengthAtOffsetOut: &length, totalLengthOut: nil,
+                                        dataPointerOut: &data) == kCMBlockBufferNoErr, let data, length > 1
+      else { break }
+      data.withMemoryRebound(to: Int16.self, capacity: length / 2) { samples in
+        for i in 0..<(length / 2) {
+          loudest = max(loudest, abs(Int(samples[i])))
+          n += 1
+          if n >= step { levels.append(loudest * 100 / 32768); (loudest, n) = (0, 0) }
+        }
+      }
+      at += length
+    }
+  }
+  if n > 0 { levels.append(loudest * 100 / 32768) }
+  print("levels", levels.prefix(count).map(String.init).joined(separator: " "))
+} else { exit(3) }
 """}
-
-
-def kind_of(path):
-    """image, pdf, html or svg (a picture that is code too) by PATH's extension, else None."""
-    return KINDS.get(os.path.splitext(path)[1].lower())
 
 
 def text_refusal(path):
@@ -350,15 +391,39 @@ def browser():
 
 
 def opener(path, platform=sys.platform):
-    """Where o and Open in … open PATH: the browser, or on a Mac Preview for a picture no browser shows."""
+    """Where o and Open in … open PATH: audio and video in the player (on a Mac QuickTime Player), the browser, or on
+    a Mac Preview for a picture no browser shows."""
+    if kind_of(path) in ("audio", "video"):
+        return "Player"
     return "Preview" if platform == "darwin" and os.path.splitext(path)[1].lower() not in WEB else "Browser"
 
 
+def clip(path):
+    """PATH's real file where it is audio or a video, a regular file whose first bytes are a clip's (an MP4's or a
+    MOV's box, WebM's, WAV's, AIFF's, CAF's, FLAC's, Ogg's, an MP3's or AAC's frame); else None: a script, an app or
+    a link to one, named like a clip, is never handed to a player."""
+    real = os.path.realpath(path)
+    try:
+        with open(real, "rb") as f:
+            head = f.read(12) if stat.S_ISREG(os.fstat(f.fileno()).st_mode) else b""
+    except OSError:
+        return None
+    known = head.startswith(CLIPS) or head[4:8] in BOXES or len(head) > 1 and head[0] == 0xFF and head[1] >= 0xE0
+    return real if known and kind_of(real) in ("audio", "video") else None
+
+
 def open_argv(path, platform=sys.platform):
-    """The command that opens PATH in the default browser (on a Mac Preview, as opener() says): macOS's open,
-    Windows' Explorer (the app for its kind), else the desktop's opener; None without one."""
+    """The command that opens PATH where opener() says (the default browser, Preview, the player, each named, never
+    what the file's type says): macOS's open, Windows' Explorer, else the desktop's opener; a clip by its real file,
+    clip()'s; None without one, or for what clip() refuses."""
+    played = opener(path, platform) == "Player"
+    path = clip(path) if played else path
+    if not path and played:
+        return None
     if platform == "darwin":
-        return ["open", *(["-a", "Preview"] if opener(path, platform) == "Preview" else ["-b", browser()]), path]
+        way = {"Preview": ["-a", "Preview"], "Player": ["-a", "QuickTime Player"]}.get(opener(path, platform),
+                                                                                    ["-b", browser()])
+        return ["open", *way, path]
     if platform == "win32":
         return ["explorer", path]
     return ["xdg-open", path] if shutil.which("xdg-open") else None
@@ -384,21 +449,50 @@ def app_pictures():
     return made
 
 
+def still(path, folder, width):
+    """A clip as the preview shows it (AVFoundation, through media-still): its seconds, a video's pixels and frame (a
+    PNG WIDTH wide at most, made in FOLDER), audio's LEVELS loudness steps (0 to 100); None where it cannot be read."""
+    made = os.path.join(folder, f"{named(path)}-still-{width}.png")
+    tool = helper("media-still")
+    done = run([tool, path, made, str(width), str(LEVELS)], TIMEOUT, text=True) if tool else None
+    if not done or done.returncode != 0:
+        return None
+    told = dict(line.partition(" ")[::2] for line in done.stdout.splitlines())
+    try:
+        seconds = round(float(told.get("seconds", "")), 2)
+        shape = [int(n) for n in told["pixels"].split()] if "pixels" in told else None
+        levels = [min(100, int(n)) for n in told["levels"].split()] if "levels" in told else None
+    except ValueError:
+        return None
+    return {"seconds": seconds, "pixels": shape, "png": made if size(made) else None, "levels": levels}
+
+
+def blank(kind):
+    """What picture() says of a file it draws nothing of: its kind alone."""
+    return {"kind": kind, "pages": None, "png": None, "size": None, "pixels": None, "seconds": None, "levels": None}
+
+
 def picture(path, page, width, height=None):
     """PATH as the app's preview draws it: its kind, a PDF's pages (each one's size in points), and the PNG of the image
-    or of PAGE, WIDTH wide (an SVG or a page, HEIGHT high at most), made in the app's home (its path from there) with
-    its size (in points, a drawn one's), or None; an image's own pixels."""
+    or of PAGE, WIDTH wide (an SVG or a page, HEIGHT high at most; a video's frame), made in the app's home (its path
+    from there) with its size (in points, a drawn one's), or None; its own pixels; a clip's seconds, audio's levels."""
     kind = kind_of(path)
-    if kind not in ("image", "pdf", "svg", "html"):
-        return {"kind": kind, "pages": None, "png": None, "size": None, "pixels": None}
-    folder = app_pictures()
+    folder = app_pictures() if kind in ("image", "pdf", "svg", "html", "audio", "video") else None
+    if kind in ("audio", "video"):
+        clip = still(path, folder, width) or {}
+        made = clip.get("png")
+        return {**blank(kind), "png": made and f"{APP_PICTURES}/{os.path.basename(made)}",
+                "size": made and list(size(made)), "pixels": clip.get("pixels"), "seconds": clip.get("seconds"),
+                "levels": clip.get("levels")}
+    if not folder:
+        return blank(kind)
     made = page_png(path, page, width, folder) if kind == "pdf" else drawn_png(path, width, folder, height) \
         if kind in ("svg", "html") else as_png(path, folder, width)
     if made and os.path.dirname(made) != folder:          # an image already small enough: a copy in the app's home
         made = shutil.copyfile(made, os.path.join(folder, f"{named(path)}.png"))
     density = DENSITY if made and "-drawn-" in os.path.basename(made) else 1     # WebKit's: drawn twice as sharp
     shape = pixels(path) if made and kind == "image" else None
-    return {"kind": kind, "pages": pages(path) if kind == "pdf" else None,
+    return {**blank(kind), "pages": pages(path) if kind == "pdf" else None,
             "png": made and f"{APP_PICTURES}/{os.path.basename(made)}",
             "size": made and [n // density for n in size(made)], "pixels": shape and list(shape)}
 
@@ -410,16 +504,26 @@ def committed_picture(root, path, width):
         out = os.path.join(work, os.path.basename(path))           # its extension kept: its kind
         if git.committed(root, path, out):
             return picture(out, 0, width)
-    return {"kind": kind_of(path), "pages": None, "png": None, "size": None, "pixels": None}
+    return blank(kind_of(path))
 
 
 def open_in_browser(path):
-    """PATH opened in the default browser, not waited for; whether there was a way to."""
+    """PATH opened where opener() says (the browser, Preview, the player), not waited for; whether there was a way
+    to."""
     argv = open_argv(path)
     if argv:
         subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                          start_new_session=True)
     return bool(argv)
+
+
+def reveal(path, platform=sys.platform):
+    """PATH shown in the Finder, chosen in its folder (macOS's open -R), not waited for; whether there was a way to."""
+    if platform != "darwin":
+        return False
+    subprocess.Popen(["open", "-R", path], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True)
+    return True
 
 
 def main(argv):
@@ -430,11 +534,13 @@ def main(argv):
         answer = committed_picture(args[0], args[1], int(args[2]))
     elif command == "open" and len(args) == 1:
         answer = {"opened": open_in_browser(args[0])}
+    elif command == "reveal" and len(args) == 1:
+        answer = {"shown": reveal(args[0])}
     elif command == "text" and len(args) == 2:
         answer = text(*args)
     else:
         print("usage: media.py picture PATH PAGE WIDTH [HEIGHT] | committed ROOT PATH WIDTH | open PATH"
-              " | text ROOT PATH", file=sys.stderr)
+              " | reveal PATH | text ROOT PATH", file=sys.stderr)
         return 2
     print(json.dumps(answer))
     return 0

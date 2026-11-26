@@ -1,6 +1,6 @@
 """Tests for core/connectors.py: the agents' own commands for a connector, each one argv with the name and the address
 as given or refused; a connector's brand by its name, else by its address; the address Claude prints while it waits
-for a sign-in; the brands' logos in the mod, as SVG Logos has them."""
+for a sign-in; the brands' logos in the mod, as SVG Logos has them; the media services the add form offers."""
 import contextlib
 import io
 import json
@@ -109,18 +109,25 @@ class Commands(unittest.TestCase):
 
 class Brands(unittest.TestCase):
     def test_each_brand_has_its_name_logo_glyph_and_color(self):
-        self.assertEqual(sorted(connectors.BRANDS), ["box", "dropbox", "figma", "google-drive", "linear", "notion",
-                                                     "onedrive", "sentry"])
+        self.assertEqual(sorted(connectors.BRANDS), ["bfl", "box", "cartesia", "dropbox", "elevenlabs", "fal", "figma",
+                                                     "github", "google-drive", "higgsfield", "linear", "luma", "meshy",
+                                                     "notion", "onedrive", "runway", "sentry"])
+        # SVG Logos' (CC0); FLUX's maker and Meshy give no logo to take: their letter
         self.assertEqual({key: one["logo"] for key, one in connectors.BRANDS.items()}, {
-            "box": "box", "dropbox": "dropbox", "figma": "figma", "google-drive": "google-drive-2020",
-            "linear": "linear-icon", "notion": "notion-icon", "onedrive": "microsoft-onedrive",
-            "sentry": "sentry-icon"})
-        self.assertEqual(sorted(key for key, one in connectors.BRANDS.items() if one["mono"]), ["linear", "sentry"])
+            "bfl": None, "box": "box", "cartesia": "cartesia-icon", "dropbox": "dropbox",
+            "elevenlabs": "elevenlabs-icon",
+            "fal": "fal-icon", "figma": "figma", "github": "github-icon", "google-drive": "google-drive-2020",
+            "higgsfield": "higgsfield-icon",
+            "linear": "linear-icon", "luma": "luma-icon", "meshy": None, "notion": "notion-icon",
+            "onedrive": "microsoft-onedrive", "runway": "runway-icon", "sentry": "sentry-icon"})
+        self.assertEqual(sorted(key for key, one in connectors.BRANDS.items() if one["mono"]),
+                         ["elevenlabs", "fal", "github", "linear", "luma", "runway", "sentry"])
         self.assertEqual(sorted(key for key, one in connectors.BRANDS.items() if one["glyph"] is None),
-                         ["box", "linear"])
+                         ["bfl", "box", "cartesia", "elevenlabs", "fal", "higgsfield", "linear", "luma", "meshy",
+                          "runway"])
         # Nerd Fonts' brand glyphs, each one cell: Material Design's, Font Awesome's, Devicons'
         self.assertEqual({key: one["glyph"] for key, one in connectors.BRANDS.items() if one["glyph"]}, {
-            "google-drive": "\U000f02b6", "dropbox": "", "notion": "", "sentry": "",
+            "google-drive": "\U000f02b6", "dropbox": "", "notion": "", "sentry": "", "github": "\uf09b",
             "figma": "", "onedrive": "\U000f03ca"})
         for key, one in connectors.BRANDS.items():
             with self.subTest(key):
@@ -128,18 +135,26 @@ class Brands(unittest.TestCase):
                 self.assertRegex(one["color"], r"^#[0-9a-f]{6}$")
                 self.assertTrue(one["name"])
         self.assertEqual(connectors.BRANDS["google-drive"]["name"], "Google Drive")
+        # as each maker writes it: fal in lower case, FLUX as Black Forest Labs names its connector
+        self.assertEqual([connectors.BRANDS[key]["name"] for key in ("fal", "elevenlabs", "bfl", "runway")],
+                         ["fal", "ElevenLabs", "FLUX", "Runway"])
 
     def test_a_connector_is_known_by_its_name(self):
         for label, key in (("Box", "box"), ("Google Drive", "google-drive"), ("google-drive", "google-drive"),
                            ("google_drive", "google-drive"), ("gdrive", "google-drive"), ("Linear", "linear"),
                            ("Notion", "notion"), ("sentry", "sentry"), ("Dropbox", "dropbox"), ("figma", "figma"),
                            ("OneDrive", "onedrive"), ("Microsoft OneDrive", "onedrive"), ("Box (2)", "box"),
-                           ("sentry-mcp", "sentry"), ("Notion MCP server", "notion"), ("  LINEAR ", "linear")):
+                           ("sentry-mcp", "sentry"), ("Notion MCP server", "notion"), ("  LINEAR ", "linear"),
+                           ("elevenlabs", "elevenlabs"), ("ElevenLabs", "elevenlabs"), ("fal", "fal"),
+                           ("fal-ai", "fal"), ("FLUX", "bfl"), ("flux", "bfl"), ("Black Forest Labs", "bfl"),
+                           ("runway", "runway"), ("Higgsfield", "higgsfield"), ("Luma AI", "luma"),
+                           ("cartesia-mcp", "cartesia"), ("meshy", "meshy")):
             with self.subTest(label=label):
                 self.assertEqual(connectors.brand(label, None), key)
 
     def test_a_name_that_only_holds_a_brands_is_not_it(self):
-        for label in ("Sandbox", "boxer", "notional", "linear-algebra", "harbor-api", "Google", "Drive", "", None, 7):
+        for label in ("Sandbox", "boxer", "notional", "linear-algebra", "harbor-api", "Google", "Drive", "falcon",
+                      "fluxion", "runway-lights", "", None, 7):
             with self.subTest(label=label):
                 self.assertIsNone(connectors.brand(label, None))
 
@@ -148,7 +163,11 @@ class Brands(unittest.TestCase):
                          ("mcp.figma.com/mcp", "figma"), ("mcp.linear.app/sse", "linear"),
                          ("https://mcp.notion.com/mcp", "notion"), ("mcp.sentry.dev/mcp", "sentry"),
                          ("https://sentry.io/mcp", "sentry"), ("https://MCP.Box.com:443/x?y=1", "box"),
-                         (f"https://me{AT}mcp.box.com/", "box")):
+                         (f"https://me{AT}mcp.box.com/", "box"), ("https://mcp.fal.ai/mcp-relay", "fal"),
+                         ("https://api.elevenlabs.io/v1/mcp", "elevenlabs"), ("https://mcp.bfl.ai", "bfl"),
+                         ("https://mcp.runwayml.com/mcp", "runway"), ("https://mcp.higgsfield.ai/mcp", "higgsfield"),
+                         ("https://agents.lumalabs.ai/mcp", "luma"), ("https://mcp.cartesia.ai/mcp", "cartesia"),
+                         ("https://mcp.meshy.ai/mcp", "meshy")):
             with self.subTest(url=url):
                 self.assertEqual(connectors.brand("harbor", url), key)
 
@@ -163,7 +182,7 @@ class Brands(unittest.TestCase):
 
     def test_every_brands_logo_is_in_the_mod(self):
         held = sorted(name[:-len(".svg")] for name in os.listdir(LOGOS))
-        self.assertEqual(held, sorted(one["logo"] for one in connectors.BRANDS.values()),
+        self.assertEqual(held, sorted(one["logo"] for one in connectors.BRANDS.values() if one["logo"]),
                          "out of date: /usr/bin/python3 tools/icons.py logos")
 
     def test_a_logo_draws_alone_with_nothing_fetched(self):
@@ -179,13 +198,27 @@ class Brands(unittest.TestCase):
                 self.assertFalse(re.findall(r"https?://(?!www\.w3\.org/2000/svg\")", text))
 
     def test_a_mono_mark_has_one_color_and_the_others_their_own(self):
-        for key, one in connectors.BRANDS.items():
+        for key, one in ((key, one) for key, one in connectors.BRANDS.items() if one["logo"]):
             with self.subTest(key), open(os.path.join(LOGOS, one["logo"] + ".svg"), encoding="utf-8") as f:
                 fills = {fill.lower() for fill in re.findall(r'fill="(#[0-9A-Fa-f]{3,8})"', f.read())}
                 if one["mono"]:
                     self.assertLessEqual(len(fills), 1, fills)
                 else:
                     self.assertTrue(fills)
+
+
+class Offered(unittest.TestCase):
+    def test_the_add_form_offers_the_media_services_by_their_makers_hosted_mcp(self):
+        # each maker's documented address, a brand of its own, a name both agents take
+        self.assertEqual([(key, name) for key, name, _ in connectors.OFFERED],
+                         [("fal", "fal"), ("elevenlabs", "elevenlabs"), ("bfl", "flux"), ("runway", "runway"),
+                          ("figma", "figma")])
+        for key, name, url in connectors.OFFERED:
+            with self.subTest(key):
+                self.assertEqual(connectors.brand(name, url), key)
+                self.assertEqual(connectors.add("claude", name, url, "local"),
+                                 ["claude", "mcp", "add", "--transport", "http", "--scope", "local", name, url])
+                self.assertEqual(connectors.add("codex", name, url), ["codex", "mcp", "add", name, "--url", url])
 
 
 class LoginUrl(unittest.TestCase):

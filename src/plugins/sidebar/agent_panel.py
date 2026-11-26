@@ -10,6 +10,7 @@ import time
 import agent_layers
 import agent_setup
 import agent_state
+import calls
 import connectors
 import costs
 import graph
@@ -196,6 +197,7 @@ class Agent(Family):
             base, answered = checked.get(one["name"], (None, None))
             if answered and one["state"] == base:
                 one.update(state=answered["state"], error=answered["error"])
+        calls.counted(setup["servers"], home)
         now = int(time.time())
         return {**said, "states": states, "usage": usage.section(usage.limits(home, now), agents, agent, now),
                 "twelve": usage.twelve_hours(home), **agent_layers.layers(setup, agent, root, home)}
