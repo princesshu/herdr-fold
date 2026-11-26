@@ -21,7 +21,7 @@ const PREVIEW = {
   },
   "issues": {
    "name": "Issues",
-   "glyph": ""
+   "glyph": ""
   },
   "agent": {
    "name": "Agent",

@@ -26,6 +26,8 @@ AT_LINE = ("micro", "nano", "vim", "vi", "nvim")    # the editors that open at a
 # line the file, its line and column and those keys; nano's help lines, which name other keys, hidden (pico's too)
 OPTIONS = {"micro": ["-basename", "true", "-statusformatl", " $(filename) $(modified)Ln $(line), Col $(col)",
                      "-statusformatr", "  Cmd+S Save  Cmd+F Find  Cmd+Z Undo  Cmd+W Close "], "nano": ["-x"]}
+# Esc in micro, as a preview's: a selection off, else the tab closed (micro asks first where a change is unsaved)
+MICRO_ESC = "Deselect|Quit"
 READY = 1.5                   # seconds a new tab's sidebar may take to start before the tab is shown all the same
 QUICK = 2                     # seconds within which an editor that ends opened its own window
 
@@ -61,7 +63,8 @@ class Herdr:
 
 def editor(line=None, env=os.environ, which=shutil.which, mac=sys.platform == "darwin"):
     """The user's editor's argv, at LINE where it takes +N: $VISUAL, else $EDITOR (its words split as a shell would:
-    code -w), else the first of micro, nano and vim found, on a MAC with its OPTIONS before +N; None without one."""
+    code -w), else the first of micro, nano and vim found (micro with micro_config()'s folder), on a MAC with its
+    OPTIONS before +N; None without one."""
     named = env.get("VISUAL") or env.get("EDITOR")
     try:
         argv = shlex.split(named, posix=os.name != "nt") if named else []
@@ -71,7 +74,44 @@ def editor(line=None, env=os.environ, which=shutil.which, mac=sys.platform == "d
     argv = argv or ([found] if found else [])
     program = os.path.basename(argv[0] if argv else "").lower()
     at = [f"+{line}"] if line and program in AT_LINE else []
-    return argv + (OPTIONS.get(program, []) if mac else []) + at if argv else None
+    folder = micro_config(env) if program == "micro" else None
+    return argv + (["-config-dir", folder] if folder else []) + (OPTIONS.get(program, []) if mac else []) + at \
+        if argv else None
+
+
+def micro_config(env=os.environ):
+    """A config folder for micro that is the user's own, each of its entries linked in, but for its bindings: theirs
+    with Esc as MICRO_ESC; None (micro as it is) where they bound Esc, their bindings cannot be read or ENV has no
+    HOME."""
+    home = env.get("HOME")
+    if not home:
+        return None
+    own = env.get("MICRO_CONFIG_HOME") or os.path.join(env.get("XDG_CONFIG_HOME") or os.path.join(home, ".config"),
+                                                      "micro")
+    try:
+        with open(os.path.join(own, "bindings.json"), encoding="utf-8") as f:
+            bindings = json.load(f)
+    except FileNotFoundError:
+        bindings = {}
+    except (OSError, ValueError):
+        return None
+    if not isinstance(bindings, dict) or "Esc" in bindings:
+        return None
+    folder = os.path.join(env.get("XDG_STATE_HOME") or os.path.join(home, ".local", "state"), "herdr-fold", "micro")
+    try:
+        for name in ("buffers", "backups"):            # its history and backups in their own folder, not this one
+            os.makedirs(os.path.join(own, name), exist_ok=True)
+        os.makedirs(folder, exist_ok=True)
+        for name in os.listdir(folder):                 # the last editor's links, made again as their folder is now
+            if os.path.islink(os.path.join(folder, name)) or name == "bindings.json":
+                os.remove(os.path.join(folder, name))
+        for name in os.listdir(own):
+            if name != "bindings.json":
+                os.symlink(os.path.join(own, name), os.path.join(folder, name))
+        statefile.write(os.path.join(folder, "bindings.json"), {**bindings, "Esc": MICRO_ESC})
+    except OSError:
+        return None
+    return folder
 
 
 def writable(path, root):

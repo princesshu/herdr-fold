@@ -189,10 +189,38 @@ class Commands(unittest.TestCase):
         self.assertEqual(preview.editor(12, {}, tools("micro"), mac=False), ["/opt/bin/micro", "+12"])
         self.assertEqual(preview.editor(12, {"EDITOR": "code -w"}, tools(), mac=False), ["code", "-w"])
 
+    def test_micro_closes_its_tab_on_esc_with_the_users_own_config_otherwise(self):
+        # its own folder: each of the user's entries linked in, their bindings with Esc a selection off, else Quit
+        home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, home)
+        own = os.path.join(home, ".config", "micro")
+        os.makedirs(os.path.join(own, "plug"))
+        with open(os.path.join(own, "settings.json"), "w") as f:
+            f.write('{"tabsize": 2}')
+        with open(os.path.join(own, "bindings.json"), "w") as f:
+            f.write('{"Ctrl-q": "Quit"}')
+        argv = preview.editor(None, {"HOME": home}, tools("micro"), mac=False)
+        folder = os.path.join(home, ".local", "state", "herdr-fold", "micro")
+        self.assertEqual(argv, ["/opt/bin/micro", "-config-dir", folder])
+        with open(os.path.join(folder, "bindings.json")) as f:
+            self.assertEqual(json.load(f), {"Ctrl-q": "Quit", "Esc": "Deselect|Quit"})
+        for name in ("settings.json", "plug", "buffers", "backups"):        # their history and backups stay theirs
+            self.assertEqual(os.readlink(os.path.join(folder, name)), os.path.join(own, name))
+        os.remove(os.path.join(own, "settings.json"))
+        preview.editor(None, {"HOME": home}, tools("micro"), mac=False)    # made again as their folder is now
+        self.assertFalse(os.path.lexists(os.path.join(folder, "settings.json")))
+        with open(os.path.join(own, "bindings.json"), "w") as f:
+            f.write('{"Esc": "Escape"}')                                    # their own Esc: micro as it is
+        self.assertEqual(preview.editor(None, {"HOME": home}, tools("micro"), mac=False), ["/opt/bin/micro"])
+        with open(os.path.join(own, "bindings.json"), "w") as f:
+            f.write("{not json")                                            # unreadable: micro as it is
+        self.assertEqual(preview.editor(None, {"HOME": home}, tools("micro"), mac=False), ["/opt/bin/micro"])
+        self.assertEqual(preview.editor(None, {"HOME": home, "EDITOR": "vim"}, tools("micro"), mac=False), ["vim"])
+
     def test_on_a_mac_micros_status_line_says_the_file_and_the_tabs_keys(self):
         # the Cmd keys cmd_keys.py gives micro, on its command line alone (never its settings), before +N: its flags
         # end at the first word that is none
-        argv = preview.editor(12, {}, tools("micro"), mac=True)
+        argv = preview.editor(12, {}, tools("micro"), mac=True)                 # no HOME: micro as it is
         self.assertEqual((argv[0], argv[-1]), ("/opt/bin/micro", "+12"))
         options = dict(zip(argv[1:-1:2], argv[2:-1:2]))
         self.assertEqual(sorted(options), ["-basename", "-statusformatl", "-statusformatr"])

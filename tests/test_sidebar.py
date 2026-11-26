@@ -1728,6 +1728,41 @@ def column_tab(n, ratio=0.75):
                        "second": pane(f"w{n}:p3", "terminal")}}
 
 
+class PreviewTabEsc(unittest.TestCase):
+    """Esc in the sidebar of a preview tab, nothing of its own open: the tab closes, as its pager's Esc closes it."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(dir="/tmp")
+        self.addCleanup(shutil.rmtree, self.tmp)
+        set_env(self, HERDR_PANE_ID="w1:p9", HOME=self.tmp)
+        self.label, self.calls = "preview: README.md", []
+        self.app = sidebar.App(self.tmp, FakeTerminal(45, 30), mock.Mock(call=self.call),
+                               os.path.join(self.tmp, "state"))
+        self.addCleanup(end_jobs)
+
+    def call(self, *args):
+        self.calls.append(args)
+        if args[:2] == ("pane", "get"):
+            return {"pane": {"pane_id": args[2], "tab_id": "w1:t2"}}
+        if args[:2] == ("tab", "get"):
+            return {"tab": {"tab_id": args[2], "label": self.label}}
+        return {}
+
+    def test_esc_closes_a_preview_tab(self):
+        self.app.handle(Key("esc"))
+        self.assertIn(("tab", "close", "w1:t2"), self.calls)
+
+    def test_esc_leaves_any_other_tab(self):
+        self.label = "lumen-api"
+        self.app.handle(Key("esc"))
+        self.assertNotIn(("tab", "close", "w1:t2"), self.calls)
+
+    def test_esc_closes_the_chats_list_first(self):
+        self.app.open_chats()
+        self.app.handle(Key("esc"))
+        self.assertEqual((self.app.chats, ("tab", "close", "w1:t2") in self.calls), (False, False))
+
+
 class Rail(unittest.TestCase):
     """The dock folded to its rail by the row's », in every tab: each panel's icon alone, a press opening the dock on
     that panel (the ✦'s list too) as « where » was does; every tab's column and terminal with it."""

@@ -281,11 +281,12 @@ class PackageSettings(unittest.TestCase):
                                     theme["id"])
 
     def test_the_prompt_fits_the_narrow_terminal_and_never_names_the_repository(self):
-        # the branch and the git status before the ❯; a folder line above only where it tells something: in a
-        # repository the path inside it (the space names the repository), none at its top; outside one the path
+        # the ❯ alone (the git state is the sidebar's Changes'); a folder line above only where it tells something: in
+        # a repository the path inside it (the space names the repository), none at its top; outside one the path
         with open(os.path.join(PACKAGE, "config", "starship.toml"), encoding="utf-8") as f:
             starship = f.read()
-        self.assertIn('\nformat = "$directory$git_status$character"\n', starship)
+        self.assertIn('\nformat = "$directory$character"\n', starship)
+        self.assertNotIn("git_status", starship)                         # Changes says it: one sign of it
         self.assertIn('\nformat = "[$path]($style)[$read_only]($read_only_style)\\n"\n', starship)
         self.assertIn('\nrepo_root_format = "([$path]($style)[$read_only]($read_only_style)\\n)"\n', starship)
         self.assertIn("\nrepo_root_style = ", starship)                 # starship takes repo_root_format with it only
@@ -309,10 +310,10 @@ class PackageSettings(unittest.TestCase):
         self.assertNotIn("#cba6f7", made)
 
     def test_the_pickers_sample_prompt_is_the_one_the_terminal_shows(self):
-        # the folder from the repository's root alone, then the branch, the status and the ❯, as starship draws them
+        # the folder from the repository's root alone, then the ❯, as starship draws them
         import picker
         rows = [re.sub(r"\x1b\[[0-9;]*m", "", row).rstrip() for row in picker.sample(apply.load_themes()[0], 56)]
-        self.assertEqual(rows[:2], [" /src", " [!] ❯ claude"])
+        self.assertEqual(rows[:2], [" /src", " ❯ claude"])
 
     def test_the_pickers_close_button_leaves_the_theme_as_it_is(self):
         # every popup's close button: a click on it goes as Esc does, nothing applied

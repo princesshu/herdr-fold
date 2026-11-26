@@ -554,6 +554,8 @@ class App(Loop):
             if name == "esc" and self.chats and not self.engaged(panel):
                 self.close_chats()
                 return
+            if name == "esc" and not (editing or self.engaged(panel)) and self.close_preview():
+                return
             if panel:
                 self.act(self.views[panel].handle(event), panel)
             return
@@ -799,6 +801,19 @@ class App(Loop):
         if not column.keep(self.state_dir, {"rail": rail}):
             self.error = "settings not saved"
         self.reshape(every=True)
+
+    def close_preview(self):
+        """Esc in a preview tab's sidebar with nothing of its own to close: the tab closed, as its pager's Esc does
+        (preview.LABEL its name); whether it was one."""
+        tab = preview.this_tab(self.herdr)
+        try:
+            label = self.herdr.call("tab", "get", tab)["tab"]["label"] if tab else ""
+            if not str(label).startswith(preview.LABEL):
+                return False
+            self.herdr.call("tab", "close", tab)
+        except (RuntimeError, KeyError, TypeError):
+            return False
+        return True
 
     def engaged(self, panel):
         """Whether PANEL has what Esc closes before the list: a menu, a name typed, a question."""
