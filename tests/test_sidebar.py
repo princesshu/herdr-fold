@@ -1037,12 +1037,12 @@ class ColumnWidth(Harness):
         self.addCleanup(fake.server.close)
         set_env(self, HERDR_SOCKET_PATH=os.path.join(sock, "h.sock"), HERDR_PANE_ID="w1:p2")
         self.start()
-        self.until(lambda s: "project" in s and fake.tabs["w1:t1"][0]["ratio"] == 0.59)    # first: every name
-        fake.tabs["w1:t1"][0]["ratio"] = 0.6                                # dragged to 80 cells
+        self.until(lambda s: "project" in s and fake.tabs["w1:t1"][0]["ratio"] == 0.585)   # first: every name
+        fake.tabs["w1:t1"][0]["ratio"] = 0.55                               # dragged to 90 cells
         self.term.type(Resize(40, 30))
-        self.until(lambda s: ("layout.set_split_ratio", {"tab_id": "w2:t1", "path": [], "ratio": 0.6}) in fake.calls)
+        self.until(lambda s: ("layout.set_split_ratio", {"tab_id": "w2:t1", "path": [], "ratio": 0.55}) in fake.calls)
         with open(os.path.join(self.state, "column.json")) as f:
-            self.assertEqual(json.load(f)["open"], 80)                     # in cells: any window keeps it
+            self.assertEqual(json.load(f)["open"], 90)                     # in cells: any window keeps it
 
     def test_a_tab_widened_with_its_share_kept_is_set_back_at_once(self):
         """herdr's own sidebar folded, or the window made wider: the tab wider, its share as it was (herdr keeps a
@@ -1060,12 +1060,12 @@ class ColumnWidth(Harness):
         def right():
             return fake.width - int(fake.width * fake.tabs["w1:t1"][0]["ratio"] + 0.5)
 
-        self.until(lambda s: "project" in s and right() == 82)             # every name: 80 cells and the frame
+        self.until(lambda s: "project" in s and right() == 83)             # every name: 80 cells, the frame, a cell
         settled, waited = column.settled, []
         set_attrs(self, column, settled=lambda pane: waited.append(pane) or settled(pane))
         fake.width = 220                                                    # herdr's sidebar folded to its rail
         self.term.type(Resize(40, 30))
-        self.until(lambda s: right() == 82)
+        self.until(lambda s: right() == 83)
         self.assertEqual(waited, [])
 
 
@@ -1999,10 +1999,10 @@ class Rail(unittest.TestCase):
         self.app.resized()                                                  # herdr's next report of the same drag
         self.settle()
         self.assertEqual((self.app.railed, sidebar.column.railed(self.state), root["ratio"], self.ratio("w2:t1")),
-                         (False, False, 0.59, 0.59))
+                         (False, False, 0.585, 0.585))
         self.assertEqual([params["ratio"] for method, params in self.fake.calls
-                          if method == "layout.set_split_ratio" and params["tab_id"] == "w1:t1"][-1:], [0.59])
-        self.assertEqual(sum(params == {"tab_id": "w1:t1", "path": [], "ratio": 0.59} for method, params in
+                          if method == "layout.set_split_ratio" and params["tab_id"] == "w1:t1"][-1:], [0.585])
+        self.assertEqual(sum(params == {"tab_id": "w1:t1", "path": [], "ratio": 0.585} for method, params in
                              self.fake.calls if method == "layout.set_split_ratio"), 1)
 
     def test_opened_from_the_rail_it_stays_the_rail_until_its_pane_widens(self):
@@ -2064,7 +2064,7 @@ class Rail(unittest.TestCase):
         self.assertEqual((self.app.railed, self.ratio(), self.ratio("w2:t1")), (True, RAILED, RAILED))
         self.app.handle(Key(sidebar.DOCK_KEY))
         self.settle()
-        self.assertEqual((self.app.railed, self.ratio(), self.ratio("w2:t1")), (False, 0.59, 0.59))
+        self.assertEqual((self.app.railed, self.ratio(), self.ratio("w2:t1")), (False, 0.585, 0.585))
         self.press("button:chats")
         self.app.handle(Key(sidebar.DOCK_KEY))                              # the list closing on the way
         self.settle()
@@ -2081,8 +2081,8 @@ class Rail(unittest.TestCase):
                 self.assertEqual((self.app.railed, sidebar.column.railed(self.state), self.app.keyed()),
                                  (False, False, keyed))
                 # each column as wide as it first opens, each terminal back under its sidebar
-                self.assertEqual(self.fake.tabs, {"w1:t1": [column_tab(1, 0.59), False],
-                                                  "w2:t1": [column_tab(2, 0.59), False]})
+                self.assertEqual(self.fake.tabs, {"w1:t1": [column_tab(1, 0.585), False],
+                                                  "w2:t1": [column_tab(2, 0.585), False]})
         self.assertEqual(self.app.shown(), "changes")                       # under the list
 
     def test_the_rows_double_chevron_folds_every_tabs_dock_and_the_rails_opens_it(self):
@@ -2101,7 +2101,7 @@ class Rail(unittest.TestCase):
         self.press("to_dock")
         self.assertFalse(sidebar.column.railed(self.state))
         # each column as wide as it first opens: the names, 80 cells, and the frame: 82 of 200
-        self.assertEqual(self.fake.tabs, {"w1:t1": [column_tab(1, 0.59), False], "w2:t1": [column_tab(2, 0.59),
+        self.assertEqual(self.fake.tabs, {"w1:t1": [column_tab(1, 0.585), False], "w2:t1": [column_tab(2, 0.585),
                                                                                           False]})
 
     def test_another_tabs_sidebar_follows_at_its_next_look(self):
@@ -2118,14 +2118,14 @@ class Rail(unittest.TestCase):
         self.app.handle(Key("f10"))
         self.settle()
         self.assertEqual((self.app.railed, sidebar.column.railed(self.state), self.ratio(), self.ratio("w2:t1")),
-                         (False, False, 0.59, 0.59))
+                         (False, False, 0.585, 0.585))
         self.assertEqual([panel for panel in self.app.panels() if self.app.showing(panel)], ["search"])
         self.app.term.cols = 45
         self.folded()
         self.app.handle(Key(sidebar.FIND))
         self.settle()
         self.assertEqual((self.app.railed, self.app.chats, self.app.keyed(), self.ratio()),
-                         (False, True, "chats", 0.59))
+                         (False, True, "chats", 0.585))
 
     def test_a_sidebar_started_on_the_rail_sets_its_tab(self):
         # a new tab's, a preview tab's: its column the rail, its terminal under its agent; another tab's left as is
@@ -2139,8 +2139,8 @@ class Rail(unittest.TestCase):
     def test_a_sidebar_started_open_sets_its_tab_as_wide_as_chosen_or_first_at_every_name(self):
         # herdr started again, a tab opened or reopened: its column the cells last dragged, whatever the window; an
         # older version's share or cells forgotten, the row's ideal width once
-        for kept, ratio in (({}, 0.59), ({"open": 80}, 0.6), ({"width": 80}, 0.59),
-                            ({"cells": 80, "ratio": 0.6}, 0.59)):
+        for kept, ratio in (({}, 0.585), ({"open": 90}, 0.55), ({"width": 80}, 0.585),
+                            ({"cells": 80, "ratio": 0.6}, 0.585)):
             with self.subTest(kept=kept):
                 os.makedirs(self.state, exist_ok=True)
                 with open(os.path.join(self.state, sidebar.column.FILE), "w") as f:

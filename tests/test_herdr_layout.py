@@ -74,7 +74,8 @@ class Layout(unittest.TestCase):
         import column
         os.makedirs(self.state)
         saved = os.path.join(self.state, "column.json")
-        for measured, share in ((None, 0.75), (200, column.share(1 - (column.IDEAL + column.FRAME) / 200))):
+        named = column.IDEAL + column.FRAME + column.SLACK                    # every name of the row, a cell more
+        for measured, share in ((None, 0.75), (200, column.share(1 - named / 200))):
             def call(method, params, width=measured):
                 if width is None:
                     raise OSError("no herdr")

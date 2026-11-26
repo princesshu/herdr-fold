@@ -66,7 +66,9 @@ own at once, as a flyout switches; the chosen chat's task list stands under its 
 row's last button, opens the pane's own menu under it (over the list while it is open, Show archived first there).
 
 The column keeps one width everywhere, in cells: it first opens as wide as the names need (80 cells inside herdr's
-frame); drag it wider or narrower in one tab, and every other tab's column, in every space and window, gets that
+frame, and a cell more, so herdr's rounding never hides them; let go a hair short of them, up to three cells, it
+snaps up to them as a panel to an edge); drag it wider or narrower in one tab, and every other tab's column, in
+every space and window, gets that
 width at once, and keeps it after herdr restarts; a new column opens at it too. It leaves the agent 30 % of the tab at
 least, a drag wider coming back to that; a window resized keeps the width, narrower only while the window leaves the
 agent less, as wide again once it has the room. Narrower than the names need (80 cells,

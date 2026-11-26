@@ -88,11 +88,26 @@ class Column(unittest.TestCase):
         self.assertIsNone(column.columns({"root": pane("w1:p2", "preview")}))  # no right column
 
     def test_a_dragged_right_column_is_remembered_and_set_in_every_other_tab(self):
-        self.herdr(tab(1, 0.6), **{"w2:t1": tab(2, 0.5), "w3:t1": tab(3, 0.6), "w4:t1": pane("w4:p1", "preview")})
-        self.assertEqual(column.drag(self.state, "w1:p2", 78), 1)               # w3 is that wide already
-        self.assertEqual(column.chosen(self.state), 80)                         # its cells, frame and all
-        self.assertEqual(self.sets(), [("w2:t1", [], 0.6)])
-        self.assertEqual(column.drag(self.state, "w1:p2", 78), 0)               # nothing new: nothing set
+        self.herdr(tab(1, 0.55), **{"w2:t1": tab(2, 0.5), "w3:t1": tab(3, 0.55), "w4:t1": pane("w4:p1", "preview")})
+        self.assertEqual(column.drag(self.state, "w1:p2", 88), 1)               # w3 is that wide already
+        self.assertEqual(column.chosen(self.state), 90)                         # its cells, frame and all
+        self.assertEqual(self.sets(), [("w2:t1", [], 0.55)])
+        self.assertEqual(column.drag(self.state, "w1:p2", 88), 0)               # nothing new: nothing set
+
+    def test_a_column_a_hair_short_of_every_name_snaps_up_to_them_and_a_cell(self):
+        # names a cell or three short of fitting are shown: the column snaps up to them and SLACK, so herdr's rounding
+        # of the split never hides them; further off, or in a window with no room for them, it stays as it is
+        wide, narrow = Columns("w1:t1", [], 0.6, 0.4, 200), Columns("w1:t1", [], 0.6, 0.4, 110)
+        named = column.IDEAL + column.FRAME + column.SLACK
+        self.assertEqual((column.SLACK, column.SNAP, named), (1, 3, 83))
+        for saved, shown in ((78, 78), (79, 83), (82, 83), (83, 83), (84, 84)):
+            self.write_saved(saved)
+            self.assertEqual(column.width(self.state, wide), shown / 200, saved)
+        self.write_saved(80)
+        self.assertEqual(column.width(self.state, narrow), column.most(110) / 110)     # 77: no room for the names
+        self.herdr(tab(1, 0.6))                                                 # let go at 80 cells: up to 83
+        column.drag(self.state, "w1:p2", 78)
+        self.assertEqual((self.sets()[0], column.chosen(self.state)), (("w1:t1", [], 0.585), 83))
 
     def test_the_right_column_keeps_room_for_the_row(self):
         # the row's seven buttons (Agent among them) a cell apart, »'s block, a cell in from each side: their names
@@ -189,21 +204,22 @@ class Column(unittest.TestCase):
     def test_it_opens_at_the_rows_ideal_width_then_as_wide_as_dragged_in_cells_in_any_window(self):
         # first: every name of the row and the frame; then the cells chosen, a wider window or not
         wide, wider = Columns("w1:t1", [], 0.75, 0.25, 200), Columns("w1:t1", [], 0.75, 0.25, 300)
-        self.assertEqual(column.width(self.state, wide), (column.IDEAL + column.FRAME) / 200)
-        self.write_saved(80)
-        self.assertEqual((column.width(self.state, wide), column.width(self.state, wider)), (80 / 200, 80 / 300))
+        self.assertEqual(column.width(self.state, wide), (column.IDEAL + column.FRAME + column.SLACK) / 200)
+        self.write_saved(90)
+        self.assertEqual((column.width(self.state, wide), column.width(self.state, wider)), (90 / 200, 90 / 300))
 
     def test_a_new_tabs_column_is_split_off_as_wide_as_chosen(self):
         self.assertEqual(column.split_share(self.state, "w1:p1"), column.RIGHT)     # no herdr to measure the tab
         self.herdr(pane("w1:p1", "claude"))                                 # the new tab: its shell alone, 200 cells
-        self.assertEqual(column.split_share(self.state, "w1:p1"), 1 - (column.IDEAL + column.FRAME) / 200)
+        self.assertEqual(column.split_share(self.state, "w1:p1"),
+                         1 - (column.IDEAL + column.FRAME + column.SLACK) / 200)
         self.write_saved(60)
         self.assertEqual(column.split_share(self.state, "w1:p1"), 0.7)
 
     def test_folding_keeps_the_open_width(self):
         # folded, every tab's column the rail, as narrow as herdr lets one be; opened, as wide as last chosen again
-        self.write_saved(80)
-        fake = self.herdr(tab(1, 0.6), **{"w2:t1": tab(2, 0.6)})
+        self.write_saved(90)
+        fake = self.herdr(tab(1, 0.55), **{"w2:t1": tab(2, 0.55)})
         set_env(self, HERDR_PANE_ID="w1:p2", HOME=self.tmp)
         self.addCleanup(end_jobs)
         app = sidebar.App(self.tmp, FakeTerminal(45, 30), mock.Mock(call=fake.cli), self.state)
@@ -216,27 +232,27 @@ class Column(unittest.TestCase):
         app.fold_dock(True)
         done()
         self.assertEqual(sorted(self.sets()), [("w1:t1", [], 0.895), ("w2:t1", [], 0.895)])    # 20 and a cell: odd
-        self.assertEqual((column.chosen(self.state), column.railed(self.state)), (80, True))
+        self.assertEqual((column.chosen(self.state), column.railed(self.state)), (90, True))
         fake.tabs["w1:t1"][0]["ratio"] = 0.885                               # the rail nudged 2 cells wider
         app.drag("w1:p2")
-        self.assertEqual((fake.tabs["w1:t1"][0]["ratio"], column.chosen(self.state)), (0.895, 80))
+        self.assertEqual((fake.tabs["w1:t1"][0]["ratio"], column.chosen(self.state)), (0.895, 90))
         fake.width = 300                                                     # the window wider: the share kept
         app.drag("w1:p2")
         self.assertEqual((column.cells(column.read("w1:p2"))[1], column.railed(self.state)), (31, True))  # odd
         fake.width = 200
         app.fold_dock(False)
         done()
-        self.assertEqual([fake.tabs[name][0]["ratio"] for name in ("w1:t1", "w2:t1")], [0.6, 0.6])
+        self.assertEqual([fake.tabs[name][0]["ratio"] for name in ("w1:t1", "w2:t1")], [0.55, 0.55])
         self.assertFalse(column.railed(self.state))
 
     def test_a_window_resized_keeps_the_open_columns_cells(self):
         # herdr keeps each split's share as the window changes: the sidebar sets its column back to the cells chosen,
         # remembering nothing, so a narrow window and back leaves it as it was; a drag after it is still taken
-        self.write_saved(80)
-        fake = self.herdr(tab(1, 0.6), **{"w2:t1": tab(2, 0.6)})
+        self.write_saved(90)
+        fake = self.herdr(tab(1, 0.55), **{"w2:t1": tab(2, 0.55)})
         set_env(self, HERDR_PANE_ID="w1:p2", HOME=self.tmp)
         self.addCleanup(end_jobs)
-        app = sidebar.App(self.tmp, FakeTerminal(78, 30), mock.Mock(call=fake.cli), self.state)
+        app = sidebar.App(self.tmp, FakeTerminal(88, 30), mock.Mock(call=fake.cli), self.state)
         app.reshape()
         for _ in range(3):
             end_jobs()
@@ -246,8 +262,8 @@ class Column(unittest.TestCase):
             fake.width = cells                                               # the window resized: the share kept
             app.drag("w1:p2")
             widths.append(column.cells(column.read("w1:p2"))[1])
-        self.assertEqual((widths, column.chosen(self.state)), ([80, 70, 80], 80))   # 70: the agent keeps 30 of 100
-        self.assertEqual(fake.tabs["w2:t1"][0]["ratio"], 0.6)                # its own sidebar sets that tab
+        self.assertEqual((widths, column.chosen(self.state)), ([84, 70, 90], 90))   # the agent keeps 30 of the window
+        self.assertEqual(fake.tabs["w2:t1"][0]["ratio"], 0.55)               # its own sidebar sets that tab
         fake.tabs["w1:t1"][0]["ratio"] = 0.55                                # then dragged to 90 cells
         app.drag("w1:p2")
         self.assertEqual((column.chosen(self.state), fake.tabs["w2:t1"][0]["ratio"]), (90, 0.55))

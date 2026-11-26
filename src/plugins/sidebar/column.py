@@ -27,6 +27,8 @@ NARROWEST = stack.cells(GROUPS, names=False)    # every view's icon alone and Mo
 FEWEST = stack.cells(WITHOUT_ISSUES, names=False)   # the same without Issues (43): a tab's sidebar takes at least
 IDEAL = stack.cells(GROUPS)                     # every view's name and More's (80): the width it first opens to
 FRAME = 2                   # herdr's frame round a pane, in cells, where it is not measured
+SLACK = 1                   # a cell more than the row's names take: herdr's rounding of a split never hides them
+SNAP = 3                    # cells short of the names' width a column snaps up from, as a panel to an edge
 RAIL = 5                    # the rail: an icon's five cells (stack.ICON_BUTTON) and the margins, each on the middle
 
 
@@ -144,9 +146,16 @@ def chosen(state_dir):
 
 
 def opened(state_dir, tab):
-    """TAB's right column's cells while the dock is open: as last dragged, else as wide as the row's names need (IDEAL
-    and the frame), never narrower than its sidebar's row (least())."""
-    return max(chosen(state_dir) or IDEAL + FRAME, least(state_dir, tab.tab) + FRAME)
+    """TAB's right column's cells while the dock is open: as last dragged, else as wide as the row's names need (IDEAL,
+    the frame and SLACK), never narrower than its sidebar's row (least())."""
+    return max(chosen(state_dir) or IDEAL + FRAME + SLACK, least(state_dir, tab.tab) + FRAME)
+
+
+def snapped(right, total, around=FRAME):
+    """RIGHT, an open column's cells (its frame AROUND them), as it stands: up to every name's width and SLACK from
+    SNAP cells short of it, where a tab TOTAL cells wide has the room; else as it is."""
+    named = IDEAL + around + SLACK
+    return named if named - SLACK - SNAP <= right < named <= most(total) else right
 
 
 def most(cells):
@@ -157,7 +166,7 @@ def most(cells):
 def room(state_dir, tab):
     """TAB's open right column's cells (TAB.cells known): opened()'s, within the agent's room (most()) but never
     narrower than its sidebar's row: a narrow window opens it narrower, a wider one as chosen again."""
-    return max(least(state_dir, tab.tab) + FRAME, min(opened(state_dir, tab), most(tab.cells)))
+    return snapped(max(least(state_dir, tab.tab) + FRAME, min(opened(state_dir, tab), most(tab.cells))), tab.cells)
 
 
 def split_share(state_dir, pane):
@@ -168,7 +177,8 @@ def split_share(state_dir, pane):
         total = next(r["rect"]["width"] for r in rects if r["pane_id"] == pane)
     except (OSError, KeyError, TypeError, StopIteration):
         return RIGHT
-    return share(1 - max(FEWEST + FRAME, min(chosen(state_dir) or IDEAL + FRAME, most(total))) / total)
+    return share(1 - max(FEWEST + FRAME, snapped(min(chosen(state_dir) or IDEAL + FRAME + SLACK, most(total)),
+                                                 total)) / total)
 
 
 def kept(state_dir):
@@ -341,15 +351,16 @@ def frame(tab, pane, inside):
 
 def drag(state_dir, pane, inside, here=None):
     """PANE's right column (INSIDE cells inside its frame; HERE: its tab's columns, settled) was dragged: kept at least
-    least() wide and at most most(), its cells remembered and set in every other tab; as wide as chosen, or at its own
-    least for a narrower one (another tab's drag set it so), nothing new. How many were set."""
+    least() wide and at most most(), snapped(), its cells remembered and set in every other tab; as chosen, or at its
+    own least for a narrower one (another tab's drag set it so), nothing new. How many were set."""
     here = here or settled(pane)
     if not here:
         return 0
     right = cells(here)[1]
     narrowest = least(state_dir, here.tab) + frame(here, pane, inside)
-    if not narrowest <= right <= most(here.cells):
-        right = max(narrowest, min(right, most(here.cells)))
+    fixed = snapped(max(narrowest, min(right, most(here.cells))), here.cells, frame(here, pane, inside))
+    if fixed != right:                          # let go a hair short of every name: snapped up to them
+        right = fixed
         arrange(here, right=right / here.cells)
     kept = chosen(state_dir)
     if not LIMITS[0] <= 1 - right / here.cells <= LIMITS[1] or kept is not None and right == max(kept, narrowest):
