@@ -211,16 +211,17 @@ out](../assets/styleguide/status-bar.webp)
 The window's foot, herdr-fold's own in place of the app's, as the mockups' `.status`: 28 high on the side's level
 (`chrome`) under a hairline, 16 in and its items 16 apart, 12 in the captions' tone. The machine (This computer; another
 machine its network's mark 14 before it, 6 apart, none for one behind another), the branch, then the agents behind a 6
-px dot: those waiting on you in ansi3 (`1 of 3 agents waiting for you`), else those working in the accent
-(`1 agent working`), else how many (`2 agents`) with a dim dot. While a run works in the background, `1 run working`
-after them in the text's color, 20 high, 6 inside, rounded 4, the hover fill under the pointer, a press opening the
-Agents tab on Runs. At its end, only while Herdr has one ready, its update: a green dot (`ansi2`) and
-`Update ready: herdr-core 0.1.21` or `Update ready: Herdr 0.1.16`, 20 high, 6 inside, rounded 4, on the hover fill in
-the text's color under the pointer, its tip saying what a press does (herdr-core updated, the terminals running; Herdr
-restarted into it); while herdr-core updates, a spinner in the dot's place and no press. With neither ready, a newer
-herdr-fold is the same item, `herdr-fold 0.4.0 is out`: its words say what is true (a press updates nothing, it opens
-Settings at About), so they are not Update ready. One item at a time: Herdr, herdr-core, herdr-fold. It is the mod's one
-sign of an update.
+px dot: those waiting on you in ansi3 (`1 of 3 agents waiting for you`), else those working in the accent (`1 agent
+working`), else how many (`2 agents`) with a dim dot. The machine is a press's too: 20 high, 6 inside (its words where
+they were), rounded 4, the hover fill under the pointer, opening the Machines tab on it. While a run works in the
+background, `1 run working` after them in the text's color, 20 high, 6 inside, rounded 4, the hover fill under the
+pointer, a press opening the Agents tab on Runs. At its end, only while Herdr has one ready, its update: a green dot
+(`ansi2`) and `Update ready: herdr-core 0.1.21` or `Update ready: Herdr 0.1.16`, 20 high, 6 inside, rounded 4, on the
+hover fill in the text's color under the pointer, its tip saying what a press does (herdr-core updated, the terminals
+running; Herdr restarted into it); while herdr-core updates, a spinner in the dot's place and no press. With neither
+ready, a newer herdr-fold is the same item, `herdr-fold 0.4.0 is out`: its words say what is true (a press updates
+nothing, it opens Settings at About), so they are not Update ready. One item at a time: Herdr, herdr-core, herdr-fold.
+It is the mod's one sign of an update.
 
 ### The dock's tabs and the search field
 
@@ -494,6 +495,27 @@ A graph of 48 nodes and 72 edges draws in 9 ms of script (measured in the demo a
 draw): the dots are one dashed path, each kind of edge one path, a node six elements. Nothing moves by itself: a
 node follows the pointer while it drags.
 
+### The Machines tab
+
+The main area's tab of that name, one a window, under Lucide's waypoints in the tab bar: graph.html's App frames
+(Wiring, a network down, two routes), the Agents tab's canvas, nodes and edges with four columns. The nodes, edges,
+properties and every word are core's (`machine_graph.py` over `networks.py`'s look); the view keeps the layout
+(`machinestab.js`, its rules in `graph.js`). The styleguide's parts are `machines-graph` and `machines-inspector`; their
+pictures are yet to be taken.
+
+| Part | Measures |
+|---|---|
+| Canvas | the tab's whole card, on `surface`, dots as the Agents tab's; Refresh at its top left, 12 in: a properties button (`actButton`) raised, 26 high, `Checking…` and faint while the status check runs, its tip what it does and when the graph was looked at; a look that failed while a graph shows says why 12 in red beside it, 12 apart |
+| Legend | the Agents tab's, at the top right: direct (solid), relayed (dashed), standby route (three dots 2 wide, 4 apart, at 55%), away (dashed red) |
+| Columns | their names 11 in `muted`, 48 down, each over its column's left edge: This Mac, Networks, Machines, Through (only while a machine is behind another); the first node 80 down, 24 from the left; each column's left edges in one line; two columns as far apart as the widest label between them needs to stand 8 clear of both (96 at least), spread to 180 where the canvas has room, then the canvas scrolls; the machines in core's order 12 apart, a network's 32 from the next one's; a machine behind another from its jump host's height, 12 under the one above; a network beside its machines' middle, one with none after those with some; This Mac beside the networks' middle |
+| Node | the Agents tab's: on `chrome`, rounded 10, 8 and 12 in, 190 wide at least, 300 at most; its mark 14 (This Mac's monitor, a network's mark, a machine's server in `muted`), its title 12 semibold, its tag 11 in `muted` at its top right (a system; a network's state, `signed out` in `ansi3`); its line 11 in `muted` in core's tones (`Codex waiting` `ansi3`, `unreachable` `ansi1` with its edge); This Mac on the accent's 6%, its edge the accent at 60%; a node at half strength while its network is not on; chosen, ringed 2 in the accent, a border, so a node at half strength shows no fill through it |
+| Edge | the Agents tab's (1.5 wide, a node's edges leaving it 4 apart); direct solid, relayed dashed 5 and 5, away dashed in `ansi1`, a machine's other route dotted 2 and 4 in the faint line at 55% (`#8c`), no label; a chosen machine on two routes or more, its route in use 2 wide in the accent, over the others (graph.html's Két út) |
+| Label | at its edge's middle (graph.html's `.lab`), as a gate: 18 high, 6 in, rounded 4, a hairline, on `canvas`, 11 in `muted`: the way and the time (`direct 12 ms`, `relayed`, `19 ms`) |
+| Properties | at the canvas's lower left, 12 in, as the Agents tab's (graph.html's `.insp`): a popover 300 wide (a hairline, rounded 10, `shadow_lg`), 12 inside, its parts 6 apart, 12: the title 20 high (the node's mark, its name semibold, its state 11 in its tone: `connected` `ansi2`, `unreachable` and `off` in `muted`, × 16); why it is away in `ansi3`, wrapping; what to do in `muted`, a command in a box 26 high, 8 in, rounded 6, a hairline, on `canvas`: its words, the command in the code font 11, `Copy` in `muted` at its end (`Copied` a moment); a line 20 high, its label in `muted` in 70, a route's network mark 12 before its value, a fingerprint in the code font 11, the way behind another with `›` in `dim` and its network's mark 12, what it says at its right 11 (`in use`, `3 ms` in `muted`, `standby` in `muted`) |
+| Buttons | properties buttons (`actButton`) 26 high, 6 apart, one row (the TUI view's): Status, Set up again, Check again and a network's `3 machines to add` raised, Remove… plain, then a machine's ⋯ 26 square, its menu (`panelSurface`, 220) over it with Show in Spaces and, on a Linux or macOS machine, Look around from here…; Remove… asks first in their place (`Take build-01 off the list, and herdr-fold off it?` 12 in red, Remove raised, Cancel plain); without the package's `machines.sh` the actions that need it faint, their tip saying why |
+
+What it says instead of a graph (`Loading machines…`, the look's failure in red) stands 12 in, 48 down, under Refresh.
+
 ### Issues
 
 ![An issue's row in each state](../assets/styleguide/issues.webp)
@@ -571,7 +593,8 @@ colors every app mod gives a space), with the TUI's waits: `waiting 12m` in ansi
 sidebar's head, on the tab row's line (as high as the tab bar, under the title row): Herdr's mark and name at its start,
 as the app's own head has them, in the Spaces rows' columns (the mark 18, rounded 4, 16 in over their avatars; the name
 13, semibold, in the text's color, 8 after it); Go to space or tab (the app's picker) and the sidebar's toggle at its
-end, as the mockups draw it, 8 in, the toggle over Spaces' +. Under the list the sidebar's foot, as the app's own foot:
+end, as the mockups draw it, 8 in, the toggle over Spaces' +; Spaces' own head has Lucide's waypoints before its +, 4
+apart (the Machines tab). Under the list the sidebar's foot, as the app's own foot:
 69 high on the side's level under a hairline, Settings and Add machine… each a row 28, 8 in, rounded 8, an icon 14 and
 its name 13, 8 apart, muted, Add machine… dim; Settings opens [Settings](#settings).
 

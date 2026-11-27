@@ -9,7 +9,7 @@ import sys
 import time
 import unittest
 
-from support import PACKAGE, catalog_text, set_env
+from support import PACKAGE, catalog_text, set_attrs, set_env
 
 sys.path.insert(0, os.path.join(PACKAGE, "tools"))          # build.py's words (MACHINE_WORDS), behind core's own
 sys.path.insert(0, os.path.join(PACKAGE, "core"))           # icons: core's, not tools/icons.py
@@ -313,6 +313,25 @@ class Command(unittest.TestCase):
         self.assertEqual(made["nodes"][:2], json.loads(json.dumps(drawn()["nodes"][:2])))
         self.assertEqual(nodes(made)["machine:build-01"]["sub"], "1 space, Codex waiting")
         self.assertEqual(nodes(made)["network:zerotier"]["sub"], "none yet: add one by its address")
+
+    def test_the_look_comes_through_its_input(self):
+        # the app pipes networks.py's here into it (LOOK -): a look of many machines is never one argument
+        set_env(self, TZ="UTC")
+        time.tzset()
+        self.addCleanup(time.tzset)
+        set_attrs(self, sys, stdin=io.StringIO(json.dumps(here())))
+        code, out = self.run_it("-", json.dumps(build.machine_words()), f"--runs={json.dumps(RUNS)}",
+                                f"--kept={json.dumps(KEPT)}")
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["nodes"], json.loads(json.dumps(drawn()["nodes"])))
+        # more than it reads, or nothing: no look
+        err = io.StringIO()
+        set_attrs(self, machine_graph, LOOK_MOST=64)
+        with contextlib.redirect_stderr(err):
+            for given in (json.dumps(here()), ""):
+                set_attrs(self, sys, stdin=io.StringIO(given))
+                self.assertEqual(self.run_it("-", json.dumps(build.machine_words()))[0], 2)
+        self.assertIn("usage: machine_graph.py LOOK WORDS", err.getvalue())
 
     def test_what_it_is_given_is_checked(self):
         runs = {"lumen-api": {"spaces": 10 ** 9, "agents": [["evil\x1b]0;x\x07", "blocked"], "x"]},

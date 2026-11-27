@@ -14,7 +14,8 @@ import { BOTTOM_PX, bottomPx, bottomShown, bottomToggle, chatsToggle, chosenFor,
   find, restoreCommands, updateNotice } from "./logic.js";
 import { badge, icon, iconButton, iconTab } from "./parts.js";
 import { agentHere, agentMark, problemsHere, programs } from "./agent.js";
-import { AGENTS_ASK, AGENTS_TAB, agentsTab, askAgents } from "./graph.js";
+import { AGENTS_ASK, AGENTS_TAB, agentsTab, askAgents, askMachines, MACHINES_ASK, MACHINES_TAB, machinesTab }
+  from "./graph.js";
 import { AGENT_ASK, AGENT_CHOSEN, keepAgent, toneColor } from "./layers.js";
 import { OPENED } from "./chats.js";
 import { openSettings, UPDATES } from "./settings.js";
@@ -87,6 +88,18 @@ export function openAgents(ask = {}) {
   const tab = agentsTab(space, panes());
   if (tab) return void command("tab.select", { id: tab.id });
   command("tab.new", { name: AGENTS_TAB, mod: "herdr-fold", props: { part: "agents", space: space.id } });
+}
+
+/** The window's Machines tab (graph.html's, one a window) shown wherever it is, made in the shown space where there is
+ * none, and told which NODE to choose (core's id: "machine:lumen-api"; null: none). @param {string | null} [node] */
+export function openMachines(node = null) {
+  const all = spaces(), found = machinesTab(all, panes());
+  setShared(MACHINES_ASK, askMachines(node, Date.now()));
+  if (found && !found.space.active) command("space.select", { id: found.space.id });
+  if (found) return void command("tab.select", { id: found.tab.id });
+  if (all.some((s) => s.active)) {
+    command("tab.new", { name: MACHINES_TAB, mod: "herdr-fold", props: { part: "machines" } });
+  }
 }
 
 /** @typedef {{ shown: string | null, views: string[], changed: number, opened?: boolean, px?: number,

@@ -1,6 +1,6 @@
 // @ts-check
-// The Agents tab's graph, pure: its tab and what it is asked to show, where its nodes stand (three columns, a dragged
-// one where it was left), an edge's path, its gate's place. The nodes, edges and words are core's (graph.py).
+// The Agents tab's graph and the Machines tab's, pure: a tab and what it is asked to show, where the nodes stand (three
+// columns, or four), an edge's path, its gate's or label's place. The nodes, edges, words are core's (graph.py's).
 import { contrast, mixColor } from "./agents.js";
 import { ASK_MS } from "./layers.js";
 
@@ -16,7 +16,7 @@ export const IN_ROOM = 96, USES_ROOM = 264;          // px at least between two 
 export const TIGHT = 48;                             // px at least between two columns on a canvas too narrow for those
 export const GATES_MOST = 2 * USES_ROOM;             // px at most a row of gates keeps: two named, a deny and a hook
 const NODE = 190, HIGH = 54, CHIPS = 24;             // px: a node's width at least, its height, its chips' row
-const WIDE = /** @type {Record<string, number>} */ ({ agent: 250, sub: 230, subs: 230 });
+const WIDE = /** @type {Record<string, number>} */ ({ agent: 250, sub: 230, subs: 230, mac: 170 });
 const HANDLE = 120, SHORT = 40;                      // px: an edge's handles, agent-graph.html's; at least
 const SPREAD = 4, PORTS = 5;                         // px between two edges leaving a node, and how many apart
 const DROP = 24, CORNER = 12;                        // px: a subagent's edge from its left, a corner kept clear
@@ -33,7 +33,9 @@ export const VIEWS = ["wiring", "run"];              // the graph's two views, c
 export const DISC = 18;                              // px: a first use's number, on its node's top right corner
 export const FAINT = "59";                           // an edge that did not run, This chat's: at 35%
 const WIRE = 1.5, RAN = 2, RUNNING = 3;              // px: an edge's line; one that ran; the one running now
-const STYLES = ["always", "demand", "waiting", "failed"];     // an edge's styles, core's; any other as on demand
+const STYLES = ["always", "demand", "waiting", "failed", "standby"];   // an edge's styles, core's; any other: demand
+const DASHED = [5, 5], DOTTED = [2, 4];              // px: an on-demand, waiting or failed edge's dashes; a standby's
+const STANDBY = "8c";                                // a standby route's line: faint, at 55% (graph.html's)
 
 /** A node as core words it: TAG its source's word. @typedef {{ id: string, column: string, kind: string,
  * title: string, dim: boolean, icon: string | null, brand: string | null, tag: string | null, sub: string | null,
@@ -204,10 +206,18 @@ function pointAt([p0, p1, p2, p3], t) {
 
 /** Where a gate stands on its edge PATH: GATE of its length along (agent-graph.html's 55%), in whole px.
  * @param {Path} path @returns {Point} */
-export function gateAt(path) {
+export const gateAt = (path) => along(path, GATE);
+
+/** Where an edge's label stands on its PATH: half its length along (graph.html's), in whole px.
+ * @param {Path} path @returns {Point} */
+export const labelAt = (path) => along(path, 0.5);
+
+/** The point SHARE of the cubic PATH's length along, in whole px. @param {Path} path @param {number} share
+ * @returns {Point} */
+function along(path, share) {
   const points = Array.from({ length: STEPS + 1 }, (_, n) => pointAt(path, n / STEPS));
   const lengths = points.slice(1).map((p, n) => Math.hypot(p[0] - points[n][0], p[1] - points[n][1]));
-  let left = lengths.reduce((sum, one) => sum + one, 0) * GATE;
+  let left = lengths.reduce((sum, one) => sum + one, 0) * share;
   for (const [n, piece] of lengths.entries()) {
     if (left <= piece || n === lengths.length - 1) {
       const share = piece ? Math.min(1, left / piece) : 0, [from, to] = [points[n], points[n + 1]];
@@ -238,7 +248,8 @@ const places = (kept) => (kept && typeof kept === "object" && !Array.isArray(kep
  * no longer LIVE left out. @param {any} kept @param {string} key @param {Record<string, Point>} positions
  * @param {Set<string>} live */
 export function keepLayout(kept, key, positions, live) {
-  const was = Object.fromEntries(Object.entries(places(kept)).filter(([id]) => live.has(id.split("|")[0])));
+  const was = Object.fromEntries(Object.entries(places(kept)).filter(([id]) => id === MACHINES
+    || live.has(id.split("|")[0])));
   return { ...was, [key]: { ...(was[key] ?? {}), ...Object.fromEntries(Object.entries(positions)
     .map(([id, at]) => [id, { x: Math.round(at.x), y: Math.round(at.y) }])) } };
 }
@@ -250,8 +261,13 @@ export const dropLayout = (kept, key) => Object.fromEntries(Object.entries(place
 /** Where NODES stand: a dragged one where KEPT has it under KEY, every other (a new one too) where layout() puts it;
  * a kept place of a node gone is not drawn. @param {any} kept @param {string} key @param {Node[]} nodes
  * @param {{ width: number, height: number }} size @param {Record<string, Size>} [sizes] @param {number} [room] */
-export function placed(kept, key, nodes, size, sizes = {}, room = USES_ROOM, least = room) {
-  const mine = places(kept)[key] ?? {}, at = layout(nodes, size, sizes, room, least);
+export const placed = (kept, key, nodes, size, sizes = {}, room = USES_ROOM, least = room) => keptOver(kept, key,
+  nodes, layout(nodes, size, sizes, room, least));
+
+/** AT (a layout's places) with each of NODES dragged where KEPT has it under KEY; a kept node gone not drawn.
+ * @param {any} kept @param {string} key @param {Node[]} nodes @param {Record<string, Point>} at */
+function keptOver(kept, key, nodes, at) {
+  const mine = places(kept)[key] ?? {};
   for (const one of nodes) {
     const was = mine[one.id];
     if (Number.isFinite(was?.x) && Number.isFinite(was?.y)) at[one.id] = { x: was.x, y: was.y };
@@ -357,8 +373,12 @@ export function wireLook(t, edge, view) {
   if (ran?.running) return { key: "running", color: t.accent, width: RUNNING, dashed: false };
   if (ran?.ran) return { key: "ran", color: t.accent, width: RAN, dashed: false };
   return { key: view === "run" ? `${style}-faint` : style, width: WIRE, dashed: style !== "always",
-    color: view === "run" ? `${wireColor(t, style)}${FAINT}` : wireColor(t, style) };
+    color: `${wireColor(t, style)}${view === "run" ? FAINT : style === "standby" ? STANDBY : ""}` };
 }
+
+/** The dashes of an edge drawn under KEY (wireLook()'s): a standby route's dotted, any other's dashed.
+ * @param {string} key */
+export const dashOf = (key) => (key.startsWith("standby") ? DOTTED : DASHED);
 
 /** Whether anything in GRAPH runs now (a call with no answer yet): its view is read again sooner.
  * @param {{ edges: Edge[] }} graph */
@@ -372,3 +392,122 @@ export const legendOf = (legend, view) => legend.filter(([style]) => view === "r
  * @param {{ words: { views: Record<string, string> }, cost: string | null }} graph @returns {[string, string][]} */
 export const viewWords = (graph) => VIEWS.map((view) => [view, view === "run" && graph.cost
   ? `${graph.words.views.run} · ${graph.cost}` : String(graph.words.views[view])]);
+
+// --- the Machines tab's graph (remote-machines-mockups/graph.html): this Mac, the networks, the machines on them and
+// those behind another, as core/machine_graph.py words them; one a window, its dragged places kept under MACHINES
+
+export const MACHINES_TAB = "Machines";               // the tab's name: one a window
+export const MACHINES_ASK = "herdr-fold.machines-ask";   // shared: {node, at}, openMachines()'s ask
+export const MACHINES = "machines";                   // the machines' graph's key among the kept places
+export const MACHINE_ROOM = IN_ROOM, MACHINE_ROOM_MOST = 180;    // px between two columns, at least, at most
+export const LABEL_HIGH = 18;                         // px: an edge's label's pill, as a gate's
+const LABEL_CLEAR = 8;                                // px at least between a label and a node
+const MACHINE_COLUMNS = ["mac", "networks", "machines", "through"];
+
+/** The window's Machines tab: the one so named, in any of LIST's spaces, whose pane is the mod's; null.
+ * @param {any[]} list @param {any[]} panes @returns {{ space: any, tab: any } | null} */
+export function machinesTab(list, panes) {
+  for (const space of list) {
+    const tab = space?.tabs?.find((/** @type {any} */ one) => one.name === MACHINES_TAB
+      && panes.some((pane) => pane.tab === one.id && pane.mod === "herdr-fold"));
+    if (tab) return { space, tab };
+  }
+  return null;
+}
+
+/** An ask that the Machines tab show NODE (core's id; null: none chosen) at NOW. @param {string | null} node
+ * @param {number} now */
+export const askMachines = (node, now) => ({ node, at: now });
+
+/** KEPT's ask where the tab answers it: newer than the LAST one answered, no older than ASK_MS at NOW; else null; a
+ * node of no shape asks for none. @param {any} kept @param {number | null} last @param {number} now */
+export function machinesAsked(kept, last, now) {
+  const ask = kept && typeof kept === "object" && typeof kept.at === "number" && kept.at !== last && now >= kept.at
+    && now - kept.at <= ASK_MS ? kept : null;
+  return ask && { node: typeof ask.node === "string" ? ask.node : null, at: ask.at };
+}
+
+/** An edge's label's width: its pill's, as a gate's (PILL_CHAR a character, PILL_PAD round it). @param {string} text */
+export const labelWidth = (text) => Math.ceil([...text].length * PILL_CHAR + PILL_PAD);
+
+/** Where NODES (EDGES their edges) stand on a canvas SIZE large in graph.html's four columns, each one's left edges in
+ * one line, as far apart as the widest label between needs (styleguide.md, The Machines tab). @param {Node[]} nodes
+ * @param {any[]} edges @param {{ width: number, height: number }} size @param {Record<string, Size>} [sizes] */
+export function machinesLayout(nodes, edges, size, sizes = {}) {
+  const columns = MACHINE_COLUMNS.map((name) => nodes.filter((one) => one.column === name))
+    .filter((list) => list.length);
+  const wide = (/** @type {Node} */ one) => sizeOf(one, sizes).w, high = (/** @type {Node} */ one) => sizeOf(one,
+    sizes).h;
+  const widest = columns.map((list) => Math.max(...list.map(wide)));
+  const place = new Map(columns.flatMap((list, n) => list.map((one) => [one.id, n])));
+  const least = columns.slice(1).map((_, n) => Math.max(MACHINE_ROOM, ...edges
+    .filter((one) => one.label && place.get(one.from) === n && place.get(one.to) === n + 1)
+    .map((one) => labelWidth(String(one.label)) + 2 * LABEL_CLEAR + widest[n]
+      - Math.min(...columns[n].map(wide)))));
+  const most = least.map((room) => Math.max(room, MACHINE_ROOM_MOST)), sum = (/** @type {number[]} */ list) => list
+    .reduce((all, one) => all + one, 0);
+  const spare = size.width - 2 * EDGE - sum(widest) - sum(least), grow = sum(most) - sum(least);
+  const share = grow > 0 ? Math.min(1, Math.max(0, spare / grow)) : 0;
+  /** @type {Record<string, number>} */
+  const x = {};
+  columns.reduce((left, list, n) => {
+    for (const one of list) x[one.id] = left;
+    return left + widest[n] + (n < least.length ? least[n] + Math.floor((most[n] - least[n]) * share) : 0);
+  }, EDGE);
+  /** @type {Record<string, Point>} */
+  const at = {};
+  const of = (/** @type {string} */ name) => nodes.filter((one) => one.column === name);
+  let foot = FIRST, last = /** @type {string | null | undefined} */ (undefined);
+  for (const one of of("machines")) {
+    const y = last === undefined ? FIRST : foot + (one.parent === last ? APART : GROUP);
+    [at[one.id], foot, last] = [{ x: x[one.id], y }, y + high(one), one.parent];
+  }
+  foot = FIRST - APART;
+  for (const one of of("through")) {
+    const y = Math.max(at[one.parent ?? ""]?.y ?? FIRST, foot + APART);
+    [at[one.id], foot] = [{ x: x[one.id], y }, y + high(one)];
+  }
+  const mine = (/** @type {Node} */ net) => of("machines").filter((one) => one.parent === net.id);
+  const networks = [...of("networks").filter((one) => mine(one).length), ...of("networks")
+    .filter((one) => !mine(one).length)];
+  foot = FIRST - APART;
+  for (const one of networks) {
+    const below = mine(one).map((m) => at[m.id].y), ends = mine(one).map((m) => at[m.id].y + high(m));
+    const middle = below.length ? Math.round((Math.min(...below) + Math.max(...ends) - high(one)) / 2) : 0;
+    const y = Math.max(foot + APART, middle);
+    [at[one.id], foot] = [{ x: x[one.id], y }, y + high(one)];
+  }
+  const tops = networks.map((one) => at[one.id].y);
+  for (const one of of("mac")) {
+    const y = tops.length ? Math.round((Math.min(...tops) + foot - high(one)) / 2) : FIRST;
+    at[one.id] = { x: x[one.id], y: Math.max(FIRST, y) };
+  }
+  return at;
+}
+
+/** Where the machines' NODES stand: a dragged one where KEPT has it under MACHINES, every other where
+ * machinesLayout() puts it. @param {any} kept @param {Node[]} nodes @param {any[]} edges
+ * @param {{ width: number, height: number }} size @param {Record<string, Size>} [sizes] */
+export const machinesPlaced = (kept, nodes, edges, size, sizes = {}) => keptOver(kept, MACHINES, nodes,
+  machinesLayout(nodes, edges, size, sizes));
+
+/** The edges lit while CHOSEN (a node's id) is: a machine on two routes or more, its route in use (graph.html's Két
+ * út), by "from>to"; none for any other. @param {{ from: string, to: string, style: string }[]} edges
+ * @param {string | null} chosen @returns {Set<string>} */
+export function litEdges(edges, chosen) {
+  const mine = edges.filter((one) => chosen && one.to === chosen);
+  return new Set(mine.some((one) => one.style === "standby") ? mine.filter((one) => one.style !== "standby")
+    .map((one) => `${one.from}>${one.to}`) : []);
+}
+
+/** The network node ID hangs under among NODES (a machine behind another, its jump host's), by its mark's word; null
+ * for This Mac, Other, or a loop. @param {any[]} nodes @param {string} id @returns {string | null} */
+export function networkUnder(nodes, id) {
+  const passed = new Set();
+  for (let one = nodes.find((n) => n.id === id); one && !passed.has(one.id); one = nodes.find((n) => n.id
+    === one.parent)) {
+    if (one.kind === "network") return one.network ?? null;
+    passed.add(one.id);
+  }
+  return null;
+}

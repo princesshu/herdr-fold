@@ -43,6 +43,9 @@ PLACES = {"tailscale": ("tailscale", "/Applications/Tailscale.app/Contents/MacOS
           "zerotier": ("zerotier-cli",)}
 WIREGUARD = "/Applications/WireGuard.app"
 SHOWN = 64                      # the app's own machines one look of the app's reads at most
+# machines.sh's own ssh options (src/remote.sh's SSH_OPTS, a test keeps the two the same): the app's status check's
+LOGIN_OPTIONS = ("-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=accept-new", "-o",
+                 "ClearAllForwardings=yes", "-o", "ForwardAgent=no")
 SHARED = ipaddress.ip_network((0x64400000, 10))                   # 100.64/10: Tailscale's and NetBird's addresses alike
 # a home or office network's: RFC 1918's 10/8, 172.16/12 and 192.168/16, the link-local ones, IPv6's unique local
 LAN = tuple(ipaddress.ip_network(one) for one in ((0x0A000000, 8), (0xAC100000, 12), (0xC0A80000, 16),
@@ -1020,11 +1023,13 @@ def machines_json(argv, more=()):
 
 
 def here_json(argv):
-    """LIST [NAME TARGET]…: machines_json()'s for the Herdr app, every 60 s while it shows a remote machine: this Mac's
-    clients found here, the app's own machines (at most SHOWN) read after the list's, no login."""
-    found, pairs = here(), argv[1:1 + 2 * SHOWN]
+    """LIST [--login] [NAME TARGET]…: machines_json()'s for the Herdr app: this Mac's clients found here, the app's own
+    machines (at most SHOWN) read after the list's; a login to each with machines.sh's options only with --login."""
+    login = argv[1:2] == ["--login"]
+    found, pairs = here(), argv[1 + login:1 + login + 2 * SHOWN]
     more = [one for one in map(app_machine, pairs[::2], pairs[1::2]) if one]
-    return machines_json([argv[0], *(found[kind] or "" for kind in CLIENTS)], more)
+    return machines_json([argv[0], *(found[kind] or "" for kind in CLIENTS),
+                          *(("--login", "--", *LOGIN_OPTIONS) if login else ())], more)
 
 
 def main(argv):

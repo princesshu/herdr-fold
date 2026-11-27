@@ -9,7 +9,8 @@ import { AGENT, AGENTS_TAB, agentsAsked, agentsTab, APART, askAgents, boxes, dra
   extent, FIRST, folded, gateAt, gatesRoom, GROUP, INDENT, IN_ROOM, keepLayout, layout, layoutKey, nodeFor, nodeLines,
   placed, portOf, sizeOf, stepNode, TIGHT, UNDER, USES_ROOM, GATES_MOST, wireColor, badgeAt, DISC, faded,
   FAINT, legendOf, measured, nodeShown, propertiesOf, running, seen, shareWidth, shownInAgent, unzoomed, VIEWS,
-  viewWords, wireLook }
+  viewWords, wireLook, askMachines, dashOf, labelAt, labelWidth, LABEL_HIGH, MACHINE_ROOM, MACHINE_ROOM_MOST,
+  MACHINES, MACHINES_TAB, machinesAsked, machinesLayout, machinesPlaced, machinesTab, networkUnder, litEdges }
   from "../mods/herdr-fold/graph.js";
 
 /** A node as core words it. @param {string} id @param {string} column @param {string} kind @param {string} title
@@ -457,4 +458,165 @@ test("the properties are what the node ran where it tells them, its setup's in W
   assert.deepEqual(propertiesOf(byId(AGENT), "wiring").actions, []);
   assert.equal(propertiesOf(byId("tool:Bash"), "run").title, "Bash");       // none of its own: the setup's
   assert.deepEqual(nodeLines(byId("tool:Bash"), "run"), { list: false, lines: [] });
+});
+
+// --- the Machines tab's graph (remote-machines-mockups/graph.html), core's (machine_graph.py)
+
+/** A node of the machines' graph as core words it. @param {string} id @param {string} column @param {string} kind
+ * @param {string | null} parent @param {Record<string, any>} [over] */
+const mnode = (id, column, kind, parent, over = {}) => ({ id, column, kind, title: id.split(":").pop(), icon: null,
+  brand: null, tag: null, sub: "1 space", parts: [], state: null, dim: false, chips: [], parent, network: null,
+  properties: { title: id, state: null, why: [], command: null, lines: [], actions: [] }, run: null, ...over });
+/** @param {string} from @param {string} to @param {string} [style] @param {string | null} [label] */
+const medge = (from, to, style = "always", label = null) => ({ from, to, style, gates: [], run: null, label });
+const NET = (/** @type {string} */ kind) => mnode(`network:${kind}`, "networks", "network", "mac", { network: kind });
+const ON = (/** @type {string} */ name, /** @type {string} */ parent, column = "machines") => mnode(`machine:${name}`,
+  column, "machine", parent);
+// graph.html's lumen-api world as core/machine_graph.py draws it: the networks in the routes' order, the machines by
+// name, build-01 and db-02 behind lumen-api, studio on the local network and standby on Tailscale
+const WORLD = { nodes: [mnode("mac", "mac", "mac", null), NET("local"), NET("tailscale"), NET("netbird"),
+  NET("zerotier"), NET("public"), ON("lab-pi", "network:local"), ON("studio", "network:local"),
+  ON("harbor-web", "network:tailscale"), ON("lumen-api", "network:tailscale"),
+  ON("build-01", "machine:lumen-api", "through"), ON("db-02", "machine:lumen-api", "through"),
+  ON("kelp-ci", "network:netbird"), ON("tidepool", "network:netbird"), ON("vps-edge", "network:public")],
+edges: [...["local", "tailscale", "netbird", "zerotier", "public"].map((kind) => medge("mac", `network:${kind}`)),
+  medge("network:local", "machine:lab-pi", "always", "5 ms"), medge("network:local", "machine:studio"),
+  medge("network:tailscale", "machine:harbor-web", "demand", "relayed 84 ms"),
+  medge("network:tailscale", "machine:lumen-api", "always", "direct 12 ms"),
+  medge("machine:lumen-api", "machine:build-01", "always", "19 ms"),
+  medge("machine:lumen-api", "machine:db-02", "failed"),
+  medge("network:netbird", "machine:kelp-ci", "demand", "relayed 61 ms"),
+  medge("network:netbird", "machine:tidepool", "always", "direct 22 ms"),
+  medge("network:public", "machine:vps-edge", "always", "41 ms"),
+  medge("network:tailscale", "machine:studio", "standby")] };
+const WIDE_SIZE = { width: 1416, height: 800 };
+/** The boxes of GRAPH laid out on SIZE. @param {{ nodes: any[], edges: any[] }} graph */
+const laidOut = (graph, size = WIDE_SIZE, sizes = {}) => boxes(graph.nodes, machinesLayout(graph.nodes, graph.edges,
+  size, sizes), sizes);
+/** Whether two boxes share any point. @param {import("../mods/herdr-fold/graph.js").Box} a
+ * @param {import("../mods/herdr-fold/graph.js").Box} b */
+const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+/** Each labelled edge's label as drawn on BOXES: its box, the edge's path through its port. */
+function labels(graph, all) {
+  const out = graph.edges.filter((one) => all[one.from] && all[one.to]);
+  return out.filter((one) => one.label).map((one) => {
+    const mine = out.filter((other) => other.from === one.from)
+      .sort((a, b) => all[a.to].y - all[b.to].y);
+    const at = labelAt(edgePath(all[one.from], all[one.to], portOf(mine.length, mine.indexOf(one))));
+    const w = labelWidth(one.label);
+    return { edge: `${one.from}>${one.to}`, x: at.x - w / 2, y: at.y - LABEL_HIGH / 2, w, h: LABEL_HIGH };
+  });
+}
+
+test("four columns: This Mac, the networks, the machines, those behind another; each column's left edges in one line",
+  () => {
+    assert.equal(MACHINES_TAB, "Machines");
+    const all = laidOut(WORLD), id = (/** @type {string} */ name) => all[`machine:${name}`];
+    const column = (/** @type {string} */ name) => WORLD.nodes.filter((one) => one.column === name)
+      .map((one) => all[one.id]);
+    const [mac, networks, machines, through] = ["mac", "networks", "machines", "through"].map(column);
+    assert.equal(mac[0].x, EDGE);
+    for (const list of [networks, machines, through]) assert.equal(new Set(list.map((one) => one.x)).size, 1);
+    assert.ok(mac[0].x + mac[0].w < networks[0].x && networks[0].x + 190 < machines[0].x
+      && machines[0].x + 190 < through[0].x);
+    // the machines in core's order from FIRST down, a network's apart from the next one's
+    assert.equal(id("lab-pi").y, FIRST);
+    assert.equal(id("studio").y - id("lab-pi").y, id("lab-pi").h + APART);
+    assert.equal(id("harbor-web").y - id("studio").y, id("studio").h + GROUP);
+    assert.equal(id("vps-edge").y - id("tidepool").y, id("tidepool").h + GROUP);
+    // those behind a machine from its height down, one under the other
+    assert.equal(id("build-01").y, id("lumen-api").y);
+    assert.equal(id("db-02").y, id("build-01").y + id("build-01").h + APART);
+    // a network beside its machines' middle; one with none after those with some; This Mac beside the networks'
+    const tailscale = all["network:tailscale"], middle = (id("harbor-web").y + id("lumen-api").y
+      + id("lumen-api").h) / 2;
+    assert.ok(Math.abs(tailscale.y + tailscale.h / 2 - middle) <= 1);
+    assert.equal(all["network:zerotier"].y, all["network:public"].y + all["network:public"].h + APART);
+    const span = (networks[0].y + Math.max(...networks.map((one) => one.y + one.h))) / 2;
+    assert.ok(Math.abs(mac[0].y + mac[0].h / 2 - span) <= 1);
+    // nothing on another, in whole px
+    const list = Object.values(all);
+    assert.ok(list.every((a, i) => list.every((b, j) => i === j || !overlap(a, b))));
+    assert.ok(list.every((one) => Number.isInteger(one.x) && Number.isInteger(one.y)));
+    // with no machine behind another, three columns
+    const three = { nodes: WORLD.nodes.filter((one) => one.column !== "through"), edges: WORLD.edges };
+    assert.equal(Object.values(laidOut(three)).filter((one) => one.x > id("lumen-api").x).length, 0);
+  });
+
+test("an edge's label stands at its middle, clear of every node; the columns as far apart as the widest one needs",
+  () => {
+    assert.deepEqual(labelAt([[0, 0], [60, 0], [140, 80], [200, 80]]), { x: 100, y: 40 });
+    assert.equal(labelWidth("relayed 84 ms"), Math.ceil(13 * 6.2 + 14));
+    // on graph.html's canvas, on the demo app's (781), and with nodes measured wider and narrower
+    const sizes = { "network:tailscale": { w: 236, h: 54 }, "machine:lumen-api": { w: 260, h: 70 } };
+    for (const [size, measured] of [[WIDE_SIZE, {}], [{ width: 781, height: 600 }, {}], [WIDE_SIZE, sizes],
+      [{ width: 600, height: 400 }, sizes]]) {
+      const all = laidOut(WORLD, size, measured), nodes = Object.values(all);
+      for (const label of labels(WORLD, all)) {
+        assert.ok(nodes.every((one) => !overlap(label, one)), `${label.edge} at ${size.width}`);
+      }
+    }
+    // a wide canvas spreads the columns to graph.html's room, never further; a narrow one scrolls
+    const wide = laidOut(WORLD), lumen = wide["machine:lumen-api"], tailscale = wide["network:tailscale"];
+    assert.equal(lumen.x - (tailscale.x + tailscale.w), MACHINE_ROOM_MOST);
+    const narrow = laidOut(WORLD, { width: 600, height: 400 });
+    assert.ok(extent(narrow, { width: 600, height: 400 }).width > 600);
+    assert.ok(narrow["machine:lumen-api"].x - (narrow["network:tailscale"].x + 190) >= MACHINE_ROOM);
+  });
+
+test("a standby route is dotted and faint, with no label; the rest as the Agents tab draws them", () => {
+  const standby = wireLook(THEME, medge("network:tailscale", "machine:studio", "standby"), "wiring");
+  assert.deepEqual(standby, { key: "standby", color: `${wireColor(THEME, "standby")}8c`, width: 1.5,
+    dashed: true });
+  assert.deepEqual([dashOf("standby"), dashOf("demand"), dashOf("failed")], [[2, 4], [5, 5], [5, 5]]);
+  assert.equal(wireLook(THEME, medge("a", "b", "failed"), "wiring").color, wireColor(THEME, "failed"));
+});
+
+test("the machines' places are kept under machines, the window's one graph, beside the spaces' graphs", () => {
+  assert.equal(MACHINES, "machines");
+  const live = new Set(["s1"]);
+  const kept = keepLayout({ "gone|/x|claude": { a: { x: 1, y: 2 } } }, MACHINES, { "machine:studio": { x: 900.4,
+    y: 300.6 } }, live);
+  assert.deepEqual(kept, { machines: { "machine:studio": { x: 900, y: 301 } } });
+  // a space's graph kept later keeps the machines' too; a gone space's still goes
+  const both = keepLayout(kept, layoutKey("s1", "/home/dev/lumen-api", "claude"), { agent: { x: 5, y: 6 } }, live);
+  assert.deepEqual(Object.keys(both), ["machines", "s1|/home/dev/lumen-api|claude"]);
+  const at = machinesPlaced(both, WORLD.nodes, WORLD.edges, WIDE_SIZE);
+  const fresh = machinesLayout(WORLD.nodes, WORLD.edges, WIDE_SIZE);
+  assert.deepEqual(at["machine:studio"], { x: 900, y: 301 });
+  assert.deepEqual(at["machine:lab-pi"], fresh["machine:lab-pi"]);
+  assert.deepEqual(machinesPlaced("junk", WORLD.nodes, WORLD.edges, WIDE_SIZE), fresh);
+  assert.deepEqual(dropLayout(both, MACHINES), { "s1|/home/dev/lumen-api|claude": { agent: { x: 5, y: 6 } } });
+});
+
+test("the Machines tab is the window's one so named whose pane is the mod's, in any space; an ask reaches it once",
+  () => {
+    const list = [{ id: "s1", active: true, tabs: [{ id: "t1", name: "api" }] },
+      { id: "s2", active: false, tabs: [{ id: "t2", name: MACHINES_TAB }, { id: "t3", name: MACHINES_TAB }] }];
+    const found = machinesTab(list, [{ tab: "t2", terminal: "a1" }, { tab: "t3", mod: "herdr-fold" }]);
+    assert.deepEqual([found?.space.id, found?.tab.id], ["s2", "t3"]);
+    assert.equal(machinesTab(list, [{ tab: "t2", terminal: "a1" }]), null);       // a terminal named so is not it
+    assert.equal(machinesTab([], []), null);
+    const ask = askMachines("machine:lumen-api", 1000);
+    assert.deepEqual(ask, { node: "machine:lumen-api", at: 1000 });
+    assert.deepEqual(machinesAsked(ask, null, 1500), ask);
+    assert.equal(machinesAsked(ask, 1000, 1500), null);                     // answered already
+    assert.equal(machinesAsked(ask, null, 1000 + 60000), null);             // too old
+    assert.equal(machinesAsked({ node: 7, at: 1000 }, null, 1500)?.node, null);
+    assert.equal(machinesAsked("junk", null, 1500), null);
+  });
+
+test("a node's network is the one it hangs under: a machine behind another its jump host's", () => {
+  assert.equal(networkUnder(WORLD.nodes, "machine:build-01"), "tailscale");
+  assert.equal(networkUnder(WORLD.nodes, "machine:studio"), "local");
+  assert.equal(networkUnder(WORLD.nodes, "network:netbird"), "netbird");
+  assert.equal(networkUnder(WORLD.nodes, "mac"), null);
+  const loop = [ON("a", "machine:b", "through"), ON("b", "machine:a", "through")];
+  assert.equal(networkUnder(loop, "machine:a"), null);
+});
+
+test("a machine on two routes, chosen, lights the one in use (graph.html's Két út); one route lights none", () => {
+  assert.deepEqual([...litEdges(WORLD.edges, "machine:studio")], ["network:local>machine:studio"]);
+  assert.deepEqual([...litEdges(WORLD.edges, "machine:build-01")], []);
+  assert.deepEqual([...litEdges(WORLD.edges, null)], []);
 });

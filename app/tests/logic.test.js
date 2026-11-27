@@ -2314,7 +2314,7 @@ test("the status bar says the agents as the mockups' bar does: those waiting fir
 test("every element a view measures has an id of that view's own: the app keeps a size by its id alone", () => {
   // two chats or previews side by side, or the styleguide's specimens: a second element of one id and size is told
   // no size, so its bar never fits and its room is never known
-  for (const name of ["agentstab.js", "chat.js", "editor.js", "preview.js"]) {
+  for (const name of ["agentstab.js", "machinestab.js", "chat.js", "editor.js", "preview.js"]) {
     const source = readFileSync(new URL(`../mods/herdr-fold/${name}`, import.meta.url), "utf8");
     for (const found of source.matchAll(/\.on_size_change\(/g)) {
       const before = source.slice(0, found.index);
@@ -2920,3 +2920,74 @@ test("a Spaces head's and the status bar's marks centre to the pixel in their 28
   assert.ok(readFileSync(new URL("../mods/herdr-fold/status.js", import.meta.url), "utf8")
     .includes("CENTRED.barMark[1]"));
 });
+
+// --- the Machines tab (remote-machines-mockups/graph.html): what runs on each machine, the machines herdr keeps, the
+// look piped into core's graph, a machine's actions in a terminal tab on this Mac
+import { graphPipe, machineCommand, machineRuns, machinesKept } from "../mods/herdr-fold/logic.js";
+
+test("what runs on each machine, as Spaces knows it: its spaces, each agent there working or waiting on you", () => {
+  const list = [{ id: "s1", machine: null }, { id: "s2", machine: "lumen-api" }, { id: "s3", machine: "lumen-api" },
+    { id: "s4", machine: "build-01" }, { id: "s5", machine: "-oProxyCommand=x" }, { id: "s6", machine: "studio" }];
+  const running = [{ space: "s2", status: "working", program: { key: "claude" } },
+    { space: "s4", status: "blocked", program: { key: "codex" } },
+    { space: "s1", status: "blocked", program: { key: "claude" } },
+    { space: "s3", status: "idle", program: { key: "opencode" } },
+    { space: "s3", status: "working", program: { key: "Evil\u001b[2J" } }, { space: "s6", status: "done" }];
+  assert.deepEqual(machineRuns(list, running), { "lumen-api": { spaces: 2, agents: [["claude", "working"]] },
+    "build-01": { spaces: 1, agents: [["codex", "blocked"]] }, studio: { spaces: 1, agents: [] } });
+  assert.deepEqual(machineRuns([], null), {});
+});
+
+test("the machines herdr keeps, connected or not; a temporary one, or one of no shape, none", () => {
+  assert.deepEqual(machinesKept({ machines: [{ name: "lumen-api", state: "connected" },
+    { name: "db-02", state: "unreachable" }, { name: "tmp", state: "connected", temporary: true },
+    { name: "-oProxyCommand=x", state: "connected" }, { name: "constructor", state: "asleep" }] }),
+  { "lumen-api": true, "db-02": false, constructor: false });
+  assert.equal(machinesKept(null), null);                                 // herdr told nothing
+  assert.equal(Object.keys(machinesKept({ machines: Array.from({ length: 300 }, (_, n) => ({ name: `m${n}`,
+    state: "connected" })) }) ?? {}).length, 256);
+});
+
+test("the look goes to core's graph through a pipe, never one argument: argv alone, a failed look ends it", () => {
+  const dir = mkdtempSync(join(tmpdir(), "herdr-fold-pipe-"));
+  try {
+    const python = join(dir, "python3");
+    writeFileSync(python, "#!/bin/sh\n[ \"$1 $2 $3 $4\" = \"-X utf8 -I -c\" ] || exit 9\nshift 4\nsource=$1\nshift\n"
+      + "if [ \"$source\" = NETS ]; then\n  [ \"$3\" = fail ] && { echo 'networks.py: no list' >&2; exit 3; }\n"
+      + "  for a in \"$@\"; do printf '[%s]' \"$a\"; done\nelse\n  printf 'look=%s;' \"$(cat)\"\n"
+      + "  for a in \"$@\"; do printf '[%s]' \"$a\"; done\nfi\n", { mode: 0o755 });
+    const graph = ["W", "--runs={}", "--kept={\"a\": true}"];
+    const [command, args] = graphPipe(python, "GRAPH", graph, "NETS", ["/x/machines.txt", "--login", "a b",
+      "-oProxyCommand=x;touch y", "$(touch z)"]);
+    assert.equal(command, "/bin/sh");
+    const done = spawnSync(command, args, { encoding: "utf8" });
+    assert.equal(done.status, 0, done.stderr);
+    assert.equal(done.stdout, "look=[here][/x/machines.txt][--login][a b][-oProxyCommand=x;touch y][$(touch z)];"
+      + "[-][W][--runs={}][--kept={\"a\": true}]");
+    assert.equal(existsSync("y") || existsSync("z"), false);                       // nothing it ran
+    const failed = spawnSync(...graphPipe(python, "GRAPH", graph, "NETS", ["/x/machines.txt", "fail"]),
+      { encoding: "utf8" });
+    assert.deepEqual([failed.status, failed.stdout, failed.stderr.trim()], [3, "", "networks.py: no list"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a machine's action asks through the package's machines.sh in a terminal tab on this Mac, by its name alone",
+  () => {
+    const list = [{ id: "s1", machine: "lumen-api", active: true }, { id: "s2", machine: null, active: false }];
+    const tab = (/** @type {string} */ name, /** @type {string} */ word) => ({ name, folder: "/work/herdr-fold",
+      argv: ["/bin/bash", "/work/herdr-fold/machines.sh", word, "lumen-api"], space: "s2" });
+    assert.deepEqual(machineCommand("status", "lumen-api", "/work/herdr-fold", list),
+      ["tab.new", tab("Status lumen-api", "status")]);
+    assert.deepEqual(machineCommand("again", "lumen-api", "/work/herdr-fold", list),
+      ["tab.new", tab("Set up again lumen-api", "add")]);
+    assert.deepEqual(machineCommand("remove", "lumen-api", "/work/herdr-fold", list),
+      ["tab.new", tab("Remove lumen-api", "remove")]);
+    assert.deepEqual(machineCommand("through", "lumen-api", "/work/herdr-fold", list),
+      ["tab.new", tab("Look around from lumen-api", "through")]);
+    assert.equal(machineCommand("status", "-oProxyCommand=x", "/work/herdr-fold", list), null);
+    assert.equal(machineCommand("format", "lumen-api", "/work/herdr-fold", list), null);
+    assert.equal(machineCommand("constructor", "lumen-api", "/work/herdr-fold", list), null);
+    assert.deepEqual(machineCommand("status", "lumen-api", "/work/herdr-fold", [list[0]])?.[0], "space.new");
+  });

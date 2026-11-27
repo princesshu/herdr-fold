@@ -11,6 +11,7 @@ import { agentsSaid, commitRows, chatRows, diffRows, fieldWidth, findAll, FLOAT_
 import { ISSUE_GROUPS, issueSet, PULL_GROUPS } from "./logic.js";
 import { AgentView } from "./agent.js";
 import { AgentsView } from "./agentstab.js";
+import { MachinesView } from "./machinestab.js";
 import { Answer } from "./card.js";
 import { Chat } from "./chat.js";
 import { Checkpoints } from "./checkpoint.js";
@@ -1431,6 +1432,10 @@ export function guide(proto, cx) {
     ["Nothing found", agentOf(LAYERS, { query: "terraform" }), 164],
     ["Loading", agentOf(null), 132], ["Not on this machine", agentOf(null, { missing: true }, "codex"), 132],
     ["The read failed: why, in the rows' place", agentOf(null, { error: "agent_setup.py: Permission denied" }), 132]],
+    // the Machines tab: [name, view, height, width]
+    machinesGraph: machineGraphs(),
+    // its chosen node's properties alone: [name, view, height]
+    machinesInspector: machineInspectors(),
     // the Agents tab: [name, view, height, width]
     agentsGraph: [["Wiring, as agent-graph.html's: Claude in lumen-api, code-reviewer chosen; an edge always, on "
       + "demand, waiting and failed, the gates on them, a connector off here", agentsOf(GRAPH, { chosen: SUB_NODE }),
@@ -2024,6 +2029,172 @@ const BUDGET_NOTICE = { notices: [{ key: "codex:2026-11", agent: "codex",
 /** The Agents tab of FOUND (a graph, core's) with FIELDS over a fresh view's, for AGENT: nothing pressed, no place
  * kept; its Usage (a view of its own) shown where FIELDS give one. @param {any} found
  * @param {Record<string, any>} [fields] @param {string} [agent] */
+// --- the Machines tab (remote-machines-mockups/graph.html's App frames): graph.html's lumen-api world as
+// core/machine_graph.py draws it, every word core's; after Refresh (a login to each) its times on the edges
+
+/** Core's actions ([id, label]) in its shape, the first primary. @param {string[][]} list */
+const machineActs = (list) => list.map(([id, label], n) => ({ id, label, path: null, server: null, primary: !n }));
+/** A node's properties as core gives them. @param {string} title @param {any} state @param {any[]} [lines]
+ * @param {string[][]} [acts] @param {any[]} [why] @param {string | null} [command] */
+const machineProps = (title, state, lines = [], acts = [], why = [], command = null) => ({ title, state, why, command,
+  lines, text: null, error: null, tip: null, actions: machineActs(acts) });
+/** A properties line: [label, [[words, tone]], what it says at its right, a route's network]. @param {string} label
+ * @param {string} words */
+const mline = (label, words, right = /** @type {string[][]} */ ([]), mark = /** @type {string | null} */ (null)) =>
+  [label, [[words, "text"]], right, mark];
+const UP_ACTS = [["status", "Status"], ["again", "Set up again"], ["remove", "Remove"],
+  ["through", "Look around from here…"]];
+const AWAY_ACTS = [["check", "Check again"], ["copy", "Copy command"]];
+const LINKED = { text: "connected", tone: "ok" }, UNREACHABLE = { text: "unreachable", tone: "muted" };
+const NETBIRD_OFF = [[["NetBird is not running on this Mac.", "warn"]], [["Start it: ", "muted"],
+  ["netbird up", "text"]]];
+/** A machine's node: NAME under PARENT (a jump host: Through), its properties' LINES, its line's PARTS.
+ * @param {string} name @param {string} parent @param {any[]} lines @param {string[][]} [parts] */
+const mmachine = (name, parent, lines, parts = [], over = {}) => ({ id: `machine:${name}`, column: parent
+  .startsWith("machine:") ? "through" : "machines", kind: "machine", title: name, icon: "server", brand: null,
+tag: "linux", sub: parts.map(([words]) => words).join("") || null, parts, state: null, dim: false, chips: [], parent,
+network: null, properties: machineProps(name, LINKED, lines, UP_ACTS), run: null, ...over });
+/** A network's node: KIND, its TITLE, its line SUB, its MACHINES' names. @param {string} kind @param {string} title
+ * @param {string} sub @param {string | null} machines */
+const mnetwork = (kind, title, sub, machines, over = {}) => ({ id: `network:${kind}`, column: "networks",
+  kind: "network", title, icon: null, brand: null, tag: null, sub, parts: [[sub, "muted"]], state: null, dim: false,
+  chips: [], parent: "mac", network: kind, properties: machineProps(title, null, machines ? [mline("Machines",
+    machines)] : []), run: null, ...over });
+/** A machine's lines: its ADDRESS, USER and NETWORK, then MORE; SEEN, the status check's Last seen.
+ * @param {string} address @param {string} user @param {string} network @param {any[]} [more] */
+const mlines = (address, user, network, more = [], seen = true) => [mline("Address", address), mline("User", user),
+  mline("Network", network), ...more, ...(seen ? [mline("Last seen", "today 9:14")] : [])];
+
+/** graph.html's world: LOGGED, after Refresh (the login times, db-02 told away); NETBIRD its client's state.
+ * @param {{ logged?: boolean, netbird?: string }} [how] */
+function machineWorld({ logged = true, netbird = "on" } = {}) {
+  const off = netbird === "off", seen = logged && !off;
+  const away = (/** @type {string} */ name, /** @type {any[]} */ lines, why = NETBIRD_OFF) => ({ parts: [["unreachable",
+    "bad"]], sub: "unreachable", state: "bad", properties: machineProps(name, UNREACHABLE, lines,
+    why === NETBIRD_OFF ? AWAY_ACTS : AWAY_ACTS.slice(0, 1), why, why === NETBIRD_OFF ? "netbird up" : null) });
+  const behind = (/** @type {string} */ name) => [mline("Path", `This Mac › Tailscale › lumen-api › ${name}`)];
+  const nodes = [{ id: "mac", column: "mac", kind: "mac", title: "This Mac", icon: "monitor", brand: null, tag: null,
+    sub: "5 networks, 9 machines", parts: [["5 networks, 9 machines", "text"]], state: null, dim: false, chips: [],
+    parent: null, network: null, properties: machineProps("This Mac", null), run: null },
+  mnetwork("local", "Local network", "2 machines", "lab-pi, studio"),
+  mnetwork("tailscale", "Tailscale", "4 machines", "harbor-web, lumen-api, build-01, db-02"),
+  mnetwork("netbird", "NetBird", "2 machines", "kelp-ci, tidepool", off ? { tag: "off", dim: true,
+    properties: machineProps("NetBird", { text: "off", tone: "muted" }, [mline("Machines", "kelp-ci, tidepool"),
+      mline("Checked", "today 9:14")], AWAY_ACTS, NETBIRD_OFF, "netbird up") } : {}),
+  mnetwork("zerotier", "ZeroTier", "none yet: add one by its address", null),
+  mnetwork("public", "Public", "1 machine", "vps-edge"),
+  mmachine("lab-pi", "network:local", mlines("lab-pi.local", "pi", "Local network", [], logged)),
+  mmachine("studio", "network:local", [mline("Routes", "studio.local", [["in use", "text"],
+    ...(logged ? [["  ", "text"], ["3 ms", "muted"]] : [])], "local"), mline("", "studio.tail0000.ts.net",
+    [["standby", "muted"]], "tailscale"), mline("User", "dev"), mline("Key", "SHA256:Lb3sT0dI…9qXe"),
+  ...(logged ? [mline("Last seen", "today 9:14")] : []), mline("Runs", "1 space")], [["1 space", "text"]],
+  { tag: "macos" }),
+  mmachine("harbor-web", "network:tailscale", mlines("harbor-web.tail0000.ts.net", "root", "Tailscale", [], logged)),
+  mmachine("lumen-api", "network:tailscale", mlines("lumen-api.tail0000.ts.net", "root", "Tailscale", logged ? []
+    : [], logged).concat([["Runs", [["2 spaces", "text"], [", ", "text"], ["Claude working", "text"]], [], null]]),
+  [["2 spaces", "text"], [", ", "text"], ["Claude working", "text"]]),
+  mmachine("build-01", "machine:lumen-api", [mline("Address", "198.51.100.30"), mline("User", "root"),
+    mline("Network", "through lumen-api"), ...behind("build-01"), mline("Key", "SHA256:Qm9vZ0x1…a7Fk"),
+    ...(logged ? [mline("Last seen", "today 9:14")] : []), ["Runs", [["1 space", "text"], [", ", "text"],
+      ["Codex waiting", "warn"]], [], null]], [["1 space", "text"], [", ", "text"], ["Codex waiting", "warn"]],
+  { state: "warn" }),
+  mmachine("db-02", "machine:lumen-api", [mline("Address", "db-02.local"), mline("User", "root"),
+    mline("Network", "through lumen-api"), ...behind("db-02")], [], logged ? away("db-02", [mline("Address",
+    "db-02.local"), mline("User", "root"), mline("Network", "through lumen-api"), ...behind("db-02")],
+  [[["db-02 does not answer: is it on and awake?", "warn"]]]) : {}),
+  ...["kelp-ci", "tidepool"].map((name) => mmachine(name, "network:netbird", mlines(`${name}.netbird.cloud`, "root",
+    "NetBird", [], seen), [], off ? { ...away(name, mlines(`${name}.netbird.cloud`, "root", "NetBird", [], false)),
+    dim: true } : {})),
+  mmachine("vps-edge", "network:public", mlines("203.0.113.40", "root", "Public", [], logged))];
+  const label = (/** @type {string} */ name, /** @type {string} */ path, /** @type {number} */ ms) => (logged
+    ? [path, `${ms} ms`].filter(Boolean).join(" ") : path || null);
+  const edges = [...["local", "tailscale", "netbird", "zerotier", "public"].map((kind) => medge("mac",
+    `network:${kind}`, kind === "netbird" && off ? "failed" : "always")),
+  medge("network:local", "machine:lab-pi", "always", label("lab-pi", "", 5)),
+  medge("network:local", "machine:studio", "always", label("studio", "", 3)),
+  medge("network:tailscale", "machine:harbor-web", "demand", label("harbor-web", "relayed", 84)),
+  medge("network:tailscale", "machine:lumen-api", "always", label("lumen-api", "direct", 12)),
+  medge("machine:lumen-api", "machine:build-01", "always", label("build-01", "", 19)),
+  medge("machine:lumen-api", "machine:db-02", logged ? "failed" : "always"),
+  medge("network:netbird", "machine:kelp-ci", off ? "failed" : "demand", off ? null : "relayed 61 ms"),
+  medge("network:netbird", "machine:tidepool", off ? "failed" : "always", off ? null : "direct 22 ms"),
+  medge("network:public", "machine:vps-edge", "always", label("vps-edge", "", 41)),
+  medge("network:tailscale", "machine:studio", "standby")];
+  return { columns: ["mac", "networks", "machines", "through"], checked: 1795683240, nodes, edges,
+    words: { columns: { mac: "This Mac", networks: "Networks", machines: "Machines", through: "Through" },
+      legend: [["always", "direct"], ["demand", "relayed"], ["standby", "standby route"], ["failed", "away"]] } };
+}
+/** An edge of the machines' graph in core's shape. @param {string} from @param {string} to @param {string} style
+ * @param {string | null} [label] */
+const medge = (from, to, style, label = null) => ({ from, to, style, gates: [], run: null, label });
+
+/** The Machines tab as its view draws FOUND (core's graph), FIELDS its state; its clicks go nowhere.
+ * @param {any} found */
+function machinesOf(found, fields = {}) {
+  const view = Object.assign(Object.create(MachinesView.prototype), { found, error: null, busy: false,
+    checking: false, logged: true, size: { width: 0, height: 0 }, sizes: {}, drag: null, chosen: null,
+    answered: null, wants: null, removing: null, copiedAt: 0, folder: "/work/herdr-fold", menuOpen: false,
+    still: true }, fields);
+  return { view, draw: (/** @type {any} */ t) => view.draw(t) };
+}
+
+/** Refresh alone, at the canvas's top left as the tab draws it over graph.html's world, FIELDS the view's. */
+function toolsOf(fields = {}) {
+  const found = machineWorld(), { view } = machinesOf(found, fields);
+  return { draw: (/** @type {any} */ t) => div().relative().size_full().child(view.tools(t, found)) };
+}
+
+/** The chosen node's properties alone, as the tab draws them at its lower left: NODE of FOUND, FIELDS the view's.
+ * @param {any} found @param {string} node */
+function inspectorOf(found, node, fields = {}) {
+  const { view } = machinesOf(found, { chosen: node, ...fields });
+  const one = found.nodes.find((/** @type {any} */ n) => n.id === node);
+  return { draw: (/** @type {any} */ t) => div().relative().size_full().child(view.inspector(t, one, found)) };
+}
+
+/** The Machines tab's specimens, made once (each keeps what it measured): [name, view, height, width]. */
+function machineGraphs() {
+  return [["Wiring after Refresh, as graph.html's: a login to each, its time on the edges; build-01 behind lumen-api "
+    + "chosen", machinesOf(machineWorld(), { chosen: "machine:build-01" }), 680, 1100],
+  ["NetBird off on this Mac, graph.html's Hálózat le: its edge and its machines failed, its node chosen: why, the "
+    + "command with Copy, Check again", machinesOf(machineWorld({ netbird: "off" }), { chosen: "network:netbird" }),
+  680, 1100],
+  ["A machine on two routes, graph.html's Két út: studio chosen, the local network in use, Tailscale standby",
+    machinesOf(machineWorld(), { chosen: "machine:studio" }), 680, 1100],
+  ["The minute's look before Refresh: the networks' own words on the edges, no login made",
+    machinesOf(machineWorld({ logged: false }), { logged: false }), 680, 1100],
+  ["Refresh pressed: Checking… while it logs in to each machine", toolsOf({ logged: false, busy: true,
+    checking: true }), 50, 540],
+  ["A look that failed while the graph shows: why, beside Refresh", toolsOf({ error: "networks.py: Permission "
+    + "denied" }), 50, 540],
+  ["Not read yet", machinesOf(null, { busy: true }), 96, 540],
+  ["The look failed: why, in the graph's place", machinesOf(null, { error: "networks.py: Permission denied" }), 96,
+    540]];
+}
+
+/** The Machines tab's properties specimens: [name, view, height]. */
+function machineInspectors() {
+  const world = machineWorld(), off = machineWorld({ netbird: "off" });
+  const offering = { ...world, nodes: world.nodes.map((one) => (one.id === "network:netbird" ? { ...one,
+    sub: "3 machines to add", parts: [["3 machines to add", "muted"]], properties: machineProps("NetBird", null, [],
+      [["add", "3 machines to add"]]) } : one)) };
+  return [["A machine behind another: its way with its network's mark, its key, what runs there; Status, Set up "
+    + "again, Remove…, ⋯", inspectorOf(world, "machine:build-01"), 290],
+  ["Away: its sentence, Check again", inspectorOf(world, "machine:db-02"), 240],
+  ["A network off: why, the command with Copy, when it was checked, Check again",
+    inspectorOf(off, "network:netbird"), 200],
+  ["Copy pressed: Copied, a moment", inspectorOf(off, "network:netbird", { copiedAt: Number.MAX_SAFE_INTEGER }),
+    200],
+  ["Two routes: the one in use first with its time, the other standby", inspectorOf(world, "machine:studio"), 270],
+  ["A network on with none of its machines added: its machines to add", inspectorOf(offering, "network:netbird"),
+    104],
+  ["Remove… pressed: asked first, in the buttons' place", inspectorOf(world, "machine:build-01",
+    { removing: "build-01" }), 290],
+  ["Without the package's machines.sh: its actions faint, their tip says why",
+    inspectorOf(world, "machine:build-01", { folder: null }), 290],
+  ["This Mac: what it reaches", inspectorOf(world, "mac"), 96]];
+}
+
 function agentsOf(found, fields = {}, agent = "claude") {
   const view = Object.assign(Object.create(AgentsView.prototype), { space: null, found, missing: false, error: null,
     size: { width: 0, height: 0 }, sizes: {}, drag: null, chosen: null, listing: false, cursor: null, listPlaces: [],
@@ -2325,6 +2496,28 @@ function sections(g, t) {
           + "properties on the side's level under a hairline, 12 in, 4 apart: the title 13 semibold, its state 12 at "
           + "the end · a line's label muted in 64 · a picture 112 wide, 16:9, radius 6 · buttons h 26, raised, the "
           + "web's and Remove plain · the form the same, its one accent Start run at the right end" }))))]),
+    ["machines-graph", () => [group(t, "The Machines tab: the graph", g.machinesGraph.map(([name, view, h, width],
+      i) => specimen(t, `machines-graph-${i}`, String(name), fixed(Number(h), /** @type {any} */ (view).draw(t)), {
+      width: Number(width), spec: i ? "" : "the canvas the tab's whole card, on surface, dots 20 apart · Refresh 26 "
+        + "high, raised, 12 in at the top left · the legend the Agents tab's, 12 in at the top right, a standby "
+        + "route's sample dots 2, 4 apart, at 55% · the columns' names 11 muted, 48 down, each over its column's left "
+        + "edge · a node the Agents tab's: 8 and 12 in, radius 10, 190 wide at least (This Mac 170, on the accent's "
+        + "6%, its edge the accent at 60%), its mark 14, its title 12 semibold, its tag 11 muted at its top right, "
+        + "its line 11 muted (waiting ansi3, unreachable ansi1, its edge too), half strength while its network is "
+        + "not on · columns 96 to 180 apart, as far as the widest label between them needs to stand clear · an edge "
+        + "1.5: direct solid, relayed and away dashed 5 and 5, away in ansi1, standby dotted 2 and 4 at 55% · a "
+        + "label at its edge's middle: h 18, 6 in, radius 4, a hairline, on canvas, 11 muted" })))]],
+    ["machines-inspector", () => [group(t, "The Machines tab: the chosen node's properties",
+      g.machinesInspector.map(([name, view, h], i) => specimen(t, `machines-inspector-${i}`, String(name),
+        fixed(Number(h), /** @type {any} */ (view).draw(t)), { width: 324, spec: i ? "" : "at the canvas's lower "
+        + "left, 12 in, as the Agents tab's: a popover 300 wide, a hairline, rounded 10, shadow_lg, 12 inside, its "
+        + "parts 6 apart, 12 · the title 20 high: the node's mark, its name semibold, its state 11 in its tone "
+        + "(connected ansi2), × 16 · "
+        + "why it is away in ansi3, wrapping; what to do muted, a command in a box: h 26, 8 in, radius 6, a "
+        + "hairline, on canvas, the code font 11, Copy muted at its end · a line 20 high, its label muted in 70, a "
+        + "route's mark 12 before it, a fingerprint in the code font 11, the way's › dim with its network's mark 12, "
+        + "what it says at its right 11 · buttons h 26, 6 apart, one row: Status, Set up again, Check again raised, "
+        + "Remove… plain, a machine's ⋯ 26 square (Show in Spaces, Look around from here…)" })))]],
     ...halves("agent-properties", (keep) => [group(t, "The Agent panel: the chosen row's properties",
       keep(g.agentProperties.map(
       ([name, view, h], i) => specimen(t, `agent-properties-${i}`, String(name), fixed(Number(h),

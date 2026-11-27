@@ -8,7 +8,7 @@ import { ADAPTERS } from "./agents.js";
 import { chatWaits, newAgentIn, nextAgent } from "./chat.js";
 import { unsavedIn } from "./editor.js";
 import { archivedChoice, waiting } from "./chats.js";
-import { agentsTab } from "./graph.js";
+import { agentsTab, machinesTab } from "./graph.js";
 import { ICONS } from "./icons.js";
 import { CHAT_TAB, hovering, tabRows, toggleRoom } from "./logic.js";
 import { Menus } from "./menus.js";
@@ -71,8 +71,10 @@ export class TabsView {
     const chats = Object.fromEntries(terminals().filter((c) => c.state === "live" && c.labels?.[CHAT_TAB])
       .map((c) => [c.labels[CHAT_TAB], c]));                // a chat tab's agent: a terminal with no pane
     const agents = agentsTab(space, panes())?.id;           // the Agents tab wears Lucide's share-2, usage.html's
+    const machines = machinesTab(space ? [space] : [], panes())?.tab.id;      // the Machines tab Lucide's waypoints
     const rows = tabRows(space, panes(), chats, chatWaits().tabs, unsavedIn(space)).map((row) => (row.id === agents
-      ? { ...row, icon: ICONS["share-2"], tint: true } : row));
+      ? { ...row, icon: ICONS["share-2"], tint: true } : row.id === machines ? { ...row, icon: ICONS.waypoints,
+        tint: true } : row));
     return this.draw(t, rows, space?.id ?? null,
       { start: START, end: toggleRoom(layout(), BUTTON) }, this.plus(space), { waiting: waiting(),
         listed: chatsShown() || floatingView() === "chats", open: dockOpen(), menu: this.menuUp }, this.endActs());

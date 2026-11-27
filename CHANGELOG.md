@@ -197,6 +197,13 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
   one's properties: why it is away in `./machines.sh`'s sentence, its address or routes, the way to it, its key, what
   runs there. Status, Set up again, Remove and Look around from here run `./machines.sh` in a terminal tab. See
   [The Machines view](docs/sidebar.md#the-machines-view).
+- The Herdr app's Machines tab: how this Mac reaches each machine, as a graph: This Mac, the networks with their marks
+  and states, the machines on them with what runs there, those behind another beside their jump host; each edge
+  direct, relayed, a standby route or away, labelled with the way and the time a login took. A machine's properties
+  and actions are the TUI view's (Status, Set up again, Remove…, and under ⋯ Show in Spaces and Look around from
+  here…, each but Show in Spaces `./machines.sh` in a terminal tab); a network or a machine that is away says why,
+  with the command to copy. Refresh logs in to each machine, on your press alone. Spaces' waypoints button and the
+  status bar's machine open it. See [Machines](docs/app.md#machines).
 
 ### Changed
 

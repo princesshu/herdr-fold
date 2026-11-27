@@ -8,6 +8,7 @@ import ipaddress
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -634,6 +635,44 @@ class ForTheApp(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             networks.main(["networks.py", "here", listed, *many])
         self.assertEqual(len(json.loads(out.getvalue())["machines"]), 1 + networks.SHOWN)
+
+    def test_the_apps_status_check_logs_in_as_machines_sh_does_and_only_when_asked(self):
+        # the Machines tab's Refresh (here LIST --login …): a login to each machine whose network lets it through,
+        # with machines.sh's own ssh options; the 60 s look none; --login anywhere else is no machine and asks none
+        logins = os.path.join(self.tmp, "logins")
+        folder = stubs(os.path.join(self.tmp, "stubs"), {
+            "tailscale": "#!/bin/sh\ncat <<'JSON'\n" + tailscale_json(TAILNET) + "\nJSON\n",
+            "ssh": f"#!/bin/sh\n[ \"$1\" = -G ] && exit 0\necho \"$*\" >> '{logins}'\nexit 0\n",
+            "route": "#!/bin/sh\nexit 68\n"})
+        set_env(self, PATH=f"{folder}:/usr/bin:/bin")
+        set_attrs(self, networks, here=lambda: {"tailscale": os.path.join(folder, "tailscale"), "netbird": None,
+                                                "zerotier": None, "wireguard": None})
+        listed = os.path.join(self.tmp, "machines.txt")
+        with open(listed, "w") as f:
+            f.write(f"lumen-api | root{AT}lumen-api.tail0000.ts.net | linux\n"
+                    f"harbor-web | root{AT}harbor-web.tail0000.ts.net | linux\n")
+        vps = ["vps-edge", "root" + AT + "vps-edge.tail0000.ts.net"]
+
+        def look(*more):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(networks.main(["networks.py", "here", listed, *more]), 0)
+            return {one["name"]: one for one in json.loads(out.getvalue())["machines"]}
+        self.assertEqual(list(look(*vps)), ["lumen-api", "harbor-web", "vps-edge"])
+        self.assertEqual(list(look(*vps, "--login")), ["lumen-api", "harbor-web", "vps-edge"])
+        self.assertFalse(os.path.exists(logins))
+        found = look("--login", *vps)
+        options = " ".join(networks.LOGIN_OPTIONS)
+        with open(logins) as f:            # harbor-web is offline on Tailscale: no login
+            self.assertEqual(f.read().splitlines(), [f"{options} -- root{AT}lumen-api.tail0000.ts.net exit",
+                                                     f"{options} -- root{AT}vps-edge.tail0000.ts.net exit"])
+        self.assertEqual((found["lumen-api"]["why"], type(found["lumen-api"]["figures"]["login_ms"])), (None, int))
+        self.assertEqual(found["harbor-web"]["why"]["key"], "machines.why_offline")
+        # the options are src/remote.sh's SSH_OPTS: nothing forwarded, no question asked
+        with open(os.path.join(PACKAGE, "src", "remote.sh"), encoding="utf-8") as f:
+            remote = f.read()
+        start = remote.index("SSH_OPTS=(") + len("SSH_OPTS=(")
+        self.assertEqual(tuple(shlex.split(remote[start:remote.index(")", start)])), networks.LOGIN_OPTIONS)
 
     def test_each_machine_carries_its_key_from_the_list(self):
         # the TUI's Machines view shows it (cut); one of the app's own, or a line with none, has none

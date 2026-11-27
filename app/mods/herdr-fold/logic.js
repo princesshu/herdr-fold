@@ -1716,11 +1716,70 @@ export function setupFolder(text) {
 /** The command asking about NETWORK's machines to add (./machines.sh in the package's FOLDER) in a terminal tab on this
  * Mac: in the space shown if it is this Mac's, else this Mac's first in LIST, else a new space here. @param {string}
  * network @param {string} folder @param {any[]} list @returns {[string, Record<string, any>]} */
-export function importCommand(network, folder, list) {
-  const tab = { name: networkName(network), folder, argv: ["/bin/bash", `${folder}/machines.sh`, network] };
+export const importCommand = (network, folder, list) => onThisMac({ name: networkName(network), folder,
+  argv: ["/bin/bash", `${folder}/machines.sh`, network] }, list);
+
+/** TAB ({name, folder, argv}) opened on this Mac: in the space shown if it is this Mac's, else this Mac's first in
+ * LIST, else a new space here. @param {Record<string, any>} tab @param {any[]} list
+ * @returns {[string, Record<string, any>]} */
+function onThisMac(tab, list) {
   const here = list.find((s) => s.active && !s.machine) ?? list.find((s) => !s.machine);
   return here ? ["tab.new", { ...tab, space: here.id }] : ["space.new", { ...tab, machine: "" }];
 }
+
+// a machine's actions in the Machines tab: machines.sh's command for each, and its tab's name, the TUI view's
+const MACHINE_COMMANDS = { status: "status", again: "add", remove: "remove", through: "through" };
+const MACHINE_TABS = { status: "Status", again: "Set up again", remove: "Remove", through: "Look around from" };
+const AGENT_WORD = /^[a-z_]{1,32}$/;              // an agent's key, core/machine_graph.py's WORD
+const RUN_STATES = ["working", "blocked"];          // what an agent there does that its node says
+
+/** Machine NAME's action WHAT (core's id: status, again, remove, through) asked by the package's machines.sh (FOLDER)
+ * in a terminal tab on this Mac, the name its one argument; null for another action or a name of no shape.
+ * @param {string} what @param {string} name @param {string} folder @param {any[]} list @returns {any[] | null} */
+export function machineCommand(what, name, folder, list) {
+  if (!Object.hasOwn(MACHINE_COMMANDS, what) || !isName(name)) return null;
+  const key = /** @type {keyof typeof MACHINE_COMMANDS} */ (what);
+  return onThisMac({ name: `${MACHINE_TABS[key]} ${name}`, folder, argv: ["/bin/bash", `${folder}/machines.sh`,
+    MACHINE_COMMANDS[key], name] }, list);
+}
+
+/** What runs on each remote machine as the app knows it (LIST its spaces, AGENTS herdr's): {name: {spaces: its spaces'
+ * count, agents: [[agent, state]] working or waiting on you}}, core/machine_graph.py's runs. @param {any[]} list
+ * @param {any[] | null} agents */
+export function machineRuns(list, agents) {
+  /** @type {Record<string, { spaces: number, agents: [string, string][] }>} */
+  const runs = {};
+  const machineOf = new Map(listOf(list).filter((s) => isName(s?.machine)).map((s) => [s.id, s.machine]));
+  for (const name of machineOf.values()) {
+    runs[name] = runs[name] ?? { spaces: 0, agents: [] };
+    runs[name].spaces += 1;
+  }
+  for (const one of listOf(agents)) {
+    const name = machineOf.get(one?.space), key = one?.program?.key;
+    if (name && AGENT_WORD.test(key ?? "") && RUN_STATES.includes(one.status)) runs[name].agents.push([key,
+      one.status]);
+  }
+  return runs;
+}
+
+/** The machines herdr keeps (hc machine ls's LISTED): {name: connected now}, a temporary one or one of no shape left
+ * out; null where herdr told nothing. @param {any} listed @returns {Record<string, boolean> | null} */
+export function machinesKept(listed) {
+  if (!Array.isArray(listed?.machines)) return null;
+  return Object.fromEntries(listOf(listed.machines).filter((one) => one && !one.temporary && isName(one.name))
+    .map((one) => [one.name, one.state === "connected"]));
+}
+
+// core/networks.py's here piped into core/machine_graph.py (LOOK -): the look, a long list, never one argument; every
+// value a positional parameter, never in the script; a look that fails ends it with its status and words
+const piped = (py = pythonCommand('"$py"').join(" ")) => `py=$1 graph=$2 words=$3 runs=$4 kept=$5 nets=$6; shift 6\n`
+  + `look=$(${py} "$nets" here "$@") || exit\nprintf '%s\\n' "$look" | ${py} "$graph" - "$words" "$runs" "$kept"`;
+
+/** The command drawing the machines' graph on this Mac: BINARY (Python) runs NETS (networks.py's source) with HERE (its
+ * arguments), piped to GRAPH (machine_graph.py's) with GIVEN (the words, --runs=, --kept=). @param {string} binary
+ * @param {string} graph @param {[string, string, string]} given @param {string} nets @param {string[]} here */
+export const graphPipe = (binary, graph, given, nets, here) => ["/bin/sh", ["-c", piped(), "sh", binary, graph,
+  ...given, nets, ...here]];
 
 /** The network machine NAME is reached on, as the status bar marks it (SEEN: networksSeen's); null for none known,
  * this computer, or one behind another. @param {any} seen @param {string} name */

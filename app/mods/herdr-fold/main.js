@@ -20,6 +20,7 @@ import { askChats, bottomChoice, checkUpdates, chosenView, FloatSize, followFold
 import { followNotes, forgetSettings, openSettings, SettingsView, UPDATES, whatsNew } from "./settings.js";
 import { AgentLook, AgentView } from "./agent.js";
 import { AgentsView } from "./agentstab.js";
+import { MachinesView } from "./machinestab.js";
 import { Chat, firstChat, newAgentIn } from "./chat.js";
 import { StartView } from "./start.js";
 import { ChatsView } from "./chats.js";
@@ -229,6 +230,8 @@ export default class HerdrFold extends View {
     // the Agents tab: its graph and its usage (a CSV's text read as it is)
     if (part === "agents") return void (this.agents = new AgentsView(props().space, python, cx, pythonText));
     if (part === "start") return void (this.start = new StartView(python, cx));    // a home's first tab (start.js)
+    // the Machines tab, one a window: how this Mac reaches its machines (networks.py's look, on this Mac)
+    if (part === "machines") return void (this.machinesTab = new MachinesView(() => pythonOn(null), cx));
     if (part === "chat") {                        // a chat tab: an agent's chat as a timeline (chat.js)
       const chat = (this.chat = new Chat(props(), python, pythonOn));
       chat.init(cx);
@@ -725,6 +728,7 @@ export default class HerdrFold extends View {
     }
     if (this.chat) return this.chat.render(t, codeFont());
     if (this.agents) return this.agents.render(t, cx);
+    if (this.machinesTab) return this.machinesTab.render(t, cx);
     if (this.start) return this.start.render(t);
     const float = this.float;
     if (float && floatStale(float.panel, layout())) cx.timer.after(0, () => closeOverlay(float.overlay));

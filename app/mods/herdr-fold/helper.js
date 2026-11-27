@@ -20140,7 +20140,7 @@ export const MACHINE_GRAPH = [
     "machines on",
   "them and those behind another, each edge the way it goes, each node's properties the Machines view's rows " +
     "(one source",
-  "for both). Only shapes what it is given. Usage (in JSON): machine_graph.py LOOK WORDS [--runs=JSON] " +
+  "for both). Only shapes what it is given. Usage (in JSON): machine_graph.py LOOK|- WORDS [--runs=JSON] " +
     "[--kept=JSON].\"\"\"",
   "import json",
   "import re",
@@ -20193,7 +20193,8 @@ export const MACHINE_GRAPH = [
     "\"through\": \"Through\"},",
   "         \"legend\": [[\"always\", \"direct\"], [\"demand\", \"relayed\"], [\"standby\", \"standby " +
     "route\"], [\"failed\", \"away\"]]}",
-  "USAGE = \"usage: machine_graph.py LOOK WORDS [--runs=JSON] [--kept=JSON]\"",
+  "USAGE = \"usage: machine_graph.py LOOK WORDS [--runs=JSON] [--kept=JSON] (LOOK -: read from its input)\"",
+  "LOOK_MOST = 1 << 22           # bytes of a look read from its input: 256 machines' take some hundred KB",
   "",
   "",
   "# --- what it is given, checked",
@@ -20703,12 +20704,15 @@ export const MACHINE_GRAPH = [
   "",
   "def main(argv):",
   "    \"\"\"The Herdr app mod runs this on this Mac, answering in JSON: graph()'s of LOOK (core/networks.py's " +
-    "here, its JSON)",
-  "    in WORDS (the catalog's machines.* texts, a JSON object), --runs and --kept as checked_runs() and " +
-    "checked_kept()",
-  "    take them.\"\"\"",
+    "here, its JSON;",
+  "    -: piped in, LOOK_MOST at most) in WORDS (the catalog's machines.* texts), --runs and --kept as " +
+    "checked_runs() and",
+  "    checked_kept() take them.\"\"\"",
   "    options = dict(arg[2:].split(\"=\", 1) for arg in argv[1:] if arg.startswith(\"--\") and \"=\" in arg)",
   "    args = [arg for arg in argv[1:] if not arg.startswith(\"--\")]",
+  "    if args[:1] == [\"-\"]:",
+  "        given = sys.stdin.read(LOOK_MOST + 1)",
+  "        args[0] = given if len(given) <= LOOK_MOST else \"\"",
   "    try:",
   "        look, words = [json.loads(one) for one in args] if len(args) == 2 else (None, None)",
   "        runs, kept = [json.loads(options[key]) if key in options else None for key in (\"runs\", \"kept\")]",
@@ -22532,6 +22536,11 @@ export const NETWORKS = [
   "          \"zerotier\": (\"zerotier-cli\",)}",
   "WIREGUARD = \"/Applications/WireGuard.app\"",
   "SHOWN = 64                      # the app's own machines one look of the app's reads at most",
+  "# machines.sh's own ssh options (src/remote.sh's SSH_OPTS, a test keeps the two the same): the app's status " +
+    "check's",
+  "LOGIN_OPTIONS = (\"-o\", \"BatchMode=yes\", \"-o\", \"ConnectTimeout=10\", \"-o\", " +
+    "\"StrictHostKeyChecking=accept-new\", \"-o\",",
+  "                 \"ClearAllForwardings=yes\", \"-o\", \"ForwardAgent=no\")",
   "SHARED = ipaddress.ip_network((0x64400000, 10))                   # 100.64/10: Tailscale's and NetBird's " +
     "addresses alike",
   "# a home or office network's: RFC 1918's 10/8, 172.16/12 and 192.168/16, the link-local ones, IPv6's unique " +
@@ -23666,12 +23675,15 @@ export const NETWORKS = [
   "",
   "",
   "def here_json(argv):",
-  "    \"\"\"LIST [NAME TARGET]\u2026: machines_json()'s for the Herdr app, every 60 s while it shows a remote " +
-    "machine: this Mac's",
-  "    clients found here, the app's own machines (at most SHOWN) read after the list's, no login.\"\"\"",
-  "    found, pairs = here(), argv[1:1 + 2 * SHOWN]",
+  "    \"\"\"LIST [--login] [NAME TARGET]\u2026: machines_json()'s for the Herdr app: this Mac's clients found " +
+    "here, the app's own",
+  "    machines (at most SHOWN) read after the list's; a login to each with machines.sh's options only with " +
+    "--login.\"\"\"",
+  "    login = argv[1:2] == [\"--login\"]",
+  "    found, pairs = here(), argv[1 + login:1 + login + 2 * SHOWN]",
   "    more = [one for one in map(app_machine, pairs[::2], pairs[1::2]) if one]",
-  "    return machines_json([argv[0], *(found[kind] or \"\" for kind in CLIENTS)], more)",
+  "    return machines_json([argv[0], *(found[kind] or \"\" for kind in CLIENTS),",
+  "                          *((\"--login\", \"--\", *LOGIN_OPTIONS) if login else ())], more)",
   "",
   "",
   "def main(argv):",

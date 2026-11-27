@@ -11,10 +11,11 @@ import { atHome, avatarFill, CENTRED, folderKey, HOME_NAME, homeFirst, homeId, h
   LIST, nested, NETWORKS_FOLDED, NETWORKS_SEEN, nextWaits, placeKey, placeLabel, spaceColor, spaceColors, spaceLabel,
   spacesItems, spaceWaits, toAddWords, toggleUnread, hovering, waited, withHomes }
   from "./logic.js";
-import { icon, iconButton, listHead, networkMark } from "./parts.js";
+import { openMachines } from "./panel.js";
+import { GAP, icon, iconButton, listHead, networkMark } from "./parts.js";
 
 const WAITS = "herdr-fold.waits";                  // each agent waiting on you: since when, and Cmd + Shift + U's mark
-const FOLDED = "herdr-fold.machines-folded";       // the machines whose spaces are folded away
+export const FOLDED = "herdr-fold.machines-folded";       // the machines whose spaces are folded away
 const MENDING = "herdr-fold.machines-mending";     // a rebuilt machine forgotten and added again, step by step
 const FALLBACK = 60000;            // ms: a repository in view looked at again this often, with the window in front
 const SETTLE = 1500;               // ms: a new space waits this long for its place, to show under its checkout at once
@@ -387,8 +388,9 @@ export class SpacesView {
   draw(t, groups, seen = shared(NETWORKS_SEEN) ?? null, folded = shared(NETWORKS_FOLDED)) {
     const items = spacesItems(groups, seen, Array.isArray(folded) ? folded : []);
     return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)               // the left sidebar's level
-      .child(listHead(t, "Spaces", iconButton(t, "space-new", "plus", "New space",
-        () => void newSpace().catch(() => {}))))
+      .child(listHead(t, "Spaces", h_flex().gap(GAP).child(iconButton(t, "spaces-machines", "waypoints", "Machines",
+        () => openMachines())).child(iconButton(t, "space-new", "plus", "New space",
+        () => void newSpace().catch(() => {})))))
       .child(v_flex().id("spaces-list").flex_1().min_h(0).px(8).pb(LIST.foot).overflow_y_scrollbar()
         .on_mouse_up("left", (_e, cx) => {
           this.pressed = null;

@@ -25,7 +25,7 @@ UI = ("arrow-up", "arrow-up-from-line", "at-sign", "audio-lines", "book-marked",
       "hand", "layers", "leaf", "lightbulb", "link", "list", "list-filter", "loader-circle", "minus", "monitor",
       "notebook", "panel-left", "play", "plug", "plus", "refresh-cw", "rotate-ccw", "rows-2", "scroll-text", "search",
       "server", "settings", "share-2", "sparkle", "sparkles", "square", "square-slash", "square-terminal", "terminal",
-      "undo-2", "wrench", "x", "zap")
+      "undo-2", "waypoints", "wrench", "x", "zap")
 # a logo SVG Logos lacks: Simple Icons' (CC0 1.0; Iconify's prefix:name), else its maker's own file, at a release
 ELSEWHERE = {"zerotier": "simple-icons:zerotier",
              "netbird": "https://raw.githubusercontent.com/netbirdio/netbird/v0.83.2/client/ui/frontend/src/assets/"

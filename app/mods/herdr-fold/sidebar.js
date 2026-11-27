@@ -12,7 +12,9 @@ import { menusOpen } from "./menus.js";
 import { BUTTON, GAP, icon, iconButton, iconTab, listName, stateMark } from "./parts.js";
 import { newSpace } from "./chat.js";
 import { openSettings, settingsOpen } from "./settings.js";
-import { floatSpaces, openHome, spaceColorsKept, waitsBySpace } from "./spaces.js";
+import { FOLDED, floatSpaces, openHome, spaceColorsKept, waitsBySpace } from "./spaces.js";
+import { NETWORKS_FOLDED } from "./logic.js";
+import { openMachines } from "./panel.js";
 
 const FLOAT = 300;                 // Spaces floating beside the rail: as wide as the open sidebar
 const EDGE = 8;                    // px a float keeps from the window's foot
@@ -182,9 +184,19 @@ function dockButton(t, dot, lit) {
     .child(div().text_size(10).text_color(lit ? t.accent : t.dim).child("Spaces"));
 }
 
-/** The Spaces float's head's button: a new space. */
-export const spacesButtons = (t) => [iconButton(t, "float-new-space", "plus", "New space",
-  () => void newSpace().catch(() => {}))];
+/** The Spaces float's head's buttons, the open list's: the Machines tab, a new space. */
+export const spacesButtons = (t) => [iconButton(t, "float-machines", "waypoints", "Machines", () => openMachines()),
+  iconButton(t, "float-new-space", "plus", "New space", () => void newSpace().catch(() => {}))];
+
+/** The Machines tab's Show in Spaces: machine NAME's head unfolded in Spaces, its NETWORK's head too (the one it
+ * stands under), the sidebar opened from its rail. @param {string} name @param {string | null} network */
+export function showInSpaces(name, network) {
+  const machines = new Set(/** @type {any[]} */ (shared(FOLDED) ?? [])), nets = new Set(/** @type {any[]} */ (
+    shared(NETWORKS_FOLDED) ?? []));
+  if (machines.delete(name)) setShared(FOLDED, [...machines]);
+  if (network && nets.delete(network)) setShared(NETWORKS_FOLDED, [...nets]);
+  if (folded()) toggleSidebar();
+}
 
 /** The Spaces float's list: each of LIST by its avatar (COLORS), name, wait (SINCE), its most urgent agent's state, the
  * shown one selected, a click showing it; a home with nothing open as the list's stand-in (spaces.js). */

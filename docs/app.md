@@ -71,6 +71,7 @@ an agent in a space waits on you, as the TUI's Space rows do:
 | A machine | once another machine is known, a head for each: this computer first, then the others by name, each 8 under the one above it and wearing its network's mark ([Remote machines](remote-machines.md#networks)), how each is (asleep, unreachable…), + for a new space there on its hover, its dot green while connected; a click folds its spaces away, and folded, it says their longest wait. A machine rebuilt or replaced says so, and Connect adds it again the way it was added. One behind another stands under it, a step further in, its tip the way to it (`Through lumen-api (198.51.100.30)`); one on several routes is one head under the route in use, its tip naming the others |
 | A network | once five remote machines or more are on two networks or more, they stand under their network's head (its mark, its name, its machines' count), in the routes' order: the local network, Tailscale, NetBird, ZeroTier, WireGuard, another tunnel, Cloudflare, public; those no network tells last, as before. While its client on this Mac is not on, its head says so (`off`, `signed out`…) and its tip says why and what to do, in `./machines.sh`'s words (`NetBird is not running on this Mac.`, `Start it: netbird up`). A click folds its machines away, and folded, it says their longest wait. A network on with none of its machines added yet shows its head all the same, with `3 machines to add`: a click asks about each in a terminal tab on this Mac (`./machines.sh netbird`, from the package's folder the installer kept) |
 | + | a new space, its agent started as + after the last tab starts one ([New chats](#new-chats)) |
+| The waypoints button | beside +, the [Machines](#machines) tab, how this Mac reaches each machine |
 | The foot | Settings, which opens [Settings](#settings), and Add machine…, as the app's own foot has them |
 
 Cmd + Shift + U marks the focused agent unread, as in the TUI: its space says `waiting` again, from then, until you come
@@ -551,10 +552,39 @@ github, linear and sentry behind an ask, on the right](../assets/screenshots/app
 November against its $150 budget, 35.3M tokens, per day by model, the month's line and pace, and by
 project](../assets/screenshots/app-agents-usage.webp)
 
+## Machines
+
+A tab of the main area, one a window, under Lucide's waypoints icon: how this Mac reaches each machine on herdr-fold's
+list ([Remote machines](remote-machines.md)), as a graph in four columns: This Mac, the networks (each with its mark,
+its state while it is not on, its machines' count), the machines on them with what runs there (`2 spaces, Claude
+working`, `Codex waiting` in yellow), and the machines behind another, beside their jump host. Each edge goes the way a
+machine is reached: solid where the network says direct, dashed where it relays, dotted and faint for a machine's other
+route (`standby route`), red and dashed where it is away; its label says the way and the time a login took. The Spaces
+head's waypoints button opens it, and the status bar's machine opens it on that machine; opened again, the same tab is
+shown, in whichever space it is.
+
+A press on a node chooses it: its properties stand at the canvas's lower left, as on the Agents tab, the same rows the
+TUI's Machines view lists ([The Machines view](sidebar.md#the-machines-view)): a machine's address or routes (the one in
+use first), its user, network, the way to it behind another (`This Mac › Tailscale › lumen-api › build-01`), its key,
+when it was seen and what runs there, then Status, Set up again, Remove… (asked first: `Take build-01 off the list, and
+herdr-fold off it?`) and ⋯ with Show in Spaces (its head unfolded there) and, on a Linux or macOS machine, Look around
+from here…, in one row as the TUI view has them. Each of those but Show in Spaces runs `./machines.sh` in a terminal tab
+on this Mac, from the package's folder the installer kept, so its questions and fingerprints stay there. A machine or a
+network that is away says why in `./machines.sh`'s words (`NetBird is not running on this Mac.`) with the command to run
+in a box (`Start it: netbird up`, Copy), and Check again; a network with none of its machines added yet offers them (`3
+machines to add`). Nodes drag and stay where they are let go, a double click beside them lays them out again, and the
+arrows step from node to node.
+
+The tab looks at the networks as it opens and every minute while it shows, as the status bar does: the networks' own
+status and the list, never a login. Refresh is the status check: a login to each machine whose network lets it through,
+with `./machines.sh`'s own ssh options, two minutes at most, only on your press; its times label the edges, and a
+machine that does not answer says so. Its result stays until the next Refresh.
+
 ## The status bar
 
 The window's foot is herdr-fold's own status bar, where the app's was, as the mockups draw it: on the side's level under
-a hairline, the shown space's machine (This computer, else its name with its network's mark) and branch, then its
+a hairline, the shown space's machine (This computer, else its name with its network's mark; a press shows it in the
+[Machines](#machines) tab) and branch, then its
 agents, a dot and their words: those waiting on you first (`1 of 3 agents waiting for you`, the dot yellow), else those
 working (`2 agents working`, the dot in the accent), else how many (`1 agent`, `2 agents`); while a run works in the
 background, `1 run working` after them, a press opening the Agents tab on [Runs](harness.md#the-runs-view). While Herdr
@@ -674,6 +704,9 @@ Without the layout, herdr-fold also opens beside a terminal, as a pane of that t
   [What it reads and writes](harness.md#what-it-reads-and-writes).
 - An SVG or a page is drawn with nothing asked of the network and none of its scripts run, so a file cannot learn who
   opened it.
+- The Machines tab reads this Mac's network clients and the machine list on this Mac, as the status bar's look does,
+  and checks what they say before it shows; it logs in to the machines only on Refresh, and adds, changes or removes
+  nothing itself: its buttons run `./machines.sh` in a terminal tab, where you answer its questions.
 - The mod itself sends nothing anywhere but two daily looks, each the request alone: for a newer herdr-fold
   (api.github.com) and for the model prices Usage's costs are counted with (LiteLLM's public table,
   raw.githubusercontent.com), both switched in herdr-fold's Settings, under About. The sync talks to the

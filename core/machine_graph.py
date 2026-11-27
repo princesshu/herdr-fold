@@ -1,6 +1,6 @@
 """The machines' graph in both clients' words, from core/networks.py's look: this Mac, the networks, the machines on
 them and those behind another, each edge the way it goes, each node's properties the Machines view's rows (one source
-for both). Only shapes what it is given. Usage (in JSON): machine_graph.py LOOK WORDS [--runs=JSON] [--kept=JSON]."""
+for both). Only shapes what it is given. Usage (in JSON): machine_graph.py LOOK|- WORDS [--runs=JSON] [--kept=JSON]."""
 import json
 import re
 import sys
@@ -39,7 +39,8 @@ MAC = "mac"                   # this Mac's node
 COLUMNS = ["mac", "networks", "machines", "through"]
 WORDS = {"columns": {"mac": THIS_MAC, "networks": "Networks", "machines": "Machines", "through": "Through"},
          "legend": [["always", "direct"], ["demand", "relayed"], ["standby", "standby route"], ["failed", "away"]]}
-USAGE = "usage: machine_graph.py LOOK WORDS [--runs=JSON] [--kept=JSON]"
+USAGE = "usage: machine_graph.py LOOK WORDS [--runs=JSON] [--kept=JSON] (LOOK -: read from its input)"
+LOOK_MOST = 1 << 22           # bytes of a look read from its input: 256 machines' take some hundred KB
 
 
 # --- what it is given, checked
@@ -470,11 +471,14 @@ def catalog(words):
 
 
 def main(argv):
-    """The Herdr app mod runs this on this Mac, answering in JSON: graph()'s of LOOK (core/networks.py's here, its JSON)
-    in WORDS (the catalog's machines.* texts, a JSON object), --runs and --kept as checked_runs() and checked_kept()
-    take them."""
+    """The Herdr app mod runs this on this Mac, answering in JSON: graph()'s of LOOK (core/networks.py's here, its JSON;
+    -: piped in, LOOK_MOST at most) in WORDS (the catalog's machines.* texts), --runs and --kept as checked_runs() and
+    checked_kept() take them."""
     options = dict(arg[2:].split("=", 1) for arg in argv[1:] if arg.startswith("--") and "=" in arg)
     args = [arg for arg in argv[1:] if not arg.startswith("--")]
+    if args[:1] == ["-"]:
+        given = sys.stdin.read(LOOK_MOST + 1)
+        args[0] = given if len(given) <= LOOK_MOST else ""
     try:
         look, words = [json.loads(one) for one in args] if len(args) == 2 else (None, None)
         runs, kept = [json.loads(options[key]) if key in options else None for key in ("runs", "kept")]

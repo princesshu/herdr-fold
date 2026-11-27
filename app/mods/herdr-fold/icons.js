@@ -68,6 +68,7 @@ export const ICONS = {
   "square-terminal": "mods/herdr-fold/icons/lucide/square-terminal.svg",
   "terminal": "mods/herdr-fold/icons/lucide/terminal.svg",
   "undo-2": "mods/herdr-fold/icons/lucide/undo-2.svg",
+  "waypoints": "mods/herdr-fold/icons/lucide/waypoints.svg",
   "wrench": "mods/herdr-fold/icons/lucide/wrench.svg",
   "x": "mods/herdr-fold/icons/lucide/x.svg",
   "zap": "mods/herdr-fold/icons/lucide/zap.svg"

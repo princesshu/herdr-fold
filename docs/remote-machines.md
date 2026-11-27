@@ -279,7 +279,10 @@ NetBird, ZeroTier, WireGuard, another tunnel, Cloudflare, public. A network whos
 the same sentences, and one with none of its machines added yet offers them there, asked about in a terminal tab
 ([Spaces](app.md#spaces)). The status bar's machine wears its mark. The app looks once a minute while it shows a remote
 machine, and soon after one comes or goes: the networks' own status and the list as above, a machine added in the app's
-own Settings → Machines read by its address, never a login.
+own Settings → Machines read by its address, never a login. Its Machines tab (Spaces' waypoints button, or a press on
+the status bar's machine) draws how this Mac reaches each machine: the networks, the machines on them and those behind
+another, each edge direct, relayed, a standby route or away, a machine's properties and actions as the TUI view's;
+its Refresh is the status check, a login to each machine, on your press alone ([Machines](app.md#machines)).
 In the TUI, More's Machines… shows them the same way over the tab, with the chosen machine's properties and actions
 ([The Machines view](sidebar.md#the-machines-view)).
 

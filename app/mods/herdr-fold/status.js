@@ -9,7 +9,7 @@ import { chatWaits } from "./chat.js";
 import { NETWORKS, RUNS } from "./helper.js";
 import { agentsSaid, appMachines, barStatuses, CENTRED, networkOf, networksSeen, NETWORKS_SEEN, setupFolder,
   updateReady } from "./logic.js";
-import { openAgents } from "./panel.js";
+import { openAgents, openMachines } from "./panel.js";
 import { networkMark, SPINNER } from "./parts.js";
 import { runsWorking } from "./runs.js";
 import { openSettings, UPDATES } from "./settings.js";
@@ -84,17 +84,19 @@ export function liveStatus(t) {
     update: updateReady(updates(), shared(UPDATES)), runs: working });
 }
 
-/** The status bar (STATUS), on the side's level (chrome) under a hairline, 16 in and its items 16 apart, 12 in the
- * captions' tone: the machine (its network's mark before it, 6 apart), the branch, the agents' dot and words, the runs
- * working (a press shows them in Runs); at its end the update item. @param {Status} status */
+/** The status bar (STATUS), on the side's level (chrome) under a hairline, 16 in and its items 16 apart, 12 muted: the
+ * machine (its network's mark before it, 6 apart; a press shows it in the Machines tab), the branch, the agents' dot
+ * and words, the runs working (a press shows them in Runs); at its end the update item. @param {Status} status */
 export function statusBar(t, { machine, network = null, branch, agents: said, update, runs = 0 }) {
   const dot = (/** @type {string} */ color) => div().size(6).flex_none().rounded_full().bg(color);
   const role = said.role === "waiting" ? t.ansi3 : said.role === "working" ? t.accent : t.dim;
   const mark = network ? networkMark(t, network, CENTRED.barMark[1]) : null;
   return h_flex().id("status").size_full().min_w(0).px(16).gap(16).items_center().bg(t.chrome).border_t(1)
     .border_color(t.border).text_size(12).text_color(t.muted)
-    .child(h_flex().flex_none().gap(6).items_center().when(Boolean(mark), (e) => e.child(mark))
-      .child(machine ?? "This computer"))
+    .child(h_flex().id("status-machine").h(20).flex_none().mx(-6).px(6).gap(6).items_center().rounded(4)
+      .cursor_pointer().hover((/** @type {any} */ s) => s.bg(t.hover).text_color(t.foreground))
+      .tooltip("Show it in the Machines tab").on_click(() => openMachines(machine ? `machine:${machine}` : "mac"))
+      .when(Boolean(mark), (e) => e.child(mark)).child(machine ?? "This computer"))
     .when(Boolean(branch), (e) => e.child(div().flex_shrink(1).min_w(0).truncate().child(String(branch))))
     .child(h_flex().flex_none().gap(6).items_center().child(dot(role)).child(said.words))
     .when(runs > 0, (e) => e.child(h_flex().id("status-runs").h(20).flex_none().px(6).items_center().rounded(4)
