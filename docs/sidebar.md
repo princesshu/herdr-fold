@@ -120,20 +120,20 @@ while More leaves it off the row).
 ## The Machines view
 
 On this Mac, More's Machines… (over Settings…, where herdr-fold's installer put the sidebar) opens the Machines view
-over the tab, as the Usage view opens: the machines on herdr-fold's list under their networks' heads, however few
-(the Herdr app's Spaces groups them from five: [Spaces](app.md#spaces)), and the chosen one's properties under them.
-The networks stand in the order of a machine's routes (the local network, Tailscale, NetBird, ZeroTier, WireGuard,
-another tunnel, Cloudflare, public), each head with its mark (a brand's letter in its color, else a Nerd Font glyph or,
-with Plain marks, a plain one), its name, its state while it is not on (`off` and `not installed` dim, the name dimmed
-too; `signed out`, `expired`, `needs approval`, `no management server` in yellow) and its machines' count (none while
-it has none of its own). A machine behind another stands under it after `└`; one on two routes is one row, under the
-route in use. A machine's row has its dot (green, dim while away), its name, its system in one column for all, and at
-its right the way to it as its network tells (`direct`, `relayed`, NetBird's own time), `waiting` in yellow while an
-agent there waits on you, or `unreachable`. A network with none of its machines added yet: Tailscale and NetBird offer
-theirs (`+ Add 4 machines…`: a click, or ↓ onto it and Enter, asks about each in a terminal tab and puts them on the
-list); ZeroTier and WireGuard, which name none, say one is added by its address. With no machine on the list it says so
-at its top (`No machine on the list yet.`, and `Ctrl+B, Shift+M adds one` where no network offers any), and nothing is
-chosen that would start those questions: Enter does nothing until you move onto a row.
+over the tab, as the Usage view opens: the machines on herdr-fold's list under their networks' heads, however few (the
+Herdr app's Spaces groups them from five: [Spaces](app.md#spaces)), and the chosen one's properties under them. The
+networks stand in the order of a machine's routes (the local network, Tailscale, NetBird, ZeroTier, WireGuard, another
+tunnel, Cloudflare, public), each head with its mark (a brand's letter in its color, else a Nerd Font glyph or, with
+Plain marks, a plain one), its name, its state while it is not on (`off` and `not installed` dim, the name dimmed too;
+`signed out`, `expired`, `needs approval`, `no management server` in yellow) and its machines' count (none while it has
+none of its own). A machine behind another stands under it after `└`; one on two routes is one row, under the route in
+use. A machine's row has its dot (green, dim while away), its name, its system in one column for all, and at its right
+the way to it as its network tells (`direct`, `relayed`, NetBird's own time), `waiting` in yellow while an agent there
+waits on you, or `unreachable`. A network with none of its machines added yet: Tailscale and NetBird offer theirs (`+
+Add 4 machines…`: a click, or ↓ onto it and Enter, asks about each in a terminal tab, then sets up the ones you took);
+ZeroTier and WireGuard, which name none, say one is added by its address. With no machine on the list it says so at its
+top (`No machine on the list yet.`, and `Ctrl+B, Shift+M adds one` where no network offers any), and nothing is chosen
+that would start those questions: Enter does nothing until you move onto a row.
 
 The chosen machine's properties: its name with `connected`, `not connected` (herdr keeps no such machine) or
 `unreachable`, then, label left and value right, why it is away and what to do, in the sentences `./machines.sh` says

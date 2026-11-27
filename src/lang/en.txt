@@ -206,6 +206,7 @@ machines.help = Remote machines (Linux, macOS, Windows) in herdr — on the cent
   \n  ./machines.sh manual          add a machine by its SSH address or name → the list\
   \n  ./machines.sh pick            the installer's questions: each source above, then by address → the list\
   \n  ./machines.sh new             the same questions, then prepare + connect only the new machines (Ctrl+B, Shift+M)\
+  \n  ./machines.sh new tailscale   Tailscale's (or netbird: NetBird's) questions alone, then the same for the new ones\
   \n  ./machines.sh add [name…]     prepare + connect to herdr (herdr asks before it installs anything)\
   \n  ./machines.sh prepare [name…] update only (apps, settings, plugins)\
   \n  ./machines.sh remove <name>   takes herdr-fold off the machine, disconnects it, takes it off the list\

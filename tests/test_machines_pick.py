@@ -86,7 +86,8 @@ class Step8(unittest.TestCase):
                 return None
             prompts.append(line.strip())
             return answers.pop(0)
-        self.shown, ended = run_in_terminal(["/bin/bash", os.path.join(self.pkg, "machines.sh"), command],
+        command = [command] if isinstance(command, str) else list(command)            # new tailscale: two words
+        self.shown, ended = run_in_terminal(["/bin/bash", os.path.join(self.pkg, "machines.sh"), *command],
                                             {"PATH": f"{self.stubs}:/usr/bin:/bin", "TERM": "dumb", "HOME": self.home,
                                              "USER": "dev", **env}, answer, timeout=timeout, idle=0.3)
         if not ended:
@@ -383,6 +384,23 @@ class Step8(unittest.TestCase):
         self.assertIn("== web (root@web.a.example, linux)\n", done.stdout)
         with open(path) as f:
             self.assertEqual(f.read(), old)
+
+    def test_new_from_one_network_asks_only_its_machines_then_sets_up_the_new_ones(self):
+        # what the clients' "Add 4 machines…" runs: Tailscale's questions alone, then the machine taken set up, as new
+        prompts = self.run_questions(["y", "", "n", "n", "", "", "", " "], command=["new", "tailscale"], timeout=40)
+        self.assertEqual(prompts[:4], ["Import mac-mini (macos, mac-mini.tail0000.ts.net)? [y/N]", "user [dev]:",
+                                       "Import srv (linux, server.tail0000.ts.net)? [y/N]",
+                                       "Import vps-edge (linux, vps-edge.tail0000.ts.net)? [y/N]"])
+        self.assertEqual(prompts[-1], "Press any key to exit.")
+        added = [call for call in self.herdr_calls() if call.startswith("herdr machine add")]
+        self.assertEqual(added, ["herdr machine add dev@mac-mini.tail0000.ts.net --label mac-mini"])   # beta alone
+
+    def test_new_takes_no_other_word(self):
+        done = subprocess.run(["bash", os.path.join(self.pkg, "machines.sh"), "new", "--option"], capture_output=True,
+                              text=True, stdin=subprocess.DEVNULL, timeout=20,
+                              env={"PATH": f"{self.stubs}:/usr/bin:/bin", "HOME": self.home})
+        self.assertNotEqual(done.returncode, 0)
+        self.assertEqual([call for call in self.herdr_calls() if call.startswith("herdr machine add")], [])
 
     def test_new_without_a_new_machine_sets_up_nothing(self):
         prompts = self.run_questions(["", "", "", "", " "], command="new")

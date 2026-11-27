@@ -404,10 +404,11 @@ class MachinesView(Loop):
                         ["/bin/bash", os.path.join(self.folder, "machines.sh"), COMMANDS[what], one["name"]])
 
     def add(self, network):
-        """A network's machines to add, asked about by ./machines.sh in a terminal tab, as the app's row does."""
+        """A network's machines to add, asked about by ./machines.sh new NETWORK in a terminal tab, then those taken
+        set up, as the app's row does."""
         if network in ("tailscale", "netbird"):
             self.in_tab(self.t(f"machines.network_{network}"),
-                        ["/bin/bash", os.path.join(self.folder, "machines.sh"), network])
+                        ["/bin/bash", os.path.join(self.folder, "machines.sh"), "new", network])
 
     def in_tab(self, name, argv):
         workspace = os.environ.get("HERDR_WORKSPACE_ID")

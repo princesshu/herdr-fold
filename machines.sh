@@ -857,11 +857,20 @@ cmd_pick() {
 }
 
 # Ctrl+B, Shift+M (add_machine.py — herdr itself has no button for adding a machine): the same questions, then only
-# the machines they put on the list get set up; the window stays open until a key press
+# the machines they put on the list get set up; the window stays open until a key press. new tailscale|netbird: that
+# network's questions alone (the clients' "Add 4 machines…")
 cmd_new() {
   local before name new=()
+  case ${1:-} in
+    ''|tailscale|netbird) ;;
+    *) echo "$(t machines.unknown_command "new $1")" >&2; return 1 ;;
+  esac
   before=$(machines | cut -d'|' -f1)
-  cmd_pick || skip "$(t machines.none_picked)"
+  case ${1:-} in
+    tailscale) cmd_tailscale ;;
+    netbird) cmd_netbird ;;
+    *) cmd_pick || skip "$(t machines.none_picked)" ;;
+  esac
   while IFS='|' read -r name _; do
     printf '%s\n' "$before" | grep -qxF "$name" || new+=("$name")
   done < <(machines)
@@ -1180,7 +1189,7 @@ case "${1:-status}" in
   through) shift; cmd_through "$@" ;;
   manual)  cmd_manual ;;
   pick)    cmd_pick ;;
-  new)     cmd_new ;;
+  new)     shift; cmd_new "$@" || exit 1 ;;
   add)     shift; cmd_add "$@" ;;
   prepare) shift; cmd_prepare "$@" ;;
   remove)  shift; cmd_remove "$@" ;;

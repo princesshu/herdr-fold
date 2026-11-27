@@ -2893,7 +2893,7 @@ test("what the network's machines to add ask through: the package's machines.sh,
     assert.equal(setupFolder(text), null, String(text));
   }
   const tab = { name: "NetBird", folder: "/work/herdr-fold", argv: ["/bin/bash", "/work/herdr-fold/machines.sh",
-    "netbird"] };
+    "new", "netbird"] };                         // its questions, then the machines taken set up (new's)
   const list = [{ id: "s1", machine: "lumen-api", active: true }, { id: "s2", machine: null, active: false },
     { id: "s3", machine: null, active: false }];
   assert.deepEqual(importCommand("netbird", "/work/herdr-fold", list), ["tab.new", { ...tab, space: "s2" }]);

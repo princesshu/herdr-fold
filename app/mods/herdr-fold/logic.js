@@ -1713,11 +1713,11 @@ export function setupFolder(text) {
   return folder.startsWith("/") && folder.length <= 1024 && !folder.match(CONTROLS) ? folder : null;
 }
 
-/** The command asking about NETWORK's machines to add (./machines.sh in the package's FOLDER) in a terminal tab on this
- * Mac: in the space shown if it is this Mac's, else this Mac's first in LIST, else a new space here. @param {string}
- * network @param {string} folder @param {any[]} list @returns {[string, Record<string, any>]} */
+/** NETWORK's machines to add asked about, those taken set up (./machines.sh new NETWORK in the package's FOLDER), in a
+ * terminal tab on this Mac: the space shown if this Mac's, else this Mac's first in LIST, else a new one here.
+ * @param {string} network @param {string} folder @param {any[]} list @returns {[string, Record<string, any>]} */
 export const importCommand = (network, folder, list) => onThisMac({ name: networkName(network), folder,
-  argv: ["/bin/bash", `${folder}/machines.sh`, network] }, list);
+  argv: ["/bin/bash", `${folder}/machines.sh`, "new", network] }, list);
 
 /** TAB ({name, folder, argv}) opened on this Mac: in the space shown if it is this Mac's, else this Mac's first in
  * LIST, else a new space here. @param {Record<string, any>} tab @param {any[]} list

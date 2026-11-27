@@ -279,11 +279,11 @@ connect, 30 at most in all); a route's key is read (`ssh-keyscan`, 3 seconds) on
 In the Herdr app, Spaces shows each machine with its network's mark, and once five or more are on two networks or more
 it groups them under their network's head, in the order of a machine's routes: the local network, Tailscale, NetBird,
 ZeroTier, WireGuard, another tunnel, Cloudflare, public. A network whose client is off says so on its head, its tip in
-the same sentences, and one with none of its machines added yet offers them there (`Add 3 machines…`), asked about in a
-terminal tab and put on the list; `./machines.sh add`, or a machine's Set up again (below), then sets each up
-([Spaces](app.md#spaces)). The status bar's machine wears its mark. The app looks once a minute while it shows a remote
-machine, and soon after one comes or goes: the networks' own status and the list, as `./machines.sh` reads them, a
-machine added in the app's own Settings → Machines read by its address, never a login.
+the same sentences, and one with none of its machines added yet offers them there (`Add 3 machines…`): asked about in a
+terminal tab (`./machines.sh new netbird`), and the ones you take are set up there too ([Spaces](app.md#spaces)). The
+status bar's machine wears its mark. The app looks once a minute while it shows a remote machine, and soon after one
+comes or goes: the networks' own status and the list, as `./machines.sh` reads them, a machine added in the app's own
+Settings → Machines read by its address, never a login.
 
 The app's Machines tab (Spaces' waypoints button, or a press on the status bar's machine) draws how this Mac reaches
 each machine: the networks, the machines on them and those behind another, each edge direct, relayed, a standby route or
@@ -321,7 +321,8 @@ herdr machine list              # the connected machines
 ```
 
 `sshconfig`, `tailscale`, `netbird`, `local` and `through` put the machines you say yes to on the list;
-`./machines.sh add <name>` then sets each up, as `new` and the installer's step 8 do by themselves.
+`./machines.sh add <name>` then sets each up, as `new` and the installer's step 8 do by themselves; `new tailscale` or
+`new netbird` asks only that network's questions, then sets up the new ones (the clients' `Add 4 machines…`).
 
 `./machines.sh remove` asks first about the machines that go through the one it removes
 ([A machine behind another](#a-machine-behind-another)), then puts Claude's earlier status line and the machine's own

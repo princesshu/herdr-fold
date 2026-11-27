@@ -297,7 +297,7 @@ class View(unittest.TestCase):
                 break
             self.keys(app, "down")
         self.keys(app, "enter")
-        self.assertEqual(self.ran(), ("NetBird", ["/bin/bash", SCRIPT, "netbird"]))
+        self.assertEqual(self.ran(), ("NetBird", ["/bin/bash", SCRIPT, "new", "netbird"]))
 
     def test_with_no_machine_on_the_list_it_says_so_and_enter_starts_nothing_unasked(self):
         # the owner's ruling (2026-11-27): the list's empty state at the top in the catalog's words, no count of 0, and
@@ -318,7 +318,7 @@ class View(unittest.TestCase):
         self.keys(app, "down")
         inset_band(self, app.canvas, y)
         self.keys(app, "enter")
-        self.assertEqual(self.ran(), ("Tailscale", ["/bin/bash", SCRIPT, "tailscale"]))
+        self.assertEqual(self.ran(), ("Tailscale", ["/bin/bash", SCRIPT, "new", "tailscale"]))   # then set up
         self.said["networks"]["tailscale"]["offered"] = []                      # nothing offered: how to add one
         self.said["networks"]["zerotier"]["state"] = "off"
         app = self.open()
