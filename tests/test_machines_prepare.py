@@ -714,7 +714,7 @@ class UnixFailure(Prepare, unittest.TestCase):
 
 
 class Unreachable(Prepare, unittest.TestCase):
-    """A machine this Mac cannot log in to: why, from what ssh says, and what to do about it."""
+    """A machine this Mac cannot log in to: why, from what ssh says, and what to do about it (the ladder's words)."""
     os_name = "linux"
 
     def reason(self, ssh_says):
@@ -723,30 +723,31 @@ class Unreachable(Prepare, unittest.TestCase):
 
     def test_a_name_the_network_does_not_know(self):
         out = self.reason("ssh: Could not resolve hostname box: nodename nor servname provided, or not known")
-        self.assertIn(catalog_text("machines.ssh_unknown_name", "box"), out)
+        self.assertIn(catalog_text("machines.why_unknown_name", "box"), out)
 
     def test_a_machine_without_an_ssh_server(self):
         out = self.reason("ssh: connect to host box port 22: Connection refused")
-        self.assertIn(catalog_text("machines.ssh_refused", "box"), out)
-        self.assertIn(catalog_text("machines.ssh_turn_on"), out)
+        self.assertIn(catalog_text("machines.why_no_ssh", "box"), out)
+        self.assertIn(catalog_text("machines.why_do_ssh_on"), out)
 
     def test_a_machine_that_does_not_answer(self):
         for says in ("ssh: connect to host box port 22: Operation timed out",
                      "ssh: connect to host box port 22: No route to host"):
-            self.assertIn(catalog_text("machines.ssh_unreachable", "box"), self.reason(says), says)
+            self.assertIn(catalog_text("machines.why_no_answer", "box"), self.reason(says), says)
 
     def test_a_key_it_does_not_take(self):
         out = self.reason("dev@box: Permission denied (publickey).")
-        self.assertIn(catalog_text("machines.ssh_failed", "box"), out)
-        self.assertIn(catalog_text("machines.ssh_passphrase"), out)
+        self.assertIn(catalog_text("machines.why_login", "box"), out)
+        self.assertIn(catalog_text("machines.why_do_login", "ssh box"), out)
 
     def test_a_changed_host_key(self):
         out = self.reason("Host key verification failed.")
-        self.assertIn(catalog_text("machines.ssh_host_key", "box", "box"), out)
+        self.assertIn(catalog_text("machines.why_host_key", "box"), out)
+        self.assertIn(catalog_text("machines.why_do_host_key", "ssh-keygen -R box"), out)
 
     def test_anything_else_in_ssh_s_own_words(self):
         says = "kex_exchange_identification: read: Connection reset by peer"
-        self.assertIn(catalog_text("machines.ssh_failed_why", "box", says), self.reason(says))
+        self.assertIn(catalog_text("machines.why_other", "box", says), self.reason(says))
 
 
 class Quoting(unittest.TestCase):

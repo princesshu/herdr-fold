@@ -9,6 +9,15 @@ DOT=$(pwd)
 . "$DOT/src/remote.sh"
 
 core_list() { python3 "$DOT/core/machines.py" "$@"; }    # the list's own reader and writer (core/machines.py)
+wireguard_app() { [ ! -d /Applications/WireGuard.app ] || echo /Applications/WireGuard.app; }
+
+# networks_py COMMAND LIST [ARG…] — core/networks.py with this Mac's network clients: Tailscale's, NetBird's and
+# ZeroTier's command lines and the WireGuard app ('' for one not here)
+networks_py() {
+  local command=$1 list=$2; shift 2
+  python3 "$DOT/core/networks.py" "$command" "$list" "$(tailscale_bin)" "$(netbird_bin)" \
+    "$(command -v zerotier-cli 2>/dev/null)" "$(wireguard_app)" "$@"
+}
 
 # remove_from_list NAME — takes NAME's line off the machine list (herdr-fold's ssh file follows it)
 remove_from_list() {
@@ -31,8 +40,9 @@ machines() {
   done
 }
 
-# add_line NAME TARGET OS [KEY] — a machine onto the list with its host key's fingerprint, else the one known_hosts
-# trusts where TARGET leads; a new list starts with the header that explains its fields
+# add_line NAME TARGET OS [KEY [NETWORK]] — a machine onto the list with its host key's fingerprint, else the one
+# known_hosts trusts where TARGET leads, and the network it came from where its address alone does not tell it; a new
+# list starts with the header that explains its fields
 add_line() { core_list add "$MACHINE_LIST" "$@"; }
 
 # Without a machine list yet (e.g. machines connected in herdr by hand), the machines connected in herdr go onto it,
@@ -78,19 +88,28 @@ use_config_hosts() {
 
 ssh_says() { ssh "${SSH_OPTS[@]}" -- "$1" exit 2>&1 >/dev/null; }   # ssh_says <target>: only what ssh itself says
 
-# Can this Mac log in to the machine? If not: why, from what ssh says, and what to do about it
-reachable() {   # reachable <target>
-  local said
-  said=$(LOADING_PLAIN=1 loading "$(t machines.reaching "$1")" ssh_says "$1") && return 0   # ssh's timeout ends it soon
-  case "$said" in
-    *"Could not resolve hostname"*) warn "$(t machines.ssh_unknown_name "$1")" ;;
-    *"Connection refused"*) warn "$(t machines.ssh_refused "$1")"; note "$(t machines.ssh_turn_on)" ;;
-    *"timed out"*|*"No route to host"*|*"Network is unreachable"*|*"Host is down"*)
-      warn "$(t machines.ssh_unreachable "$1")" ;;
-    *"Permission denied"*) warn "$(t machines.ssh_failed "$1")"; note "$(t machines.ssh_passphrase)" ;;
-    *"Host key verification failed"*) warn "$(t machines.ssh_host_key "$1" "${1#*@}")" ;;
-    *) warn "$(t machines.ssh_failed_why "$1" "$(printf '%s\n' "$said" | grep . | tail -1)")" ;;
+UNDER=           # the line under a machine's sentence in the making: what caused it, or what to do, and that one's own
+# why_line KIND KEY [ARG…] — a line of core/networks.py's why a machine is away, KEY and ARGs a text of the catalog:
+# away its sentence (a warning), note what caused it or what to do under it, more that one's own after it on the same
+# line; any other KIND (flush) ends the line under it
+why_line() {
+  local kind=$1; shift
+  if [ "$kind" = more ]; then UNDER+=" $(t "$@")"; return 0; fi
+  [ -z "$UNDER" ] || note "$UNDER"
+  UNDER=
+  case $kind in
+    away) warn "$(t "$@")" ;;
+    note) UNDER=$(t "$@") ;;
   esac
+}
+
+# Can this Mac log in to the machine? If not: why, in the words of the ladder of why a machine is away (what ssh said),
+# and what to do about it
+reachable() {   # reachable <target>
+  local said line=()
+  said=$(LOADING_PLAIN=1 loading "$(t machines.reaching "$1")" ssh_says "$1") && return 0   # ssh's timeout ends it soon
+  while IFS='|' read -r -a line; do why_line "${line[@]}"; done < <(python3 "$DOT/core/networks.py" said "$1" "$said")
+  why_line flush
   return 1
 }
 
@@ -113,6 +132,22 @@ $out -join " "'
 
 said() { _line "  " "$@"; }        # a line at the questions' own indent, saying what the next one is about
 
+# network_name NETWORK [MACHINE] — a route's network as a machine's heading and its other routes name it ("through
+# MACHINE" behind another); nothing for one not known
+network_name() {
+  case $1 in
+    tailscale) printf '%s' "$(t machines.network_tailscale)" ;;
+    netbird) printf '%s' "$(t machines.network_netbird)" ;;
+    zerotier) printf '%s' "$(t machines.network_zerotier)" ;;
+    wireguard) printf '%s' "$(t machines.network_wireguard)" ;;
+    tunnel) printf '%s' "$(t machines.network_tunnel)" ;;
+    cloudflare) printf '%s' "$(t machines.network_cloudflare)" ;;
+    local) printf '%s' "$(t machines.network_local)" ;;
+    public) printf '%s' "$(t machines.network_public)" ;;
+    through) printf '%s' "$(t machines.network_through "$2")" ;;
+  esac
+}
+
 # route_on NETWORK — a route's network in a sentence ("on Tailscale"; "at that address" for one not known)
 route_on() {
   case $1 in
@@ -121,19 +156,6 @@ route_on() {
     local) printf '%s' "$(t machines.route_on_local)" ;;
     *) printf '%s' "$(t machines.route_at)" ;;
   esac
-}
-
-# other_routes NAME — NAME's routes besides the one in use, a line each under its heading ("also Tailscale: …")
-other_routes() {
-  local network address
-  while IFS='|' read -r network address; do
-    case $network in
-      tailscale) note "$(t machines.also_on "$(t machines.network_tailscale)" "$address")" ;;
-      netbird) note "$(t machines.also_on "$(t machines.network_netbird)" "$address")" ;;
-      local) note "$(t machines.also_on "$(t machines.network_local)" "$address")" ;;
-      *) note "$(t machines.also_at "$address")" ;;
-    esac
-  done < <(core_list routes "$MACHINE_LIST" "$1")
 }
 
 # The listed machines' host keys, "name|fingerprint" a line: the one on the list, else the one known_hosts trusts
@@ -210,18 +232,27 @@ cmd_include() {
 
 # The per-machine loops read the list from file descriptor 3, not from standard input: that way the ssh and herdr
 # commands inside the loop cannot swallow the rest of the list (otherwise only the first machine would get a turn).
-cmd_status() {
-  local any=
-  while IFS='|' read -r name target os _ routes <&3; do
-    any=1
-    echo "== $(t machines.heading "$name" "$target" "$os")"
-    [ -z "$routes" ] || other_routes "$name"
-    reachable "$target" || continue
-    if ! of_parts tui $(installed_parts); then :
-    elif [ -n "$(machine_field "$name" id)" ]; then ok "$(t machines.connected)"
-    else note "$(t machines.not_connected "$name")"; fi
-    note "$(tools_line "$target" "$os")"
-  done 3< <(machines "$@")
+cmd_status() {   # core/networks.py's lines: each machine, its network and routes, why it is away or its connection
+  local any= line=() target= os= word
+  while IFS='|' read -r -a line <&3; do
+    [ "${line[0]}" = more ] || why_line flush
+    case ${line[0]} in
+      machine) any=1 os=${line[4]} target=${line[5]:-}
+        word=$(network_name "${line[2]}" "${line[3]}")
+        echo "== $(t machines.heading "${line[1]}" "${word:-$target}" "$os")" ;;
+      also) word=$(network_name "${line[1]}" "${line[2]}")
+        if [ -n "$word" ]; then note "$(t machines.also_on "$word" "${line[3]}")"
+        else note "$(t machines.also_at "${line[3]}")"; fi ;;
+      reaching) progress "$(t machines.reaching "${line[1]}")" ;;
+      away|note|more) why_line "${line[@]}" ;;
+      up)
+        if ! of_parts tui $(installed_parts); then :
+        elif [ -n "$(machine_field "${line[1]}" id)" ]; then ok "$(t machines.connected)"
+        else note "$(t machines.not_connected "${line[1]}")"; fi
+        note "$(tools_line "$target" "$os")" ;;
+    esac
+  done 3< <(networks_py status "$MACHINE_LIST" "$@" -- "${SSH_OPTS[@]}")
+  why_line flush
   [ -n "$any" ] || skip "$(t machines.none_listed)"
 }
 
@@ -345,7 +376,7 @@ cmd_tailscale() {
       # the suggested user: root on Linux, elsewhere the same user name as on this Mac
       [ "$os" = linux ] && user=root || user=${USER:-$(id -un)}
       user=$(prompt "$(t machines.select_user)" "$user")
-      add_line "$name" "$user@$dns" "$os" "${keys%%,*}"
+      add_line "$name" "$user@$dns" "$os" "${keys%%,*}" tailscale
     fi
     added=$((added + 1)); known=$(machine_keys)
   done 3<<< "$peers"
@@ -376,7 +407,7 @@ cmd_netbird() {
     if [ "$state" = on ]; then skip "$(t machines.netbird_empty)"; else warn "$(t machines.netbird_failed)"; fi
     return 0
   fi
-  local hosts known added=0 kept=() short fqdn ip alias name shown key found listed_as user target os
+  local hosts known added=0 kept=() short fqdn ip alias name shown key found listed_as user target os network
   hosts=$(ssh_config_hosts); known=$(machine_keys)
   while IFS='|' read -r short fqdn ip _ <&3; do
     # its ~/.ssh/config Host by its name or address, as in cmd_tailscale: then under that name, with that file's user
@@ -401,15 +432,16 @@ cmd_netbird() {
     esac
     name=$listed_as                         # its own, or with -netbird where a machine of that name is another one
     ask "$(t machines.select_ask_netbird "$name" "$shown")" n || continue
+    network=                                # an address of its own: the network it came from kept with it
     if [ -n "$alias" ]; then
       target=$alias
     else
       user=$(prompt "$(t machines.select_user)" root)              # no OS to go by: root, as by hand
-      target="$user@$fqdn"
+      target="$user@$fqdn" network=netbird
     fi
     reachable "$target" || continue
     os=$(remote_os "$target")
-    add_line "$name" "$target" "$os" "$key"
+    add_line "$name" "$target" "$os" "$key" $network
     ok "$(t machines.added "$name" "$os")"
     added=$((added + 1)); known=$(machine_keys)
   done 3<<< "$peers"
@@ -468,7 +500,7 @@ cmd_local() {
     target="$user@$host"
     reachable "$target" || continue
     os=$(remote_os "$target")
-    add_line "$name" "$target" "$os" "$(fingerprint_of "$keys")"
+    add_line "$name" "$target" "$os" "$(fingerprint_of "$keys")" local
     ok "$(t machines.added "$name" "$os")"
     added=$((added + 1)); known=$(machine_keys)
   done 3< <(printf '%s\n' "$found")           # a pipe: a here-string would be a file

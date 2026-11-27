@@ -229,7 +229,7 @@ class MachineList(unittest.TestCase):
         add_to_list(self.home, "studio | herdr-fold.studio | macos | SHA256:FakeFingerprintForTests | local dev"
                     + AT + "studio.local, tailscale dev" + AT + "studio.tail0000.ts.net, 192.0.2.20:2222\n")
         out = self.status().stdout
-        heading = "== studio (herdr-fold.studio, macos)\n"
+        heading = "== studio (Local network, macos)\n"                   # the network of the route in use
         also = ["      " + catalog_text("machines.also_on", catalog_text("machines.network_tailscale"),
                                          "studio.tail0000.ts.net") + "\n",
                 "      " + catalog_text("machines.also_at", "192.0.2.20:2222") + "\n"]

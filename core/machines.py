@@ -1,6 +1,6 @@
 """The machine list, ~/.config/herdr-fold/machines.txt: a machine is its SSH host key, a network one of its routes, and
 herdr-fold's own ssh file is written whole from it. machines.sh and uninstall.sh run it: machines.py add|keys|identify|
-name|resolve|route|routes|moved|unmove|hosts|included|include|uninclude … (each command's arguments: commands())."""
+name|resolve|route|moved|unmove|hosts|included|include|uninclude … (each command's arguments: commands())."""
 import contextlib
 import ipaddress
 import os
@@ -101,10 +101,13 @@ def address_text(user, host, port):
 
 
 def guess_network(host):
-    """A route's network as its address alone tells it: a Tailscale name, a Bonjour name; None for any other."""
+    """A route's network as its address alone tells it: a Tailscale name, one in NetBird's own domains (its service's,
+    a server of your own's default), a Bonjour name; None for any other."""
     host = (host or "").lower().rstrip(".")
     if host.endswith(".ts.net"):
         return "tailscale"
+    if host.endswith((".netbird.cloud", ".netbird.selfhosted")):
+        return "netbird"
     if host.endswith(".local"):
         return "local"
     return None
@@ -493,13 +496,15 @@ def commands(argv):
     home = os.path.expanduser("~")
     known_hosts = os.path.join(home, ".ssh", "known_hosts")
     hosts = os.path.join(home, ".config", "herdr-fold", "ssh_config")
-    if command == "add" and len(args) in (4, 5):              # LIST NAME TARGET OS [KEY]: a machine onto the list
+    if command == "add" and len(args) in (4, 5, 6):           # LIST NAME TARGET OS [KEY [NETWORK]]: onto the list
         machines = read(args[0])
         if any(machine["name"] == args[1] for machine in machines):
             return 1
         key = args[4] if len(args) > 4 and KEY.fullmatch(args[4]) else key_of(args[2], known_hosts)
-        write(args[0], machines + [{"name": args[1], "target": args[2], "os": args[3], "key": key,
-                                    "routes": [target_route(args[2])]}])
+        route = target_route(args[2])
+        network = args[5] if len(args) > 5 and args[5] in NETWORKS and args[5] != "through" else None
+        route["network"] = network if network != guess_network(route["address"]) else None   # kept where untold
+        write(args[0], machines + [{"name": args[1], "target": args[2], "os": args[3], "key": key, "routes": [route]}])
         return 0
     if command == "keys" and len(args) == 1:                  # LIST: "name|fingerprint" of each machine with one
         print("".join(f"{name}|{key}\n" for name, key in known_keys(read(args[0]), known_hosts).items()), end="")
@@ -528,11 +533,6 @@ def commands(argv):
         write(args[0], machines)
         write_ssh_file(hosts, machines)
         print(alias or "")
-        return 0
-    if command == "routes" and len(args) == 2:                # LIST NAME: "network|address" of its other routes
-        for machine in (one for one in read(args[0]) if one["name"] == args[1]):
-            print("".join(f"{route['network'] or ''}|{clean(address_text(None, route['address'], route.get('port')))}\n"
-                          for route in machine["routes"][1:]), end="")
         return 0
     if command == "moved" and len(args) == 1:                 # LIST: "name|address" of each one at its own Host
         print("".join(f"{name}|{address or ''}\n" for name, address in moved(read(args[0]))), end="")

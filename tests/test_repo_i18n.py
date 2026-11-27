@@ -17,7 +17,7 @@ KEY = r"[a-z0-9_.]+"
 USES = {   # kind of file → how it looks a text up
     ".sh": r"\$\(t (%s)" % KEY,
     ".ps1": r"\(T '(%s)'" % KEY,
-    ".py": r"\bt\(\"(%s)\"" % KEY,
+    ".py": r"\b(?:t|why|todo)\(\"(%s)\"" % KEY,     # core/networks.py's ladder names its sentences by why() and todo()
 }
 # the shell scripts print through the helpers; the text is a $(t key) or a value ($var, ~/$var), never a sentence
 SHELL_HELPERS = re.compile(r'\b(ok|warn|fail|skip|have|saved|note|step|section|ask|prompt) "(?!\$\(t |\$|~/\$)')

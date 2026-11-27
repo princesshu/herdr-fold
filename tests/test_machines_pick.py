@@ -1,14 +1,16 @@
-"""Tests for machines.sh pick (installer step 8) and new (Ctrl+B, Shift+M) in a pty with fake ssh, Tailscale, NetBird,
-dns-sd and herdr: any network works, then ~/.ssh/config, Tailscale (only what can be yours), NetBird, the local network
-(each key asked about), by hand; `new` sets up only what it added; a listed machine's host key makes a route of it."""
+"""Tests for machines.sh pick (step 8), new (Ctrl+B, Shift+M) and status with fake ssh, Tailscale, NetBird, dns-sd and
+herdr: any network works, then ~/.ssh/config, Tailscale, NetBird, the local network (each key asked about), by hand; a
+listed machine's host key makes a route of it; status names each machine's network and says why one is away."""
 import os
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 
 from support import (DNS_SD_FOUND, FAKE_NETBIRD, FAKE_SCUTIL, FAKE_TAILSCALE, TAILNET_HOST_KEY_FINGERPRINT,
-                     catalog_text, copy_package, fake_dns_sd, fake_netbird, host_key, run_in_terminal, stubs)
+                     catalog_text, copy_package, fake_dns_sd, fake_netbird, fake_route, host_key, run_in_terminal,
+                     stubs, tailscale_json)
 
 SSH_CONFIG = """Host alpha
   HostName alpha.example
@@ -229,7 +231,8 @@ class Step8(unittest.TestCase):
                                    "Import tidepool (tidepool.netbird.cloud)? [y/N]",
                                    "user [root]:",
                                    LOCAL_ASK, "Add a machine by hand? [y/N]"])
-        self.assertIn(catalog_text("machines.ssh_refused", "root" + AT + "dev-phone.netbird.cloud"), self.shown)
+        self.assertIn("[!] " + catalog_text("machines.why_no_ssh", "root" + AT + "dev-phone.netbird.cloud") + "\n"
+                      "      " + catalog_text("machines.why_do_ssh_on") + "\n", self.shown)     # the ladder's words
         self.assertEqual(self.listed(), [("beta", "beta", "linux"),
                                          ("tidepool", "root" + AT + "tidepool.netbird.cloud", "linux")])
 
@@ -609,6 +612,76 @@ class TwoRoutes(unittest.TestCase):
         self.assertEqual(self.studio(), [["studio", "herdr-fold.studio", "macos", STUDIO,
                                           f"local dev{AT}studio.local, tailscale dev{AT}studio.tail0000.ts.net"]])
         self.assertEqual(self.read(".ssh/known_hosts").splitlines()[-1], f"herdr-fold.studio {STUDIO_KEY}")
+
+
+_, BUILD = host_key("FakeHostKeyOfBuild01")
+_, DB = host_key("FakeHostKeyOfDb02")
+# the mockup's machines: build-01 and db-02 behind lumen-api, studio on two routes, one on each network
+STATUS_LIST = (f"lumen-api  | root{AT}lumen-api.tail0000.ts.net | linux\n"
+               f"build-01   | herdr-fold.build-01 | linux | {BUILD} | through:lumen-api root{AT}198.51.100.30\n"
+               f"db-02      | herdr-fold.db-02 | linux | {DB} | through:lumen-api root{AT}db-02.local\n"
+               f"harbor-web | root{AT}harbor-web.tail0000.ts.net | linux\n"
+               f"studio     | herdr-fold.studio | macos | {STUDIO} | local dev{AT}studio.local, "
+               f"tailscale dev{AT}studio.tail0000.ts.net\n"
+               f"tidepool   | root{AT}tidepool.netbird.cloud | linux\n"
+               f"lab-pi     | pi{AT}lab-pi.local | linux\n"
+               f"vps-edge   | root{AT}203.0.113.5 | linux\n")
+# ssh as the mockup's machines answer: db-02 silent behind lumen-api, studio.local another machine; the tools of each
+STATUS_SSH = """#!/bin/sh
+[ "$1" = -G ] && exit 0
+while [ $# -gt 0 ]; do case "$1" in -o) shift 2 ;; --) shift; break ;; *) shift ;; esac; done
+target=$1; shift
+if [ "$*" = exit ]; then
+  case "$target" in
+    herdr-fold.db-02) echo "ssh: connect to host db-02.local port 22: Operation timed out" >&2; exit 255 ;;
+    herdr-fold.studio) echo "Host key verification failed." >&2; exit 255 ;;
+  esac
+  exit 0
+fi
+echo '✓herdr ✓claude ✓codex ✓git ✓starship ✓python3'
+"""
+STATUS_HERDR = ("#!/bin/sh\n[ \"$*\" = \"machine list --json\" ] && echo '[{\"label\": \"lumen-api\", \"id\": \"m1\"}, "
+                "{\"label\": \"build-01\", \"id\": \"m2\"}, {\"label\": \"vps-edge\", \"id\": \"m3\"}]'\nexit 0\n")
+TOOLS = "      ✓herdr ✓claude ✓codex ✓git ✓starship ✓python3\n"
+
+
+class Status(unittest.TestCase):
+    def test_status_names_each_machines_network_and_why_one_is_away(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp)
+        home = os.path.join(tmp, "home")
+        os.makedirs(os.path.join(home, ".config", "herdr-fold"))
+        path = os.path.join(home, ".config", "herdr-fold", "machines.txt")
+        with open(path, "w") as f:
+            f.write(STATUS_LIST)
+        pkg = copy_package(os.path.join(tmp, "pkg"))
+        seen = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 3 * 3600 - 300))       # 3 h 5 min ago
+        tailnet = {"lumen-api": ("100.115.92.10", {"Active": True, "CurAddr": "198.51.100.7:41641"}),
+                   "harbor-web": ("100.115.92.11", {"Online": False, "LastSeen": seen}),
+                   "studio": ("100.115.92.13", {})}
+        folder = stubs(os.path.join(tmp, "stubs"), {
+            "tailscale": "#!/bin/sh\ncat <<'JSON'\n" + tailscale_json(tailnet) + "\nJSON\n", "netbird": FAKE_NETBIRD,
+            "ssh": STATUS_SSH, "herdr": STATUS_HERDR,
+            "ssh-keyscan": f"#!/bin/sh\nfor host; do :; done\n[ \"$host\" = studio.tail0000.ts.net ] && "
+                           f"echo \"$host {STUDIO_KEY}\"\nexit 0\n",
+            "route": fake_route({"studio.local": ("192.0.2.20", "en0"), "203.0.113.5": ("203.0.113.5", "en0")})})
+        done = subprocess.run(["bash", os.path.join(pkg, "machines.sh"), "status"], capture_output=True, text=True,
+                              stdin=subprocess.DEVNULL, timeout=60,
+                              env={"PATH": f"{folder}:/usr/bin:/bin", "HOME": home, "HERDR_FOLD_YES": "1",
+                                   "NETBIRD_STATE": "down"})
+        self.assertEqual(done.stdout, (
+            "== lumen-api (Tailscale, linux)\n  [✓] connected to herdr\n" + TOOLS
+            + "== build-01 (through lumen-api, linux)\n  [✓] connected to herdr\n" + TOOLS
+            + "== db-02 (through lumen-api, linux)\n  [!] db-02 does not answer: is it on and awake?\n"
+            "== harbor-web (Tailscale, linux)\n  [!] harbor-web is offline on Tailscale, last seen 3 h ago.\n"
+            "== studio (Local network, macos)\n      also Tailscale: studio.tail0000.ts.net\n"
+            "  [!] The machine at studio.local shows another key than studio's: not used.\n"
+            "      On Tailscale it answers.\n"
+            "== tidepool (NetBird, linux)\n  [!] NetBird is not running on this Mac.\n      Start it: netbird up\n"
+            "== lab-pi (Local network, linux)\n  [!] lab-pi is not on this local network.\n"
+            "== vps-edge (Public, linux)\n  [✓] connected to herdr\n" + TOOLS), done.stderr)
+        with open(path) as f:
+            self.assertEqual(f.read(), STATUS_LIST)                         # only read
 
 
 if __name__ == "__main__":

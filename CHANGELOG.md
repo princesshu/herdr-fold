@@ -171,6 +171,13 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
   fingerprint is asked about, as for one added by hand, and one that shows the key of a machine on the list is a route
   of it. Nothing is scanned: Bonjour is listened to for 3 seconds and each machine looked up for 2. See
   [Networks](docs/remote-machines.md#networks).
+- Each machine's network, and why one is away: `./machines.sh` names each machine's network in its heading
+  (`== lumen-api (Tailscale, linux)`, `through lumen-api` for one behind another), told from this Mac's network
+  clients, their domains and where the Mac's own routes send an address. A machine it cannot reach says why in one
+  sentence, the first check that fails: the network's client on this Mac missing, off or signed out, the machine
+  offline there or not on this local network, then its SSH, its key, its login or the machine in front of it, with
+  what to do under it (`Start it: netbird up`) and another route that answers. Nothing is scanned. See
+  [When a machine is away](docs/remote-machines.md#when-a-machine-is-away).
 
 ### Changed
 
@@ -179,6 +186,9 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
   offered by name.
 - herdr-fold's own ssh connections to a machine forward no agent and no port (`ClearAllForwardings`, `ForwardAgent
   no`), whatever `~/.ssh/config` says.
+- A login that fails is said in the same sentences everywhere in `./machines.sh` (adding, preparing, removing a
+  machine, the questions), each a whole sentence with what to do under it: `alpha does not answer: is it on and
+  awake?`, `alpha does not take this Mac's key.`
 - Tab Layout (`herdr-fold.tab-layout`) is gone, its work split: the sidebar lays out every new empty tab and comes back
   in every tab when herdr starts, and Spaces (`herdr-fold.spaces`) keeps the rest (the **new** button's folder picker,
   a space following its folder, the question before a tab with a chat closes, the agents started again after a

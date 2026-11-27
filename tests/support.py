@@ -134,7 +134,9 @@ TAILNET_HOST_KEY_FINGERPRINT = "SHA256:2VCKZFW6wd21XCt8E3K2ps1Qxw4OwhPevlMKOPkLi
 MULLVAD_NODE = ".".join(["zz-tst-wg-001", "mullvad", "ts", "net"])
 FAKE_TAILSCALE = """#!/bin/sh
 cat <<'JSON'
-{"Peer": {
+{"BackendState": "Running", "Self": {"DNSName": "this-mac.tail0000.ts.net.", "TailscaleIPs": ["100.115.92.1"]},
+ "CurrentTailnet": {"Name": "dev.example.com", "MagicDNSSuffix": "tail0000.ts.net", "MagicDNSEnabled": true},
+ "Peer": {
   "a": {"DNSName": "mac-mini.tail0000.ts.net.", "OS": "macOS", "Online": true, "TailscaleIPs": ["100.115.92.5"]},
   "b": {"DNSName": "server.tail0000.ts.net.", "OS": "linux", "Online": true, "TailscaleIPs": ["100.115.92.6"]},
   "c": {"DNSName": "vps-edge.tail0000.ts.net.", "OS": "linux", "Online": true, "TailscaleIPs": ["100.115.92.7"],
@@ -149,6 +151,42 @@ cat <<'JSON'
 }}
 JSON
 """ % (TAILNET_HOST_KEY, MULLVAD_NODE)
+
+
+def tailscale_json(peers, state="Running", expired=False, health=(), suffix="tail0000.ts.net"):
+    """`tailscale status --json` as 1.104 writes it (the fields read, a few more), this Mac on 100.115.92.1: STATE its
+    BackendState, this Mac's key EXPIRED or not, PEERS {name: (address, fields over a peer's own)}, names in SUFFIX."""
+    def peer(name, address, own):
+        return {"DNSName": f"{name}.{suffix}.", "HostName": name, "OS": "linux", "TailscaleIPs": [address],
+                "Online": True, "LastSeen": "0001-01-01T00:00:00Z", "Active": False, "CurAddr": "", "Relay": "fra",
+                "KeyExpiry": "2027-05-20T09:00:00Z", **own}
+    me = {"DNSName": f"this-mac.{suffix}.", "TailscaleIPs": ["100.115.92.1"], "Online": True,
+          "KeyExpiry": "2026-10-01T09:00:00Z" if expired else "2099-01-01T00:00:00Z"}
+    if expired:
+        me["Expired"] = True
+    return json.dumps({"Version": "1.104.0", "BackendState": state, "Health": list(health), "Self": me,
+                       "CurrentTailnet": {"Name": "dev.example.com", "MagicDNSSuffix": suffix,
+                                          "MagicDNSEnabled": True} if state == "Running" else None,
+                       "Peer": {f"nodekey:{n}": peer(name, *rest) for n, (name, rest) in enumerate(peers.items())}},
+                      indent=2)
+
+
+def fake_route(table):
+    """A stand-in route as macOS's `route -n get <name or address>`: TABLE {destination: (address, interface)} what it
+    answers; any other name it cannot resolve, as the real one (exit 68)."""
+    cases = "".join(f"  '{where}') printf '%s\\n' '   route to: {address}' 'destination: default' "
+                    f"'  interface: {device}' '      flags: <UP,DONE,STATIC>' ;;\n"
+                    for where, (address, device) in table.items())
+    return ("#!/bin/sh\nfor where; do :; done\ncase \"$where\" in\n" + cases
+            + "  *) echo \"route: bad address: $where\" >&2; exit 68 ;;\nesac\n")
+
+
+def fake_ifconfig(table):
+    """A stand-in ifconfig as macOS's `ifconfig <interface>`: TABLE {interface: its IPv4 address}."""
+    cases = "".join(f"  {device}) printf '%s\\n' '{device}: flags=8051<UP,POINTOPOINT,RUNNING,MULTICAST> mtu 1280' "
+                    f"'\tinet {address} --> {address} netmask 0xffffffff' ;;\n" for device, address in table.items())
+    return ("#!/bin/sh\ncase \"$1\" in\n" + cases
+            + "  *) echo \"ifconfig: interface $1 does not exist\" >&2; exit 1 ;;\nesac\n")
 # NetBird's peers: (name, address, status, connection type, latency in ns): two machines connected, directly and through
 # a relay, a server and a phone idle
 NETBIRD_PEERS = (("tidepool", "100.115.93.10", "Connected", "P2P", 12400000),

@@ -111,8 +111,11 @@ line, as reading NetBird's status and listening to the local network do: `checki
 
 The list, `~/.config/herdr-fold/machines.txt`, has a line per machine: `name | target | os | key | routes`. The target
 is the address herdr connects with; the key the fingerprint; the routes each way to it, `<network> user@address` (the
-network `local`, `tailscale`, `netbird`, another word or none), the one in use first, and
-`through:<machine> user@address` for one reached through another machine on the list (`ProxyJump`). A line of an
+network `local`, `tailscale`, `netbird`, `zerotier`, `wireguard`, `tunnel`, `cloudflare`, `public` or none), the one in
+use first, and `through:<machine> user@address` for one reached through another machine on the list (`ProxyJump`). A
+machine taken from a network keeps that network on its line where its address alone does not tell it (a NetBird
+machine in your own server's domain); any other route's network is read each time
+([When a machine is away](#when-a-machine-is-away)). A line of an
 earlier version has the first three fields, and is read as it is: the list is written again only when a machine is
 added or changed.
 
@@ -164,6 +167,49 @@ is changed), and mind a mode that sends all traffic through one network (Cloudfl
 private network, Tailscale's exit node): it can cut the others off. A machine reached only through another one goes
 through a Host with `ProxyJump` in `~/.ssh/config`.
 
+## When a machine is away
+
+`./machines.sh` names each machine's network in its heading, `== lumen-api (Tailscale, linux)`, a machine behind
+another `through lumen-api`, its other routes under it. A machine it cannot reach says why in one sentence, the first
+of the checks below that fails, and under it what to do:
+
+```text
+== harbor-web (Tailscale, linux)
+  [!] harbor-web is offline on Tailscale, last seen 3 h ago.
+== studio (Local network, macos)
+      also Tailscale: studio.tail0000.ts.net
+  [!] The machine at studio.local shows another key than studio's: not used.
+      On Tailscale it answers.
+== tidepool (NetBird, linux)
+  [!] NetBird is not running on this Mac.
+      Start it: netbird up
+```
+
+| Check | What it says | What to do |
+|---|---|---|
+| The network's client on this Mac | `NetBird is not installed on this Mac.` | its download page |
+| Its client on | `Tailscale is off on this Mac.`, `NetBird is not running on this Mac.` | `tailscale up`, `netbird up` |
+| Its client signed in | `Tailscale is signed out on this Mac.`, `This Mac's Tailscale key has expired.`, `This Mac waits for approval on its tailnet.`, `NetBird is signed out on this Mac.`, `NetBird's session on this Mac has expired.`, `NetBird cannot reach its management server.` | `tailscale login`, the admin console (its link on a `.ts.net` tailnet; on Headscale or another control server, ask its admin), `netbird up` |
+| The machine on that network | `harbor-web is offline on Tailscale, last seen 3 h ago.`, `kelp-ci's Tailscale key has expired.`, `tidepool is not in this Mac's NetBird network.` | for an expired key, the admin console |
+| This local network | `lab-pi is not on this local network.` (its `.local` name gives no answer) | another route of it, where one shows its key: `On Tailscale it answers.` |
+| Its SSH | `db-02 does not answer: is it on and awake?`, `lumen-api answers, but no SSH server runs on it.`, `alpha: no machine of that name here — check the name, and that the Mac reaches its network.` | how to turn SSH on |
+| Its key | `lumen-api shows another host key than the one this Mac trusts.`; on a route of a machine with several: `The machine at studio.local shows another key than studio's: not used.` | `ssh-keygen -R`, after checking the new key on it; another route that answers |
+| Its login | `lumen-api does not take this Mac's key.`, `Tailscale SSH on lumen-api asks for a sign-in in the browser.` | `ssh` to it by hand, once in a terminal |
+| The machine in front of it | `build-01 is reached through lumen-api, which does not answer.` with lumen-api's own sentence under it, `lumen-api does not let connections through to other machines (AllowTcpForwarding no in its sshd_config).` | lumen-api's |
+
+A network is told from what this Mac knows, the list first: the network a route keeps there, else a name or address
+Tailscale's or NetBird's own list has (both take their addresses from the same range, so an address alone tells
+neither), a name in one of their domains (`.ts.net`, `.netbird.cloud`, also while the client is off), a `.local`
+name, else where the Mac's own routes send the address (`route -n get`): a tunnel by its own address (Tailscale's,
+NetBird's, ZeroTier's, else WireGuard's where its app is installed), a home network's address as the local network, any
+other as public. A `~/.ssh/config` Host with a `cloudflared` proxy is Cloudflare's, one with a jump host of its own
+`through` it. NetBird's idle machines are no reason: an idle connection can be up too.
+
+Nothing is scanned. The networks' own status is read once for the whole list (5 seconds at most each), `route -n get`
+asked only for an address none of them lists (2 seconds), each machine logged into once, within ssh's own 10 seconds;
+a route's key is read (`ssh-keyscan`, 3 seconds) only to find another route that answers. `./machines.sh add`,
+`prepare` and `remove`, and the questions, say a failed login in the same sentences.
+
 ## Systems
 
 | System | Notes |
@@ -177,7 +223,7 @@ through a Host with `ProxyJump` in `~/.ssh/config`.
 In the `herdr-fold` folder:
 
 ```bash
-./machines.sh                   # each machine's state: SSH, connection, programs
+./machines.sh                   # each machine's network and state (connection, programs), or why it is away
 ./machines.sh new               # add a machine: the installer's questions, then only the new one is set up
 ./machines.sh sshconfig         # add machines from the Host lines of ~/.ssh/config (not those on Tailscale or NetBird)
 ./machines.sh tailscale         # add machines from your Tailscale network

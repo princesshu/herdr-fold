@@ -197,7 +197,7 @@ machines.help = Remote machines (Linux, macOS, Windows) in herdr — on the cent
   \nalso run on its own later (e.g. to add a new machine).\
   \nGhostty + herdr run on the central Mac; the machines' spaces show up in herdr's sidebar, while Claude/Codex,\
   \nthe sidebar and the terminal run on the machine itself.\n\
-  \n  ./machines.sh                 status per machine: SSH, connection, apps\
+  \n  ./machines.sh                 status per machine: its network, connection and apps, or why it is away\
   \n  ./machines.sh sshconfig       pick from the machines in ~/.ssh/config, one question each → the list\
   \n  ./machines.sh tailscale       pick from the machines on the Tailscale network, one question each → the list\
   \n  ./machines.sh netbird         pick from the machines on the NetBird network, one question each → the list\
@@ -214,16 +214,6 @@ machines.help = Remote machines (Linux, macOS, Windows) in herdr — on the cent
 add_machine.no_package = Adding a machine needs the herdr-fold folder, and it isn't where the installer left it (%s).\
   \nCopy it back to this Mac and run ./install.sh in it once: from then on Ctrl+B, Shift+M finds it there.
 machines.unknown_command = Unknown command: %s (help: ./machines.sh help)
-machines.ssh_failed = key-based login failed — try it by hand: ssh %s
-machines.ssh_passphrase = (for a passphrase-protected key, first: ssh-add --apple-use-keychain)
-machines.ssh_unknown_name = %s: no machine of that name here — check the name, and that the Mac reaches its network
-machines.ssh_refused = %s answers, but no SSH server runs on it
-machines.ssh_turn_on = turn it on: on Linux, install openssh-server; on macOS, System Settings → General → Sharing → \
-  Remote Login; on Windows, Settings → System → Optional features → OpenSSH Server, then start the sshd service
-machines.ssh_unreachable = %s does not answer — is it on and awake, and on this network?
-machines.ssh_host_key = %s shows another host key than the one this Mac trusts — if it was set up again, check the new \
-  key on it, then: ssh-keygen -R %s
-machines.ssh_failed_why = cannot log in to %s: %s
 machines.heading = %s (%s, %s)
 machines.reaching = reaching %s
 machines.connected = connected to herdr
@@ -310,13 +300,64 @@ machines.include_refused = %s keeps one route: more need the line in ~/.ssh/conf
 machines.include_done = ~/.ssh/config includes herdr-fold's Hosts (~/.config/herdr-fold/ssh_config)
 machines.network_tailscale = Tailscale
 machines.network_netbird = NetBird
+machines.network_zerotier = ZeroTier
+machines.network_wireguard = WireGuard
+machines.network_tunnel = Tunnel
+machines.network_cloudflare = Cloudflare
 machines.network_local = Local network
+machines.network_public = Public
+machines.network_through = through %s
 machines.also_on = also %s: %s
 machines.also_at = also %s
 machines.checking_key = checking %s's key
 machines.key_mismatch = %s's key does not match the one Tailscale knows: not added
 machines.route_key_mismatch = %s shows another key than %s: not added as its route
 machines.route_unchecked = %s did not answer, so it could not show %s's key: not added as its route
+
+# machines.sh and both clients: why a machine is away, the first check that fails (core/networks.py's ladder), then
+# what to do about it (why_do_*: its command the last %s)
+machines.why_missing = %s is not installed on this Mac.
+machines.why_tailscale_off = Tailscale is off on this Mac.
+machines.why_netbird_off = NetBird is not running on this Mac.
+machines.why_zerotier_off = ZeroTier is not running on this Mac.
+machines.why_tailscale_signed_out = Tailscale is signed out on this Mac.
+machines.why_tailscale_expired = This Mac's Tailscale key has expired.
+machines.why_tailscale_approval = This Mac waits for approval on its tailnet.
+machines.why_netbird_signed_out = NetBird is signed out on this Mac.
+machines.why_netbird_expired = NetBird's session on this Mac has expired.
+machines.why_netbird_management = NetBird cannot reach its management server.
+machines.why_offline = %s is offline on %s, last seen %s ago.
+machines.why_offline_unseen = %s is offline on %s.
+machines.why_peer_expired = %s's %s key has expired.
+machines.why_not_in = %s is not in this Mac's %s network.
+machines.why_not_here = %s is not on this local network.
+machines.why_unknown_name = %s: no machine of that name here — check the name, and that the Mac reaches its network.
+machines.why_no_answer = %s does not answer: is it on and awake?
+machines.why_no_ssh = %s answers, but no SSH server runs on it.
+machines.why_host_key = %s shows another host key than the one this Mac trusts.
+machines.why_route_key = The machine at %s shows another key than %s's: not used.
+machines.why_login = %s does not take this Mac's key.
+machines.why_tailscale_check = Tailscale SSH on %s asks for a sign-in in the browser.
+machines.why_through = %s is reached through %s, which does not answer.
+machines.why_no_forwarding = %s does not let connections through to other machines (AllowTcpForwarding no in its \
+  sshd_config).
+machines.why_other = Cannot log in to %s: %s
+machines.why_do_get = Get it: %s
+machines.why_do_turn_on = Turn it on: %s
+machines.why_do_start = Start it: %s
+machines.why_do_sign_in = Sign in: %s
+machines.why_do_sign_in_again = Sign in again: %s
+machines.why_do_console = In Tailscale's admin console: %s
+machines.why_do_control_admin = Ask the admin of the network's control server.
+machines.why_do_ssh_on = Turn SSH on there: on Linux, install openssh-server; on macOS, System Settings → General → \
+  Sharing → Remote Login; on Windows, Settings → System → Optional features → OpenSSH Server, then start the sshd \
+  service.
+machines.why_do_host_key = If it was set up again, check the new key on it, then: %s
+machines.why_do_login = Try it by hand (a key with a passphrase: ssh-add --apple-use-keychain first): %s
+machines.why_do_once = Sign in once in a terminal: %s
+machines.why_do_route_on = On %s it answers.
+machines.why_do_route_local = On this local network it answers.
+machines.why_do_route_at = At %s it answers.
 
 # machines.sh: preparing and connecting a machine (the lines printed on the machine itself come from here too)
 machines.prepare_failed = preparing the machine failed
