@@ -190,6 +190,39 @@ class Keys(Base):
         self.assertEqual(machines.identify(listed, {}, [], "netbird", "beta", ["192.0.2.11"]), ("listed", "beta"))
 
 
+class KeepAJumpHost(Keys):
+    """A jump host leaving the list, kept for the machines behind it: its key stays pinned where they now jump."""
+
+    def setUp(self):
+        super().setUp()
+        self.studio = machine("studio", "herdr-fold.studio", "macos", STUDIO,
+                              [route("local", "studio.local", "dev", port=2222)])
+        self.behind = machine("build-01", "herdr-fold.build-01",
+                              routes=[route("through", "198.51.100.30", "root", through="studio")])
+
+    def test_its_key_is_pinned_at_the_address_they_jump_by(self):
+        known = self.known_hosts(f"herdr-fold.studio {STUDIO_KEY}")
+        kept, pin = machines.keep_behind([self.studio, self.behind], "studio", known)
+        self.assertEqual(kept[1]["routes"][0]["through"], "dev" + AT + "studio.local:2222")
+        self.assertEqual(pin, f"[studio.local]:2222 {STUDIO_KEY}")          # its port: a key of its own there
+
+    def test_none_is_written_where_that_address_holds_its_key_already(self):
+        known = self.known_hosts(f"herdr-fold.studio {STUDIO_KEY}", f"[studio.local]:2222 {STUDIO_KEY}")
+        self.assertEqual(machines.keep_behind([self.studio, self.behind], "studio", known)[1], "")
+
+    def test_it_cannot_stay_their_jump_host_without_its_trusted_key(self):
+        for known in (self.known_hosts(),                                   # its key trusted nowhere
+                      self.known_hosts(f"herdr-fold.studio {OTHER_KEY}"),    # another key under its name
+                      self.known_hosts(f"herdr-fold.studio {STUDIO_KEY}", f"[studio.local]:2222 {OTHER_KEY}")):
+            listed = [dict(self.studio), machine("build-01", "herdr-fold.build-01", routes=[
+                route("through", "198.51.100.30", "root", through="studio")])]
+            self.assertEqual(machines.keep_behind(listed, "studio", known), (None, None))
+            self.assertEqual(listed[1]["routes"][0]["through"], "studio")      # nothing changed
+        unkeyed = dict(self.studio, key=None)
+        self.assertEqual(machines.keep_behind([unkeyed, self.behind], "studio",
+                                              self.known_hosts(f"herdr-fold.studio {STUDIO_KEY}")), (None, None))
+
+
 class SetBack(Base):
     def test_a_moved_machine_goes_back_to_its_first_route(self):
         # before herdr-fold's Hosts go (the uninstaller): each machine at its own Host, with the address herdr takes

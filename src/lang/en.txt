@@ -353,8 +353,8 @@ machines.remove_behind_ask_one = %s goes through %s: take it off too?
 machines.remove_behind_ask = %s go through %s: take them off too?
 machines.remove_behind_kept_one = %s stays: %s remains its jump host.
 machines.remove_behind_kept = %s stay: %s remains their jump host.
-machines.remove_behind_nested = %s stays on the list: the machines behind it go through it, and it is reached \
-  through another machine itself
+machines.remove_behind_nested = %s stays on the list: the machines behind it go through it, and it cannot stay their \
+  jump host (it is reached through another machine, its key is not trusted here, or its address holds another key)
 machines.names_and = %s and %s
 
 # machines.sh and both clients: why a machine is away, the first check that fails (core/networks.py's ladder), then

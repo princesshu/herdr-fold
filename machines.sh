@@ -1129,7 +1129,7 @@ cmd_prepare() {
 # is disconnected in herdr and taken off the machine list. The machines going through it are asked about first: a yes
 # takes them off before it (through it), a no keeps them working, with it as their jump host by its address
 cmd_remove() {
-  local name=${1:-} target os id one behind=() line=()
+  local name=${1:-} target os id one pin behind=() line=()
   IFS='|' read -r _ target os _ < <(machines "$name")
   if [ -z "$name" ] || [ -z "${target:-}" ]; then fail "$(t machines.not_listed "$name")"; return 1; fi
   while IFS= read -r one; do [ -z "$one" ] || behind+=("$one"); done < <(core_list behind-of "$MACHINE_LIST" "$name")
@@ -1152,7 +1152,12 @@ cmd_remove() {
       || warn "$(t machines.disconnect_failed "$name" "$id")"
   fi
   remove_from_app "$name"
-  core_list keep "$MACHINE_LIST" "$name" 2>/dev/null || :     # what goes through it jumps by its address from now on
+  # what goes through it jumps by its address from now on, its key pinned there as it was under its own name
+  pin=$(core_list keep "$MACHINE_LIST" "$name" 2>/dev/null) || pin=
+  if [ -n "$pin" ]; then
+    mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+    printf '%s\n' "$pin" >> "$HOME/.ssh/known_hosts" && record_outside "known-host ${pin%% *}"
+  fi
   remove_from_list "$name" && ok "$(t machines.off_the_list "$name")"
   case ${#behind[@]} in
     0) ;;

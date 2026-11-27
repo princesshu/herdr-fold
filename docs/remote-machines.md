@@ -224,7 +224,9 @@ build-01's ([When a machine is away](#when-a-machine-is-away)).
 `./machines.sh remove lumen-api` asks first `build-01 and db-02 go through lumen-api: take them off too?`, default no. A
 yes takes them off first, each through lumen-api, then lumen-api; a no keeps them working, lumen-api staying their jump
 host by its address (`through:root@lumen-api.tail0000.ts.net` on their lines): `build-01 and db-02 stay: lumen-api
-remains their jump host.` A jump host that is itself behind another machine stays on the list.
+remains their jump host.` Its key stays pinned there: written to `~/.ssh/known_hosts` at that address (where it is
+not there already), so the jump trusts only lumen-api's own key, as under its own name before. A jump host whose key
+is not trusted here, whose address holds another key, or that is itself behind another machine stays on the list.
 
 ## When a machine is away
 

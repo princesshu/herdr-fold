@@ -461,16 +461,27 @@ def jump_address(machines, name):
     return machine["target"] if reachable_at(*parse_address(machine["target"])) else None
 
 
-def keep_behind(machines, name):
-    """MACHINES with each route through NAME jumping by jump_address() instead, so it can leave the list; None where
-    it has none."""
-    jump = jump_address(machines, name)
-    if not jump:
-        return None
-    for route in (route for machine in machines for route in machine["routes"]):
+def keep_behind(machines, name, known_hosts):
+    """MACHINES with each route through NAME jumping by jump_address() instead, and the known_hosts line pinning its
+    trusted key at that address ("": there already), as its alias did; (None, None) where it has no address, its key
+    is not trusted here or that address holds another: it cannot stay their jump host."""
+    jump, machine = jump_address(machines, name), next((one for one in machines if one["name"] == name), None)
+    if not jump or machine is None:
+        return None, None
+    key = trusted_key(PREFIX + name, known_hosts) if machine["target"] == PREFIX + name else None
+    line = trusted_alias(machine, known_hosts) if not key else None
+    key = key or (" ".join(line.split()[1:]) if line else None)
+    if not key or not machine.get("key") or fingerprint(key) != machine["key"]:
+        return None, None
+    _user, host, port = parse_address(jump)
+    there = trusted_key(host, known_hosts, port)
+    if there and there != key:
+        return None, None
+    pattern = f"[{host}]:{port}" if port and port != 22 else host
+    for route in (route for one in machines for route in one["routes"]):
         if route.get("through") == name:
             route["through"] = jump
-    return machines
+    return machines, "" if there else f"{pattern} {key}"
 
 
 def add_behind(machines, name, os_, key, through, address):
@@ -639,12 +650,13 @@ def commands(argv):
         machines = read(args[0])
         if not any(route.get("through") == args[1] for machine in machines for route in machine["routes"]):
             return 0                                          # none: the list as it was
-        machines = keep_behind(machines, args[1])
+        machines, pin = keep_behind(machines, args[1], known_hosts)
         if machines is None:
             return 1
         if args[2:] != ["check"]:
             write(args[0], machines)
             write_ssh_file(hosts, machines)
+            print(pin)                                        # its key at that address, for known_hosts: machines.sh
         return 0
     if command == "jump" and len(args) == 2:                  # LIST NAME: the target a machine behind NAME jumps by
         machines = read(args[0])

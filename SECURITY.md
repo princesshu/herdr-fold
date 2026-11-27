@@ -64,7 +64,9 @@ its question, cleaned of control characters, and never written to a file. herdr-
 own ssh forwards nothing (`ClearAllForwardings`, `ForwardAgent no`): a machine never gets to use this Mac's key. A
 machine reached through another one (`ProxyJump`) keeps this Mac's key on this Mac: the machine in between sees that a
 connection goes to an address and port, when, and how much passes; never what passes (the connection is end to end,
-checked against the key of the machine behind it), this Mac's key or its agent.
+checked against the key of the machine behind it), this Mac's key or its agent. A jump host taken off the list but
+kept for the machines behind it keeps its pinned key: it is written to `~/.ssh/known_hosts` at the address they now
+jump by, and where its key is not trusted here or that address holds another key, it is not kept.
 
 To list what it sees (`./machines.sh through`), a machine on the list runs herdr-fold's `remote/look-around.py`, sent
 over its own SSH as Python's input: it only reads its Tailscale and NetBird status, what announces SSH next to it and

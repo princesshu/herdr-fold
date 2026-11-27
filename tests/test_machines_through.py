@@ -19,6 +19,7 @@ import networks  # noqa: E402
 
 AT = "@"                        # a user before a host: put together here, never an e-mail's look
 LUMEN = f"root{AT}lumen-api.tail0000.ts.net"
+LUMEN_KEY, LUMEN_FP = host_key("FakeHostKeyOfLumenApi")
 BUILD_KEY, BUILD = host_key("FakeHostKeyOfBuild01")
 DB_KEY, DB = host_key("FakeHostKeyOfDb02")
 CI_KEY, _ = host_key("FakeHostKeyOfCiRunner")
@@ -324,10 +325,15 @@ class Behind(Home):
         self.assertEqual([row[0] for row in self.listed()], ["lumen-api", "vps-edge", "build-01"])
 
     def test_removing_lumen_api_asks_about_the_machines_behind(self):
-        behind = (f"lumen-api | {LUMEN} | linux\n"
+        behind = (f"lumen-api | {LUMEN} | linux | {LUMEN_FP}\n"
                   f"build-01 | herdr-fold.build-01 | linux | {BUILD} | through:lumen-api root{AT}198.51.100.30\n"
                   f"db-02 | herdr-fold.db-02 | linux | {DB} | through:lumen-api root{AT}db-02.local\n")
         self.include()
+        # without its key on the list it cannot stay their jump host: it stays on the list, nothing changes
+        self.write(".config/herdr-fold/machines.txt", behind.replace(f" | {LUMEN_FP}", ""))
+        prompts = self.run_questions([""], "remove", "lumen-api")
+        self.assertIn(catalog_text("machines.remove_behind_nested", "lumen-api"), self.shown.replace("\n      ", " "))
+        self.assertEqual([row[0] for row in self.listed()], ["lumen-api", "build-01", "db-02"])
         # a no: lumen-api goes, the two stay, jumping by its address from now on
         self.write(".config/herdr-fold/machines.txt", behind)
         prompts = self.run_questions([""], "remove", "lumen-api")
@@ -339,6 +345,8 @@ class Behind(Home):
                          [f"build-01 through:{LUMEN} root{AT}198.51.100.30",
                           f"db-02 through:{LUMEN} root{AT}db-02.local"])
         self.assertEqual(self.read(".config/herdr-fold/ssh_config").count(f"  ProxyJump {LUMEN}\n"), 2)
+        self.assertEqual(self.read(".ssh/known_hosts"),                   # its address held its key already
+                         f"lumen-api.tail0000.ts.net {LUMEN_KEY}\n")
         # a yes: the two first, each through lumen-api, then lumen-api
         os.remove(self.path(".config/herdr-fold/ssh_config"))
         self.write(".config/herdr-fold/machines.txt", behind)
