@@ -5,6 +5,7 @@
 set -u
 cd "$(dirname "$0")" || exit 1
 DOT=$(pwd)
+TAILSCALE_SECONDS=5   # tailscale status read at most this long (core/networks.py's TAILSCALE_SECONDS)
 . "$DOT/lib/common.sh"
 . "$DOT/src/remote.sh"
 
@@ -259,12 +260,23 @@ cmd_status() {   # core/networks.py's lines: each machine, its network and route
   [ -n "$any" ] || skip "$(t machines.none_listed)"
 }
 
+# ARGV's output, given up on (killed) after SECONDS, its first argument: a network's client can hang, its daemon down
+within() {
+  python3 -c 'import subprocess, sys
+try:
+    done = subprocess.run(sys.argv[2:], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=float(sys.argv[1]))
+except (OSError, subprocess.TimeoutExpired):
+    sys.exit(124)
+sys.stdout.buffer.write(done.stdout)
+sys.exit(done.returncode)' "$@"
+}
+
 # The machines on the Tailscale network that can be yours (Linux, macOS, Windows; tagged and shared-in ones too), one
 # "short|dns|os|online/offline|ips|ED25519 host key fingerprints" line each; [FILE] gets a word for each one left out
 # (exit, shared, expired). Exit status 1 without Tailscale, 2 if it does not answer.
 tailnet_peers() {
   local ts; ts=$(tailscale_bin) || return 1
-  "$ts" status --json 2>/dev/null | python3 -c '
+  within "$TAILSCALE_SECONDS" "$ts" status --json | python3 -c '
 import base64, binascii, hashlib, json, sys
 
 def left_out(peer, dns):

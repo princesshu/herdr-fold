@@ -402,6 +402,16 @@ class Step8(unittest.TestCase):
         self.assertNotEqual(done.returncode, 0)
         self.assertEqual([call for call in self.herdr_calls() if call.startswith("herdr machine add")], [])
 
+    def test_tailscale_that_never_answers_is_given_up_on(self):
+        # its daemon down, tailscale status can hang: the import reads it 5 s at most, then says it does not answer
+        with open(os.path.join(self.stubs, "tailscale"), "w") as f:
+            f.write("#!/bin/sh\nexec sleep 60\n")
+        began = time.monotonic()
+        done = subprocess.run(["bash", "-c", ". ./machines.sh; tailnet_peers"], cwd=self.pkg, capture_output=True,
+                              text=True, env={"PATH": f"{self.stubs}:/usr/bin:/bin", "HOME": self.home}, timeout=30)
+        self.assertEqual(done.returncode, 2)
+        self.assertLess(time.monotonic() - began, 12)
+
     def test_new_without_a_new_machine_sets_up_nothing(self):
         prompts = self.run_questions(["", "", "", "", " "], command="new")
         self.assertEqual(prompts[-1], "Press any key to exit.")

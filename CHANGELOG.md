@@ -239,6 +239,8 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
 
 ### Fixed
 
+- Importing from Tailscale no longer waits for good on a Tailscale that does not answer (its daemon down): after 5
+  seconds it says Tailscale does not answer.
 - Importing from Tailscale offers only the machines that can be yours: never a Mullvad exit node, the node of
   someone one of your machines is shared with or an expired node, which a line after the questions counts; tagged
   servers and machines shared in from another tailnet are still offered.
