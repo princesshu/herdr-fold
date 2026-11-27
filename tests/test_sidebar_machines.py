@@ -1,6 +1,6 @@
 """Tests for the sidebar's Machines view (src/plugins/sidebar/machines_view.py, the pane the sidebar's ⋯ opens), as
 machines.html's TUI frames at 60 and 100 cells: by network, a network off, behind, two routes, the keys and actions;
-core's look and herdr stood in for, a temporary home and state, nothing reached."""
+the tree g opens in the preview tab as graph.html's TUI frames; core's look and herdr stood in for, nothing reached."""
 import json
 import os
 import shlex
@@ -14,7 +14,9 @@ from unittest import mock
 from support import PACKAGE, SRC, FakeTerminal, end_jobs, inset_band, set_attrs, set_env, text
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
+import layers  # noqa: E402
 import machines_view  # noqa: E402
+import pager  # noqa: E402
 import sidebar  # noqa: E402
 from vt import Focus, Key, Mouse  # noqa: E402
 
@@ -23,6 +25,9 @@ NOW = 1_795_000_000             # the look's time, UTC
 KEYS = {"build-01": "SHA256:Qm9vZ0x1" + "b" * 31 + "a7Fk", "studio": "SHA256:Lb3sT0dI" + "m" * 31 + "9qXe"}
 LAN, GLOBE = "\U000f0317", ""         # the local network's and Public's Nerd Font marks (core/icons.py)
 SCRIPT = os.path.join(PACKAGE, "machines.sh")
+# what runs there as graph.html's TUI frames say: two spaces and Claude working on lumen-api, Codex waiting on build-01
+FRAME_RUNS = {"spaces": {"lumen-api": 2}, "agents": {"lumen-api": [{"agent": "claude", "agent_status": "working"}],
+                                                     "build-01": [{"agent": "codex", "agent_status": "blocked"}]}}
 
 
 def route(network, address, user="root", through=None):
@@ -72,8 +77,8 @@ class Herdr:
     """herdr's command line as the view asks it: the machines it keeps, each one's workspaces and agents, a tab."""
 
     def __init__(self, saved=("lumen-api", "build-01", "db-02", "harbor-web", "studio", "lab-pi", "tidepool",
-                              "kelp-ci", "vps-edge"), agents=None):
-        self.saved, self.calls = saved, []
+                              "kelp-ci", "vps-edge"), agents=None, spaces=None):
+        self.saved, self.calls, self.spaces = saved, [], spaces or {}
         self.agents = {"build-01": [{"agent": "codex", "agent_status": "blocked"}]} if agents is None else agents
 
     def text(self, *args):
@@ -86,7 +91,8 @@ class Herdr:
     def call(self, *args):
         self.calls.append(args)
         if args[:1] == ("--machine",) and args[2:] == ("workspace", "list"):
-            return {"workspaces": [{"workspace_id": "w1", "label": "api"}]}
+            count = self.spaces.get(args[1], 1)
+            return {"workspaces": [{"workspace_id": f"w{n}", "label": "api"} for n in range(count)]}
         if args[:1] == ("--machine",) and args[2:] == ("agent", "list"):
             return {"agents": self.agents.get(args[1], [])}
         if args[:2] == ("tab", "create"):
@@ -165,7 +171,7 @@ class View(unittest.TestCase):
             line((1, "N"), (4, "NetBird"), right="2"),
             line((4, "●"), (6, "kelp-ci"), (20, "linux"), right="relayed 61 ms"),
             line((4, "●"), (6, "tidepool"), (20, "linux"), right="direct 22 ms"),
-            line((1, "Z"), (4, "ZeroTier"), right="0"),
+            line((1, "Z"), (4, "ZeroTier")),                   # none of its own: no count
             line((4, "none yet: add one by its address")),
             line((1, GLOBE), (4, "Public"), right="1"),
             line((4, "●"), (6, "vps-edge"), (20, "linux"))])
@@ -284,13 +290,40 @@ class View(unittest.TestCase):
         self.assertEqual(self.rows(app)[head], self.line((1, "T"), (4, "Tailscale"), (15, "signed out"), right="4"))
         self.assertEqual(app.canvas.rows[head][15][1].fg, "modified")
         netbird = self.row(app, "NetBird")
-        self.assertEqual(self.rows(app)[netbird + 1], self.line((4, "+ 3 machines to add")))
+        self.assertEqual(self.rows(app)[netbird], self.line((1, "N"), (4, "NetBird")))
+        self.assertEqual(self.rows(app)[netbird + 1], self.line((4, "+ Add 3 machines…")))
         for _ in range(12):
-            if "+ 3" in self.rows(app)[app_cursor(app)]:
+            if "+ Add " in self.rows(app)[app_cursor(app)]:
                 break
             self.keys(app, "down")
         self.keys(app, "enter")
         self.assertEqual(self.ran(), ("NetBird", ["/bin/bash", SCRIPT, "netbird"]))
+
+    def test_with_no_machine_on_the_list_it_says_so_and_enter_starts_nothing_unasked(self):
+        # the owner's ruling (2026-11-27): the list's empty state at the top in the catalog's words, no count of 0, and
+        # the row to add a stop the keys reach only on ↓ or a click, as it starts ./machines.sh's questions
+        self.said = here(offered=["reef-mac", "kelp-ci", "tide-box", "studio"])
+        self.said["machines"] = []
+        app = self.open()
+        self.assertEqual(self.rows(app)[1:6], [
+            self.line((1, "No machine on the list yet.")),
+            self.line((1, "T"), (4, "Tailscale")),
+            self.line((4, "+ Add 4 machines…")),
+            self.line((1, "Z"), (4, "ZeroTier")),
+            self.line((4, "none yet: add one by its address"))])
+        y = self.row(app, "+ Add ")
+        self.assertIsNone(app.canvas.rows[y][1][1].bg)                          # not chosen
+        self.keys(app, "enter")
+        self.assertEqual([call for call in self.herdr.calls if call[:2] == ("tab", "create")], [])
+        self.keys(app, "down")
+        inset_band(self, app.canvas, y)
+        self.keys(app, "enter")
+        self.assertEqual(self.ran(), ("Tailscale", ["/bin/bash", SCRIPT, "tailscale"]))
+        self.said["networks"]["tailscale"]["offered"] = []                      # nothing offered: how to add one
+        self.said["networks"]["zerotier"]["state"] = "off"
+        app = self.open()
+        self.assertEqual(self.rows(app)[1:4], [self.line((1, "No machine on the list yet.")),
+                                               self.line((1, "Ctrl+B, Shift+M adds one")), ""])
 
     # --- the actions: ./machines.sh in a terminal tab on this Mac
 
@@ -348,6 +381,106 @@ class View(unittest.TestCase):
         app.handle(Focus(False))
         self.assertTrue(app.quit)
 
+    # --- how they connect: g, the tree in the preview tab (graph.html's TUI frames: normal, NetBird off)
+
+    def tree(self, cells=100):
+        """What g opens: open_preview's arguments, the tree's lines as written (with their colors) and as read."""
+        app = self.open(cells=cells, herdr=Herdr(**FRAME_RUNS))
+        with mock.patch.object(machines_view.preview, "open_preview") as opened:
+            self.keys(app, "g")
+        args = opened.call_args.args
+        written = args[3]["views"][0]["lines"]
+        return app, args, written, [pager.plain(line) for line in written]
+
+    def test_g_shows_how_they_connect_as_a_tree_in_the_preview_tab(self):
+        # This Mac, the networks in the routes' order, each one's machines by name, one behind another under its jump
+        # host, its system, the way its network tells, what runs there; studio's other route dim under Tailscale
+        app, args, written, shown = self.tree()
+        line = self.line
+        self.assertEqual(shown, [
+            "This Mac  5 networks, 9 machines",
+            line((0, "├ " + LAN), (5, "Local network")),
+            line((0, "│ ├ lab-pi"), (16, "linux"), (38, "1 space")),
+            line((0, "│ └ studio"), (16, "macos"), (38, "1 space")),
+            line((0, "├ T"), (5, "Tailscale")),
+            line((0, "│ ├ harbor-web"), (16, "linux"), (23, "relayed"), (38, "1 space")),
+            line((0, "│ ├ lumen-api"), (16, "linux"), (23, "direct"), (38, "2 spaces, Claude working")),
+            line((0, "│ │ ├ build-01"), (16, "linux"), (38, "1 space, Codex waiting")),
+            line((0, "│ │ └ db-02"), (16, "linux"), (23, "unreachable")),
+            line((0, "│ └ studio"), (16, "macos"), (23, "standby, in use: Local network")),
+            line((0, "├ N"), (5, "NetBird")),
+            line((0, "│ ├ kelp-ci"), (16, "linux"), (23, "relayed 61 ms"), (38, "1 space")),
+            line((0, "│ └ tidepool"), (16, "linux"), (23, "direct 22 ms"), (38, "1 space")),
+            line((0, "├ Z"), (5, "ZeroTier  none yet: add one by its address")),
+            line((0, "└ " + GLOBE), (5, "Public")),
+            line((0, "  └ vps-edge"), (16, "linux"), (38, "1 space")),
+            "",
+            "Checked today 11:06"])
+        # the colors: the tree's lines dim, This Mac and a network bold, NetBird's letter its orange, a glyph muted; an
+        # away machine red, an agent waiting yellow, a standby route dim throughout
+        self.assertTrue(written[0].startswith("\x1b[1mThis Mac\x1b[0m"))
+        self.assertTrue(written[2].startswith("\x1b[90m│ ├ \x1b[0m"))
+        self.assertIn(f"\x1b[90m{LAN}\x1b[0m", written[1])
+        self.assertIn("\x1b[1mTailscale\x1b[0m", written[4])
+        self.assertIn("\x1b[38;2;246;131;48mN\x1b[0m", written[10])
+        self.assertIn("\x1b[31mdb-02\x1b[0m", written[8])
+        self.assertIn("\x1b[31munreachable\x1b[0m", written[8])
+        self.assertIn("\x1b[33mCodex waiting\x1b[0m", written[7])
+        self.assertIn("\x1b[90mstudio\x1b[0m", written[9])
+        self.assertIn("\x1b[90mstandby, in use: Local network\x1b[0m", written[9])
+        # in the preview tab of the workspace it was opened from, then out of the way
+        self.assertEqual(args[1:3], ("w1", os.path.join(self.tmp, "home")))
+        self.assertEqual(args[3]["title"], "machines")
+        json.dumps(args[3])                                                     # it goes through a file
+        self.assertTrue(app.quit)
+
+    def test_a_network_off_says_why_in_the_tree_and_its_machines_are_dim(self):
+        self.said = here(netbird="off")
+        _, _, written, shown = self.tree()
+        line = self.line
+        self.assertEqual(shown[10:15], [                                        # under its name, as the view breaks it
+            line((0, "├ N"), (5, "NetBird  off")),
+            line((0, "│"), (5, "NetBird is not running on this Mac.")),
+            line((0, "│"), (5, "Start it: netbird up")),
+            line((0, "│ ├ kelp-ci"), (16, "linux"), (23, "unreachable")),
+            line((0, "│ └ tidepool"), (16, "linux"), (23, "unreachable"))])
+        self.assertEqual(shown[6], line((0, "│ ├ lumen-api"), (16, "linux"), (23, "direct"),
+                                        (32, "2 spaces, Claude working")))
+        self.assertIn("\x1b[1;90mNetBird\x1b[0m", written[10])                 # its name dimmed, off muted: the list's
+        self.assertIn("\x1b[90moff\x1b[0m", written[10])
+        self.assertIn("\x1b[33mNetBird is not running on this Mac.\x1b[0m", written[11])
+        self.assertTrue(written[12].endswith("\x1b[90mStart it: \x1b[0mnetbird up"))
+        self.assertIn("\x1b[90mkelp-ci\x1b[0m", written[13])
+        self.assertIn("\x1b[90munreachable\x1b[0m", written[13])
+        self.assertNotIn("\x1b[31m", written[13])
+
+    # --- its foot: each key with its word, a click does it
+
+    def test_its_keys_stand_at_its_foot_and_a_click_does_each(self):
+        for cells in (100, 60):
+            with self.subTest(cells=cells):
+                app = self.open(cells=cells)
+                y = app.canvas.height - 1
+                self.assertEqual(self.rows(app)[y], self.line((1, "g Graph   s Status   Esc"), cells=cells))
+                row = app.canvas.rows[y]
+                self.assertEqual([(row[x][1].fg, row[x][1].bold) for x in (1, 3, 11, 13, 22)],
+                                 [("text", True), ("subtext", False), ("text", True), ("subtext", False),
+                                  ("text", True)])
+        app.handle(Mouse("move", 4, y, 0))                      # the word under the mouse lit
+        app.draw()
+        self.assertEqual(app.canvas.rows[y][3][1].fg, "text")
+        app.handle(Mouse("press", 12, y, 0))                    # s Status: the chosen machine's, in a tab
+        self.settle(app)
+        self.assertEqual(self.ran(), ("Status lab-pi", ["/bin/bash", SCRIPT, "status", "lab-pi"]))
+        with mock.patch.object(machines_view.preview, "open_preview") as opened:
+            app.handle(Mouse("press", 4, y, 0))                 # g Graph: the tree in the preview tab
+            self.settle(app)
+        self.assertEqual(opened.call_args.args[3]["title"], "machines")
+        self.assertTrue(app.quit)
+        app = self.open(cells=60)
+        app.handle(Mouse("press", 23, app.canvas.height - 1, 0))       # Esc: closed
+        self.assertTrue(app.quit)
+
     # --- what reaches a command, and the screen
 
     def test_what_a_network_or_the_list_says_is_checked(self):
@@ -387,6 +520,13 @@ class View(unittest.TestCase):
         app = self.open()
         self.assertIn("herdr-fold's installer", "\n".join(self.rows(app)))
         self.assertEqual(self.looked, [])
+        y = app.canvas.height - 1                               # nothing to graph, none chosen: g and s muted
+        self.assertEqual([app.canvas.rows[y][x][1].fg for x in (1, 3, 11, 22)], ["muted", "muted", "muted", "text"])
+        with mock.patch.object(machines_view.preview, "open_preview") as opened:
+            self.keys(app, "g")
+            app.handle(Mouse("press", 4, y, 0))
+            self.settle(app)
+        opened.assert_not_called()
 
     def test_last_seen_reads_as_a_day_and_a_time(self):
         day = 86400
@@ -395,9 +535,24 @@ class View(unittest.TestCase):
         self.assertTrue(machines_view.seen_words(NOW - 3 * day, NOW).startswith(time.strftime(
             "%b %-d", time.localtime(NOW - 3 * day))))
 
+    def test_a_standby_route_says_the_route_in_use_through_a_jump_host_too(self):
+        nodes = {"network:local": {"kind": "network", "title": "Local network"},
+                 "machine:lumen-api": {"kind": "machine", "title": "lumen-api"}}
+        self.assertEqual(layers.standby_words(nodes, {"parent": "network:local"}),
+                         "standby, in use: Local network")
+        self.assertEqual(layers.standby_words(nodes, {"parent": "machine:lumen-api"}),
+                         "standby, in use: through lumen-api")
+
     def test_it_starts_on_the_loops_own_run(self):
         # main() calls run() with no arguments: an action's method of that name broke the view's start
         self.assertIs(machines_view.MachinesView.run, machines_view.Loop.run)
+
+    def test_nothing_it_keeps_hides_the_loops_own_methods(self):
+        # an attribute or a method named as one of Loop's hides it (run() once did); only these three take Loop's on
+        own = {name for name in dir(machines_view.Loop) if callable(getattr(machines_view.Loop, name))}
+        app = self.open()
+        self.assertEqual(sorted(own & set(vars(app))), [])
+        self.assertEqual(sorted(own & set(vars(machines_view.MachinesView))), ["__init__", "collect", "deadlines"])
 
 
 def app_cursor(app):
@@ -417,6 +572,10 @@ class InTheSidebar(unittest.TestCase):
             return {"panes": [{"pane_id": "w1:p2", "tab_id": "w1:t1", "label": "sidebar"}]} if args[:2] == (
                 "pane", "list") else {}
 
+        def text(self, *args):
+            self.calls.append(args)
+            return ""                                           # herdr keeps no machine
+
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp)
@@ -434,7 +593,7 @@ class InTheSidebar(unittest.TestCase):
         with open(os.path.join(self.beside, "setup-folder"), "w") as f:
             f.write(PACKAGE + "\n")
         self.app.open_menu(0, 0)
-        self.assertEqual(self.app.menu[0].choices[-3:], [None, "Machines…", "Settings…"])
+        self.assertEqual(self.app.menu[0].choices[-4:], [None, "Machines…", "Machines graph", "Settings…"])
         menu = self.app.menu[0]
         menu.index = menu.choices.index("Machines…")
         self.app.answer_menu(Key("enter"))
@@ -442,6 +601,41 @@ class InTheSidebar(unittest.TestCase):
         self.assertIn(("plugin", "pane", "open", "--plugin", "herdr-fold.sidebar", "--entrypoint", "machines",
                        "--focus"), self.herdr.calls)
 
+    def test_its_machines_graph_opens_the_tree_in_the_preview_tab(self):
+        # the line under Machines…: the networks looked at afresh, then the tree the view's g opens, by one function
+        with open(os.path.join(self.beside, "setup-folder"), "w") as f:
+            f.write(PACKAGE + "\n")
+        self.app.open_menu(0, 0)
+        menu = self.app.menu[0]
+        menu.index = menu.choices.index("Machines graph")
+        with mock.patch.object(machines_view, "look", lambda folder, listed: here()), \
+                mock.patch.object(self.app, "open_preview") as opened:
+            self.app.answer_menu(Key("enter"))
+            self.assertEqual(self.app.note, "Loading machines…")
+            end_jobs()
+            self.app.collect()
+        spec, cwd = opened.call_args.args
+        self.assertEqual((spec["title"], cwd), ("machines", self.app.root))
+        shown = [pager.plain(line) for line in spec["views"][0]["lines"]]
+        self.assertEqual(shown[:2], ["This Mac  5 networks, 9 machines", "├ " + LAN + "  Local network"])
+        self.assertIn("│ │ └ db-02     linux  unreachable", shown)
+
+
+    def test_its_loading_note_stays_while_the_look_runs_and_goes_with_it(self):
+        # a slow look (up to 90 s) keeps "Loading machines…" past a note's 4 s; it ends, the note goes (a failure's
+        # error line says why); any other note still goes by itself
+        self.app.note = machines_view.LOADING
+        self.app.running.add("machines-graph")
+        self.app.note_due(100.0)
+        self.assertFalse(self.app.note_due(100.0 + sidebar.NOTE + 60))
+        self.assertEqual(self.app.note, "Loading machines…")
+        self.app.running.discard("machines-graph")
+        self.assertTrue(self.app.note_due(200.0))
+        self.assertIsNone(self.app.note)
+        self.app.note = "Archived"
+        self.app.note_due(300.0)
+        self.assertTrue(self.app.note_due(300.0 + sidebar.NOTE))
+        self.assertIsNone(self.app.note)
 
 if __name__ == "__main__":
     unittest.main()

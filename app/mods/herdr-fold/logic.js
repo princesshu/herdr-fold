@@ -1641,8 +1641,8 @@ export function machineTip({ route, also }) {
     : one.network === "through" ? `through ${by(one)}` : `on ${by(one)}`)))}` : first;
 }
 
-/** A network's row of machines to add: its words, and its tip naming them (the first ADD_NAMED).
- * @param {string} network @param {string[]} offered */
+/** A network's row of machines to add: its words (Add 3 machines…, the catalog's; its head names the network),
+ * its tip naming them (the first ADD_NAMED). @param {string} network @param {string[]} offered */
 export function toAddWords(network, offered) {
   const n = offered.length, named = offered.slice(0, ADD_NAMED).join(", ")
     + (n > ADD_NAMED ? ` and ${n - ADD_NAMED} more` : "");
@@ -1651,8 +1651,8 @@ export function toAddWords(network, offered) {
 }
 
 /** @typedef {{ kind: "machine" | "network" | "add" | "row" | "loading" | "empty", [key: string]: any }} SpacesItem a
- * line of the Spaces list: a machine's head (its lead, network, indent, gap, tip), a network's head (its name, state
- * word, tip, count, folded, wait), a network's row of machines to add, a space's row, Loading…, New space there */
+ * line of the Spaces list: a machine's head (its lead, network, indent, gap, tip), a network's head (name, state word,
+ * tip, count or null, folded, wait), a network's row of machines to add, a space's row, Loading…, New space there */
 
 /** What the Spaces list draws of GROUPS (its view's model) by what the networks said (SEEN) with those FOLDED: this
  * computer first, then each network's head, its row to add and machines, else each machine with its network's mark.
@@ -1691,7 +1691,7 @@ export function spacesItems(groups, seen = null, folded = []) {
     const longest = all(n.machines).filter((g) => g?.since).sort((a, b) => a.since - b.since)[0];
     const open = !folded.includes(n.network);
     items.push({ kind: "network", network: n.network, name: networkName(n.network), said: networkState(n.network, n),
-      tip: whyWords(n.why), count: n.count, folded: !open, wait: longest?.wait ?? null, gap: true });
+      tip: whyWords(n.why), count: n.count || null, folded: !open, wait: longest?.wait ?? null, gap: true });
     if (!open) continue;
     if (n.toAdd.length) items.push({ kind: "add", network: n.network, offered: n.toAdd, indent: LIST.grouped });
     for (const e of n.machines) machine(e, LIST.grouped);

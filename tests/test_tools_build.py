@@ -112,10 +112,10 @@ class Copies(unittest.TestCase):
                     key = None
         words = build.machine_words()
         self.assertEqual(words, {key: text for key, text in catalog.items() if key.startswith((
-            "machines.why_", "machines.network_", "machines.state_", "machines.to_add"))})
+            "machines.why_", "machines.network_", "machines.state_", "machines.to_add", "machines.empty"))})
         self.assertEqual(words["machines.why_netbird_off"], "NetBird is not running on this Mac.")
-        self.assertEqual((words["machines.state_signed_out"], words["machines.to_add"]),
-                         ("signed out", "%s machines to add"))          # a network's state, both clients' one word
+        self.assertEqual((words["machines.state_signed_out"], words["machines.to_add"], words["machines.empty"]),
+                         ("signed out", "Add %s machines…", "No machine on the list yet."))   # both clients'
         made = built()[helper]
         self.assertIn("export const MACHINE_WORDS = {\n", made)
         for key in words:

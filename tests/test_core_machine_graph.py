@@ -266,10 +266,22 @@ class NetworkStates(unittest.TestCase):
         tailscale, netbird = shown["network:tailscale"], shown["network:netbird"]
         self.assertEqual([tailscale[key] for key in ("tag", "state", "dim")], ["signed out", "warn", False])
         self.assertIn(("mac", "network:tailscale", "failed", None), edges(graph))
-        self.assertEqual(netbird["sub"], "3 machines to add")
+        self.assertEqual(netbird["sub"], "Add 3 machines…")      # its name, the count; questions follow
         self.assertEqual([(one["id"], one["label"]) for one in netbird["properties"]["actions"]],
-                         [("add", "3 machines to add")])
+                         [("add", "Add 3 machines…")])
         self.assertEqual(netbird["properties"]["lines"], [])          # the names a count only, as the list's row
+
+    def test_with_no_machine_on_the_list_this_mac_says_so_and_a_network_offers_its_own(self):
+        # the owner's ruling (2026-11-27): no count of 0 anywhere, the list's empty state in the catalog's words
+        said = here()
+        said["machines"] = []
+        said["networks"]["tailscale"]["offered"] = ["reef-mac", "kelp-ci", "tide-box", "studio"]
+        said["networks"]["netbird"]["offered"] = ["reef-mac"]
+        shown = nodes(drawn(said, runs={}, kept={}))
+        self.assertEqual(shown["mac"]["sub"], "No machine on the list yet.")
+        self.assertEqual(shown["network:tailscale"]["sub"], "Add 4 machines…")
+        self.assertEqual(shown["network:netbird"]["sub"], "Add 1 machine…")
+        self.assertEqual(shown["network:zerotier"]["sub"], "none yet: add one by its address")
 
     def test_a_network_reached_by_a_standby_route_alone_has_its_node(self):
         said = here()

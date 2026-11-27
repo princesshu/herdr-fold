@@ -1,6 +1,6 @@
 """The sidebar's Agent view: what an agent starts with in the folder, in core's words (layers(), section(), report's
 months), in cells as the mockups' TUI panes: the head, its line and start-up rule, Usage, the sections, the chosen row's
-properties and its form (agent_form.py), a connector's form; and the graph as a tree (graph.py's). It only asks."""
+properties and its form (agent_form.py), a connector's form; the graphs as trees (graph.py's, machine_graph.py's)."""
 import time
 
 import usage
@@ -10,7 +10,8 @@ from agent_layers import NOT_APPROVED, SAID_AS
 from agent_setup import READ
 from agent_state import HERE
 from connectors import BRANDS
-from icons import glyphs
+from icons import glyphs, network_mark
+from machine_graph import COLUMNS as MACHINE_COLUMNS, IN_USE, MAC, STANDBY, seen_words
 from screen import AIR, CONTENT, INSET, PAD, SPINNER, Style, after, truncate, width
 from vt import Key, Mouse
 from widgets import MENU_WIDEST, Action, Keyed, Menu, Popup, TextInput, wrap
@@ -64,6 +65,13 @@ BRANCHES = (("in", lambda node: node["column"] == "in"), ("uses", lambda node: n
 GATE_ROLE = {"allow": "ok", "ask": "warn", "deny": "bad"}              # a gate's verb in its tone's color, else dim
 TITLE, TAGGED = 28, 18        # cells a node's name and its tag keep in the tree's columns
 TREE = 80                     # cells a tree's line is kept to: the path wraps, an edge's gates go under
+BRANCH, LAST, DOWN = "├ ", "└ ", "│ "    # the machines' tree: a node with more after it, the last one, a line going on
+# core's tones in the machines' tree: what runs on a machine dim beside its name and way, a sentence's command plain;
+# a network's mark its own color (a brand's #rrggbb as it is)
+RUNS_ROLE = {"text": "dim", "muted": "dim", "warn": "warn", "bad": "bad", "ok": "ok"}
+SAID_ROLE = {"text": None, "muted": "dim", "warn": "warn", "bad": "bad", "ok": "ok"}
+MARK_ROLE = {"text": None, "muted": "dim"}
+CHECKED = "Checked"           # when the look the tree shows was taken, at its foot
 LOADING = "Loading setup…"
 LOADING_AGENTS = "Loading agents…"
 SERVER = "connector:"         # a server's row id: this, then its name (what Claude checks again)
@@ -220,10 +228,12 @@ def gates_said(edge):
     return found + [("]", "dim")] if found else []
 
 
-def tree_rows(graph, run=False, twelve=False, cells=TREE):
+def tree_rows(graph, run=False, twelve=False, cells=TREE, icons=True, now=None):
     """Core's GRAPH as a tree's rows, each [(words, role)]: the agent with its line and chips, what goes in, what it
     uses (each edge's gates in brackets, under it where there is no room) and its subagents, in columns; RUN: what the
-    chat ran instead (ran_rows()). TWELVE: hours with AM and PM."""
+    chat ran instead (ran_rows()). TWELVE: hours with AM and PM. The machines' graph: machine_rows()."""
+    if graph.get("columns") == MACHINE_COLUMNS:
+        return machine_rows(graph, icons, now)
     if run:
         return ran_rows(graph, twelve, cells)
     agent = next(node for node in graph["nodes"] if node["id"] == ROOT)
@@ -252,6 +262,83 @@ def tree_rows(graph, run=False, twelve=False, cells=TREE):
                 row.append((" ", None))
             rows.append(row + gate)
     return rows
+
+
+def standby_words(nodes, node):
+    """A standby route's words: the route in use, its network or, behind a jump host, through it (as Network says)."""
+    parent = nodes[node["parent"]]
+    return f"{STANDBY}, {IN_USE}: " + ("through " if parent["kind"] == "machine" else "") + parent["title"]
+
+
+def machine_rows(graph, icons=True, now=None):
+    """Core's machines' graph (machine_graph.py's) as a tree's rows drawn with ├ │ └: This Mac, each network with its
+    mark (ICONS: the font's glyphs), state and sentence, its machines (one behind another under its jump host) with
+    their system, way and runs in columns, a standby route dim under its network; when the look was taken."""
+    nodes = {node["id"]: node for node in graph["nodes"]}
+    under = {}
+    for node in graph["nodes"]:
+        if node["parent"] in nodes:
+            under.setdefault(node["parent"], []).append((node, False))
+    for one in graph["edges"]:
+        if one["style"] == "standby" and one["from"] in nodes and one["to"] in nodes:
+            under.setdefault(one["from"], []).append((nodes[one["to"]], True))
+    ways = {one["to"]: one["label"] for one in graph["edges"] if one["style"] != "standby"}
+    mac, rows, machines = nodes[MAC], [], []
+    rows.append([(mac["title"], "bold")] + [("  ", None), (mac["sub"], "dim")] * bool(mac["sub"]))
+    name_at = 1 + width(after(icons))                    # a network's name past its mark, as the Machines view's heads
+
+    def walk(key, lead):
+        below = under.get(key, [])
+        for n, (node, standby) in enumerate(below):
+            last = n == len(below) - 1
+            branch, deeper = lead + (LAST if last else BRANCH), lead + ("  " if last else DOWN)
+            if node["kind"] == "network":
+                rows.extend(network_rows(node, branch, deeper, bool(under.get(node["id"])), icons, name_at))
+            else:
+                machines.append((len(rows), branch, node, standby))
+                rows.append([])
+            if not standby:
+                walk(node["id"], deeper)
+
+    walk(MAC, "")
+    shown = [(branch, truncate(node["title"], TITLE)) for _, branch, node, _ in machines]
+    column = max([width(branch) + width(name) for branch, name in shown] + [0]) + 2
+    system = max([width(node["tag"] or "") for _, _, node, _ in machines] + [0])
+    way = max([width(ways.get(node["id"]) or "") for _, _, node, standby in machines if not standby] + [0])
+    for (at, branch, node, standby), (_, name) in zip(machines, shown):
+        quiet = standby or node["dim"]
+        row = [(branch, "dim"), (name, "dim" if quiet else "bad" if node["state"] == "bad" else None),
+               (" " * (column - width(branch) - width(name)), None)]
+        if system:
+            row += [(node["tag"] or "", "dim"), (" " * (system + 2 - width(node["tag"] or "")), None)]
+        if standby:                                     # its route in use: the network or machine it stands under
+            row.append((standby_words(nodes, node), "dim"))
+        elif node["state"] == "bad":                    # away: why there is no way, in the way's place
+            row += [(words, "dim" if quiet else RUNS_ROLE.get(tone, "dim")) for words, tone in node["parts"]]
+        else:
+            label = ways.get(node["id"]) or ""
+            row += [(label, "dim" if quiet else None), (" " * (way + 2 - width(label)), None)] if way else []
+            row += [(words, "dim" if quiet else RUNS_ROLE.get(tone, "dim")) for words, tone in node["parts"]]
+        rows[at] = [part for part in row if part[0]]
+    if graph.get("checked"):
+        rows += [[], [(f"{CHECKED} {seen_words(graph['checked'], time.time() if now is None else now)}", "dim")]]
+    return rows
+
+
+def network_rows(node, branch, deeper, filled, icons, name_at):
+    """A network's row in the machines' tree: its mark in its color, its name bold (dimmed while off), its state, what
+    it offers while none of its machines hangs under it (FILLED); under its name its sentence, then what to do, each a
+    row as the Machines view breaks them (a command is never cut at a narrow pane's edge)."""
+    mark = network_mark(node["network"], icons) if node["network"] else None
+    row = [(branch, "dim")] + ([(mark[0], MARK_ROLE.get(mark[1], mark[1]))] if mark else [(" ", None)])
+    row += [(" " * (name_at - 1), None), (node["title"], "bold_dim" if node["dim"] else "bold")]
+    if node["tag"]:
+        row += [("  ", None), (node["tag"], "warn" if node["state"] == "warn" else "dim")]
+    if node["sub"] and not filled:
+        row += [("  ", None), (node["sub"], "dim")]
+    lead = [(deeper, "dim"), (" " * name_at, None)]
+    return [row] + [lead + [(words, SAID_ROLE.get(tone, "dim")) for words, tone in line]
+                    for line in node["properties"]["why"]]
 
 
 def clock_said(seconds, twelve):

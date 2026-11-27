@@ -20396,7 +20396,11 @@ export const MACHINE_GRAPH = [
   "            \"no_management\": (t(\"machines.state_no_management\"), \"warn\")}.get(net.get(\"state\"))",
   "",
   "",
-  "def to_add(count, t):",
+  "def to_add(network, count, t):",
+  "    \"\"\"NETWORK's machines to add: Add 4 machines\u2026 (questions follow, each in its terminal tab); its " +
+    "network is named",
+  "    above it wherever it shows (a head, a node, the inspector's title). NETWORK stays for its callers' " +
+    "sake.\"\"\"",
   "    return t(\"machines.to_add_one\", count) if count == 1 else t(\"machines.to_add\", count)",
   "",
   "",
@@ -20571,16 +20575,16 @@ export const MACHINE_GRAPH = [
     "machine_actions(one))",
   "",
   "",
-  "def network_properties(title, said, net, names, offered, t, checked, now):",
-  "    \"\"\"A network's properties: its state, why it is not on and what to do, its machines, when that was " +
-    "checked; looking",
-  "    again and the command, else its machines to add (a count, as its row in the list).\"\"\"",
+  "def network_properties(kind, title, said, net, names, offered, t, checked, now):",
+  "    \"\"\"Network KIND's properties: its state, why it is not on and what to do, its machines, when that " +
+    "was checked;",
+  "    looking again and the command, else its machines to add (a count, as its row in the list).\"\"\"",
   "    why = net.get(\"why\")",
   "    lines = [[\"Machines\", [[\", \".join(names), \"text\"]], [], None]] * bool(names)",
   "    lines += [[\"Checked\", [[seen_words(checked, now), \"text\"]], [], None]] * bool(why and checked)",
   "    made = [(\"check\", ACTIONS[\"check\"])] + [(\"copy\", ACTIONS[\"copy\"])] * bool(first_command(why)) " +
     "if why else \\",
-  "        [(\"add\", to_add(len(offered), t))] if offered else []",
+  "        [(\"add\", to_add(kind, len(offered), t))] if offered else []",
   "    return properties(title, {\"text\": said[0], \"tone\": said[1]} if said else None, lines,",
   "                      why_lines(why, t) if why else [], first_command(why), actions(made))",
   "",
@@ -20627,7 +20631,8 @@ export const MACHINE_GRAPH = [
   "    standby = {route[\"network\"] for one in found[\"machines\"] for route in one[\"routes\"][1:]}",
   "    kinds = [kind for kind in NETWORKS if kind in by_kind or kind in standby] + [None] * (None in by_kind)",
   "    said = f\"{counted(len([kind for kind in kinds if kind]), 'network')}, {counted(len(machines), " +
-    "'machine')}\"",
+    "'machine')}\" \\",
+  "        if machines else t(\"machines.empty\")             # none listed: said so, never a count of 0",
   "    nodes, edges, failing = [node(MAC, \"mac\", \"mac\", THIS_MAC, [[said, \"text\"]], icon=\"monitor\")], " +
     "[], set()",
   "    for kind in kinds:",
@@ -20635,7 +20640,7 @@ export const MACHINE_GRAPH = [
     "\"machines\": []}",
   "        state, names = state_words(kind, group[\"net\"], t), [one[\"name\"] for one, _ in " +
     "group[\"machines\"]]",
-  "        sub = counted(len(names), \"machine\") if names else to_add(len(group[\"offered\"]), t) if " +
+  "        sub = counted(len(names), \"machine\") if names else to_add(kind, len(group[\"offered\"]), t) if " +
     "group[\"offered\"] \\",
   "            else BY_ADDRESS if kind in by_kind else None",
   "        title = t(f\"machines.network_{kind}\") if kind else OTHER",
@@ -20644,8 +20649,8 @@ export const MACHINE_GRAPH = [
   "                          tag=state and state[0], state=\"warn\" if state and state[1] == \"warn\" else " +
     "None,",
   "                          dim=bool(state) and state[1] == \"muted\", parent=MAC, network=kind,",
-  "                          props=network_properties(title, state, group[\"net\"], names, group[\"offered\"], " +
-    "t,",
+  "                          props=network_properties(kind, title, state, group[\"net\"], names, " +
+    "group[\"offered\"], t,",
   "                                                   found.get(\"checked\"), now)))",
   "        edges.append(edge(MAC, network_id(kind), \"failed\" if state else \"always\"))",
   "        failing.update([network_id(kind)] * bool(state))",
@@ -30835,8 +30840,9 @@ export const MACHINE_WORDS = {
   "machines.state_approval": "needs approval",
   "machines.state_no_management": "no management server",
   "machines.state_missing": "not installed",
-  "machines.to_add_one": "%s machine to add",
-  "machines.to_add": "%s machines to add",
+  "machines.to_add_one": "Add %s machine\u2026",
+  "machines.to_add": "Add %s machines\u2026",
+  "machines.empty": "No machine on the list yet.",
   "machines.why_missing": "%s is not installed on this Mac.",
   "machines.why_tailscale_off": "Tailscale is off on this Mac.",
   "machines.why_netbird_off": "NetBird is not running on this Mac.",

@@ -175,14 +175,23 @@ def commit_spec(root, commit, which=shutil.which):
     return {"title": commit, "line": None, "file": None, "pipeline": pipeline}
 
 
-# a tree row's role as its colors: the terminal's own, so they follow its theme (pager.py lets colors alone through)
-ROLES = {"bold": "1", "dim": "90", "ok": "32", "bad": "31", "warn": "33", "accent": "1;35"}
+# a tree row's role as its colors: the terminal's own, so they follow its theme (pager.py lets colors alone through);
+# a network's brand letter its own #rrggbb (core/icons.py's), as the Machines view draws it
+ROLES = {"bold": "1", "dim": "90", "ok": "32", "bad": "31", "warn": "33", "accent": "1;35", "bold_dim": "1;90"}
 GRAPH_VIEWS = (("w", "wiring", False), ("c", "run", True))    # a graph's views: its key, core's name, tree()'s RUN
+MACHINES = "machines"         # the machines' tree's title, the preview tab's name after "preview: "
+
+
+def colored(role):
+    """ROLE's SGR numbers: ROLES', else a brand's #rrggbb as a 24-bit color."""
+    if role in ROLES:
+        return ROLES[role]
+    return "38;2;" + ";".join(str(int(role[at:at + 2], 16)) for at in (1, 3, 5))
 
 
 def painted(rows):
     """A tree's ROWS (layers.py's tree_rows()) as the pager's lines, each part in its role's colors."""
-    return ["".join(f"\x1b[{ROLES[role]}m{words}\x1b[0m" if role else words for words, role in row).rstrip()
+    return ["".join(f"\x1b[{colored(role)}m{words}\x1b[0m" if role else words for words, role in row).rstrip()
             for row in rows]
 
 
@@ -195,6 +204,13 @@ def graph_spec(graph, rows, view="w"):
     return {"title": f"graph: {graph['name']} in {os.path.basename(graph['folder'].rstrip(os.sep))}", "line": None,
             "file": os.devnull, "pipeline": [], "views": views, "view": view if view in [v["key"] for v in views]
             else "w"}
+
+
+def machines_spec(rows):
+    """How the machines connect as a tree in the preview tab (ROWS: layers.py's tree_rows() of core's machines' graph),
+    titled machines: one view, so no control to switch; the pager's own keys."""
+    return {"title": MACHINES, "line": None, "file": os.devnull, "pipeline": [],
+            "views": [{"key": None, "name": "Machines", "lines": painted(rows)}], "view": None}
 
 
 def spec_file(state_dir, workspace):

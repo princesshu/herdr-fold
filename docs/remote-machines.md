@@ -283,7 +283,8 @@ own Settings → Machines read by its address, never a login. Its Machines tab (
 the status bar's machine) draws how this Mac reaches each machine: the networks, the machines on them and those behind
 another, each edge direct, relayed, a standby route or away, a machine's properties and actions as the TUI view's;
 its Refresh is the status check, a login to each machine, on your press alone ([Machines](app.md#machines)).
-In the TUI, More's Machines… shows them the same way over the tab, with the chosen machine's properties and actions
+In the TUI, More's Machines… shows them the same way over the tab, with the chosen machine's properties and actions,
+and its `g` (or More's Machines graph) the way to each as a tree in the preview tab
 ([The Machines view](sidebar.md#the-machines-view)).
 
 ## Systems

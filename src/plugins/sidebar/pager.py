@@ -439,7 +439,9 @@ class Views(Pager):
         return super().handle(event)
 
     def choices(self):
-        return [(str(view.get("name")), view is self.view) for view in self.views] + super().choices()
+        """The views to switch between (one alone: none), then the pager's own."""
+        views = [(str(view.get("name")), view is self.view) for view in self.views] if len(self.views) > 1 else []
+        return views + super().choices()
 
     def choose(self, choice):
         found = next((view for view in self.views if str(view.get("name")) == choice), None)

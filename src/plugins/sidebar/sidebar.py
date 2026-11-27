@@ -27,7 +27,8 @@ from chat_list import STATE_MARK, STATE_ROLE  # noqa: E402
 from chats_panel import Chats                  # noqa: E402
 from files_panel import Files  # noqa: E402
 from loop import CODE, Loop  # noqa: E402
-from machines_view import MACHINES, package as machines_package  # noqa: E402
+from machines_view import LOADING as MACHINES_LOADING, MACHINES, MACHINES_GRAPH, machines_tree  # noqa: E402
+from machines_view import package as machines_package  # noqa: E402
 from dock import GROUPS, PANELS  # noqa: E402
 from layers import FOLDED, STATE_ROLE as LAYER_ROLE  # noqa: E402
 from screen import DONE, GIT_ROLE, INSET, MARGIN, ROOMY, Canvas, Style, short_count, truncate, width  # noqa: E402
@@ -299,14 +300,25 @@ class App(Loop):
             self.again.discard("status")
             self.refresh()
 
+    def note_due(self, now):
+        """The last row's note as time goes by: a new one noted, gone after NOTE seconds; the machines' look's stays
+        while it runs and goes with it (a failure's error says why). Whether it went."""
+        if self.note != self.noted[0]:                    # a new note, from the dock or a family
+            self.noted = (self.note, now)
+        elif self.note == MACHINES_LOADING:
+            if "machines-graph" not in self.running:
+                self.note = None
+                return True
+        elif self.note and now >= self.noted[1] + NOTE:   # it goes by itself
+            self.note = None
+            return True
+        return False
+
     def tick(self):
         """The poll when due, the paused search and a tip come due; whether anything shown changed."""
         now = self.clock()
         shown = bool(self.tip) and not self.tip[5] and now >= self.tip[4]
-        if self.note != self.noted[0]:                    # a new note, from the dock or a family
-            self.noted = (self.note, now)
-        elif self.note and now >= self.noted[1] + NOTE:   # it goes by itself
-            self.note, shown = None, True
+        shown = self.note_due(now) or shown
         if now >= self.next_update:
             self.next_update = now + UPDATES
             self.job("update", update.check, self.got_update)
@@ -710,9 +722,23 @@ class App(Loop):
 
     @staticmethod
     def windows():
-        """More's last lines, herdr-fold's own windows over the tab: Machines… where its package is (this Mac),
-        Settings… (herdr's popup)."""
-        return ([MACHINES] if machines_package() else []) + [SETTINGS]
+        """More's last lines, herdr-fold's own windows over the tab: Machines… and Machines graph (the preview tab's
+        tree) where its package is (this Mac), Settings… (herdr's popup)."""
+        return ([MACHINES, MACHINES_GRAPH] if machines_package() else []) + [SETTINGS]
+
+    def machines_graph(self):
+        """More's Machines graph: how the machines connect, as a tree in the preview tab, read afresh, then made by
+        tree_spec(), as the Machines view's g makes it (machines_view.machines_tree())."""
+        folder, icons = machines_package(), self.settings["icons"]
+        if not folder:
+            return
+        self.note = MACHINES_LOADING
+
+        def then(spec):
+            self.note = None
+            self.open_preview(spec, self.root)
+
+        self.job("machines-graph", lambda: machines_tree(folder, self.herdr, icons), then)
 
     def own_lines(self):
         """What the panel with the keys lists in More before the views: the Agent view its Usage view, graph and ways
@@ -750,6 +776,9 @@ class App(Loop):
             entry = "machines" if choice == MACHINES else "settings"
             self.job(entry, lambda: self.herdr.call("plugin", "pane", "open", "--plugin", "herdr-fold.sidebar",
                                                     "--entrypoint", entry, "--focus"))
+            return None
+        if choice == MACHINES_GRAPH:
+            self.machines_graph()
             return None
         what, kinds = panels.chosen(choice, present) or (None, None)
         if what == "close":

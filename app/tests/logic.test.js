@@ -2784,11 +2784,17 @@ test("a network off says so on its head, its tip the ladder's sentence; one with
     assert.equal(byNetwork(five, { ...seen, networks: { ...seen.networks, netbird: { ...offering, state: "off" } } })
       .groups.some((g) => g.network === "netbird"), false);
     assert.equal(byNetwork(five.slice(0, 3), seen).grouped, false);                  // three: no network shown empty
-    assert.deepEqual(toAddWords("netbird", offering.offered), { words: "3 machines to add",
+    // the owner's ruling (2026-11-27): the network's name and the count, an ellipsis as questions follow; no count of 0
+    assert.deepEqual(toAddWords("netbird", offering.offered), { words: "Add 3 machines…",
       tip: "Offered by NetBird: tidepool, kelp-ci, ci-runner\nA click asks about each, in a terminal tab" });
     assert.deepEqual(toAddWords("tailscale", ["a", "b", "c", "d", "e"]).tip.split("\n")[0],
       "Offered by Tailscale: a, b, c and 2 more");
-    assert.equal(toAddWords("tailscale", ["reef-mac"]).words, "1 machine to add");
+    assert.equal(toAddWords("tailscale", ["reef-mac"]).words, "Add 1 machine…");
+    const spacesOf = (names) => names.map((machine) => ({ machine, rows: [], connected: true, state: "connected",
+      rebuilt: false, error: null, busy: false, folded: true, wait: null, since: null, loading: false }));
+    const heads = spacesItems(spacesOf(five), seen).filter((item) => item.kind === "network");
+    assert.deepEqual(heads.map((item) => [item.network, item.count]), [["local", 2], ["tailscale", 2],
+      ["netbird", null], ["public", 1]]);
   });
 
 test("one machine on two routes is one head under the route in use; one behind another under it: their tips", () => {

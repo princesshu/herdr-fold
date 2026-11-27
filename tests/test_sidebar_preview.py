@@ -1,6 +1,6 @@
 """Tests for the sidebar's preview (preview.py, pager.py): files, diffs and commits go to the pager through a file named
 in the tab's environment, so the typed shell line holds no path; one preview tab per workspace; the pager's line jump,
-search and color-only output, with no stall on a binary or huge file."""
+search and color-only output, with no stall on a binary or huge file; an agent's and the machines' graphs as trees."""
 import json
 import os
 import pty
@@ -16,13 +16,17 @@ import time
 import unittest
 from unittest import mock
 
-from support import SRC, FakeTerminal, end_child, finished, logged, psd_in_preview, set_attrs, set_env, sign_head, \
-    stubs, trap
+from support import PACKAGE, SRC, FakeTerminal, end_child, finished, logged, psd_in_preview, set_attrs, set_env, \
+    sign_head, stubs, trap
 from test_core_media import mp4, pdf, png, wav
+from test_sidebar_machines import NOW as LOOKED, here as machines_look
 
 import cmd_keys
 
 sys.path.insert(0, os.path.join(SRC, "plugins", "sidebar"))
+import layers  # noqa: E402
+import machine_graph  # noqa: E402
+import machines_view  # noqa: E402
 import media  # noqa: E402
 import pager  # noqa: E402
 import preview  # noqa: E402
@@ -554,6 +558,7 @@ class Graph(unittest.TestCase):
         shown = pager.viewer(spec)
         shown.draw(FakeTerminal(60, 10))
         self.assertEqual(shown.lead, "")                                        # nothing to switch: no control
+        self.assertEqual(shown.choices(), [(pager.CLOSE, None)])                # nor a line in the right click's menu
 
     def test_the_pager_shows_wiring_and_w_and_c_switch_the_views_each_from_its_top(self):
         shown = pager.viewer(self.spec())
@@ -599,6 +604,84 @@ class Graph(unittest.TestCase):
                               pager.Pager)
         self.assertNotIsInstance(pager.viewer({"title": "x", "file": os.devnull, "pipeline": [], "views": "w"}),
                                  pager.Views)
+
+
+def at(*parts):
+    """A tree's line as read: each (column, words) where it starts."""
+    row = []
+    for x, words in parts:
+        row[len(row):] = " " * (x - len(row))
+        row[x:x + len(words)] = words
+    return "".join(row)
+
+
+class MachinesTree(unittest.TestCase):
+    """How the machines connect (core's machines' graph of graph.html's TUI frames, normal and NetBird off) as a tree
+    in the preview tab: one view titled machines, read at 100 and 60 cells; plain marks here (the icons off)."""
+
+    def setUp(self):
+        set_env(self, TZ="UTC")
+        time.tzset()
+        self.addCleanup(time.tzset)
+
+    @staticmethod
+    def spec(netbird="on"):
+        runs = {name: {"spaces": 1, "agents": []} for name in ("harbor-web", "studio", "lab-pi", "vps-edge")}
+        runs.update({"lumen-api": {"spaces": 2, "agents": [["claude", "working"]]},
+                     "build-01": {"spaces": 1, "agents": [["codex", "blocked"]]}})
+        made = machine_graph.graph(machine_graph.seen(machines_look(netbird)), machines_view.catalog(PACKAGE), runs,
+                                   None, LOOKED)
+        return preview.machines_spec(layers.tree_rows(made, icons=False, now=LOOKED))
+
+    def test_it_is_one_view_titled_machines_with_nothing_to_switch(self):
+        spec = self.spec()
+        self.assertEqual((spec["title"], spec["pipeline"], spec["line"], len(spec["views"])), ("machines", [], None, 1))
+        json.dumps(spec)                                                        # it goes through a file
+        shown = pager.viewer(spec)
+        self.assertIsInstance(shown, pager.Views)
+        shown.draw(FakeTerminal(100, 24))
+        self.assertEqual(shown.lead, "")
+        self.assertEqual(shown.choices(), [(pager.CLOSE, None)])
+        self.assertFalse(shown.handle(Key("esc")))                              # Esc closes it, as every preview
+
+    def test_at_100_cells_it_reads_whole_and_at_60_a_long_row_is_cut_at_the_edge(self):
+        shown = pager.viewer(self.spec())
+        wide = [pager.plain(row).rstrip() for row in shown.rows(100, 23)]
+        self.assertEqual(wide[:10], [
+            "This Mac  5 networks, 9 machines",
+            "├ ⌂ Local network",
+            at((0, "│ ├ lab-pi"), (16, "linux"), (38, "1 space")),
+            at((0, "│ └ studio"), (16, "macos"), (38, "1 space")),
+            "├ T Tailscale",
+            at((0, "│ ├ harbor-web"), (16, "linux"), (23, "relayed"), (38, "1 space")),
+            at((0, "│ ├ lumen-api"), (16, "linux"), (23, "direct"), (38, "2 spaces, Claude working")),
+            at((0, "│ │ ├ build-01"), (16, "linux"), (38, "1 space, Codex waiting")),
+            at((0, "│ │ └ db-02"), (16, "linux"), (23, "unreachable")),
+            at((0, "│ └ studio"), (16, "macos"), (23, "standby, in use: Local network"))])
+        self.assertEqual(wide[13:18], ["├ Z ZeroTier  none yet: add one by its address", "└ ⊕ Public",
+                                       at((0, "  └ vps-edge"), (16, "linux"), (38, "1 space")), "",
+                                       "Checked today 11:06"])
+        narrow = [pager.plain(row).rstrip() for row in shown.rows(60, 23)]
+        self.assertEqual(narrow[6], at((0, "│ ├ lumen-api"), (16, "linux"), (23, "direct"),
+                                       (38, "2 spaces, Claude worki")))
+        self.assertEqual(narrow[:6] + narrow[7:], wide[:6] + wide[7:])          # every other row whole
+
+    def test_netbird_off_says_why_under_its_name_and_its_machines_are_unreachable(self):
+        shown = pager.viewer(self.spec("off"))
+        for cells in (100, 60):
+            with self.subTest(cells=cells):
+                rows = [pager.plain(row).rstrip() for row in shown.rows(cells, 23)]
+                self.assertEqual(rows[10:15], [
+                    "├ N NetBird  off",
+                    "│   NetBird is not running on this Mac.",
+                    "│   Start it: netbird up",
+                    at((0, "│ ├ kelp-ci"), (16, "linux"), (23, "unreachable")),
+                    at((0, "│ └ tidepool"), (16, "linux"), (23, "unreachable"))])
+
+    def test_a_brands_color_reaches_the_pager_as_it_is(self):
+        line = preview.painted([[("N", "#f68330"), (" ", None), ("NetBird", "bold_dim")]])[0]
+        self.assertEqual(line, "\x1b[38;2;246;131;48mN\x1b[0m \x1b[1;90mNetBird\x1b[0m")
+        self.assertEqual(pager.visible(line, 20), line)                         # a 24-bit color is a color: kept
 
 
 class Lines(unittest.TestCase):

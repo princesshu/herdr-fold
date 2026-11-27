@@ -1,6 +1,6 @@
 """herdr-fold's Machines view in the TUI (the sidebar's ⋯ opens it over the tab: Machines…), as machines.html's TUI
 frames: the list's machines by network from core/networks.py's look (no login, nothing scanned), the chosen one's
-properties under them, its actions ./machines.sh in a terminal tab. ↑ ↓ step, ← → a button, Enter, s Status, Esc."""
+properties, its actions ./machines.sh in a terminal tab; g the tree in the preview tab. Its keys stand at its foot."""
 import base64
 import concurrent.futures
 import importlib.util
@@ -15,12 +15,15 @@ sys.dont_write_bytecode = True  # no __pycache__ beside the installed files
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import fileops  # noqa: E402
+import panels  # noqa: E402
+import panes  # noqa: E402
 import preview  # noqa: E402
 from icons import glyphs, network_mark  # noqa: E402
+from layers import GRAPH_KEY, tree_rows  # noqa: E402
 from loop import Loop  # noqa: E402
-from machine_graph import (ACTIONS, BY_ADDRESS, CONTROLS, MOST, OTHER, clean, first_command, grouped,  # noqa: E402
-                           listed, machine_actions, machine_properties, name_ok, right_words, seen, seen_words,
-                           state_words, to_add)
+from machine_graph import (ACTIONS, BY_ADDRESS, CONTROLS, MOST, OTHER, clean, first_command, graph,  # noqa: E402
+                           grouped, listed, machine_actions, machine_properties, name_ok, right_words, seen,
+                           seen_words, state_words, to_add)
 from screen import CONTENT, INSET, SPIN, SPINNER, Canvas, Style, after, icons_on, truncate, width  # noqa: E402
 from settings import CLOSE_CELLS  # noqa: E402
 from usage_view import Row  # noqa: E402
@@ -39,9 +42,11 @@ LABEL = 10                    # cells of a property's label (Last seen)
 ROLES = {"text": "text", "muted": "muted", "warn": "modified", "ok": "added", "bad": "deleted"}
 
 MACHINES = "Machines…"        # the sidebar's ⋯ line that opens it, over Settings…
+MACHINES_GRAPH = "Machines graph"     # the ⋯ line under it: the tree in the preview tab, as g here shows it
 LOADING, FAILED = "Loading machines…", "Couldn't read the machines"
 NO_PACKAGE = "herdr-fold's package is not found here: the Machines view comes with herdr-fold's installer"
-NONE = "No machines on the list yet: Ctrl+B, Shift+M adds one"
+ADD_ONE = "Ctrl+B, Shift+M adds one"  # under the list's empty state where no network offers a machine
+HINTS = ((GRAPH_KEY, "Graph"), ("s", "Status"), ("Esc", ""))    # its foot: each key and its word, a click does it
 LOOK_AROUND, MORE = ACTIONS["through"], "⋯"              # Look around from here, under ⋯ on its own row
 OPENED, COPIED = "Opened in a new tab", "Copied"
 NO_TAB = "It opens in a herdr tab: open Machines in herdr"
@@ -100,6 +105,12 @@ def look(folder, listed):
     return read_look(folder, listed)
 
 
+def read_machines(folder, beside, herdr):
+    """On a job's thread: core's look over the machine list BESIDE the plugin, checked, and the machines herdr keeps."""
+    return {"found": seen(look(folder, os.path.join(beside, "machines.txt"))),
+            "kept": kept(herdr.text("machine", "list", "--json"))}
+
+
 def kept(text):
     """The machines herdr keeps (`herdr machine list --json`'s TEXT): {label: enabled}; None where herdr said none."""
     try:
@@ -124,6 +135,32 @@ def machine_runs(call, label):
                                                       for one in listed(agents) if isinstance(one, dict)]}
 
 
+def run_names(found, held):
+    """The machines herdr is asked what runs on: those it keeps (HELD) that nothing keeps away."""
+    return [one["name"] for one in found["machines"] if not one["why"] and (held or {}).get(one["name"])]
+
+
+def runs_on(call, names):
+    """On a job's thread: what runs on each of NAMES, herdr asked about AT_ONCE at a time; where herdr told."""
+    with concurrent.futures.ThreadPoolExecutor(AT_ONCE) as pool:
+        found = dict(zip(names, pool.map(lambda name: machine_runs(call, name), names)))
+    return {name: runs for name, runs in found.items() if runs}
+
+
+def tree_spec(found, t, runs, held, icons, now):
+    """How the machines connect, as the preview tab shows it: core's graph of FOUND (seen()'s) in T's words, with what
+    RUNS there and the machines herdr keeps (HELD), drawn by layers.py as a tree (ICONS: the font's marks)."""
+    return preview.machines_spec(tree_rows(graph(found, t, runs, held, now), icons=icons, now=now))
+
+
+def machines_tree(folder, herdr, icons, beside=None, now=time.time):
+    """On a job's thread: the tree g shows, read afresh as the view reads it (the sidebar's More › Machines graph):
+    the look, herdr's machines and what runs there, then tree_spec()."""
+    answer = read_machines(folder, beside or BESIDE, herdr)
+    runs = runs_on(herdr.call, run_names(answer["found"], answer["kept"]))
+    return tree_spec(answer["found"], catalog(folder), runs, answer["kept"], icons, now())
+
+
 # --- how it says it (core/machine_graph.py's words, the graph's too)
 
 def actions(one):
@@ -144,9 +181,10 @@ def in_tab(herdr, workspace, folder, name, argv):
 
 
 class MachinesView(Loop):
-    def __init__(self, terminal, herdr, state_dir, clock=time.monotonic, beside=None, now=time.time):
+    def __init__(self, terminal, herdr, state_dir, clock=time.monotonic, beside=None, now=time.time, context=None):
         super().__init__(terminal, herdr, state_dir, clock)
         self.beside, self.now = beside or BESIDE, now
+        self.context = context or {}           # where it was opened: herdr's workspace, tab and folder then
         self.folder = package(self.beside)
         self.t = catalog(self.folder) if self.folder else None
         self.icons = icons_on(state_dir)
@@ -160,7 +198,7 @@ class MachinesView(Loop):
         self.menu = self.confirm = None        # ⋯'s menu (Menu, y, x); Remove's question (Confirm, name)
         self.said = None                       # what an action did, or why it did not: (words, failed)
         self.pointed = None
-        self.top, self.height, self.count, self.follow = 0, 1, 0, True
+        self.top, self.height, self.count, self.reveal = 0, 1, 0, True   # reveal: the chosen row brought into view
         self.more_at = (TOP, INSET)            # under ⋯ as drawn last, and its right edge: where its menu opens
         self.ask()
 
@@ -175,16 +213,12 @@ class MachinesView(Loop):
         if "look" in self.running:
             self.again.add("look")
             return
-        folder, path, herdr = self.folder, os.path.join(self.beside, "machines.txt"), self.herdr
-
-        def work():
-            return {"found": seen(look(folder, path)), "kept": kept(herdr.text("machine", "list", "--json"))}
-
-        self.job("look", work, self.got)
+        folder, beside, herdr = self.folder, self.beside, self.herdr
+        self.job("look", lambda: read_machines(folder, beside, herdr), self.got)
 
     def got(self, answer):
         if answer:
-            self.found, self.herdr_kept, self.failed, self.follow = answer["found"], answer["kept"], None, True
+            self.found, self.herdr_kept, self.failed, self.reveal = answer["found"], answer["kept"], None, True
             self.ask_runs()
         if "look" in self.again:
             self.again.discard("look")
@@ -192,17 +226,9 @@ class MachinesView(Loop):
 
     def ask_runs(self):
         """What runs on each machine herdr keeps that nothing keeps away, herdr asked about AT_ONCE at a time."""
-        names = [one["name"] for one in self.found["machines"] if not one["why"]
-                 and (self.herdr_kept or {}).get(one["name"])]
-        if not names or "runs" in self.running:
-            return
-        call = self.herdr.call
-
-        def work():
-            with concurrent.futures.ThreadPoolExecutor(AT_ONCE) as pool:
-                return dict(zip(names, pool.map(lambda name: machine_runs(call, name), names)))
-
-        self.job("runs", work, lambda found: setattr(self, "runs", {k: v for k, v in found.items() if v}))
+        names, call = run_names(self.found, self.herdr_kept), self.herdr.call
+        if names and "runs" not in self.running:
+            self.job("runs", lambda: runs_on(call, names), lambda found: setattr(self, "runs", found))
 
     def collect(self):
         """A look that failed says so in the list's place; an action's failure under its buttons."""
@@ -223,10 +249,14 @@ class MachinesView(Loop):
             found += [("machine", one["name"]) for one, _ in group["machines"]]
         return found
 
+    def stop_at(self, stops):
+        """The stop the keys are on: the one chosen, else the first machine's; a row to add (its questions start a
+        flow) only once chosen with a key or a click; None for none."""
+        return self.at if self.at in stops else next((stop for stop in stops if stop[0] == "machine"), None)
+
     def chosen(self):
-        """The machine the keys are on (the first stop until one is chosen); None on a row to add, or none."""
-        stops = self.stops()
-        at = self.at if self.at in stops else (stops[0] if stops else None)
+        """The machine the keys are on; None on a row to add, or none."""
+        at = self.stop_at(self.stops())
         return next((one for one in self.found["machines"] if at == ("machine", one["name"])), None) if at else None
 
     # --- what it does
@@ -262,24 +292,25 @@ class MachinesView(Loop):
             return
         name = key.char if key.name == "char" and not (key.ctrl or key.alt) else key.name
         stops, one = self.stops(), self.chosen()
+        at = self.stop_at(stops)
         if name in ("esc", "q") or (key.name == "char" and key.ctrl and key.char == "c"):
             self.quit = True
         elif name in ("up", "down") and stops:
-            now = stops.index(self.at) if self.at in stops else 0
+            now = stops.index(at) if at else -1                 # none yet: either key takes the first stop
             self.choose(stops[max(0, min(len(stops) - 1, now + (1 if name == "down" else -1)))])
         elif name in ("left", "right") and one:
             self.button = max(0, min(len(actions(one)) - 1, self.button + (1 if name == "right" else -1)))
         elif name == "enter" and one:
             self.act(actions(one)[min(self.button, len(actions(one)) - 1)][0], one)
-        elif name == "enter" and stops and (self.at if self.at in stops else stops[0])[0] == "add":
-            self.add((self.at if self.at in stops else stops[0])[1])
-        elif name == "s" and one:
-            self.launch("status", one)
+        elif name == "enter" and at and at[0] == "add":
+            self.add(at[1])
+        elif name in ("s", GRAPH_KEY):
+            self.hint(name)
         elif name in ("pageup", "pagedown"):
             self.scroll(self.height if name == "pagedown" else -self.height)
 
     def choose(self, stop):
-        self.at, self.button, self.said, self.follow = stop, 0, None, True
+        self.at, self.button, self.said, self.reveal = stop, 0, None, True
 
     def scroll(self, rows):
         self.top = max(0, min(self.top + rows, self.count - self.height))
@@ -303,9 +334,41 @@ class MachinesView(Loop):
         elif kind == "add":
             self.choose(("add", value))
             self.add(value)
+        elif kind == "hint":
+            self.hint(value)
         elif kind == "button" and self.chosen():
             self.button = next((n for n, (id, _) in enumerate(actions(self.chosen())) if id == value), 0)
             self.act(value, self.chosen())
+
+    def hint(self, key):
+        """What KEY does, from the keys or its hint at the foot: g the tree once there is a look, s the chosen
+        machine's Status, Esc closes."""
+        one = self.chosen()
+        if key == GRAPH_KEY and self.found is not None:
+            self.show_tree()
+        elif key == "s" and one:
+            self.launch("status", one)
+        elif key == "Esc":
+            self.quit = True
+
+    def show_tree(self):
+        """How the machines connect, as a tree in the preview tab of the workspace it was opened from (tree_spec() of
+        the last look; a new tab laid out as the one it was opened in), then out of the way."""
+        workspace = self.context.get("workspace_id") or os.environ.get("HERDR_WORKSPACE_ID")
+        if not workspace:
+            self.said = (NO_TAB, True)
+            return
+        spec = tree_spec(self.found, self.t, self.runs, self.herdr_kept, self.icons, self.now())
+        place = self.context.get("workspace_cwd") or os.path.expanduser("~")
+        herdr, state, tab = self.herdr, self.state_dir, self.context.get("tab_id")
+
+        def lay_out(made):
+            kinds = panels.present(herdr.call("pane", "list").get("panes") or []).get(tab)
+            panes.bring(herdr.call, made, kinds or set(panels.KINDS), state)
+
+        self.said = None
+        self.job("tree", lambda: preview.open_preview(herdr, workspace, place, spec, state, lay_out, tab),
+                 lambda _: setattr(self, "quit", True))
 
     def act(self, what, one):
         """WHAT done to machine ONE from its properties: ⋯'s menu, a look again, its command copied, Remove asked
@@ -379,10 +442,10 @@ class MachinesView(Loop):
         canvas.region(0, corner, cells, "close")
         asked = self.confirm_canvas(cells, rows) if self.confirm else None
         lines = self.lines(cells)
-        self.count, self.height = len(lines), max(1, rows - TOP - (asked.height + 1 if asked else 0))
+        self.count, self.height = len(lines), max(1, rows - TOP - (asked.height + 1 if asked else 1))
         at = next((n for n, line in enumerate(lines) if getattr(line, "chosen", False)), None)
-        if self.follow and at is not None:               # the chosen row in view, its properties as far as they fit
-            self.top, self.follow = min(at, max(0, self.count - self.height)), False
+        if self.reveal and at is not None:               # the chosen row in view, its properties as far as they fit
+            self.top, self.reveal = min(at, max(0, self.count - self.height)), False
         self.scroll(0)
         for n, line in enumerate(lines[self.top:self.top + self.height]):
             if getattr(line, "band", None):
@@ -394,6 +457,8 @@ class MachinesView(Loop):
             y = rows - asked.height
             canvas.put(y - 1, INSET, "─" * (cells - 2 * INSET), Style(fg="muted"))
             canvas.paste(asked, y, 0)
+        else:
+            self.foot(canvas, rows - 1)
         if self.menu:
             menu, y, x = self.menu
             y, x, wide = menu.at(y, x, cells, TOP, rows, INSET)
@@ -401,6 +466,20 @@ class MachinesView(Loop):
         self.canvas = canvas
         self.term.write(self.renderer.frame(canvas))
         self.term.flush()
+
+    def foot(self, canvas, y):
+        """Its keys at its foot, each the key bold and its word, a click doing it (hint()): g Graph once there is a
+        look, s Status while a machine is chosen, Esc; one it cannot do now muted."""
+        x = INSET
+        for key, words in HINTS:
+            able = {GRAPH_KEY: self.found is not None, "s": self.chosen() is not None}.get(key, True)
+            lit, start = able and self.pointed == ("hint", key), x
+            x = canvas.put(y, x, key, Style(fg="text" if able else "muted", bold=able))
+            if words:
+                x = canvas.put(y, x + 1, words, Style(fg="text" if lit else "subtext" if able else "muted"))
+            if able:
+                canvas.region(y, start, x, ("hint", key))
+            x += 3
 
     def confirm_canvas(self, cells, rows):
         """Remove's question with its two buttons, as the sidebar asks before something cannot be undone."""
@@ -427,10 +506,11 @@ class MachinesView(Loop):
                 return [self.words_row(cells, f"{FAILED}: {self.failed}", "deleted")]
             return [self.words_row(cells, f"{SPINNER[int(self.clock() / SPIN) % len(SPINNER)]} {LOADING}", "muted")]
         groups = grouped(self.found)
+        empty = [] if self.found["machines"] else [self.words_row(cells, self.t("machines.empty"), "muted")]
         if not groups:
-            return [self.words_row(cells, NONE, "muted")]
+            return empty + [self.words_row(cells, ADD_ONE, "muted")]
         stops, end, one = self.stops(), cells - CONTENT, self.chosen()
-        at = self.at if self.at in stops else stops[0] if stops else None
+        at = self.stop_at(stops)
         x = INSET + 1 + len(after(self.icons))          # under a head's name: its machines' dots
         rows = [found for group in groups for found in group["machines"]]
         rights = {found["name"]: right_words(found, self.runs.get(found["name"])) for found, _ in rows}
@@ -438,7 +518,7 @@ class MachinesView(Loop):
         widest = max([width(words) for words, _ in rights.values()] + [0])
         natural = max([x + 4 * depth + 2 + width(found["name"]) for found, depth in rows] + [0]) + 2
         column = max(x + 4, min(natural, end - widest - 2 - system))     # the systems' column, the same for all
-        lines = []
+        lines = empty
         for group in groups:
             lines.append(self.head(group, x, end))
             if group["offered"]:
@@ -455,7 +535,8 @@ class MachinesView(Loop):
         return lines
 
     def head(self, group, x, end):
-        """A network's head: its mark in its color, its name bold (dimmed while off), its state, its count."""
+        """A network's head: its mark in its color, its name bold (dimmed while off), its state, its machines' count
+        (none with none of its own)."""
         row, kind, net = Row(), group["network"], group["net"]
         mark = network_mark(kind, self.icons) if kind else None
         if mark:
@@ -466,7 +547,8 @@ class MachinesView(Loop):
                                                                                      bold=True))
         if said:
             row.put(at + 2, said[0], Style(fg=ROLES[said[1]]))
-        row.right(end, str(len(group["machines"])), Style(fg="muted"))
+        if group["machines"]:
+            row.right(end, str(len(group["machines"])), Style(fg="muted"))
         return row
 
     def add_row(self, group, x, cells, at):
@@ -474,7 +556,7 @@ class MachinesView(Loop):
         row, stop = Row(), ("add", group["network"])
         row.chosen = at == stop
         row.band = bg = "selection" if row.chosen else "hover" if self.pointed == stop else None
-        row.put(x, truncate("+ " + to_add(len(group["offered"]), self.t), cells - x - CONTENT),
+        row.put(x, truncate("+ " + to_add(group["network"], len(group["offered"]), self.t), cells - x - CONTENT),
                 Style(fg="muted_row" if bg else "muted", bg=bg))
         row.regions.append((0, cells, stop))
         return row
@@ -557,13 +639,17 @@ class MachinesView(Loop):
 
 
 def main():
+    try:
+        context = json.loads(os.environ.get("HERDR_PLUGIN_CONTEXT_JSON") or "{}")
+    except ValueError:
+        context = {}
     state = os.environ.get("HERDR_PLUGIN_STATE_DIR") or os.path.join(
         os.path.expanduser("~"), ".local", "state", "herdr", "plugins", "herdr-fold.sidebar")
     if os.name == "nt":
         from keys_windows import WindowsTerminal as Terminal
     else:
         from keys_unix import UnixTerminal as Terminal
-    MachinesView(Terminal(), preview.Herdr(), state).run()
+    MachinesView(Terminal(), preview.Herdr(), state, context=context if isinstance(context, dict) else {}).run()
 
 
 if __name__ == "__main__":

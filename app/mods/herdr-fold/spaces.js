@@ -405,8 +405,8 @@ export class SpacesView {
   }
 
   /** A network's head (machines.html's .nhead), 8 under what is above it: its mark, name, state while it is not on
-   * (its tip the ladder's sentence), folded its machines' longest wait, their count, its chevron folding them away.
-   * @param {Item} item */
+   * (its tip the ladder's sentence), folded its machines' longest wait, their count (none with none of its own), its
+   * chevron folding them away. @param {Item} item */
   networkHead(t, item) {
     const quiet = item.said?.tone === "dim";
     return h_flex().id(`network-${item.network}`).h(LIST.machine).flex_none().mt(LIST.gap).px(8).gap(6).items_center()
@@ -425,7 +425,8 @@ export class SpacesView {
       .when(item.folded && Boolean(item.wait), (e) => e.child(div().flex_none().text_size(11).text_color(t.ansi3)
         .child(String(item.wait))))
       .child(div().flex_1())
-      .child(div().flex_none().text_size(11).text_color(t.dim).child(String(item.count)))
+      .when(item.count != null, (e) => e.child(div().flex_none().text_size(11).text_color(t.dim)
+        .child(String(item.count))))
       .child(icon(item.folded ? "chevron-right" : "chevron-down", CENTRED.headChevron[1]).text_color(t.dim));
   }
 
@@ -438,7 +439,7 @@ export class SpacesView {
       .items_center().rounded(6).text_size(12).text_color(t.dim).cursor_pointer()
       .hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip(tip)
       .on_click(() => setup && this.ask(item.network, setup))
-      .child(icon("plus", CENTRED.headAddIcon[1])).child(words);
+      .child(icon("plus", CENTRED.headAddIcon[1])).child(div().min_w(0).truncate().child(words));
   }
 
   /** NETWORK's machines asked about, ./machines.sh in the package's FOLDER, in a terminal tab on this Mac.

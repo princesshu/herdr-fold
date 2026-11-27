@@ -189,21 +189,24 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
   a letter or a plain icon), and once five or more are on two networks or more they stand under their network's head
   with its count. A network whose client is off or signed out says so there, its tip the same sentence `./machines.sh`
   says; a machine behind another stands under it, one on two routes is one head; a network on with none of its
-  machines added yet offers them (`3 machines to add`), asked about in a terminal tab. The status bar's machine wears
-  its mark too. The app looks at the networks once a minute while it shows a remote machine, with no login. See
-  [Spaces](docs/app.md#spaces).
+  machines added yet offers them (`Add 3 machines…`), asked about in a terminal tab. The status bar's
+  machine wears its mark too. The app looks at the networks once a minute while it shows a remote machine, with no
+  login. See [Spaces](docs/app.md#spaces).
 - The TUI's Machines view: More's Machines… opens the machines on herdr-fold's list over the tab, by network as the
   Herdr app's Spaces groups them, each network's state on its head, a machine behind another under it, and the chosen
   one's properties: why it is away in `./machines.sh`'s sentence, its address or routes, the way to it, its key, what
-  runs there. Status, Set up again, Remove and Look around from here run `./machines.sh` in a terminal tab. See
-  [The Machines view](docs/sidebar.md#the-machines-view).
+  runs there. Status, Set up again, Remove and Look around from here run `./machines.sh` in a terminal tab. With no
+  machine on the list it says `No machine on the list yet.` and starts nothing until a row is chosen. `g` (its foot's
+  `g Graph`, or More's Machines graph) shows how they connect as a tree in the preview tab: This Mac, each network
+  with its mark and state, its machines with the way to them and what runs there, one behind another under its jump
+  host, a second route dim. See [The Machines view](docs/sidebar.md#the-machines-view).
 - The Herdr app's Machines tab: how this Mac reaches each machine, as a graph: This Mac, the networks with their marks
   and states, the machines on them with what runs there, those behind another beside their jump host; each edge
   direct, relayed, a standby route or away, labelled with the way and the time a login took. A machine's properties
   and actions are the TUI view's (Status, Set up again, Remove…, and under ⋯ Show in Spaces and Look around from
   here…, each but Show in Spaces `./machines.sh` in a terminal tab); a network or a machine that is away says why,
-  with the command to copy. Refresh logs in to each machine, on your press alone. Spaces' waypoints button and the
-  status bar's machine open it. See [Machines](docs/app.md#machines).
+  with the command to copy; with no machine on the list, This Mac says so. Refresh logs in to each machine, on your
+  press alone. Spaces' waypoints button and the status bar's machine open it. See [Machines](docs/app.md#machines).
 
 ### Changed
 

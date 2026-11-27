@@ -500,8 +500,9 @@ node follows the pointer while it drags.
 The main area's tab of that name, one a window, under Lucide's waypoints in the tab bar: graph.html's App frames
 (Wiring, a network down, two routes), the Agents tab's canvas, nodes and edges with four columns. The nodes, edges,
 properties and every word are core's (`machine_graph.py` over `networks.py`'s look); the view keeps the layout
-(`machinestab.js`, its rules in `graph.js`). The styleguide's parts are `machines-graph` and `machines-inspector`; their
-pictures are yet to be taken.
+(`machinestab.js`, its rules in `graph.js`). With no machine on the list, This Mac's line says so (`No machine on the
+list yet.`) and a network with machines to offer says `Add 4 machines…`. The styleguide's parts are
+`machines-graph` and `machines-inspector`; their pictures are yet to be taken.
 
 | Part | Measures |
 |---|---|
@@ -512,7 +513,7 @@ pictures are yet to be taken.
 | Edge | the Agents tab's (1.5 wide, a node's edges leaving it 4 apart); direct solid, relayed dashed 5 and 5, away dashed in `ansi1`, a machine's other route dotted 2 and 4 in the faint line at 55% (`#8c`), no label; a chosen machine on two routes or more, its route in use 2 wide in the accent, over the others (graph.html's Két út) |
 | Label | at its edge's middle (graph.html's `.lab`), as a gate: 18 high, 6 in, rounded 4, a hairline, on `canvas`, 11 in `muted`: the way and the time (`direct 12 ms`, `relayed`, `19 ms`) |
 | Properties | at the canvas's lower left, 12 in, as the Agents tab's (graph.html's `.insp`): a popover 300 wide (a hairline, rounded 10, `shadow_lg`), 12 inside, its parts 6 apart, 12: the title 20 high (the node's mark, its name semibold, its state 11 in its tone: `connected` `ansi2`, `unreachable` and `off` in `muted`, × 16); why it is away in `ansi3`, wrapping; what to do in `muted`, a command in a box 26 high, 8 in, rounded 6, a hairline, on `canvas`: its words, the command in the code font 11, `Copy` in `muted` at its end (`Copied` a moment); a line 20 high, its label in `muted` in 70, a route's network mark 12 before its value, a fingerprint in the code font 11, the way behind another with `›` in `dim` and its network's mark 12, what it says at its right 11 (`in use`, `3 ms` in `muted`, `standby` in `muted`) |
-| Buttons | properties buttons (`actButton`) 26 high, 6 apart, one row (the TUI view's): Status, Set up again, Check again and a network's `3 machines to add` raised, Remove… plain, then a machine's ⋯ 26 square, its menu (`panelSurface`, 220) over it with Show in Spaces and, on a Linux or macOS machine, Look around from here…; Remove… asks first in their place (`Take build-01 off the list, and herdr-fold off it?` 12 in red, Remove raised, Cancel plain); without the package's `machines.sh` the actions that need it faint, their tip saying why |
+| Buttons | properties buttons (`actButton`) 26 high, 6 apart, one row (the TUI view's): Status, Set up again, Check again and a network's `Add 3 machines…` raised, Remove… plain, then a machine's ⋯ 26 square, its menu (`panelSurface`, 220) over it with Show in Spaces and, on a Linux or macOS machine, Look around from here…; Remove… asks first in their place (`Take build-01 off the list, and herdr-fold off it?` 12 in red, Remove raised, Cancel plain); without the package's `machines.sh` the actions that need it faint, their tip saying why |
 
 What it says instead of a graph (`Loading machines…`, the look's failure in red) stands 12 in, 48 down, under Refresh.
 
@@ -620,7 +621,8 @@ with their longest wait. Its machines' heads and spaces stand 8 in and wear no m
 under it, 12 further in, Lucide's `corner-down-right` 12 in the mark's place, its tip the way to it (`Through lumen-api
 (198.51.100.30)`); one on several routes is one head, under the route in use, its tip naming the others (`Through the
 local network (studio.local)`, `Also on Tailscale`). A network on with none of its machines added yet shows only
-grouped, its count 0 and a row 28, 8 in, + 12 and `3 machines to add` 12 `dim`, the hover's fill, its tip naming them.
+grouped, with no count, and a row 28, 8 in, + 12 and `Add 3 machines…` 12 `dim` (cut with … where it has
+no room), the hover's fill, its tip naming them.
 
 ### Chats
 

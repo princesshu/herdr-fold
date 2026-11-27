@@ -2124,6 +2124,17 @@ function machineWorld({ logged = true, netbird = "on" } = {}) {
     words: { columns: { mac: "This Mac", networks: "Networks", machines: "Machines", through: "Through" },
       legend: [["always", "direct"], ["demand", "relayed"], ["standby", "standby route"], ["failed", "away"]] } };
 }
+/** No machine on the list yet (the owner's empty state): This Mac says so, Tailscale offers its four, ZeroTier names
+ * none; no count of 0 anywhere. */
+function machineEmpty() {
+  const world = machineWorld(), offer = "Add 4 machines…", empty = "No machine on the list yet.";
+  const nodes = world.nodes.filter((one) => ["mac", "network:tailscale", "network:zerotier"].includes(one.id))
+    .map((one) => (one.id === "mac" ? { ...one, sub: empty, parts: [[empty, "text"]] } : one.id === "network:tailscale"
+      ? { ...one, sub: offer, parts: [[offer, "muted"]], properties: machineProps("Tailscale", null, [],
+        [["add", offer]]) } : one));
+  return { ...world, nodes, edges: world.edges.filter((one) => one.from === "mac"
+    && nodes.some((node) => node.id === one.to)) };
+}
 /** An edge of the machines' graph in core's shape. @param {string} from @param {string} to @param {string} style
  * @param {string | null} [label] */
 const medge = (from, to, style, label = null) => ({ from, to, style, gates: [], run: null, label });
@@ -2163,6 +2174,8 @@ function machineGraphs() {
     machinesOf(machineWorld(), { chosen: "machine:studio" }), 680, 1100],
   ["The minute's look before Refresh: the networks' own words on the edges, no login made",
     machinesOf(machineWorld({ logged: false }), { logged: false }), 680, 1100],
+  ["No machine on the list yet: This Mac says so, Tailscale offers its own (Add 4 machines…)",
+    machinesOf(machineEmpty()), 300, 1100],
   ["Refresh pressed: Checking… while it logs in to each machine", toolsOf({ logged: false, busy: true,
     checking: true }), 50, 540],
   ["A look that failed while the graph shows: why, beside Refresh", toolsOf({ error: "networks.py: Permission "
@@ -2176,8 +2189,8 @@ function machineGraphs() {
 function machineInspectors() {
   const world = machineWorld(), off = machineWorld({ netbird: "off" });
   const offering = { ...world, nodes: world.nodes.map((one) => (one.id === "network:netbird" ? { ...one,
-    sub: "3 machines to add", parts: [["3 machines to add", "muted"]], properties: machineProps("NetBird", null, [],
-      [["add", "3 machines to add"]]) } : one)) };
+    sub: "Add 3 machines…", parts: [["Add 3 machines…", "muted"]],
+    properties: machineProps("NetBird", null, [], [["add", "Add 3 machines…"]]) } : one)) };
   return [["A machine behind another: its way with its network's mark, its key, what runs there; Status, Set up "
     + "again, Remove…, ⋯", inspectorOf(world, "machine:build-01"), 290],
   ["Away: its sentence, Check again", inspectorOf(world, "machine:db-02"), 240],
