@@ -1478,9 +1478,9 @@ const IP_SHAPE = /^[0-9A-Fa-f:.]{2,45}$/;                                 // an 
 const TARGET_SHAPE = /^(?!-)[^\s\u0000-\u001f\u007f-\u009f]{1,300}$/;    // ssh's target: no option, space or control
 const CONTROLS = /[\u0000-\u001f\u007f-\u009f]/g;
 const STATES = ["on", "off", "signed_out", "expired", "approval", "no_management"];     // a client's, core's
-// a network's state as its head says it when it is not on: its word, its tone (off quiet; one to act on in ansi3)
-const STATE_WORDS = { off: ["off", "dim"], signed_out: ["signed out", "ansi3"], expired: ["expired", "ansi3"],
-  approval: ["needs approval", "ansi3"], no_management: ["no management server", "ansi3"] };
+// a network's state as its head says it when it is not on: its tone (off quiet; one to act on in ansi3), its word the
+// catalog's machines.state_*, the TUI's too
+const STATE_TONES = { off: "dim", signed_out: "ansi3", expired: "ansi3", approval: "ansi3", no_management: "ansi3" };
 const WITH_CLIENT = ["tailscale", "netbird", "zerotier"];       // the networks whose client on this Mac has a state
 const IN_WORDS = { local: "the local network", public: "the internet", tunnel: "a tunnel" };    // in a sentence
 const ADD_NAMED = 3;               // the machines a network offers named in its row's tip, the rest counted
@@ -1544,16 +1544,19 @@ export function networksSeen(said) {
  * each one's own after it; null for none. @param {any} why */
 export function whyWords(why) {
   if (!why) return null;
-  const fill = (/** @type {string} */ key, /** @type {string[]} */ args) => {
-    let n = 0;
-    return String(/** @type {Record<string, string>} */ (MACHINE_WORDS)[key] ?? "").replace(/%s|%%|\\n/g, (found) =>
-      (found === "%s" ? String(args[n++] ?? "") : found === "%%" ? "%" : "\n"));
-  };
-  const lines = [fill(why.key, why.args)];
+  const lines = [machineWord(why.key, ...why.args)];
   for (let next = why.then ?? why.action; next; next = next.then ?? next.action) {
-    lines.push(fill(next.key, [...next.args, ...(next.command ? [next.command] : [])]));
+    lines.push(machineWord(next.key, ...next.args, ...(next.command ? [next.command] : [])));
   }
   return lines.join("\n");
+}
+
+/** Catalog KEY's words (MACHINE_WORDS', src/lang/en.txt's) with ARGS in its %s, as the TUI's t() fills them.
+ * @param {string} key @param {unknown[]} args */
+function machineWord(key, ...args) {
+  let n = 0;
+  return String(/** @type {Record<string, string>} */ (MACHINE_WORDS)[key] ?? "").replace(/%s|%%|\\n/g, (found) =>
+    (found === "%s" ? String(args[n++] ?? "") : found === "%%" ? "%" : "\n"));
 }
 
 /** NETWORK's name, as machines.sh and the TUI say it (the catalog's). @param {string} network */
@@ -1618,10 +1621,9 @@ export function byNetwork(names, seen = null, { min = GROUPED_FROM } = {}) {
  * @param {{ state: string | null, installed: boolean | null }} net */
 export function networkState(network, { state = null, installed = null } = {}) {
   if (!WITH_CLIENT.includes(network)) return null;
-  if (installed === false) return { word: "not installed", tone: "dim" };
-  const said = Object.hasOwn(STATE_WORDS, state ?? "")
-    ? STATE_WORDS[/** @type {keyof typeof STATE_WORDS} */ (state)] : null;
-  return said && { word: said[0], tone: said[1] };
+  if (installed === false) return { word: machineWord("machines.state_missing"), tone: "dim" };
+  return Object.hasOwn(STATE_TONES, state ?? "") ? { word: machineWord(`machines.state_${state}`),
+    tone: STATE_TONES[/** @type {keyof typeof STATE_TONES} */ (state)] } : null;
 }
 
 /** WORDS joined as a sentence lists them: "a", "a and b", "a, b and c". @param {string[]} words */
@@ -1644,7 +1646,7 @@ export function machineTip({ route, also }) {
 export function toAddWords(network, offered) {
   const n = offered.length, named = offered.slice(0, ADD_NAMED).join(", ")
     + (n > ADD_NAMED ? ` and ${n - ADD_NAMED} more` : "");
-  return { words: `${n} machine${n === 1 ? "" : "s"} to add`,
+  return { words: machineWord(n === 1 ? "machines.to_add_one" : "machines.to_add", n),
     tip: `Offered by ${networkName(network)}: ${named}\nA click asks about each, in a terminal tab` };
 }
 

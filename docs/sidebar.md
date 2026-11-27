@@ -117,6 +117,32 @@ model and tokens, and each tool's calls; the sidebar's Agent view beside it](../
 It reads the setup again every 30 s while shown and every 5 minutes behind another view, for its dot (not at all
 while More leaves it off the row).
 
+## The Machines view
+
+On this Mac, More's Machines… (over Settings…, where herdr-fold's installer put the sidebar) opens the Machines view
+over the tab, as the Usage view opens: the machines on herdr-fold's list by network, as the Herdr app's Spaces groups
+them ([Spaces](app.md#spaces)), and the chosen one's properties under them. The networks stand in the order a
+machine's routes are tried (the local network, Tailscale, NetBird, ZeroTier, WireGuard, another tunnel, Cloudflare,
+public), each head with its mark (a brand's letter in its color, else a Nerd Font glyph), its name, its state while it
+is not on (`off` and `not installed` dim, the name dimmed too; `signed out`, `expired`, `needs approval`, `no
+management server` in yellow) and its count. A machine behind another stands under it after `└`; one on two routes is
+one row, under the route in use. A machine's row has its dot (green, dim while away), its name, its system in one
+column for all, and at its right the way to it as its network tells (`direct`, `relayed`, NetBird's own time),
+`waiting` in yellow while an agent there waits on you, or `unreachable`. A network with none of its machines added
+yet: Tailscale and NetBird offer theirs (`3 machines to add`, Enter asks about each in a terminal tab); ZeroTier and
+WireGuard, which name none, say one is added by its address.
+
+The chosen machine's properties, label left and value right: why it is away and what to do, in the sentences
+`./machines.sh` says ([When a machine is away](remote-machines.md#when-a-machine-is-away)); its address and user, or
+its routes, the one in use first; its network, the way to it behind another (`This Mac › Tailscale › lumen-api ›
+build-01`), its host key cut short, when it was last seen, and what runs there as herdr's own list tells (its
+workspaces, an agent working or waiting). Its buttons run `./machines.sh` in a terminal tab on this Mac, so the
+questions and a fingerprint stay in a terminal: Status, Set up again (`add`), Remove (asked first) and, on a Linux or
+macOS machine, ⋯'s Look around from here (`through`); an unreachable one has Check again and Copy command (its
+sentence's command). ↑ ↓ choose, ← → a button, Enter presses it, `s` Status; Esc, its × or a click outside closes it.
+It looks when it opens and once a minute while open, never in the background, with no login and nothing scanned:
+`core/networks.py`'s look, the app's, and herdr's own list of its machines.
+
 ## Keys
 
 Cmd + Shift + G (Changes), Cmd + Shift + I (Issues), Cmd + Shift + R (Chats), Cmd + Shift + E, Cmd + Shift + O and Cmd +
@@ -126,8 +152,9 @@ agent named](usage.md#opening-a-file-the-agent-named)).
 
 More at the row's end (or a right click on the row) lists the views first, each with a ✓ while shown, as Adobe's Window
 menu: one unchecked leaves the row in every tab, and a check or its key brings it back; one view always stays. Below
-them it closes or shows back the tab's terminal and offers Restore panels while a pane is closed. Last, Settings… opens
-herdr-fold's own Settings in herdr's popup, as the Herdr app's: its sections in a list at the left, General,
+them it closes or shows back the tab's terminal and offers Restore panels while a pane is closed. Last, on this Mac,
+Machines… opens [the Machines view](#the-machines-view), and Settings… herdr-fold's own Settings in herdr's popup, as
+the Herdr app's: its sections in a list at the left, General,
 Notifications and About (↑ ↓ or a click), the chosen one beside it, in a window of one size. General has Icons, Nerd
 Font or Plain marks (← →, Tab or a click): the one lit is in use, within a second in every tab's sidebar; `i` in Files
 switches it too. Notifications has "An agent waits on you", on or off: herdr's own note at the bottom right, once per

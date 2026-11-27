@@ -280,6 +280,8 @@ the same sentences, and one with none of its machines added yet offers them ther
 ([Spaces](app.md#spaces)). The status bar's machine wears its mark. The app looks once a minute while it shows a remote
 machine, and soon after one comes or goes: the networks' own status and the list as above, a machine added in the app's
 own Settings → Machines read by its address, never a login.
+In the TUI, More's Machines… shows them the same way over the tab, with the chosen machine's properties and actions
+([The Machines view](sidebar.md#the-machines-view)).
 
 ## Systems
 

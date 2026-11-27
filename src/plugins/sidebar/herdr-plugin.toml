@@ -78,6 +78,16 @@ title = "Runs"
 placement = "overlay"
 command = ["/usr/bin/python3", "runs_view.py"]
 
+# The Machines view (machines_view.py), opened from the sidebar's More (Machines…) where herdr-fold's package is: the
+# machines on its list by network, the chosen one's properties and actions, over the tab's panes (herdr's overlay),
+# closed by its ×, Esc or a click outside it
+[[panes]]
+id = "machines"
+platforms = ["macos", "linux"]
+title = "Machines"
+placement = "overlay"
+command = ["/usr/bin/python3", "machines_view.py"]
+
 # The sidebar itself runs in a plain pane named "sidebar" (python3 sidebar.py [FOLDER]); these actions show a panel
 # in the active tab's sidebar by sending it F9, F10, F11 or F12.
 [[actions]]

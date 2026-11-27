@@ -22928,10 +22928,10 @@ export const NETWORKS = [
   "def machines_json(argv, more=()):",
   "    \"\"\"LIST TAILSCALE NETBIRD ZEROTIER WIREGUARD [--login [-- SSH_OPTION\u2026]]: what the clients show, " +
     "as JSON: each",
-  "    network's state, its own rung and what it offers to add, each machine's (the list's, then MORE) network " +
-    "and routes,",
-  "    why it is away and its figures; logins only with --login, the network's state read again right after " +
-    "one.\"\"\"",
+  "    network's state, its own rung and what it offers to add, each machine's (the list's, then MORE) " +
+    "network, routes and",
+  "    key, why it is away and its figures; logins only with --login, the network's state read again right " +
+    "after one.\"\"\"",
   "    listed, binaries, flags, options = arguments(argv)",
   "    for one in more:",
   "        if all(one[\"name\"] != other[\"name\"] for other in listed):",
@@ -22945,7 +22945,8 @@ export const NETWORKS = [
   "            found[kind] = read_client(kind, bounded, binaries[kind])",
   "        shown.append({\"name\": machine[\"name\"], \"os\": machine[\"os\"], \"target\": " +
     "machine[\"target\"], \"network\": kind,",
-  "                      \"through\": through, \"why\": result, \"figures\": figures(machine, found, probe),",
+  "                      \"through\": through, \"key\": machine.get(\"key\"), \"why\": result,",
+  "                      \"figures\": figures(machine, found, probe),",
   "                      \"routes\": [dict(route, network=probe.network(machine, route, found)[0])",
   "                                 for route in machine[\"routes\"]]})",
   "    print(json.dumps({\"checked\": probe.now, \"machines\": shown,",
@@ -30108,6 +30109,14 @@ export const MACHINE_WORDS = {
   "machines.network_local": "Local network",
   "machines.network_public": "Public",
   "machines.network_through": "through %s",
+  "machines.state_off": "off",
+  "machines.state_signed_out": "signed out",
+  "machines.state_expired": "expired",
+  "machines.state_approval": "needs approval",
+  "machines.state_no_management": "no management server",
+  "machines.state_missing": "not installed",
+  "machines.to_add_one": "%s machine to add",
+  "machines.to_add": "%s machines to add",
   "machines.why_missing": "%s is not installed on this Mac.",
   "machines.why_tailscale_off": "Tailscale is off on this Mac.",
   "machines.why_netbird_off": "NetBird is not running on this Mac.",

@@ -27,6 +27,7 @@ from chat_list import STATE_MARK, STATE_ROLE  # noqa: E402
 from chats_panel import Chats                  # noqa: E402
 from files_panel import Files  # noqa: E402
 from loop import CODE, Loop  # noqa: E402
+from machines_view import MACHINES, package as machines_package  # noqa: E402
 from dock import GROUPS, PANELS  # noqa: E402
 from layers import FOLDED, STATE_ROLE as LAYER_ROLE  # noqa: E402
 from screen import DONE, GIT_ROLE, INSET, MARGIN, ROOMY, Canvas, Style, short_count, truncate, width  # noqa: E402
@@ -690,7 +691,7 @@ class App(Loop):
 
     def open_menu(self, y, x, right=None):
         """The ⋯ menu at Y, X (with RIGHT, its right edge there instead): the views, each with a ✓ while shown, as
-        Adobe's Window menu; each of the tab's other panes closed or shown back (panels.menu()); Settings…."""
+        Adobe's Window menu; each of the tab's other panes closed or shown back (panels.menu()); its own windows."""
         pane = os.environ.get("HERDR_PANE_ID")
         try:
             listed = self.herdr.call("pane", "list").get("panes") or []
@@ -702,10 +703,16 @@ class App(Loop):
         lines = [f"{'✓' if panel in shown else ' '} {PANELS[panel]['name']}" for panel in self.panels()]
         own = self.own_lines()                          # the panel with the keys: its own lines first
         lines = own + [None] + lines if own else lines
-        for part in (panels.menu(present) if tab else [], [SETTINGS] if os.name != "nt" else []):  # herdr's popup
+        for part in (panels.menu(present) if tab else [], self.windows() if os.name != "nt" else []):
             lines += [None] + part if part else []
         menu = Menu(lines)
         self.menu = (menu, y, x if right is None else right - menu.width(), tab, present)
+
+    @staticmethod
+    def windows():
+        """More's last lines, herdr-fold's own windows over the tab: Machines… where its package is (this Mac),
+        Settings… (herdr's popup)."""
+        return ([MACHINES] if machines_package() else []) + [SETTINGS]
 
     def own_lines(self):
         """What the panel with the keys lists in More before the views: the Agent view its Usage view, graph and ways
@@ -739,9 +746,10 @@ class App(Loop):
         if panel:                                       # a view's ✓: hidden, or shown again
             self.hide(panel, choice.startswith("✓"))
             return None
-        if choice == SETTINGS:
-            self.job("settings", lambda: self.herdr.call("plugin", "pane", "open", "--plugin", "herdr-fold.sidebar",
-                                                         "--entrypoint", "settings", "--focus"))
+        if choice in (MACHINES, SETTINGS):
+            entry = "machines" if choice == MACHINES else "settings"
+            self.job(entry, lambda: self.herdr.call("plugin", "pane", "open", "--plugin", "herdr-fold.sidebar",
+                                                    "--entrypoint", entry, "--focus"))
             return None
         what, kinds = panels.chosen(choice, present) or (None, None)
         if what == "close":

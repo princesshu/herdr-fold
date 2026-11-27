@@ -994,8 +994,8 @@ def status(argv):
 
 def machines_json(argv, more=()):
     """LIST TAILSCALE NETBIRD ZEROTIER WIREGUARD [--login [-- SSH_OPTION…]]: what the clients show, as JSON: each
-    network's state, its own rung and what it offers to add, each machine's (the list's, then MORE) network and routes,
-    why it is away and its figures; logins only with --login, the network's state read again right after one."""
+    network's state, its own rung and what it offers to add, each machine's (the list's, then MORE) network, routes and
+    key, why it is away and its figures; logins only with --login, the network's state read again right after one."""
     listed, binaries, flags, options = arguments(argv)
     for one in more:
         if all(one["name"] != other["name"] for other in listed):
@@ -1008,7 +1008,8 @@ def machines_json(argv, more=()):
         if (probe.measured(machine) or {}).get("ok") and kind in ("tailscale", "netbird"):
             found[kind] = read_client(kind, bounded, binaries[kind])
         shown.append({"name": machine["name"], "os": machine["os"], "target": machine["target"], "network": kind,
-                      "through": through, "why": result, "figures": figures(machine, found, probe),
+                      "through": through, "key": machine.get("key"), "why": result,
+                      "figures": figures(machine, found, probe),
                       "routes": [dict(route, network=probe.network(machine, route, found)[0])
                                  for route in machine["routes"]]})
     print(json.dumps({"checked": probe.now, "machines": shown,

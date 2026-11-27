@@ -192,6 +192,11 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
   machines added yet offers them (`3 machines to add`), asked about in a terminal tab. The status bar's machine wears
   its mark too. The app looks at the networks once a minute while it shows a remote machine, with no login. See
   [Spaces](docs/app.md#spaces).
+- The TUI's Machines view: More's Machines… opens the machines on herdr-fold's list over the tab, by network as the
+  Herdr app's Spaces groups them, each network's state on its head, a machine behind another under it, and the chosen
+  one's properties: why it is away in `./machines.sh`'s sentence, its address or routes, the way to it, its key, what
+  runs there. Status, Set up again, Remove and Look around from here run `./machines.sh` in a terminal tab. See
+  [The Machines view](docs/sidebar.md#the-machines-view).
 
 ### Changed
 

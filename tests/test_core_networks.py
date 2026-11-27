@@ -635,6 +635,20 @@ class ForTheApp(unittest.TestCase):
             networks.main(["networks.py", "here", listed, *many])
         self.assertEqual(len(json.loads(out.getvalue())["machines"]), 1 + networks.SHOWN)
 
+    def test_each_machine_carries_its_key_from_the_list(self):
+        # the TUI's Machines view shows it (cut); one of the app's own, or a line with none, has none
+        folder = stubs(os.path.join(self.tmp, "stubs"), {"route": "#!/bin/sh\nexit 68\n"})
+        set_env(self, PATH=f"{folder}:/usr/bin:/bin")
+        set_attrs(self, networks, here=lambda: dict.fromkeys(networks.CLIENTS))
+        listed, key = os.path.join(self.tmp, "machines.txt"), "SHA256:Qm9vZ0x1" + "b" * 31 + "a7Fk"
+        with open(listed, "w") as f:
+            f.write(f"build-01 | root{AT}198.51.100.30 | linux | {key}\nlab-pi | pi{AT}lab-pi.local | linux\n")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            networks.main(["networks.py", "here", listed, "vps-edge", "root" + AT + "203.0.113.40"])
+        found = {one["name"]: one["key"] for one in json.loads(out.getvalue())["machines"]}
+        self.assertEqual(found, {"build-01": key, "lab-pi": None, "vps-edge": None})
+
     def test_a_network_offers_the_computers_its_import_would_that_are_not_on_the_list(self):
         odd = {"exit-node": ("100.115.92.20", {"Location": {"Country": "Sweden"}}),
                "zz-guest": ("100.115.92.21", {"ShareeNode": True}),
