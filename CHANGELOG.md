@@ -178,6 +178,13 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
   offline there or not on this local network, then its SSH, its key, its login or the machine in front of it, with
   what to do under it (`Start it: netbird up`) and another route that answers. Nothing is scanned. See
   [When a machine is away](docs/remote-machines.md#when-a-machine-is-away).
+- Machines behind another: `./machines.sh through lumen-api` offers the machines a prepared Linux or macOS machine on
+  the list sees and this Mac does not reach itself (its Tailscale and NetBird peers, the machines announcing SSH next
+  to it, its `~/.ssh/config` Hosts), each on a question of its own, default no; nothing is scanned, and what it says is
+  checked as any network's word. One said yes to is reached through it by a Host of its own (`ProxyJump`), its key
+  read end to end and asked about first; one that takes lumen-api's own key alone gets this Mac's public key from
+  lumen-api's own login only on a yes for that machine. Removing a machine others go through asks whether they go too;
+  a no keeps it as their jump host. See [A machine behind another](docs/remote-machines.md#a-machine-behind-another).
 
 ### Changed
 

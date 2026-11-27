@@ -158,6 +158,17 @@ What the installer sets up on a machine: [Remote machines](remote-machines.md). 
 when it connects a machine: whether it may install itself there (answer yes), and
 whether it may stop an older herdr running there (answer no, the default).
 
+Outside the installer, `./machines.sh through lumen-api` asks about the machines a machine on the list sees
+([A machine behind another](remote-machines.md#a-machine-behind-another)), and `./machines.sh remove` about the ones
+that go through the machine it removes:
+
+| Question | When | Default |
+|---|---|---|
+| `Import build-01 (198.51.100.30, from lumen-api's ~/.ssh/config) through lumen-api?` | for each machine lumen-api sees that this Mac does not reach itself and that is not on the list, by where it saw it: also `Import db-02 (db-02.local, next to lumen-api) through lumen-api?`, `Import ci-runner (ci-runner.tail0000.ts.net, lumen-api's Tailscale) through lumen-api?`, `Import tidepool (tidepool.netbird.cloud, lumen-api's NetBird) through lumen-api?`; then the `user` (its Host's there, else `root`) | no |
+| `Trust this ED25519 key of build-01, read through lumen-api (compare it with the machine's own)?` | always, after its fingerprint, read end to end through lumen-api; Enter alone is no, and the machine is not added | no |
+| `Put this Mac's public key on build-01, through lumen-api's own login?` | the machine does not take this Mac's key; never where lumen-api's Host for it logs in with a certificate or a security key. Yes: lumen-api logs in with its own key and adds this Mac's public key there | no |
+| `build-01 goes through lumen-api: take it off too?`, `build-01 and db-02 go through lumen-api: take them off too?` | removing a machine others go through. Yes: they come off first; no: it stays their jump host by its address | no |
+
 ## What changes on your Mac
 
 For either part:
@@ -202,7 +213,7 @@ Only when you say yes, or when something is missing:
 - a new SSH key, `~/.ssh/id_ed25519` and `~/.ssh/id_ed25519.pub`, and a `Host *` block in `~/.ssh/config` that uses it
   for every host (with the macOS Keychain);
 - `~/.ssh/known_hosts`: the key of each machine you trust, and of one with several routes under its Host's name,
-  `herdr-fold.<name>`, from the key already trusted;
+  `herdr-fold.<name>`, from the key already trusted, or of one behind another machine, read end to end through it;
 - `~/.ssh/config`: one `Include ~/.config/herdr-fold/ssh_config` line at its top, with a comment line naming
   herdr-fold, for a machine's other routes (`./uninstall.sh` takes them off);
 - `~/.zprofile`: Homebrew's `brew shellenv` line, when the installer installs Homebrew;

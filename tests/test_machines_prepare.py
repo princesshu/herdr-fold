@@ -48,8 +48,9 @@ class Prepare:
             f.write(f"box | box | {self.os_name}\n")
         with open(os.path.join(self.profile, ".claude", "settings.json"), "w") as f:
             json.dump({"statusLine": THEIRS, "model": "opus"}, f)
+        # remove's heading reads this Mac's network clients: stand-ins that answer nothing, never the real ones
         fakes = stubs(os.path.join(self.tmp, "stubs"), {"ssh": FAKE_SSH, "scp": FAILING_SCP, "python": FAKE_PYTHON,
-                                                       "herdr": FAKE_HERDR,
+                                                       "herdr": FAKE_HERDR, "tailscale": None, "netbird": None,
                                                        **{name: "#!/bin/sh\nexit 0\n" for name in ("starship", "git")}})
         # the machine-side scripts put ~/.local/bin first: the fake herdr goes there too, so the real one never runs
         os.makedirs(os.path.join(self.profile, ".local", "bin"))

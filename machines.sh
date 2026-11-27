@@ -230,6 +230,10 @@ cmd_include() {
   include_hosts && core_list hosts "$MACHINE_LIST" && ok "$(t machines.include_done)"
 }
 
+# heading_text NAME NETWORK THROUGH OS TARGET — a machine's heading, core/networks.py's machine line: "lumen-api
+# (Tailscale, linux)", its target where nothing tells its network
+heading_text() { local word; word=$(network_name "$2" "$3"); t machines.heading "$1" "${word:-${5:-}}" "$4"; }
+
 # The per-machine loops read the list from file descriptor 3, not from standard input: that way the ssh and herdr
 # commands inside the loop cannot swallow the rest of the list (otherwise only the first machine would get a turn).
 cmd_status() {   # core/networks.py's lines: each machine, its network and routes, why it is away or its connection
@@ -238,8 +242,7 @@ cmd_status() {   # core/networks.py's lines: each machine, its network and route
     [ "${line[0]}" = more ] || why_line flush
     case ${line[0]} in
       machine) any=1 os=${line[4]} target=${line[5]:-}
-        word=$(network_name "${line[2]}" "${line[3]}")
-        echo "== $(t machines.heading "${line[1]}" "${word:-$target}" "$os")" ;;
+        echo "== $(heading_text "${line[@]:1}")" ;;
       also) word=$(network_name "${line[1]}" "${line[2]}")
         if [ -n "$word" ]; then note "$(t machines.also_on "$word" "${line[3]}")"
         else note "$(t machines.also_at "${line[3]}")"; fi ;;
@@ -318,7 +321,7 @@ tailnet_left_out() {
     esac
   done
   [ ${#said[@]} = 0 ] && return 0
-  skip "$(t machines.tailscale_skipped "$(printf '%s\n' "$1" | grep -c .)" "$(joined "${said[@]}")")"
+  skip "$(t machines.left_out "$(printf '%s\n' "$1" | grep -c .)" "$(joined "${said[@]}")")"
 }
 
 # Pick from the machines on the Tailscale network, one question each
@@ -666,6 +669,169 @@ cmd_manual() {
   done
 }
 
+# through_key NAME JUMP USER ADDRESS [PORT] — the ED25519 key the machine at ADDRESS shows through JUMP (a target),
+# "ssh-ed25519 AAAA…", read end to end into a known_hosts file of its own under herdr-fold.NAME, which then goes; no
+# login (the none method alone) and nothing trusted
+through_key() {
+  local tmp; tmp=$(mktemp -d)
+  ssh -o "ProxyJump=$2" -o "HostKeyAlias=herdr-fold.$1" -o "UserKnownHostsFile=$tmp/known_hosts" \
+    -o GlobalKnownHostsFile=/dev/null -o StrictHostKeyChecking=accept-new -o HashKnownHosts=no -o CheckHostIP=no \
+    -o HostKeyAlgorithms=ssh-ed25519 -o PreferredAuthentications=none -o BatchMode=yes -o ConnectTimeout=10 \
+    -o ClearAllForwardings=yes -o ForwardAgent=no ${5:+-p "$5"} -l "$3" -- "$4" exit </dev/null >/dev/null 2>&1
+  awk -v h="herdr-fold.$1" '$1 == h && $2 == "ssh-ed25519" { print $2, $3; exit }' "$tmp/known_hosts" 2>/dev/null
+  rm -rf "$tmp"
+}
+
+# through_ssh JUMP NAME USER ADDRESS PORT COMMAND… — herdr-fold's own ssh (nothing forwarded) to the machine at
+# ADDRESS through JUMP, its key the one trusted under herdr-fold.NAME, before it is on the list
+through_ssh() {
+  local jump=$1 name=$2 user=$3 address=$4 port=$5; shift 5
+  ssh "${SSH_OPTS[@]}" -o "ProxyJump=$jump" -o "HostKeyAlias=herdr-fold.$name" -o CheckHostIP=no \
+    ${port:+-p "$port"} -l "$user" -- "$address" "$@" </dev/null
+}
+through_says() { through_ssh "$@" exit 2>&1 >/dev/null; }      # through_says JUMP NAME USER ADDRESS PORT: ssh's words
+# through_os JUMP NAME USER ADDRESS PORT — linux | macos | windows, as remote_os reads it
+through_os() {
+  case $(through_ssh "$@" uname -s 2>/dev/null | tr -d '\r') in
+    Linux) echo linux ;;
+    Darwin) echo macos ;;
+    *) through_ssh "$@" exit >/dev/null 2>&1 && echo windows ;;
+  esac
+}
+
+THROUGH_KEY=     # the key confirm_host_key_through trusted, "ssh-ed25519 AAAA…"
+# confirm_host_key_through NAME VIA JUMP USER ADDRESS [PORT] — a machine behind VIA (JUMP its target): its ED25519 key
+# read end to end through it, its fingerprint shown and asked about first, Enter alone a no, as for one added by hand;
+# then that key alone trusted, under herdr-fold.NAME. A listed machine's key is that machine; no key: not added
+confirm_host_key_through() {
+  local name=$1 via=$2 jump=$3 user=$4 address=$5 port=${6:-} key listed trusted
+  THROUGH_KEY=
+  key=$(LOADING_PLAIN=1 loading "$(t machines.checking_key "$name")" through_key "$name" "$jump" "$user" "$address" \
+    "$port")
+  if [ -z "$key" ]; then warn "$(t machines.hostkey_unreadable_through "$name" "$via")"; return 1; fi
+  listed=$(machine_keys | awk -F'|' -v k="$(fingerprint_of "$key")" '$2 == k { print $1; exit }')
+  if [ -n "$listed" ]; then skip "$(t machines.through_same "$name" "$listed")"; return 1; fi
+  note "$(printf '%s %s\n' "$address" "$key" | ssh-keygen -lf - 2>/dev/null)"      # the fingerprint (data)
+  ask "$(t machines.hostkey_ask_through "$name" "$via")" n || return 1
+  # a second key under that name would be trusted beside the first: one there already must be this one
+  trusted=$(ssh-keygen -F "herdr-fold.$name" -f "$HOME/.ssh/known_hosts" 2>/dev/null \
+    | awk '!/^#/ && $2 == "ssh-ed25519" { print $2, $3; exit }')
+  if [ -n "$trusted" ] && [ "$trusted" != "$key" ]; then warn "$(t machines.alias_taken "$name" "$name")"; return 1; fi
+  if [ -z "$trusted" ]; then
+    mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+    printf 'herdr-fold.%s %s\n' "$name" "$key" >> "$HOME/.ssh/known_hosts"
+    record_outside "known-host herdr-fold.$name"
+  fi
+  THROUGH_KEY=$key
+}
+
+# public_key_file — this Mac's public SSH key, the half put on a machine: ~/.ssh/id_ed25519.pub, else another one
+public_key_file() {
+  local f
+  for f in "$HOME/.ssh/id_ed25519.pub" "$HOME/.ssh/id_ecdsa.pub" "$HOME/.ssh/id_rsa.pub"; do
+    [ -f "$f" ] && { printf '%s' "$f"; return 0; }
+  done
+  return 1
+}
+
+# through_login NAME VIA JUMP USER ADDRESS PORT ALIAS CERT — whether NAME, behind VIA, takes this Mac's key, else why
+# not; one taking VIA's key alone gets this Mac's public key from VIA's own login (to ALIAS, its Host there) on a yes
+# per machine, default no, never where that Host uses a certificate or a security key (CERT)
+through_login() {
+  local name=$1 via=$2 jump=$3 user=$4 address=$5 port=$6 alias=$7 cert=$8 said line=() refused= pub command
+  said=$(LOADING_PLAIN=1 loading "$(t machines.reaching "$name")" through_says "$jump" "$name" "$user" "$address" \
+    "$port") && return 0
+  while IFS='|' read -r -a line; do
+    [ "${line[1]:-}" != machines.key_refused_through ] || refused=1
+    why_line "${line[@]}"
+  done < <(python3 "$DOT/core/networks.py" said "$name" "$said" "$via")
+  why_line flush
+  [ -n "$refused" ] || return 1
+  if [ "$cert" = 1 ]; then note "$(t machines.copy_key_cert "$via" "$name")"; return 1; fi
+  pub=$(public_key_file) || { note "$(t machines.copy_key_none "$name")"; return 1; }
+  ask "$(t machines.copy_key_ask "$name" "$via")" n || return 1
+  command=$(core_list copy-key "$name" "$user" "$address" "$port" "$THROUGH_KEY" "$pub" "$alias") \
+    || { warn "$(t machines.copy_key_unreadable "$pub")"; return 1; }
+  if ! LOADING_PLAIN=1 loading "$(t machines.putting_key "$name")" ssh "${SSH_OPTS[@]}" -- "$jump" "$command" \
+      >/dev/null 2>&1; then
+    warn "$(t machines.copy_key_failed "$via" "$name")"; return 1
+  fi
+  said=$(LOADING_PLAIN=1 loading "$(t machines.reaching "$name")" through_says "$jump" "$name" "$user" "$address" \
+    "$port") && return 0
+  while IFS='|' read -r -a line; do why_line "${line[@]}"; done \
+    < <(python3 "$DOT/core/networks.py" said "$name" "$said" "$via")
+  why_line flush
+  return 1
+}
+
+# names_and NAME… — the names as a sentence lists them: "build-01", "build-01 and db-02", "build-01, db-02 and kelp-ci"
+names_and() {
+  local last
+  [ $# -gt 1 ] || { printf '%s' "$1"; return 0; }
+  last=${!#}; set -- "${@:1:$#-1}"
+  printf '%s' "$(t machines.names_and "$(joined "$@")" "$last")"
+}
+
+# through <machine>: the machines a prepared Linux or macOS machine on the list sees and this Mac does not reach itself
+# (its Tailscale and NetBird peers, the machines announcing SSH next to it, its ~/.ssh/config; it scans nothing), each
+# on a question of its own, default no; one said yes to is reached through it, by its own Host, its key read end to end
+cmd_through() {
+  local via=${1:-} target os jump line=() found= one left=() total=0
+  IFS='|' read -r _ target os _ < <(machines "$via")
+  if [ -z "$via" ] || [ -z "${target:-}" ]; then fail "$(t machines.not_listed "$via")"; return 1; fi
+  if [ "$os" = windows ]; then skip "$(t machines.through_windows)"; return 0; fi
+  jump=$(core_list jump "$MACHINE_LIST" "$via") || { fail "$(t machines.not_listed "$via")"; return 1; }
+  # what it sees comes on file descriptor 3 and stays in memory: the names it announces are never written to a file
+  while IFS='|' read -r -a line <&3; do
+    [ "${line[0]}" = more ] || why_line flush
+    case ${line[0]} in
+      machine) echo "== $(heading_text "${line[@]:1}")"; note "$(t machines.through_line "$via")" ;;
+      looking) progress "$(t machines.looking_through "$via")" ;;
+      away|note|more) why_line "${line[@]}" ;;
+      python) warn "$(t machines.through_no_python "$via" "$via")" ;;
+      unreadable) warn "$(t machines.through_unreadable "$via")" ;;
+      skipped) skip "$(t machines.through_no_avahi "$via")" ;;
+      sees)
+        case ${line[1]} in
+          0) skip "$(t machines.through_sees_none "$via")" ;;
+          1) ok "$(t machines.through_sees_one "$via")" ;;
+          *) ok "$(t machines.through_sees "$via" "${line[1]}")" ;;
+        esac ;;
+      candidate) one=$(printf '%s|' "${line[@]:1}"); found+="${one%|}"$'\n' ;;
+      left) total=$((total + line[2]))
+        case ${line[1]}:${line[2]} in
+          bad:1) left+=("$(t machines.through_left_bad_one)") ;;
+          bad:*) left+=("$(t machines.through_left_bad "${line[2]}")") ;;
+          over:*) left+=("$(t machines.through_left_over "${line[2]}")") ;;
+        esac ;;
+    esac
+  done 3< <(networks_py through "$MACHINE_LIST" "$via" -- "${SSH_OPTS[@]}")
+  why_line flush
+  local name address user port source instance alias cert shown where kind
+  while IFS='|' read -r name address user port source instance alias cert <&3; do
+    [ -n "$name" ] || continue
+    name=$(unique_name "$name" through)          # its own, or name-2 where a machine of that name is another one
+    shown=$address; [ -z "$instance" ] || shown=$(joined "$instance" "$address")    # the name it announces, shown alone
+    case $source in
+      ssh_config) ask "$(t machines.through_ask_config "$name" "$shown" "$via" "$via")" n ;;
+      local) ask "$(t machines.through_ask_local "$name" "$shown" "$via" "$via")" n ;;
+      tailscale) ask "$(t machines.through_ask_tailscale "$name" "$shown" "$via" "$via")" n ;;
+      *) ask "$(t machines.through_ask_netbird "$name" "$shown" "$via" "$via")" n ;;
+    esac || continue
+    include_hosts || { skip "$(t machines.through_include "$name" "$via")"; continue; }
+    user=$(prompt "$(t machines.select_user)" "${user:-root}")         # its Host's there, else root
+    where=$(core_list address "$user" "$address" "$port") \
+      || { skip "$(t machines.through_bad_user "$user")"; continue; }
+    confirm_host_key_through "$name" "$via" "$jump" "$user" "$address" "$port" || continue
+    through_login "$name" "$via" "$jump" "$user" "$address" "$port" "$alias" "$cert" || continue
+    kind=$(through_os "$jump" "$name" "$user" "$address" "$port")
+    core_list behind "$MACHINE_LIST" "$name" "${kind:-linux}" "$(fingerprint_of "$THROUGH_KEY")" "$via" "$where" \
+      || continue
+    ok "$(t machines.added_through "$name" "${kind:-linux}" "$via")"
+  done 3< <(printf '%s' "$found")             # a pipe: a here-string would be a file
+  [ "$total" = 0 ] || skip "$(t machines.left_out "$total" "$(joined "${left[@]}")")"
+}
+
 # The installer's step 8, and Ctrl+B, Shift+M: a line saying any network works, then where to read new machines from —
 # each source on its own question, its machines then one by one: ~/.ssh/config, the Tailscale and NetBird networks, this
 # local network (each skips the machines already on the list), an address typed in. Exit status 1 if none was asked for.
@@ -960,12 +1126,24 @@ cmd_prepare() {
 }
 
 # remove <machine>: what this package put on it comes off (the machine's own files and settings come back), then it
-# is disconnected in herdr and taken off the machine list
+# is disconnected in herdr and taken off the machine list. The machines going through it are asked about first: a yes
+# takes them off before it (through it), a no keeps them working, with it as their jump host by its address
 cmd_remove() {
-  local name=${1:-} target os id
+  local name=${1:-} target os id one behind=() line=()
   IFS='|' read -r _ target os _ < <(machines "$name")
   if [ -z "$name" ] || [ -z "${target:-}" ]; then fail "$(t machines.not_listed "$name")"; return 1; fi
-  step "$(t machines.heading "$name" "$target" "$os")"
+  while IFS= read -r one; do [ -z "$one" ] || behind+=("$one"); done < <(core_list behind-of "$MACHINE_LIST" "$name")
+  if [ ${#behind[@]} -gt 0 ]; then
+    if [ ${#behind[@]} = 1 ]; then ask "$(t machines.remove_behind_ask_one "${behind[0]}" "$name")" n
+    else ask "$(t machines.remove_behind_ask "$(names_and "${behind[@]}")" "$name")" n; fi \
+      && { for one in "${behind[@]}"; do cmd_remove "$one" || return 1; done; behind=(); }
+  fi
+  if [ ${#behind[@]} -gt 0 ] && ! core_list keep "$MACHINE_LIST" "$name" check; then
+    fail "$(t machines.remove_behind_nested "$name")"; return 1
+  fi
+  IFS='|' read -r -a line < <(networks_py heading "$MACHINE_LIST" "$name")
+  if [ "${line[0]:-}" = machine ]; then step "$(heading_text "${line[@]:1}")"
+  else step "$(t machines.heading "$name" "$target" "$os")"; fi
   reachable "$target" || return 1
   prepare_files "$target" "$os" remove || return 1
   id=; ! of_parts tui $(installed_parts) || id=$(machine_field "$name" id)
@@ -974,13 +1152,19 @@ cmd_remove() {
       || warn "$(t machines.disconnect_failed "$name" "$id")"
   fi
   remove_from_app "$name"
+  core_list keep "$MACHINE_LIST" "$name" 2>/dev/null || :     # what goes through it jumps by its address from now on
   remove_from_list "$name" && ok "$(t machines.off_the_list "$name")"
+  case ${#behind[@]} in
+    0) ;;
+    1) note "$(t machines.remove_behind_kept_one "${behind[0]}" "$name")" ;;
+    *) note "$(t machines.remove_behind_kept "$(names_and "${behind[@]}")" "$name")" ;;
+  esac
 }
 
 # sourced (the tests): only the functions above
 [ "${BASH_SOURCE[0]}" = "$0" ] || return 0
 case "${1:-status}" in
-  status|tailscale|netbird|local|sshconfig|manual|pick|new|add|prepare) take_over_connected; use_config_hosts ;;
+  status|tailscale|netbird|local|sshconfig|through|manual|pick|new|add|prepare) take_over_connected; use_config_hosts ;;
 esac
 case "${1:-status}" in
   status)  shift $(( $# > 0 )); cmd_status "$@" ;;
@@ -988,6 +1172,7 @@ case "${1:-status}" in
   netbird) cmd_netbird ;;
   local)   cmd_local ;;
   sshconfig) cmd_sshconfig ;;
+  through) shift; cmd_through "$@" ;;
   manual)  cmd_manual ;;
   pick)    cmd_pick ;;
   new)     cmd_new ;;

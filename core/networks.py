@@ -1,6 +1,6 @@
-"""What the networks say of their machines and of this Mac, each read through its own command within a time limit of
-its own and killed with all it started after it, everything checked; each machine's network, and why one is away.
-machines.sh runs it: networks.py netbird|local|said|status|machines … (each command's arguments: main())."""
+"""What the networks say of their machines and of this Mac, and what a machine on the list sees, each read within a
+time limit of its own and killed with all it started after it, everything checked; each machine's network, and why one
+is away. machines.sh runs it: networks.py netbird|local|said|status|machines|heading|through … (arguments: main())."""
 import base64
 import binascii
 import calendar
@@ -16,8 +16,8 @@ import subprocess
 import sys
 import time
 
-from machines import (PREFIX, address_ok, address_text, clean, guess_network, host_ok, parse_address, port_ok,
-                      read, target_route)
+from machines import (NAME, PREFIX, address_ok, address_text, clean, guess_network, host_ok, parse_address, port_ok,
+                      read, target_route, user_ok)
 
 NETBIRD_SECONDS = 5             # netbird status's own limit: with its daemon down, a dial alone can take 10 s
 TAILSCALE_SECONDS = 5           # tailscale status's, and zerotier-cli's
@@ -59,6 +59,15 @@ STAMP = r"\s*\d{1,2}:\d\d:\d\d\.\d{3}\s+"                         # the time dns
 BROWSED = re.compile(STAMP + r"(Add|Rmv)\s+[0-9A-Fa-f]+\s+\d+\s+local\.\s+_ssh\._tcp\.\s+(.+)")
 # dns-sd -L: the instance's full name (escaped: no space), then the host and port it is reached at
 REACHED = re.compile(STAMP + r"\S+ can be reached at (\S+):(\d+) \(interface \d+\)")
+# what a prepared machine sees (./machines.sh through): remote/look-around.py, sent over the machine's own ssh as
+# python3's input, read up to LOOK_BYTES within LOOK_SECONDS (ssh's 10 s to connect, the machine's 5 s, room to spare)
+LOOK = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "remote", "look-around.py")
+LOOK_COMMAND = 'export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"; exec python3 -'
+LOOK_SECONDS = 40
+LOOK_BYTES = 1 << 20
+CANDIDATES = 200                # the most machines offered of what one machine sees
+SIGHTS = ("ssh_config", "local", "tailscale", "netbird")       # what it sees, in the order its machines are offered
+SYSTEMS = {"linux": "linux", "macOS": "macos", "windows": "windows"}      # Tailscale's OS of a computer
 
 
 def stopped(child):
@@ -641,6 +650,17 @@ def said(name, target, text, route=None):
                                                  if line.strip()), ""))
 
 
+def said_through(name, jump, text):
+    """What ssh's own words (TEXT) say of machine NAME, reached through JUMP before it is on the list: JUMP lets nothing
+    through, NAME does not take this Mac's key (it may take JUMP's own alone), else said()'s, by its own Host's name."""
+    text = text or ""
+    if any(word in text for word in NOT_THROUGH):
+        return why("machines.why_no_forwarding", jump)
+    if "Permission denied" in text:
+        return why("machines.key_refused_through", name, jump)
+    return said(name, PREFIX + name, text)
+
+
 def through_rung(machine, through, text, clients, probe, seen):
     """The rungs of the jump host of MACHINE, reached THROUGH it: it lets no connection through, or it is away
     itself (its own sentence after it)."""
@@ -706,6 +726,182 @@ def figures(machine, clients, probe):
             "seen": probe.now if done else (peer or {}).get("seen")}
 
 
+def looked(argv, seconds, given, most=LOOK_BYTES):
+    """(exit status, what ARGV printed, its errors) with the file GIVEN as its input, read until it ends, SECONDS pass
+    or it prints over MOST bytes, then killed with all it started (its own session); its output None when it ran too
+    long or printed too much. (None, None, "") when it cannot start."""
+    try:
+        with open(given, "rb") as source:
+            child = subprocess.Popen(argv, stdin=source, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                     start_new_session=True)
+    except OSError:
+        return None, None, ""
+    said, deadline, over = {"out": b"", "err": b""}, time.monotonic() + seconds, False
+    with selectors.DefaultSelector() as listening:
+        listening.register(child.stdout, selectors.EVENT_READ, "out")
+        listening.register(child.stderr, selectors.EVENT_READ, "err")
+        while listening.get_map() and not over:
+            left = deadline - time.monotonic()
+            over = left <= 0
+            for key, _ in [] if over else listening.select(left):
+                chunk = os.read(key.fd, 65536)
+                if not chunk:
+                    listening.unregister(key.fileobj)
+                said[key.data] = (said[key.data] + chunk)[:most + 1 if key.data == "out" else HEARD]
+                over = over or len(said["out"]) > most
+    if over:
+        with contextlib.suppress(OSError):
+            os.killpg(child.pid, signal.SIGKILL)
+    child.stdout.close()
+    child.stderr.close()
+    try:
+        code = child.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(OSError):
+            os.killpg(child.pid, signal.SIGKILL)
+        code = child.wait()
+    err = said["err"].decode("utf-8", "replace")
+    return (None, None, err) if over else (code, said["out"].decode("utf-8", "replace"), err)
+
+
+def sighted(source, entry):
+    """A machine of what another one sees, SOURCE its list (SIGHTS), every field checked: {name, address, user, port,
+    source, instance (only shown), alias (its Host there), cert, ips}; None where a field is not what it should be."""
+    if not isinstance(entry, dict):
+        return None
+    text = {key: value for key, value in entry.items() if isinstance(key, str) and isinstance(value, str)}
+    found = {"user": None, "port": None, "source": source, "instance": "", "alias": None, "cert": False, "ips": []}
+    if source == "ssh_config":
+        user, port = entry.get("user"), entry.get("port")
+        if user is not None and not user_ok(user) or port is not None and (type(port) is not int or not port_ok(port)):
+            return None
+        found.update(name=text.get("alias"), address=text.get("host"), user=user, port=port, alias=text.get("alias"),
+                     cert=entry.get("cert") is True)
+    elif source == "local":
+        host, port = text.get("host", "").rstrip(".").lower(), entry.get("port")
+        if not host.endswith(".local") or type(port) is not int or not port_ok(port):
+            return None
+        instance = clean(text.get("instance", ""), 63)            # shown only where it says more than its name
+        found.update(name=host.split(".")[0], address=host, port=port,
+                     instance="" if instance.casefold() == host.split(".")[0] else instance)
+    elif source in ("tailscale", "netbird"):
+        dns = text.get("dns" if source == "tailscale" else "fqdn", "").rstrip(".").lower()
+        ips = addresses(entry.get("ips")) if source == "tailscale" else addresses([entry.get("ip")])
+        if source == "tailscale" and text.get("os") not in SYSTEMS:
+            return None
+        found.update(name=dns.split(".")[0], address=dns if host_ok(dns) else None, ips=ips)
+    name, address = found.get("name"), found.get("address")
+    if not (isinstance(name, str) and NAME.fullmatch(name) and isinstance(address, str)
+            and (host_ok(address) or address_ok(address))):
+        return None
+    found["port"] = None if found["port"] == 22 else found["port"]
+    return found
+
+
+def looking_at(machine, clients):
+    """The names and addresses that are MACHINE: its target's host, its routes', and how a network of this Mac lists it
+    (CLIENTS: clients()'s)."""
+    own = {parse_address(machine["target"])[1].lower()} | {route["address"].lower() for route in machine["routes"]}
+    for kind in ("tailscale", "netbird"):
+        for address in list(own):
+            found = peer_of(clients.get(kind), address)
+            own |= {found["dns"], *found["ips"]} if found else set()
+    return own
+
+
+def unseen(address):
+    """Whether ADDRESS is no other machine: this one's own loopback, by name or address."""
+    host = address.lower()
+    if host == "localhost" or host.endswith(".localhost"):
+        return True
+    return address_ok(host) and (ipaddress.ip_address(host).is_loopback or ipaddress.ip_address(host).is_unspecified)
+
+
+def look_around_result(text, jump, machines=(), clients=None, own=None):
+    """What listed machine JUMP sees (TEXT: its look-around's JSON), each machine checked: ([those offered, in SIGHTS'
+    order, at most CANDIDATES], {bad, over: how many left out}, [the lists it skipped]), never one in CLIENTS' lists,
+    JUMP, this Mac (OWN: its LocalHostName) or a listed one; None for no such document, or one over LOOK_BYTES."""
+    if not isinstance(text, str) or len(text.encode("utf-8", "replace")) > LOOK_BYTES:
+        return None
+    try:                                    # its last line: a shell's start-up file may print something before it
+        sees = json.loads((text.strip().splitlines() or [""])[-1])
+    except (ValueError, RecursionError):
+        return None
+    if not isinstance(sees, dict):
+        return None
+    clients = clients or {}
+    known = looking_at(jump, clients) | {f"{own}.local" if own else ""}
+    known |= {one for machine in machines for one in looking_at(machine, {})}
+    known |= {ip for client in clients.values() for ip in (client or {}).get("self_ips") or []}
+    found, left, seen = [], {"bad": 0, "over": 0}, set()
+    for source in SIGHTS:
+        listed = sees.get(source) if isinstance(sees.get(source), list) else []
+        left["over"] += max(0, len(listed) - CANDIDATES)
+        for one in map(lambda entry: sighted(source, entry), listed[:CANDIDATES]):
+            if one is None:
+                left["bad"] += 1
+                continue
+            mine = {one["address"].lower(), *one["ips"]}
+            reached = any(peer_of(clients.get(kind), where) for kind in ("tailscale", "netbird") for where in mine)
+            if not (mine & (known | seen) or reached or unseen(one["address"])):
+                found.append(one)
+            seen |= mine
+    left["over"] += max(0, len(found) - CANDIDATES)
+    skipped = [source for source in SIGHTS if sees.get(source) == "skipped"]
+    return found[:CANDIDATES], left, skipped
+
+
+def head(machine, found, probe):
+    """MACHINE's heading line for machines.sh: its name, its route in use's network (and the machine it goes through),
+    its OS and target."""
+    kind, through = probe.network(machine, machine["routes"][0], found)
+    emit("machine", machine["name"], kind or "", through or "", machine["os"], machine["target"])
+
+
+def heading(argv):
+    """LIST TAILSCALE NETBIRD ZEROTIER WIREGUARD NAME: machine NAME's heading line, as status says it; no login."""
+    listed, binaries, rest, _ = arguments(argv)
+    machine = next((one for one in listed if rest and one["name"] == rest[0]), None)
+    if machine is None:
+        return 1
+    head(machine, clients(bounded, binaries), Probe(listed))
+    return 0
+
+
+def through(argv):
+    """LIST TAILSCALE NETBIRD ZEROTIER WIREGUARD NAME -- SSH_OPTION…: what machine NAME sees (remote/look-around.py over
+    its ssh) as machines.sh's lines: its heading, looking, why it could not tell (lines_of(), python, unreadable), or
+    skipped|list, sees|count, candidate|name|address|user|port|list|instance|alias|cert each, left|why|count."""
+    listed, binaries, rest, options = arguments(argv)
+    jump = next((one for one in listed if rest and one["name"] == rest[0]), None)
+    if jump is None:
+        return 1
+    found = clients(bounded, binaries)
+    head(jump, found, Probe(listed))
+    emit("looking", jump["name"])
+    code, out, err = looked(["ssh", *options, "--", jump["target"], LOOK_COMMAND], LOOK_SECONDS, LOOK)
+    result = look_around_result(out, jump, listed, found, this_mac()) if code == 0 else None
+    if code == 255:
+        for line in lines_of(said(jump["name"], jump["target"], err)):
+            emit(*line)
+        return 0
+    if result is None:
+        emit("python" if code == NOT_FOUND else "unreadable", jump["name"])
+        return 0
+    candidates, left, skipped = result
+    for source in skipped:
+        emit("skipped", source)
+    emit("sees", len(candidates))
+    for one in candidates:
+        emit("candidate", *("" if one[key] is None else one[key]
+                            for key in ("name", "address", "user", "port", "source", "instance", "alias")),
+             "1" if one["cert"] else "")
+    for word, count in left.items():
+        if count:
+            emit("left", word, count)
+    return 0
+
+
 def lines_of(result):
     """The lines machines.sh says RESULT by: its sentence (away), under it what caused it or what to do (note), and
     each one's own after it on that line (more); a line a tuple of a kind, a catalog key and its arguments."""
@@ -736,8 +932,7 @@ def status(argv):
     found = clients(bounded, binaries)
     probe = Probe(listed, options, heard=lambda name: emit("reaching", name))
     for machine in (one for one in listed if not names or one["name"] in names):
-        kind, through = probe.network(machine, machine["routes"][0], found)
-        emit("machine", machine["name"], kind or "", through or "", machine["os"], machine["target"])
+        head(machine, found, probe)
         for route in machine["routes"][1:]:
             emit("also", *("" if one is None else one for one in probe.network(machine, route, found)),
                  address_text(None, route["address"], route.get("port")))
@@ -772,7 +967,7 @@ def machines_json(argv):
 def main(argv):
     """netbird COMMAND: a "state|this Mac's address" line, then "name|fqdn|ip|status|path|latency_ms" a peer; local
     COMMAND (dns-sd): "host|port|instance" a machine, the instance only where it says more than the host's name; said
-    TARGET TEXT: why a login failed (reachable's lines); status and machines: their own docstrings'."""
+    TARGET TEXT [JUMP]: why a login failed (reachable's lines; through JUMP, by name); the others: their docstrings'."""
     if len(argv) == 3 and argv[1] == "netbird":
         found = netbird_peers(bounded, argv[2])
         print(f"{found['state']}|{found['self_ip'] or ''}")
@@ -785,12 +980,14 @@ def main(argv):
             shown = "" if one["instance"].casefold() == one["host"].split(".")[0] else one["instance"]
             print(f"{one['host']}|{one['port']}|{shown}")
         return 0
-    if len(argv) == 4 and argv[1] == "said":
-        for line in lines_of(said(argv[2], argv[2], argv[3])):
+    if len(argv) in (4, 5) and argv[1] == "said":
+        found = said_through(argv[2], argv[4], argv[3]) if len(argv) == 5 else said(argv[2], argv[2], argv[3])
+        for line in lines_of(found):
             emit(*line)
         return 0
-    if len(argv) >= 7 and argv[1] in ("status", "machines"):
-        return (status if argv[1] == "status" else machines_json)(argv[2:])
+    commands = {"status": status, "machines": machines_json, "heading": heading, "through": through}
+    if len(argv) >= 7 and argv[1] in commands:
+        return commands[argv[1]](argv[2:])
     return 2
 
 

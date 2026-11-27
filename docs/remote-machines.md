@@ -28,8 +28,9 @@ No copy of herdr-fold's own files is kept: the package has them.
 
 It installs no coding agent (Claude Code, Codex, OpenCode, Copilot CLI) and signs none in: do that once on each machine.
 
-For a machine you add by hand, or one announcing itself on the local network, that `~/.ssh/known_hosts` does not know
-yet, it shows the fingerprint of the machine's ED25519 key and asks whether to trust it: type `y` once it matches the
+For a machine you add by hand, one announcing itself on the local network or one behind another machine
+([A machine behind another](#a-machine-behind-another)) that `~/.ssh/known_hosts` does not know yet, it shows the
+fingerprint of the machine's ED25519 key and asks whether to trust it: type `y` once it matches the
 machine's own (on a Linux or Mac machine: `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`; on Windows: `ssh-keygen
 -lf C:\ProgramData\ssh\ssh_host_ed25519_key.pub`). Only that key is trusted, so ssh refuses the machine if it later
 shows another; a machine that shows no ED25519 key is not added. Machines from `~/.ssh/config` and your Tailscale or
@@ -164,8 +165,66 @@ the machine's fingerprint is shown and asked about, as for one added by hand, En
 
 The Mac can be on several at once. Keep their address ranges apart (Tailscale and NetBird take the same range unless one
 is changed), and mind a mode that sends all traffic through one network (Cloudflare WARP's full mode, a company's
-private network, Tailscale's exit node): it can cut the others off. A machine reached only through another one goes
-through a Host with `ProxyJump` in `~/.ssh/config`.
+private network, Tailscale's exit node): it can cut the others off. A machine reached only through another one is
+added through it: [A machine behind another](#a-machine-behind-another).
+
+## A machine behind another
+
+A machine this Mac does not reach itself, a server on a client's network or one next to a machine of yours, is reached
+through a machine on the list that reaches it: `./machines.sh through lumen-api`. lumen-api must be a Linux or macOS
+machine herdr-fold has prepared, as it lists what it sees with Python there (looking around from a Windows machine
+comes later). It lists only what lumen-api knows already, and scans nothing:
+
+- its Tailscale and NetBird peers that this Mac does not reach itself (one this Mac's own network lists is offered by
+  that network's own question);
+- the machines announcing SSH next to it (`dns-sd` on a Mac, `avahi-browse` on Linux; without it, a line says so);
+- the Hosts of its `~/.ssh/config`, never a pattern, a git host or one with a jump or a proxy of its own.
+
+Each of its commands is read for 5 seconds at most, and what comes back is checked here as any network's word: a host
+name, an address, a user and a port each against a strict pattern, 1 MB and 200 machines at most, the rest counted in
+a line after the questions. lumen-api itself, this Mac and the machines on the list are left out. Each machine is
+offered on a question of its own, default no:
+
+```text
+== lumen-api (Tailscale, linux)
+      lumen-api lists what it sees: its Tailscale and NetBird peers, the machines announcing SSH next to it, its
+      ~/.ssh/config. Nothing is scanned.
+  [✓] lumen-api sees 3 machines this Mac does not reach itself
+  Import build-01 (198.51.100.30, from lumen-api's ~/.ssh/config) through lumen-api? [y/N] y
+  user [root]:
+      256 SHA256:Qm9vZ0x1bW5hcGlzYWZlMTIzNDU2Nzg5MGFiY2RlZmc 198.51.100.30 (ED25519)
+  Trust this ED25519 key of build-01, read through lumen-api (compare it with the machine's own)? [y/N] y
+  [!] build-01 does not take this Mac's key (it may accept lumen-api's own key only).
+  Put this Mac's public key on build-01, through lumen-api's own login? [y/N] y
+  [✓] build-01 added (linux), through lumen-api
+```
+
+Its key is read end to end through lumen-api before anything of it is trusted (with no login: ssh's `none` method
+alone), and its fingerprint is shown and asked about, Enter alone a no, whatever lumen-api's list says of the machine:
+compare it with the machine's own. Only that key is trusted, under the machine's own Host name (`herdr-fold.build-01`);
+where `~/.ssh/known_hosts` trusts another key under that name already, the machine is not added. One that shows the key
+of a machine on the list is that machine, never a second one.
+
+This Mac then logs in with its own key, through lumen-api: lumen-api never gets this Mac's key or its agent. A machine
+that takes lumen-api's own key alone says so, and on a yes, asked for each machine (default no), lumen-api logs in with
+its own key and adds this Mac's public key, one line, to the machine's `~/.ssh/authorized_keys`, checking first that the
+machine shows the key you trusted; never this Mac's private key, and never where lumen-api's Host for it logs in with a
+certificate or a security key (ask its admin then). A no leaves the machine off the list: put the key there yourself,
+then ask again.
+
+A machine said yes to goes on the list reached by its own Host in herdr-fold's ssh file, `herdr-fold.build-01`, whose
+`ProxyJump` is lumen-api's address (`build-01 | herdr-fold.build-01 | linux | SHA256:… | through:lumen-api
+root@198.51.100.30`), so it needs the one `Include` line at the top of `~/.ssh/config`, asked at the first yes; then
+`./machines.sh add build-01` sets it up as any machine. lumen-api sees that a connection goes to build-01's address and
+port, when, and how much passes; never what passes (the connection is end to end, checked against build-01's key). One
+whose SSH server lets nothing through (`AllowTcpForwarding no`) says `lumen-api does not let connections through to
+other machines (AllowTcpForwarding no in its sshd_config).`, and with lumen-api away its own sentence comes under
+build-01's ([When a machine is away](#when-a-machine-is-away)).
+
+`./machines.sh remove lumen-api` asks first `build-01 and db-02 go through lumen-api: take them off too?`, default no. A
+yes takes them off first, each through lumen-api, then lumen-api; a no keeps them working, lumen-api staying their jump
+host by its address (`through:root@lumen-api.tail0000.ts.net` on their lines): `build-01 and db-02 stay: lumen-api
+remains their jump host.` A jump host that is itself behind another machine stays on the list.
 
 ## When a machine is away
 
@@ -229,6 +288,7 @@ In the `herdr-fold` folder:
 ./machines.sh tailscale         # add machines from your Tailscale network
 ./machines.sh netbird           # add machines from your NetBird network
 ./machines.sh local             # add machines announcing SSH on this local network, each key asked about
+./machines.sh through lumen-api # add the machines lumen-api sees, reached through it
 ./machines.sh add alpha         # set one machine up again
 ./machines.sh prepare           # push changed settings out to the machines
 ./machines.sh remove alpha      # take a machine off the list and the package off the machine
@@ -236,7 +296,8 @@ In the `herdr-fold` folder:
 herdr machine list              # the connected machines
 ```
 
-`./machines.sh remove` puts Claude's earlier status line and the machine's own files that the package replaced back on
-the machine (a linked file comes back as the link; the package never writes through one), and takes it off the Herdr
-app when herdr-fold added it there. Files changed there since stay in its `prepared-changed-<date>/`
-([above](#what-the-installer-does-on-a-machine)).
+`./machines.sh remove` asks first about the machines that go through the one it removes
+([A machine behind another](#a-machine-behind-another)), then puts Claude's earlier status line and the machine's own
+files that the package replaced back on the machine (a linked file comes back as the link; the package never writes
+through one), and takes it off the Herdr app when herdr-fold added it there. Files changed there since stay in its
+`prepared-changed-<date>/` ([above](#what-the-installer-does-on-a-machine)).

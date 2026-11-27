@@ -1,10 +1,13 @@
 """The machine list, ~/.config/herdr-fold/machines.txt: a machine is its SSH host key, a network one of its routes, and
-herdr-fold's own ssh file is written whole from it. machines.sh and uninstall.sh run it: machines.py add|keys|identify|
-name|resolve|route|moved|unmove|hosts|included|include|uninclude … (each command's arguments: commands())."""
+herdr-fold's own ssh file is written whole from it. machines.sh and uninstall.sh run it: machines.py add|identify|route|
+behind|keep|copy-key|moved|hosts|include … (every command and its arguments: commands())."""
+import base64
+import binascii
 import contextlib
 import ipaddress
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -37,7 +40,15 @@ SOURCES = (
     ("by address", "nothing: whatever answers there", "its fingerprint is shown and asked about first"),
     ("Bonjour", "nothing: any machine on the network this Mac is on can announce any name",
      "its fingerprint is shown and asked about first"),
+    ("another machine's list", "nothing: what a machine on the list says it sees",
+     "its fingerprint, read end to end through that machine, is shown and asked about first"),
 )
+OSES = ("linux", "macos", "windows")
+# the public keys this Mac's own may be, as OpenSSH writes them: one of these is put on a machine behind another (a
+# security key's type ends in OpenSSH's domain, written apart here: it reads as an e-mail address)
+OPENSSH = "@" "openssh.com"
+PUBLIC_KEYS = ("ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521",
+               "sk-ssh-ed25519" + OPENSSH, "sk-ecdsa-sha2-nistp256" + OPENSSH)
 KEY = re.compile(r"SHA256:[A-Za-z0-9+/]{1,64}")                 # a host key's fingerprint, as ssh-keygen -l prints it
 NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")           # a machine's name that can be a Host's
 LABEL = re.compile(r"[A-Za-z0-9-]{1,63}")                       # a DNS name's part between two dots
@@ -433,6 +444,86 @@ def moved(machines):
     return found
 
 
+def behind_of(machines, name):
+    """The names of the machines whose route in use goes through machine NAME, in the list's order."""
+    return [machine["name"] for machine in machines
+            if machine["routes"] and machine["routes"][0].get("through") == name]
+
+
+def jump_address(machines, name):
+    """What the machines behind NAME jump by once it has left the list: its target, or, at its own Host, its first
+    route's address; None where it is itself reached through another machine (or not listed)."""
+    machine = next((one for one in machines if one["name"] == name), None)
+    if machine is None:
+        return None
+    if machine["target"] == PREFIX + name:
+        return dict(moved(machines)).get(name)
+    return machine["target"] if reachable_at(*parse_address(machine["target"])) else None
+
+
+def keep_behind(machines, name):
+    """MACHINES with each route through NAME jumping by jump_address() instead, so it can leave the list; None where
+    it has none."""
+    jump = jump_address(machines, name)
+    if not jump:
+        return None
+    for route in (route for machine in machines for route in machine["routes"]):
+        if route.get("through") == name:
+            route["through"] = jump
+    return machines
+
+
+def add_behind(machines, name, os_, key, through, address):
+    """MACHINES with machine NAME (its OS and host key KEY) reached through THROUGH, a listed machine, at ADDRESS
+    ([user@]host[:port], as THROUGH reaches it), by its own Host; None where a part is not what it should be."""
+    user, host, port = parse_address(address)
+    names = {machine["name"] for machine in machines}
+    if (name in names or not NAME.fullmatch(name) or through not in names or os_ not in OSES or not KEY.fullmatch(key)
+            or not user or not reachable_at(user, host, port) or host.startswith(PREFIX)):
+        return None
+    route = {"network": "through", "address": host, "user": user, "port": port, "through": through}
+    return machines + [{"name": name, "target": PREFIX + name, "os": os_, "key": key, "routes": [route]}]
+
+
+def public_key(path):
+    """This Mac's public key in the file at PATH, "type base64 herdr-fold" (its own comment, which may name the account,
+    left off); None for anything else, its private half above all."""
+    try:
+        with open(path, encoding="ascii") as f:
+            lines = [line for line in f.read(16384).splitlines() if line.strip()]
+    except (OSError, UnicodeDecodeError):
+        return None
+    parts = lines[0].split() if len(lines) == 1 else []
+    if len(parts) < 2 or parts[0] not in PUBLIC_KEYS or not BASE64.fullmatch(parts[1]):
+        return None
+    try:
+        blob = base64.b64decode(parts[1], validate=True)
+    except (binascii.Error, ValueError):
+        return None
+    kind = len(parts[0]).to_bytes(4, "big") + parts[0].encode()
+    return f"{parts[0]} {parts[1]} herdr-fold" if blob.startswith(kind) else None
+
+
+def copy_key_command(name, user, address, port, key_line, public, alias=None):
+    """The command a jump host runs to put PUBLIC (this Mac's public key) on machine NAME with its own login: to
+    ADDRESS, or its ~/.ssh/config Host ALIAS, there checked against KEY_LINE alone (the key read end to end and trusted
+    here), forwarding nothing; the key appended once. None where a part is not what it should be."""
+    known = alias_line(name, key_line or "")
+    if not (known and public and user_ok(user) and reachable_at(user, address, port)
+            and (alias is None or NAME.fullmatch(alias))):
+        return None
+    append = ('umask 077; mkdir -p "$HOME/.ssh" && touch "$HOME/.ssh/authorized_keys" && '
+              '{ grep -qxF "$1" "$HOME/.ssh/authorized_keys" || printf "%s\\n" "$1" >> "$HOME/.ssh/authorized_keys"; }')
+    there = "sh -c " + shlex.quote(append) + " sh " + shlex.quote(public)
+    options = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "ClearAllForwardings=yes", "-o",
+               "ForwardAgent=no", "-o", "StrictHostKeyChecking=yes", "-o", "GlobalKnownHostsFile=/dev/null", "-o",
+               f"HostKeyAlias={PREFIX}{name}", "-o", "HostKeyAlgorithms=ssh-ed25519", "-o", "CheckHostIP=no",
+               *(["-p", str(port)] if port else []), "-l", user]
+    return (f'f=$(mktemp) || exit 1; printf "%s\\n" {shlex.quote(known)} > "$f"; '
+            f'ssh {" ".join(shlex.quote(one) for one in options)} -o UserKnownHostsFile="$f" -- '
+            f'{shlex.quote(alias or address)} {shlex.quote(there)}; s=$?; rm -f "$f"; exit $s')
+
+
 def write_ssh_file(path, machines):
     """herdr-fold's ssh file at PATH from MACHINES, when one of them needs a Host or the file is there already."""
     if os.path.exists(path) or any(machine["target"] == PREFIX + machine["name"] for machine in machines):
@@ -534,6 +625,44 @@ def commands(argv):
         write_ssh_file(hosts, machines)
         print(alias or "")
         return 0
+    if command == "behind" and len(args) == 6:                # LIST NAME OS KEY THROUGH ADDRESS: one behind THROUGH
+        machines = add_behind(read(args[0]), *args[1:])
+        if machines is None:
+            return 1
+        write(args[0], machines)
+        write_ssh_file(hosts, machines)
+        return 0
+    if command == "behind-of" and len(args) == 2:             # LIST NAME: the machines going through it, a line each
+        print("".join(name + "\n" for name in behind_of(read(args[0]), args[1])), end="")
+        return 0
+    if command == "keep" and len(args) in (2, 3):             # LIST NAME [check]: those behind it jump by its target
+        machines = read(args[0])
+        if not any(route.get("through") == args[1] for machine in machines for route in machine["routes"]):
+            return 0                                          # none: the list as it was
+        machines = keep_behind(machines, args[1])
+        if machines is None:
+            return 1
+        if args[2:] != ["check"]:
+            write(args[0], machines)
+            write_ssh_file(hosts, machines)
+        return 0
+    if command == "jump" and len(args) == 2:                  # LIST NAME: the target a machine behind NAME jumps by
+        machines = read(args[0])
+        jump = jump_target(args[1], machines, "") if any(one["name"] == args[1] for one in machines) else None
+        print(jump or "")
+        return 0 if jump else 1
+    if command == "address" and len(args) == 3:               # USER HOST PORT: user@host[:port], each part checked
+        port = int(args[2]) if port_ok(args[2]) else None
+        if not user_ok(args[0]) or args[2] and not port or not reachable_at(args[0], args[1], port):
+            return 1
+        print(address_text(args[0], args[1], port if port != 22 else None))
+        return 0
+    if command == "copy-key" and len(args) in (6, 7):         # NAME USER HOST PORT KEY PUBFILE [ALIAS]: the command
+        port = int(args[3]) if port_ok(args[3]) else None
+        found = copy_key_command(args[0], args[1], args[2], port if port != 22 else None, args[4],
+                                 public_key(args[5]), args[6] if len(args) > 6 and args[6] else None)
+        print(found or "")
+        return 0 if found and (port or not args[3]) else 1
     if command == "moved" and len(args) == 1:                 # LIST: "name|address" of each one at its own Host
         print("".join(f"{name}|{address or ''}\n" for name, address in moved(read(args[0]))), end="")
         return 0

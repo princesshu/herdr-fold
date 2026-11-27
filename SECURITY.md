@@ -51,6 +51,7 @@ of it, never a second one. What each source of a machine proves, and how its key
 | NetBird | its management server signed the machine into your network | trusted on the first connection, as above; NetBird keeps no record of the key, so a route to a listed machine only when it shows that machine's own key now (silent: none), never on NetBird's word alone |
 | by address | nothing: whatever answers there | its fingerprint is shown and asked about first (the default is no): compare it with the machine's own before you answer; only that key is trusted, and a machine that shows none is not added |
 | Bonjour | nothing: any machine on the network this Mac is on can announce any name | none is looked for without a question of its own; its fingerprint is shown and asked about first (the default is no), as by address; a route to a listed machine only when it shows that machine's own key now (silent: none), never by the name it announces |
+| another machine's list | nothing: what a machine on the list says it sees | its fingerprint, read end to end through that machine, is shown and asked about first (the default is no), whatever network the machine is on, never trusted on the first connection; only that key is trusted, under the machine's own Host name, never beside another key trusted there; one that shows a listed machine's key is that machine, never a second one |
 
 A machine with several routes has a Host of herdr-fold's own (`~/.config/herdr-fold/ssh_config`, which one Include line
 at the top of `~/.ssh/config` brings in, on a yes): every route looks its key up under that Host's name, so a route that
@@ -64,6 +65,15 @@ own ssh forwards nothing (`ClearAllForwardings`, `ForwardAgent no`): a machine n
 machine reached through another one (`ProxyJump`) keeps this Mac's key on this Mac: the machine in between sees that a
 connection goes to an address and port, when, and how much passes; never what passes (the connection is end to end,
 checked against the key of the machine behind it), this Mac's key or its agent.
+
+To list what it sees (`./machines.sh through`), a machine on the list runs herdr-fold's `remote/look-around.py`, sent
+over its own SSH as Python's input: it only reads its Tailscale and NetBird status, what announces SSH next to it and
+its `~/.ssh/config`, each command stopped after 5 seconds, and scans nothing. Its answer is read here for 40 seconds and
+1 MB at most, then stopped; every machine in it is checked as a network's word, 200 at most, and reaches a command only
+as one argument. This Mac's public key goes on a machine behind another only on a yes for that machine (the default is
+no): the machine in between logs in with its own key and adds that one line, its ssh checking that the machine shows
+the key trusted here and forwarding nothing; never this Mac's private key, and never where that machine's Host for it
+logs in with a certificate or a security key.
 
 ## A folder you open
 

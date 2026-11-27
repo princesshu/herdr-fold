@@ -202,7 +202,7 @@ class Step8(unittest.TestCase):
         # a line after the questions counts what was left out; never the phone, which no computer was offered from
         prompts = self.tailscale_prompts()
         self.assertEqual([p for p in prompts if "kelp-ci" in p], [])
-        left_out = catalog_text("machines.tailscale_skipped", "3", ", ".join(
+        left_out = catalog_text("machines.left_out", "3", ", ".join(
             [catalog_text("machines.left_out_exit_node"), catalog_text("machines.left_out_shared_node"),
              catalog_text("machines.left_out_expired_node")]))
         self.assertIn("[-] " + left_out + "\n", self.shown)

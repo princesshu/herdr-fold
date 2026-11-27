@@ -126,8 +126,8 @@ them: [Keys](docs/keybindings.md).
 
 Step 8 of the installer connects any machine the Mac reaches over SSH: from `~/.ssh/config`, by address, from a
 Tailscale or NetBird network where one is installed, or from those announcing SSH on the local network; Ctrl + B, then
-Shift + M (Add a machine) adds one later. The agents, the sidebar and the terminal run on the machine, and keep running
-when the Mac sleeps; the Mac shows them: [Remote machines](docs/remote-machines.md).
+Shift + M (Add a machine) adds one later, `./machines.sh through` one behind another. The agents, the sidebar and the
+terminal run on the machine, and keep running when the Mac sleeps: [Remote machines](docs/remote-machines.md).
 
 ## Updating
 

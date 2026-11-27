@@ -202,6 +202,7 @@ machines.help = Remote machines (Linux, macOS, Windows) in herdr — on the cent
   \n  ./machines.sh tailscale       pick from the machines on the Tailscale network, one question each → the list\
   \n  ./machines.sh netbird         pick from the machines on the NetBird network, one question each → the list\
   \n  ./machines.sh local           pick from the machines on this local network, one question each → the list\
+  \n  ./machines.sh through <name>  pick from the machines another one on the list sees, reached through it → the list\
   \n  ./machines.sh manual          add a machine by its SSH address or name → the list\
   \n  ./machines.sh pick            the installer's questions: each source above, then by address → the list\
   \n  ./machines.sh new             the same questions, then prepare + connect only the new machines (Ctrl+B, Shift+M)\
@@ -230,7 +231,7 @@ machines.none_listed = No machines on the list yet — add one: ./machines.sh ss
 machines.no_tailscale = no Tailscale on this machine
 machines.tailscale_failed = Tailscale is not responding — are you signed in?
 machines.tailscale_empty = no other computers on the Tailscale network
-machines.tailscale_skipped = %s left out: %s
+machines.left_out = %s left out: %s
 machines.left_out_exit_node = an exit node
 machines.left_out_exit_nodes = %s exit nodes
 machines.left_out_shared_node = a node of someone a machine is shared with
@@ -313,6 +314,48 @@ machines.checking_key = checking %s's key
 machines.key_mismatch = %s's key does not match the one Tailscale knows: not added
 machines.route_key_mismatch = %s shows another key than %s: not added as its route
 machines.route_unchecked = %s did not answer, so it could not show %s's key: not added as its route
+
+# machines.sh through: the machines a machine on the list sees, reached through it; removing one others go through
+machines.through_line = %s lists what it sees: its Tailscale and NetBird peers, the machines announcing SSH next to \
+  it, its ~/.ssh/config. Nothing is scanned.
+machines.looking_through = asking %s what it sees
+machines.through_windows = Looking around from a Windows machine comes later.
+machines.through_no_python = %s has no python3 to list what it sees: ./machines.sh prepare %s puts it there
+machines.through_unreadable = what %s sees could not be read: nothing offered
+machines.through_no_avahi = %s has no avahi-browse: the machines announcing SSH next to it are not listed
+machines.through_sees_none = %s sees no machine this Mac does not reach itself
+machines.through_sees_one = %s sees 1 machine this Mac does not reach itself
+machines.through_sees = %s sees %s machines this Mac does not reach itself
+machines.through_ask_config = Import %s (%s, from %s's ~/.ssh/config) through %s?
+machines.through_ask_local = Import %s (%s, next to %s) through %s?
+machines.through_ask_tailscale = Import %s (%s, %s's Tailscale) through %s?
+machines.through_ask_netbird = Import %s (%s, %s's NetBird) through %s?
+machines.through_include = %s needs the line in ~/.ssh/config to be reached through %s: not added \
+  (./machines.sh include)
+machines.through_bad_user = %s is not a user name: not added
+machines.hostkey_unreadable_through = %s did not show its ED25519 key through %s: not added
+machines.through_same = %s shows the key of %s, already on the list: not added again
+machines.hostkey_ask_through = Trust this ED25519 key of %s, read through %s (compare it with the machine's own)?
+machines.alias_taken = ~/.ssh/known_hosts trusts another key as herdr-fold.%s: not added (check it, then \
+  ssh-keygen -R herdr-fold.%s)
+machines.key_refused_through = %s does not take this Mac's key (it may accept %s's own key only).
+machines.copy_key_ask = Put this Mac's public key on %s, through %s's own login?
+machines.copy_key_cert = %s logs in to %s with a certificate or a security key: this Mac's key is not put there
+machines.copy_key_none = this Mac has no public key file (~/.ssh/id_ed25519.pub): put one on %s by hand
+machines.copy_key_unreadable = %s is no public key: nothing put on the machine
+machines.putting_key = putting this Mac's public key on %s
+machines.copy_key_failed = %s's own login to %s failed: this Mac's key is not on it
+machines.added_through = %s added (%s), through %s
+machines.through_left_bad_one = its name is not a host name
+machines.through_left_bad = %s whose names are not host names
+machines.through_left_over = %s past the first 200
+machines.remove_behind_ask_one = %s goes through %s: take it off too?
+machines.remove_behind_ask = %s go through %s: take them off too?
+machines.remove_behind_kept_one = %s stays: %s remains its jump host.
+machines.remove_behind_kept = %s stay: %s remains their jump host.
+machines.remove_behind_nested = %s stays on the list: the machines behind it go through it, and it is reached \
+  through another machine itself
+machines.names_and = %s and %s
 
 # machines.sh and both clients: why a machine is away, the first check that fails (core/networks.py's ladder), then
 # what to do about it (why_do_*: its command the last %s)
