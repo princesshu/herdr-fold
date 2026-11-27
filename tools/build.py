@@ -34,6 +34,7 @@ HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"AGENT_LAYER
                                                                     "FILEOPS": "fileops.py", "GIT": "git.py",
                                                                     "GITHUB": "github.py", "GRAPH": "graph_cli.py",
                                                                     "HARNESS": "harness.py", "JOB": "job.py",
+                                                                    "MACHINE_GRAPH": "machine_graph.py",
                                                                     "MEDIA": "media.py",
                                                                     "NAMED_FILES": "named_files.py",
                                                                     "NETWORKS": "networks.py",
@@ -48,7 +49,7 @@ HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"AGENT_LAYER
 MOD_ONLY = {"agent_layers_cli.py", "chat.py", "chat_hook.py", "graph_cli.py", "job.py"}
 SCRIPTS_ONLY = {"machines.py", "networks.py"}  # machines.sh's and uninstall.sh's, run from core/: none in the sidebar
 # the catalog's words the app says what core/networks.py answers in: why a machine is away, each network's name and
-# state, its machines to add (the TUI's Machines view reads the same keys)
+# state, its machines to add (the TUI's Machines view reads the same keys; the app gives them to machine_graph.py)
 CATALOG = os.path.join("src", "lang", "en.txt")
 MACHINE_WORDS = ("machines.why_", "machines.network_", "machines.state_", "machines.to_add")
 ICONS = os.path.join("app", "mods", "herdr-fold", "icons.js")       # the mod's icons, by name, and the file types'

@@ -6,7 +6,6 @@ import concurrent.futures
 import importlib.util
 import json
 import os
-import re
 import shlex
 import subprocess
 import sys
@@ -17,8 +16,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import fileops  # noqa: E402
 import preview  # noqa: E402
-from icons import NETWORKS, glyphs, network_mark  # noqa: E402
+from icons import glyphs, network_mark  # noqa: E402
 from loop import Loop  # noqa: E402
+from machine_graph import (ACTIONS, BY_ADDRESS, CONTROLS, MOST, OTHER, clean, first_command, grouped,  # noqa: E402
+                           listed, machine_actions, machine_properties, name_ok, right_words, seen, seen_words,
+                           state_words, to_add)
 from screen import CONTENT, INSET, SPIN, SPINNER, Canvas, Style, after, icons_on, truncate, width  # noqa: E402
 from settings import CLOSE_CELLS  # noqa: E402
 from usage_view import Row  # noqa: E402
@@ -30,38 +32,19 @@ from widgets import Confirm, Menu, wrap  # noqa: E402
 BESIDE = os.path.normpath(os.path.join(HERE, "..", ".."))
 POLL = 60.0                   # seconds between two looks while it is open, as the app's; none in the background
 LOOK_SECONDS = 90             # core's look at most: each network's client 5 s, a route 2 s a machine
-MOST = 256                    # the machines, and a network's names to add, one look gives at most
-ROUTES = 8                    # a machine's routes, at most
 AT_ONCE = 8                   # machines herdr is asked about at once (what runs there)
 TOP = 1                       # the list's first row: the close button's row above it
 LABEL = 10                    # cells of a property's label (Last seen)
-NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")                     # a machine's name, core/machines.py's
-HOST = re.compile(r"(?!-)[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63})*")    # a host name or an IPv4 address
-IP6 = re.compile(r"[0-9A-Fa-f:.]{2,45}")
-USER = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]{0,31}")
-KEY = re.compile(r"SHA256:[A-Za-z0-9+/]{1,64}")                           # a host key's fingerprint
-WHY = re.compile(r"machines\.why_[a-z_]{1,40}")                           # a ladder's sentence, by its catalog key
-CONTROLS = re.compile(r"[\x00-\x1f\x7f-\x9f]")
-STATES = ("on", "off", "signed_out", "expired", "approval", "no_management")      # a network client's, core's
-WITH_CLIENT = ("tailscale", "netbird", "zerotier")      # the networks whose client on this Mac has a state
-OSES, PATHS = ("linux", "macos", "windows"), ("direct", "relayed")
-LOOKS_AROUND = ("linux", "macos")                       # ./machines.sh through reads these (Windows comes later)
-AGENTS = {"claude": "Claude", "codex": "Codex", "opencode": "OpenCode", "copilot": "Copilot"}
-MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+# core's tones (core/machine_graph.py's words, the graph's too) in the sidebar's roles
+ROLES = {"text": "text", "muted": "muted", "warn": "modified", "ok": "added", "bad": "deleted"}
 
 MACHINES = "Machines…"        # the sidebar's ⋯ line that opens it, over Settings…
 LOADING, FAILED = "Loading machines…", "Couldn't read the machines"
 NO_PACKAGE = "herdr-fold's package is not found here: the Machines view comes with herdr-fold's installer"
 NONE = "No machines on the list yet: Ctrl+B, Shift+M adds one"
-BY_ADDRESS = "none yet: add one by its address"          # ZeroTier and WireGuard name no machine to offer
-OTHER, THIS_MAC, BETWEEN = "Other", "This Mac", " › "
-CONNECTED, NOT_CONNECTED, AWAY, WAITING = "connected", "not connected", "unreachable", "waiting"
-IN_USE, STANDBY = "in use", "standby"
-LOOK_AROUND = "Look around from here…"
+LOOK_AROUND, MORE = ACTIONS["through"], "⋯"              # Look around from here, under ⋯ on its own row
 OPENED, COPIED = "Opened in a new tab", "Copied"
 NO_TAB = "It opens in a herdr tab: open Machines in herdr"
-BUTTONS = {"status": "Status", "again": "Set up again", "remove": "Remove", "more": "⋯", "check": "Check again",
-           "copy": "Copy command"}
 COMMANDS = {"status": "status", "again": "add", "remove": "remove", "through": "through"}     # machines.sh's
 TABS = {"status": "Status", "again": "Set up again", "remove": "Remove", "through": "Look around from"}
 
@@ -117,86 +100,6 @@ def look(folder, listed):
     return read_look(folder, listed)
 
 
-def clean(value, most=300):
-    """VALUE a network or a machine said, safe to show: its control characters dropped, cut at MOST."""
-    return CONTROLS.sub("", str(value))[:most]
-
-
-def name_ok(value):
-    return isinstance(value, str) and bool(NAME.fullmatch(value))
-
-
-def address_ok(value):
-    return isinstance(value, str) and len(value) <= 253 and bool(HOST.fullmatch(value) or IP6.fullmatch(value))
-
-
-def listed(value, most=MOST):
-    return value[:most] if isinstance(value, list) else []
-
-
-def kind_of(word):
-    """A network's word (core/icons.py's NETWORKS, in the routes' order), through for one behind another; else None."""
-    return word if isinstance(word, str) and (word in NETWORKS or word == "through") else None
-
-
-def checked_why(said, depth=0):
-    """A ladder's sentence (core's why()), checked: its catalog key, its arguments cleaned, what to do and what caused
-    it (three deep at most); None for anything else."""
-    if not isinstance(said, dict) or depth > 3 or not (isinstance(said.get("key"), str) and WHY.fullmatch(said["key"])):
-        return None
-    args = lambda values: [clean(one) for one in listed(values, 8)]          # noqa: E731
-    action = said.get("action")
-    todo = {"key": action["key"], "args": args(action.get("args")),
-            "command": clean(action["command"]) if isinstance(action.get("command"), str) else None} \
-        if isinstance(action, dict) and isinstance(action.get("key"), str) and WHY.fullmatch(action["key"]) else None
-    return {"key": said["key"], "args": args(said.get("args")), "action": todo,
-            "then": checked_why(said.get("then"), depth + 1)}
-
-
-def checked_routes(routes):
-    found = []
-    for one in (one for one in listed(routes, ROUTES) if isinstance(one, dict) and address_ok(one.get("address"))):
-        network = kind_of(one.get("network"))
-        found.append({"network": network, "address": one["address"],
-                      "user": one["user"] if isinstance(one.get("user"), str) and USER.fullmatch(one["user"]) else None,
-                      "through": one["through"] if network == "through" and name_ok(one.get("through")) else None})
-    return found
-
-
-def number(value, most):
-    return value if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= most else None
-
-
-def seen(said):
-    """What core/networks.py's here answered (SAID), checked as everything a network or a machine says is: a name, an
-    address, a user, a key, a network and a state of their shapes, a sentence by its catalog key with its arguments
-    cleaned, each list capped; anything else dropped."""
-    said = said if isinstance(said, dict) else {}
-    machines, names = [], set()
-    for one in (one for one in listed(said.get("machines")) if isinstance(one, dict)):
-        if not name_ok(one.get("name")) or one["name"] in names:
-            continue
-        names.add(one["name"])
-        network, figures = kind_of(one.get("network")), one.get("figures") if isinstance(one.get("figures"), dict) \
-            else {}
-        machines.append({"name": one["name"], "os": one["os"] if one.get("os") in OSES else "", "network": network,
-                         "through": one["through"] if network == "through" and name_ok(one.get("through")) else None,
-                         "key": one["key"] if isinstance(one.get("key"), str) and KEY.fullmatch(one["key"]) else None,
-                         "why": checked_why(one.get("why")), "routes": checked_routes(one.get("routes")),
-                         "figures": {"path": figures.get("path") if figures.get("path") in PATHS else None,
-                                     "login_ms": number(figures.get("login_ms"), 10 ** 6),
-                                     "seen": number(figures.get("seen"), 10 ** 11)}})
-    told = said.get("networks") if isinstance(said.get("networks"), dict) else {}
-    networks = {}
-    for kind in (kind for kind in NETWORKS if isinstance(told.get(kind), dict)):
-        one = told[kind]
-        networks[kind] = {"installed": one.get("installed") is True if "installed" in one else None,
-                          "state": one.get("state") if one.get("state") in STATES else None,
-                          "why": checked_why(one.get("why")),
-                          "offered": list(dict.fromkeys(name for name in listed(one.get("offered")) if name_ok(name)))}
-    return {"machines": machines, "networks": networks}
-
-
 def kept(text):
     """The machines herdr keeps (`herdr machine list --json`'s TEXT): {label: enabled}; None where herdr said none."""
     try:
@@ -221,154 +124,12 @@ def machine_runs(call, label):
                                                       for one in listed(agents) if isinstance(one, dict)]}
 
 
-# --- how it says it
-
-def grouped(found):
-    """FOUND's machines (seen()'s) as the app groups them: the networks in the routes' order, a machine under the route
-    it is reached by, one behind another under its jump host (by name; jump hosts that go round nest none), those no
-    network tells last; an empty network where it offers machines to add or names none (added by address)."""
-    machines = {one["name"]: one for one in found["machines"]}
-
-    def parent(one):
-        up = one["through"]
-        return up if one["network"] == "through" and up in machines and up != one["name"] else None
-
-    def nests(one):
-        passed, up = {one["name"]}, parent(one)
-        while up:
-            if up in passed:
-                return False
-            passed.add(up)
-            up = parent(machines[up])
-        return parent(one) is not None
-
-    top, behind = [], {}
-    for one in sorted(machines.values(), key=lambda one: one["name"].casefold()):
-        (behind.setdefault(one["through"], []) if nests(one) else top).append(one)
-
-    def under(one):
-        """The network a machine on top stands under: its own, else the one of the jump host it goes through."""
-        if one["network"] in NETWORKS:
-            return one["network"]
-        jump = machines.get(one["through"]) if one["network"] == "through" else None
-        return jump["network"] if jump and jump["network"] in NETWORKS else None
-
-    def flat(one, depth=0):
-        return [(one, depth)] + [found for below in behind.get(one["name"], []) for found in flat(below, depth + 1)]
-
-    groups = []
-    for kind in NETWORKS:
-        net, mine = found["networks"].get(kind) or {}, [one for one in top if under(one) == kind]
-        offered = net.get("offered", []) if net.get("state") == "on" and not mine else []
-        bare = not mine and net.get("installed") and (kind == "wireguard" or net.get("state") == "on") \
-            and kind in ("zerotier", "wireguard")
-        if mine or offered or bare:
-            groups.append({"network": kind, "net": net, "offered": offered,
-                           "machines": [found for one in mine for found in flat(one)]})
-    rest = [one for one in top if under(one) is None]
-    if rest:
-        groups.append({"network": None, "net": {}, "offered": [], "machines": [found for one in rest
-                                                                             for found in flat(one)]})
-    return groups
-
-
-def state_words(network, net, t):
-    """How a network's head says NET's state while it is not on (the app's words and tones): off or not installed
-    quietly, one to act on in yellow; None while on, and for a network with no client of its own."""
-    if network not in WITH_CLIENT:
-        return None
-    if net.get("installed") is False:
-        return t("machines.state_missing"), "muted"
-    return {"off": (t("machines.state_off"), "muted"),
-            "signed_out": (t("machines.state_signed_out"), "modified"),
-            "expired": (t("machines.state_expired"), "modified"),
-            "approval": (t("machines.state_approval"), "modified"),
-            "no_management": (t("machines.state_no_management"), "modified")}.get(net.get("state"))
-
-
-def to_add(count, t):
-    return t("machines.to_add_one", count) if count == 1 else t("machines.to_add", count)
-
-
-def why_lines(why, t):
-    """WHY as machines.sh says it, a line each [(words, role)]: the sentence in yellow, then what caused it or what to
-    do, each one's own after it, a command in the text's color after its words."""
-    lines, follow = [[(t(why["key"], *why["args"]), "modified")]], why["then"] or why["action"]
-    while follow:
-        if follow.get("command"):
-            lines.append([(t(follow["key"], *follow["args"], "\0").split("\0")[0], "muted"),
-                          (follow["command"], "text")])
-        else:
-            lines.append([(t(follow["key"], *follow["args"]), "muted")])
-        follow = follow.get("then") or follow.get("action")
-    return lines
-
-
-def first_command(why):
-    """The first command WHY's sentences give to run (Start it: netbird up); None for none."""
-    follow = why and (why["then"] or why["action"])
-    while follow:
-        if follow.get("command"):
-            return follow["command"]
-        follow = follow.get("then") or follow.get("action")
-    return None
-
-
-def right_words(one, runs):
-    """What a machine's row says at its right: unreachable while away, waiting while an agent there waits on you, else
-    the way to it as its network tells (direct, relayed) and its time."""
-    if one["why"]:
-        return AWAY, "muted"
-    if any(status == "blocked" for _, status in (runs or {}).get("agents", ())):
-        return WAITING, "modified"
-    figures = one["figures"]
-    return " ".join(filter(None, [figures["path"], None if figures["login_ms"] is None
-                                  else f"{figures['login_ms']} ms"])), "muted"
-
-
-def runs_parts(runs):
-    """What runs on a machine in words [(words, role)]: its workspaces, then each agent working or waiting on you."""
-    count = runs["spaces"]
-    parts = [(f"{count} workspace{'' if count == 1 else 's'}", "text")]
-    for agent, status in runs["agents"]:
-        if agent in AGENTS and status in ("blocked", "working"):
-            parts += [(", ", "text"), (f"{AGENTS[agent]} {'waiting' if status == 'blocked' else 'working'}",
-                                       "modified" if status == "blocked" else "text")]
-    return parts
-
-
-def path_words(one, machines, t):
-    """The way to a machine behind another: This Mac › Tailscale › lumen-api › build-01."""
-    chain, up = [one["name"]], one
-    while up["network"] == "through" and up["through"] in machines and up["through"] not in chain:
-        up = machines[up["through"]]
-        chain.insert(0, up["name"])
-    return BETWEEN.join([THIS_MAC] + ([t(f"machines.network_{up['network']}")] if up["network"] in NETWORKS else [])
-                        + chain)
-
-
-def short_key(key):
-    """A fingerprint cut to what tells it apart at a glance: SHA256:Qm9vZ0x1…a7Fk."""
-    body = key[len("SHA256:"):]
-    return f"SHA256:{body[:8]}…{body[-4:]}" if len(body) > 13 else key
-
-
-def seen_words(when, now, local=time.localtime):
-    """When a machine was seen last: today 8:02, else Nov 26 8:02 (this Mac's time)."""
-    then, today = local(when), local(now)
-    clock = f"{then.tm_hour}:{then.tm_min:02d}"
-    if (then.tm_year, then.tm_yday) == (today.tm_year, today.tm_yday):
-        return f"today {clock}"
-    return f"{MONTHS[then.tm_mon - 1]} {then.tm_mday} {clock}"
-
+# --- how it says it (core/machine_graph.py's words, the graph's too)
 
 def actions(one):
-    """The buttons a machine's properties offer, [(id, words)]: away, looking again and its sentence's command; else
-    Status, Set up again, Remove, and ⋯ (Look around from here) on a machine that can look around."""
-    if one["why"]:
-        return [("check", BUTTONS["check"])] + ([("copy", BUTTONS["copy"])] if first_command(one["why"]) else [])
-    return [(id, BUTTONS[id]) for id in ("status", "again", "remove")] \
-        + ([("more", BUTTONS["more"])] if one["os"] in LOOKS_AROUND else [])
+    """The buttons a machine's properties offer, [(id, words)]: core's (machine_actions()), Look around from here under
+    ⋯, its menu."""
+    return [("more", MORE) if act["id"] == "through" else (act["id"], act["label"]) for act in machine_actions(one)]
 
 
 def in_tab(herdr, workspace, folder, name, argv):
@@ -561,7 +322,7 @@ class MachinesView(Loop):
                 self.term.write("\x1b]52;c;" + base64.b64encode(words.encode("utf-8")).decode("ascii") + "\x07")
             self.said = (COPIED, False)
         elif what == "remove":
-            self.confirm = (Confirm(f"Take {one['name']} off the list, and herdr-fold off it?", BUTTONS["remove"]),
+            self.confirm = (Confirm(f"Take {one['name']} off the list, and herdr-fold off it?", ACTIONS["remove"]),
                             one["name"])
         else:
             self.launch(what, one)
@@ -704,7 +465,7 @@ class MachinesView(Loop):
         at = row.put(x, self.t(f"machines.network_{kind}") if kind else OTHER, Style(fg="muted" if quiet else "text",
                                                                                      bold=True))
         if said:
-            row.put(at + 2, said[0], Style(fg=said[1]))
+            row.put(at + 2, said[0], Style(fg=ROLES[said[1]]))
         row.right(end, str(len(group["machines"])), Style(fg="muted"))
         return row
 
@@ -731,86 +492,53 @@ class MachinesView(Loop):
         row.put(dot + 2, truncate(one["name"], max(1, column - 2 - dot - 2)), Style(fg=faint if away else "text",
                                                                                      bg=bg))
         row.put(column, one["os"], Style(fg=faint, bg=bg))
-        words, role = right
-        row.right(end, words, Style(fg=faint if role == "muted" else role, bg=bg))
+        words, tone = right
+        row.right(end, words, Style(fg=faint if tone == "muted" else ROLES[tone], bg=bg))
         row.regions.append((0, cells, ("machine", one["name"])))
         return row
 
     def properties(self, one, x, end, cells):
-        """ONE's properties under the list, label left and value right in aligned columns: why it is away, its
-        address or routes, user, network, the way behind another, key, when seen, what runs; its buttons."""
-        machines, value, lines = {found["name"]: found for found in self.found["machines"]}, x + LABEL, []
+        """ONE's properties under the list (core's machine_properties(), the graph's inspector's too), label left and
+        value right in aligned columns: why it is away, its address or routes, user, network, the way behind another,
+        key, when seen, what runs; its buttons."""
+        props, value = machine_properties(one, self.found, self.t, self.runs, self.herdr_kept, self.now()), x + LABEL
         head = Row()
         head.put(INSET, truncate(one["name"], end - INSET - 16), Style(fg="text", bold=True))
-        known = self.herdr_kept is not None
-        state = (AWAY, "muted") if one["why"] else (CONNECTED, "added") if (self.herdr_kept or {}).get(one["name"]) \
-            else (NOT_CONNECTED, "muted") if known else None
-        if state:
-            head.right(end, state[0], Style(fg=state[1]))
-        lines.append(head)
-
-        def line(label, parts):
-            row, at = Row(), value
-            row.put(x, label, Style(fg="muted"))
-            for words, role in parts:
-                at = row.put(at, truncate(words, max(0, end - at)), Style(fg=role))
-            lines.append(row)
-
-        if one["why"]:
-            for parts in why_lines(one["why"], self.t):
-                if len(parts) == 1:
-                    words, role = parts[0]
-                    for start, stop in wrap(words, max(1, end - x)) or [(0, 0)]:
-                        lines.append(self.words_row(cells, words[start:stop].rstrip(), role, x))
-                else:
-                    row, at = Row(), x
-                    for words, role in parts:
-                        at = row.put(at, truncate(words, max(0, end - at)), Style(fg=role))
-                    lines.append(row)
+        if props["state"]:
+            head.right(end, props["state"]["text"], Style(fg=ROLES[props["state"]["tone"]]))
+        lines = [head]
+        for parts in props["why"]:
+            if len(parts) == 1:
+                words, tone = parts[0]
+                for start, stop in wrap(words, max(1, end - x)) or [(0, 0)]:
+                    lines.append(self.words_row(cells, words[start:stop].rstrip(), ROLES[tone], x))
+            else:
+                lines.append(self.property_row("", parts, [], None, x, x, end))
+        if props["why"]:
             lines.append(Row())
-        routes, first = one["routes"], (one["routes"] or [{}])[0]
-        if len(routes) > 1:
-            for n, route in enumerate(routes):
-                lines.append(self.route_row(one, route, n, x, value, end))
-        elif first.get("address"):
-            line("Address", [(first["address"], "text")])
-        if first.get("user"):
-            line("User", [(first["user"], "text")])
-        if len(routes) <= 1 and (one["network"] in NETWORKS or one["through"]):
-            line("Network", [(self.t("machines.network_through", one["through"]) if one["network"] == "through"
-                              else self.t(f"machines.network_{one['network']}"), "text")])
-        if one["network"] == "through" and one["through"]:
-            line("Path", [(path_words(one, machines, self.t), "text")])
-        if one["key"]:
-            line("Key", [(short_key(one["key"]), "text")])
-        seen_at = one["figures"]["seen"]
-        if seen_at and (one["why"] or {}).get("key") not in ("machines.why_offline", "machines.why_offline_unseen"):
-            line("Last seen", [(seen_words(seen_at, self.now()), "text")])
-        if self.runs.get(one["name"]) and not one["why"]:
-            line("Runs", runs_parts(self.runs[one["name"]]))
+        for label, parts, right, mark in props["lines"]:
+            lines.append(self.property_row(label, parts, right, mark, x, value, end))
         lines.append(self.buttons(one, x, cells))
         if self.said:
             lines.append(self.words_row(cells, self.said[0], "deleted" if self.said[1] else "muted", x))
         return lines
 
-    def route_row(self, one, route, n, x, value, end):
-        """One of a machine's routes: its network's mark, its address; the one in use first, the others standby."""
-        row = Row()
-        if not n:
-            row.put(x, "Routes", Style(fg="muted"))
-        mark = network_mark(route["network"], self.icons)
-        if mark:
-            row.put(value, mark[0], Style(fg=mark[1]))
-        at = row.put(value + 1 + len(after(self.icons)), route["address"], Style(fg="text"))
-        if route["through"]:
-            row.put(at + 2, self.t("machines.network_through", route["through"]), Style(fg="muted"))
-        ms = one["figures"]["login_ms"]
-        if n:
-            row.right(end, STANDBY, Style(fg="muted"))
-        elif ms is not None:
-            row.right(row.right(end, f"{ms} ms", Style(fg="muted")) - 2, IN_USE, Style(fg="text"))
-        else:
-            row.right(end, IN_USE, Style(fg="text"))
+    def property_row(self, label, parts, right, mark, x, value, end):
+        """A property's row: its label, a route's network mark (MARK None: no mark's column), its words from VALUE on,
+        what it says at its right (in use, standby)."""
+        row, at = Row(), value
+        if label:
+            row.put(x, label, Style(fg="muted"))
+        if mark is not None:
+            glyph = network_mark(mark, self.icons)
+            if glyph:
+                row.put(value, glyph[0], Style(fg=glyph[1]))
+            at = value + 1 + len(after(self.icons))
+        for words, tone in parts:
+            at = row.put(at, truncate(words, max(0, end - at)), Style(fg=ROLES[tone]))
+        at = end - sum(width(words) for words, _ in right)
+        for words, tone in right:
+            at = row.put(at, words, Style(fg=ROLES[tone]))
         return row
 
     def buttons(self, one, x, cells):

@@ -174,6 +174,23 @@ class Runnable(unittest.TestCase):
         self.assertEqual(found["networks"]["wireguard"], {"installed": False, "state": None, "why": None,
                                                           "offered": []})
 
+    def test_the_machine_graph_helper_runs_alone_as_the_app_runs_it(self):
+        # machine_graph.py with icons.py made first: the networks' look and the catalog's words given, the graph back
+        helper = os.path.join("app", "mods", "herdr-fold", "helper.js")
+        self.assertEqual(build.HELPERS[helper]["MACHINE_GRAPH"], "machine_graph.py")
+        look = {"checked": 0, "machines": [{"name": "vps-edge", "os": "linux", "network": "public", "routes": [
+            {"network": "public", "address": "203.0.113.40"}]}], "networks": {}}
+        with tempfile.TemporaryDirectory() as home:
+            done = subprocess.run(["/usr/bin/python3", "-I", "-c", build.runnable("machine_graph.py"),
+                                   json.dumps(look), json.dumps(build.machine_words())],
+                                  env={"HOME": home, "PATH": "/usr/bin:/bin"}, capture_output=True, text=True,
+                                  timeout=30)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        made = json.loads(done.stdout)
+        self.assertEqual([one["id"] for one in made["nodes"]], ["mac", "network:public", "machine:vps-edge"])
+        self.assertEqual(made["nodes"][1]["title"], "Public")
+        self.assertEqual(build.imports("machine_graph.py"), ["icons"])     # no networks.py: the look is given
+
     def test_what_an_imported_module_imports_is_made_first_too(self):
         # chat.py imports plan.py, which imports chats.py, which imports fileops.py, statefile.py, jsonl.py and
         # words.py (and it model_windows.py): each made once, before what imports it

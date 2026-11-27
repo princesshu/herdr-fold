@@ -213,7 +213,7 @@ class View(unittest.TestCase):
             self.line((4, "Network"), (14, "through lumen-api")),
             self.line((4, "Path"), (14, "This Mac › Tailscale › lumen-api › build-01")),
             self.line((4, "Key"), (14, "SHA256:Qm9vZ0x1…a7Fk")),
-            self.line((4, "Runs"), (14, "1 workspace, Codex waiting")),
+            self.line((4, "Runs"), (14, "1 space, Codex waiting")),
             self.line((4, " Status   Set up again   Remove   ⋯ "))])
         y, head = self.row(app, "Runs "), self.rows(app).index("", 1) + 1
         self.assertEqual(app.canvas.rows[y][27][1].fg, "modified")              # Codex waiting: yellow
@@ -233,7 +233,7 @@ class View(unittest.TestCase):
             self.line((14, "T"), (17, "studio.tail0000.ts.net"), right="standby"),
             self.line((4, "User"), (14, "dev")),
             self.line((4, "Key"), (14, "SHA256:Lb3sT0dI…9qXe")),
-            self.line((4, "Runs"), (14, "1 workspace"))])
+            self.line((4, "Runs"), (14, "1 space"))])
         self.assertNotIn("Address", "\n".join(got))             # its routes say where and on which network
 
     def test_a_machine_herdr_does_not_keep_is_not_connected(self):
