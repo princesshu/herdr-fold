@@ -330,10 +330,12 @@ connector with their calls. The app lights the edges that ran and draws the one 
 says the chat's whole (`This chat · ~$4.12`). The TUI writes the path as one line (`1 api-routes → 2 Read · Edit ·
 Write → 3 Bash`); `c` shows This chat and `w` Wiring.
 
-In the app a press chooses a node: its properties, Open for its file, and `Show in Agent`, which shows the Agent
-panel on that node's row. A node drags and stays where it is let go, for that space, folder and agent; a double
-click beside the nodes lays the graph out again. A canvas too narrow brings the columns nearer first, then scrolls.
-The app reads the graph again as the setup changes; the TUI reads it when asked, and `g` again reads it anew.
+In the app a press chooses a node: its properties, Open for its file, and `Show in Agent`, which shows the Agent panel
+on that node's row. The properties stand at the canvas's lower left; where they cover a node, drag them by their head
+anywhere on the canvas, where they stay; a double click on the head puts them back, × or Esc closes them. A node drags
+and stays where it is let go, for that space, folder and agent; a double click beside the nodes lays the graph out
+again. A canvas too narrow brings the columns nearer first, then scrolls. The app reads the graph again as the setup
+changes; the TUI reads it when asked, and `g` again reads it anew.
 
 The graph only shows: changing a server or a rule stays the Agent panel's.
 

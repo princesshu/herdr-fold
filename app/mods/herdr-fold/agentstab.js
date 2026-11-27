@@ -9,7 +9,7 @@ import { mixColor, panelStep, RECENT_AGENTS } from "./agents.js";
 import { AGENT, AGENTS_ASK, agentsAsked, agentsTab, badgeAt, boxes, DISC, dragTo, dropLayout, EDGE, edgePath, extent,
   faded, gateAt, gatesRoom, GRAPH_LAYOUT, HEADS, keepLayout, layout, layoutKey, legendOf, nodeFor, nodeLines,
   measured, nodeShown, placed, portOf, propertiesOf, running, seen, shareWidth, shownInAgent, sizeOf, stepNode,
-  unzoomed, viewWords, VIEWS, wireColor, wireLook } from "./graph.js";
+  unzoomed, viewWords, VIEWS, wireColor, wireLook, FLOATS, floatPlace } from "./graph.js";
 import { AGENT_STATE, COSTS, GRAPH } from "./helper.js";
 import { AGENT_CHOSEN, agentList, errorColors, GRAPHED, graphAgent, keepAgent, NAMES, tagWord, toneInk, usageAgents }
   from "./layers.js";
@@ -89,6 +89,10 @@ export class AgentsView {
     /** @type {{ id: string, from: import("./graph.js").Point, at: import("./graph.js").Point,
      * to: import("./graph.js").Point | null } | null} the node pressed: where, and where it is dragged to */
     this.drag = null;
+    /** @type {{ size: import("./graph.js").Room, moving: { from: import("./graph.js").Point,
+     * at: import("./graph.js").Point, to: import("./graph.js").Point | null } | null }} the properties' size, the press
+     * on their head that drags them (FLOATS keeps where they were let go) */
+    this.floating = { size: { width: 0, height: 0 }, moving: null };
     /** @type {string | null} the chosen node's id: its properties at the canvas's foot */
     this.chosen = null;
     /** @type {number | null} the last ask answered (openAgents()'s), by its time */
@@ -295,8 +299,43 @@ export class AgentsView {
     this.drag = { id: node.id, from: e.position, at, to: null };
   }
 
-  /** The pointer at E while a node is pressed: the node follows it, its edges with it. */
+  /** Where the chosen node's properties stand now: dragged, or where they were let go (FLOATS); null at their own
+   * place, lower left. */
+  floated() {
+    const kept = /** @type {any} */ (shared(FLOATS))?.agents ?? null, to = this.floating.moving?.to ?? kept;
+    return to ? floatPlace(to, this.floating.size, this.size, PAD) : null;
+  }
+
+  /** The properties' head pressed: a drag of them may start; a double click puts them back lower left. */
+  lift(e, cx) {
+    cx.stop_propagation();
+    if (e.click_count === 2) {
+      setShared(FLOATS, { .../** @type {any} */ (shared(FLOATS) ?? {}), agents: null });
+      return void cx.notify();
+    }
+    const at = this.floated() ?? floatPlace(null, this.floating.size, this.size, PAD);
+    this.floating.moving = { from: e.position, at, to: null };
+  }
+
+  /** The properties' size as laid out, in px as set: where they may stand. @param {any} size */
+  floatSized(size, cx) {
+    const width = unzoomed(size.width, zoom()), height = unzoomed(size.height, zoom()), was = this.floating.size;
+    if (Math.abs(width - was.width) < 1 && Math.abs(height - was.height) < 1) return;
+    this.floating.size = { width, height };
+    cx.notify();
+  }
+
+  /** The pointer at E while a node or the properties' head is pressed: it follows, a node's edges with it. */
   moved(e, cx) {
+    const lifted = this.floating.moving;
+    if (lifted) {                                 // the properties dragged by their head
+      const to = dragTo(lifted, e.position, zoom());
+      if (to && (to.x !== lifted.to?.x || to.y !== lifted.to?.y)) {
+        lifted.to = to;
+        cx.notify();
+      }
+      return;
+    }
     const to = this.drag && dragTo(this.drag, e.position, zoom());
     if (!this.drag || !to || (to.x === this.drag.to?.x && to.y === this.drag.to?.y)) return;
     this.drag.to = to;
@@ -306,6 +345,15 @@ export class AgentsView {
   /** The press over: a node dragged is kept where it was let go; one only pressed (CLICKED) is chosen.
    * @param {boolean} clicked */
   drop(clicked, cx) {
+    const lifted = this.floating.moving;
+    if (lifted) {                                 // the properties let go: kept there, inside the canvas
+      this.floating.moving = null;
+      if (lifted.to) {
+        setShared(FLOATS, { .../** @type {any} */ (shared(FLOATS) ?? {}),
+          agents: floatPlace(lifted.to, this.floating.size, this.size, PAD) });
+      }
+      return void cx.notify();
+    }
     const drag = this.drag;
     if (!drag) return;
     this.drag = null;
@@ -636,17 +684,25 @@ export class AgentsView {
         .child(div().w(RUN_LABEL).flex_none().text_color(t.muted).child(name))
         .child(div().flex_none().max_w_full().truncate().child(value))
         .when(Boolean(note), (e) => e.child(div().min_w(0).truncate().text_color(t.muted).child(note ?? "")));
-    return v_flex().id("agents-inspector").absolute().left(PAD).bottom(PAD).w(ran ? RUN_INSPECTOR : INSPECTOR)
+    const placed = this.still ? null : this.floated();
+    return v_flex().id(`agents-inspector-${viewId(this)}`).absolute()
+      .when(Boolean(placed), (e) => e.left(placed?.x).top(placed?.y)).when(!placed, (e) => e.left(PAD).bottom(PAD))
+      .w(ran ? RUN_INSPECTOR : INSPECTOR)
+      .when(!this.still, (e) => e.on_size_change((/** @type {any} */ size, /** @type {any} */ cx) =>
+        this.floatSized(size, cx)))
       .p(PAD).gap(6).rounded(10)
       .border_1().border_color(t.border).bg(ground).shadow_lg().text_size(12)
       .on_mouse_down("left", (/** @type {any} */ _e, /** @type {any} */ cx) => cx.stop_propagation())
-      .child(h_flex().h(20).flex_none().gap(8).items_center()
+      .child(h_flex().id("agents-inspector-head").h(20).flex_none().gap(8).items_center()
+        .when(!this.still, (e) => e.cursor_grab().tooltip("Drag to move; double-click to put it back")
+          .on_mouse_down("left", (/** @type {any} */ e, /** @type {any} */ cx) => this.lift(e, cx)))
         .child(this.mark(t, node, look))
         .child(div().flex_1().min_w(0).truncate().font_semibold().child(props?.title ?? node.title))
         .when(Boolean(state), (e) => e.child(div().flex_none().text_size(ran ? 12 : 11)
           .text_color(toneInk(t, state?.tone ?? "", ground)).child(state?.text ?? "")))
         .child(div().id("agents-inspector-close").size(16).flex_none().flex().items_center().justify_center()
           .rounded(4).text_color(t.dim).cursor_pointer().tooltip("Close")
+          .on_mouse_down("left", (/** @type {any} */ _e, /** @type {any} */ cx) => cx.stop_propagation())
           .hover((/** @type {any} */ s) => s.bg(t.hover).text_color(t.foreground))
           .on_click((/** @type {any} */ _e, /** @type {any} */ cx) => this.choose(null, cx)).child(icon("x", 12))))
       .when(lines.length > 0, (e) => e.child(v_flex().id("agents-inspector-lines").flex_none().max_h(LISTED)

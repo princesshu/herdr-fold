@@ -45,6 +45,7 @@ const STANDBY = "8c";                                // a standby route's line: 
 /** @typedef {{ x: number, y: number }} Point */
 /** @typedef {{ x: number, y: number, w: number, h: number }} Box */
 /** @typedef {{ w: number, h: number }} Size */
+/** @typedef {{ width: number, height: number }} Room a canvas's, a float's: in px as set */
 /** @typedef {[number, number][]} Path a cubic: its start, its two handles, its end */
 
 /** SPACE's Agents tab: the one so named whose pane is herdr-fold's (a terminal somebody named so is not it); null.
@@ -235,6 +236,17 @@ export function dragTo(drag, point, zoom = 1) {
   const dx = point.x - drag.from.x, dy = point.y - drag.from.y;
   return Math.hypot(dx, dy) < SHAKE ? null : { x: Math.max(0, Math.round(drag.at.x + unzoomed(dx, zoom))),
     y: Math.max(0, Math.round(drag.at.y + unzoomed(dy, zoom))) };
+}
+
+export const FLOATS = "herdr-fold.inspector-at";   // shared: where each graph's properties were let go, by its tab
+
+/** Where a float of SIZE stands (a graph's properties) when its head was let go at AT (null: its own place, lower
+ * left) in FRAME: PAD inside every edge, top left where the frame is smaller than it. @param {Point | null} at
+ * @param {Room} size @param {Room} frame @param {number} pad @returns {Point} */
+export function floatPlace(at, size, frame, pad) {
+  const most = { x: Math.max(pad, frame.width - size.width - pad), y: Math.max(pad, frame.height - size.height - pad) };
+  const to = at ?? { x: pad, y: most.y };
+  return { x: Math.round(Math.min(Math.max(pad, to.x), most.x)), y: Math.round(Math.min(Math.max(pad, to.y), most.y)) };
 }
 
 /** A graph's key in the kept places: its space, folder and agent. @param {string} space @param {string} folder

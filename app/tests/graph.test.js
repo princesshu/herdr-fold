@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { contrast } from "../mods/herdr-fold/agents.js";
 import { AGENT, AGENTS_TAB, agentsAsked, agentsTab, APART, askAgents, boxes, dragTo, dropLayout, EDGE, edgePath,
+  FLOATS, floatPlace,
   extent, FIRST, folded, gateAt, gatesRoom, GROUP, INDENT, IN_ROOM, keepLayout, layout, layoutKey, nodeFor, nodeLines,
   placed, portOf, sizeOf, stepNode, TIGHT, UNDER, USES_ROOM, GATES_MOST, wireColor, badgeAt, DISC, faded,
   FAINT, legendOf, measured, nodeShown, propertiesOf, running, seen, shareWidth, shownInAgent, unzoomed, VIEWS,
@@ -211,6 +212,19 @@ test("a node dragged follows the pointer from where it was pressed, kept once it
   assert.equal(dragTo(drag, { x: 502, y: 301 }), null);                    // a press that shook: still a click
   assert.deepEqual(dragTo(drag, { x: 460, y: 380 }), { x: 946, y: 226 });
   assert.deepEqual(dragTo(drag, { x: -900, y: -500 }), { x: 0, y: 0 });      // never off the canvas's corner
+});
+
+test("a graph's properties stand lower left, or where their head was let go, never past the canvas's edges", () => {
+  // the owner: "ha éppen ráfed egy részre, akkor arrébb húzható legyen más pozícióba a wrapperen belül"
+  const size = { width: 300, height: 200 }, frame = { width: 1000, height: 700 };
+  assert.equal(FLOATS, "herdr-fold.inspector-at");
+  assert.deepEqual(floatPlace(null, size, frame, 12), { x: 12, y: 488 });            // its own place: lower left
+  assert.deepEqual(floatPlace({ x: 500.4, y: 100.6 }, size, frame, 12), { x: 500, y: 101 });
+  assert.deepEqual(floatPlace({ x: 900, y: 650 }, size, frame, 12), { x: 688, y: 488 });   // kept inside: right, foot
+  assert.deepEqual(floatPlace({ x: -40, y: -40 }, size, frame, 12), { x: 12, y: 12 });
+  // a canvas grown smaller since: back inside it; one smaller than the float itself: its top left corner
+  assert.deepEqual(floatPlace({ x: 688, y: 488 }, size, { width: 700, height: 400 }, 12), { x: 388, y: 188 });
+  assert.deepEqual(floatPlace({ x: 300, y: 300 }, size, { width: 200, height: 100 }, 12), { x: 12, y: 12 });
 });
 
 test("what the app measures is told in the px a place is set in, at any zoom", () => {

@@ -563,20 +563,20 @@ route (`standby route`), red and dashed where it is away; its label says the way
 head's waypoints button opens it, and the status bar's machine opens it on that machine; opened again, the same tab is
 shown, in whichever space it is.
 
-A press on a node chooses it: its properties stand at the canvas's lower left, as on the Agents tab, the same rows the
-TUI's Machines view lists ([The Machines view](sidebar.md#the-machines-view)): a machine's name with `connected`, `not
-connected` or `unreachable`, its address or routes (the one in use first), its user, network, the way to it behind
-another (`This Mac › Tailscale › lumen-api › build-01`), its key, when it was seen and what runs there, then Status,
-Set up again, Remove… (asked first: `Take build-01 off the list, and herdr-fold off it?`) and ⋯ with Show in Spaces
-(its head unfolded there) and, on a Linux or macOS machine, Look around from here…, in one row as the TUI view has
-them. Each of those but Show in Spaces runs `./machines.sh` in a terminal tab on this Mac, from the package's folder
-the installer kept, so its questions and fingerprints stay there (with that folder gone, they stay faint, their tip
-saying why). A machine or a network that is away says why in `./machines.sh`'s
-words (`NetBird is not running on this Mac.`) with the command to run in a box (`Start it: netbird up`, Copy), and
-Check again in place of the other buttons; a network with none of its machines added yet offers them (`Add 3
-machines…`, as in Spaces), and with no machine on the list at all This Mac says so (`No machine on the list yet.`).
-Opened from Spaces, no node is chosen. Nodes drag and stay where they are let go, a double click beside them lays them
-out again, the arrows step from node to node, and Esc puts the properties away.
+A press on a node chooses it: its properties stand at the canvas's lower left, as on the Agents tab (dragged by their
+head anywhere on the canvas, where they stay; a double click on it puts them back), the same rows the TUI's Machines
+view lists ([The Machines view](sidebar.md#the-machines-view)): a machine's name with `connected`, `not connected` or
+`unreachable`, its address or routes (the one in use first), its user, network, the way to it behind another (`This Mac
+› Tailscale › lumen-api › build-01`), its key, when it was seen and what runs there, then Status, Set up again, Remove…
+(asked first: `Take build-01 off the list, and herdr-fold off it?`) and ⋯ with Show in Spaces (its head unfolded there)
+and, on a Linux or macOS machine, Look around from here…, in one row as the TUI view has them. Each of those but Show in
+Spaces runs `./machines.sh` in a terminal tab on this Mac, from the package's folder the installer kept, so its
+questions and fingerprints stay there (with that folder gone, they stay faint, their tip saying why). A machine or a
+network that is away says why in `./machines.sh`'s words (`NetBird is not running on this Mac.`) with the command to run
+in a box (`Start it: netbird up`, Copy), and Check again in place of the other buttons; a network with none of its
+machines added yet offers them (`Add 3 machines…`, as in Spaces), and with no machine on the list at all This Mac says
+so (`No machine on the list yet.`). Opened from Spaces, no node is chosen. Nodes drag and stay where they are let go, a
+double click beside them lays them out again, the arrows step from node to node, and Esc puts the properties away.
 
 The tab looks at the networks as it opens and every minute while it shows, as the status bar does: the networks' own
 status, the list and the app's own machines, never a login. Refresh is the status check: a login to each machine whose

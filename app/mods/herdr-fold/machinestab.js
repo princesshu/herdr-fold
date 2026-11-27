@@ -8,7 +8,7 @@ import { agents, exec, hc, home, panes, readTextFile, setShared, settings, share
 import { mixColor } from "./agents.js";
 import { boxes, dashOf, dragTo, dropLayout, edgePath, extent, GRAPH_LAYOUT, HEADS, keepLayout, labelAt, LABEL_HIGH,
   litEdges, MACHINES, MACHINES_ASK, machinesAsked, machinesLayout, machinesPlaced, machinesTab, measured, networkUnder,
-  portOf, sizeOf, stepNode, unzoomed, wireColor, wireLook } from "./graph.js";
+  portOf, sizeOf, stepNode, unzoomed, wireColor, wireLook, FLOATS, floatPlace } from "./graph.js";
 import { MACHINE_GRAPH, MACHINE_WORDS, NETWORKS } from "./helper.js";
 import { toneInk } from "./layers.js";
 import { appMachines, graphPipe, importCommand, lastLine, machineCommand, machineRuns, machinesKept, NOTE_MS, said,
@@ -74,6 +74,10 @@ export class MachinesView {
     /** @type {{ id: string, from: import("./graph.js").Point, at: import("./graph.js").Point,
      * to: import("./graph.js").Point | null } | null} the node pressed: where, and where it is dragged to */
     this.drag = null;
+    /** @type {{ size: import("./graph.js").Room, moving: { from: import("./graph.js").Point,
+     * at: import("./graph.js").Point, to: import("./graph.js").Point | null } | null }} the properties' size, the press
+     * on their head that drags them (FLOATS keeps where they were let go) */
+    this.floating = { size: { width: 0, height: 0 }, moving: null };
     /** @type {string | null} the chosen node's id: its properties at the canvas's lower left */
     this.chosen = null;
     /** @type {number | null} the last ask answered (openMachines()'s), by its time */
@@ -330,10 +334,17 @@ export class MachinesView {
     const lines = /** @type {any[]} */ (props.lines ?? []), why = /** @type {any[]} */ (props.why ?? []);
     const buttons = this.buttons(t, node, props, graph), mark = this.mark(t, node);
     const bare = !lines.length && !why.length && !buttons && Boolean(node.sub);
-    return v_flex().id("machines-inspector").absolute().left(PAD).bottom(PAD).w(INSPECTOR).p(PAD).gap(6).rounded(10)
+    const placed = this.still ? null : this.floated();
+    return v_flex().id(`machines-inspector-${viewId(this)}`).absolute()
+      .when(Boolean(placed), (e) => e.left(placed?.x).top(placed?.y)).when(!placed, (e) => e.left(PAD).bottom(PAD))
+      .w(INSPECTOR)
+      .when(!this.still, (e) => e.on_size_change((/** @type {any} */ size, /** @type {any} */ cx) =>
+        this.floatSized(size, cx))).p(PAD).gap(6).rounded(10)
       .border_1().border_color(t.border).bg(ground).shadow_lg().text_size(12)
       .on_mouse_down("left", (/** @type {any} */ _e, /** @type {any} */ cx) => cx.stop_propagation())
-      .child(h_flex().h(20).flex_none().gap(8).items_center()
+      .child(h_flex().id("machines-inspector-head").h(20).flex_none().gap(8).items_center()
+        .when(!this.still, (e) => e.cursor_grab().tooltip("Drag to move; double-click to put it back")
+          .on_mouse_down("left", (/** @type {any} */ e, /** @type {any} */ cx) => this.lift(e, cx)))
         .when(Boolean(mark), (e) => e.child(mark))
         .child(div().flex_1().min_w(0).truncate().font_semibold().child(props.title ?? node.title))
         .when(Boolean(state), (e) => e.child(div().flex_none().text_size(11)
@@ -341,6 +352,7 @@ export class MachinesView {
           .child(state?.text ?? "")))
         .child(div().id("machines-inspector-close").size(16).flex_none().flex().items_center().justify_center()
           .rounded(4).text_color(t.dim).cursor_pointer().tooltip("Close")
+          .on_mouse_down("left", (/** @type {any} */ _e, /** @type {any} */ cx) => cx.stop_propagation())
           .hover((/** @type {any} */ s) => s.bg(t.hover).text_color(t.foreground))
           .on_click((/** @type {any} */ _e, /** @type {any} */ cx) => this.choose(null, cx)).child(icon("x", 12))))
       .when(bare, (e) => e.child(div().text_color(t.muted).child(String(node.sub))))
@@ -513,8 +525,43 @@ export class MachinesView {
     this.drag = { id: node.id, from: e.position, at, to: null };
   }
 
-  /** The pointer at E while a node is pressed: the node follows it, its edges with it. */
+  /** Where the chosen node's properties stand now: dragged, or where they were let go (FLOATS); null at their own
+   * place, lower left. */
+  floated() {
+    const kept = /** @type {any} */ (shared(FLOATS))?.machines ?? null, to = this.floating.moving?.to ?? kept;
+    return to ? floatPlace(to, this.floating.size, this.size, PAD) : null;
+  }
+
+  /** The properties' head pressed: a drag of them may start; a double click puts them back lower left. */
+  lift(e, cx) {
+    cx.stop_propagation();
+    if (e.click_count === 2) {
+      setShared(FLOATS, { .../** @type {any} */ (shared(FLOATS) ?? {}), machines: null });
+      return void cx.notify();
+    }
+    const at = this.floated() ?? floatPlace(null, this.floating.size, this.size, PAD);
+    this.floating.moving = { from: e.position, at, to: null };
+  }
+
+  /** The properties' size as laid out, in px as set: where they may stand. @param {any} size */
+  floatSized(size, cx) {
+    const width = unzoomed(size.width, zoom()), height = unzoomed(size.height, zoom()), was = this.floating.size;
+    if (Math.abs(width - was.width) < 1 && Math.abs(height - was.height) < 1) return;
+    this.floating.size = { width, height };
+    cx.notify();
+  }
+
+  /** The pointer at E while a node or the properties' head is pressed: it follows, a node's edges with it. */
   moved(e, cx) {
+    const lifted = this.floating.moving;
+    if (lifted) {                                 // the properties dragged by their head
+      const to = dragTo(lifted, e.position, zoom());
+      if (to && (to.x !== lifted.to?.x || to.y !== lifted.to?.y)) {
+        lifted.to = to;
+        cx.notify();
+      }
+      return;
+    }
     const to = this.drag && dragTo(this.drag, e.position, zoom());
     if (!this.drag || !to || (to.x === this.drag.to?.x && to.y === this.drag.to?.y)) return;
     this.drag.to = to;
@@ -524,6 +571,15 @@ export class MachinesView {
   /** The press over: a node dragged is kept where it was let go (under MACHINES); one only pressed (CLICKED) chosen.
    * @param {boolean} clicked */
   drop(clicked, cx) {
+    const lifted = this.floating.moving;
+    if (lifted) {                                 // the properties let go: kept there, inside the canvas
+      this.floating.moving = null;
+      if (lifted.to) {
+        setShared(FLOATS, { .../** @type {any} */ (shared(FLOATS) ?? {}),
+          machines: floatPlace(lifted.to, this.floating.size, this.size, PAD) });
+      }
+      return void cx.notify();
+    }
     const drag = this.drag;
     if (!drag) return;
     this.drag = null;

@@ -2523,7 +2523,8 @@ function sections(g, t) {
     ["machines-inspector", () => [group(t, "The Machines tab: the chosen node's properties",
       g.machinesInspector.map(([name, view, h], i) => specimen(t, `machines-inspector-${i}`, String(name),
         fixed(Number(h), /** @type {any} */ (view).draw(t)), { width: 324, spec: i ? "" : "at the canvas's lower "
-        + "left, 12 in, as the Agents tab's: a popover 300 wide, a hairline, rounded 10, shadow_lg, 12 inside, its "
+        + "left, 12 in, as the Agents tab's, or where its head was let go (a double click back): a popover 300 wide, "
+        + "a hairline, rounded 10, shadow_lg, 12 inside, its "
         + "parts 6 apart, 12 · the title 20 high: the node's mark, its name semibold, its state 11 in its tone "
         + "(connected ansi2), × 16 · "
         + "why it is away in ansi3, wrapping; what to do muted, a command in a box: h 26, 8 in, radius 6, a "

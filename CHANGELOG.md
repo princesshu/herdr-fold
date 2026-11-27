@@ -118,7 +118,8 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
   name and size.
 - An agent's graph: the Herdr app's Agents tab draws what goes in, the agent with its subagents and what they use, each
   edge with its gates (`allow pytest`, `deny git push`); the TUI writes it as a tree in the preview tab (`g`). This chat
-  shows what one chat ran, numbered in order, with each agent's cost. See [The graph](docs/harness.md#the-graph).
+  shows what one chat ran, numbered in order, with each agent's cost. A node's properties drag by their head
+  wherever they cover nothing, there as in the Machines tab. See [The graph](docs/harness.md#the-graph).
 - The Usage view: what the agents used and what that cost, each message at its model's list price (fetched once a
   day under the update check's switch): the period, a summary, each day by model, an API key's month against its
   budget, the projects, chats and models; Budget… and, in the app, Export CSV. The app's Agents tab has it; the TUI
