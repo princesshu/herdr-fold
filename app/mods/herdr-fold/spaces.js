@@ -1,17 +1,17 @@
 // @ts-check
-// The Spaces list where the app's own was, drawn as it draws one: by machine, a worktree under its checkout, each
-// space's branch, dragged into order, the app's menu on a right click; and how long agents wait, as the TUI's.
+// The Spaces list where the app's own was, drawn as it draws one: by machine (by network once many), a worktree under
+// its checkout, each space's branch, dragged into order, the app's menu on a right click; agents' waits, as the TUI's.
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { agents, focused, hc, home, machines, openOverlay, panes, pickFolder, setShared, shared, spaces, watchFolder,
   window, run as command } from "herdr";
 import { chatWaits, newSpace } from "./chat.js";
 import { GIT } from "./helper.js";
-import { atHome, avatarFill, folderKey, headed, HOME_NAME, homeFirst, homeId, homesEmpty, homesSeen, LIST, listBody,
-  nested, nextWaits, placeKey, placeLabel, spaceColor, spaceColors, spaceLabel, spaceWaits, toggleUnread, hovering,
-  waited, withHomes }
+import { atHome, avatarFill, CENTRED, folderKey, HOME_NAME, homeFirst, homeId, homesEmpty, homesSeen, importCommand,
+  LIST, nested, NETWORKS_FOLDED, NETWORKS_SEEN, nextWaits, placeKey, placeLabel, spaceColor, spaceColors, spaceLabel,
+  spacesItems, spaceWaits, toAddWords, toggleUnread, hovering, waited, withHomes }
   from "./logic.js";
-import { icon, iconButton, listHead } from "./parts.js";
+import { icon, iconButton, listHead, networkMark } from "./parts.js";
 
 const WAITS = "herdr-fold.waits";                  // each agent waiting on you: since when, and Cmd + Shift + U's mark
 const FOLDED = "herdr-fold.machines-folded";       // the machines whose spaces are folded away
@@ -92,7 +92,9 @@ export function spaceColorsKept() {
 /** @typedef {{ id: string, name: string, active: boolean, color: string, tree: boolean, label: string, ahead: number,
  *   behind: number, wait: string | null, home?: boolean, empty?: boolean, machine?: string | null }} Row */
 /** @typedef {{ machine: string | null, connected: boolean, state: string, rebuilt: boolean, error: string | null,
- *   busy: boolean, folded: boolean, wait: string | null, rows: Row[], loading: boolean }} Group */
+ *   busy: boolean, folded: boolean, wait: string | null, since: number | null, rows: Row[],
+ *   loading: boolean }} Group */
+/** @typedef {import("./logic.js").SpacesItem} Item */
 
 export class SpacesView {
   /** PYTHON: main.js's, core/ on a space's machine. @param {(source: string, args: string[], root: string,
@@ -371,7 +373,7 @@ export class SpacesView {
         rebuilt: this.rebuilt(machine) || Boolean(repair), error: repair?.error ?? null,
         busy: this.mending.has(String(m)), folded: folded.has(m), loading: loading(m),
         rows: [...(empty.has(m) && (!m || machine?.state === "connected") ? [standIn(m)] : []), ...mine.map(row)],
-        wait: waits.length ? waited(now - Math.min(...waits)) : null };
+        wait: waits.length ? waited(now - Math.min(...waits)) : null, since: waits.length ? Math.min(...waits) : null };
     });
   }
 
@@ -379,10 +381,11 @@ export class SpacesView {
     return this.draw(t, this.model());
   }
 
-  /** GROUPS drawn as the app's own list: its head and +, then each machine's head (once one is not this computer)
-   * and its spaces. @param {Group[]} groups */
-  draw(t, groups) {
-    const heads = headed(groups);
+  /** GROUPS drawn as the app's own list: its head and +, then (once a machine is not this computer) each machine's
+   * head and its spaces, by network once they are many (spacesItems), with what the networks said (SEEN) and the
+   * networks FOLDED. @param {Group[]} groups @param {any} [seen] @param {any} [folded] */
+  draw(t, groups, seen = shared(NETWORKS_SEEN) ?? null, folded = shared(NETWORKS_FOLDED)) {
+    const items = spacesItems(groups, seen, Array.isArray(folded) ? folded : []);
     return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)               // the left sidebar's level
       .child(listHead(t, "Spaces", iconButton(t, "space-new", "plus", "New space",
         () => void newSpace().catch(() => {}))))
@@ -391,17 +394,67 @@ export class SpacesView {
           this.pressed = null;
           cx.notify();
         })
-        .children(groups.flatMap((g) => [...(heads ? [this.head(t, g)] : []), ...{ none: [],
-          rows: g.rows.map((r) => this.row(t, r, g.rows)), loading: [this.loadingRow(t, g)],
-          empty: [this.emptyRow(t, g)] }[listBody(g, heads)]])));
+        .children(items.map((item) => item.kind === "network" ? this.networkHead(t, item)
+          : item.kind === "add" ? this.addRow(t, item, seen?.setup ?? null)
+            : item.kind === "machine" ? this.head(t, item)
+              : item.kind === "row" ? this.row(t, item.row, item.group.rows, item.indent)
+                : item.kind === "loading" ? this.loadingRow(t, item.group, item.indent)
+                  : this.emptyRow(t, item.group, item.indent))));
   }
 
-  /** A machine's head: its name, how it is, + for a space there (its place kept, shown on hover: the list's head has
-   * one too), its dot, its chevron folding its spaces; folded, its longest wait. @param {Group} g */
-  head(t, g) {
-    const m = g.machine, id = m ?? "local";
-    return h_flex().id(`machine-${id}`).h(LIST.machine).flex_none().px(8).gap(6).items_center().text_size(11)
-      .text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover)).on_hover(hovering(this, id))
+  /** A network's head (machines.html's .nhead), 8 under what is above it: its mark, name, state while it is not on
+   * (its tip the ladder's sentence), folded its machines' longest wait, their count, its chevron folding them away.
+   * @param {Item} item */
+  networkHead(t, item) {
+    const quiet = item.said?.tone === "dim";
+    return h_flex().id(`network-${item.network}`).h(LIST.machine).flex_none().mt(LIST.gap).px(8).gap(6).items_center()
+      .rounded(6).text_size(12).text_color(t.muted).cursor_pointer().hover((s) => s.bg(t.hover))
+      .when(Boolean(item.tip), (e) => e.tooltip(String(item.tip)))
+      .on_click((_e, cx) => {
+        const folded = new Set(/** @type {any[]} */ (shared(NETWORKS_FOLDED) ?? []));
+        if (!folded.delete(item.network)) folded.add(item.network);
+        setShared(NETWORKS_FOLDED, [...folded]);
+        cx.notify();
+      })
+      .child(networkMark(t, item.network, CENTRED.headMark[1]))
+      .child(div().min_w(0).truncate().font_semibold().when(quiet, (e) => e.text_color(t.dim)).child(item.name))
+      .when(Boolean(item.said), (e) => e.child(div().flex_none().text_size(11)
+        .text_color(quiet ? t.dim : t.ansi3).child(String(item.said?.word))))
+      .when(item.folded && Boolean(item.wait), (e) => e.child(div().flex_none().text_size(11).text_color(t.ansi3)
+        .child(String(item.wait))))
+      .child(div().flex_1())
+      .child(div().flex_none().text_size(11).text_color(t.dim).child(String(item.count)))
+      .child(icon(item.folded ? "chevron-right" : "chevron-down", CENTRED.headChevron[1]).text_color(t.dim));
+  }
+
+  /** A network with none of its machines added yet: how many it offers, its tip naming them; a click asks about each
+   * (the package's machines.sh, SETUP its folder) in a terminal tab on this Mac. @param {Item} item
+   * @param {string | null} setup */
+  addRow(t, item, setup) {
+    const { words, tip } = toAddWords(item.network, item.offered);
+    return h_flex().id(`network-add-${item.network}`).h(LIST.tree).flex_none().pl(8 + item.indent).pr(8).gap(6)
+      .items_center().rounded(6).text_size(12).text_color(t.dim).cursor_pointer()
+      .hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip(tip)
+      .on_click(() => setup && this.ask(item.network, setup))
+      .child(icon("plus", CENTRED.headAddIcon[1])).child(words);
+  }
+
+  /** NETWORK's machines asked about, ./machines.sh in the package's FOLDER, in a terminal tab on this Mac.
+   * @param {string} network @param {string} folder */
+  ask(network, folder) {
+    const [name, args] = importCommand(network, folder, spaces());
+    command(name, args);
+  }
+
+  /** A machine's head: its icon, network's mark or corner (item.lead), its name, how it is, + for a space there (shown
+   * on hover), its dot, its chevron folding its spaces; folded, its longest wait; its tip the way it is reached where
+   * its group does not say it. @param {Item} item */
+  head(t, item) {
+    const g = item.group, m = g.machine, id = m ?? "local";
+    return h_flex().id(`machine-${id}`).h(LIST.machine).flex_none().when(item.gap, (e) => e.mt(LIST.gap))
+      .pl(8 + item.indent).pr(8).gap(6).items_center().rounded(6).text_size(11).text_color(t.dim).cursor_pointer()
+      .hover((s) => s.bg(t.hover)).on_hover(hovering(this, id))
+      .when(Boolean(item.tip), (e) => e.tooltip(String(item.tip)))
       .on_click((_e, cx) => {
         const folded = new Set(/** @type {any[]} */ (shared(FOLDED) ?? []));
         if (folded.has(m)) folded.delete(m);
@@ -409,7 +462,10 @@ export class SpacesView {
         setShared(FOLDED, [...folded]);
         cx.notify();
       })
-      .child(icon(m ? "server" : "monitor", 13).flex_none())
+      .when(item.lead === "monitor" || item.lead === "server", (e) => e.child(icon(item.lead === "server" ? "server"
+        : "monitor", CENTRED.headMark[1])))
+      .when(item.lead === "mark", (e) => e.child(networkMark(t, item.network, CENTRED.headMark[1])))
+      .when(item.lead === "corner", (e) => e.child(icon("corner-down-right", CENTRED.headCorner[1])))
       .child(div().flex_1().truncate().child(m ?? "This computer"))
       .when(!g.connected && !g.rebuilt, (e) => e.child(div().flex_none().child(g.state.replace(/_/g, " "))))
       .when(g.rebuilt, (e) => e.child(h_flex().flex_none().gap(4).items_center()
@@ -424,21 +480,21 @@ export class SpacesView {
           })
           .child(g.busy ? "Connecting…" : "Connect"))))
       .when(g.folded && Boolean(g.wait), (e) => e.child(div().flex_none().text_color(t.ansi3).child(g.wait)))
-      .when(g.connected, (e) => e.child(div().id(`machine-add-${id}`).size(18).flex_none().flex().items_center()
-        .justify_center().rounded(4).when(this.hovered !== id, (s) => s.invisible())
+      .when(g.connected, (e) => e.child(div().id(`machine-add-${id}`).size(CENTRED.headAdd[1]).flex_none().flex()
+        .items_center().justify_center().rounded(4).when(this.hovered !== id, (s) => s.invisible())
         .hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip("New space there")
         .on_click((_e, cx) => {
           cx.stop_propagation();
           newSpace({ machine: m ?? "" }).catch(() => {});
-        }).child(icon("plus", 12))))
-      .child(div().size(6).rounded_full().flex_none().bg(g.connected ? t.ansi2 : t.dim))
-      .child(icon(g.folded ? "chevron-right" : "chevron-down", 11).flex_none());
+        }).child(icon("plus", CENTRED.headAddIcon[1]))))
+      .child(div().size(CENTRED.headDot[1]).rounded_full().flex_none().bg(g.connected ? t.ansi2 : t.dim))
+      .child(icon(g.folded ? "chevron-right" : "chevron-down", CENTRED.headChevron[1]));
   }
 
-  /** A space's row: avatar (a worktree its branch under its checkout), name, branch, how far from its upstream, its
-   * wait; its highlight 2 in, a drag's line between two rows; a right click, the app's menu. A home stays first (no
-   * drag or drop); with nothing open, outlined and dim, a click opens a terminal. @param {Row} r @param {Row[]} rows */
-  row(t, r, rows) {
+  /** A space's row: avatar (a worktree its branch under its checkout), name, branch, how far from upstream, its wait,
+   * INDENT in; its highlight 2 in, a drag's line between rows; a right click, the app's menu. A home stays first; with
+   * nothing open, outlined and dim, a click opens a terminal. @param {Row} r @param {Row[]} rows */
+  row(t, r, rows, indent = 0) {
     const from = rows.findIndex((x) => x.id === this.pressed), at = rows.findIndex((x) => x.id === r.id);
     // a drag stays within its machine's spaces, and off its home
     const mine = () => !r.home && rows.some((x) => x.id === this.pressed && !x.home);
@@ -470,7 +526,7 @@ export class SpacesView {
       })
       .on_mouse_down("right", () => r.empty || openOverlay({ mod: "menu", kind: "popup", width: 200, height: 260,
         props: { tab: "space", target: { id: r.id } } }))
-      .child(v_flex().flex_1().px(8).justify_center().rounded(8).when(r.active, (e) => e.bg(t.selected))
+      .child(v_flex().flex_1().pl(8 + indent).pr(8).justify_center().rounded(8).when(r.active, (e) => e.bg(t.selected))
         .when(!r.active, (e) => e.hover((s) => s.bg(t.hover)))
         .child(h_flex().gap(8).items_center()
           .when(r.tree, (e) => e.pl(18 + 8).child(icon("git-branch", 13).text_color(t.dim)))  // under its checkout
@@ -490,15 +546,16 @@ export class SpacesView {
   }
 
   /** @param {Group} g */
-  loadingRow(t, g) {
-    return div().id(`machine-loading-${g.machine ?? "local"}`).h(LIST.tree).flex_none().px(8).flex().items_center()
-      .text_size(12).text_color(t.dim).child("Loading…");
+  loadingRow(t, g, indent = 0) {
+    return div().id(`machine-loading-${g.machine ?? "local"}`).h(LIST.tree).flex_none().pl(8 + indent).pr(8).flex()
+      .items_center().text_size(12).text_color(t.dim).child("Loading…");
   }
 
   /** A machine with no space yet: one made there by a click. @param {Group} g */
-  emptyRow(t, g) {
-    return h_flex().id(`machine-new-${g.machine ?? "local"}`).h(LIST.tree).flex_none().px(8).gap(6).items_center()
-      .rounded(6).text_size(12).text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground))
+  emptyRow(t, g, indent = 0) {
+    return h_flex().id(`machine-new-${g.machine ?? "local"}`).h(LIST.tree).flex_none().pl(8 + indent).pr(8).gap(6)
+      .items_center().rounded(6).text_size(12).text_color(t.dim).cursor_pointer()
+      .hover((s) => s.bg(t.hover).text_color(t.foreground))
       .on_click(() => void newSpace({ machine: g.machine ?? "" }).catch(() => {}))
       .child(icon("plus", 12)).child("New space there");
   }

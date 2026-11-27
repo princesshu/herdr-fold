@@ -18,9 +18,9 @@ AGENT = "herdr-fold-tools"    # the request's User-Agent (the API turns away Pyt
 WIDTH = 120                   # a line's cells, as every file keeps to
 SVG = "http://www.w3.org/2000/svg"
 # the views' icons, Lucide's names: the mod draws each with icon(name), and tests/test_app.py fails on one it does not
-UI = ("arrow-up", "arrow-up-from-line", "at-sign", "audio-lines", "book-marked", "bot", "bug", "check",
-      "chevron-down", "chevron-right", "chevron-up", "chevrons-down-up", "chevrons-left", "chevrons-right",
-      "circle-dot", "clipboard-list", "clock", "code", "columns-2", "command", "copy", "download", "ellipsis",
+UI = ("arrow-up", "arrow-up-from-line", "at-sign", "audio-lines", "book-marked", "bot", "bug", "check", "chevron-down",
+      "chevron-right", "chevron-up", "chevrons-down-up", "chevrons-left", "chevrons-right", "circle-dot",
+      "clipboard-list", "clock", "code", "columns-2", "command", "copy", "corner-down-right", "download", "ellipsis",
       "external-link", "eye", "eye-off", "file", "file-plus", "files", "folder-plus", "git-branch", "git-pull-request",
       "hand", "layers", "leaf", "lightbulb", "link", "list", "list-filter", "loader-circle", "minus", "monitor",
       "notebook", "panel-left", "play", "plug", "plus", "refresh-cw", "rotate-ccw", "rows-2", "scroll-text", "search",

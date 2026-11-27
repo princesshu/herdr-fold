@@ -89,6 +89,37 @@ class Copies(unittest.TestCase):
         self.assertEqual(build.HELPERS[helper]["CONNECTORS"], "connectors.py")
         self.assertIn("connectors", build.imports("agent_setup.py"))                # a server's brand is core's
 
+    def test_the_mod_asks_the_networks_and_says_their_sentences(self):
+        # core/networks.py on this Mac (Spaces' networks, the status bar's mark), and the catalog's words for what it
+        # answers: why a machine is away, what to do, each network's name (src/lang/en.txt's, as machines.sh says them)
+        helper = os.path.join("app", "mods", "herdr-fold", "helper.js")
+        self.assertEqual(build.HELPERS[helper]["NETWORKS"], "networks.py")
+        catalog = {}
+        with open(os.path.join(PACKAGE, "src", "lang", "en.txt"), encoding="utf-8") as f:
+            key = None
+            for line in f.read().split("\n"):
+                if key:
+                    catalog[key] += line.lstrip()
+                else:
+                    key, sep, text = line.partition(" = ")
+                    if not sep or key.startswith("#"):
+                        key = None
+                        continue
+                    catalog[key] = text
+                if catalog[key].endswith("\\"):
+                    catalog[key] = catalog[key][:-1]
+                else:
+                    key = None
+        words = build.machine_words()
+        self.assertEqual(words, {key: text for key, text in catalog.items()
+                                 if key.startswith(("machines.why_", "machines.network_"))})
+        self.assertEqual(words["machines.why_netbird_off"], "NetBird is not running on this Mac.")
+        made = built()[helper]
+        self.assertIn("export const MACHINE_WORDS = {\n", made)
+        for key in words:
+            self.assertIn(f"  {json.dumps(key)}:", made)
+        self.assertTrue(all(len(row) <= 120 for row in made.split("\n")))
+
     def test_spaces_gets_core_git_and_what_it_imports(self):
         # its Spaces row's repository inside a folder is core/git.py's, as the Herdr app mod's Spaces list's is
         folder = os.path.join("src", "plugins", "spaces")
@@ -127,6 +158,19 @@ class Runnable(unittest.TestCase):
                                   timeout=30)
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(json.loads(done.stdout), {"chats": [], "archived": []})
+
+    def test_the_networks_helper_runs_alone_as_the_app_runs_it(self):
+        # networks.py with machines.py made first, no file of its own beside it (Python's -c has no __file__)
+        with tempfile.TemporaryDirectory() as home:
+            done = subprocess.run(["/usr/bin/python3", "-I", "-c", build.runnable("networks.py"), "machines",
+                                   os.path.join(home, "machines.txt"), "", "", "", ""],
+                                  env={"HOME": home, "PATH": "/usr/bin:/bin"}, capture_output=True, text=True,
+                                  timeout=30)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        found = json.loads(done.stdout)
+        self.assertEqual(found["machines"], [])
+        self.assertEqual(found["networks"]["wireguard"], {"installed": False, "state": None, "why": None,
+                                                          "offered": []})
 
     def test_what_an_imported_module_imports_is_made_first_too(self):
         # chat.py imports plan.py, which imports chats.py, which imports fileops.py, statefile.py, jsonl.py and

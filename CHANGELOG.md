@@ -185,6 +185,13 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
   read end to end and asked about first; one that takes lumen-api's own key alone gets this Mac's public key from
   lumen-api's own login only on a yes for that machine. Removing a machine others go through asks whether they go too;
   a no keeps it as their jump host. See [A machine behind another](docs/remote-machines.md#a-machine-behind-another).
+- The Herdr app's Spaces by network: each machine's head wears its network's mark (Tailscale's, NetBird's, ZeroTier's,
+  a letter or a plain icon), and once five or more are on two networks or more they stand under their network's head
+  with its count. A network whose client is off or signed out says so there, its tip the same sentence `./machines.sh`
+  says; a machine behind another stands under it, one on two routes is one head; a network on with none of its
+  machines added yet offers them (`3 machines to add`), asked about in a terminal tab. The status bar's machine wears
+  its mark too. The app looks at the networks once a minute while it shows a remote machine, with no login. See
+  [Spaces](docs/app.md#spaces).
 
 ### Changed
 

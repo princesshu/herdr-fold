@@ -68,7 +68,8 @@ an agent in a space waits on you, as the TUI's Space rows do:
 | A space | its avatar in the color every app mod gives it (a worktree's, the branch icon, under its checkout's space), its name, then its branch (where its folder only holds a repository, that one's: the active pane's among several), main too, as the TUI shows it, with the repository where it is not the name (never what its name says already), ↑ the commits to push and ↓ to pull; and `waiting 12m` in yellow while an agent there waits on you, blocked or done and not seen yet, or a chat tab there asks you something, the longest wait when several do. A click shows it, a drag puts it elsewhere among its machine's spaces, a right click opens the app's own menu for it |
 | Home | each machine's home folder is always a row, `~`, first among its machine's spaces: this computer's, and each connected machine's. The app ends a space with its last tab (it asks first), so with no space there the row stays as a stand-in with nothing open: its avatar an outline, its name dim, no branch. A click opens a terminal there, the space the app calls `~`; the stand-in has no menu, and it is never dragged, nor anything dropped above it. Any other space closed is gone, as the app has it. Folded to its dock, the floating list shows the same rows |
 | A root | a space on a machine's root, which the app names by its path (`/`, `C:\`), is named by a word, as in the TUI: `root`, or the drive, `C:`. Its avatar is home's kind: a glyph tile in home's color, `/` or the drive's letter |
-| A machine | once another machine is known, a head for each: this computer first, then the others by name, how each is (asleep, unreachable…), + for a new space there on its hover, its dot green while connected; a click folds its spaces away, and folded, it says their longest wait. A machine rebuilt or replaced says so, and Connect adds it again the way it was added |
+| A machine | once another machine is known, a head for each: this computer first, then the others by name, each 8 under the one above it and wearing its network's mark ([Remote machines](remote-machines.md#networks)), how each is (asleep, unreachable…), + for a new space there on its hover, its dot green while connected; a click folds its spaces away, and folded, it says their longest wait. A machine rebuilt or replaced says so, and Connect adds it again the way it was added. One behind another stands under it, a step further in, its tip the way to it (`Through lumen-api (198.51.100.30)`); one on several routes is one head under the route in use, its tip naming the others |
+| A network | once five remote machines or more are on two networks or more, they stand under their network's head (its mark, its name, its machines' count), in the routes' order: the local network, Tailscale, NetBird, ZeroTier, WireGuard, another tunnel, Cloudflare, public; those no network tells last, as before. While its client on this Mac is not on, its head says so (`off`, `signed out`…) and its tip says why and what to do, in `./machines.sh`'s words (`NetBird is not running on this Mac.`, `Start it: netbird up`). A click folds its machines away, and folded, it says their longest wait. A network on with none of its machines added yet shows its head all the same, with `3 machines to add`: a click asks about each in a terminal tab on this Mac (`./machines.sh netbird`, from the package's folder the installer kept) |
 | + | a new space, its agent started as + after the last tab starts one ([New chats](#new-chats)) |
 | The foot | Settings, which opens [Settings](#settings), and Add machine…, as the app's own foot has them |
 
@@ -553,17 +554,17 @@ project](../assets/screenshots/app-agents-usage.webp)
 ## The status bar
 
 The window's foot is herdr-fold's own status bar, where the app's was, as the mockups draw it: on the side's level under
-a hairline, the shown space's machine (This computer, else its name) and branch, then its agents, a dot and their words:
-those waiting on you first (`1 of 3 agents waiting for you`, the dot yellow), else those working (`2 agents working`,
-the dot in the accent), else how many (`1 agent`, `2 agents`); while a run works in the background, `1 run working`
-after them, a press opening the Agents tab on [Runs](harness.md#the-runs-view). While Herdr has an update ready, a
-quiet item stands at its right end: a green dot and `Update ready: herdr-core 0.1.21`, a press updating herdr-core
-while the terminals keep running (a spinner and `Updating herdr-core to 0.1.21…` meanwhile), or `Update ready: Herdr
-0.1.16`, a press restarting into it, herdr-core with it when it waits too; its tip says which. A herdr-core a
-package manager owns shows none (it updates there). With neither ready, a newer herdr-fold stands there the same way,
-`herdr-fold 0.4.0 is out`: a press updates nothing, it opens [Settings](#settings) at About, which says how. One item
-shows at a time, in that order. This is the one place herdr-fold says it: the sidebar's Settings has no dot. The app's
-own notice in the window's corner is Herdr's: a layout cannot turn it off, and its × closes it.
+a hairline, the shown space's machine (This computer, else its name with its network's mark) and branch, then its
+agents, a dot and their words: those waiting on you first (`1 of 3 agents waiting for you`, the dot yellow), else those
+working (`2 agents working`, the dot in the accent), else how many (`1 agent`, `2 agents`); while a run works in the
+background, `1 run working` after them, a press opening the Agents tab on [Runs](harness.md#the-runs-view). While Herdr
+has an update ready, a quiet item stands at its right end: a green dot and `Update ready: herdr-core 0.1.21`, a press
+updating herdr-core while the terminals keep running (a spinner and `Updating herdr-core to 0.1.21…` meanwhile), or
+`Update ready: Herdr 0.1.16`, a press restarting into it, herdr-core with it when it waits too; its tip says which. A
+herdr-core a package manager owns shows none (it updates there). With neither ready, a newer herdr-fold stands there the
+same way, `herdr-fold 0.4.0 is out`: a press updates nothing, it opens [Settings](#settings) at About, which says how.
+One item shows at a time, in that order. This is the one place herdr-fold says it: the sidebar's Settings has no dot.
+The app's own notice in the window's corner is Herdr's: a layout cannot turn it off, and its × closes it.
 
 ## Keys
 

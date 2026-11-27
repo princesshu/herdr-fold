@@ -209,17 +209,18 @@ you; herdr-core's update ready, Herdr's update ready, herdr-core updating, and a
 out](../assets/styleguide/status-bar.webp)
 
 The window's foot, herdr-fold's own in place of the app's, as the mockups' `.status`: 28 high on the side's level
-(`chrome`) under a hairline, 16 in and its items 16 apart, 12 in the captions' tone. The machine (This computer), the
-branch, then the agents behind a 6 px dot: those waiting on you in ansi3 (`1 of 3 agents waiting for you`), else those
-working in the accent (`1 agent working`), else how many (`2 agents`) with a dim dot. While a run works in the
-background, `1 run working` after them in the text's color, 20 high, 6 inside, rounded 4, the hover fill under the
-pointer, a press opening the Agents tab on Runs. At its end, only while Herdr has
-one ready, its update: a green dot (`ansi2`) and `Update ready: herdr-core 0.1.21` or `Update ready: Herdr 0.1.16`, 20
-high, 6 inside, rounded 4, on the hover fill in the text's color under the pointer, its tip saying what a press does
-(herdr-core updated, the terminals running; Herdr restarted into it); while herdr-core updates, a spinner in the dot's
-place and no press. With neither ready, a newer herdr-fold is the same item, `herdr-fold 0.4.0 is out`: its words
-say what is true (a press updates nothing, it opens Settings at About), so they are not Update ready. One item at a
-time: Herdr, herdr-core, herdr-fold. It is the mod's one sign of an update.
+(`chrome`) under a hairline, 16 in and its items 16 apart, 12 in the captions' tone. The machine (This computer; another
+machine its network's mark 14 before it, 6 apart, none for one behind another), the branch, then the agents behind a 6
+px dot: those waiting on you in ansi3 (`1 of 3 agents waiting for you`), else those working in the accent
+(`1 agent working`), else how many (`2 agents`) with a dim dot. While a run works in the background, `1 run working`
+after them in the text's color, 20 high, 6 inside, rounded 4, the hover fill under the pointer, a press opening the
+Agents tab on Runs. At its end, only while Herdr has one ready, its update: a green dot (`ansi2`) and
+`Update ready: herdr-core 0.1.21` or `Update ready: Herdr 0.1.16`, 20 high, 6 inside, rounded 4, on the hover fill in
+the text's color under the pointer, its tip saying what a press does (herdr-core updated, the terminals running; Herdr
+restarted into it); while herdr-core updates, a spinner in the dot's place and no press. With neither ready, a newer
+herdr-fold is the same item, `herdr-fold 0.4.0 is out`: its words say what is true (a press updates nothing, it opens
+Settings at About), so they are not Update ready. One item at a time: Herdr, herdr-core, herdr-fold. It is the mod's one
+sign of an update.
 
 ### The dock's tabs and the search field
 
@@ -582,6 +583,21 @@ row, a click opens a terminal there; in the floating list, the same row at that 
 A machine's root is one of its own places, as its home: its space is named by a word, `root`, or the drive, `C:`, and
 its avatar is a glyph tile in home's `ansi6` whatever color is kept for it, `/` or the drive's letter where a
 project's initial is.
+
+A machine's head is 28 high, 8 under what is above it (this computer's, first, is not), rounded 6 under the pointer:
+what leads it 14 (this computer's `monitor`; another machine's network's mark, else `server`), its name and state 11
+`dim`, its + 18 with its icon 12, its dot 6 and its chevron 12, each centred in the 28 to the pixel (`CENTRED`).
+Once five remote machines or more are on two networks or more (`spaces-networks`), they stand under their network's
+head, the networks in the routes' order (the local network, Tailscale, NetBird, ZeroTier, WireGuard, another tunnel,
+Cloudflare, public), those no network tells last under none: a network's head as a machine's, 8 under what is above
+it, 6 apart, its mark 14, its name 12 semibold in `muted`, while it is not on its state 11 (`off` and `not installed`
+in `dim`, the name dimmed too; `signed out`, `expired`, `needs approval`, `no management server` in ansi3), its tip
+the ladder's sentence and what to do, its machines' count 11 `dim` at its end, the chevron 12; folded as a machine's,
+with their longest wait. Its machines' heads and spaces stand 8 in and wear no mark. A machine behind another stands
+under it, 12 further in, Lucide's `corner-down-right` 12 in the mark's place, its tip the way to it (`Through lumen-api
+(198.51.100.30)`); one on several routes is one head, under the route in use, its tip naming the others (`Through the
+local network (studio.local)`, `Also on Tailscale`). A network on with none of its machines added yet shows only
+grouped, its count 0 and a row 28, 8 in, + 12 and `3 machines to add` 12 `dim`, the hover's fill, its tip naming them.
 
 ### Chats
 

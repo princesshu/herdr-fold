@@ -23,6 +23,7 @@ export const ICONS = {
   "columns-2": "mods/herdr-fold/icons/lucide/columns-2.svg",
   "command": "mods/herdr-fold/icons/lucide/command.svg",
   "copy": "mods/herdr-fold/icons/lucide/copy.svg",
+  "corner-down-right": "mods/herdr-fold/icons/lucide/corner-down-right.svg",
   "download": "mods/herdr-fold/icons/lucide/download.svg",
   "ellipsis": "mods/herdr-fold/icons/lucide/ellipsis.svg",
   "external-link": "mods/herdr-fold/icons/lucide/external-link.svg",

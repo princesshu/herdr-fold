@@ -273,6 +273,14 @@ asked only for an address none of them lists (2 seconds), each machine logged in
 a route's key is read (`ssh-keyscan`, 3 seconds) only to find another route that answers. `./machines.sh add`,
 `prepare` and `remove`, and the questions, say a failed login in the same sentences.
 
+In the Herdr app, Spaces shows each machine with its network's mark, and once five or more are on two networks or more
+it groups them under their network's head, in the order a machine's routes are tried: the local network, Tailscale,
+NetBird, ZeroTier, WireGuard, another tunnel, Cloudflare, public. A network whose client is off says so on its head, in
+the same sentences, and one with none of its machines added yet offers them there, asked about in a terminal tab
+([Spaces](app.md#spaces)). The status bar's machine wears its mark. The app looks once a minute while it shows a remote
+machine, and soon after one comes or goes: the networks' own status and the list as above, a machine added in the app's
+own Settings → Machines read by its address, never a login.
+
 ## Systems
 
 | System | Notes |

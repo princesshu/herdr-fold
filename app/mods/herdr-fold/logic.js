@@ -2,7 +2,7 @@
 // What the mod works out without the window: a diff's rows, the sync button's words, a long job run in the background
 // on the space's machine (exec stops a program after 30 s; an AI may take minutes), the commit message writer's answer.
 
-import { JOB, MEDIA_KINDS, MEDIA_WEB } from "./helper.js";
+import { JOB, MACHINE_WORDS, MEDIA_KINDS, MEDIA_WEB } from "./helper.js";
 import { BY_EXTENSION, BY_NAME, FILE, FOLDER, LETTER, NETWORKS } from "./icons.js";
 import { format, written as timeIn } from "./timeline.js";
 
@@ -964,11 +964,13 @@ export const ISSUE_GROUPS = [...ME, "level", "type", "label"];
 export const PULL_GROUPS = [...ME, "review", "checks", "label"];
 const ORDERS = { review: ["draft", "yours", "approved", "changes"], checks: ["passed", "running", "failed"] };
 export const TOP_LABELS = 6;      // the labels a menu shows at first, the most used; the rest behind "N more"
-// px: the filters' parts centred in what holds them, each [the room, the part]: the two differ by an even number, so
-// the room over a part is the room under it to the pixel (the field's 30 inside its border; a menu's row 28; the
-// title's line 18; a chip 22; the checks' column 14 wide)
+// px: the parts centred in what holds them, each [the room, the part], differing by an even number: the room over a
+// part is the room under it to the pixel (the filters' field 30, a menu's row 28, the title's line 18, a chip 22, the
+// checks' column 14; a Spaces head's 28, LIST.machine: its mark, chevron, corner, dot, +; the status bar's 28)
 export const CENTRED = { funnel: [30, 24], funnelIcon: [24, 14], chip: [22, 16], chipX: [16, 12], chipMark: [22, 14],
-  menuMark: [28, 14], typeIcon: [18, 16], checksMark: [14, 12], checksDot: [14, 6] };
+  menuMark: [28, 14], typeIcon: [18, 16], checksMark: [14, 12], checksDot: [14, 6], headMark: [28, 14],
+  headChevron: [28, 12], headCorner: [28, 12], headDot: [28, 6], headAdd: [28, 18], headAddIcon: [18, 12],
+  barMark: [28, 14] };
 
 /** @typedef {Record<string, any[]>} Chosen each group's values on */
 
@@ -1438,7 +1440,9 @@ export function spaceColors(list, kept) {
  * @param {string} color @param {Record<string, any>} t */
 export const avatarFill = (color, t) => (color.startsWith("#") ? color : MARK[color] ?? t[color] ?? MARK.ansi6);
 
-export const LIST = { head: 32, foot: 16, machine: 28, row: 32, tree: 28 };     // the Spaces list's, on the grid
+// the Spaces list's, on the grid: its head, its foot, a head's (a machine's, a network's), a row's, a worktree's; over
+// a group's head but the first (a network's, else a machine's), a network's machines in, one behind another further
+export const LIST = { head: 32, foot: 16, machine: 28, row: 32, tree: 28, gap: 8, grouped: 8, behind: 12 };
 
 /** @typedef {{ machine: string | null, folded: boolean, rebuilt: boolean, loading: boolean,
  *   rows: { tree: boolean }[] }} SpaceGroup */
@@ -1452,11 +1456,275 @@ export const listBody = (g, headed) => (headed && (g.folded || g.rebuilt) ? "non
  * @param {SpaceGroup[]} groups */
 export const headed = (groups) => groups.length > 1 || Boolean(groups[0]?.machine);
 
-/** The Spaces list's height as GROUPS draw it, each machine's head and rows. @param {SpaceGroup[]} groups */
-export function listHeight(groups) {
-  const heads = headed(groups), one = { none: 0, loading: LIST.tree, empty: LIST.tree };
-  return LIST.head + LIST.foot + groups.reduce((h, g) => h + (heads ? LIST.machine : 0) + (listBody(g, heads) ===
-    "rows" ? g.rows.reduce((n, r) => n + (r.tree ? LIST.tree : LIST.row), 0) : one[listBody(g, heads)]), 0);
+/** The Spaces list's height as GROUPS draw it, with what the networks said (SEEN) and the networks FOLDED: each head,
+ * its gap, each row (spacesItems'). @param {SpaceGroup[]} groups @param {any} [seen] @param {string[]} [folded] */
+export function listHeight(groups, seen = null, folded = []) {
+  const high = { machine: LIST.machine, network: LIST.machine, loading: LIST.tree, empty: LIST.tree, add: LIST.tree };
+  return LIST.head + LIST.foot + spacesItems(groups, seen, folded).reduce((h, item) => h + (item.gap ? LIST.gap : 0)
+    + (item.kind === "row" ? (item.row.tree ? LIST.tree : LIST.row) : high[item.kind]), 0);
+}
+
+// --- Spaces by network (remote-machines-mockups/machines.html): what core/networks.py's here said, checked, then the
+// remote machines grouped by it once they are many (decision 9), each a head of its own, as before, else
+
+export const NETWORKS_SEEN = "herdr-fold.networks";       // shared: networksSeen's, the look's time, the package
+export const NETWORKS_FOLDED = "herdr-fold.networks-folded";     // shared: the networks whose machines are folded away
+export const GROUPED_FROM = 5;     // remote machines, on two networks or more: Spaces groups them by network
+const SAID_MOST = 256;             // the machines, and a network's names to add, one answer gives at most
+const APP_MOST = 64;               // the app's own machines one look gives networks.py (its SHOWN)
+const NAME_SHAPE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;                   // a machine's name, core/machines.py's NAME
+const HOST_SHAPE = /^(?!-)[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63})*$/;   // a host name or an IPv4 address
+const IP_SHAPE = /^[0-9A-Fa-f:.]{2,45}$/;                                 // an IPv6 address
+const TARGET_SHAPE = /^(?!-)[^\s\u0000-\u001f\u007f-\u009f]{1,300}$/;    // ssh's target: no option, space or control
+const CONTROLS = /[\u0000-\u001f\u007f-\u009f]/g;
+const STATES = ["on", "off", "signed_out", "expired", "approval", "no_management"];     // a client's, core's
+// a network's state as its head says it when it is not on: its word, its tone (off quiet; one to act on in ansi3)
+const STATE_WORDS = { off: ["off", "dim"], signed_out: ["signed out", "ansi3"], expired: ["expired", "ansi3"],
+  approval: ["needs approval", "ansi3"], no_management: ["no management server", "ansi3"] };
+const WITH_CLIENT = ["tailscale", "netbird", "zerotier"];       // the networks whose client on this Mac has a state
+const IN_WORDS = { local: "the local network", public: "the internet", tunnel: "a tunnel" };    // in a sentence
+const ADD_NAMED = 3;               // the machines a network offers named in its row's tip, the rest counted
+
+/** TEXT a network or a machine said, safe to show: its control characters dropped, cut at MOST.
+ * @param {unknown} text @param {number} [most] */
+const cleaned = (text, most = 300) => String(text).replace(CONTROLS, "").slice(0, most);
+const isName = (/** @type {unknown} */ name) => typeof name === "string" && NAME_SHAPE.test(name);
+const listOf = (/** @type {unknown} */ value) => (Array.isArray(value) ? value.slice(0, SAID_MOST) : []);
+const isAddress = (/** @type {unknown} */ text) => typeof text === "string" && text.length <= 253
+  && (HOST_SHAPE.test(text) || IP_SHAPE.test(text));
+/** A network's word (icons.js's NETWORKS, in the routes' order), or through for one behind another; else null.
+ * @param {unknown} word @returns {string | null} */
+const kindOf = (word) => (typeof word === "string" && (Object.hasOwn(NETWORKS, word) || word === "through") ? word
+  : null);
+const isWhy = (/** @type {unknown} */ key) => typeof key === "string" && key.startsWith("machines.why_")
+  && Object.hasOwn(MACHINE_WORDS, key);
+const argsOf = (/** @type {unknown} */ args) => (Array.isArray(args) ? args.slice(0, 8) : [])
+  .map((one) => cleaned(one));
+
+/** A ladder's sentence (core/networks.py's why()), checked: its catalog key, its arguments cleaned, what to do, what
+ * caused it (three deep at most); null for anything else. @param {any} said @returns {any} */
+function whyOf(said, depth = 0) {
+  if (!said || typeof said !== "object" || depth > 3 || !isWhy(said.key)) return null;
+  const todo = said.action && typeof said.action === "object" && isWhy(said.action.key) ? { key: said.action.key,
+    args: argsOf(said.action.args), command: typeof said.action.command === "string"
+      ? cleaned(said.action.command) : null } : null;
+  return { key: said.key, args: argsOf(said.args), action: todo, then: whyOf(said.then, depth + 1) };
+}
+
+/** A machine's routes as told, checked: each its network, its address, the machine it goes through; at most 8.
+ * @param {unknown} routes */
+const routesOf = (routes) => listOf(routes).slice(0, 8).flatMap((one) => {
+  const network = kindOf(one?.network);
+  return isAddress(one?.address) ? [{ network, address: one.address,
+    through: network === "through" && isName(one.through) ? one.through : null }] : [];
+});
+
+/** What core/networks.py's here answered (SAID), checked as everything a network or a machine says is: a name, an
+ * address, a network and a state of their shapes, a sentence by its catalog key with its arguments cleaned, each list
+ * capped; anything else dropped. @param {any} said */
+export function networksSeen(said) {
+  /** @type {Record<string, any>} */
+  const machines = {}, networks = {};
+  for (const one of listOf(said?.machines)) {
+    if (!isName(one?.name) || Object.hasOwn(machines, one.name)) continue;
+    const network = kindOf(one.network);
+    machines[one.name] = { network, through: network === "through" && isName(one.through) ? one.through : null,
+      routes: routesOf(one.routes), why: whyOf(one.why) };
+  }
+  const told = said?.networks && typeof said.networks === "object" ? said.networks : {};
+  for (const kind of Object.keys(NETWORKS).filter((kind) => Object.hasOwn(told, kind))) {
+    const one = told[kind] ?? {};
+    networks[kind] = { installed: one.installed === true, state: STATES.includes(one.state) ? one.state : null,
+      why: whyOf(one.why), offered: [...new Set(listOf(one.offered).filter(isName))] };
+  }
+  return { machines, networks };
+}
+
+/** WHY (a checked sentence) as machines.sh says it, a line each: the sentence, then what caused it or what to do,
+ * each one's own after it; null for none. @param {any} why */
+export function whyWords(why) {
+  if (!why) return null;
+  const fill = (/** @type {string} */ key, /** @type {string[]} */ args) => {
+    let n = 0;
+    return String(/** @type {Record<string, string>} */ (MACHINE_WORDS)[key] ?? "").replace(/%s|%%|\\n/g, (found) =>
+      (found === "%s" ? String(args[n++] ?? "") : found === "%%" ? "%" : "\n"));
+  };
+  const lines = [fill(why.key, why.args)];
+  for (let next = why.then ?? why.action; next; next = next.then ?? next.action) {
+    lines.push(fill(next.key, [...next.args, ...(next.command ? [next.command] : [])]));
+  }
+  return lines.join("\n");
+}
+
+/** NETWORK's name, as machines.sh and the TUI say it (the catalog's). @param {string} network */
+const networkName = (network) => /** @type {Record<string, string>} */ (MACHINE_WORDS)[`machines.network_${network}`]
+  ?? network;
+
+/** @typedef {{ network: string | null, address: string, through: string | null }} Route */
+/** @typedef {{ name: string, network: string | null, mark: string | null, through: string | null,
+ *   route: Route | null, also: Route[], behind: Machine[] }} Machine a machine Spaces shows, as the networks told it */
+/** @typedef {{ network: string | null, state: string | null, installed: boolean | null, why: any, count: number,
+ *   toAdd: string[], machines: Machine[] }} NetworkGroup */
+
+/** The remote machines Spaces shows (NAMES) by what the networks said (SEEN): grouped once MIN are on two networks, in
+ * the routes' order, one behind another under its jump host, those none tells last, an empty network that offers
+ * some; else one group. @param {string[]} names @param {any} seen @returns {{ grouped: boolean, groups: any[] }} */
+export function byNetwork(names, seen = null, { min = GROUPED_FROM } = {}) {
+  const told = seen?.machines ?? {}, nets = seen?.networks ?? {}, shown = new Set(names);
+  const known = (/** @type {string | null} */ name) => (name !== null && Object.hasOwn(told, name) ? told[name] : null);
+  const marked = (/** @type {string | null | undefined} */ network) => (Object.hasOwn(NETWORKS, network ?? "")
+    ? /** @type {string} */ (network) : null);
+  /** @type {Map<string, Machine>} */
+  const entries = new Map(names.map((name) => {
+    const one = known(name), [route = null, ...also] = one?.routes ?? [];
+    return [name, { name, network: one?.network ?? null, mark: marked(one?.network), through: one?.through ?? null,
+      route, also, behind: [] }];
+  }));
+  const parentOf = (/** @type {Machine | undefined} */ e) => (e?.network === "through" && e.through !== e.name
+    && shown.has(e.through ?? "") ? e.through : null);
+  const nests = (/** @type {Machine} */ e) => {           // under its jump host, unless the jump hosts go round
+    const passed = new Set([e.name]);
+    for (let up = parentOf(e); up; up = parentOf(entries.get(up))) {
+      if (passed.has(up)) return false;
+      passed.add(up);
+    }
+    return parentOf(e) !== null;
+  };
+  /** @type {Machine[]} */
+  const top = [];
+  for (const e of entries.values()) (nests(e) ? /** @type {Machine} */ (entries.get(String(e.through))).behind : top)
+    .push(e);
+  const keyOf = (/** @type {Machine} */ e) => e.mark ?? (e.network === "through" ? marked(known(e.through)?.network)
+    : null);
+  const size = (/** @type {Machine} */ e) => 1 + e.behind.reduce((n, one) => n + size(one), 0);
+  /** @param {string | null} network @param {Machine[]} machines @param {any} [net] @returns {NetworkGroup} */
+  const group = (network, machines, net = null) => ({ network, state: net?.state ?? null,
+    installed: net?.installed ?? null, why: net?.why ?? null, count: machines.reduce((n, e) => n + size(e), 0),
+    toAdd: /** @type {string[]} */ ([]), machines });
+  const grouped = names.length >= min && new Set(top.map(keyOf).filter(Boolean)).size >= 2;
+  if (!grouped) return { grouped, groups: [group(null, top)] };
+  const groups = Object.keys(NETWORKS).flatMap((network) => {
+    const machines = top.filter((e) => keyOf(e) === network), net = Object.hasOwn(nets, network) ? nets[network] : null;
+    const offered = net?.state === "on" && seen?.setup ? net.offered : [];
+    return machines.length || offered.length ? [{ ...group(network, machines, net),
+      toAdd: machines.length ? [] : offered }] : [];
+  });
+  const rest = top.filter((e) => !keyOf(e));
+  return { grouped, groups: rest.length ? [...groups, group(null, rest)] : groups };
+}
+
+/** How a network's head says NET's state while it is not on: off or not installed quietly (dim), one to act on in
+ * ansi3; null while on, and for a network with no client of its own. @param {string} network
+ * @param {{ state: string | null, installed: boolean | null }} net */
+export function networkState(network, { state = null, installed = null } = {}) {
+  if (!WITH_CLIENT.includes(network)) return null;
+  if (installed === false) return { word: "not installed", tone: "dim" };
+  const said = Object.hasOwn(STATE_WORDS, state ?? "")
+    ? STATE_WORDS[/** @type {keyof typeof STATE_WORDS} */ (state)] : null;
+  return said && { word: said[0], tone: said[1] };
+}
+
+/** WORDS joined as a sentence lists them: "a", "a and b", "a, b and c". @param {string[]} words */
+const listed = (words) => (words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`);
+
+/** A machine head's tip: the way it is reached where its group does not say it (one behind another, one on several
+ * routes), "Through lumen-api (198.51.100.30)", its other routes on a line under it; null for none.
+ * @param {{ route: Route | null, also: Route[] }} machine */
+export function machineTip({ route, also }) {
+  if (!route || (route.network !== "through" && !also.length)) return null;
+  const by = (/** @type {Route} */ one) => (one.network === "through" ? one.through : one.network
+    ? IN_WORDS[/** @type {keyof typeof IN_WORDS} */ (one.network)] ?? networkName(one.network) : null);
+  const first = by(route) ? `Through ${by(route)} (${route.address})` : `At ${route.address}`;
+  return also.length ? `${first}\nAlso ${listed(also.map((one) => (!by(one) ? `at ${one.address}`
+    : one.network === "through" ? `through ${by(one)}` : `on ${by(one)}`)))}` : first;
+}
+
+/** A network's row of machines to add: its words, and its tip naming them (the first ADD_NAMED).
+ * @param {string} network @param {string[]} offered */
+export function toAddWords(network, offered) {
+  const n = offered.length, named = offered.slice(0, ADD_NAMED).join(", ")
+    + (n > ADD_NAMED ? ` and ${n - ADD_NAMED} more` : "");
+  return { words: `${n} machine${n === 1 ? "" : "s"} to add`,
+    tip: `Offered by ${networkName(network)}: ${named}\nA click asks about each, in a terminal tab` };
+}
+
+/** @typedef {{ kind: "machine" | "network" | "add" | "row" | "loading" | "empty", [key: string]: any }} SpacesItem a
+ * line of the Spaces list: a machine's head (its lead, network, indent, gap, tip), a network's head (its name, state
+ * word, tip, count, folded, wait), a network's row of machines to add, a space's row, Loading…, New space there */
+
+/** What the Spaces list draws of GROUPS (its view's model) by what the networks said (SEEN) with those FOLDED: this
+ * computer first, then each network's head, its row to add and machines, else each machine with its network's mark.
+ * @param {any[]} groups @param {any} [seen] @param {string[]} [folded] @returns {SpacesItem[]} */
+export function spacesItems(groups, seen = null, folded = []) {
+  const heads = headed(groups), /** @type {SpacesItem[]} */ items = [];
+  const body = (/** @type {any} */ g, /** @type {number} */ indent) => {
+    const kind = listBody(g, heads);
+    if (kind === "rows") for (const row of g.rows) items.push({ kind: "row", group: g, row, indent });
+    else if (kind !== "none") items.push({ kind, group: g, indent });
+  };
+  if (!heads) {
+    for (const g of groups) body(g, 0);
+    return items;
+  }
+  const remote = new Map(groups.filter((g) => g.machine).map((g) => [g.machine, g]));
+  const { grouped, groups: networks } = byNetwork([...remote.keys()], seen);
+  const machine = (/** @type {Machine} */ e, /** @type {number} */ base, depth = 0, gap = false) => {
+    const g = remote.get(e.name), indent = base + LIST.behind * depth;
+    const lead = depth || e.network === "through" ? "corner" : base ? null : e.mark ? "mark" : "server";
+    items.push({ kind: "machine", group: g, lead, network: lead === "mark" ? e.mark : null, indent, gap,
+      tip: machineTip(e) });
+    body(g, indent);
+    for (const one of e.behind) machine(one, base, depth + 1);
+  };
+  for (const g of groups.filter((g) => !g.machine)) {
+    items.push({ kind: "machine", group: g, lead: "monitor", network: null, indent: 0, gap: false, tip: null });
+    body(g, 0);
+  }
+  for (const n of networks) {
+    if (!grouped || !n.network) {
+      for (const e of n.machines) machine(e, 0, 0, true);
+      continue;
+    }
+    const all = (/** @type {Machine[]} */ list) => list.flatMap((e) => [remote.get(e.name), ...all(e.behind)]);
+    const longest = all(n.machines).filter((g) => g?.since).sort((a, b) => a.since - b.since)[0];
+    const open = !folded.includes(n.network);
+    items.push({ kind: "network", network: n.network, name: networkName(n.network), said: networkState(n.network, n),
+      tip: whyWords(n.why), count: n.count, folded: !open, wait: longest?.wait ?? null, gap: true });
+    if (!open) continue;
+    if (n.toAdd.length) items.push({ kind: "add", network: n.network, offered: n.toAdd, indent: LIST.grouped });
+    for (const e of n.machines) machine(e, LIST.grouped);
+  }
+  return items;
+}
+
+/** The app's own machines (hc machine ls's LISTED) networks.py reads with the list, [name, target] each: one reached
+ * by a command (--via), a temporary one, or one whose name or target is of no shape left out; APP_MOST at most.
+ * @param {any} listed @returns {[string, string][]} */
+export const appMachines = (listed) => listOf(listed?.machines).filter((one) => one && !one.temporary && !one.via
+  && isName(one.name) && typeof one.target === "string" && TARGET_SHAPE.test(one.target)).slice(0, APP_MOST)
+  .map((one) => [one.name, one.target]);
+
+/** The package's folder ~/.config/herdr-fold/setup-folder names (install.sh writes it, the TUI's Add machine reads
+ * it): one absolute path; null for none or anything else. @param {string | null} text */
+export function setupFolder(text) {
+  const folder = typeof text === "string" ? text.trim() : "";
+  return folder.startsWith("/") && folder.length <= 1024 && !folder.match(CONTROLS) ? folder : null;
+}
+
+/** The command asking about NETWORK's machines to add (./machines.sh in the package's FOLDER) in a terminal tab on this
+ * Mac: in the space shown if it is this Mac's, else this Mac's first in LIST, else a new space here. @param {string}
+ * network @param {string} folder @param {any[]} list @returns {[string, Record<string, any>]} */
+export function importCommand(network, folder, list) {
+  const tab = { name: networkName(network), folder, argv: ["/bin/bash", `${folder}/machines.sh`, network] };
+  const here = list.find((s) => s.active && !s.machine) ?? list.find((s) => !s.machine);
+  return here ? ["tab.new", { ...tab, space: here.id }] : ["space.new", { ...tab, machine: "" }];
+}
+
+/** The network machine NAME is reached on, as the status bar marks it (SEEN: networksSeen's); null for none known,
+ * this computer, or one behind another. @param {any} seen @param {string} name */
+export function networkOf(seen, name) {
+  const one = seen?.machines && Object.hasOwn(seen.machines, name) ? seen.machines[name] : null;
+  return Object.hasOwn(NETWORKS, one?.network ?? "") ? one.network : null;
 }
 
 /** Whether layout ROOT shows the right panel. @param {any} root */

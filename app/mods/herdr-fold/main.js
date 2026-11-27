@@ -29,7 +29,7 @@ import { addMachine, forgetFloat, forgetFloats, liveDock, restSide, sidebarFoot,
 import { IssuesView, fixesChip } from "./issues.js";
 import { BranchPull, PullsView } from "./pulls.js";
 import { isHome, markUnread, pickSpace, SpacesView } from "./spaces.js";
-import { liveStatus, watchRuns } from "./status.js";
+import { liveStatus, watchNetworks, watchRuns } from "./status.js";
 import { TabsView } from "./tabs.js";
 import { Palette, pickTheme, TitleView, togglePalette } from "./title.js";
 import { openNamed, Preview, showPreview } from "./preview.js";
@@ -238,7 +238,10 @@ export default class HerdrFold extends View {
     }
     if ((this.sideHead = part === "head")) return;      // the sidebar's head: its toggle (folded: over its rail)
     if ((this.sideFoot = part === "footer")) return;    // the open sidebar's foot: Settings, Add machine
-    if ((this.bottom = part === "status")) return void watchRuns(python, cx);   // the window's status bar
+    if ((this.bottom = part === "status")) {       // the window's status bar: the runs, the networks (Spaces' too)
+      watchRuns(python, cx);
+      return void watchNetworks(python, cx);
+    }
     if (part === "title") return void (this.titleRow = new TitleView());    // the window's own title row
     if (part === "palette") {                     // the command palette, opened onto the title row's field
       const { overlay, wide, most, shade } = props();

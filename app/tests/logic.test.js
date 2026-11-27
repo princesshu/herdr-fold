@@ -1820,15 +1820,16 @@ test("the ✦'s count is the chats waiting on you: this Mac's Claude and Codex b
   assert.equal(waitingChats([], new Set(["s1"])), 0);
 });
 
-test("the Spaces list's height, on the grid: a machine's head once another is there, a worktree's row lower", () => {
+test("the Spaces list's height, on the grid: a machine's head once another is there, 8 under what is above it but "
+  + "this computer's, a worktree's row lower", () => {
   const group = (machine, rows, more = {}) => ({ machine, rows, folded: false, rebuilt: false, loading: false,
     ...more });
   const row = { tree: false }, tree = { tree: true };
   assert.equal(listHeight([group(null, [row, row])]), 32 + 2 * 32 + 16);
   assert.equal(listHeight([group(null, [row, tree]), group("lab", [row]), group("mini", [])]),
-    32 + 3 * 28 + 32 + 28 + 32 + 28 + 16);                      // mini: "New space there"
+    32 + 3 * 28 + 32 + 28 + 32 + 28 + 2 * 8 + 16);              // mini: "New space there"
   assert.equal(listHeight([group(null, [row]), group("lab", [row], { folded: true }),
-    group("old", [row], { rebuilt: true })]), 32 + 3 * 28 + 32 + 16);
+    group("old", [row], { rebuilt: true })]), 32 + 3 * 28 + 32 + 2 * 8 + 16);
   assert.equal(listHeight([group(null, [], { loading: true })]), 32 + 28 + 16);
   assert.equal(listBody(group(null, []), false), "none");
 });
@@ -2649,3 +2650,273 @@ test("Open and Closed each with the repository's count, the word alone till it i
       assert.match(view, /totals: answer\.totals \?\? this\.totals/, name);
     }
   });
+
+
+// --- Spaces by network (remote-machines-mockups/machines.html's App frames): what core/networks.py's here said,
+// checked, the machines grouped by it, the list's items and height, the status bar's mark
+import { appMachines, byNetwork, GROUPED_FROM, importCommand, LIST, machineTip, networkOf, networksSeen, networkState,
+  setupFolder, spacesItems, toAddWords, whyWords } from "../mods/herdr-fold/logic.js";
+import { MACHINE_WORDS } from "../mods/herdr-fold/helper.js";
+
+const via = (network, address, through = null) => ({ network, address, user: "root", port: null, through });
+const why = (key, args = [], action = null, then = null) => ({ key, args, action, then });
+const todo = (key, args = [], command = null) => ({ key, args, command });
+const OFF = why("machines.why_netbird_off", [], todo("machines.why_do_start", [], "netbird up"));
+// the mockup's machines, as networks.py's here answers for them: build-01 and db-02 behind lumen-api, studio on the
+// local network and on Tailscale
+const TOLD = [["lumen-api", "tailscale", [via("tailscale", "lumen-api.tail0000.ts.net")]],
+  ["build-01", "through", [via("through", "198.51.100.30", "lumen-api")], "lumen-api"],
+  ["db-02", "through", [via("through", "db-02.local", "lumen-api")], "lumen-api"],
+  ["harbor-web", "tailscale", [via("tailscale", "harbor-web.tail0000.ts.net")]],
+  ["studio", "local", [via("local", "studio.local"), via("tailscale", "studio.tail0000.ts.net")]],
+  ["lab-pi", "local", [via("local", "lab-pi.local")]],
+  ["tidepool", "netbird", [via("netbird", "tidepool.netbird.cloud")]],
+  ["kelp-ci", "netbird", [via("netbird", "kelp-ci.netbird.cloud")]],
+  ["vps-edge", "public", [via("public", "203.0.113.7")]]];
+const answered = ({ netbird = { installed: true, state: "on", why: null, offered: [] }, only = null } = {}) => ({
+  checked: 1795683600, machines: TOLD.filter(([name]) => !only || only.includes(name)).map(([name, network, routes,
+    through = null]) => ({ name, os: "linux", target: `herdr-fold.${name}`, network, through, why: null,
+    figures: {}, routes })),
+  networks: { tailscale: { installed: true, state: "on", why: null, offered: [] }, netbird,
+    zerotier: { installed: false, state: null, why: null, offered: [] },
+    wireguard: { installed: false, state: null, why: null, offered: [] } } });
+const NAMES = TOLD.map(([name]) => name).sort();
+const flat = (entries) => entries.flatMap((e) => [e.name, ...flat(e.behind)]);
+
+test("what networks.py said is checked before it shows: known shapes kept, anything else dropped", () => {
+  const seen = networksSeen(answered({ netbird: { installed: true, state: "off", why: OFF, offered: [] } }));
+  assert.deepEqual(seen.machines["build-01"], { network: "through", through: "lumen-api",
+    routes: [{ network: "through", address: "198.51.100.30", through: "lumen-api" }], why: null });
+  assert.deepEqual(seen.networks.netbird, { installed: true, state: "off", why: OFF, offered: [] });
+  // a network's or a machine's own words: control characters gone, cut; a sentence only by a catalog key; a name,
+  // an address, a network and a state of their shapes; a name no object's own property; each list capped
+  const crafted = networksSeen({ machines: [
+    { name: "constructor", network: "tailscale", routes: [via("tailscale", "a.tail0000.ts.net")] },
+    { name: "-oProxyCommand=x", network: "tailscale", routes: [] },
+    { name: "evil", network: "nowhere", through: "x", routes: [via("tailscale", "a;touch x"),
+      via("mesh", "198.51.100.9"), via("through", "2001:db8::7", "-o")], why: why("machines.why_offline",
+      ["evil\u001b]0;owned\u0007", "x".repeat(400)], todo("machines.why_do_start", [], "netbird up\nrm -rf"),
+      why("not.a.key")) },
+    { name: "evil", network: "local", routes: [] },
+    ...Array.from({ length: 10000 }, (_, n) => ({ name: `m${n}`, network: "local", routes: [] }))],
+  networks: { netbird: { installed: "yes", state: "hacked", why: why("lib.yes_answers"),
+    offered: ["tidepool", "x;y", "tidepool", 7] }, constructor: { state: "on" } } });
+  assert.equal(Object.hasOwn(crafted.machines, "-oProxyCommand=x"), false);
+  assert.deepEqual(crafted.machines.evil, { network: null, through: null,
+    routes: [{ network: null, address: "198.51.100.9", through: null },
+      { network: "through", address: "2001:db8::7", through: null }],
+    why: { key: "machines.why_offline", args: ["evil]0;owned", "x".repeat(300)],
+      action: { key: "machines.why_do_start", args: [], command: "netbird uprm -rf" }, then: null } });
+  assert.equal(crafted.machines.constructor.network, "tailscale");
+  assert.deepEqual(["m251", "m252"].map((name) => Object.hasOwn(crafted.machines, name)), [true, false]);  // 256 read
+  assert.deepEqual(crafted.networks, { netbird: { installed: false, state: null, why: null, offered: ["tidepool"] } });
+  assert.deepEqual(networksSeen(null), { machines: {}, networks: {} });
+  assert.deepEqual(networksSeen("[]"), { machines: {}, networks: {} });
+});
+
+test("why a machine or a network is away, in the catalog's words: its sentence, then what to do, as machines.sh says",
+  () => {
+    assert.equal(whyWords(OFF), "NetBird is not running on this Mac.\nStart it: netbird up");
+    assert.equal(whyWords(why("machines.why_through", ["build-01", "lumen-api"], null, why(
+      "machines.why_tailscale_off", [], todo("machines.why_do_turn_on", [], "tailscale up")))),
+    "build-01 is reached through lumen-api, which does not answer.\nTailscale is off on this Mac.\n"
+      + "Turn it on: tailscale up");
+    assert.equal(whyWords(why("machines.why_offline", ["harbor-web", "Tailscale", "3 h"])),
+      "harbor-web is offline on Tailscale, last seen 3 h ago.");
+    assert.equal(whyWords(null), null);
+    assert.equal(MACHINE_WORDS["machines.network_local"], "Local network");
+  });
+
+test("Spaces groups by network once five remote machines are on two networks; below that, no group heads", () => {
+  assert.equal(GROUPED_FROM, 5);
+  // the long list: the networks in the routes' order, a machine behind another under it, each counted in its
+  // jump host's network
+  const long = byNetwork(NAMES, networksSeen(answered()));
+  assert.equal(long.grouped, true);
+  assert.deepEqual(long.groups.map((g) => [g.network, g.count, flat(g.machines)]), [
+    ["local", 2, ["lab-pi", "studio"]], ["tailscale", 4, ["harbor-web", "lumen-api", "build-01", "db-02"]],
+    ["netbird", 2, ["kelp-ci", "tidepool"]], ["public", 1, ["vps-edge"]]]);
+  const lumen = long.groups[1].machines[1];
+  assert.deepEqual(lumen.behind.map((e) => [e.name, e.through, e.mark]), [["build-01", "lumen-api", null],
+    ["db-02", "lumen-api", null]]);
+  // the short list: three machines on Tailscale are a list, each head its network's mark
+  const short = byNetwork(["harbor-web", "lumen-api", "studio"], networksSeen({ machines: [
+    { name: "lumen-api", network: "tailscale", routes: [via("tailscale", "lumen-api.tail0000.ts.net")] },
+    { name: "harbor-web", network: "tailscale", routes: [via("tailscale", "harbor-web.tail0000.ts.net")] },
+    { name: "studio", network: "tailscale", routes: [via("tailscale", "studio.tail0000.ts.net")] }] }));
+  assert.equal(short.grouped, false);
+  assert.deepEqual(short.groups.map((g) => [g.network, g.machines.map((e) => [e.name, e.mark])]), [[null, [
+    ["harbor-web", "tailscale"], ["lumen-api", "tailscale"], ["studio", "tailscale"]]]]);
+  // five on one network, or four on two: no group heads
+  const one = answered();
+  for (const m of one.machines) m.network = "tailscale";
+  assert.equal(byNetwork(NAMES, networksSeen(one)).grouped, false);
+  assert.equal(byNetwork(["lumen-api", "build-01", "studio", "lab-pi"], networksSeen(answered())).grouped, false);
+  assert.equal(byNetwork(["lumen-api", "build-01", "studio", "lab-pi"], networksSeen(answered()), { min: 4 }).grouped,
+    true);
+  // nothing said yet: the machines as they are, by name, none with a mark
+  assert.deepEqual(byNetwork(["lab", "mini"], null).groups.map((g) => g.machines.map((e) => [e.name, e.mark])),
+    [[["lab", null], ["mini", null]]]);
+});
+
+test("a network off says so on its head, its tip the ladder's sentence; one with nothing added offers what it lists",
+  () => {
+    const off = byNetwork(NAMES, networksSeen(answered({ netbird: { installed: true, state: "off", why: OFF,
+      offered: [] } }))).groups.find((g) => g.network === "netbird");
+    assert.deepEqual([off.state, off.count, whyWords(off.why)], ["off", 2,
+      "NetBird is not running on this Mac.\nStart it: netbird up"]);
+    assert.deepEqual(networkState("netbird", off), { word: "off", tone: "dim" });
+    assert.deepEqual(networkState("tailscale", { state: "signed_out", installed: true }),
+      { word: "signed out", tone: "ansi3" });
+    assert.deepEqual(networkState("netbird", { state: null, installed: false }),
+      { word: "not installed", tone: "dim" });
+    assert.equal(networkState("netbird", { state: "on", installed: true }), null);
+    assert.equal(networkState("local", { state: null, installed: null }), null);       // no client: no state word
+    // a network with machines to add: NetBird on, none added, three offered: only grouped, only while its client is on
+    // and the package's machines.sh can ask about them
+    const offering = { installed: true, state: "on", why: null, offered: ["tidepool", "kelp-ci", "ci-runner"] };
+    const five = ["harbor-web", "lab-pi", "lumen-api", "studio", "vps-edge"];
+    const seen = { ...networksSeen(answered({ netbird: offering, only: five })), setup: "/work/herdr-fold" };
+    const empty = byNetwork(five, seen);
+    assert.deepEqual(empty.groups.map((g) => [g.network, g.count, g.toAdd]), [["local", 2, []],
+      ["tailscale", 2, []], ["netbird", 0, ["tidepool", "kelp-ci", "ci-runner"]], ["public", 1, []]]);
+    assert.equal(byNetwork(five, { ...seen, setup: null }).groups.some((g) => g.network === "netbird"), false);
+    assert.equal(byNetwork(five, { ...seen, networks: { ...seen.networks, netbird: { ...offering, state: "off" } } })
+      .groups.some((g) => g.network === "netbird"), false);
+    assert.equal(byNetwork(five.slice(0, 3), seen).grouped, false);                  // three: no network shown empty
+    assert.deepEqual(toAddWords("netbird", offering.offered), { words: "3 machines to add",
+      tip: "Offered by NetBird: tidepool, kelp-ci, ci-runner\nA click asks about each, in a terminal tab" });
+    assert.deepEqual(toAddWords("tailscale", ["a", "b", "c", "d", "e"]).tip.split("\n")[0],
+      "Offered by Tailscale: a, b, c and 2 more");
+    assert.equal(toAddWords("tailscale", ["reef-mac"]).words, "1 machine to add");
+  });
+
+test("one machine on two routes is one head under the route in use; one behind another under it: their tips", () => {
+  const seen = networksSeen(answered()), groups = byNetwork(NAMES, seen).groups;
+  const find = (name) => groups.flatMap((g) => g.machines).flatMap((e) => [e, ...e.behind])
+    .find((e) => e.name === name);
+  assert.equal(flat(groups.flatMap((g) => g.machines)).filter((name) => name === "studio").length, 1);
+  assert.equal(machineTip(find("studio")), "Through the local network (studio.local)\nAlso on Tailscale");
+  assert.equal(machineTip(find("build-01")), "Through lumen-api (198.51.100.30)");
+  assert.equal(machineTip(find("lumen-api")), null);                          // one route: its group says it
+  assert.equal(machineTip({ route: via("tailscale", "x.tail0000.ts.net"), also: [via("local", "x.local"),
+    via("through", "192.0.2.4", "lumen-api"), via("public", "203.0.113.9")] }),
+  "Through Tailscale (x.tail0000.ts.net)\nAlso on the local network, through lumen-api and on the internet");
+  // a jump host the app does not show: the machine stays in that one's network, its corner and tip saying it
+  const alone = byNetwork(["build-01", "harbor-web", "lab-pi", "studio", "vps-edge"], seen);
+  assert.deepEqual(alone.groups.find((g) => g.network === "tailscale").machines.map((e) => e.name),
+    ["build-01", "harbor-web"]);
+  // a loop of jump hosts (a list edited by hand) nests none
+  const loop = answered();
+  loop.machines.find((m) => m.name === "lumen-api").network = "through";
+  loop.machines.find((m) => m.name === "lumen-api").through = "build-01";
+  const looped = byNetwork(NAMES, networksSeen(loop));
+  assert.deepEqual(flat(looped.groups.flatMap((g) => g.machines)).sort(), NAMES);
+  // a machine none of the networks tells: last, under no network's head
+  const unknown = byNetwork([...NAMES, "mini"], seen);
+  assert.deepEqual(unknown.groups.at(-1), { network: null, state: null, installed: null, why: null, count: 1,
+    toAdd: [], machines: [{ name: "mini", network: null, mark: null, through: null, route: null, also: [],
+      behind: [] }] });
+});
+
+test("the Spaces list's items: this computer first, a network's head 8 under what is above it, its machines 8 in, "
+  + "one behind another 12 further", () => {
+  assert.deepEqual([LIST.gap, LIST.grouped, LIST.behind], [8, 8, 12]);
+  const group = (machine, rows = [], more = {}) => ({ machine, rows, connected: true, state: "connected",
+    rebuilt: false, error: null, busy: false, folded: false, wait: null, since: null, loading: false, ...more });
+  const row = { tree: false };
+  const groups = [group(null, [row]), ...NAMES.map((name) => group(name, name === "lumen-api" ? [row, row] : [],
+    { folded: name !== "lumen-api", wait: name === "build-01" ? "waiting 4m" : null,
+      since: name === "build-01" ? 1000 : null }))];
+  const seen = networksSeen(answered());
+  const items = spacesItems(groups, seen);
+  const shown = items.map((item) => [item.kind, item.network ?? item.group?.machine ?? null, item.indent ?? null,
+    Boolean(item.gap), item.lead ?? null]);
+  assert.deepEqual(shown.slice(0, 7), [["machine", null, 0, false, "monitor"], ["row", null, 0, false, null],
+    ["network", "local", null, true, null], ["machine", "lab-pi", 8, false, null],
+    ["machine", "studio", 8, false, null], ["network", "tailscale", null, true, null],
+    ["machine", "harbor-web", 8, false, null]]);
+  assert.deepEqual(shown.slice(7, 12), [["machine", "lumen-api", 8, false, null], ["row", "lumen-api", 8, false, null],
+    ["row", "lumen-api", 8, false, null], ["machine", "build-01", 20, false, "corner"],
+    ["machine", "db-02", 20, false, "corner"]]);
+  assert.equal(items.find((item) => item.group?.machine === "studio").tip,
+    "Through the local network (studio.local)\nAlso on Tailscale");
+  const tailscale = items.find((item) => item.kind === "network" && item.network === "tailscale");
+  assert.deepEqual([tailscale.name, tailscale.count, tailscale.said, tailscale.tip], ["Tailscale", 4, null, null]);
+  // the height on the grid: each head 28, a network's 8 under what is above it, a row 32
+  assert.equal(listHeight(groups, seen), 32 + 16 + 28 + 32 + 4 * (8 + 28) + 9 * 28 + 2 * 32);
+  // a network folded as a machine is: its machines gone, its head saying their longest wait
+  const folded = spacesItems(groups, seen, ["tailscale"]);
+  assert.equal(folded.some((item) => item.group?.machine === "lumen-api"), false);
+  assert.deepEqual(((n) => [n.folded, n.wait])(folded.find((item) => item.network === "tailscale")),
+    [true, "waiting 4m"]);
+  assert.equal(listHeight(groups, seen, ["tailscale"]), listHeight(groups, seen) - 4 * 28 - 2 * 32);
+  // no group heads: each machine's head wears its network's mark, 8 under what is above it, as the short list has it;
+  // one none tells, the server icon, as before
+  const few = [group(null, [row]), group("lumen-api", [], { folded: true }), group("mini", [], { folded: true })];
+  assert.deepEqual(spacesItems(few, seen).map((item) => [item.lead ?? null, item.network ?? null, Boolean(item.gap)]),
+    [["monitor", null, false], [null, null, false], ["mark", "tailscale", true], ["server", null, true]]);
+  assert.equal(listHeight(few, seen), 32 + 16 + 28 + 32 + 2 * (8 + 28));
+  // the empty network's row, 8 in under its head
+  const five = ["harbor-web", "lab-pi", "lumen-api", "studio", "vps-edge"];
+  const offering = { ...networksSeen(answered({ only: five, netbird: { installed: true, state: "on", why: null,
+    offered: ["tidepool"] } })), setup: "/work/herdr-fold" };
+  const empty = spacesItems([group(null), ...five.map((name) => group(name))], offering);
+  const add = empty.findIndex((item) => item.kind === "add");
+  assert.deepEqual([empty[add - 1].network, empty[add].indent, empty[add].offered], ["netbird", 8, ["tidepool"]]);
+  // one machine alone, this computer's head none: the list as before
+  assert.deepEqual(spacesItems([group(null, [row])], seen).map((item) => item.kind), ["row"]);
+});
+
+test("the app's own machines go to networks.py by name and target; one reached by a command, or crafted, does not",
+  () => {
+    assert.deepEqual(appMachines({ machines: [{ name: "lumen-api", target: "root@lumen-api.tail0000.ts.net" },
+      { name: "vps", target: "vps" }, { name: "tmp", target: "root@192.0.2.9", temporary: true },
+      { name: "jump", target: "ssh -J lumen-api root@192.0.2.8", via: true },
+      { name: "-oProxyCommand=x", target: "x" }, { name: "evil", target: "-oProxyCommand=touch x" },
+      { name: "evil-2", target: "root@a\nb" }, { name: "evil-3", target: 7 }] }),
+    [["lumen-api", "root@lumen-api.tail0000.ts.net"], ["vps", "vps"]]);
+    assert.equal(appMachines({ machines: Array.from({ length: 100 }, (_, n) => ({ name: `m${n}`, target: `m${n}` })) })
+      .length, 64);
+    assert.deepEqual(appMachines(null), []);
+  });
+
+test("what the network's machines to add ask through: the package's machines.sh, in a terminal tab on this Mac", () => {
+  assert.equal(setupFolder("/work/herdr-fold\n"), "/work/herdr-fold");
+  for (const text of [null, "", "work/herdr-fold", "/work/a\nb", "/work/\u001b[2J", `/${"a".repeat(1100)}`]) {
+    assert.equal(setupFolder(text), null, String(text));
+  }
+  const tab = { name: "NetBird", folder: "/work/herdr-fold", argv: ["/bin/bash", "/work/herdr-fold/machines.sh",
+    "netbird"] };
+  const list = [{ id: "s1", machine: "lumen-api", active: true }, { id: "s2", machine: null, active: false },
+    { id: "s3", machine: null, active: false }];
+  assert.deepEqual(importCommand("netbird", "/work/herdr-fold", list), ["tab.new", { ...tab, space: "s2" }]);
+  assert.deepEqual(importCommand("netbird", "/work/herdr-fold", [{ ...list[1] }, { ...list[2], active: true }]),
+    ["tab.new", { ...tab, space: "s3" }]);
+  assert.deepEqual(importCommand("netbird", "/work/herdr-fold", [list[0]]), ["space.new", { ...tab, machine: "" }]);
+});
+
+test("the status bar's machine wears its network's mark; this computer and one behind another none", () => {
+  const seen = networksSeen(answered());
+  assert.deepEqual(["lumen-api", "studio", "build-01", "mini", "constructor"].map((name) => networkOf(seen, name)),
+    ["tailscale", "local", null, null, null]);
+  assert.equal(networkOf(null, "lumen-api"), null);
+});
+
+test("a Spaces head's and the status bar's marks centre to the pixel in their 28", () => {
+  for (const name of ["headMark", "headChevron", "headCorner", "headDot", "headAdd", "barMark"]) {
+    assert.equal(CENTRED[name][0], name === "barMark" ? 28 : LIST.machine, name);
+  }
+  assert.deepEqual(CENTRED.headAddIcon, [18, 12]);
+  const root = JSON.parse(readFileSync(new URL("../layouts/herdr-fold.json", import.meta.url), "utf8"));
+  const status = (function find(node) {
+    return node?.id === "status" ? node : (node?.children ?? []).map(find).find(Boolean);
+  })(root);
+  assert.equal(status.size.px, CENTRED.barMark[0]);
+  const spaces = readFileSync(new URL("../mods/herdr-fold/spaces.js", import.meta.url), "utf8");
+  for (const part of ["headMark[1]", "headChevron[1]", "headCorner[1]", "headDot[1]", "headAdd[1]", "headAddIcon[1]"]) {
+    assert.ok(spaces.includes(`CENTRED.${part}`), part);
+  }
+  assert.ok(readFileSync(new URL("../mods/herdr-fold/status.js", import.meta.url), "utf8")
+    .includes("CENTRED.barMark[1]"));
+});

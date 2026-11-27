@@ -6,7 +6,7 @@ import { EditorState, v_flex, h_flex, InputState, ScrollHandle, TextareaState } 
 import { home } from "herdr";
 import { BY_EXTENSION, BY_NAME, FILE, ICONS, NETWORKS } from "./icons.js";
 import { agentsSaid, commitRows, chatRows, diffRows, fieldWidth, findAll, FLOAT_GRIP, floatHeight, foldedSections,
-  listHeight, menuHeight, paletteEntries, paletteKey, PALETTE_NAMED, panelChoices, pushOffer, RAIL,
+  listHeight, menuHeight, networksSeen, paletteEntries, paletteKey, PALETTE_NAMED, panelChoices, pushOffer, RAIL,
   searchRows, SETTINGS, shortCount, TABS_H, updateReady, VIEWS_APP } from "./logic.js";
 import { ISSUE_GROUPS, issueSet, PULL_GROUPS } from "./logic.js";
 import { AgentView } from "./agent.js";
@@ -221,9 +221,59 @@ const AT_HOME = [{ ...LOCAL, rows: [HOME_EMPTY, ...LOCAL.rows.slice(0, 1)] },
     MACHINES[1].rows[0]] },
   { ...GROUP, machine: "mini", rows: [{ ...HOME_EMPTY, id: "home:mini", machine: "mini" }] },
   { ...GROUP, machine: "win", rows: [{ ...ROOT_ROW, id: "s9", name: "C:\\" }] }];
-/** The Spaces list as its view draws GROUPS, MORE its drag. @param {any[]} groups */
-const spacesList = (t, groups, more = {}) => Object.assign(Object.create(SpacesView.prototype),
-  { pressed: null, over: null, machines: [], mending: new Set(), ...more }).draw(t, groups);
+// the Spaces list by network (remote-machines-mockups/machines.html's App frames): the mockup's machines as
+// core/networks.py's here answers for them, checked as the view checks it; build-01 and db-02 behind lumen-api,
+// studio on the local network and on Tailscale
+const NET_ON = { installed: true, state: "on", why: null, offered: [] };
+const NET_ROUTE = (/** @type {string} */ network, /** @type {string} */ address, through = /** @type {any} */ (null)) =>
+  ({ network, address, user: "root", port: null, through });
+const NET_TOLD = [["lumen-api", "tailscale", [NET_ROUTE("tailscale", "lumen-api.tail0000.ts.net")]],
+  ["build-01", "through", [NET_ROUTE("through", "198.51.100.30", "lumen-api")], "lumen-api"],
+  ["db-02", "through", [NET_ROUTE("through", "db-02.local", "lumen-api")], "lumen-api"],
+  ["harbor-web", "tailscale", [NET_ROUTE("tailscale", "harbor-web.tail0000.ts.net")]],
+  ["studio", "local", [NET_ROUTE("local", "studio.local"), NET_ROUTE("tailscale", "studio.tail0000.ts.net")]],
+  ["lab-pi", "local", [NET_ROUTE("local", "lab-pi.local")]],
+  ["tidepool", "netbird", [NET_ROUTE("netbird", "tidepool.netbird.cloud")]],
+  ["kelp-ci", "netbird", [NET_ROUTE("netbird", "kelp-ci.netbird.cloud")]],
+  ["vps-edge", "public", [NET_ROUTE("public", "203.0.113.7")]]];
+/** What the networks said of NET_TOLD's machines, NETBIRD NetBird's own state; ONE all of them on Tailscale. */
+const netSeen = (netbird = NET_ON, one = false) => networksSeen({ machines: NET_TOLD.map(([name, network, routes,
+  through = null]) => ({ name, network: one ? "tailscale" : network, through, routes: one ? [NET_ROUTE("tailscale",
+    `${name}.tail0000.ts.net`)] : routes })), networks: { tailscale: NET_ON, netbird,
+  zerotier: { ...NET_ON, installed: false, state: null } } });
+const NET_OFF = { installed: true, state: "off", offered: [], why: { key: "machines.why_netbird_off", args: [],
+  action: { key: "machines.why_do_start", args: [], command: "netbird up" }, then: null } };
+/** A machine's group in Spaces' model: NAME, its spaces ROWS, MORE (folded, a wait, away). */
+const netGroup = (/** @type {string | null} */ name, rows = /** @type {any[]} */ ([]), more = {}) =>
+  ({ ...GROUP, machine: name, rows, since: null, ...more });
+const NET_HOME = { ...HOME_ROW, id: "n0" }, NET_NOTES = { ...ROW, id: "n1", name: "notes", color: "ansi4" };
+const NET_API = [{ ...HOME_ROW, id: "n2" }, { ...ROW, id: "n3", name: "api", active: true, ahead: 2 }];
+const NET_TIDE = { ...ROW, id: "n4", name: "tide-ui", color: "ansi3", label: "spike" };
+const shut = { folded: true }, away = { connected: false, state: "unreachable", folded: true };
+// the long list: nine machines on four networks
+const NET_LONG = [netGroup(null, [NET_HOME, NET_NOTES]),
+  netGroup("build-01", [], { ...shut, wait: "waiting 4m", since: 1 }), netGroup("db-02", [], away),
+  netGroup("harbor-web", [], shut), netGroup("kelp-ci", [], shut), netGroup("lab-pi", [], shut),
+  netGroup("lumen-api", NET_API), netGroup("studio", [NET_TIDE]), netGroup("tidepool", [], shut),
+  netGroup("vps-edge", [], shut)];
+// a network off: NetBird off on this Mac, its machines unreachable
+const NET_DOWN = NET_LONG.map((g) => (["kelp-ci", "tidepool"].includes(String(g.machine)) ? { ...g, ...away } : g));
+// the short list: three machines on Tailscale; one behind another with no network's head
+const NET_SHORT = [netGroup(null, [NET_HOME, NET_NOTES]),
+  netGroup("harbor-web", [], { ...shut, wait: "waiting 4m", since: 1 }), netGroup("lumen-api", NET_API),
+  netGroup("studio", [NET_TIDE])];
+const NET_BEHIND = [netGroup(null, [NET_HOME]), netGroup("build-01", [], { ...shut, wait: "waiting 4m", since: 1 }),
+  netGroup("db-02", [], away), netGroup("lumen-api", NET_API)];
+// a network with machines to add: NetBird on, none of its three machines added yet
+const NET_EMPTY = [netGroup(null, [NET_HOME]), ...["harbor-web", "lab-pi", "lumen-api", "studio", "vps-edge"]
+  .map((name) => netGroup(name, [], shut))];
+const NET_OFFERING = { ...netSeen({ ...NET_ON, offered: ["tidepool", "kelp-ci", "ci-runner"] }),
+  setup: "/work/herdr-fold" };
+/** The Spaces list as its view draws GROUPS, MORE its drag, by what the networks said (SEEN) with those FOLDED; its
+ * clicks go nowhere. @param {any[]} groups */
+const spacesList = (t, groups, more = {}, seen = /** @type {any} */ (null), folded = /** @type {string[]} */ ([])) =>
+  Object.assign(Object.create(SpacesView.prototype), { pressed: null, over: null, machines: [], mending: new Set(),
+    ask: () => {}, ...more }).draw(t, groups, seen, folded);
 // the tab bar's tabs: the first named as its space, an agent working there (its icon tinted), one waiting on you, a
 // shell, one done and zoomed
 const BAR = [{ id: "t1", name: "lumen-api", active: true, status: "working", icon: ICONS.bot, tint: true },
@@ -330,6 +380,8 @@ const BARS = [["This computer, its branch, two agents", bar(null, "main", ["idle
   ["herdr-core updating: a spinner, no press", bar(null, "main", ["idle", "idle"],
     { core: { ready: "0.1.21", updating: true } })],
   ["A run working in the background: a press shows it in Runs", { ...bar(null, "main", ["idle"]), runs: 1 }],
+  ["On a machine reached by Tailscale: its network's mark before it", { ...bar("lumen-api", "main",
+    ["working", "idle"]), network: "tailscale" }],
   ["A newer herdr-fold out: a press opens Settings at About", bar(null, "main", ["idle", "idle"], {},
     { version: "0.4.0", latest: "0.5.0", newer: true })]];
 const ISSUE = { ago: ["1d", "4h"], issue: { number: 42, title: LISTED[0].title, state: "OPEN", author: "noa-berg",
@@ -2394,6 +2446,33 @@ function sections(g, t) {
       specimen(t, "sidebar-foot", "The sidebar's foot: Settings, the one Settings, and Add machine…",
         fixed(69, sidebarFoot(t)), { width: SIDEBAR, spec: "69 high, on the side's level under a hairline · a row 28, "
           + "8 in, rounded 8 · its icon 14 and name 13, 8 apart, muted · Add machine… dim" })])]],
+    ["spaces-networks", () => {
+      const list = (/** @type {string} */ id, /** @type {string} */ name, /** @type {any[]} */ groups,
+        /** @type {any} */ seen, { folded = /** @type {string[]} */ ([]), spec = "" } = {}) => specimen(t, id, name,
+        fixed(listHeight(groups, seen, folded), spacesList(t, groups, {}, seen, folded)), { width: SIDEBAR, spec });
+      return [group(t, "Spaces by network", [
+        list("spaces-networks", "Nine machines on four networks: grouped, the networks in the routes' order; build-01 "
+          + "and db-02 behind lumen-api, studio on two routes", NET_LONG, netSeen(), { spec: "a network's head h 28, "
+          + "8 under what is above it, px 8, 6 apart, rounded 6: its mark 14, its name 12 semibold muted, its count "
+          + "11 dim at the end, the chevron 12 dim · its machines' heads 8 in, as before, none with a mark · one "
+          + "behind another 12 further, corner-down-right 12 · tips: studio “Through the local network (studio.local)"
+          + " / Also on Tailscale”, build-01 “Through lumen-api (198.51.100.30)”" }),
+        list("spaces-networks-short", "Three machines on Tailscale: no network's head, each machine's its mark",
+          NET_SHORT, netSeen(NET_ON, true), { spec: "the mark 14 in the server icon's place · each machine's head 8 "
+          + "under what is above it · one no network tells keeps the server icon" }),
+        list("spaces-networks-off", "NetBird off on this Mac: its head says so, its machines unreachable", NET_DOWN,
+          netSeen(NET_OFF), { spec: "off 11 dim, the name dim (signed out, expired: ansi3, the name muted) · the "
+            + "head's tip the ladder's sentence: “NetBird is not running on this Mac. / Start it: netbird up”" }),
+        list("spaces-networks-empty", "NetBird on, none of its machines added: 3 to add", NET_EMPTY, NET_OFFERING,
+          { spec: "its count 0 · the row 28, 8 in, + 12 and 12 dim, the hover's fill · its tip “Offered by NetBird: "
+            + "tidepool, kelp-ci, ci-runner / A click asks about each, in a terminal tab” · grouped only, while its "
+            + "client is on" }),
+        list("spaces-networks-folded", "Tailscale folded: its longest wait on its head", NET_LONG, netSeen(),
+          { folded: ["tailscale"], spec: "folded as a machine's head is: the wait ansi3 after its name" }),
+        list("spaces-networks-behind", "Three machines, build-01 and db-02 behind lumen-api: no network's head",
+          NET_BEHIND, netSeen(), { spec: "12 in under lumen-api's head and spaces, corner-down-right 12 in the "
+            + "mark's place" })])];
+    }],
     ...halves("chats", (keep) => [group(t, "Chats", keep(g.chats.map(([name, view], i) => specimen(t, `chats-${i}`,
       name, framed(360, view.list(t, view.rows())), { width: PANEL,
         spec: i ? "" : "in the dock, in the view's place · h 24 a row · a space's chevron leftmost, 14 dim, its "

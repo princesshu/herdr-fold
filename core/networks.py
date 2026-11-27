@@ -1,6 +1,6 @@
 """What the networks say of their machines and of this Mac, and what a machine on the list sees, each read within a
-time limit of its own and killed with all it started after it, everything checked; each machine's network, and why one
-is away. machines.sh runs it: networks.py netbird|local|said|status|machines|heading|through … (arguments: main())."""
+time limit of its own and killed with all it started after it, everything checked; each machine's network, why one is
+away. Run as networks.py netbird|local|said|status|machines|heading|through|here … (machines.sh's; here the app's)."""
 import base64
 import binascii
 import calendar
@@ -11,13 +11,14 @@ import json
 import os
 import re
 import selectors
+import shutil
 import signal
 import subprocess
 import sys
 import time
 
 from machines import (NAME, PREFIX, address_ok, address_text, clean, guess_network, host_ok, parse_address, port_ok,
-                      read, target_route, user_ok)
+                      reachable_at, read, target_route, user_ok)
 
 NETBIRD_SECONDS = 5             # netbird status's own limit: with its daemon down, a dial alone can take 10 s
 TAILSCALE_SECONDS = 5           # tailscale status's, and zerotier-cli's
@@ -34,6 +35,14 @@ NAMES = {"tailscale": "Tailscale", "netbird": "NetBird", "zerotier": "ZeroTier",
 PAGES = {"tailscale": "https://tailscale.com/download", "netbird": "https://docs.netbird.io/how-to/installation",
          "zerotier": "https://www.zerotier.com/download/"}        # where each client is got
 CONSOLE = "https://login.tailscale.com/admin/machines"
+# where machines.sh finds this Mac's clients (lib/common.sh's tailscale_bin and netbird_bin; zerotier-cli on PATH): the
+# name on PATH, else the first of its places that runs; the WireGuard app by its folder
+PLACES = {"tailscale": ("tailscale", "/Applications/Tailscale.app/Contents/MacOS/Tailscale"),
+          "netbird": ("netbird", "/usr/local/bin/netbird", "/opt/homebrew/bin/netbird",
+                      "/Applications/NetBird.app/Contents/MacOS/netbird"),
+          "zerotier": ("zerotier-cli",)}
+WIREGUARD = "/Applications/WireGuard.app"
+SHOWN = 64                      # the app's own machines one look of the app's reads at most
 SHARED = ipaddress.ip_network((0x64400000, 10))                   # 100.64/10: Tailscale's and NetBird's addresses alike
 # a home or office network's: RFC 1918's 10/8, 172.16/12 and 192.168/16, the link-local ones, IPv6's unique local
 LAN = tuple(ipaddress.ip_network(one) for one in ((0x0A000000, 8), (0xAC100000, 12), (0xC0A80000, 16),
@@ -61,7 +70,7 @@ BROWSED = re.compile(STAMP + r"(Add|Rmv)\s+[0-9A-Fa-f]+\s+\d+\s+local\.\s+_ssh\.
 REACHED = re.compile(STAMP + r"\S+ can be reached at (\S+):(\d+) \(interface \d+\)")
 # what a prepared machine sees (./machines.sh through): remote/look-around.py, sent over the machine's own ssh as
 # python3's input, read up to LOOK_BYTES within LOOK_SECONDS (ssh's 10 s to connect, the machine's 5 s, room to spare)
-LOOK = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "remote", "look-around.py")
+LOOK = ("remote", "look-around.py")                               # beside core/ in the package (look_script())
 LOOK_COMMAND = 'export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"; exec python3 -'
 LOOK_SECONDS = 40
 LOOK_BYTES = 1 << 20
@@ -259,9 +268,17 @@ def addresses(value, most=8):
     return [one for one in value if isinstance(one, str) and address_ok(one)][:most] if isinstance(value, list) else []
 
 
+def computer(entry, dns):
+    """Whether a Tailscale peer (ENTRY, its name DNS) is a computer of your own, as machines.sh's import offers one:
+    Linux, macOS or Windows, no Mullvad exit node, no node of someone a machine is shared with, its key not expired."""
+    return (entry.get("OS") in SYSTEMS and not entry.get("Location") and dns.split(".")[-3:] != ["mullvad", "ts", "net"]
+            and not entry.get("ShareeNode") and entry.get("Expired") is not True)
+
+
 def tailnet_peer(entry):
     """A Tailscale peer as the ladder and the figures read it, never its endpoint: its names and addresses, online or
-    seen when, its key expired, the path to it; None for one whose name is no host name."""
+    seen when, its key expired, the path to it, whether its import offers it; None for one whose name is no host
+    name."""
     dns = entry.get("DNSName") if isinstance(entry, dict) else None
     dns = dns.rstrip(".").lower() if isinstance(dns, str) else ""
     if not host_ok(dns):
@@ -272,7 +289,8 @@ def tailnet_peer(entry):
             "expired": entry.get("Expired") is True, "active": entry.get("Active") is True,
             "direct": isinstance(entry.get("CurAddr"), str) and entry["CurAddr"] != "",
             "relay": relay if isinstance(relay, str) and RELAY.fullmatch(relay) else None,
-            "peer_relay": isinstance(entry.get("PeerRelay"), str) and entry["PeerRelay"] != ""}
+            "peer_relay": isinstance(entry.get("PeerRelay"), str) and entry["PeerRelay"] != "",
+            "offer": computer(entry, dns)}
 
 
 def tailscale_status(run=bounded, binary="tailscale", now=None):
@@ -351,6 +369,33 @@ def read_client(kind, run=bounded, binary=None, now=None):
 def clients(run=bounded, binaries=None, now=None):
     """This Mac's network clients, CLIENTS, each read_client()'s (BINARIES: {kind: its command line or app})."""
     return {kind: read_client(kind, run, (binaries or {}).get(kind), now) for kind in CLIENTS}
+
+
+def here(places=PLACES, wireguard=WIREGUARD):
+    """This Mac's clients as machines.sh finds them (PLACES), for the app: {kind: its command line, the WireGuard app's
+    folder, or None}."""
+    runs = lambda path: os.path.isfile(path) and os.access(path, os.X_OK)             # noqa: E731
+    found = {kind: shutil.which(name) or next(filter(runs, fixed), None) for kind, (name, *fixed) in places.items()}
+    return dict(found, wireguard=wireguard if os.path.isdir(wireguard) else None)
+
+
+def app_machine(name, target):
+    """A machine of the app's own list (its NAME and TARGET) as a list's line of one route reads; None for a name or a
+    target that is none (a command, an option, a space)."""
+    user, host, port = parse_address(target) if isinstance(target, str) else (None, "", None)
+    if not (isinstance(name, str) and NAME.fullmatch(name)) or not reachable_at(user, host, port):
+        return None
+    return {"name": name, "target": target, "os": "", "key": None, "routes": [target_route(target)]}
+
+
+def offered(kind, client, listed):
+    """The names of the machines network KIND's CLIENT lists, while it is on, that its import offers (Tailscale's
+    computers, NetBird's all) and no route of the LISTED machines reaches: what Spaces says there is to add."""
+    if kind not in ("tailscale", "netbird") or (client or {}).get("state") != "on":
+        return []
+    taken = {one["dns"] for machine in listed for route in machine["routes"] if not route.get("through")
+             for one in [peer_of(client, route["address"])] if one}
+    return [one["name"] for one in client["peers"] if one.get("offer", True) and one["dns"] not in taken]
 
 
 def peer_of(client, host):
@@ -726,6 +771,11 @@ def figures(machine, clients, probe):
             "seen": probe.now if done else (peer or {}).get("seen")}
 
 
+def look_script():
+    """remote/look-around.py's path, beside core/ (read when a machine looks around: the app's copy has no file)."""
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, *LOOK)
+
+
 def looked(argv, seconds, given, most=LOOK_BYTES):
     """(exit status, what ARGV printed, its errors) with the file GIVEN as its input, read until it ends, SECONDS pass
     or it prints over MOST bytes, then killed with all it started (its own session); its output None when it ran too
@@ -879,7 +929,7 @@ def through(argv):
     found = clients(bounded, binaries)
     head(jump, found, Probe(listed))
     emit("looking", jump["name"])
-    code, out, err = looked(["ssh", *options, "--", jump["target"], LOOK_COMMAND], LOOK_SECONDS, LOOK)
+    code, out, err = looked(["ssh", *options, "--", jump["target"], LOOK_COMMAND], LOOK_SECONDS, look_script())
     result = look_around_result(out, jump, listed, found, this_mac()) if code == 0 else None
     if code == 255:
         for line in lines_of(said(jump["name"], jump["target"], err)):
@@ -942,11 +992,14 @@ def status(argv):
     return 0
 
 
-def machines_json(argv):
+def machines_json(argv, more=()):
     """LIST TAILSCALE NETBIRD ZEROTIER WIREGUARD [--login [-- SSH_OPTION…]]: what the clients show, as JSON: each
-    network's state, each machine's network and routes, why it is away and its figures; logins only with --login, the
-    network's state read again right after one (a tailnet peer is active then)."""
+    network's state, its own rung and what it offers to add, each machine's (the list's, then MORE) network and routes,
+    why it is away and its figures; logins only with --login, the network's state read again right after one."""
     listed, binaries, flags, options = arguments(argv)
+    for one in more:
+        if all(one["name"] != other["name"] for other in listed):
+            listed.append(one)
     found = clients(bounded, binaries)
     probe, shown = Probe(listed, options if "--login" in flags else None), []
     for machine in listed:
@@ -959,9 +1012,18 @@ def machines_json(argv):
                       "routes": [dict(route, network=probe.network(machine, route, found)[0])
                                  for route in machine["routes"]]})
     print(json.dumps({"checked": probe.now, "machines": shown,
-                      "networks": {kind: {"installed": one["installed"], "state": one["state"]}
+                      "networks": {kind: {"installed": one["installed"], "state": one["state"],
+                                          "why": client_rung(kind, found), "offered": offered(kind, one, listed)}
                                    for kind, one in found.items()}}))
     return 0
+
+
+def here_json(argv):
+    """LIST [NAME TARGET]…: machines_json()'s for the Herdr app, every 60 s while it shows a remote machine: this Mac's
+    clients found here, the app's own machines (at most SHOWN) read after the list's, no login."""
+    found, pairs = here(), argv[1:1 + 2 * SHOWN]
+    more = [one for one in map(app_machine, pairs[::2], pairs[1::2]) if one]
+    return machines_json([argv[0], *(found[kind] or "" for kind in CLIENTS)], more)
 
 
 def main(argv):
@@ -985,6 +1047,8 @@ def main(argv):
         for line in lines_of(found):
             emit(*line)
         return 0
+    if len(argv) >= 3 and argv[1] == "here":
+        return here_json(argv[2:])
     commands = {"status": status, "machines": machines_json, "heading": heading, "through": through}
     if len(argv) >= 7 and argv[1] in commands:
         return commands[argv[1]](argv[2:])

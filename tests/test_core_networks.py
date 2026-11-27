@@ -2,9 +2,12 @@
 its own: NetBird's peers by name, its state told apart, the machines announcing SSH on the local network by their .local
 name, this Mac left out; each machine's network, and why one is away, the first check that fails."""
 import calendar
+import contextlib
+import io
 import ipaddress
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -547,10 +550,14 @@ class Figures(unittest.TestCase):
                                   capture_output=True, text=True, timeout=30,
                                   env={"PATH": f"{folder}:/usr/bin:/bin", "HOME": tmp})
             return json.loads(done.stdout)
-        # the 60 s look: the networks' own checks alone, no login
+        # the 60 s look: the networks' own checks alone, no login; each network's own rung, and the machines its
+        # import offers that are not on the list yet (kelp-ci's key expired: none offered)
         found = read()
-        self.assertEqual((found["networks"]["tailscale"], found["networks"]["netbird"]),
-                         ({"installed": True, "state": "on"}, {"installed": False, "state": None}))
+        self.assertEqual((found["networks"]["tailscale"], found["networks"]["netbird"]), (
+            {"installed": True, "state": "on", "why": None, "offered": ["studio", "vps-edge"]},
+            {"installed": False, "state": None, "offered": [], "why": networks.why(
+                "machines.why_missing", "NetBird", action=networks.todo("machines.why_do_get",
+                                                                        command=networks.PAGES["netbird"]))}))
         by = {one["name"]: one for one in found["machines"]}
         self.assertEqual((by["lumen-api"]["network"], by["lumen-api"]["why"]), ("tailscale", None))
         self.assertEqual(by["harbor-web"]["why"]["key"], "machines.why_offline")
@@ -563,6 +570,86 @@ class Figures(unittest.TestCase):
                          (None, "direct", int))
         with open(logins) as f:
             self.assertEqual(f.read(), f"-o BatchMode=yes -- root{AT}lumen-api.tail0000.ts.net exit\n")
+
+
+class ForTheApp(unittest.TestCase):
+    """The Herdr app's look (networks.py here, every 60 s while a remote machine shows): this Mac's clients found as
+    machines.sh finds them, the app's own machines read with the list's, what each network offers to add."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+
+    def test_the_app_finds_the_clients_where_machines_sh_does(self):
+        bin_dir = stubs(os.path.join(self.tmp, "bin"), {"tailscale": "#!/bin/sh\nexit 0\n"})
+        fixed = stubs(os.path.join(self.tmp, "fixed"), {"netbird": "#!/bin/sh\nexit 0\n"})
+        os.makedirs(os.path.join(self.tmp, "WireGuard.app"))
+        set_env(self, PATH=bin_dir)
+        places = {"tailscale": ("tailscale", os.path.join(self.tmp, "nowhere")),
+                  "netbird": ("netbird", os.path.join(self.tmp, "nowhere"), os.path.join(fixed, "netbird")),
+                  "zerotier": ("zerotier-cli",)}
+        self.assertEqual(networks.here(places, os.path.join(self.tmp, "WireGuard.app")), {
+            "tailscale": os.path.join(bin_dir, "tailscale"), "netbird": os.path.join(fixed, "netbird"),
+            "zerotier": None, "wireguard": os.path.join(self.tmp, "WireGuard.app")})
+        self.assertEqual(networks.here(places, os.path.join(self.tmp, "none.app"))["wireguard"], None)
+        # the places lib/common.sh's tailscale_bin and netbird_bin look, the same as networks.py's
+        with open(os.path.join(PACKAGE, "lib", "common.sh"), encoding="utf-8") as f:
+            common = f.read()
+        for kind in ("tailscale", "netbird"):
+            body = common[common.index(f"{kind}_bin() {{"):]
+            body = body[:body.index("\n}\n")]
+            places = set(re.findall(r"/[\w./-]+", body)) - {"/dev/null"}
+            self.assertEqual(sorted(places), sorted(networks.PLACES[kind][1:]), kind)
+
+    def test_the_apps_own_machines_are_read_with_the_list(self):
+        folder = stubs(os.path.join(self.tmp, "stubs"), {
+            "tailscale": "#!/bin/sh\ncat <<'JSON'\n" + tailscale_json(TAILNET) + "\nJSON\n",
+            "ssh": "#!/bin/sh\nexit 0\n", "route": "#!/bin/sh\nexit 68\n"})
+        set_env(self, PATH=f"{folder}:/usr/bin:/bin")
+        set_attrs(self, networks, here=lambda: {"tailscale": os.path.join(folder, "tailscale"), "netbird": None,
+                                                "zerotier": None, "wireguard": None})
+        listed = os.path.join(self.tmp, "machines.txt")
+        with open(listed, "w") as f:
+            f.write(f"lumen-api | root{AT}lumen-api.tail0000.ts.net | linux\n")
+        crafted = ["-oProxyCommand=x", "root" + AT + "evil.example", "evil", "-oProxyCommand=touch x",
+                   "evil-2", "root" + AT + "a.example;touch x", "evil-3", "root" + AT + "evil\nbox"]
+        pairs = ["vps-edge", "root" + AT + "vps-edge.tail0000.ts.net", "lumen-api", "dev" + AT + "elsewhere.example",
+                 "studio", "dev" + AT + "studio.local", *crafted]
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(networks.main(["networks.py", "here", listed, *pairs]), 0)
+        found = json.loads(out.getvalue())
+        by = {one["name"]: one for one in found["machines"]}
+        # the list first, then the app's own in its order, each name once (the list's target wins), none crafted
+        self.assertEqual(list(by), ["lumen-api", "vps-edge", "studio"])
+        self.assertEqual(by["lumen-api"]["target"], "root" + AT + "lumen-api.tail0000.ts.net")
+        self.assertEqual((by["vps-edge"]["network"], by["studio"]["network"]), ("tailscale", "local"))
+        self.assertEqual(by["vps-edge"]["routes"], [route("tailscale", "vps-edge.tail0000.ts.net", "root")])
+        # what the app has already is never offered again (vps-edge; kelp-ci's key expired); studio's tailnet name
+        # is no route the app knows, so its import offers it (and finds it by its key)
+        self.assertEqual(found["networks"]["tailscale"]["offered"], ["harbor-web", "studio"])
+        # at most SHOWN of the app's own
+        many = [one for n in range(networks.SHOWN + 5) for one in (f"m{n}", f"root{AT}m{n}.tail0000.ts.net")]
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            networks.main(["networks.py", "here", listed, *many])
+        self.assertEqual(len(json.loads(out.getvalue())["machines"]), 1 + networks.SHOWN)
+
+    def test_a_network_offers_the_computers_its_import_would_that_are_not_on_the_list(self):
+        odd = {"exit-node": ("100.115.92.20", {"Location": {"Country": "Sweden"}}),
+               "zz-guest": ("100.115.92.21", {"ShareeNode": True}),
+               "dev-phone": ("100.115.92.22", {"OS": "iOS"}),
+               "dev-tv": ("100.115.92.23", {"OS": "tvOS"}),
+               "reef-mac": ("100.115.92.24", {"OS": "macOS"})}
+        on = clients(tailscale=tailscale_json({**TAILNET, **odd}))
+        # Tailscale's computers alone, as its import offers them; one any route of the list reaches is not offered
+        self.assertEqual(networks.offered("tailscale", on["tailscale"], LISTED), ["reef-mac", "vps-edge"])
+        # NetBird tells no system: each machine it lists that the list does not have (tidepool is on it)
+        self.assertEqual(networks.offered("netbird", on["netbird"], LISTED), ["dev-phone", "harbor-web", "kelp-ci"])
+        # a network that is not on offers none; nor does one without names (ZeroTier, the local network)
+        self.assertEqual(networks.offered("netbird", clients(netbird=None)["netbird"], LISTED), [])
+        self.assertEqual(networks.offered("zerotier", on["zerotier"], LISTED), [])
+        self.assertEqual(networks.offered("local", None, LISTED), [])
 
 
 if __name__ == "__main__":

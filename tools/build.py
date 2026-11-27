@@ -36,6 +36,7 @@ HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"AGENT_LAYER
                                                                     "HARNESS": "harness.py", "JOB": "job.py",
                                                                     "MEDIA": "media.py",
                                                                     "NAMED_FILES": "named_files.py",
+                                                                    "NETWORKS": "networks.py",
                                                                     "PRICES": "prices.py",
                                                                     "REPORT": "report.py",
                                                                     "RUNS": "runs.py",
@@ -46,6 +47,8 @@ HELPERS = {os.path.join("app", "mods", "herdr-fold", "helper.js"): {"AGENT_LAYER
 # only the mod runs these: its chat, its jobs, the commands of what the sidebar imports itself
 MOD_ONLY = {"agent_layers_cli.py", "chat.py", "chat_hook.py", "graph_cli.py", "job.py"}
 SCRIPTS_ONLY = {"machines.py", "networks.py"}  # machines.sh's and uninstall.sh's, run from core/: none in the sidebar
+# the catalog's words the app says what core/networks.py answers in: why a machine is away, each network's name
+CATALOG, MACHINE_WORDS = os.path.join("src", "lang", "en.txt"), ("machines.why_", "machines.network_")
 ICONS = os.path.join("app", "mods", "herdr-fold", "icons.js")       # the mod's icons, by name, and the file types'
 SVGS = "mods/herdr-fold/icons"     # as the app loads them: lucide/ the views', catppuccin/ a file's, logos/ a brand's
 THEMES = os.path.join("app", "themes")      # the TUI's themes in the Herdr app: herdr-fold-ID.json for each, and
@@ -151,25 +154,58 @@ def note(name):
 def js_note():
     """helper.js's opening comment: where it comes from, and what it is for."""
     return ["// @ts-check",
-            "// Generated from core/ by tools/build.py: each export a module's source, run with Python's -c on the",
-            "// space's machine; MEDIA_*, OUTPUT_LINES, ISSUES_STALE and THEME_NAMES core's tables, the TUI's. "
-            "Change them there."]
+            "// Generated from core/ by tools/build.py: each export a module's source, run with Python's -c; MEDIA_*,",
+            "// OUTPUT_LINES, ISSUES_STALE, THEME_NAMES core's tables, MACHINE_WORDS src/lang/en.txt's. Change them "
+            "there."]
+
+
+def pieces(line):
+    """LINE cut after a space into pieces whose string literals are WIDTH cells at most (no word cut in two)."""
+    found, piece = [], ""
+    for ch in line:
+        if len(json.dumps(piece + ch)) > WIDTH:
+            cut = piece.rfind(" ") + 1 or len(piece)
+            found.append(piece[:cut])
+            piece = piece[cut:]
+        piece += ch
+    return found + [piece]
 
 
 def literal(text):
     """TEXT as a JS expression of string literals, one per source line (a long one cut into pieces), joined at run time:
     every line of helper.js stays inside the 120 cells every file keeps to."""
-    rows = []
-    for line in text.split("\n"):
-        pieces, piece = [], ""
-        for ch in line:
-            if len(json.dumps(piece + ch)) > WIDTH:
-                cut = piece.rfind(" ") + 1 or len(piece)          # after its last space: no word cut in two
-                pieces.append(piece[:cut])
-                piece = piece[cut:]
-            piece += ch
-        rows.append(" +\n    ".join(json.dumps(one) for one in pieces + [piece]))
+    rows = [" +\n    ".join(json.dumps(one) for one in pieces(line)) for line in text.split("\n")]
     return "[\n  " + ",\n  ".join(rows) + ',\n].join("\\n")'
+
+
+def machine_words():
+    """The catalog's texts (CATALOG) whose keys MACHINE_WORDS start, as written: %s, %% and \\n left for the app."""
+    found, key = {}, None
+    with open(os.path.join(ROOT, CATALOG), encoding="utf-8") as f:
+        for line in f.read().split("\n"):
+            if key:                                         # a text that goes on: without its indentation
+                found[key] += line.lstrip()
+            else:
+                key, sep, text = line.partition(" = ")
+                if not sep or key.startswith("#"):
+                    key = None
+                    continue
+                found[key] = text
+            if found[key].endswith("\\"):
+                found[key] = found[key][:-1]
+            else:
+                key = None
+    return {key: text for key, text in found.items() if key.startswith(MACHINE_WORDS)}
+
+
+def words_js(words):
+    """WORDS as a JS object, a key a line, its text on the next lines where it is long (each within 120 cells)."""
+    rows = []
+    for key, text in words.items():
+        one = f"  {json.dumps(key)}: {json.dumps(text)},"
+        rows.append(one if len(one) <= 120 else f"  {json.dumps(key)}:\n    "
+                    + " +\n    ".join(json.dumps(piece) for piece in pieces(text)) + ",")
+    return "{\n" + "\n".join(rows) + "\n}"
 
 
 def module(name):
@@ -308,6 +344,7 @@ def outputs():
         lines.append(f"export const MEDIA_SERVICES = {json.dumps(module('calls').MEDIA, indent=2)};")
         lines.append(f"export const OUTPUT_LINES = {module('named_files').LINES};")
         lines.append(f"export const ISSUES_STALE = {module('github').STALE};")       # seconds: a list asked again
+        lines.append(f"export const MACHINE_WORDS = {words_js(machine_words())};")
         # the app's herdr-fold themes by the TUI's names, in its order (Cmd+Shift+T's list)
         names = {f"herdr-fold-{theme['id']}": theme["name"] for theme in themes}
         lines.append(f"export const THEME_NAMES = {json.dumps(names, indent=2)};")
