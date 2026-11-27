@@ -94,6 +94,9 @@ between › and ⌄, 80 ms long (`Turns` in its `widgets.py`).
 
 ![Each file type's icon, Catppuccin Icons'](../assets/styleguide/file-types.webp)
 
+![The networks' marks: the local network, Tailscale, NetBird, ZeroTier, WireGuard, another tunnel, Cloudflare,
+public](../assets/styleguide/network-marks.webp)
+
 The views' icons are Lucide's, drawn by `icon(name)` in the text's color; a file's is Catppuccin Icons' for its type,
 in its own colors (`fileMark`), the types told apart as the TUI sidebar tells them (`core/icons.py`); a connector's is
 its service's logo, SVG Logos', in its own colors with no tile under it, a one-color dark mark (Linear, Sentry) in the
@@ -381,6 +384,9 @@ sign-out; Codex's servers not read](../assets/styleguide/agent-connectors-states
 empty, a name refused, the agent refusing it, Adding while its command runs; Codex's
 form](../assets/styleguide/agent-connectors-adding.webp)
 
+![The Agent panel's media services: what each makes and its calls today in place of its tools and cost, ElevenLabs
+chosen](../assets/styleguide/agent-media.webp)
+
 ![The agents on this Mac: the head's chip pressed, the installed agents with Claude shown, OpenCode and Copilot with no
 plan to tell, then the one not installed, dim; the keys on Codex; one not installed looked at; every agent installed; a
 narrow panel; before the agents are told](../assets/styleguide/agent-list.webp)
@@ -502,7 +508,15 @@ The main area's tab of that name, one a window, under Lucide's waypoints in the 
 properties and every word are core's (`machine_graph.py` over `networks.py`'s look); the view keeps the layout
 (`machinestab.js`, its rules in `graph.js`). With no machine on the list, This Mac's line says so (`No machine on the
 list yet.`) and a network with machines to offer says `Add 4 machines…`. The styleguide's parts are
-`machines-graph` and `machines-inspector`; their pictures are yet to be taken.
+`machines-graph` and `machines-inspector`.
+
+![The Machines tab's graph: This Mac, its networks, their machines, build-01 and db-02 behind lumen-api, each edge
+direct, relayed, a standby route or away; NetBird off; a machine on two routes; the minute's look; the empty list;
+loading and a failed look](../assets/styleguide/machines-graph.webp)
+
+![A node's properties: a machine behind another with Status, Set up again, Remove… and its More; one away; NetBird off
+with its command to copy; a network with machines to add; a machine on two
+routes](../assets/styleguide/machines-inspector.webp)
 
 | Part | Measures |
 |---|---|
@@ -623,6 +637,10 @@ under it, 12 further in, Lucide's `corner-down-right` 12 in the mark's place, it
 local network (studio.local)`, `Also on Tailscale`). A network on with none of its machines added yet shows only
 grouped, with no count, and a row 28, 8 in, + 12 and `Add 3 machines…` 12 `dim` (cut with … where it has
 no room), the hover's fill, its tip naming them.
+
+![Spaces by network: nine machines on four networks under their heads, three on one network with its mark, NetBird off,
+a network with machines to add, Tailscale folded with its longest wait, machines behind
+lumen-api](../assets/styleguide/spaces-networks.webp)
 
 ### Chats
 
