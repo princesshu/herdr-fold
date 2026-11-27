@@ -168,6 +168,8 @@ is changed), and mind a mode that sends all traffic through one network (Cloudfl
 private network, Tailscale's exit node): it can cut the others off. A machine reached only through another one is
 added through it: [A machine behind another](#a-machine-behind-another).
 
+"WireGuard" and the "WireGuard" logo are registered trademarks of Jason A. Donenfeld.
+
 ## A machine behind another
 
 A machine this Mac does not reach itself, a server on a client's network or one next to a machine of yours, is reached

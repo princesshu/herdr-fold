@@ -34,6 +34,7 @@ export const ICONS = {
   "folder-plus": "mods/herdr-fold/icons/lucide/folder-plus.svg",
   "git-branch": "mods/herdr-fold/icons/lucide/git-branch.svg",
   "git-pull-request": "mods/herdr-fold/icons/lucide/git-pull-request.svg",
+  "globe": "mods/herdr-fold/icons/lucide/globe.svg",
   "hand": "mods/herdr-fold/icons/lucide/hand.svg",
   "layers": "mods/herdr-fold/icons/lucide/layers.svg",
   "leaf": "mods/herdr-fold/icons/lucide/leaf.svg",
@@ -44,6 +45,7 @@ export const ICONS = {
   "loader-circle": "mods/herdr-fold/icons/lucide/loader-circle.svg",
   "minus": "mods/herdr-fold/icons/lucide/minus.svg",
   "monitor": "mods/herdr-fold/icons/lucide/monitor.svg",
+  "network": "mods/herdr-fold/icons/lucide/network.svg",
   "notebook": "mods/herdr-fold/icons/lucide/notebook.svg",
   "panel-left": "mods/herdr-fold/icons/lucide/panel-left.svg",
   "play": "mods/herdr-fold/icons/lucide/play.svg",
@@ -57,6 +59,7 @@ export const ICONS = {
   "server": "mods/herdr-fold/icons/lucide/server.svg",
   "settings": "mods/herdr-fold/icons/lucide/settings.svg",
   "share-2": "mods/herdr-fold/icons/lucide/share-2.svg",
+  "shield": "mods/herdr-fold/icons/lucide/shield.svg",
   "sparkle": "mods/herdr-fold/icons/lucide/sparkle.svg",
   "sparkles": "mods/herdr-fold/icons/lucide/sparkles.svg",
   "square": "mods/herdr-fold/icons/lucide/square.svg",
@@ -314,6 +317,64 @@ export const BRANDS = {
     "name": "Sentry",
     "logo": "mods/herdr-fold/icons/logos/sentry-icon.svg",
     "mono": true
+  }
+};
+export const NETWORKS = {
+  "local": {
+    "logo": null,
+    "mono": false,
+    "icon": "mods/herdr-fold/icons/lucide/network.svg",
+    "letter": null,
+    "color": null
+  },
+  "tailscale": {
+    "logo": "mods/herdr-fold/icons/logos/tailscale.svg",
+    "mono": true,
+    "icon": null,
+    "letter": "T",
+    "color": null
+  },
+  "netbird": {
+    "logo": "mods/herdr-fold/icons/logos/netbird.svg",
+    "mono": false,
+    "icon": null,
+    "letter": "N",
+    "color": "#f68330"
+  },
+  "zerotier": {
+    "logo": "mods/herdr-fold/icons/logos/zerotier.svg",
+    "mono": true,
+    "icon": null,
+    "letter": "Z",
+    "color": "#ffb441"
+  },
+  "wireguard": {
+    "logo": null,
+    "mono": false,
+    "icon": null,
+    "letter": "W",
+    "color": null
+  },
+  "tunnel": {
+    "logo": null,
+    "mono": false,
+    "icon": "mods/herdr-fold/icons/lucide/shield.svg",
+    "letter": null,
+    "color": null
+  },
+  "cloudflare": {
+    "logo": null,
+    "mono": false,
+    "icon": null,
+    "letter": "C",
+    "color": null
+  },
+  "public": {
+    "logo": null,
+    "mono": false,
+    "icon": "mods/herdr-fold/icons/lucide/globe.svg",
+    "letter": null,
+    "color": null
   }
 };
 /** @typedef {keyof typeof ICONS} IconName */

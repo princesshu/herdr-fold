@@ -31,9 +31,10 @@ import { afterCommit, background, branchLabel, changeColor, changeName, commitMo
   SECTIONS, APP_SECTIONS, settingsSection, sectionStep, settingsTargets, columnToggle, restoreCommands, keyMenuBounds,
   themeChoices, layoutToast, soundsFor, noteShown, modTab, unsavedKey, unsavedTabs, editsInTab, markdownFile,
   editorLanguage, indentOf, withEnds, findAll, nextMatch, findCount, FOUND_MOST, draftName, commentAt, reviewReady,
-  primaryLit, loginColor, recentProjects, homeShort }
+  primaryLit, loginColor, recentProjects, homeShort, networkLook }
   from "../mods/herdr-fold/logic.js";
 import { format } from "../mods/herdr-fold/timeline.js";
+import { NETWORKS } from "../mods/herdr-fold/icons.js";
 
 test("a tab nobody named after its program, an agent's first, else Terminal; an agent's icon; zoomed marked", () => {
   const space = { tabs: [{ id: "t1", name: "1", named: false, active: true, status: "working" },
@@ -2187,6 +2188,28 @@ test("a file named for an object's own property gets the plain file icon, never 
   for (const name of ["x.constructor", "x.toString", "x.__proto__", "x.hasOwnProperty"]) {
     assert.equal(fileIcon(name), fileIcon("x.unknown-kind"), name);
   }
+});
+
+test("a network's mark: its brand's own logo, a one-color one in its color or the text's, else a plain icon", () => {
+  const logo = (name) => `mods/herdr-fold/icons/logos/${name}.svg`;
+  const plain = (name) => `mods/herdr-fold/icons/lucide/${name}.svg`;
+  assert.deepEqual(networkLook("tailscale"), { path: logo("tailscale"), image: false, tint: "foreground",
+    letter: null });
+  assert.deepEqual(networkLook("zerotier"), { path: logo("zerotier"), image: false, tint: "#ffb441", letter: null });
+  assert.deepEqual(networkLook("netbird"), { path: logo("netbird"), image: true, tint: null, letter: null });
+  assert.deepEqual(["local", "public", "tunnel"].map((network) => networkLook(network)), ["network", "globe", "shield"]
+    .map((name) => ({ path: plain(name), image: false, tint: "muted", letter: null })));
+  for (const network of Object.keys(NETWORKS)) {
+    const path = networkLook(network)?.path;
+    assert.ok(!path || existsSync(new URL(`../${path}`, import.meta.url)), network);
+  }
+});
+
+test("WireGuard's and Cloudflare's terms keep their logos out: their letter on a tile; no mark for no network", () => {
+  assert.deepEqual(["wireguard", "cloudflare"].map((network) => networkLook(network)), ["W", "C"]
+    .map((letter) => ({ path: null, image: false, tint: "muted", letter })));
+  assert.deepEqual(["through", "constructor", null, undefined].map((network) => networkLook(network)),
+    [null, null, null, null]);                                             // one behind another: its indent says it
 });
 
 test("a reopened chat is forgotten once its agent is gone, never for a moment's empty list", () => {

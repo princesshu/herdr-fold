@@ -27,8 +27,9 @@ from VS Code's Dark Modern theme. Each palette was designed by its own project:
 
 ## Icons
 
-The Herdr app mod's icons, fetched from [Iconify](https://iconify.design) by `tools/icons.py`, are unchanged but for
-line breaks. The views' (`app/mods/herdr-fold/icons/lucide/`) are [Lucide](https://lucide.dev)'s:
+The Herdr app mod's icons, fetched from [Iconify](https://iconify.design) by `tools/icons.py` (NetBird's from its own
+repository), are unchanged but for line breaks and a square canvas round a wide or tall one. The views'
+(`app/mods/herdr-fold/icons/lucide/`) are [Lucide](https://lucide.dev)'s:
 
 ```text
 ISC License
@@ -76,11 +77,48 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-A connector's brand (`app/mods/herdr-fold/icons/logos/`: Box, Cartesia, Dropbox, ElevenLabs, fal, Figma, Google
-Drive, Higgsfield, Linear, Luma, Notion, OneDrive, Runway and Sentry) is from
+A connector's brand and a network's (`app/mods/herdr-fold/icons/logos/`: Box, Cartesia, Dropbox, ElevenLabs, fal,
+Figma, Google Drive, Higgsfield, Linear, Luma, Notion, OneDrive, Runway, Sentry and Tailscale) is from
 [SVG Logos](https://github.com/gilbarbara/logos), which its author, Gil Barbara, gave to the public domain (CC0 1.0
-Universal). Each mark is its owner's trademark, used only to name that service beside its connector. FLUX (Black
-Forest Labs) and Meshy are drawn by their letter: their makers give no logo to take.
+Universal); ZeroTier's is from [Simple Icons](https://github.com/simple-icons/simple-icons), which its collaborators
+gave to the public domain the same way (CC0 1.0 Universal); NetBird's is the logomark in NetBird's own repository
+([netbirdio/netbird](https://github.com/netbirdio/netbird) v0.83.2,
+`client/ui/frontend/src/assets/logos/netbird.svg`), under its BSD 3-Clause License, below. Each mark is its owner's
+trademark, used only to name that service beside its connector, or that network beside its machines, and never
+altered. FLUX (Black Forest Labs) and Meshy are drawn by their letter: their makers give no logo to take; WireGuard
+and Cloudflare by theirs too: their trademark policies keep their logos out of an application without written
+permission. The local network's, a public address's and another tunnel's icon is Lucide's.
+
+```text
+BSD 3-Clause License
+
+Copyright (c) 2022-2026 NetBird GmbH & AUTHORS
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
 
 ## The font
 
@@ -173,9 +211,10 @@ Mac's own app icons. None of Ghostty's artwork is in it or in this repository.
 ## Trademarks
 
 Claude Code, Codex, VS Code, GitHub, Tailscale, herdr and Ghostty, and Box, Cartesia, Dropbox, ElevenLabs, fal,
-Figma, FLUX and Black Forest Labs, Google Drive, Higgsfield, Linear, Luma, Meshy, Notion, OneDrive, Runway and Sentry
-with their logos, are trademarks of their respective owners. herdr-fold is an independent project, not affiliated with
-or endorsed by them.
+Figma, FLUX and Black Forest Labs, Google Drive, Higgsfield, Linear, Luma, Meshy, Notion, OneDrive, Runway and Sentry,
+and NetBird, ZeroTier, WireGuard and Cloudflare, with their logos, are trademarks of their respective owners.
+herdr-fold is an independent project, not affiliated with or endorsed by them. "WireGuard" and the "WireGuard" logo
+are registered trademarks of Jason A. Donenfeld.
 
 herdr-fold's name and its logo, the sheep (`src/themes/logo.svg`, and the app icon in each theme's colors made from
 it), identify this project. The MIT license covers the code and the files, but gives no right to use the name or the

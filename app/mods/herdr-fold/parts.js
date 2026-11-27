@@ -9,7 +9,7 @@ import { BRANDS, ICONS } from "./icons.js";
 import { tile } from "./layers.js";
 
 /** @typedef {import("./icons.js").IconName} IconName */
-import { avatarFill, BADGE, badgeSpot, lastLine, LIST, NOTE_MS, PAD, shortCount } from "./logic.js";
+import { avatarFill, BADGE, badgeSpot, lastLine, LIST, networkLook, NOTE_MS, PAD, shortCount } from "./logic.js";
 
 export const GAP = 4;              // between two hover backgrounds side by side, everywhere: tabs, icon buttons
 // fixed-width text's one font, every view's and the styleguide's: the layout's terminals' (herdr-fold's own, which
@@ -60,6 +60,21 @@ export function brandMark(t, brand, name, size = 16) {
   const { letter, color } = tile(name);
   return div().size(size).flex_none().flex().items_center().justify_center().rounded(4).bg(avatarFill(color, t))
     .text_size(10).line_height(`${size}px`).font_bold().text_color("#ffffff").child(letter);
+}
+
+/** A network's mark, SIZE square, as brandMark draws a connector's: its logo with no tile (one-color in its color or
+ * the text's), a plain icon in muted, else its letter muted on a raised tile (WireGuard, Cloudflare); none for none
+ * known. @param {string | null | undefined} network @param {number} [size] */
+export function networkMark(t, network, size = 16) {
+  const look = networkLook(network);
+  if (!look) return null;
+  const tint = (/** @type {string} */ tone) => tone.startsWith("#") ? tone : t[tone];
+  if (look.path) {
+    return look.image ? image(look.path).size(size).flex_none()
+      : svg(look.path).size(size).flex_none().text_color(tint(String(look.tint)));
+  }
+  return div().size(size).flex_none().flex().items_center().justify_center().rounded(4).bg(t.raised)
+    .text_size(10).line_height(`${size}px`).font_bold().text_color(tint(String(look.tint))).child(look.letter);
 }
 
 /** A sign-in's spinner (connectors.html's .spin): 12, in the accent, a turn in 0.9 s. */

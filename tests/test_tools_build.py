@@ -67,6 +67,23 @@ class Copies(unittest.TestCase):
             with self.subTest(key):
                 self.assertTrue(not one["logo"] or os.path.isfile(os.path.join(PACKAGE, "app", one["logo"])))
 
+    def test_the_mod_gets_each_networks_mark_by_the_paths_it_loads(self):
+        # icons.js's NETWORKS: core/icons.py's, in its order, a logo and a plain icon by their paths; the TUI's glyph
+        # stays the TUI's
+        table = build.module("icons").NETWORKS
+        made = built()[build.ICONS]
+        networks = json.loads(re.search(r"^export const NETWORKS = (\{.*?^\});$", made, re.M | re.S).group(1))
+        self.assertEqual(list(networks), list(table))
+        self.assertEqual(networks["tailscale"], {"logo": "mods/herdr-fold/icons/logos/tailscale.svg", "mono": True,
+                                                 "icon": None, "letter": "T", "color": None})
+        self.assertEqual(networks["local"]["icon"], "mods/herdr-fold/icons/lucide/network.svg")
+        self.assertEqual(networks["wireguard"], {"logo": None, "mono": False, "icon": None, "letter": "W",
+                                                 "color": None})
+        for key, one in networks.items():
+            with self.subTest(key):
+                for path in (one["logo"], one["icon"]):
+                    self.assertTrue(not path or os.path.isfile(os.path.join(PACKAGE, "app", path)))
+
     def test_the_mod_runs_the_connectors_commands(self):
         helper = os.path.join("app", "mods", "herdr-fold", "helper.js")
         self.assertEqual(build.HELPERS[helper]["CONNECTORS"], "connectors.py")

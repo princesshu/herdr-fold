@@ -166,15 +166,20 @@ class Shape(unittest.TestCase):
             self.assertEqual(json.load(f)["terminal"], {"shift-enter": "send:\x1b\r"})
 
     def test_the_icons_are_the_ones_the_mod_draws(self):
-        """icons/ holds each icon the mod's views name (icon("name"), or its name passed on to it) and no other; the
-        styleguide shows them all, so it names none."""
+        """icons/ holds each icon the mod's views name (icon("name"), or its name passed on to it), or a network's mark
+        names (icons.js's NETWORKS, which networkMark draws), and no other; the styleguide shows them all, so it names
+        none."""
         names = {name.removesuffix(".svg") for name in os.listdir(os.path.join(MOD, "icons", "lucide"))}
         code = ""
         for name in os.listdir(MOD):
             if name.endswith(".js") and name not in ("icons.js", "styleguide.js"):
                 with open(os.path.join(MOD, name), encoding="utf-8") as f:
                     code += f.read()
-        self.assertEqual(names - set(re.findall(r'"([\w-]+)"', code)), set(), "not drawn: delete it")
+        with open(os.path.join(MOD, "icons.js"), encoding="utf-8") as f:
+            networks = json.loads(re.search(r"^export const NETWORKS = (\{.*?^\});$", f.read(), re.M | re.S).group(1))
+        marks = {os.path.basename(one["icon"]).removesuffix(".svg") for one in networks.values() if one["icon"]}
+        self.assertIn("networkMark(", code)
+        self.assertEqual(names - set(re.findall(r'"([\w-]+)"', code)) - marks, set(), "not drawn: delete it")
         self.assertEqual(set(re.findall(r'\bicon\("([^"]+)"', code)) - names, set(), "no such file in icons/")
 
     def test_the_dock_first_opens_at_its_ideal_width_and_keeps_the_width_dragged(self):

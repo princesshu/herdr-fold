@@ -98,7 +98,18 @@ The views' icons are Lucide's, drawn by `icon(name)` in the text's color; a file
 in its own colors (`fileMark`), the types told apart as the TUI sidebar tells them (`core/icons.py`); a connector's is
 its service's logo, SVG Logos', in its own colors with no tile under it, a one-color dark mark (Linear, Sentry) in the
 text's color (`BRANDS` in `icons.js`, from `core/connectors.py`). `tools/icons.py` fetches the three sets from Iconify
-into `app/mods/herdr-fold/icons/`, `icons.js` names each once, and a test fails on an icon no view draws.
+into `app/mods/herdr-fold/icons/` (a logo SVG Logos lacks from Simple Icons or its maker's own repository), `icons.js`
+names each once, and a test fails on an icon no view draws.
+
+A network's mark (`networkMark`, 16 square unless told, from `NETWORKS` in `core/icons.py`, in the routes' order) is
+drawn as a connector's, with no tile: Tailscale's one-color mark in the text's color (its light version on a dark
+theme), NetBird's logomark in its own colors, ZeroTier's in its gold. WireGuard and Cloudflare, whose trademark
+policies keep their logos out of an application without written permission, show their letter, bold 10 in `muted` on a
+`raised` tile rounded 4; the local network, a public address and another tunnel Lucide's `network`, `globe` and
+`shield` in `muted`. A machine behind another wears none: its indent says it. In the TUI no glyph is a brand's: its
+letter in its color (Tailscale's in the text's, WireGuard's and Cloudflare's `muted`); the others Nerd Fonts' md-lan,
+cod-globe and cod-shield, or ⌂, ⊕ (the Earth's sign) and ∩ without icons, `muted` (`network_mark`). Each mark's source
+and license are in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
 
 ## Components
 

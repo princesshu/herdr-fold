@@ -36,14 +36,44 @@ class Svg(unittest.TestCase):
         with self.assertRaises(ValueError):
             icons.svg('<!ENTITY x "y"><path d="M0 0"/>', 24, 24)
 
+    def test_a_makers_own_file_is_written_as_an_iconify_one_its_drawing_unchanged(self):
+        # square, its own box centered in it, what its root gave every shape (fill="none") kept on a group round them
+        made = icons.from_file(f'<svg width="30" height="20" viewBox="0 0 30 20" fill="none" xmlns="{icons.SVG}">\n'
+                               '<path d="M1 1L29 1L15 19Z" fill="#F68330"/>\n</svg>\n')
+        self.assertEqual(made.splitlines(), [
+            '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 -5 30 30">',
+            '  <g fill="none">', '    <path d="M1 1L29 1L15 19Z" fill="#F68330" />', "  </g>", "</svg>"])
+        plain = icons.from_file(f'<svg xmlns="{icons.SVG}" viewBox="0 0 24 24"><path d="M5 12h14"/></svg>')
+        self.assertEqual(plain, icons.svg('<path d="M5 12h14"/>', 24, 24))
+
+    def test_a_makers_file_that_is_no_plain_drawing_is_refused(self):
+        for text in ('<!DOCTYPE svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"/>',
+                     f'<svg xmlns="{icons.SVG}" viewBox="1 1 2 2"><path d="M0 0"/></svg>',     # not from 0 0
+                     f'<svg xmlns="{icons.SVG}"><path d="M0 0"/></svg>',                        # no viewBox
+                     f'<svg xmlns="{icons.SVG}" xmlns:x="urn:x" viewBox="0 0 2 2"><x:a x:b="c"/></svg>',
+                     '<html><path d="M0 0"/></html>'):
+            with self.subTest(text), self.assertRaises(ValueError):
+                icons.from_file(text)
+
 
 class Sets(unittest.TestCase):
     def test_the_logos_are_the_brands_core_knows(self):
-        spec = importlib.util.spec_from_file_location("core_connectors", os.path.join(PACKAGE, "core", "connectors.py"))
-        connectors = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(connectors)
-        self.assertEqual(sorted(icons.sets()["logos"]), sorted(one["logo"] for one in connectors.BRANDS.values()))
+        # a connector's (core/connectors.py) and a network's (core/icons.py); one drawn by its letter has none
+        brands, networks = icons.core("connectors").BRANDS, icons.core("icons").NETWORKS
+        self.assertEqual(sorted(icons.sets()["logos"]), sorted(one["logo"] for table in (brands, networks)
+                                                               for one in table.values() if one["logo"]))
+        self.assertLessEqual({"tailscale", "netbird", "zerotier"}, set(icons.sets()["logos"]))
         self.assertEqual(sorted(icons.sets()), ["catppuccin", "logos", "lucide"])
+
+    def test_a_networks_plain_icon_is_lucides(self):
+        self.assertLessEqual({"network", "globe", "shield"}, set(icons.sets()["lucide"]))
+
+    def test_a_mark_svg_logos_lacks_comes_from_a_set_under_cc0_or_its_makers_own_file_at_a_tag(self):
+        # ZeroTier's from Simple Icons, NetBird's from its repository (BSD-3-Clause) at a release, never a branch
+        self.assertEqual(icons.ELSEWHERE["zerotier"], "simple-icons:zerotier")
+        self.assertRegex(icons.ELSEWHERE["netbird"], r"^https://raw\.githubusercontent\.com/netbirdio/netbird/"
+                                                     r"v\d+\.\d+\.\d+/client/.+/netbird\.svg$")
+        self.assertLessEqual(set(icons.ELSEWHERE), set(icons.sets()["logos"]))
 
     def test_a_set_is_fetched_alone_by_its_name(self):
         # a set fetched again may have moved on at Iconify: one named leaves the others' files as they are

@@ -1,6 +1,7 @@
 # Generated from core/icons.py by tools/build.py: change it there, then run /usr/bin/python3 tools/build.py
 """The TUI sidebar's icons: Nerd Fonts glyphs, plain marks for a font without them, and each file type's mark, with
-the Herdr app mod's own for it (Catppuccin Icons'). tools/build.py copies it into the sidebar and the mod's icons.js."""
+the Herdr app mod's own for it (Catppuccin Icons'); each network's mark in both clients. tools/build.py copies it into
+the sidebar and the mod's icons.js."""
 import os
 
 # Nerd Fonts 3 glyphs (Codicons, one line weight; Task's clipboard Material Design's: Codicons have none), and plain
@@ -12,12 +13,33 @@ NERD_GLYPHS = {"closed": "\ueab6", "open": "\ueab4", "folder": "\uea83", "folder
                "diff": "\ueae1", "files": "\ueaf0", "search": "\uea6d", "git": "\uea68", "ai": "\uec10",
                "issues": "\ueb0c", "agent": "\uec0f", "robot": "\uec20", "web": "\ueb14", "repo": "\uea62",
                "terminal": "\uea85", "close": "\uea76", "funnel": "\ueb83", "Bug": "\ueaaf", "Feature": "\uea61",
-               "Task": "\U000f0a38"}
-# an issue type has no plain mark: without icons its word says it
+               "Task": "\U000f0a38", "lan": "\U000f0317", "globe": "\ueb01", "shield": "\ueb53"}
+# an issue type has no plain mark: without icons its word says it; a public address's ⊕ is the Earth's sign
 PLAIN_GLYPHS = {"closed": "›", "open": "⌄", "new_file": "+", "new_folder": "⊞", "refresh": "↻", "collapse": "⊟",
                 "check": "✓", "more": "⌄", "stage": "+", "unstage": "−", "discard": "↺", "diff": "⇄", "files": "▤",
                 "search": "⌕", "git": "⎇", "ai": "✦", "issues": "#", "agent": "»", "robot": "◇", "web": "↗",
-                "repo": "▣", "terminal": "$", "close": "×", "funnel": "▽"}
+                "repo": "▣", "terminal": "$", "close": "×", "funnel": "▽", "lan": "⌂", "globe": "⊕", "shield": "∩"}
+# each network's mark, core/machines.py's networks in order (one behind another: its indent): a brand's logo (icons/
+# logos/), MONO in COLOR or the text's, where its terms allow one, else its LETTER, NEUTRAL where they forbid it; the
+# others' icon, Lucide's in the app, GLYPHS' key in the TUI
+NETWORKS = {
+    "local": {"logo": None, "mono": False, "icon": "network", "glyph": "lan", "letter": None, "color": None,
+              "neutral": False},
+    "tailscale": {"logo": "tailscale", "mono": True, "icon": None, "glyph": None, "letter": "T", "color": None,
+                  "neutral": False},
+    "netbird": {"logo": "netbird", "mono": False, "icon": None, "glyph": None, "letter": "N", "color": "#f68330",
+                "neutral": False},
+    "zerotier": {"logo": "zerotier", "mono": True, "icon": None, "glyph": None, "letter": "Z", "color": "#ffb441",
+                 "neutral": False},
+    "wireguard": {"logo": None, "mono": False, "icon": None, "glyph": None, "letter": "W", "color": None,
+                  "neutral": True},
+    "tunnel": {"logo": None, "mono": False, "icon": "shield", "glyph": "shield", "letter": None, "color": None,
+               "neutral": False},
+    "cloudflare": {"logo": None, "mono": False, "icon": None, "glyph": None, "letter": "C", "color": None,
+                   "neutral": True},
+    "public": {"logo": None, "mono": False, "icon": "globe", "glyph": "globe", "letter": None, "color": None,
+               "neutral": False},
+}
 # the file types' marks: the languages' own, and Catppuccin Icons' name for each, the app's
 FILE_TYPES = (("\ue73c", "python", "py pyi"), ("\ue74e", "javascript", "js mjs cjs"), ("\ue628", "typescript", "ts"),
               ("\ue7ba", "javascript-react", "jsx"), ("\ue7ba", "typescript-react", "tsx"),
@@ -49,6 +71,17 @@ FOLDER = {"closed": "folder", "open": "folder-open"}      # and for a folder, cl
 
 def glyphs(icons):
     return NERD_GLYPHS if icons else PLAIN_GLYPHS
+
+
+def network_mark(kind, icons):
+    """Network KIND's mark in one cell for the TUI and its color, None for none known: its icon's glyph (ICONS: the
+    font's, else the plain one), muted; else its letter in its brand's color, else the text's, or muted if neutral."""
+    mark = NETWORKS.get(kind)
+    if not mark:
+        return None
+    if mark["glyph"]:
+        return glyphs(icons)[mark["glyph"]], "muted"
+    return mark["letter"], mark["color"] or ("muted" if mark["neutral"] else "text")
 
 
 def kind(name):

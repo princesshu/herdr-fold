@@ -1,6 +1,6 @@
-"""Fetches the Herdr app mod's icons from Iconify (https://iconify.design) into app/mods/herdr-fold/icons/: Lucide's
-(UI), Catppuccin Icons' for a file's type (core/icons.py), SVG Logos' for a connector's brand (core/connectors.py). Run
-it when a list changes (icons.py logos: that set alone), then tools/build.py; nothing asks Iconify as the app runs."""
+"""Fetches the Herdr app mod's icons into app/mods/herdr-fold/icons/: Lucide's (UI, a network's plain one), Catppuccin
+Icons' for a file's type (core/icons.py), a connector's or a network's logo, from Iconify (https://iconify.design) or
+ELSEWHERE. Run it when a list changes (icons.py logos: that folder alone), then tools/build.py; the app fetches none."""
 import importlib.util
 import json
 import os
@@ -21,11 +21,17 @@ SVG = "http://www.w3.org/2000/svg"
 UI = ("arrow-up", "arrow-up-from-line", "at-sign", "audio-lines", "book-marked", "bot", "bug", "check",
       "chevron-down", "chevron-right", "chevron-up", "chevrons-down-up", "chevrons-left", "chevrons-right",
       "circle-dot", "clipboard-list", "clock", "code", "columns-2", "command", "copy", "download", "ellipsis",
-      "external-link", "eye", "eye-off", "file", "file-plus", "files", "folder-plus", "git-branch", "hand", "layers",
-      "leaf", "lightbulb", "link", "list", "list-filter", "loader-circle", "minus", "monitor", "notebook",
-      "panel-left", "play", "plug", "plus", "refresh-cw", "rows-2", "scroll-text", "search", "server", "settings",
-      "share-2", "sparkle", "sparkles", "square", "square-slash", "square-terminal", "terminal", "undo-2", "wrench",
-      "x", "zap")
+      "external-link", "eye", "eye-off", "file", "file-plus", "files", "folder-plus", "git-branch", "git-pull-request",
+      "hand", "layers", "leaf", "lightbulb", "link", "list", "list-filter", "loader-circle", "minus", "monitor",
+      "notebook", "panel-left", "play", "plug", "plus", "refresh-cw", "rotate-ccw", "rows-2", "scroll-text", "search",
+      "server", "settings", "share-2", "sparkle", "sparkles", "square", "square-slash", "square-terminal", "terminal",
+      "undo-2", "wrench", "x", "zap")
+# a logo SVG Logos lacks: Simple Icons' (CC0 1.0; Iconify's prefix:name), else its maker's own file, at a release
+ELSEWHERE = {"zerotier": "simple-icons:zerotier",
+             "netbird": "https://raw.githubusercontent.com/netbirdio/netbird/v0.83.2/client/ui/frontend/src/assets/"
+                        "logos/netbird.svg"}            # BSD-3-Clause, as all its repository but the servers' folders
+LARGEST = 1 << 20             # bytes of a maker's own file
+KEPT = ("width", "height", "viewBox", "version")      # what a maker's root says of itself alone, not of its shapes
 
 
 def core(name):
@@ -44,13 +50,20 @@ def file_types():
 
 
 def logos():
-    """SVG Logos' names of the brands core/connectors.py knows a connector by (one with none drawn by its letter)."""
-    return tuple(sorted(one["logo"] for one in core("connectors").BRANDS.values() if one["logo"]))
+    """The logos of the brands core/connectors.py knows a connector by and core/icons.py a network by, by SVG Logos'
+    name (else ELSEWHERE's); one with none is drawn by its letter."""
+    tables = core("connectors").BRANDS, core("icons").NETWORKS
+    return tuple(sorted({one["logo"] for table in tables for one in table.values() if one["logo"]}))
+
+
+def plain():
+    """Lucide's names of the views' icons and of a network's plain one (core/icons.py's)."""
+    return tuple(sorted(set(UI) | {one["icon"] for one in core("icons").NETWORKS.values() if one["icon"]}))
 
 
 def sets():
-    """{Iconify's prefix: the names fetched from it}, a folder of icons/ each."""
-    return {"lucide": UI, "catppuccin": file_types(), "logos": logos()}
+    """{a folder of icons/: the names fetched into it}, Iconify's set by that prefix (logos: ELSEWHERE's too)."""
+    return {"lucide": plain(), "catppuccin": file_types(), "logos": logos()}
 
 
 def chosen(names):
@@ -74,6 +87,52 @@ def fetch(prefix, names):
     width, height = data.get("width", 16), data.get("height", 16)
     return {name: svg(icon["body"], icon.get("width", width), icon.get("height", height))
             for name, icon in data["icons"].items()}
+
+
+def gathered(prefix, names):
+    """{name: its SVG} for the folder PREFIX: Iconify's set by that name; a logo ELSEWHERE names from there."""
+    if prefix != "logos":
+        return fetch(prefix, names)
+    made = fetch(prefix, [name for name in names if name not in ELSEWHERE])
+    for name in (name for name in names if name in ELSEWHERE):
+        source = ELSEWHERE[name]
+        if source.startswith("https://"):
+            made[name] = from_file(download(source))
+        else:
+            other, icon = source.split(":")
+            made[name] = fetch(other, [icon])[icon]
+    return made
+
+
+def download(url):
+    """URL's text, LARGEST bytes at most; more stops it."""
+    asked = urllib.request.Request(url, headers={"User-Agent": AGENT})
+    with urllib.request.urlopen(asked, timeout=30) as answer:
+        data = answer.read(LARGEST + 1)
+    if len(data) > LARGEST:
+        sys.exit(f"{url}: larger than {LARGEST} bytes")
+    return data.decode("utf-8")
+
+
+def from_file(text):
+    """A maker's own SVG file TEXT as svg() writes Iconify's: its box from 0 0 (else ValueError), what its root gives
+    every shape kept on a group round them, its drawing unchanged. A DTD or an entity stops it as in svg()."""
+    if "<!" in text:
+        raise ValueError("a DTD or an entity: not an icon this writes")
+    root, own = ET.fromstring(text), "{" + SVG + "}"
+    box = (root.get("viewBox") or "").split()
+    if root.tag != own + "svg" or len(box) != 4 or box[:2] != ["0", "0"]:
+        raise ValueError("not a drawing from 0 0: not an icon this writes")
+    for node in root.iter():
+        if not node.tag.startswith(own) or any(name.startswith("{") for name in node.attrib):
+            raise ValueError(f"{node.tag}: another vocabulary than SVG's, not an icon this writes")
+        node.tag = node.tag[len(own):]
+    body = "".join(ET.tostring(child, encoding="unicode") for child in root)
+    given = {name: value for name, value in root.attrib.items() if name not in KEPT}
+    if given:
+        body = "<g" + "".join(f" {name}={quoteattr(value)}" for name, value in given.items()) + f">{body}</g>"
+    width, height = (int(n) if float(n).is_integer() else float(n) for n in box[2:])
+    return svg(body, width, height)
 
 
 def svg(body, width, height):
@@ -120,7 +179,7 @@ def main(argv=()):
     for prefix, names in chosen(list(argv[1:])).items():
         folder = os.path.join(ICONS, prefix)
         os.makedirs(folder, exist_ok=True)
-        made = fetch(prefix, names)
+        made = gathered(prefix, names)
         for name in os.listdir(folder):
             if name.endswith(".svg") and name[:-len(".svg")] not in made:
                 os.remove(os.path.join(folder, name))

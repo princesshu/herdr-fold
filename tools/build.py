@@ -184,18 +184,23 @@ def module(name):
 
 def icons_js():
     """The mod's icons.js, by the path the app loads each: the views' (ICONS, the lucide/ folder's) and a file's by
-    its extension, by its name's start, and any other's (core/icons.py's), a change's letter, and a connector's brand
-    (core/connectors.py's: its name, its logo or null, whether that is drawn in the text's color)."""
+    its extension, by its name's start, and any other's (core/icons.py's), a change's letter, a connector's brand
+    (core/connectors.py's: its name, its logo or null, whether that is drawn in the text's color), a network's mark."""
     icons, brands = module("icons"), module("connectors").BRANDS
     file = lambda name: f"{SVGS}/catppuccin/{name}.svg"                                  # noqa: E731
+    logo = lambda name: name and f"{SVGS}/logos/{name}.svg"                              # noqa: E731
     views = sorted(name[:-len(".svg")] for name in os.listdir(os.path.join(ROOT, "app", SVGS, "lucide")))
     tables = {"ICONS": {name: f"{SVGS}/lucide/{name}.svg" for name in views},
               "BY_EXTENSION": {ext: file(name) for ext, (_glyph, name) in icons.BY_EXTENSION.items()},
               "BY_NAME": [[file(name), list(starts)] for _glyph, name, starts in icons.BY_NAME],
               "FILE": file(icons.FILE), "FOLDER": {state: file(name) for state, name in icons.FOLDER.items()},
               "LETTER": icons.GIT_LETTER,
-              "BRANDS": {key: {"name": one["name"], "logo": one["logo"] and f"{SVGS}/logos/{one['logo']}.svg",
-                               "mono": one["mono"]} for key, one in brands.items()}}
+              "BRANDS": {key: {"name": one["name"], "logo": logo(one["logo"]), "mono": one["mono"]}
+                         for key, one in brands.items()},
+              # core/icons.py's, in its order, what the app draws of it: a plain icon by its path too
+              "NETWORKS": {key: {"logo": logo(one["logo"]), "mono": one["mono"],
+                                 "icon": one["icon"] and f"{SVGS}/lucide/{one['icon']}.svg", "letter": one["letter"],
+                                 "color": one["color"]} for key, one in icons.NETWORKS.items()}}
     lines = ["// @ts-check",
              "// Generated from core/icons.py, core/connectors.py and the icons/ folder by tools/build.py: change",
              "// them there, then run /usr/bin/python3 tools/build.py. Each icon by the path the app loads it."]

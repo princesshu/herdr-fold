@@ -4,7 +4,7 @@
 import { div } from "gpui-kit";
 import { EditorState, v_flex, h_flex, InputState, ScrollHandle, TextareaState } from "gpui-base";
 import { home } from "herdr";
-import { BY_EXTENSION, BY_NAME, FILE, ICONS } from "./icons.js";
+import { BY_EXTENSION, BY_NAME, FILE, ICONS, NETWORKS } from "./icons.js";
 import { agentsSaid, commitRows, chatRows, diffRows, fieldWidth, findAll, FLOAT_GRIP, floatHeight, foldedSections,
   listHeight, menuHeight, paletteEntries, paletteKey, PALETTE_NAMED, panelChoices, pushOffer, RAIL,
   searchRows, SETTINGS, shortCount, TABS_H, updateReady, VIEWS_APP } from "./logic.js";
@@ -19,7 +19,8 @@ import { IssuesView, setItems } from "./issues.js";
 import { BranchPull, PullsView } from "./pulls.js";
 import { Review } from "./review.js";
 import { contrast } from "./agents.js";
-import { button, chip, CODE_FONT, fileMark, icon, listName, noteToast, PAD, scopeTag, small, SPACE } from "./parts.js";
+import { button, chip, CODE_FONT, fileMark, icon, listName, networkMark, noteToast, PAD, scopeTag, small, SPACE }
+  from "./parts.js";
 import { dockTabs, floatGrip, FloatSize, rail } from "./panel.js";
 import { menuFind, Menus, menuPopup } from "./menus.js";
 import { Preview } from "./preview.js";
@@ -2097,7 +2098,7 @@ function sections(g, t) {
     fixed(320, view.draw(t)), { spec: i ? "" : spec }));
   return [["Foundations", [["color", () => [colors(t)]], ["type", () => [type(t)]],
     ["shape", () => [spacing(t), shape(t)]], ["icons", () => [icons(t)[0]]],
-    ["file-types", () => [icons(t)[1]]]]], ["Components", [
+    ["file-types", () => [icons(t)[1]]], ["network-marks", () => [icons(t)[2]]]]], ["Components", [
     ["buttons", () => [
       group(t, "Buttons", [
         specimen(t, "b-primary", "Primary", button(t, "s-commit", h_flex().gap(8).items_center()
@@ -2596,5 +2597,7 @@ function icons(t) {
     group(t, "Icons · Lucide", [grid(names.map((name) => cell(icon(name, 18), name)))]),
     group(t, "File types · Catppuccin Icons", [grid([...types].map(([path, exts]) =>
       cell(fileMark(path).size(22), exts.slice(0, 3).join(" "))))]),
+    // each network by its word, in the routes' order: its brand's logo, else its letter or a plain icon (networkMark)
+    group(t, "Networks · their marks", [grid(Object.keys(NETWORKS).map((key) => cell(networkMark(t, key), key)))]),
   ];
 }

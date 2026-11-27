@@ -3,7 +3,7 @@
 // on the space's machine (exec stops a program after 30 s; an AI may take minutes), the commit message writer's answer.
 
 import { JOB, MEDIA_KINDS, MEDIA_WEB } from "./helper.js";
-import { BY_EXTENSION, BY_NAME, FILE, FOLDER, LETTER } from "./icons.js";
+import { BY_EXTENSION, BY_NAME, FILE, FOLDER, LETTER, NETWORKS } from "./icons.js";
 import { format, written as timeIn } from "./timeline.js";
 
 /** @typedef {{ kind: string, number?: number, text: string }} Row */
@@ -183,6 +183,19 @@ export function fileIcon(name) {
 
 /** A change's letter as the TUI sidebar shows git's CODE (an untracked file U, a conflict !). @param {string} code */
 export const letter = (code) => /** @type {Record<string, string>} */ (LETTER)[code] ?? code;
+
+/** How networkMark draws NETWORK's mark (icons.js's NETWORKS): its logo as an IMAGE in its own colors or in TINT (its
+ * color, else the text's: a theme's token or a color), a plain icon in muted, else its LETTER muted on a tile; null for
+ * none known (one behind another: its indent says it). @param {string | null | undefined} network */
+export function networkLook(network) {
+  const marks = /** @type {Record<string, any>} */ (NETWORKS);
+  const mark = Object.hasOwn(marks, network ?? "") ? marks[network ?? ""] : null;
+  if (!mark) return null;
+  if (mark.logo) return { path: mark.logo, image: !mark.mono, tint: mark.mono ? mark.color ?? "foreground" : null,
+    letter: null };
+  return mark.icon ? { path: mark.icon, image: false, tint: "muted", letter: null }
+    : { path: null, image: false, tint: "muted", letter: mark.letter };
+}
 
 const CHANGES = { M: "Modified", A: "Added", D: "Deleted", "?": "Untracked", U: "Conflict", R: "Renamed", C: "Copied",
   T: "Type changed" };
