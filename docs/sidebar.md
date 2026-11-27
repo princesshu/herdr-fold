@@ -120,40 +120,43 @@ while More leaves it off the row).
 ## The Machines view
 
 On this Mac, More's Machines… (over Settings…, where herdr-fold's installer put the sidebar) opens the Machines view
-over the tab, as the Usage view opens: the machines on herdr-fold's list by network, as the Herdr app's Spaces groups
-them ([Spaces](app.md#spaces)), and the chosen one's properties under them. The networks stand in the order a
-machine's routes are tried (the local network, Tailscale, NetBird, ZeroTier, WireGuard, another tunnel, Cloudflare,
-public), each head with its mark (a brand's letter in its color, else a Nerd Font glyph), its name, its state while it
-is not on (`off` and `not installed` dim, the name dimmed too; `signed out`, `expired`, `needs approval`, `no
-management server` in yellow) and its machines' count (none while it has none of its own). A machine behind another
-stands under it after `└`; one on two routes is one row, under the route in use. A machine's row has its dot (green,
-dim while away), its name, its system in one column for all, and at its right the way to it as its network tells
-(`direct`, `relayed`, NetBird's own time), `waiting` in yellow while an agent there waits on you, or `unreachable`. A
-network with none of its machines added yet: Tailscale and NetBird offer theirs (`+ Add 4
-machines…`: chosen with ↓ or a click, Enter asks about each in a terminal tab); ZeroTier and WireGuard, which name
-none, say one is added by its address. With no machine on the list it says so at its top (`No machine on the list
-yet.`), and nothing is chosen that would start those questions: Enter does nothing until you move onto a row.
+over the tab, as the Usage view opens: the machines on herdr-fold's list under their networks' heads, however few
+(the Herdr app's Spaces groups them from five: [Spaces](app.md#spaces)), and the chosen one's properties under them.
+The networks stand in the order of a machine's routes (the local network, Tailscale, NetBird, ZeroTier, WireGuard,
+another tunnel, Cloudflare, public), each head with its mark (a brand's letter in its color, else a Nerd Font glyph or,
+with Plain marks, a plain one), its name, its state while it is not on (`off` and `not installed` dim, the name dimmed
+too; `signed out`, `expired`, `needs approval`, `no management server` in yellow) and its machines' count (none while
+it has none of its own). A machine behind another stands under it after `└`; one on two routes is one row, under the
+route in use. A machine's row has its dot (green, dim while away), its name, its system in one column for all, and at
+its right the way to it as its network tells (`direct`, `relayed`, NetBird's own time), `waiting` in yellow while an
+agent there waits on you, or `unreachable`. A network with none of its machines added yet: Tailscale and NetBird offer
+theirs (`+ Add 4 machines…`: a click, or ↓ onto it and Enter, asks about each in a terminal tab and puts them on the
+list); ZeroTier and WireGuard, which name none, say one is added by its address. With no machine on the list it says so
+at its top (`No machine on the list yet.`, and `Ctrl+B, Shift+M adds one` where no network offers any), and nothing is
+chosen that would start those questions: Enter does nothing until you move onto a row.
 
-The chosen machine's properties, label left and value right: why it is away and what to do, in the sentences
-`./machines.sh` says ([When a machine is away](remote-machines.md#when-a-machine-is-away)); its address and user, or
-its routes, the one in use first; its network, the way to it behind another (`This Mac › Tailscale › lumen-api ›
-build-01`), its host key cut short, when it was last seen, and what runs there as herdr's own list tells (its
-workspaces, an agent working or waiting). Its buttons run `./machines.sh` in a terminal tab on this Mac, so the
-questions and a fingerprint stay in a terminal: Status, Set up again (`add`), Remove (asked first) and, on a Linux or
-macOS machine, ⋯'s Look around from here (`through`); an unreachable one has Check again and Copy command (its
-sentence's command). ↑ ↓ choose, ← → a button, Enter presses it, `s` Status, `g` the graph; Esc, its × or a click
-outside closes it. Its foot says `g Graph`, `s Status` and `Esc`, each a click away too (one it cannot do yet dim). It
-looks when it opens and once a minute while open, never in the background, with no login and nothing scanned:
-`core/networks.py`'s look, the app's, and herdr's own list of its machines.
+The chosen machine's properties: its name with `connected`, `not connected` (herdr keeps no such machine) or
+`unreachable`, then, label left and value right, why it is away and what to do, in the sentences `./machines.sh` says
+([When a machine is away](remote-machines.md#when-a-machine-is-away)); its address and user, or its routes, the one in
+use first; its network, the way to it behind another (`This Mac › Tailscale › lumen-api › build-01`), its host key cut
+short, when it was last seen, and what runs there as herdr's own list tells (its spaces, an agent working or waiting).
+Its buttons run `./machines.sh` in a terminal tab on this Mac, so the questions and a fingerprint stay in a terminal:
+Status, Set up again (`add`), Remove (asked first: `Take build-01 off the list, and herdr-fold off it?`) and, on a Linux
+or macOS machine, ⋯'s Look around from here (`through`); an unreachable one has Check again and Copy command (its
+sentence's command) in their place. ↑ ↓ choose, ← → a button, Enter presses it, `s` Status, `g` the graph; Esc, `q`,
+its × or a click outside closes it. Its foot says `g Graph`, `s Status` and `Esc`, each a click away too (one it cannot
+do yet dim). It looks when it opens and once a minute while open, never in the background, with no login and nothing
+scanned: `core/networks.py`'s look, the app's, and herdr's own list of its machines.
 
 `g` shows how the machines connect, as a tree in the preview tab (as the Agent view's `g` shows the agent's graph),
-and More's Machines graph, under Machines…, opens the same tree without the view: `This Mac` with its counts, then each
-network with its mark, its state and, while it is not on, its sentence and what to do under its name; its machines
-with their system, the way to them and what runs there in columns, one behind another under its jump host, an away one
-`unreachable` in red (dim with its network off), and a machine's second route dim under that network (`standby, in
-use: Local network`); at its foot, when the networks were looked at (`Checked today 9:14`). It is drawn from the same
-graph as the Herdr app's Machines tab, the last look's (More's line looks afresh), and the preview's keys are its own
-(`q` or Esc closes it).
+and the view closes; More's Machines graph, under Machines…, opens the same tree without the view (`Loading machines…`
+on the sidebar's last row while it looks): `This Mac` with its counts, then each network with its mark, its state and,
+while it is not on, its sentence and what to do under its name; its machines with their system, the way to them and
+what runs there in columns, one behind another under its jump host, an away one `unreachable` in red (dim with its
+network off), and a machine's second route dim under that network (`standby, in use: Local network`; behind a jump
+host `standby, in use: through lumen-api`); at its foot, when the networks were looked at (`Checked today 9:14`). It is
+drawn from the same graph as the Herdr app's Machines tab, the last look's (More's line looks afresh), and the
+preview's keys are its own (`q` or Esc closes it).
 
 ## Keys
 

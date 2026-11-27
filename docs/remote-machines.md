@@ -85,7 +85,8 @@ local network's first, then the virtual networks, then a public address), and ev
 one name (`HostKeyAlias`), so a route that answers with another key, a café's `studio.local`, is refused on every
 route. Its key is trusted under that name only from the key `~/.ssh/known_hosts` already trusts for it, and the Host
 forwards no agent. `./machines.sh` names a machine's other routes under its heading (`also Tailscale:
-studio.tail0000.ts.net`).
+studio.tail0000.ts.net`). ssh connects by the first route alone and tries no other when it does not answer; then
+`./machines.sh` says which other route shows the machine's key (`On Tailscale it answers.`).
 
 herdr and the Herdr app reach those Hosts through one line at the top of `~/.ssh/config`, asked for at the first route:
 
@@ -251,13 +252,13 @@ of the checks below that fails, and under it what to do:
 | Check | What it says | What to do |
 |---|---|---|
 | The network's client on this Mac | `NetBird is not installed on this Mac.` | its download page |
-| Its client on | `Tailscale is off on this Mac.`, `NetBird is not running on this Mac.` | `tailscale up`, `netbird up` |
+| Its client on | `Tailscale is off on this Mac.`, `NetBird is not running on this Mac.`, `ZeroTier is not running on this Mac.` | `tailscale up`, `netbird up` |
 | Its client signed in | `Tailscale is signed out on this Mac.`, `This Mac's Tailscale key has expired.`, `This Mac waits for approval on its tailnet.`, `NetBird is signed out on this Mac.`, `NetBird's session on this Mac has expired.`, `NetBird cannot reach its management server.` | `tailscale login`, the admin console (its link on a `.ts.net` tailnet; on Headscale or another control server, ask its admin), `netbird up` |
 | The machine on that network | `harbor-web is offline on Tailscale, last seen 3 h ago.`, `kelp-ci's Tailscale key has expired.`, `tidepool is not in this Mac's NetBird network.` | for an expired key, the admin console |
 | This local network | `lab-pi is not on this local network.` (its `.local` name gives no answer) | another route of it, where one shows its key: `On Tailscale it answers.` |
 | Its SSH | `db-02 does not answer: is it on and awake?`, `lumen-api answers, but no SSH server runs on it.`, `alpha: no machine of that name here — check the name, and that the Mac reaches its network.` | how to turn SSH on |
 | Its key | `lumen-api shows another host key than the one this Mac trusts.`; on a route of a machine with several: `The machine at studio.local shows another key than studio's: not used.` | `ssh-keygen -R`, after checking the new key on it; another route that answers |
-| Its login | `lumen-api does not take this Mac's key.`, `Tailscale SSH on lumen-api asks for a sign-in in the browser.` | `ssh` to it by hand, once in a terminal |
+| Its login | `lumen-api does not take this Mac's key.`, `Tailscale SSH on lumen-api asks for a sign-in in the browser.`; anything else `Cannot log in to lumen-api:` and ssh's own last line | `ssh` to it by hand, once in a terminal |
 | The machine in front of it | `build-01 is reached through lumen-api, which does not answer.` with lumen-api's own sentence under it, `lumen-api does not let connections through to other machines (AllowTcpForwarding no in its sshd_config).` | lumen-api's |
 
 A network is told from what this Mac knows, the list first: the network a route keeps there, else a name or address
@@ -269,23 +270,28 @@ other as public. A `~/.ssh/config` Host with a `cloudflared` proxy is Cloudflare
 `through` it. NetBird's idle machines are no reason: an idle connection can be up too.
 
 Nothing is scanned. The networks' own status is read once for the whole list (5 seconds at most each), `route -n get`
-asked only for an address none of them lists (2 seconds), each machine logged into once, within ssh's own 10 seconds;
-a route's key is read (`ssh-keyscan`, 3 seconds) only to find another route that answers. `./machines.sh add`,
-`prepare` and `remove`, and the questions, say a failed login in the same sentences.
+asked only for an address none of them lists (2 seconds), each machine logged into once (ssh's own 10 seconds to
+connect, 30 at most in all); a route's key is read (`ssh-keyscan`, 3 seconds) only to find another route that answers.
+`./machines.sh add`, `prepare` and `remove`, and the questions, say a failed login in the same sentences.
+
+## In the Herdr app and the TUI
 
 In the Herdr app, Spaces shows each machine with its network's mark, and once five or more are on two networks or more
-it groups them under their network's head, in the order a machine's routes are tried: the local network, Tailscale,
-NetBird, ZeroTier, WireGuard, another tunnel, Cloudflare, public. A network whose client is off says so on its head, in
-the same sentences, and one with none of its machines added yet offers them there, asked about in a terminal tab
+it groups them under their network's head, in the order of a machine's routes: the local network, Tailscale, NetBird,
+ZeroTier, WireGuard, another tunnel, Cloudflare, public. A network whose client is off says so on its head, its tip in
+the same sentences, and one with none of its machines added yet offers them there (`Add 3 machines…`), asked about in a
+terminal tab and put on the list; `./machines.sh add`, or a machine's Set up again (below), then sets each up
 ([Spaces](app.md#spaces)). The status bar's machine wears its mark. The app looks once a minute while it shows a remote
-machine, and soon after one comes or goes: the networks' own status and the list as above, a machine added in the app's
-own Settings → Machines read by its address, never a login. Its Machines tab (Spaces' waypoints button, or a press on
-the status bar's machine) draws how this Mac reaches each machine: the networks, the machines on them and those behind
-another, each edge direct, relayed, a standby route or away, a machine's properties and actions as the TUI view's;
-its Refresh is the status check, a login to each machine, on your press alone ([Machines](app.md#machines)).
-In the TUI, More's Machines… shows them the same way over the tab, with the chosen machine's properties and actions,
-and its `g` (or More's Machines graph) the way to each as a tree in the preview tab
-([The Machines view](sidebar.md#the-machines-view)).
+machine, and soon after one comes or goes: the networks' own status and the list, as `./machines.sh` reads them, a
+machine added in the app's own Settings → Machines read by its address, never a login.
+
+The app's Machines tab (Spaces' waypoints button, or a press on the status bar's machine) draws how this Mac reaches
+each machine: the networks, the machines on them and those behind another, each edge direct, relayed, a standby route or
+away, and the chosen machine's properties and actions (Status, Set up again, Remove…, Look around from here…, each
+`./machines.sh` in a terminal tab); its Refresh is the status check, a login to each machine, on your press alone
+([Machines](app.md#machines)). In the TUI, More's Machines… shows them by network over the tab, with the chosen
+machine's properties and the same actions, and its `g` (or More's Machines graph) the way to each as a tree in the
+preview tab ([The Machines view](sidebar.md#the-machines-view)).
 
 ## Systems
 
@@ -313,6 +319,9 @@ In the `herdr-fold` folder:
 ./machines.sh include           # the line in ~/.ssh/config for herdr-fold's Hosts, asked again after a no
 herdr machine list              # the connected machines
 ```
+
+`sshconfig`, `tailscale`, `netbird`, `local` and `through` put the machines you say yes to on the list;
+`./machines.sh add <name>` then sets each up, as `new` and the installer's step 8 do by themselves.
 
 `./machines.sh remove` asks first about the machines that go through the one it removes
 ([A machine behind another](#a-machine-behind-another)), then puts Claude's earlier status line and the machine's own

@@ -53,20 +53,31 @@ of it, never a second one. What each source of a machine proves, and how its key
 | Bonjour | nothing: any machine on the network this Mac is on can announce any name | none is looked for without a question of its own; its fingerprint is shown and asked about first (the default is no), as by address; a route to a listed machine only when it shows that machine's own key now (silent: none), never by the name it announces |
 | another machine's list | nothing: what a machine on the list says it sees | its fingerprint, read end to end through that machine, is shown and asked about first (the default is no), whatever network the machine is on, never trusted on the first connection; only that key is trusted, under the machine's own Host name, never beside another key trusted there; one that shows a listed machine's key is that machine, never a second one |
 
-A machine with several routes has a Host of herdr-fold's own (`~/.config/herdr-fold/ssh_config`, which one Include line
-at the top of `~/.ssh/config` brings in, on a yes): every route looks its key up under that Host's name, so a route that
-answers with another key is refused on every route, and that name's entry in `~/.ssh/known_hosts` is made only from the
-key already trusted there. Nothing a network says reaches that file or a command unchecked: a host name, an address, a
-user and a port each against a strict pattern, never as an option, and a network's own command is read for a few seconds
-at most, then stopped with all it started (`netbird status` 5, `dns-sd` 3, then 2 to look each machine up). Nothing is
-scanned: the local network is only listened to, and the name a machine announces there (often its owner's) is shown in
-its question, cleaned of control characters, and never written to a file. herdr-fold's Hosts forward no agent, and its
-own ssh forwards nothing (`ClearAllForwardings`, `ForwardAgent no`): a machine never gets to use this Mac's key. A
-machine reached through another one (`ProxyJump`) keeps this Mac's key on this Mac: the machine in between sees that a
-connection goes to an address and port, when, and how much passes; never what passes (the connection is end to end,
-checked against the key of the machine behind it), this Mac's key or its agent. A jump host taken off the list but
-kept for the machines behind it keeps its pinned key: it is written to `~/.ssh/known_hosts` at the address they now
-jump by, and where its key is not trusted here or that address holds another key, it is not kept.
+A machine with several routes, or one behind another, has a Host of herdr-fold's own (`~/.config/herdr-fold/ssh_config`,
+which one Include line at the top of `~/.ssh/config` brings in, on a yes): every route looks its key up under that
+Host's name, so a route that answers with another key is refused on every route, and that name's entry in
+`~/.ssh/known_hosts` is made only from the key already trusted there. Nothing a network says reaches that file or a
+command unchecked: a host name, an address, a user and a port each against a strict pattern, never as an option, and a
+network's own command is read for a few seconds at most, then stopped with all it started (`netbird status` 5, `dns-sd`
+3, then 2 to look each machine up; `tailscale status` 5 where a machine's state is read, while importing from Tailscale
+waits for Tailscale's own answer). Nothing is scanned: the local network is only listened to, and the name a machine
+announces there (often its owner's) is shown in its question, cleaned of control characters, and never written to a
+file. herdr-fold's Hosts forward no agent, and its own ssh forwards nothing (`ClearAllForwardings`, `ForwardAgent no`):
+a machine never gets to use this Mac's key. A machine reached through another one (`ProxyJump`) keeps this Mac's key on
+this Mac: the machine in between sees that a connection goes to an address and port, when, and how much passes; never
+what passes (the connection is end to end, checked against the key of the machine behind it), this Mac's key or its
+agent. A jump host taken off the list but kept for the machines behind it keeps its pinned key: it is written to
+`~/.ssh/known_hosts` at the address they now jump by, and where its key is not trusted here or that address holds
+another key, it is not kept.
+
+The status check (`./machines.sh`, the Herdr app's Refresh) logs in to each machine with herdr-fold's own ssh
+options, which take a key on the first connection (`StrictHostKeyChecking=accept-new`, as for `~/.ssh/config`): a
+machine whose key `~/.ssh/known_hosts` does not hold yet, such as one added in the app's own Settings → Machines (which
+Refresh logs in to as well) or one whose entry was removed, gets the key it shows then trusted, unasked and not compared
+with the one on the list. Besides that login, the Herdr app (Spaces, the status bar, the Machines tab) and the TUI's
+Machines view only read: this Mac's network clients (5 seconds each at most), the list and, in the TUI, herdr's own
+list of what runs on its machines, once a minute while they show a machine, never a login; what they read is checked
+again before it is shown, and their buttons run `./machines.sh` in a terminal tab, where its questions are asked.
 
 To list what it sees (`./machines.sh through`), a machine on the list runs herdr-fold's `remote/look-around.py`, sent
 over its own SSH as Python's input: it only reads its Tailscale and NetBird status, what announces SSH next to it and
@@ -168,6 +179,6 @@ Remove these from logs and output before you paste them anywhere:
 
 - SSH keys, tokens and passwords;
 - your name and e-mail address (the installer shows git's commit author), folder paths and project names;
-- `~/.config/herdr-fold/machines.txt` and other machine names and addresses;
+- `~/.config/herdr-fold/machines.txt` and `ssh_config` there, and other machine names and addresses;
 - herdr's logs;
 - the text of your Claude or Codex chats.

@@ -145,7 +145,7 @@ question there is optional:
 | `user`, `IP address or host name` | for a machine you add by hand | `root`, none |
 | `Add another machine?` | after each one | no |
 | `Trust this ED25519 key of alpha (compare it with the machine's own)?` | a machine you add by hand or from the local network that `~/.ssh/known_hosts` does not know yet: its ED25519 key's fingerprint is shown first; one that shows none is not added | no |
-| `Add this route?` | a machine offered (from `~/.ssh/config`, Tailscale, NetBird, the local network or by hand) shows the host key of one on the list: the line before it names which (`studio.tail0000.ts.net is studio, already on the list: also reachable on Tailscale.`); yes makes it a route of that machine, never a second one ([One machine, several routes](remote-machines.md#one-machine-several-routes)) | yes |
+| `Add this route?` | a machine offered (from `~/.ssh/config`, Tailscale, NetBird, the local network or by hand) shows the host key of one on the list: the line before it names which (`studio.tail0000.ts.net is studio, already on the list: also reachable on Tailscale.`); yes makes it a route of that machine, never a second one ([One machine, several routes](remote-machines.md#one-machine-several-routes)); after a no to the Include line below, not asked: a line names `./machines.sh include` | yes |
 | `Add one line at the top of ~/.ssh/config to include them (Include ~/.config/herdr-fold/ssh_config)?` | after the first yes to a route, never asked before; no keeps each machine to one route, and only `./machines.sh include` asks again | yes |
 | `Create an SSH key for this Mac?` | before the first machine, when the Mac has no SSH key | yes |
 | `Press Enter once it is on every machine` | after it shows the new public key, to put on each machine | Enter |
@@ -175,7 +175,7 @@ For either part:
 
 - `~/.config/herdr-fold/`: the package's scripts, themes and texts, its license and the notices of what it builds on,
   and this Mac's settings (`statusline.json`, `machines.txt`, and `ssh_config`, herdr-fold's own Hosts, once a machine
-  has several routes); with the TUI, its plugins too.
+  has several routes or is reached through another); with the TUI, its plugins too.
 - Claude Code's `statusLine` in `~/.claude/settings.json`, and Codex's `[tui] status_line` in `~/.codex/config.toml`.
 - `~/.cache/herdr-fold/`: the preview's helpers, compiled the first time a PDF, an SVG or a page is shown.
 - `~/.local/share/herdr-fold`: only when installed from herdr's marketplace, the package itself: herdr keeps its
@@ -213,9 +213,10 @@ Only when you say yes, or when something is missing:
 - a new SSH key, `~/.ssh/id_ed25519` and `~/.ssh/id_ed25519.pub`, and a `Host *` block in `~/.ssh/config` that uses it
   for every host (with the macOS Keychain);
 - `~/.ssh/known_hosts`: the key of each machine you trust, and of one with several routes under its Host's name,
-  `herdr-fold.<name>`, from the key already trusted, or of one behind another machine, read end to end through it;
+  `herdr-fold.<name>`, from the key already trusted, or of one behind another machine, read end to end through it; and
+  the key of a jump host taken off the list but kept for the machines behind it, at the address they jump by;
 - `~/.ssh/config`: one `Include ~/.config/herdr-fold/ssh_config` line at its top, with a comment line naming
-  herdr-fold, for a machine's other routes (`./uninstall.sh` takes them off);
+  herdr-fold, for a machine's other routes or one reached through another (`./uninstall.sh` takes them off);
 - `~/.zprofile`: Homebrew's `brew shellenv` line, when the installer installs Homebrew;
 - git's global commit author (`user.name`, `user.email`), only if none is set, and git's GitHub sign-in through `gh`;
 - `~/.claude.json`: the projects you let Claude trust, so the status line shows there.

@@ -146,78 +146,47 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
   field; Open and Closed each count the repository's, as GitHub's list does; where the organization has the Priority
   field or issue types, the right click sets them (Priority…, Type…), and the app's preview shows both. See
   [GitHub issues](docs/usage.md#github-issues).
-- One machine, several routes: a machine is its SSH host key, which the machine list now keeps. A machine offered
-  again under another address (from `~/.ssh/config`, Tailscale or by hand) that shows a listed machine's key is that
-  machine: `Add this route?` records the address as its route, never a second machine, and `./machines.sh` names its
-  other routes. One herdr has not connected yet is reached through a Host of herdr-fold's own, `herdr-fold.<name>` in
-  `~/.config/herdr-fold/ssh_config`, its key looked up under that one name on every route; herdr and the Herdr app
-  reach it through one `Include` line at the top of `~/.ssh/config`, asked once (`./machines.sh include` asks again),
-  which the uninstaller takes off, after setting each such machine back to its first route's address in herdr and on
-  the list. A Tailscale machine that shows another key than the one Tailscale knows is refused, its key never
-  trusted. The list gains two fields, `key` and `routes`: an earlier version's list reads as it is, but an earlier
-  herdr-fold cannot read a line with them. See
+- One machine, several routes: a machine is its SSH host key, which the machine list now keeps (two more fields, `key`
+  and `routes`: an earlier version's list reads as it is, but an earlier herdr-fold cannot read the new lines). A
+  machine offered again under another address that shows a listed machine's key becomes its route (`Add this route?`),
+  never a second machine. One herdr has not connected yet is reached through herdr-fold's own Host,
+  `herdr-fold.<name>`, which one `Include` line at the top of `~/.ssh/config` brings in, asked once and taken off by
+  the uninstaller. A Tailscale machine that shows another key than the one Tailscale knows is refused. See
   [One machine, several routes](docs/remote-machines.md#one-machine-several-routes).
-- NetBird's machines by name: the machine questions (the installer's step 8, Add a machine) ask `Import machines from
-  your NetBird network?` where NetBird is installed, after Tailscale's, and offer each machine NetBird lists by its
-  NetBird name (`./machines.sh netbird` asks alone). NetBird tells no system, so a machine is reached after a yes and
-  its system read; one that answers no SSH, such as a phone, is not added. NetBird's status is read for 5 seconds at
-  most, and signed out, an expired sign-in or not connected is said in one line. A NetBird machine that shows the key
-  of one on the list is a route of it, by the key it shows when asked, never by NetBird's word alone. See
-  [Networks](docs/remote-machines.md#networks).
-- The machines announcing SSH on the local network: the machine questions (the installer's step 8, Add a machine) ask
-  `Look for machines on this local network?`, default no, then say these are the machines announcing SSH on the
-  network this Mac is on now, a café's too, and offer each by its `.local` name, the name it announces shown in its
-  question and never kept (`./machines.sh local` asks alone). Any machine there can claim any name, so each one's
-  fingerprint is asked about, as for one added by hand, and one that shows the key of a machine on the list is a route
-  of it. Nothing is scanned: Bonjour is listened to for 3 seconds and each machine looked up for 2. See
+- NetBird's machines, and those announcing SSH on the local network, offered by name as Tailscale's are: the machine
+  questions ask `Import machines from your NetBird network?` where NetBird is installed, and `Look for machines on this
+  local network?` (default no: any machine there can claim any name, so each one's fingerprint is asked about);
+  `./machines.sh netbird` and `./machines.sh local` ask alone. Nothing is scanned. See
   [Networks](docs/remote-machines.md#networks).
 - Each machine's network, and why one is away: `./machines.sh` names each machine's network in its heading
-  (`== lumen-api (Tailscale, linux)`, `through lumen-api` for one behind another), told from this Mac's network
-  clients, their domains and where the Mac's own routes send an address. A machine it cannot reach says why in one
-  sentence, the first check that fails: the network's client on this Mac missing, off or signed out, the machine
-  offline there or not on this local network, then its SSH, its key, its login or the machine in front of it, with
-  what to do under it (`Start it: netbird up`) and another route that answers. Nothing is scanned. See
-  [When a machine is away](docs/remote-machines.md#when-a-machine-is-away).
+  (`== lumen-api (Tailscale, linux)`), and one it cannot reach says why in one sentence, the first check that fails
+  (the network's client on this Mac, the machine on that network, its SSH, its key, its login, the machine in front of
+  it), with what to do under it (`Start it: netbird up`). Adding, preparing and removing a machine say a failed login
+  in the same sentences. See [When a machine is away](docs/remote-machines.md#when-a-machine-is-away).
 - Machines behind another: `./machines.sh through lumen-api` offers the machines a prepared Linux or macOS machine on
-  the list sees and this Mac does not reach itself (its Tailscale and NetBird peers, the machines announcing SSH next
-  to it, its `~/.ssh/config` Hosts), each on a question of its own, default no; nothing is scanned, and what it says is
-  checked as any network's word. One said yes to is reached through it by a Host of its own (`ProxyJump`), its key
-  read end to end and asked about first; one that takes lumen-api's own key alone gets this Mac's public key from
-  lumen-api's own login only on a yes for that machine. Removing a machine others go through asks whether they go too;
-  a no keeps it as their jump host. See [A machine behind another](docs/remote-machines.md#a-machine-behind-another).
-- The Herdr app's Spaces by network: each machine's head wears its network's mark (Tailscale's, NetBird's, ZeroTier's,
-  a letter or a plain icon), and once five or more are on two networks or more they stand under their network's head
-  with its count. A network whose client is off or signed out says so there, its tip the same sentence `./machines.sh`
-  says; a machine behind another stands under it, one on two routes is one head; a network on with none of its
-  machines added yet offers them (`Add 3 machines…`), asked about in a terminal tab. The status bar's
-  machine wears its mark too. The app looks at the networks once a minute while it shows a remote machine, with no
-  login. See [Spaces](docs/app.md#spaces).
-- The TUI's Machines view: More's Machines… opens the machines on herdr-fold's list over the tab, by network as the
-  Herdr app's Spaces groups them, each network's state on its head, a machine behind another under it, and the chosen
-  one's properties: why it is away in `./machines.sh`'s sentence, its address or routes, the way to it, its key, what
-  runs there. Status, Set up again, Remove and Look around from here run `./machines.sh` in a terminal tab. With no
-  machine on the list it says `No machine on the list yet.` and starts nothing until a row is chosen. `g` (its foot's
-  `g Graph`, or More's Machines graph) shows how they connect as a tree in the preview tab: This Mac, each network
-  with its mark and state, its machines with the way to them and what runs there, one behind another under its jump
-  host, a second route dim. See [The Machines view](docs/sidebar.md#the-machines-view).
-- The Herdr app's Machines tab: how this Mac reaches each machine, as a graph: This Mac, the networks with their marks
-  and states, the machines on them with what runs there, those behind another beside their jump host; each edge
-  direct, relayed, a standby route or away, labelled with the way and the time a login took. A machine's properties
-  and actions are the TUI view's (Status, Set up again, Remove…, and under ⋯ Show in Spaces and Look around from
-  here…, each but Show in Spaces `./machines.sh` in a terminal tab); a network or a machine that is away says why,
-  with the command to copy; with no machine on the list, This Mac says so. Refresh logs in to each machine, on your
-  press alone. Spaces' waypoints button and the status bar's machine open it. See [Machines](docs/app.md#machines).
+  the list sees and this Mac does not reach itself, each on a question of its own (default no), its key read end to end
+  through lumen-api and asked about first; one said yes to is reached through it (`ProxyJump`), and this Mac's public
+  key goes on it, through lumen-api's own login, only on a yes for that machine. Removing a machine others go through
+  asks whether they go too. See [A machine behind another](docs/remote-machines.md#a-machine-behind-another).
+- The Herdr app's Spaces by network: each machine's head wears its network's mark, and once five or more are on two
+  networks or more they stand under their network's head, which says when its client is off or signed out and offers
+  the network's machines not added yet (`Add 3 machines…`). The status bar's machine wears its mark too. See
+  [Spaces](docs/app.md#spaces).
+- The TUI's Machines view (More's Machines…): the machines on the list by network, and the chosen one's properties
+  (why it is away, its address or routes, the way to it, its key, what runs there) and actions (Status, Set up again,
+  Remove, Look around from here), each `./machines.sh` in a terminal tab. `g`, or More's Machines graph, shows how they
+  connect as a tree in the preview tab. See [The Machines view](docs/sidebar.md#the-machines-view).
+- The Herdr app's Machines tab (Spaces' waypoints button, or the status bar's machine): how this Mac reaches each
+  machine, as a graph, each edge direct, relayed, a standby route or away, with the TUI view's properties and actions;
+  Refresh logs in to each machine, on your press alone. See [Machines](docs/app.md#machines).
 
 ### Changed
 
-- The machine questions (the installer's step 8, Add a machine) start with a line saying any network works: a
-  machine is added by its address or name, and Tailscale's, NetBird's and this local network's machines are also
-  offered by name.
+- The installer no longer lists Tailscale as missing, and the machine questions (the installer's step 8, Add a
+  machine) start by saying any network works: a machine is added by its address or name, Tailscale's, NetBird's and
+  this local network's also by name.
 - herdr-fold's own ssh connections to a machine forward no agent and no port (`ClearAllForwardings`, `ForwardAgent
   no`), whatever `~/.ssh/config` says.
-- A login that fails is said in the same sentences everywhere in `./machines.sh` (adding, preparing, removing a
-  machine, the questions), each a whole sentence with what to do under it: `alpha does not answer: is it on and
-  awake?`, `alpha does not take this Mac's key.`
 - Tab Layout (`herdr-fold.tab-layout`) is gone, its work split: the sidebar lays out every new empty tab and comes back
   in every tab when herdr starts, and Spaces (`herdr-fold.spaces`) keeps the rest (the **new** button's folder picker,
   a space following its folder, the question before a tab with a chat closes, the agents started again after a
@@ -255,7 +224,6 @@ and `herdr-fold.spaces 0.4.0` (in Tab Layout's place), with herdr-fold's mod for
   window.
 - The TUI's Add machine opens its own window, Add a machine, framed as Settings: its close button, Esc or Ctrl + C end
   it at any question.
-- The installer no longer lists Tailscale as missing: it is one way to a machine, any SSH reaches one.
 - The installer keeps no copy of herdr-fold's own earlier files, which the package has; what is yours stays saved as
   before, on a remote machine too.
 - The Herdr app's styleguide lists its parts in an index at its side and draws the one picked.
